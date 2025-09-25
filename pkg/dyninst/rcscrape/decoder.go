@@ -333,7 +333,11 @@ func processDataItems(
 			return nil, fmt.Errorf("error getting data item: %w", err)
 		}
 		if i == 0 {
-			rootData = dataItem.Data()
+			var ok bool
+			rootData, ok = dataItem.Data()
+			if !ok {
+				return nil, fmt.Errorf("root data item marked as failed read")
+			}
 		} else {
 			key := dataItemKey{
 				typeID:  dataItem.Type(),
@@ -372,12 +376,11 @@ func (d *stringDecoder) decodeStringExpression(
 			strAddr, strLen,
 		)
 	}
-	if dataItem.IsFailedRead() {
-		return "", 0, fmt.Errorf(
-			"string data read failed at address %#x with len %d", strAddr, strLen,
-		)
+	data, ok := dataItem.Data()
+	if !ok {
+		return "", 0, fmt.Errorf("string data item marked as failed read")
 	}
-	return string(dataItem.Data()), strLen, nil
+	return string(data), strLen, nil
 }
 
 func (d *remoteConfigEventDecoder) decodeEvent() {}

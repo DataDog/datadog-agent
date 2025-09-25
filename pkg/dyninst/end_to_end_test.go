@@ -625,7 +625,8 @@ func (ts *testState) initializeModule(t *testing.T) {
 	cfg.DiagsUploaderURL = ts.backendServer.URL + "/diags"
 	cfg.SymDBUploaderURL = ts.symdbURL
 
-	ts.module, err = di_module.NewModule(cfg, ts.subscriber)
+	const processSyncEnabled = false
+	ts.module, err = di_module.NewModule(cfg, ts.subscriber, processSyncEnabled)
 	require.NoError(t, err)
 }
 

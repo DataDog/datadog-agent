@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
@@ -102,7 +101,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		ctx:                    ctx,
 		cancel:                 cancel,
 		oldInfoMap:             make(map[string]*oldTailerInfo),
-		fingerprinter:          tailer.NewFingerprinter(pkgconfigsetup.Datadog().GetBool("logs_config.fingerprint_enabled_experimental"), fingerprintConfig),
+		fingerprinter:          tailer.NewFingerprinter(fingerprintConfig),
 	}
 }
 
@@ -575,12 +574,23 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		Fingerprint:     fingerprint,
 	}
 
+	if fingerprint != nil {
+		log.Debugf("Creating new tailer for %s with fingerprint 0x%x", file.Path, fingerprint.Value)
+	} else {
+		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
+	}
+
 	return tailer.NewTailer(tailerOptions)
 }
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp, fingerprint *types.Fingerprint) *tailer.Tailer {
 	tailerInfo := t.GetInfo()
 	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	if fingerprint != nil {
+		log.Debugf("Creating new tailer for %s with fingerprint 0x%x (configuration: %v)", file.Path, fingerprint.Value, fingerprint.Config)
+	} else {
+		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
+	}
 	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.registry)
 }
 

@@ -332,18 +332,14 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		bs.params.skipDeleteOnFailure, _ = runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
 	}
 
-	coverage, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.CoveragePipeline, false)
-	if err == nil {
-		bs.coverage = coverage
-	}
-
-	coverageOutDir, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.CoverageOutDir, "")
-	if err == nil && coverageOutDir != "" {
-		bs.coverageOutDir = coverageOutDir
-	} else {
-		bs.coverage = false
+	coverage, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.CoveragePipeline, false)
+	coverageOutDir, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.CoverageOutDir, "")
+	if coverage && coverageOutDir == "" {
 		fmt.Println("WARNING: Coverage pipeline is enabled but coverage out dir is not set, skipping coverage")
+		coverage = false
 	}
+	bs.coverage = coverage
+	bs.coverageOutDir = coverageOutDir
 
 	stackNameSuffix, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackNameSuffix, "")
 	if err != nil {
@@ -766,10 +762,11 @@ func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) {
 				bs.T().Logf("WARNING: Unable to create coverage folder: %v", err)
 			}
 		}
-		err := coverageEnv.Coverage(coverageFolder)
+		result, err := coverageEnv.Coverage(coverageFolder)
 		if err != nil {
 			bs.T().Logf("WARNING: Coverage failed: %v", err)
 		}
+		bs.T().Logf("Coverage result: %s", result)
 	} else {
 		bs.T().Logf("WARNING: Coverage is enabled but the environment does not implement the Coverageable interface")
 		return

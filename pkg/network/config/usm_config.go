@@ -49,6 +49,10 @@ type USMConfig struct {
 	// USMDataChannelSize specifies the size of the data channel for USM
 	USMDataChannelSize int
 
+	// DisableMapPreallocation controls whether eBPF maps should disable preallocation (BPF_F_NO_PREALLOC flag).
+	// When true, maps allocate entries on-demand instead of preallocating the full map size, improving memory efficiency.
+	DisableMapPreallocation bool
+
 	// ========================================
 	// HTTP Protocol Configuration
 	// ========================================
@@ -172,23 +176,24 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		EnableUSMEventStream:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
 		USMKernelBufferPages:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
 		USMDataChannelSize:        cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
+		DisableMapPreallocation:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
 
 		// HTTP Protocol Configuration
-		EnableHTTPMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http_monitoring")),
-		MaxHTTPStatsBuffered:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_http_stats_buffered")),
-		HTTPMapCleanerInterval:    time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
-		HTTPIdleConnectionTTL:     time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
-		MaxTrackedHTTPConnections: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "max_tracked_http_connections")),
-		HTTPNotificationThreshold: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http_notification_threshold")),
-		HTTPMaxRequestFragment:    cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http_max_request_fragment")),
+		EnableHTTPMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "http", "enabled")),
+		MaxHTTPStatsBuffered:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "http", "max_stats_buffered")),
+		HTTPMapCleanerInterval:    time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http", "map_cleaner_interval_seconds"))) * time.Second,
+		HTTPIdleConnectionTTL:     time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http", "idle_connection_ttl_seconds"))) * time.Second,
+		MaxTrackedHTTPConnections: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "max_tracked_connections")),
+		HTTPNotificationThreshold: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "notification_threshold")),
+		HTTPMaxRequestFragment:    cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "max_request_fragment")),
 
 		// HTTP2 Protocol Configuration
-		EnableHTTP2Monitoring:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http2_monitoring")),
-		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
+		EnableHTTP2Monitoring:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "http2", "enabled")),
+		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2", "dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
 
 		// Kafka Protocol Configuration
-		EnableKafkaMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_kafka_monitoring")),
-		MaxKafkaStatsBuffered: cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_kafka_stats_buffered")),
+		EnableKafkaMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "kafka", "enabled")),
+		MaxKafkaStatsBuffered: cfg.GetInt(sysconfig.FullKeyPath(smNS, "kafka", "max_stats_buffered")),
 
 		// Postgres Protocol Configuration
 		EnablePostgresMonitoring:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "postgres", "enabled")),
@@ -210,7 +215,7 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 	}
 
 	// Parse HTTP Replace Rules
-	httpRRKey := sysconfig.FullKeyPath(smNS, "http_replace_rules")
+	httpRRKey := sysconfig.FullKeyPath(smNS, "http", "replace_rules")
 	rr, err := parseReplaceRules(cfg, httpRRKey)
 	if err != nil {
 		log.Errorf("error parsing %q: %v", httpRRKey, err)
@@ -234,7 +239,7 @@ type ReplaceRule struct {
 }
 
 func parseReplaceRules(cfg model.Config, key string) ([]*ReplaceRule, error) {
-	if !pkgconfigsetup.SystemProbe().IsSet(key) {
+	if !pkgconfigsetup.SystemProbe().IsConfigured(key) {
 		return nil, nil
 	}
 

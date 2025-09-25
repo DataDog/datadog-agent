@@ -74,6 +74,16 @@ type FileSerializer struct {
 	PackageName string `json:"package_name,omitempty"`
 	// System package version
 	PackageVersion string `json:"package_version,omitempty"`
+	// System package epoch
+	PackageEpoch int `json:"package_epoch,omitempty"`
+	// System package release
+	PackageRelease string `json:"package_release,omitempty"`
+	// System package source version
+	PackageSrcVersion string `json:"package_source_version,omitempty"`
+	// System package source epoch
+	PackageSrcEpoch int `json:"package_source_epoch,omitempty"`
+	// System package source release
+	PackageSrcRelease string `json:"package_source_release,omitempty"`
 	// List of cryptographic hashes of the file
 	Hashes []string `json:"hashes,omitempty"`
 	// State of the hashes or reason why they weren't computed
@@ -814,6 +824,11 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		InUpperLayer:        getInUpperLayer(&fe.FileFields),
 		PackageName:         e.FieldHandlers.ResolvePackageName(e, fe),
 		PackageVersion:      e.FieldHandlers.ResolvePackageVersion(e, fe),
+		PackageEpoch:        e.FieldHandlers.ResolvePackageEpoch(e, fe),
+		PackageRelease:      e.FieldHandlers.ResolvePackageRelease(e, fe),
+		PackageSrcVersion:   e.FieldHandlers.ResolvePackageSourceVersion(e, fe),
+		PackageSrcEpoch:     e.FieldHandlers.ResolvePackageSourceEpoch(e, fe),
+		PackageSrcRelease:   e.FieldHandlers.ResolvePackageSourceRelease(e, fe),
 		HashState:           fe.HashState.String(),
 		MountPath:           fe.MountPath,
 		MountSource:         model.MountSourceToString(fe.MountSource),

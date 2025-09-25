@@ -48,7 +48,7 @@
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker rmi ${TARGET_TAG}
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-  timeout: 27m
+  timeout: 60m
 
 .docker_build_agent7_windows_common:
   extends:

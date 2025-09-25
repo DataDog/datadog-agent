@@ -384,7 +384,6 @@ func TestProcessServiceInferenceWindows(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
 		t.Setenv("DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME", "true")
-		sysconfig.Adjust(mockSystemProbe)
 		New()
 
 		require.True(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
@@ -431,7 +430,7 @@ func TestProcessServiceInferenceWindows(t *testing.T) {
 
 	t.Run("Not enabled", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", false)
+		mockSystemProbe.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", false)
 
 		require.False(t, mockSystemProbe.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
 	})
@@ -459,5 +458,30 @@ func TestExpectedTagsDuration(t *testing.T) {
 		cfg := New()
 
 		assert.Equal(t, 30*time.Second, cfg.ExpectedTagsDuration)
+	})
+}
+
+func TestEnableCertCollection(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, false, cfg.EnableCertCollection)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.enable_cert_collection", true)
+		cfg := New()
+
+		assert.Equal(t, true, cfg.EnableCertCollection)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_ENABLE_CERT_COLLECTION", "true")
+		cfg := New()
+
+		assert.Equal(t, true, cfg.EnableCertCollection)
 	})
 }

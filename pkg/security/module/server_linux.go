@@ -188,10 +188,7 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityP
 func (a *APIServer) fillStatusPlatform(apiStatus *api.Status) error {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if ok {
-		status, err := p.GetConstantFetcherStatus()
-		if err != nil {
-			return err
-		}
+		status := p.GetConstantFetcherStatus()
 
 		constants := make([]*api.ConstantValueAndSource, 0, len(status.Values))
 		for _, v := range status.Values {

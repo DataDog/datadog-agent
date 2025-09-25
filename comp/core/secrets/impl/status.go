@@ -86,10 +86,10 @@ func (s secretsStatus) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (s secretsStatus) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "info.tmpl", buffer, s.resolver.getDebugInfo())
+	return status.RenderText(templatesFS, "info.tmpl", buffer, s.resolver.getDebugInfo(false))
 }
 
 // HTML renders the HTML output
 func (s secretsStatus) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "infoHTML.tmpl", buffer, s.resolver.getDebugInfo())
+	return status.RenderHTML(templatesFS, "infoHTML.tmpl", buffer, s.resolver.getDebugInfo(false))
 }

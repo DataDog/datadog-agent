@@ -258,7 +258,7 @@ func TestAllSettings(t *testing.T) {
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b.c", 0)
 	cfg.SetDefault("b.d", 0)
-	cfg.SetKnown("b.e")
+	cfg.SetKnown("b.e") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader("a: 987"))
@@ -333,7 +333,7 @@ func TestIsSet(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
-	cfg.SetKnown("c")
+	cfg.SetKnown("c") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BuildSchema()
 
 	cfg.Set("b", 123, model.SourceAgentRuntime)
@@ -354,8 +354,8 @@ func TestIsConfigured(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
-	cfg.SetKnown("c")
-	cfg.BindEnv("d")
+	cfg.SetKnown("c") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv("d")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	t.Setenv("TEST_D", "123")
 
@@ -376,8 +376,8 @@ func TestEnvVarMultipleSettings(t *testing.T) {
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
 	cfg.SetDefault("c", 0)
-	cfg.BindEnv("a", "TEST_MY_ENVVAR")
-	cfg.BindEnv("b", "TEST_MY_ENVVAR")
+	cfg.BindEnv("a", "TEST_MY_ENVVAR") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv("b", "TEST_MY_ENVVAR") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	t.Setenv("TEST_MY_ENVVAR", "123")
 
@@ -391,7 +391,7 @@ func TestEnvVarMultipleSettings(t *testing.T) {
 func TestEmptyEnvVarSettings(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", -1)
-	cfg.BindEnv("a")
+	cfg.BindEnv("a") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// This empty string is ignored, so the default value of -1 will be returned by GetInt
 	t.Setenv("TEST_A", "")
@@ -838,7 +838,7 @@ user:
 
 func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.BindEnv("api_key")
+	cfg.BindEnv("api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BuildSchema()
 
 	// api_key is not in the config (does not have a default value)
@@ -984,10 +984,10 @@ func TestPanicAfterBuildSchema(t *testing.T) {
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
 
 	assert.PanicsWithValue(t, "cannot SetKnown() once the config has been marked as ready for use", func() {
-		cfg.SetKnown("a")
+		cfg.SetKnown("a") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	})
 	assert.PanicsWithValue(t, "cannot BindEnv() once the config has been marked as ready for use", func() {
-		cfg.BindEnv("a")
+		cfg.BindEnv("a") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	})
 	assert.PanicsWithValue(t, "cannot SetEnvKeyReplacer() once the config has been marked as ready for use", func() {
 		cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -1079,8 +1079,8 @@ func TestEnvVarOrdering(t *testing.T) {
 	// Test scenario 1: DD_DD_URL set before DD_URL
 	t.Run("DD_DD_URL set first", func(t *testing.T) {
 		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-		config.BindEnv("fakeapikey", "DD_API_KEY")
-		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+		config.BindEnv("fakeapikey", "DD_API_KEY")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
 		config.BuildSchema()
@@ -1092,8 +1092,8 @@ func TestEnvVarOrdering(t *testing.T) {
 	// Test scenario 2: DD_URL set before DD_DD_URL
 	t.Run("DD_URL set first", func(t *testing.T) {
 		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-		config.BindEnv("fakeapikey", "DD_API_KEY")
-		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+		config.BindEnv("fakeapikey", "DD_API_KEY")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
 		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
 		config.BuildSchema()
@@ -1105,8 +1105,8 @@ func TestEnvVarOrdering(t *testing.T) {
 	// Test scenario 3: Only DD_URL is set (DD_DD_URL is missing)
 	t.Run("Only DD_URL is set", func(t *testing.T) {
 		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-		config.BindEnv("fakeapikey", "DD_API_KEY")
-		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL")
+		config.BindEnv("fakeapikey", "DD_API_KEY")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+		config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
 		config.BuildSchema()
 
@@ -1117,7 +1117,7 @@ func TestEnvVarOrdering(t *testing.T) {
 
 func TestWarningLogged(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.BindEnv("bad_key", "DD_BAD_KEY")
+	cfg.BindEnv("bad_key", "DD_BAD_KEY") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	t.Setenv("DD_BAD_KEY", "value")
 	original := splitKeyFunc
 	splitKeyFunc = func(_ string) []string {

@@ -55,6 +55,9 @@ typedef struct stack_machine {
   // but no further pointers will be chased.
   uint32_t pointer_chasing_ttl;
 
+  uint32_t collection_size_limit;
+  uint32_t string_size_limit;
+
   // Offset of currently visited context object, or zero.
   buf_offset_t go_context_offset;
   // Bitmask for remaining go context values to capture.
@@ -84,7 +87,7 @@ struct {
   __type(value, stack_machine_t);
 } stack_machine_buf SEC(".maps");
 
-static stack_machine_t* stack_machine_ctx_load(uint32_t pointer_chasing_limit) {
+static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_params) {
   const unsigned long zero = 0;
   stack_machine_t* stack_machine =
       (stack_machine_t*)bpf_map_lookup_elem(&stack_machine_buf, &zero);
@@ -94,7 +97,9 @@ static stack_machine_t* stack_machine_ctx_load(uint32_t pointer_chasing_limit) {
   stack_machine->pc_stack_pointer = 0;
   stack_machine->data_stack_pointer = 0;
   chased_pointers_trie_init(&stack_machine->chased);
-  stack_machine->pointer_chasing_ttl = pointer_chasing_limit;
+  stack_machine->pointer_chasing_ttl = probe_params->pointer_chasing_limit;
+  stack_machine->collection_size_limit = probe_params->collection_size_limit;
+  stack_machine->string_size_limit = probe_params->string_size_limit;
   stack_machine->pointers_queue.len = 0;
   return stack_machine;
 }

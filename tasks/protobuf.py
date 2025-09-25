@@ -20,6 +20,11 @@ PROTO_PKGS = {
     'languagedetection': False,
     'remoteagent': False,
     'autodiscovery': False,
+    'trace/idx': False,
+}
+
+CLI_EXTRAS = {
+    'trace/idx': '--go_opt=module=github.com/DataDog/datadog-agent',
 }
 
 # maybe put this in a separate function
@@ -80,6 +85,8 @@ def generate(ctx, pre_commit=False):
             # so keep it in a variable for sanity.
             output_generator = "--go_out=plugins=grpc:"
             cli_extras = ''
+            if pkg in CLI_EXTRAS:
+                cli_extras = CLI_EXTRAS[pkg]
             ctx.run(f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}")
 
             if pkg in PKG_PLUGINS:

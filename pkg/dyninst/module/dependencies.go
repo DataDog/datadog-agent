@@ -10,6 +10,7 @@ package module
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
@@ -21,6 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
+
+// ProcessSubscriber is an interface that can be used to subscribe to process
+// events.
+type ProcessSubscriber interface {
+	SubscribeExec(func(pid uint32)) (cleanup func())
+	SubscribeExit(func(pid uint32)) (cleanup func())
+}
 
 // Scraper is an interface that enables the Controller to get updates from the
 // scraper and to set the probe status to emitting.
@@ -46,10 +54,12 @@ type Decoder interface {
 }
 
 // DefaultDecoderFactory is the default decoder factory.
-type DefaultDecoderFactory struct{}
+type DefaultDecoderFactory struct {
+	approximateBootTime time.Time
+}
 
 // NewDecoder creates a new decoder using decode.NewDecoder.
-func (DefaultDecoderFactory) NewDecoder(
+func (f DefaultDecoderFactory) NewDecoder(
 	program *ir.Program,
 	executable procmon.Executable,
 ) (_ Decoder, retErr error) {
@@ -78,7 +88,7 @@ func (DefaultDecoderFactory) NewDecoder(
 	if err != nil {
 		return nil, err
 	}
-	decoder, err := decode.NewDecoder(program, (*decode.GoTypeNameResolver)(table))
+	decoder, err := decode.NewDecoder(program, (*decode.GoTypeNameResolver)(table), f.approximateBootTime)
 	if err != nil {
 		return nil, err
 	}

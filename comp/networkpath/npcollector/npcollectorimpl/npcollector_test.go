@@ -102,25 +102,127 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		var p payload.NetworkPath
 		if cfg.DestHostname == "10.0.0.2" {
 			p = payload.NetworkPath{
-				PathtraceID: "pathtrace-id-111",
-				Protocol:    payload.ProtocolUDP,
-				Source:      payload.NetworkPathSource{Hostname: "abc"},
-				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.2", Port: 80},
-				Hops: []payload.NetworkPathHop{
-					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-					{Hostname: "hop_2", IPAddress: "1.1.1.2"},
+				AgentVersion: "1.0.42",
+				Protocol:     payload.ProtocolUDP,
+				Source: payload.NetworkPathSource{
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
+				},
+				Destination: payload.NetworkPathDestination{
+					Hostname: "10.0.0.2",
+					Port:     33434,
+				},
+				Traceroute: payload.Traceroute{
+					Runs: []payload.TracerouteRun{
+						{
+							RunID: "aa-bb-cc",
+							Source: payload.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: payload.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []payload.TracerouteHop{
+								{
+									TTL:       1,
+									IPAddress: net.ParseIP("10.0.0.1"),
+									RTT:       0.001, // seconds
+								},
+								{
+									TTL:       2,
+									IPAddress: net.IP{},
+								},
+								{
+									TTL:       3,
+									IPAddress: net.ParseIP("172.0.0.255"),
+									RTT:       0.003512345, // seconds
+								},
+							},
+						},
+					},
+					HopCount: payload.HopCountStats{
+						Avg: 10,
+						Min: 5,
+						Max: 15,
+					},
+				},
+				E2eProbe: payload.E2eProbe{
+					RTTs:                 []float64{0.100, 0.200},
+					PacketsSent:          10,
+					PacketsReceived:      5,
+					PacketLossPercentage: 0.5,
+					Jitter:               10,
+					RTT: payload.E2eProbeRttLatency{
+						Avg: 15,
+						Min: 10,
+						Max: 20,
+					},
 				},
 			}
 		}
 		if cfg.DestHostname == "10.0.0.4" {
 			p = payload.NetworkPath{
-				PathtraceID: "pathtrace-id-222",
-				Protocol:    payload.ProtocolUDP,
-				Source:      payload.NetworkPathSource{Hostname: "abc"},
-				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.4", Port: 80},
-				Hops: []payload.NetworkPathHop{
-					{Hostname: "hop_1", IPAddress: "1.1.1.3"},
-					{Hostname: "hop_2", IPAddress: "1.1.1.4"},
+				AgentVersion: "1.0.42",
+				Protocol:     payload.ProtocolUDP,
+				Source: payload.NetworkPathSource{
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
+				},
+				Destination: payload.NetworkPathDestination{
+					Hostname: "10.0.0.4",
+					Port:     33434,
+				},
+				Traceroute: payload.Traceroute{
+					Runs: []payload.TracerouteRun{
+						{
+							RunID: "aa-bb-cc",
+							Source: payload.TracerouteSource{
+								IPAddress: net.ParseIP("10.0.0.5"),
+								Port:      12345,
+							},
+							Destination: payload.TracerouteDestination{
+								IPAddress: net.ParseIP("8.8.8.8"),
+								Port:      33434, // computer port or Boca Raton, FL?
+							},
+							Hops: []payload.TracerouteHop{
+								{
+									TTL:       1,
+									IPAddress: net.ParseIP("10.0.0.1"),
+									RTT:       0.001, // seconds
+								},
+								{
+									TTL:       2,
+									IPAddress: net.IP{},
+								},
+								{
+									TTL:       3,
+									IPAddress: net.ParseIP("172.0.0.255"),
+									RTT:       0.003512345, // seconds
+								},
+							},
+						},
+					},
+					HopCount: payload.HopCountStats{
+						Avg: 10,
+						Min: 5,
+						Max: 15,
+					},
+				},
+				E2eProbe: payload.E2eProbe{
+					RTTs:                 []float64{0.100, 0.200},
+					PacketsSent:          10,
+					PacketsReceived:      5,
+					PacketLossPercentage: 0.5,
+					Jitter:               10,
+					RTT: payload.E2eProbeRttLatency{
+						Avg: 15,
+						Min: 10,
+						Max: 20,
+					},
 				},
 			}
 		}
@@ -132,70 +234,154 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	event1 := []byte(`
 {
     "timestamp": 0,
-    "agent_version": "",
+    "agent_version": "1.0.42",
     "namespace": "my-ns1",
-    "pathtrace_id": "pathtrace-id-111",
-    "origin":"network_traffic",
+    "test_config_id": "",
+    "test_result_id": "",
+    "pathtrace_id": "",
+    "origin": "network_traffic",
     "protocol": "UDP",
     "source": {
-        "hostname": "abc",
-        "container_id": "testId1"
+        "name": "test-hostname",
+        "display_name": "test-hostname",
+        "hostname": "test-hostname",
+        "container_id": "testId2"
     },
     "destination": {
-        "hostname": "abc",
-        "ip_address": "10.0.0.2",
-        "port": 80,
-		"reverse_dns_hostname": "hostname-10.0.0.2"
+        "hostname": "10.0.0.4",
+        "port": 33434
     },
-    "hops": [
-        {
-            "ttl": 0,
-            "ip_address": "1.1.1.1",
-            "hostname": "hop_1",
-            "reachable": false
-        },
-        {
-            "ttl": 0,
-            "ip_address": "1.1.1.2",
-            "hostname": "hop_2",
-            "reachable": false
+    "traceroute": {
+        "runs": [
+            {
+                "run_id": "aa-bb-cc",
+                "source": {
+                    "ip_address": "10.0.0.5",
+                    "port": 12345
+                },
+                "destination": {
+                    "ip_address": "8.8.8.8",
+                    "port": 33434
+                },
+                "hops": [
+                    {
+                        "ttl": 1,
+                        "ip_address": "10.0.0.1",
+                        "rtt": 0.001,
+                        "reachable": false
+                    },
+                    {
+                        "ttl": 2,
+                        "ip_address": "",
+                        "reachable": false
+                    },
+                    {
+                        "ttl": 3,
+                        "ip_address": "172.0.0.255",
+                        "rtt": 0.003512345,
+                        "reachable": false
+                    }
+                ]
+            }
+        ],
+        "hop_count": {
+            "avg": 10,
+            "min": 5,
+            "max": 15
         }
-    ]
+    },
+    "e2e_probe": {
+        "rtts": [
+            0.1,
+            0.2
+        ],
+        "packets_sent": 10,
+        "packets_received": 5,
+        "packet_loss_percentage": 0.5,
+        "jitter": 10,
+        "rtt": {
+            "avg": 15,
+            "min": 10,
+            "max": 20
+        }
+    }
 }
 `)
 	// language=json
 	event2 := []byte(`
 {
     "timestamp": 0,
-    "agent_version": "",
+    "agent_version": "1.0.42",
     "namespace": "my-ns1",
-    "pathtrace_id": "pathtrace-id-222",
-    "origin":"network_traffic",
+    "test_config_id": "",
+    "test_result_id": "",
+    "pathtrace_id": "",
+    "origin": "network_traffic",
     "protocol": "UDP",
     "source": {
-        "hostname": "abc",
-        "container_id": "testId2"
+        "name": "test-hostname",
+        "display_name": "test-hostname",
+        "hostname": "test-hostname",
+        "container_id": "testId1"
     },
     "destination": {
-        "hostname": "abc",
-        "ip_address": "10.0.0.4",
-        "port": 80,
-		"reverse_dns_hostname": "hostname-10.0.0.4"
+        "hostname": "10.0.0.2",
+        "port": 33434
     },
-    "hops": [
-        {
-            "ttl": 0,
-            "ip_address": "1.1.1.3",
-            "hostname": "hop_1",
-            "reachable": false
-        },
-        {
-            "ttl": 0,
-            "ip_address": "1.1.1.4",
-            "hostname": "hop_2",
-            "reachable": false
+    "traceroute": {
+        "runs": [
+            {
+                "run_id": "aa-bb-cc",
+                "source": {
+                    "ip_address": "10.0.0.5",
+                    "port": 12345
+                },
+                "destination": {
+                    "ip_address": "8.8.8.8",
+                    "port": 33434
+                },
+                "hops": [
+                    {
+                        "ttl": 1,
+                        "ip_address": "10.0.0.1",
+                        "rtt": 0.001,
+                        "reachable": false
+                    },
+                    {
+                        "ttl": 2,
+                        "ip_address": "",
+                        "reachable": false
+                    },
+                    {
+                        "ttl": 3,
+                        "ip_address": "172.0.0.255",
+                        "rtt": 0.003512345,
+                        "reachable": false
+                    }
+                ]
+            }
+        ],
+        "hop_count": {
+            "avg": 10,
+            "min": 5,
+            "max": 15
         }
-    ]
+    },
+    "e2e_probe": {
+        "rtts": [
+            0.1,
+            0.2
+        ],
+        "packets_sent": 10,
+        "packets_received": 5,
+        "packet_loss_percentage": 0.5,
+        "jitter": 10,
+        "rtt": {
+            "avg": 15,
+            "min": 10,
+            "max": 20
+        }
+    }
 }
 `)
 	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
@@ -254,10 +440,25 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 			PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
 			Protocol:    cfg.Protocol,
 			Source:      payload.NetworkPathSource{Hostname: "abc"},
-			Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, IPAddress: cfg.DestHostname, Port: cfg.DestPort},
-			Hops: []payload.NetworkPathHop{
-				{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-				{Hostname: "hop_2", IPAddress: "1.1.1.2"},
+			Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
+			Traceroute: payload.Traceroute{
+				Runs: []payload.TracerouteRun{
+					{
+						RunID: "aa-bb-cc",
+						Source: payload.TracerouteSource{
+							IPAddress: net.ParseIP("10.0.0.5"),
+							Port:      12345,
+						},
+						Destination: payload.TracerouteDestination{
+							IPAddress: net.ParseIP(cfg.DestHostname),
+							Port:      33434, // computer port or Boca Raton, FL?
+						},
+						Hops: []payload.TracerouteHop{
+							{ReverseDNS: []string{"hop_1"}, IPAddress: net.ParseIP("1.1.1.1")},
+							{ReverseDNS: []string{"hop_2"}, IPAddress: net.ParseIP("1.1.1.2")},
+						},
+					},
+				},
 			},
 		}, nil
 	}
@@ -812,44 +1013,92 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
 	path := payload.NetworkPath{
-		Destination: payload.NetworkPathDestination{IPAddress: "10.0.0.41", Hostname: "dest-hostname"},
-		Hops: []payload.NetworkPathHop{
-			{IPAddress: "10.0.0.1", Reachable: true, Hostname: "hop1"},
-			{IPAddress: "1.1.1.1", Reachable: true, Hostname: "hop2"},
-			{IPAddress: "10.0.0.100", Reachable: true, Hostname: "hop3"},
-			{IPAddress: "10.0.0.41", Reachable: true, Hostname: "dest-hostname"},
+		Destination: payload.NetworkPathDestination{Hostname: "dest-hostname"},
+		Traceroute: payload.Traceroute{
+			Runs: []payload.TracerouteRun{
+				{
+					RunID: "aa-bb-cc",
+					Source: payload.TracerouteSource{
+						IPAddress: net.ParseIP("10.0.0.5"),
+						Port:      12345,
+					},
+					Destination: payload.TracerouteDestination{
+						IPAddress: net.ParseIP("10.0.0.41"),
+						Port:      33434, // computer port or Boca Raton, FL?
+					},
+					Hops: []payload.TracerouteHop{
+						{IPAddress: net.ParseIP("10.0.0.1"), Reachable: true, ReverseDNS: []string{"hop1"}},
+						{IPAddress: net.ParseIP("1.1.1.1"), Reachable: true, ReverseDNS: []string{"hop2"}},
+						{IPAddress: net.ParseIP("10.0.0.100"), Reachable: true, ReverseDNS: []string{"hop3"}},
+						{IPAddress: net.ParseIP("10.0.0.41"), Reachable: true, ReverseDNS: []string{"dest-hostname"}},
+					},
+				}, {
+					RunID: "11-22-33",
+					Source: payload.TracerouteSource{
+						IPAddress: net.ParseIP("10.0.0.5"),
+						Port:      12345,
+					},
+					Destination: payload.TracerouteDestination{
+						IPAddress: net.ParseIP("10.0.0.41"),
+						Port:      33434, // computer port or Boca Raton, FL?
+					},
+					Hops: []payload.TracerouteHop{
+						{IPAddress: net.ParseIP("10.0.0.100"), Reachable: true, ReverseDNS: []string{"hop1"}},
+						{IPAddress: net.ParseIP("10.0.0.101"), Reachable: true, ReverseDNS: []string{"hop1"}},
+					},
+				},
+			},
 		},
 	}
 
 	npCollector.enrichPathWithRDNS(&path, "")
-
 	// THEN
-	assert.Equal(t, "hostname-10.0.0.41", path.Destination.ReverseDNSHostname) // private IP should be resolved
-	assert.Equal(t, "hostname-10.0.0.1", path.Hops[0].Hostname)
-	assert.Equal(t, "hop2", path.Hops[1].Hostname) // public IP should fall back to hostname from traceroute
-	assert.Equal(t, "hostname-10.0.0.100", path.Hops[2].Hostname)
-	assert.Equal(t, "hostname-10.0.0.41", path.Hops[3].Hostname)
+	trRun := path.Traceroute.Runs[0]
+	trRun2 := path.Traceroute.Runs[1]
+	assert.Equal(t, []string{"hostname-10.0.0.41"}, trRun.Destination.ReverseDNS) // private IP should be resolved
+	assert.Equal(t, []string{"hostname-10.0.0.1"}, trRun.Hops[0].ReverseDNS)
+	assert.Equal(t, []string{"hop2"}, trRun.Hops[1].ReverseDNS) // public IP should fall back to hostname from traceroute
+	assert.Equal(t, []string{"hostname-10.0.0.100"}, trRun.Hops[2].ReverseDNS)
+	assert.Equal(t, []string{"hostname-10.0.0.41"}, trRun.Hops[3].ReverseDNS)
+	assert.Equal(t, []string{"hostname-10.0.0.100"}, trRun2.Hops[0].ReverseDNS)
+	assert.Equal(t, []string{"hostname-10.0.0.101"}, trRun2.Hops[1].ReverseDNS)
 
 	// WHEN
 	// hop 3 is a private IP, others are public IPs or unknown hops which should not be resolved
 	path = payload.NetworkPath{
-		Destination: payload.NetworkPathDestination{IPAddress: "8.8.8.8", Hostname: "google.com"},
-		Hops: []payload.NetworkPathHop{
-			{IPAddress: "unknown-hop-1", Reachable: false, Hostname: "hop1"},
-			{IPAddress: "1.1.1.1", Reachable: true, Hostname: "hop2"},
-			{IPAddress: "10.0.0.100", Reachable: true, Hostname: "hop3"},
-			{IPAddress: "unknown-hop-4", Reachable: false, Hostname: "hop4"},
+		Destination: payload.NetworkPathDestination{Hostname: "google.com"},
+		Traceroute: payload.Traceroute{
+			Runs: []payload.TracerouteRun{
+				{
+					RunID: "aa-bb-cc",
+					Source: payload.TracerouteSource{
+						IPAddress: net.ParseIP("10.0.0.5"),
+						Port:      12345,
+					},
+					Destination: payload.TracerouteDestination{
+						IPAddress: net.ParseIP("8.8.8.8"),
+						Port:      33434, // computer port or Boca Raton, FL?
+					},
+					Hops: []payload.TracerouteHop{
+						{IPAddress: net.ParseIP("unknown-hop-1"), Reachable: false, ReverseDNS: []string{"hop1"}},
+						{IPAddress: net.ParseIP("1.1.1.1"), Reachable: true, ReverseDNS: []string{"hop2"}},
+						{IPAddress: net.ParseIP("10.0.0.100"), Reachable: true, ReverseDNS: []string{"hop3"}},
+						{IPAddress: net.ParseIP("unknown-hop-4"), Reachable: false, ReverseDNS: []string{"hop4"}},
+					},
+				},
+			},
 		},
 	}
 
 	npCollector.enrichPathWithRDNS(&path, "")
 
 	// THEN
-	assert.Equal(t, "", path.Destination.ReverseDNSHostname)
-	assert.Equal(t, "hop1", path.Hops[0].Hostname)
-	assert.Equal(t, "hop2", path.Hops[1].Hostname) // public IP should fall back to hostname from traceroute
-	assert.Equal(t, "hostname-10.0.0.100", path.Hops[2].Hostname)
-	assert.Equal(t, "hop4", path.Hops[3].Hostname)
+	trRun = path.Traceroute.Runs[0]
+	assert.Empty(t, trRun.Destination.ReverseDNS)
+	assert.Equal(t, []string{"hop1"}, trRun.Hops[0].ReverseDNS)
+	assert.Equal(t, []string{"hop2"}, trRun.Hops[1].ReverseDNS) // public IP should fall back to hostname from traceroute
+	assert.Equal(t, []string{"hostname-10.0.0.100"}, trRun.Hops[2].ReverseDNS)
+	assert.Equal(t, []string{"hop4"}, trRun.Hops[3].ReverseDNS)
 
 	// GIVEN - no reverse DNS resolution
 	agentConfigs = map[string]any{
@@ -861,23 +1110,39 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
 	path = payload.NetworkPath{
-		Destination: payload.NetworkPathDestination{IPAddress: "10.0.0.41", Hostname: "dest-hostname"},
-		Hops: []payload.NetworkPathHop{
-			{IPAddress: "10.0.0.1", Reachable: true, Hostname: "hop1"},
-			{IPAddress: "1.1.1.1", Reachable: true, Hostname: "hop2"},
-			{IPAddress: "10.0.0.100", Reachable: true, Hostname: "hop3"},
-			{IPAddress: "10.0.0.41", Reachable: true, Hostname: "dest-hostname"},
+		Destination: payload.NetworkPathDestination{Hostname: "dest-hostname"},
+		Traceroute: payload.Traceroute{
+			Runs: []payload.TracerouteRun{
+				{
+					RunID: "aa-bb-cc",
+					Source: payload.TracerouteSource{
+						IPAddress: net.ParseIP("10.0.0.5"),
+						Port:      12345,
+					},
+					Destination: payload.TracerouteDestination{
+						IPAddress: net.ParseIP("10.0.0.41"),
+						Port:      33434, // computer port or Boca Raton, FL?
+					},
+					Hops: []payload.TracerouteHop{
+						{IPAddress: net.ParseIP("10.0.0.1"), Reachable: true, ReverseDNS: []string{"hop1"}},
+						{IPAddress: net.ParseIP("1.1.1.1"), Reachable: true, ReverseDNS: []string{"hop2"}},
+						{IPAddress: net.ParseIP("10.0.0.100"), Reachable: true, ReverseDNS: []string{"hop3"}},
+						{IPAddress: net.ParseIP("10.0.0.41"), Reachable: true, ReverseDNS: []string{"dest-hostname"}},
+					},
+				},
+			},
 		},
 	}
 
 	npCollector.enrichPathWithRDNS(&path, "")
 
 	// THEN - no resolution should happen
-	assert.Equal(t, "", path.Destination.ReverseDNSHostname)
-	assert.Equal(t, "hop1", path.Hops[0].Hostname)
-	assert.Equal(t, "hop2", path.Hops[1].Hostname)
-	assert.Equal(t, "hop3", path.Hops[2].Hostname)
-	assert.Equal(t, "dest-hostname", path.Hops[3].Hostname)
+	trRun = path.Traceroute.Runs[0]
+	assert.Empty(t, trRun.Destination.ReverseDNS)
+	assert.Equal(t, []string{"hop1"}, trRun.Hops[0].ReverseDNS)
+	assert.Equal(t, []string{"hop2"}, trRun.Hops[1].ReverseDNS)
+	assert.Equal(t, []string{"hop3"}, trRun.Hops[2].ReverseDNS)
+	assert.Equal(t, []string{"dest-hostname"}, trRun.Hops[3].ReverseDNS)
 }
 
 func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
@@ -890,15 +1155,29 @@ func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
 
 	// WHEN
 	path := payload.NetworkPath{
-		Destination: payload.NetworkPathDestination{IPAddress: "10.0.0.41", Hostname: "dest-hostname"},
-		Hops:        nil,
+		Destination: payload.NetworkPathDestination{Hostname: "dest-hostname"},
+		Traceroute: payload.Traceroute{
+			Runs: []payload.TracerouteRun{
+				{
+					RunID: "aa-bb-cc",
+					Source: payload.TracerouteSource{
+						IPAddress: net.ParseIP("10.0.0.5"),
+						Port:      12345,
+					},
+					Destination: payload.TracerouteDestination{
+						IPAddress: net.ParseIP("10.0.0.41"),
+						Port:      33434, // computer port or Boca Raton, FL?
+					},
+				},
+			},
+		},
 	}
 
 	npCollector.enrichPathWithRDNS(&path, "known-dest-hostname")
 
 	// THEN - destination hostname should resolve to known hostname
-	assert.Equal(t, "known-dest-hostname", path.Destination.ReverseDNSHostname)
-	assert.Empty(t, path.Hops)
+	assert.Equal(t, []string{"known-dest-hostname"}, path.Traceroute.Runs[0].Destination.ReverseDNS)
+	assert.Empty(t, path.Traceroute.Runs[0].Hops)
 }
 
 func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {

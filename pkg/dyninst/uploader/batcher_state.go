@@ -11,6 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"golang.org/x/time/rate"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TODO: Implement limits on the number of batches allowed to be in flight.
@@ -20,6 +24,7 @@ import (
 // TODO: Implement some sort of retry logic for failed batches.
 
 type batcherState struct {
+	name        string
 	cfg         batcherConfig
 	buffer      []json.RawMessage
 	bufferBytes int
@@ -36,22 +41,41 @@ type batchStat struct {
 	bytes int
 }
 
-func newBatcherState(cfg batcherConfig) *batcherState {
+func newBatcherState(name string, cfg batcherConfig) *batcherState {
 	return &batcherState{
+		name:     name,
 		cfg:      cfg,
 		metrics:  &Metrics{},
 		inFlight: make(map[batchID]batchStat),
 	}
 }
 
+var singleMessageExceedsLimitLogLimiter = rate.NewLimiter(rate.Every(time.Minute), 10)
+
 func (s *batcherState) handleEnqueueEvent(data json.RawMessage, now time.Time, eff effects) {
+	// Check if we should flush before adding the data to the buffer.
+	if len(s.buffer) > 0 &&
+		s.bufferBytes+len(data) >= s.cfg.maxBatchSizeBytes {
+		s.flush(eff)
+	}
+
+	// Add the data to the buffer.
 	s.buffer = append(s.buffer, data)
 	s.bufferBytes += len(data)
 
-	shouldFlushDueToSize := len(s.buffer) >= s.cfg.maxBatchItems ||
-		s.bufferBytes >= s.cfg.maxBatchSizeBytes
+	// If the one item exceeds the limit, log about it.
+	if len(s.buffer) == 1 && s.bufferBytes > s.cfg.maxBatchSizeBytes &&
+		singleMessageExceedsLimitLogLimiter.Allow() {
+		log.Warnf(
+			"%s uploader: flushing single message that exceeds the byte limit: %d",
+			s.name, s.bufferBytes,
+		)
+	}
 
-	if shouldFlushDueToSize {
+	// Check if we should flush immediately now that we've added the data to the
+	// buffer.
+	if s.bufferBytes >= s.cfg.maxBatchSizeBytes ||
+		len(s.buffer) >= s.cfg.maxBatchItems {
 		s.flush(eff)
 	} else if !s.timerSet && s.cfg.maxBufferDuration > 0 {
 		eff.resetTimer(now.Add(s.cfg.maxBufferDuration))
@@ -76,10 +100,10 @@ func (s *batcherState) handleTimerFiredEvent(eff effects) error {
 //
 // If the batch was not expected, it return an error. The state is not
 // modified in this case -- but it does imply an invariant violation.
-func (s *batcherState) handleBatchOutcomeEvent(res sendResult, _ effects) error {
+func (s *batcherState) handleBatchOutcomeEvent(res sendResult, _ effects) (batchStat, error) {
 	stats, ok := s.inFlight[res.id]
 	if !ok {
-		return fmt.Errorf("outcome for unknown batch id %d", res.id)
+		return batchStat{}, fmt.Errorf("outcome for unknown batch id %d", res.id)
 	}
 	delete(s.inFlight, res.id)
 	if res.err == nil {
@@ -89,7 +113,7 @@ func (s *batcherState) handleBatchOutcomeEvent(res sendResult, _ effects) error 
 	} else {
 		s.metrics.Errors.Add(1)
 	}
-	return nil
+	return stats, nil
 }
 
 func (s *batcherState) handleStopEvent(eff effects) {

@@ -21,7 +21,10 @@ type Type interface {
 	GetID() TypeID
 	// GetName returns the name of the type.
 	GetName() string
-	// GetByteSize returns the size of the type in bytes.
+	// GetDynamicSizeClass returns the class of the dynamic size of the type.
+	GetDynamicSizeClass() DynamicSizeClass
+	// GetByteSize returns either the size of the type in bytes, for statically
+	// sized types, or the size of a single element for dynamically sized types.
 	GetByteSize() uint32
 	// GetGoRuntimeType returns the runtime type of the type, if it is associated
 	// with a Go type.
@@ -89,10 +92,31 @@ func (t *TypeCommon) GetName() string {
 	return t.Name
 }
 
+// GetDynamicSizeClass returns the class of the dynamic size of the type.
+func (t *TypeCommon) GetDynamicSizeClass() DynamicSizeClass {
+	return t.DynamicSizeClass
+}
+
 // GetByteSize returns the size of the type in bytes.
 func (t *TypeCommon) GetByteSize() uint32 {
 	return t.ByteSize
 }
+
+// DynamicSizeClass is the class of the dynamic size of the type.
+type DynamicSizeClass uint8
+
+// Note these enum must match the ebpf/types.h:dynamic_size_class enum.
+const (
+	// StaticSize corresponds to statically sized types.
+	StaticSize DynamicSizeClass = iota
+	// DynamicSizeSlice corresponds to slices.
+	DynamicSizeSlice
+	// DynamicSizeString corresponds to strings.
+	DynamicSizeString
+	// DynamicSizeHashmap corresponds to bucket slice types of hashmaps.
+	// These are given extra space due to expected fraction of empty slots.
+	DynamicSizeHashmap
+)
 
 // TypeCommon has common fields for all types.
 type TypeCommon struct {
@@ -100,6 +124,8 @@ type TypeCommon struct {
 	ID TypeID
 	// Name is the name of the type.
 	Name string
+	// DynamicSize is true if the type is dynamically sized.
+	DynamicSizeClass DynamicSizeClass
 	// ByteSize is the size of the type in bytes.
 	ByteSize uint32
 }

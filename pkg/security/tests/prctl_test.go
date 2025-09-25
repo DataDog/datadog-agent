@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"syscall"
 	"testing"
@@ -38,24 +39,16 @@ func TestPrCtl(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("prctl-set-name", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			bs, err := syscall.BytePtrFromString("my_thread")
-			if err != nil {
-				return fmt.Errorf("failed to convert string: %v", err)
-			}
-			_, _, errno := syscall.Syscall6(
-				syscall.SYS_PRCTL,
-				uintptr(syscall.PR_SET_NAME),
-				uintptr(unsafe.Pointer(bs)), 0, 0, 0, 0,
-			)
-			if errno != 0 {
-				return fmt.Errorf("prctl failed: %v", errno)
-			}
-			return nil
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "my_thread")
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_prctl")
 		})
