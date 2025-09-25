@@ -17,6 +17,9 @@ deploy_packages_windows-x64-7:
       --exclude "*"
       --include "datadog-agent-7*.msi"
       --include "datadog-agent-7*.debug.zip"
+      --include "datadog-installer-*-1-x86_64.debug.zip"
+      --include "datadog-installer-*-1-x86_64.zip"
+      --include "datadog-installer-*-1-x86_64.exe"
       $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/
   artifacts:
     paths:
@@ -49,19 +52,10 @@ deploy_installer_packages_windows-x64:
   stage: deploy_packages
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64", "specific:true"]
-  needs: ["windows-installer-amd64", "powershell_script_signing"]
+  needs: ["powershell_script_signing"]
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
     - ls $WINDOWS_POWERSHELL_DIR
   script:
-    - $S3_CP_CMD
-      --recursive
-      --exclude "*"
-      --include "datadog-installer-*-1-x86_64.msi"
-      --include "datadog-installer-*-1-x86_64.debug.zip"
-      --include "datadog-installer-*-1-x86_64.zip"
-      --include "datadog-installer-*-1-x86_64.exe"
-      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID $S3_RELEASE_INSTALLER_ARTIFACTS_URI/msi/x86_64/
     - $S3_CP_CMD $WINDOWS_POWERSHELL_DIR/Install-Datadog.ps1 $S3_RELEASE_INSTALLER_ARTIFACTS_URI/scripts/Install-Datadog.ps1
 
 deploy_packages_windows-x64-7-fips:

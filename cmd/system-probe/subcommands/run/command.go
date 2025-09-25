@@ -45,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
@@ -127,10 +126,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				ipcfx.ModuleReadWrite(),
 				// Provide tagger module
-				remoteTaggerFx.Module(tagger.RemoteParams{
-					RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-					RemoteFilter: taggerTypes.NewMatchAllFilter(),
-				}),
+				remoteTaggerFx.Module(tagger.NewRemoteParams()),
 				autoexitimpl.Module(),
 				pidimpl.Module(),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
@@ -312,10 +308,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		}),
 		ipcfx.ModuleReadWrite(),
 		// Provide tagger module
-		remoteTaggerFx.Module(tagger.RemoteParams{
-			RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-			RemoteFilter: taggerTypes.NewMatchAllFilter(),
-		}),
+		remoteTaggerFx.Module(tagger.NewRemoteParams()),
 		systemprobeloggerfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()

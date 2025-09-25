@@ -41,6 +41,7 @@ type FingerprintConfig struct {
 	// FingerprintStrategy defines the strategy used for fingerprinting. Options are:
 	// - "line_checksum": compute checksum based on line content (default)
 	// - "byte_checksum": compute checksum based on byte content
+	// - "disabled": disable fingerprinting
 	FingerprintStrategy FingerprintStrategy `json:"fingerprint_strategy" mapstructure:"fingerprint_strategy" yaml:"fingerprint_strategy"`
 
 	// Count is the number of lines or bytes to use for fingerprinting, depending on the strategy
@@ -62,6 +63,8 @@ const (
 	FingerprintStrategyLineChecksum FingerprintStrategy = "line_checksum"
 	// FingerprintStrategyByteChecksum computes a checksum based on byte content
 	FingerprintStrategyByteChecksum FingerprintStrategy = "byte_checksum"
+	// FingerprintStrategyDisabled disables fingerprinting
+	FingerprintStrategyDisabled FingerprintStrategy = "disabled"
 )
 
 func (s FingerprintStrategy) String() string {
@@ -71,7 +74,7 @@ func (s FingerprintStrategy) String() string {
 // Validate checks if the fingerprint strategy is valid (either line_checksum or byte_checksum)
 func (s FingerprintStrategy) Validate() error {
 	switch s {
-	case FingerprintStrategyLineChecksum, FingerprintStrategyByteChecksum:
+	case FingerprintStrategyLineChecksum, FingerprintStrategyByteChecksum, FingerprintStrategyDisabled:
 		return nil
 	}
 	return fmt.Errorf("invalid fingerprint strategy: %s", s)

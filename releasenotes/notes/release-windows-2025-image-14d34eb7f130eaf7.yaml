@@ -1,0 +1,29 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added new Windows Server 2025 container images:
+
+    **Release tags:**
+    * ``agent:7-ltsc2025`` and ``agent:latest-ltsc2025``
+    * ``agent:7-servercore-ltsc2025`` and ``agent:latest-servercore-ltsc2025``
+    * ``agent:7-ltsc2025-jmx`` and ``agent:latest-ltsc2025-jmx``
+    * ``agent:7-servercore-ltsc2025-jmx`` and ``agent:latest-servercore-ltsc2025-jmx``
+
+    **Release candidate tags:**
+    * ``agent:7-rc-ltsc2025``
+    * ``agent:7-rc-servercore-ltsc2025``
+    * ``agent:7-rc-ltsc2025-jmx``
+    * ``agent:7-rc-servercore-ltsc2025-jmx``
+
+    Version-specific release candidate tags (such as ``agent:7.X.Y-rc.Z-ltsc2025``,
+    ``agent:7.X.Y-rc.Z-servercore-ltsc2025``) are also supported.
+
+    Updated the base multi-arch images to include Windows 2025 images alongside existing
+    Windows 2019 and Windows 2022 variants.
