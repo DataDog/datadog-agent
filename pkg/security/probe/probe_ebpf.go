@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	ddebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -1799,7 +1800,7 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 
 type filterPolicyBlock struct {
 	eventTypes []ebpf.Uint32MapItem
-	policies   []*kfilters.FilterPolicy
+	policies   ebpf.SliceBinaryMarshaller[*kfilters.FilterPolicy]
 }
 
 func newFilterPolicyBlock() *filterPolicyBlock {
@@ -1818,7 +1819,8 @@ func (b *filterPolicyBlock) add(eventType eval.EventType, mode kfilters.PolicyMo
 
 func (b *filterPolicyBlock) addRaw(eventType model.EventType, mode kfilters.PolicyMode) {
 	b.eventTypes = append(b.eventTypes, ebpf.Uint32MapItem(eventType))
-	b.policies = append(b.policies, &kfilters.FilterPolicy{Mode: mode})
+	policy := &kfilters.FilterPolicy{Mode: mode}
+	b.policies = append(b.policies, policy)
 }
 
 func (b *filterPolicyBlock) apply(m *manager.Manager) error {
@@ -1835,6 +1837,11 @@ func (b *filterPolicyBlock) apply(m *manager.Manager) error {
 	table, err := managerhelper.Map(m, "filter_policy")
 	if err != nil {
 		return fmt.Errorf("unable to find policy table: %w", err)
+	}
+
+	if ddebpfmaps.BatchAPISupported() {
+		_, err := table.BatchUpdate(b.eventTypes, b.policies, &lib.BatchOptions{ElemFlags: uint64(lib.UpdateAny)})
+		return err
 	}
 
 	for i := range b.eventTypes {
