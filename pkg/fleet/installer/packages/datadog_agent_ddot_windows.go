@@ -9,10 +9,10 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -20,7 +20,9 @@ import (
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
@@ -196,80 +198,19 @@ func writeOTelConfigWindows() error {
 		}
 	}
 	out := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
-	// If otel config already exists, preserve it
-	if _, err := os.Stat(out); err == nil {
-		return nil
-	}
-
-	data, err := os.ReadFile(ddYaml)
-	if err != nil {
-		return err
-	}
-	var cfg map[string]any
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return err
-	}
-	apiKey, _ := cfg["api_key"].(string)
-	site, _ := cfg["site"].(string)
-
-	templateData, err := os.ReadFile(cfgTemplate)
-	if err != nil {
-		return err
-	}
-	content := string(templateData)
-	if apiKey != "" {
-		content = strings.ReplaceAll(content, "${env:DD_API_KEY}", apiKey)
-	}
-	if site != "" {
-		content = strings.ReplaceAll(content, "${env:DD_SITE}", site)
-	}
-	return os.WriteFile(out, []byte(content), 0o600)
+	return writeOTelConfigCommon(ddYaml, cfgTemplate, out, true, 0o600)
 }
 
 // enableOtelCollectorConfigWindows adds otelcollector.enabled and agent_ipc defaults to datadog.yaml
 func enableOtelCollectorConfigWindows(_ context.Context) error {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
-	data, err := os.ReadFile(ddYaml)
-	if err != nil {
-		return err
-	}
-	var existing map[string]any
-	if err := yaml.Unmarshal(data, &existing); err != nil {
-		return err
-	}
-	if existing == nil {
-		existing = map[string]any{}
-	}
-	existing["otelcollector"] = map[string]any{"enabled": true}
-	existing["agent_ipc"] = map[string]any{"port": 5009, "config_refresh_interval": 60}
-	updated, err := yaml.Marshal(existing)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(ddYaml, updated, 0o600)
+	return enableOtelCollectorConfigCommon(ddYaml)
 }
 
 // disableOtelCollectorConfigWindows removes otelcollector and agent_ipc from datadog.yaml
 func disableOtelCollectorConfigWindows() error {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
-	data, err := os.ReadFile(ddYaml)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	var existing map[string]any
-	if err := yaml.Unmarshal(data, &existing); err != nil {
-		return err
-	}
-	delete(existing, "otelcollector")
-	delete(existing, "agent_ipc")
-	updated, err := yaml.Marshal(existing)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(ddYaml, updated, 0o600)
+	return disableOtelCollectorConfigCommon(ddYaml)
 }
 
 // ensureDDOTService ensures the DDOT service exists and is configured correctly
@@ -321,17 +262,13 @@ func ensureDDOTService() error {
 
 // stopServiceIfExists stops the service if it exists
 func stopServiceIfExists(name string) error {
-	m, err := mgr.Connect()
-	if err != nil {
+	// Use robust stop; ignore 'service does not exist'
+	if err := winutil.StopService(name); err != nil {
+		if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+			return nil
+		}
 		return err
 	}
-	defer m.Disconnect()
-	s, err := m.OpenService(name)
-	if err != nil {
-		return nil
-	}
-	defer s.Close()
-	_, _ = s.Control(svc.Stop)
 	return nil
 }
 

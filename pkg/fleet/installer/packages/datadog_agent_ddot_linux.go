@@ -8,10 +8,6 @@ package packages
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
@@ -206,36 +202,8 @@ func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 
 // enableOtelCollectorConfig adds otelcollector.enabled: true to datadog.yaml
 func enableOtelCollectorConfig(ctx context.Context) error {
-	// Read existing config
-	var existingConfig map[string]interface{}
-	data, err := os.ReadFile(datadogYamlPath)
-	if err != nil {
-		return fmt.Errorf("failed to read datadog.yaml: %w", err)
-	}
-
-	if err := yaml.Unmarshal(data, &existingConfig); err != nil {
-		return fmt.Errorf("failed to parse existing datadog.yaml: %w", err)
-	}
-
-	// Config is empty
-	if existingConfig == nil {
-		existingConfig = make(map[string]interface{})
-	}
-
-	existingConfig["otelcollector"] = map[string]interface{}{"enabled": true}
-	existingConfig["agent_ipc"] = map[string]interface{}{
-		"port":                    5009,
-		"config_refresh_interval": 60,
-	}
-
-	// Write back the updated config
-	updatedData, err := yaml.Marshal(existingConfig)
-	if err != nil {
-		return fmt.Errorf("failed to serialize updated datadog.yaml: %w", err)
-	}
-
-	if err := os.WriteFile(datadogYamlPath, updatedData, 0640); err != nil {
-		return fmt.Errorf("failed to write updated datadog.yaml: %w", err)
+	if err := enableOtelCollectorConfigCommon(datadogYamlPath); err != nil {
+		return err
 	}
 
 	datadogYamlPermissions := file.Permissions{
@@ -251,41 +219,5 @@ func enableOtelCollectorConfig(ctx context.Context) error {
 
 // writeOTelConfig creates otel-config.yaml by substituting API key and site values from datadog.yaml
 func writeOTelConfig() error {
-	// Read existing datadog.yaml to extract API key and site
-	var existingConfig map[string]interface{}
-	data, err := os.ReadFile(datadogYamlPath)
-	if err != nil {
-		return fmt.Errorf("failed to read datadog.yaml: %w", err)
-	}
-
-	if err := yaml.Unmarshal(data, &existingConfig); err != nil {
-		return fmt.Errorf("failed to parse existing datadog.yaml: %w", err)
-	}
-
-	apiKey, apiOk := existingConfig["api_key"].(string)
-	site, siteOk := existingConfig["site"].(string)
-
-	// Read the example config file
-	exampleData, err := os.ReadFile("/etc/datadog-agent/otel-config.yaml.example")
-	if err != nil {
-		return fmt.Errorf("failed to read otel-config.yaml.example: %w", err)
-	}
-
-	// Substitute values
-	configData := string(exampleData)
-	if apiOk && apiKey != "" {
-		configData = strings.ReplaceAll(configData, "${env:DD_API_KEY}", apiKey)
-	}
-
-	if siteOk && site != "" {
-		configData = strings.ReplaceAll(configData, "${env:DD_SITE}", site)
-	}
-
-	// Write the processed config
-	err = os.WriteFile("/etc/datadog-agent/otel-config.yaml", []byte(configData), 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
-	}
-
-	return nil
+	return writeOTelConfigCommon(datadogYamlPath, "/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent/otel-config.yaml", false, 0644)
 }
