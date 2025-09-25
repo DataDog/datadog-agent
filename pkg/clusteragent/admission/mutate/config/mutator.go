@@ -140,12 +140,12 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 		dsdMountBase := i.config.socketPath
 
 		if (i.config.dogStatsDAgentHostSocket != i.config.traceAgentHostSocket) || isSocketVol || useCSI {
-			apmMountBase = filepath.Join(apmMountBase, apmSubdir)
-			dsdMountBase = filepath.Join(dsdMountBase, dsdSubdir)
+			apmMountBase = apmMountBase + "/" + apmSubdir
+			dsdMountBase = dsdMountBase + "/" + dsdSubdir
 		}
 
-		traceURLSocketEnvVar.Value = "unix://" + filepath.Join(apmMountBase, i.config.apmSocketFile)
-		dogstatsdURLSocketEnvVar.Value = "unix://" + filepath.Join(dsdMountBase, i.config.dsdSocketFile)
+		traceURLSocketEnvVar.Value = "unix://" + apmMountBase + "/" + i.config.apmSocketFile
+		dogstatsdURLSocketEnvVar.Value = "unix://" + dsdMountBase + "/" + i.config.dsdSocketFile
 
 		injectedEnv := mutatecommon.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = mutatecommon.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
@@ -186,14 +186,14 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 			hostsocketpath string
 		}{
 			DogstatsdSocketVolumeName: {
-				socketpath:     filepath.Join(i.config.socketPath, dsdSubdir, i.config.dsdSocketFile),
+				socketpath:     i.config.socketPath + "/" + dsdSubdir + "/" + i.config.dsdSocketFile,
 				csiVolumeType:  csiDSDSocket,
-				hostsocketpath: filepath.Join(i.config.dogStatsDAgentHostSocket, i.config.dsdSocketFile),
+				hostsocketpath: i.config.dogStatsDAgentHostSocket + "/" + i.config.dsdSocketFile,
 			},
 			TraceAgentSocketVolumeName: {
-				socketpath:     filepath.Join(i.config.socketPath, apmSubdir, i.config.apmSocketFile),
+				socketpath:     i.config.socketPath + "/" + apmSubdir + "/" + i.config.apmSocketFile,
 				csiVolumeType:  csiAPMSocket,
-				hostsocketpath: filepath.Join(i.config.traceAgentHostSocket, i.config.apmSocketFile),
+				hostsocketpath: i.config.traceAgentHostSocket + "/" + i.config.apmSocketFile,
 			},
 		}
 
@@ -239,7 +239,7 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 			for _, entry := range entries {
 				volume, volumeMount := buildCSIVolume(
 					entry.name,
-					filepath.Join(i.config.socketPath, entry.subdir),
+					i.config.socketPath+"/"+entry.subdir,
 					entry.csiType,
 					true,
 					i.config.csiDriver,
@@ -280,7 +280,7 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 					volume, volumeMount := buildHostPathVolume(
 						entry.name,
 						entry.host,
-						filepath.Join(i.config.socketPath, entry.subdir),
+						i.config.socketPath+"/"+entry.subdir,
 						corev1.HostPathDirectoryOrCreate,
 						true,
 					)
