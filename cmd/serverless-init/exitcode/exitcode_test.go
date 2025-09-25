@@ -30,3 +30,12 @@ func TestFromExitError(t *testing.T) {
 		t.Fatalf("expected 5, got %d", got)
 	}
 }
+
+func TestFromJoinedExitError(t *testing.T) {
+	cmd := exec.Command("bash", "-c", "exit 3")
+	exitErr := cmd.Run()
+	joined := errors.Join(errors.New("wrapper"), exitErr)
+	if got := From(joined); got != 3 {
+		t.Fatalf("expected 3, got %d", got)
+	}
+}
