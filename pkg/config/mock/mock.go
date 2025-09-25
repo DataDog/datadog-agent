@@ -52,6 +52,7 @@ func New(t testing.TB) model.BuildableConfig {
 	// Configuration defaults
 	setup.SetDatadog(newCfg) // nolint forbidigo legitimate use of SetDatadog
 	setup.InitConfig(newCfg)
+	newCfg.BuildSchema()
 	newCfg.SetTestOnlyDynamicSchema(true)
 	return &mockConfig{newCfg}
 }
