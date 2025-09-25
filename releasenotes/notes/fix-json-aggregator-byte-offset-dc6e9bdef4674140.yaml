@@ -10,4 +10,4 @@ fixes:
   - |
     Fixes a bug in the JSON aggregator where the byte offset was not correctly calculated.
     This ensures no logs are re-collected when auto multiline detection is enabled when
-    the agent is restarted.
+    the Agent is restarted.
