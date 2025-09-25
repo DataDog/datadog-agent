@@ -25,7 +25,7 @@ func TestComputeFilenameFromParts(t *testing.T) {
 		{
 			name:     "empty",
 			parts:    []string{},
-			expected: "/",
+			expected: "",
 		},
 		{
 			name: "basic",
