@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
-	github.com/spf13/cast v1.9.2
+	github.com/spf13/cast v1.10.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621
