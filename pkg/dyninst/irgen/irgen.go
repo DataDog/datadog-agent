@@ -1363,8 +1363,8 @@ func populateEventExpressions(
 ) ir.Issue {
 	id := typeCatalog.idAlloc.next()
 	var (
-		expressions   []*ir.RootExpression
-		expressionSet = make(map[string]int) // name -> expression index
+		expressions           []*ir.RootExpression
+		variableExpressionSet = make(map[string]int) // variable name -> expression index
 	)
 
 	// Snapshot probe variables
@@ -1375,7 +1375,28 @@ func populateEventExpressions(
 			}
 			expr := createVariableExpression(variable)
 			expressions = append(expressions, expr)
-			expressionSet[variable.Name] = len(expressions) - 1
+			variableExpressionSet[variable.Name] = len(expressions) - 1
+		}
+	}
+
+	for i := range probe.Template.Segments {
+		segment, ok := (probe.Template.Segments[i]).(ir.JSONSegment)
+		if !ok {
+			continue
+		}
+		relevantVariables := collectSegmentVariables(segment.JSON, probe.Subprogram)
+		for _, variable := range relevantVariables {
+			if expressionIndex, ok := variableExpressionSet[variable.Name]; ok {
+				segment.ExpressionIndex = expressionIndex
+			} else {
+				expr := createVariableExpression(&variable)
+				expressions = append(expressions, expr)
+				expressionIndex := len(expressions) - 1
+				variableExpressionSet[variable.Name] = expressionIndex
+				segment.ExpressionIndex = expressionIndex
+			}
+			probe.Template.Segments[i] = segment
+			break
 		}
 	}
 
@@ -2318,6 +2339,20 @@ func validateRefInstruction(arg any, subprogram *ir.Subprogram) bool {
 	return false
 }
 
+type variableExtractor func(arg any, subprogram *ir.Subprogram) (string, bool)
+
+var variableExtractors = map[string]variableExtractor{
+	"ref": extractVariableFromRefInstruction,
+}
+
+func extractVariableFromRefInstruction(arg any, subprogram *ir.Subprogram) (string, bool) {
+	refValue, ok := arg.(string)
+	if !ok || refValue == "" {
+		return "", false
+	}
+	return refValue, true
+}
+
 // validateAST validates that all instructions in the AST are supported
 func validateAST(astData map[string]any, subprogram *ir.Subprogram) bool {
 	if len(astData) == 0 {
@@ -2348,4 +2383,26 @@ func expressionIsSupported(msg json.RawMessage, subprogram *ir.Subprogram) bool 
 
 	// Validate that all instructions in the AST are supported
 	return validateAST(ast, subprogram)
+}
+
+func collectSegmentVariables(msg json.RawMessage, subprogram *ir.Subprogram) []ir.Variable {
+	var variables []ir.Variable
+	var ast map[string]any
+	if err := json.Unmarshal(msg, &ast); err != nil {
+		return variables
+	}
+
+	for instruction, argument := range ast {
+		extractor, ok := variableExtractors[instruction]
+		if !ok {
+			continue
+		}
+		if varName, ok := extractor(argument, subprogram); ok {
+			variables = append(variables, ir.Variable{
+				Name: varName,
+			})
+		}
+	}
+
+	return variables
 }
