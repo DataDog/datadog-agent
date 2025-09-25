@@ -1,0 +1,5 @@
+package(
+    default_visibility = ["@datadog-agent//deps:__subpackages"],
+)
+
+exports_files(glob(["**"]))

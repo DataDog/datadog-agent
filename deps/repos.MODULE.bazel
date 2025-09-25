@@ -67,3 +67,11 @@ register_toolchains(
     "@gcc_toolchain_aarch64//:cc_toolchain",
     dev_dependency = True,
 )
+
+http_archive(
+    name = "expat",
+    build_file = "//deps:export_all.BUILD.bazel",
+    sha256 = "6b902ab103843592be5e99504f846ec109c1abb692e85347587f237a4ffa1033",
+    strip_prefix = "expat-2.5.0",
+    url = "https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-2.5.0.tar.gz",
+)
