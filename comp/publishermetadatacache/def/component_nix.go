@@ -8,5 +8,7 @@
 // Package publishermetadatacache provides a cache for Windows Event Log publisher metadata handles
 package publishermetadatacache
 
-func init() {
+// Component is a no-op stub for non-Windows platforms
+type Component interface {
+	// Stub method - not implemented on non-Windows platforms
 }
