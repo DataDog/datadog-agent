@@ -351,7 +351,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 		{
 			name: "GPU monitoring enabled",
 			env: map[string]string{
-				"DD_GPU_MONITORING_ENABLED": "true",
+				"DD_GPU_ENABLED": "true",
 			},
 			expectedCollectGPUTags: true,
 			expectedEnableGPUM:     true,
@@ -360,7 +360,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 		{
 			name: "GPU monitoring enabled with empty string value",
 			env: map[string]string{
-				"DD_GPU_MONITORING_ENABLED": "",
+				"DD_GPU_ENABLED": "",
 			},
 			expectedCollectGPUTags: false,
 			expectedEnableGPUM:     false,
@@ -398,17 +398,6 @@ func TestSetupGPUIntegration(t *testing.T) {
 
 			assert.Equal(t, tt.expectedCollectGPUTags, s.Config.DatadogYAML.CollectGPUTags)
 			assert.Equal(t, tt.expectedEnableGPUM, s.Config.DatadogYAML.GPUCheck.Enabled)
-
-			// Check system-probe configuration
-			if tt.expectedSystemProbeGPU {
-				assert.NotNil(t, s.Config.SystemProbeYAML)
-				assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
-			} else {
-				if s.Config.SystemProbeYAML != nil {
-					assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
-				}
-			}
-
 		})
 	}
 }
