@@ -1809,6 +1809,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
+
+	// Pattern extraction configuration
+	config.BindEnvAndSetDefault("logs_config.pattern_extraction.enabled", false)
+	config.BindEnvAndSetDefault("logs_config.pattern_extraction.cluster_threshold", 5)
 }
 
 func vector(config pkgconfigmodel.Setup) {
