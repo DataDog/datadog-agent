@@ -28,7 +28,6 @@ import (
 	tufutil "github.com/DataDog/go-tuf/util"
 	"github.com/benbjohnson/clock"
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
-	"go.etcd.io/bbolt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -94,8 +93,6 @@ type Service struct {
 	// Today, it is simply logged as a prefix in all log messages to help when triaging
 	// via logs.
 	rcType string
-
-	db *bbolt.DB
 }
 
 func (s *Service) getNewDirectorRoots(uptane uptaneClient, currentVersion uint64, newVersion uint64) ([][]byte, error) {
@@ -211,6 +208,8 @@ type uptaneClient interface {
 	TargetsCustom() ([]byte, error)
 	TimestampExpires() (time.Time, error)
 	TUFVersionState() (uptane.TUFVersions, error)
+	Close() error
+	GetTransactionalStoreMetadata() (*uptane.Metadata, error)
 }
 
 // coreAgentUptaneClient provides functions to get TUF/uptane repo data and update the agent's state via the RC backend.
@@ -454,11 +453,14 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	if options.databaseFilePath != "" {
 		databaseFilePath = options.databaseFilePath
 	}
-	dbPath := path.Join(databaseFilePath, options.databaseFileName)
-	db, err := openCacheDB(dbPath, agentVersion, authKeys.apiKey, baseURL.String())
-	if err != nil {
-		return nil, err
+
+	dbMetadata := &uptane.Metadata{
+		Path:         path.Join(databaseFilePath, options.databaseFileName),
+		AgentVersion: agentVersion,
+		APIKey:       authKeys.apiKey,
+		URL:          baseURL.String(),
 	}
+
 	configRoot := options.configRootOverride
 	directorRoot := options.directorRootOverride
 	opt := []uptane.ClientOption{
@@ -468,13 +470,12 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	if authKeys.rcKeySet {
 		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
 	}
-	uptaneClient, err := uptane.NewCoreAgentClient(
-		db,
+	uptaneClient, err := uptane.NewCoreAgentClienWithNewTransactionalStore(
+		dbMetadata,
 		newRCBackendOrgUUIDProvider(http),
 		opt...,
 	)
 	if err != nil {
-		db.Close()
 		return nil, err
 	}
 
@@ -492,7 +493,6 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	cas := &CoreAgentService{
 		Service: Service{
 			rcType: rcType,
-			db:     db,
 		},
 		firstUpdate:                    true,
 		startupTime:                    now,
@@ -651,8 +651,8 @@ func (s *CoreAgentService) Stop() error {
 	if s.stopConfigPoller != nil {
 		close(s.stopConfigPoller)
 	}
-
-	return s.db.Close()
+	// close boltDB via the transactional store
+	return s.uptane.Close()
 }
 
 func (s *CoreAgentService) pollOrgStatus() {
@@ -871,6 +871,7 @@ func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse,
 func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
+
 	err := validateRequest(request)
 	if err != nil {
 		return nil, err
@@ -1079,30 +1080,23 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, error) {
 	s.Lock()
 	defer s.Unlock()
-	metadata, err := getMetadata(s.db)
-	if err != nil {
-		return nil, fmt.Errorf("could not read metadata from the database: %w", err)
-	}
 
-	path := s.db.Path()
-	s.db.Close()
-	db, err := recreate(path, metadata.Version, metadata.APIKeyHash, metadata.URL)
+	// get metadata from current ts to recreate it with same params
+	metadata, err := s.uptane.GetTransactionalStoreMetadata()
 	if err != nil {
 		return nil, err
 	}
-	s.db = db
 
 	opt := []uptane.ClientOption{
 		uptane.WithConfigRootOverride(s.site, s.configRoot),
 		uptane.WithDirectorRootOverride(s.site, s.directorRoot),
 	}
-	uptaneClient, err := uptane.NewCoreAgentClient(
-		db,
+	uptaneClient, err := uptane.NewCoreAgentClienWithRecreatedTransactionalStore(
+		metadata,
 		newRCBackendOrgUUIDProvider(s.api),
 		opt...,
 	)
 	if err != nil {
-		db.Close()
 		return nil, err
 	}
 	s.uptane = uptaneClient
@@ -1226,13 +1220,14 @@ type HTTPClient struct {
 // It uses a local db to cache the fetched configurations. Only one HTTPClient should be created per agent.
 // An HTTPClient must be closed via HTTPClient.Close() before creating a new one.
 func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, error) {
-	dbPath := path.Join(runPath, "remote-config-cdn.db")
-	db, err := openCacheDB(dbPath, agentVersion, apiKey, site)
-	if err != nil {
-		return nil, err
+	dbMetadata := &uptane.Metadata{
+		Path:         path.Join(runPath, "remote-config-cdn.db"),
+		AgentVersion: agentVersion,
+		APIKey:       apiKey,
+		URL:          site,
 	}
 
-	uptaneCDNClient, err := uptane.NewCDNClient(db, site, apiKey)
+	uptaneCDNClient, err := uptane.NewCDNClient(dbMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -1240,7 +1235,6 @@ func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, err
 	return &HTTPClient{
 		Service: Service{
 			rcType: "CDN",
-			db:     db,
 		},
 		uptane: uptaneCDNClient,
 	}, nil
@@ -1249,7 +1243,7 @@ func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, err
 // Close closes the HTTPClient and cleans up any resources. Close must be called
 // before any other HTTPClients are instantiated via NewHTTPClient
 func (c *HTTPClient) Close() error {
-	return c.db.Close()
+	return c.uptane.Close()
 }
 
 // GetCDNConfigUpdate returns any updated configs. If multiple requests have been made

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"testing"
 	"time"
 
@@ -156,6 +157,15 @@ func (m *mockUptane) TimestampExpires() (time.Time, error) {
 	return args.Get(0).(time.Time), args.Error(1)
 }
 
+func (m *mockUptane) Close() error {
+	return nil
+}
+
+func (m *mockUptane) GetTransactionalStoreMetadata() (*uptane.Metadata, error) {
+	args := m.Called()
+	return args.Get(0).(*uptane.Metadata), args.Error(1)
+}
+
 type mockRcTelemetryReporter struct {
 	mock.Mock
 }
@@ -193,6 +203,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clo
 	traceAgentEnv := testEnv
 	mockTelemetryReporter := newMockRcTelemetryReporter()
 	options := []Option{
+		WithDatabaseFileName("test.db"),
 		WithTraceAgentEnv(traceAgentEnv),
 		WithAPIKey("abc"),
 	}
@@ -734,8 +745,16 @@ func TestService(t *testing.T) {
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
 
+	uptaneClient.On("GetTransactionalStoreMetadata").Return(&uptane.Metadata{
+		Path:         path.Join(t.TempDir(), "test.db"),
+		AgentVersion: agentVersion,
+		APIKey:       "abc",
+		URL:          "https://localhost",
+	}, nil)
+
 	_, err = service.ConfigResetState()
 	assert.NoError(t, err)
+	uptaneClient.AssertExpectations(t)
 
 	// The state should be reset, so we should not be able to get the state again
 	// because the state is empty.
@@ -1234,7 +1253,19 @@ func TestWithDatabaseFileName(t *testing.T) {
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
-	assert.Equal(t, "/tmp/test.db", service.db.Path())
+
+	uptaneClient := &mockCoreAgentUptane{}
+	uptaneClient.On("GetTransactionalStoreMetadata").Return(&uptane.Metadata{
+		Path:         path.Join("/tmp", "test.db"),
+		AgentVersion: agentVersion,
+		APIKey:       "abc",
+		URL:          "https://localhost",
+	}, nil)
+	service.uptane = uptaneClient
+
+	tsMetadata, err := service.uptane.GetTransactionalStoreMetadata()
+	assert.NoError(t, err)
+	assert.Equal(t, "/tmp/test.db", tsMetadata.Path)
 	assert.NotNil(t, service)
 	t.Cleanup(func() { service.Stop() })
 }
