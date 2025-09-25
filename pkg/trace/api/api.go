@@ -9,6 +9,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -538,7 +539,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	}
 }
 
-func decodeTracerPayloadV1(req *http.Request, cIDProvider IDProvider) (tp *idx.InternalTracerPayload, err error) {
+func decodeTracerPayloadV1(req *http.Request, cIDProvider IDProvider, conf *config.AgentConfig) (tp *idx.InternalTracerPayload, err error) {
 	buf := getBuffer()
 	defer putBuffer(buf)
 	if _, err = copyRequestBody(buf, req); err != nil {
@@ -547,6 +548,10 @@ func decodeTracerPayloadV1(req *http.Request, cIDProvider IDProvider) (tp *idx.I
 	var tracerPayload idx.InternalTracerPayload
 	_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
 	if err != nil {
+		if conf.DebugV1Payloads {
+			encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+			log.Errorf("decodeTracerPayloadV1: failed to unmarshal payload, base64 received: %s", encoded)
+		}
 		return nil, err
 	}
 	if tracerPayload.ContainerID() == "" {
@@ -656,7 +661,7 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 	}
 
 	start := time.Now()
-	tp, err := decodeTracerPayloadV1(req, r.containerIDProvider)
+	tp, err := decodeTracerPayloadV1(req, r.containerIDProvider, r.conf)
 	ts := r.tagStats(V10, req.Header, firstService(tp))
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))

@@ -655,6 +655,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "ol_proxy_config.api_version"; core.IsSet(k) {
 		c.OpenLineageProxy.APIVersion = core.GetInt(k)
 	}
+	if k := "apm_config.debug_v1_payloads"; core.IsSet(k) {
+		c.DebugV1Payloads = core.GetBool("apm_config.debug_v1_payloads")
+	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil
 }
