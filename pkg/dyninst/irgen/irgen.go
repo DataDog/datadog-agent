@@ -1380,7 +1380,23 @@ func populateEventExpressions(
 	id := typeCatalog.idAlloc.next()
 	var expressions []*ir.RootExpression
 	for _, variable := range probe.Subprogram.Variables {
-		if !variable.IsParameter || variable.IsReturn {
+		if strings.HasPrefix(variable.Name, "~") {
+			continue
+		}
+		// Check if the variable is available at any of the injection points.
+		// Both locations and injection points are sorted by PC.
+		available := false
+		locIdx := 0
+		for _, injectionPoint := range event.InjectionPoints {
+			for locIdx < len(variable.Locations) && variable.Locations[locIdx].Range[1] <= injectionPoint.PC {
+				locIdx++
+			}
+			if locIdx < len(variable.Locations) && injectionPoint.PC >= variable.Locations[locIdx].Range[0] {
+				available = true
+				break
+			}
+		}
+		if !available {
 			continue
 		}
 		variableSize := variable.Type.GetByteSize()
