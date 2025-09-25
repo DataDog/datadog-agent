@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix race condition that in rare cases caused remote updates on Windows to fail without an error.
+
+    The Go context used when creating a detached subprocess was closed on exit. This triggered an async
+    action to kill the detached subprocess, which in rare cases completed before the process exited.
