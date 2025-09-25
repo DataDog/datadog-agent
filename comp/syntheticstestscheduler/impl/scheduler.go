@@ -32,7 +32,7 @@ type syntheticsTestScheduler struct {
 	running                      bool
 	workers                      int
 	workersDone                  chan struct{}
-	TimeNowFn                    func() time.Time
+	timeNowFn                    func() time.Time
 	syntheticsTestProcessingChan chan SyntheticsTestCtx
 	flushInterval                time.Duration
 	flushLoopDone                chan struct{}
@@ -47,17 +47,16 @@ type syntheticsTestScheduler struct {
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
-func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, cancel context.CancelFunc) *syntheticsTestScheduler {
+func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time) *syntheticsTestScheduler {
 	scheduler := &syntheticsTestScheduler{
 		epForwarder:                  forwarder,
 		log:                          logger,
 		hostNameService:              hostNameService,
 		state:                        runningState{tests: map[string]*runningTestState{}},
-		cancel:                       cancel,
 		workersDone:                  make(chan struct{}),
 		flushLoopDone:                make(chan struct{}),
 		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 100),
-		TimeNowFn:                    timeFunc,
+		timeNowFn:                    timeFunc,
 		workers:                      configs.workers,
 		flushInterval:                configs.flushInterval,
 		generateTestResultID:         generateRandomStringUInt63,
@@ -125,7 +124,7 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 			s.state.tests[pubID] = &runningTestState{
 				cfg:     newTestConfig,
 				lastRun: time.Time{},
-				nextRun: s.TimeNowFn().UTC().Add(time.Duration(newTestConfig.Interval) * time.Second),
+				nextRun: s.timeNowFn().UTC().Add(time.Duration(newTestConfig.Interval) * time.Second),
 			}
 		} else {
 			current.cfg = newTestConfig
@@ -146,6 +145,7 @@ func (s *syntheticsTestScheduler) start(ctx context.Context) error {
 	}
 	s.running = true
 
+	ctx, s.cancel = context.WithCancel(ctx)
 	s.log.Info("start Synthetics Test Scheduler")
 
 	go s.flushLoop(ctx)

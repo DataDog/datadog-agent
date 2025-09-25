@@ -80,7 +80,7 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			return
 		case syntheticsTestCtx := <-s.syntheticsTestProcessingChan:
 			triggeredAt := syntheticsTestCtx.nextRun
-			startedAt := s.TimeNowFn().UTC()
+			startedAt := s.timeNowFn().UTC()
 
 			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
 			if err != nil {
@@ -97,7 +97,7 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 				s.log.Debugf("[worker%d] Error running traceroute: %s", workerID, err)
 			}
 
-			finishedAt := s.TimeNowFn().UTC()
+			finishedAt := s.timeNowFn().UTC()
 			duration := finishedAt.Sub(startedAt)
 
 			if err = s.sendResult(&WorkerResult{
@@ -130,12 +130,28 @@ type WorkerResult struct {
 	hostname         string
 }
 
+// fillNetworkConfig fills the common fields from NetworkConfigRequest into Config.
+func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
+	if ncr.SourceService != nil {
+		cfg.SourceService = *ncr.SourceService
+	}
+	if ncr.DestinationService != nil {
+		cfg.DestinationService = *ncr.DestinationService
+	}
+	if ncr.MaxTTL != nil {
+		cfg.MaxTTL = uint8(*ncr.MaxTTL)
+	}
+	if ncr.Timeout != nil {
+		cfg.Timeout = time.Duration(*ncr.Timeout) * time.Second
+	}
+}
+
 // toNetpathConfig converts a SyntheticsTestConfig into a system-probe Config.
 func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 	var cfg config.Config
 
-	switch payload.Protocol(c.Subtype) {
-	case payload.ProtocolUDP:
+	switch t := c.Config.Request.(type) {
+	case common.UDPConfigRequest:
 		req, ok := c.Config.Request.(common.UDPConfigRequest)
 		if !ok {
 			return config.Config{}, fmt.Errorf("invalid UDP request type")
@@ -145,20 +161,9 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 		if req.Port != nil {
 			cfg.DestPort = uint16(*req.Port)
 		}
-		if req.MaxTTL != nil {
-			cfg.MaxTTL = uint8(*req.MaxTTL)
-		}
-		if req.Timeout != nil {
-			cfg.Timeout = time.Duration(*req.Timeout) * time.Second
-		}
-		if req.SourceService != nil {
-			cfg.SourceService = *req.SourceService
-		}
-		if req.DestinationService != nil {
-			cfg.DestinationService = *req.DestinationService
-		}
+		fillNetworkConfig(&cfg, req.NetworkConfigRequest)
 
-	case payload.ProtocolTCP:
+	case common.TCPConfigRequest:
 		req, ok := c.Config.Request.(common.TCPConfigRequest)
 		if !ok {
 			return config.Config{}, fmt.Errorf("invalid TCP request type")
@@ -168,41 +173,19 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 		if req.Port != nil {
 			cfg.DestPort = uint16(*req.Port)
 		}
-		if req.MaxTTL != nil {
-			cfg.MaxTTL = uint8(*req.MaxTTL)
-		}
-		if req.Timeout != nil {
-			cfg.Timeout = time.Duration(*req.Timeout) * time.Second
-		}
 		cfg.TCPMethod = payload.TCPMethod(req.TCPMethod)
-		if req.SourceService != nil {
-			cfg.SourceService = *req.SourceService
-		}
-		if req.DestinationService != nil {
-			cfg.DestinationService = *req.DestinationService
-		}
-	case payload.ProtocolICMP:
+		fillNetworkConfig(&cfg, req.NetworkConfigRequest)
+	case common.ICMPConfigRequest:
 		req, ok := c.Config.Request.(common.ICMPConfigRequest)
 		if !ok {
 			return config.Config{}, fmt.Errorf("invalid ICMP request type")
 		}
 		cfg.Protocol = payload.ProtocolICMP
 		cfg.DestHostname = req.Host
-		if req.MaxTTL != nil {
-			cfg.MaxTTL = uint8(*req.MaxTTL)
-		}
-		if req.Timeout != nil {
-			cfg.Timeout = time.Duration(*req.Timeout) * time.Second
-		}
-		if req.SourceService != nil {
-			cfg.SourceService = *req.SourceService
-		}
-		if req.DestinationService != nil {
-			cfg.DestinationService = *req.DestinationService
-		}
+		fillNetworkConfig(&cfg, req.NetworkConfigRequest)
 
 	default:
-		return config.Config{}, fmt.Errorf("unsupported subtype: %s", c.Subtype)
+		return config.Config{}, fmt.Errorf("unsupported subtype: %s", t)
 	}
 
 	return cfg, nil
@@ -256,7 +239,7 @@ func runTraceroute(ctx context.Context, cfg config.Config, telemetry telemetry.C
 func (s *syntheticsTestScheduler) networkPathToTestResult(w *WorkerResult) (*common.TestResult, error) {
 	t := common.Test{
 		ID:      w.testCfg.cfg.PublicID,
-		SubType: w.testCfg.cfg.Subtype,
+		SubType: string(w.testCfg.cfg.Config.Request.GetSubType()),
 		Type:    w.testCfg.cfg.Type,
 		Version: w.testCfg.cfg.Version,
 	}

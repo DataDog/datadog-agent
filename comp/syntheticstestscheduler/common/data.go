@@ -68,7 +68,6 @@ func (i ICMPConfigRequest) GetSubType() payload.Protocol {
 type SyntheticsTestConfig struct {
 	Version int    `json:"version"`
 	Type    string `json:"type"`
-	Subtype string `json:"subtype"`
 
 	Config struct {
 		Assertions []interface{} `json:"assertions"`
@@ -105,7 +104,6 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 
 	c.Version = tmp.Version
 	c.Type = tmp.Type
-	c.Subtype = tmp.Subtype
 	c.OrgID = tmp.OrgID
 	c.MainDC = tmp.MainDC
 	c.PublicID = tmp.PublicID

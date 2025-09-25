@@ -60,10 +60,10 @@ type Test struct {
 
 // TestResult represents the full test execution result including metadata.
 type TestResult struct {
-	DD     map[string]interface{} `json:"_dd"`
+	DD     map[string]interface{} `json:"_dd"` // TestRequestInternalFields
 	Result Result                 `json:"result"`
 	Test   Test                   `json:"test"`
-	V      int                    `json:"v"`
+	V      int                    `json:"v"` // Major result version
 }
 
 // APIErrorCode represents a specific error code returned by the API.

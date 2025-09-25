@@ -50,11 +50,11 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 		flushInterval:              100 * time.Millisecond,
 		syntheticsSchedulerEnabled: true,
 	}
-	ctx, cancel := context.WithCancel(context.TODO())
-	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, cancel)
+	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now)
 	assert.Nil(t, err)
 	assert.False(t, scheduler.running)
 
+	ctx := context.TODO()
 	// TEST START
 	err = scheduler.start(ctx)
 	assert.Nil(t, err)
@@ -324,7 +324,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 				return now
 			}
 
-			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, nil)
+			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn)
 			assert.False(t, scheduler.running)
 			applied := map[string]state.ApplyStatus{}
 			applyFunc := func(id string, status state.ApplyStatus) {
@@ -436,8 +436,8 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			defer ctrl.Finish()
 			mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 
-			ctx, cancel := context.WithCancel(context.TODO())
-			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, cancel)
+			ctx := context.TODO()
+			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn)
 			assert.False(t, scheduler.running)
 
 			configs := map[string]state.RawConfig{}
@@ -453,7 +453,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 
 			tickCh := make(chan time.Time, 1)
 			scheduler.tickerC = tickCh
-			tickCh <- scheduler.TimeNowFn()
+			tickCh <- scheduler.timeNowFn()
 
 			scheduler.runTraceroute = tc.expectedRunTraceroute
 			scheduler.generateTestResultID = func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
@@ -508,7 +508,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	scheduler := &syntheticsTestScheduler{
 		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 1),
 		cancel:                       cancel,
-		TimeNowFn:                    func() time.Time { return time.Unix(1000, 0) },
+		timeNowFn:                    func() time.Time { return time.Unix(1000, 0) },
 		log:                          l,
 		flushInterval:                100 * time.Millisecond,
 		workers:                      4,
@@ -533,7 +533,6 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	testCfg := common.SyntheticsTestConfig{
 		Version:  1,
 		Type:     "network",
-		Subtype:  string(payload.ProtocolTCP),
 		PublicID: "abc123",
 		Interval: 60,
 		Config: struct {
@@ -549,7 +548,7 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	}
 
 	scheduler.syntheticsTestProcessingChan <- SyntheticsTestCtx{
-		nextRun: scheduler.TimeNowFn(),
+		nextRun: scheduler.timeNowFn(),
 		cfg:     testCfg,
 	}
 
@@ -581,7 +580,7 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 	utillog.SetupLogger(l, "debug")
 
 	scheduler := &syntheticsTestScheduler{
-		TimeNowFn:                    func() time.Time { return now },
+		timeNowFn:                    func() time.Time { return now },
 		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 10),
 		state: runningState{
 			tests: map[string]*runningTestState{

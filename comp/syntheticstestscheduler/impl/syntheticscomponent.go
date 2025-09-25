@@ -56,20 +56,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, reqs.Logger.Errorf("error getting EpForwarder")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	scheduler := newSyntheticsTestScheduler(
-		configs,
-		epForwarder,
-		reqs.Logger,
-		reqs.HostnameService,
-		time.Now,
-		cancel)
+	scheduler := newSyntheticsTestScheduler(configs, epForwarder, reqs.Logger, reqs.HostnameService, time.Now)
 
 	var rcListener rctypes.ListenerProvider
 	rcListener.ListenerProvider = rctypes.RCListener{
 		state.ProductSyntheticsTest: scheduler.onConfigUpdate,
 	}
 
+	ctx := context.Background()
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
 			return scheduler.start(ctx)

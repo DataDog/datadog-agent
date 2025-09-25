@@ -44,7 +44,6 @@ func TestToNetpathConfig(t *testing.T) {
 		{
 			name: "UDP request",
 			input: common.SyntheticsTestConfig{
-				Subtype: "UDP",
 				Config: struct {
 					Assertions []interface{}        `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
@@ -75,7 +74,6 @@ func TestToNetpathConfig(t *testing.T) {
 		{
 			name: "TCP request",
 			input: common.SyntheticsTestConfig{
-				Subtype: "TCP",
 				Config: struct {
 					Assertions []interface{}        `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
@@ -108,7 +106,6 @@ func TestToNetpathConfig(t *testing.T) {
 		{
 			name: "ICMP request",
 			input: common.SyntheticsTestConfig{
-				Subtype: "ICMP",
 				Config: struct {
 					Assertions []interface{}        `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
@@ -137,25 +134,10 @@ func TestToNetpathConfig(t *testing.T) {
 		{
 			name: "Unsupported subtype",
 			input: common.SyntheticsTestConfig{
-				Subtype: "foobar",
 				Config: struct {
 					Assertions []interface{}        `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
 				}{},
-			},
-			expectError: true,
-		},
-		{
-			name: "Wrong type assertion",
-			input: common.SyntheticsTestConfig{
-				Subtype: "UDP",
-				Config: struct {
-					Assertions []interface{}        `json:"assertions"`
-					Request    common.ConfigRequest `json:"request"`
-				}{
-					// wrong type, should be UDPConfigRequest
-					Request: common.TCPConfigRequest{Host: "bad.example.com"},
-				},
 			},
 			expectError: true,
 		},
@@ -177,6 +159,11 @@ func TestToNetpathConfig(t *testing.T) {
 }
 
 func TestNetworkPathToTestResult(t *testing.T) {
+	src := "frontend"
+	dst := "backend"
+	icmpTTL := 5
+	icmpTimeout := 2
+
 	now := time.Now()
 	trCfg := config.Config{
 		DestHostname: "example.com",
@@ -212,9 +199,22 @@ func TestNetworkPathToTestResult(t *testing.T) {
 				testCfg: SyntheticsTestCtx{
 					cfg: common.SyntheticsTestConfig{
 						PublicID: "pub-123",
-						Subtype:  "tcp",
 						Type:     "network",
 						Version:  1,
+						Config: struct {
+							Assertions []interface{}        `json:"assertions"`
+							Request    common.ConfigRequest `json:"request"`
+						}{
+							Request: common.ICMPConfigRequest{
+								Host: "8.8.8.8",
+								NetworkConfigRequest: common.NetworkConfigRequest{
+									SourceService:      &src,
+									DestinationService: &dst,
+									MaxTTL:             &icmpTTL,
+									Timeout:            &icmpTimeout,
+								},
+							},
+						},
 					},
 				},
 				triggeredAt: now.Add(-3 * time.Second),
@@ -235,9 +235,22 @@ func TestNetworkPathToTestResult(t *testing.T) {
 				testCfg: SyntheticsTestCtx{
 					cfg: common.SyntheticsTestConfig{
 						PublicID: "pub-456",
-						Subtype:  "udp",
 						Type:     "network",
 						Version:  1,
+						Config: struct {
+							Assertions []interface{}        `json:"assertions"`
+							Request    common.ConfigRequest `json:"request"`
+						}{
+							Request: common.ICMPConfigRequest{
+								Host: "8.8.8.8",
+								NetworkConfigRequest: common.NetworkConfigRequest{
+									SourceService:      &src,
+									DestinationService: &dst,
+									MaxTTL:             &icmpTTL,
+									Timeout:            &icmpTimeout,
+								},
+							},
+						},
 					},
 				},
 				triggeredAt: now.Add(-4 * time.Second),
