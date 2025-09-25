@@ -29,6 +29,16 @@ func (mr *NoOpResolver) SyncCache(_ uint32) error {
 	return nil
 }
 
+// HasListMount returns true if the kernel has the listmount() syscall, false otherwise
+func (mr *NoOpResolver) HasListMount() bool {
+	return false
+}
+
+// SyncCacheFromListMount Snapshots the current mount points of the system by calling `listmount`
+func (mr *NoOpResolver) SyncCacheFromListMount() error {
+	return nil
+}
+
 // Delete a mount from the cache
 func (mr *NoOpResolver) Delete(_ uint32) error {
 	return nil
@@ -70,4 +80,9 @@ func (mr *NoOpResolver) SendStats() error {
 // ToJSON return a json version of the cache
 func (mr *NoOpResolver) ToJSON() ([]byte, error) {
 	return nil, nil
+}
+
+// InsertMoved inserts a mount from move_mount
+func (mr *NoOpResolver) InsertMoved(_ model.Mount) error {
+	return nil
 }

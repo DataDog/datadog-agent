@@ -86,3 +86,8 @@ func discoveryNS(k ...string) string {
 func gpuNS(k ...string) string {
 	return NSkey("gpu_monitoring", k...)
 }
+
+// privilegedLogsNS adds `privileged_logs` namespace to config key
+func privilegedLogsNS(k ...string) string {
+	return NSkey("privileged_logs", k...)
+}
