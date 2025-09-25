@@ -9,9 +9,9 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/bits"
-	"reflect"
 	"slices"
-	"unsafe"
+
+	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -126,7 +126,6 @@ type payloadsBuilderV3 struct {
 
 	pointsThisPayload   int
 	maxPointsPerPayload int
-	splitTagsets        bool
 
 	payloadHeaderSizeBound int
 	columnHeaderSizeBound  int
@@ -149,15 +148,11 @@ func newPayloadsBuilderV3WithConfig(
 	maxCompressedSize := config.GetInt("serializer_max_series_payload_size")
 	maxUncompressedSize := config.GetInt("serializer_max_series_uncompressed_payload_size")
 	maxPointsPerPayload := config.GetInt("serializer_max_series_points_per_payload")
-	splitTagsets := config.GetBool("serializer_split_tagsets")
-	borrowKeys := config.GetBool("serializer_borrow_keys")
 
 	return newPayloadsBuilderV3(
 		maxCompressedSize,
 		maxUncompressedSize,
 		maxPointsPerPayload,
-		splitTagsets,
-		borrowKeys,
 		compression,
 	)
 }
@@ -166,8 +161,6 @@ func newPayloadsBuilderV3(
 	maxCompressedSize int,
 	maxUncompressedSize int,
 	maxPointsPerPayload int,
-	splitTagsets bool,
-	borrowKeys bool,
 	compression compression.Component,
 ) (*payloadsBuilderV3, error) {
 	payloadHeaderSize := fieldHeaderLen(payloadFieldMetricData, maxUncompressedSize)
@@ -197,9 +190,8 @@ func newPayloadsBuilderV3(
 		compression: compression,
 		compressor:  compressor,
 		txn:         txn,
-		dict:        newDictionaryBuilder(txn, splitTagsets, borrowKeys),
+		dict:        newDictionaryBuilder(txn),
 
-		splitTagsets:        splitTagsets,
 		maxPointsPerPayload: maxPointsPerPayload,
 
 		payloadHeaderSizeBound: payloadHeaderSizeBound,
@@ -509,11 +501,9 @@ type dictionaryBuilder struct {
 
 	originInfoInterner interner[originInfo]
 
-	tagsLastID   int64
-	tagsIndex    map[any]int64
-	tagsBuffer   []int64
-	splitTagsets bool
-	borrowKeys   bool
+	tagsLastID int64
+	tagsIndex  map[tagsKey]int64
+	tagsBuffer []int64
 
 	resourcesLastID int64
 	resourcesIndex  map[any]int64
@@ -524,7 +514,9 @@ type dictionaryBuilder struct {
 	}
 }
 
-func newDictionaryBuilder(txn *stream.ColumnTransaction, splitTagsets bool, borrowKeys bool) *dictionaryBuilder {
+type tagsKey = uint64
+
+func newDictionaryBuilder(txn *stream.ColumnTransaction) *dictionaryBuilder {
 	return &dictionaryBuilder{
 		txn: txn,
 
@@ -536,11 +528,8 @@ func newDictionaryBuilder(txn *stream.ColumnTransaction, splitTagsets bool, borr
 
 		originInfoInterner: newInterner[originInfo](txn, columnDictOriginInfo),
 
-		tagsIndex:      make(map[any]int64),
+		tagsIndex:      make(map[tagsKey]int64),
 		resourcesIndex: make(map[any]int64),
-
-		splitTagsets: splitTagsets,
-		borrowKeys:   borrowKeys,
 	}
 }
 
@@ -551,7 +540,7 @@ func (db *dictionaryBuilder) reset() {
 	db.sourceTypeNameInterner.reset()
 	db.originInfoInterner.reset()
 	db.tagsLastID = 0
-	db.tagsIndex = map[any]int64{}
+	db.tagsIndex = map[tagsKey]int64{}
 	db.resourcesLastID = 0
 	db.resourcesIndex = map[any]int64{}
 }
@@ -569,23 +558,24 @@ func (db *dictionaryBuilder) appendTagsSlice(tags []string) {
 	}
 }
 
-func (db *dictionaryBuilder) internTagsBuffer() int64 {
+func (db *dictionaryBuilder) internTags1(prefixID int64, tags []string) int64 {
+	var hash1, hash2 uint64 = uint64(prefixID), 0
+	for _, s := range tags {
+		hash1, hash2 = murmur3.SeedStringSum128(hash1, hash2, s)
+	}
+
+	key := hash1
+	if id, ok := db.tagsIndex[key]; ok {
+		return id
+	}
+
+	db.tagsBuffer = db.tagsBuffer[0:0]
+	if prefixID > 0 {
+		db.tagsBuffer = append(db.tagsBuffer, -prefixID)
+	}
+	db.appendTagsSlice(tags)
 	slices.Sort(db.tagsBuffer)
 	deltaEncode(db.tagsBuffer)
-
-	var key any
-	if db.borrowKeys {
-		key = unsafeSliceAsArray(db.tagsBuffer)
-	} else {
-		key = sliceToArray(db.tagsBuffer)
-	}
-	if i, ok := db.tagsIndex[key]; ok {
-		return i
-	}
-
-	if db.borrowKeys {
-		key = sliceToArray(db.tagsBuffer)
-	}
 
 	db.tagsLastID++
 	db.tagsIndex[key] = db.tagsLastID
@@ -599,30 +589,19 @@ func (db *dictionaryBuilder) internTagsBuffer() int64 {
 }
 
 func (db *dictionaryBuilder) internTags(tags tagset.CompositeTags) int64 {
-	if tags.Len() == 0 {
-		return 0
-	}
-
-	db.tagsBuffer = db.tagsBuffer[0:0]
-
 	t1, t2 := tags.UnsafeGet()
-	if db.splitTagsets && len(t1) > 1 && len(t2) > 0 {
-		db.stats.tagsSplit++
 
-		db.appendTagsSlice(t1)
-		prefixID := -db.internTagsBuffer()
-
-		db.tagsBuffer = db.tagsBuffer[0:0]
-		db.tagsBuffer = append(db.tagsBuffer, prefixID)
-		db.appendTagsSlice(t2)
-	} else {
-		db.stats.tagsUnsplit++
-		tags.ForEach(func(s string) {
-			db.tagsBuffer = append(db.tagsBuffer, db.tagsInterner.intern(istr(s)))
-		})
+	if len(t1) == 0 && len(t1) == 0 {
+		return 0
+	} else if len(t1) == 0 {
+		return db.internTags1(0, t2)
+	} else if len(t2) == 0 {
+		return db.internTags1(0, t1)
 	}
 
-	return db.internTagsBuffer()
+	db.stats.tagsSplit++
+	prefixID := db.internTags1(0, t1)
+	return db.internTags1(prefixID, t2)
 }
 
 func (db *dictionaryBuilder) internResources(res []metrics.Resource) int64 {
@@ -630,19 +609,15 @@ func (db *dictionaryBuilder) internResources(res []metrics.Resource) int64 {
 		return 0
 	}
 
-	var key any
-	if db.borrowKeys {
-		key = unsafeSliceAsArray(res)
-	} else {
-		key = sliceToArray(res)
+	var hash1, hash2 uint64
+	for _, r := range res {
+		hash1, hash2 = murmur3.SeedStringSum128(hash1, hash2, r.Type)
+		hash1, hash2 = murmur3.SeedStringSum128(hash1, hash2, r.Name)
 	}
 
+	key := hash1
 	if id, ok := db.resourcesIndex[key]; ok {
 		return id
-	}
-
-	if db.borrowKeys {
-		key = sliceToArray(res)
 	}
 
 	db.resourcesLastID++
@@ -665,34 +640,6 @@ func (db *dictionaryBuilder) internResources(res []metrics.Resource) int64 {
 
 func (db *dictionaryBuilder) internOriginInfo(info originInfo) int64 {
 	return db.originInfoInterner.intern(info)
-}
-
-// sliceToArray copies slice to an array of the same length.
-//
-// Permanently creates a new runtime type for each distinct length of target.
-func sliceToArray[T any](target []T) any {
-	ty := reflect.ArrayOf(len(target), reflect.TypeFor[T]())
-	// var val *[?]T = (*[?]T)(&target[0])
-	val := reflect.NewAt(ty, unsafe.Pointer(&target[0]))
-	// return any(*val)
-	return val.Elem().Interface()
-}
-
-type unsafeEface struct {
-	ty   unsafe.Pointer
-	data unsafe.Pointer
-}
-
-// unsafeSliceAsArray casts slice to an array of equal length.
-func unsafeSliceAsArray[T any](target []T) any {
-	ty := reflect.ArrayOf(len(target), reflect.TypeFor[T]())
-
-	val := unsafeEface{
-		ty:   reflect.ValueOf(ty).UnsafePointer(),
-		data: unsafe.Pointer(&target[0]),
-	}
-
-	return *(*any)(unsafe.Pointer(&val))
 }
 
 func (db *dictionaryBuilder) internSourceTypeName(stn string) int64 {

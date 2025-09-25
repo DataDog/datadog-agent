@@ -8,10 +8,8 @@
 package metrics
 
 import (
-	"reflect"
 	"slices"
 	"testing"
-	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,7 +53,7 @@ func TestPayloadsBuilderV3(t *testing.T) {
 			Points:         []metrics.Point{{Ts: ts, Value: 3.14}}},
 	}
 
-	pb, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, true, true, noopimpl.New())
+	pb, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New())
 	require.NoError(t, err)
 
 	for _, s := range series {
@@ -132,7 +130,7 @@ func BenchmarkPaylodsBuilderV3(b *testing.B) {
 		Tags:   tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"}),
 		Points: []metrics.Point{{Ts: ts, Value: 3.14}}}
 
-	pb, err := newPayloadsBuilderV3(500_000, 2_000_000, 10_000, true, true, noopimpl.New())
+	pb, err := newPayloadsBuilderV3(500_000, 2_000_000, 10_000, noopimpl.New())
 	if err != nil {
 		b.Fatalf("new: %v", err)
 	}
@@ -184,7 +182,7 @@ func TestPayloadBuildersV3_Split(t *testing.T) {
 			Points:         []metrics.Point{{Ts: ts, Value: 3.14}}},
 	}
 
-	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, true, true, noopimpl.New())
+	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, noopimpl.New())
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))
@@ -224,7 +222,7 @@ func TestPayloadsBuilderV3_SplitTooBig(t *testing.T) {
 		},
 	}
 
-	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, true, true, noopimpl.New())
+	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, noopimpl.New())
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))
@@ -261,7 +259,7 @@ func TestPayloadsBuilderV3_PointsLimit(t *testing.T) {
 		},
 	}
 
-	pb, err := newPayloadsBuilderV3(1000_0000, 1000_000, 10, true, true, noopimpl.New())
+	pb, err := newPayloadsBuilderV3(1000_0000, 1000_000, 10, noopimpl.New())
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))
@@ -282,29 +280,10 @@ func TestPaylodsBuilderV3_ReservedSpace(t *testing.T) {
 		Tags:   tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"}),
 		Points: []metrics.Point{{Ts: ts, Value: 3.14}}}
 
-	pb, err := newPayloadsBuilderV3(500, 2_000, 10_000, true, true, noopimpl.New())
+	pb, err := newPayloadsBuilderV3(500, 2_000, 10_000, noopimpl.New())
 	require.NoError(t, err)
 	for len(pb.payloads) == 0 {
 		require.NoError(t, pb.writeSerie(serie))
 	}
 	require.NoError(t, pb.finishPayload())
-}
-
-func TestUnsafeEface(t *testing.T) {
-	// Check that the empty interface abi matches our assumptions
-	var x int
-	var a any = &x
-	assert.Equal(t, unsafe.Sizeof(a), unsafe.Sizeof(unsafeEface{}))
-	e := (*unsafeEface)(unsafe.Pointer(&a))
-	// ty field should point to the same value as the Type interface for the same type
-	assert.Equal(t, reflect.ValueOf(reflect.TypeFor[*int]()).UnsafePointer(), e.ty)
-	// data field points to x
-	assert.Equal(t, unsafe.Pointer(&x), e.data)
-}
-
-func TestUnsafeSliceAsArray(t *testing.T) {
-	x := []int{1, 2, 3, 4}
-	y := unsafeSliceAsArray(x)
-	z := y.([4]int)
-	assert.Equal(t, x, z[:])
 }
