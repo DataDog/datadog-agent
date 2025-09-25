@@ -1095,25 +1095,25 @@ Types:
     - __kind: GoSliceDataType
       ID: 181
       Name: '[]noalg.map.group[int]main.aStructNotUsedAsAnArgument.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 176 StructureType noalg.map.group[int]main.aStructNotUsedAsAnArgument
     - __kind: GoSliceDataType
       ID: 149
       Name: '[]noalg.map.group[string]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 200
       Element: 145 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
       ID: 159
       Name: '[]noalg.map.group[string]main.bigStruct.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 200
       Element: 153 StructureType noalg.map.group[string]main.bigStruct
     - __kind: GoSliceDataType
       ID: 172
       Name: '[]noalg.map.group[uint8]map[int]main.aStructNotUsedAsAnArgument.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 163 StructureType noalg.map.group[uint8]map[int]main.aStructNotUsedAsAnArgument
     - __kind: UnresolvedPointeeType

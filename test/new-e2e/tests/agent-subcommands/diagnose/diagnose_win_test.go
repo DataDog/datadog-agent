@@ -25,12 +25,12 @@ func TestWindowsDiagnoseSuite(t *testing.T) {
 	t.Parallel()
 	var suite windowsDiagnoseSuite
 	suite.suites = append(suite.suites, commonSuites...)
-	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
 }
 
 func (v *windowsDiagnoseSuite) TestDiagnoseOtherCmdPort() {
 	params := agentparams.WithAgentConfig("cmd_port: 4567")
-	v.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(params)))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(params)))
 
 	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite)
 	v.AssertOutputNotError(diagnose)

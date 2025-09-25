@@ -25,6 +25,9 @@ const (
 	// EventTypeNetworkPath is the event type for network devices Network Path data
 	EventTypeNetworkPath = "network-path"
 
+	// EventTypeSynthetics is the event type for Synthetics test results
+	EventTypeSynthetics = "synthetics"
+
 	// EventTypeNetworkConfigManagement is the event type for network device configuration management
 	EventTypeNetworkConfigManagement = "ndmconfig"
 

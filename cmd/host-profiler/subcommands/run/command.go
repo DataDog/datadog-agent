@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build hostprofiler
+//go:build linux
 
+// Package run is the run host-profiler subcommand
 package run
 
 import (
@@ -41,7 +42,7 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 	return []*cobra.Command{cmd}
 }
 
-func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
+func runHostProfilerCommand(_ context.Context, cliParams *cliParams) error {
 	return fxutil.Run(
 		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath)),
 		fx.Invoke(func(collector collector.Component) error {
