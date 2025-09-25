@@ -9,7 +9,6 @@ package run
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -26,7 +25,6 @@ import (
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
@@ -102,12 +100,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 				// tagger instead.
 				Disable: serverlessenv.IsAzureAppServicesExtension,
 			},
-			tagger.RemoteParams{
-				RemoteTarget: func(c coreconfig.Component) (string, error) {
-					return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-				},
-				RemoteFilter: taggerTypes.NewMatchAllFilter(),
-			}),
+			tagger.NewRemoteParams()),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
