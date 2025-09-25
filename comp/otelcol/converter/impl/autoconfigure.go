@@ -35,7 +35,7 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	}
 
 	// extensions (pprof, zpages, health_check, ddflare/datadog)
-	extensions := createExtensions()
+	extensions := createExtensions(enabledFeatures)
 	for _, extension := range extensions {
 		if !slices.Contains(enabledFeatures, extension.Name) || extensionIsInServicePipeline(conf, extension) {
 			continue

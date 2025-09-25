@@ -59,6 +59,13 @@ func TestConvert(t *testing.T) {
 		agentConfig    string
 	}{
 		{
+			name:           "extensions/ddflare-and-dd/datadog",
+			provided:       "extensions/ddflare-and-dd/datadog/config.yaml",
+			expectedResult: "extensions/ddflare-and-dd/datadog/config-result.yaml",
+			agentConfig:    "extensions/ddflare-and-dd/datadog/acfg.yaml",
+		},
+
+		{
 			name:           "extensions/empty-extensions/ddflare",
 			provided:       "extensions/empty-extensions/ddflare/config.yaml",
 			expectedResult: "extensions/empty-extensions/ddflare/config-result.yaml",

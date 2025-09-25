@@ -69,14 +69,27 @@ var (
 	}
 )
 
-func createExtensions() []component {
-	return []component{
+func createExtensions(enabledFeatures []string) []component {
+	components := []component{
 		pProfComponent,
 		zpagesComponent,
 		healthCheckComponent,
-		ddflareComponent,
-		datadogComponent,
 	}
+
+	var result []int
+	for _, feature := range enabledFeatures {
+		if feature == "ddflare" || feature == "datadog" {
+			result = append(result, 1)
+		}
+	}
+
+	if len(result) == 2 {
+		components = append(components, ddflareComponent)
+	} else {
+		components = append(components, ddflareComponent, datadogComponent)
+	}
+
+	return components
 }
 
 func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
