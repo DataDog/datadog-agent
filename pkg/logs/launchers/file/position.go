@@ -67,10 +67,6 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 				whence = io.SeekStart
 			}
 		}
-	case value != "" && !fingerprintsAlign:
-		// Fingerprints don't match - likely rotation detected, start from beginning to avoid missing data
-		log.Debugf("File rotation detected via fingerprint mismatch for %s, starting from beginning", filePath)
-		offset, whence = 0, io.SeekStart
 	case mode == config.Beginning:
 		log.Debugf("HIT: Beginning case")
 		offset, whence = 0, io.SeekStart
