@@ -63,15 +63,15 @@ static __always_inline void http_batch_enqueue_wrapper(void *ctx, conn_tuple_t *
         // Direct consumer path - use perf/ring buffer output (kernel >= 5.8)
         __u64 ringbuffers_enabled = 0;
         LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
-        
+
         long perf_ret;
         if (ringbuffers_enabled) {
-            perf_ret = bpf_ringbuf_output(&http_batch_events, event, sizeof(http_event_t), get_ringbuf_flags(sizeof(http_event_t)));
+            perf_ret = bpf_ringbuf_output_with_telemetry(&http_batch_events, event, sizeof(http_event_t), get_ringbuf_flags(sizeof(http_event_t)));
         } else {
             u32 cpu = bpf_get_smp_processor_id();
-            perf_ret = bpf_perf_event_output(ctx, &http_batch_events, cpu, event, sizeof(http_event_t));
+            perf_ret = bpf_perf_event_output_with_telemetry(ctx, &http_batch_events, cpu, event, sizeof(http_event_t));
         }
-        
+
         if (perf_ret < 0) {
             log_debug("http flush error: %ld", perf_ret);
             return;
