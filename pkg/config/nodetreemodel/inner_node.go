@@ -169,9 +169,11 @@ func (n *innerNode) DumpSettings(selector func(model.Source) bool) map[string]in
 			continue
 		}
 
-		childDump := child.(InnerNode).DumpSettings(selector)
-		if len(childDump) != 0 {
-			res[k] = childDump
+		if childInner, ok := child.(InnerNode); ok {
+			childDump := childInner.DumpSettings(selector)
+			if len(childDump) != 0 {
+				res[k] = childDump
+			}
 		}
 	}
 	return res
