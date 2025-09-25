@@ -57,11 +57,9 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*PayloadAlias)(p))
 }
 
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
+// SplitPayload returns an error since clusterchecks metadata payloads are not splittable.
 func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split cluster checks payload any more, payload is too big for intake")
+	return nil, fmt.Errorf("could not split cluster checks payload")
 }
 
 type clusterChecksImpl struct {
@@ -178,6 +176,10 @@ func (cc *clusterChecksImpl) getPayload() *Payload {
 		return nil
 	}
 
+	// Note: We intentionally generate payloads even when clustername or clusterID are empty
+	// for visibility in flares/endpoints, but getPayloadAsMarshaler() will return nil
+	// to prevent sending to backend when both identifiers are missing. Flares report is using
+	// getAsJSON.
 	payload := &Payload{
 		Clustername:          cc.clustername,
 		ClusterID:            cc.clusterID,
@@ -196,7 +198,18 @@ func (cc *clusterChecksImpl) getPayload() *Payload {
 
 // getPayloadAsMarshaler returns the payload as a marshaler for the inventory system
 func (cc *clusterChecksImpl) getPayloadAsMarshaler() marshaler.JSONMarshaler {
-	return cc.getPayload()
+	payload := cc.getPayload()
+	if payload == nil {
+		return nil
+	}
+
+	// Don't send to backend if we have no cluster identification
+	if payload.Clustername == "" && payload.ClusterID == "" {
+		cc.log.Debug("No cluster name or cluster ID available, skipping backend submission")
+		return nil
+	}
+
+	return payload
 }
 
 // MetadataProvider returns the metadata provider for cluster checks (delegating to InventoryPayload)
