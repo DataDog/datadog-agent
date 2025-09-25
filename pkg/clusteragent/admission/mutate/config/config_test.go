@@ -496,9 +496,8 @@ func TestInjectSocket(t *testing.T) {
 				assert.Contains(t, pod.Spec.Containers[0].Env, want)
 			}
 			safe := pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation]
-			parts := []string{}
 
-			parts = strings.Split(safe, ",")
+			parts := strings.Split(safe, ",")
 
 			expectedNames := make([]string, 0, len(test.expectedVolumes))
 			for _, v := range test.expectedVolumes {
