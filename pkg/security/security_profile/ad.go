@@ -109,7 +109,8 @@ func (m *Manager) cleanup() {
 	dumps := m.getExpiredDumps()
 
 	for _, ad := range dumps {
-		m.finalizeKernelEventCollection(ad, true)
+		m.FinalizeKernelEventCollection(ad, true)
+
 		seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
 
 		// persist dump if not empty
@@ -341,8 +342,15 @@ func (m *Manager) disableKernelEventCollection(ad *dump.ActivityDump) error {
 	return nil
 }
 
-// finalize (thread unsafe) finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
+// FinalizeKernelEventCollection finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
 // spot can be released, the dump will be fully stopped.
+func (m *Manager) FinalizeKernelEventCollection(ad *dump.ActivityDump, releaseTracedCgroupSpot bool) {
+	m.m.Lock()
+	defer m.m.Unlock()
+	m.finalizeKernelEventCollection(ad, releaseTracedCgroupSpot)
+}
+
+// finalizeKernelEventCollection thread unsafe version of FinalizeKernelEventCollection
 func (m *Manager) finalizeKernelEventCollection(ad *dump.ActivityDump, releaseTracedCgroupSpot bool) {
 	if ad.GetState() == dump.Stopped {
 		return
