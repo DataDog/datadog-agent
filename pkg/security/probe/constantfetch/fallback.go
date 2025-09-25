@@ -145,8 +145,8 @@ func (f *FallbackConstantFetcher) AppendSizeofRequest(id, _ string) {
 	f.appendRequest(id)
 }
 
-// AppendOffsetofRequest appends an offset request
-func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, _ string, _ ...string) {
+// AppendOffsetofRequestWithFallbacks appends an offset request
+func (f *FallbackConstantFetcher) AppendOffsetofRequestWithFallbacks(id string, _ ...TypeFieldPair) {
 	f.appendRequest(id)
 }
 
