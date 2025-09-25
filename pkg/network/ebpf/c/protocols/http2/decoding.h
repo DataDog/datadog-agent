@@ -931,6 +931,27 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
 
+        // Log frame processing for debugging
+        bpf_printk("tasik HTTP2: Processing HEADERS frame, stream_id=%u, flags=0x%x, length=%u",
+                   current_frame.frame.stream_id, current_frame.frame.flags, current_frame.frame.length);
+
+        // If PRIORITY flag (0x20) set, skip 5-byte priority fields.
+        // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.2
+        if (current_frame.frame.flags & HTTP2_PRIORITY_FLAG) {
+            // Count priority flags in HEADERS frames
+            __sync_fetch_and_add(&http2_tel->priority_flags_seen, 1);
+            bpf_printk("tasik HTTP2: Found priority flag in HEADERS frame, stream_id=%u, frame_length=%u",
+                       current_frame.frame.stream_id, current_frame.frame.length);
+            if (current_frame.frame.length > HTTP2_PRIORITY_BUFFER_LEN) {
+                bpf_printk("tasik HTTP2: Adjusting frame length from %u to %u",
+                           current_frame.frame.length, current_frame.frame.length - HTTP2_PRIORITY_BUFFER_LEN);
+            } else {
+                bpf_printk("tasik HTTP2: Priority frame too small (length=%u), processing without priority skip",
+                           current_frame.frame.length);
+            }
+        }
+
+
         interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
