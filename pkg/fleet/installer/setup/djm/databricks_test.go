@@ -392,7 +392,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 				},
 			}
 
-			if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+			if os.Getenv("DD_GPU_ENABLED") == "true" {
 				setupGPUIntegration(s)
 			}
 
