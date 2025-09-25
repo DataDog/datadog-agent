@@ -23,6 +23,8 @@ const (
 	MetricsStability = component.StabilityLevelAlpha
 	// LogsStability - stability level for logs.
 	LogsStability = component.StabilityLevelAlpha
+	// ProfilesStability - stability level for profiles.
+	ProfilesStability = component.StabilityLevelAlpha
 )
 
 // Meter for infra attributes processor.
