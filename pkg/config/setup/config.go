@@ -327,7 +327,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// If true, Python is loaded when the first Python check is loaded.
 	// Otherwise, Python is loaded when the collector is initialized.
-	config.BindEnvAndSetDefault("python_lazy_loading", false)
+	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
 	// If false, the core check will be skipped.
 	config.BindEnvAndSetDefault("disk_check.use_core_loader", false)
