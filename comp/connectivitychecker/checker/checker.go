@@ -41,8 +41,10 @@ func Check(
 
 	steps := []diagFn{
 		func() ([]diagnose.Diagnosis, error) { return connectivity.DiagnoseInventory(ctx, config, log) },
-		func() ([]diagnose.Diagnosis, error) { return eventplatformimpl.Diagnose(), nil },
-		func() ([]diagnose.Diagnosis, error) { return connectivity.Diagnose(diagnose.Config{}, log), nil },
+		func() ([]diagnose.Diagnosis, error) { return eventplatformimpl.DiagnoseWithContext(ctx) },
+		func() ([]diagnose.Diagnosis, error) {
+			return connectivity.DiagnoseWithContext(ctx, diagnose.Config{}, log)
+		},
 	}
 
 	diagnosesPayload := []DiagnosisPayload{}

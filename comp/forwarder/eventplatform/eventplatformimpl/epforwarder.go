@@ -253,9 +253,20 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 
 // Diagnose enumerates known epforwarder pipelines and endpoints to test each of them connectivity
 func Diagnose() []diagnose.Diagnosis {
+	diag, _ := DiagnoseWithContext(context.Background())
+	return diag
+}
+
+// DiagnoseWithContext enumerates pipelines/endpoints and honors ctx cancellation
+func DiagnoseWithContext(ctx context.Context) ([]diagnose.Diagnosis, error) {
 	var diagnoses []diagnose.Diagnosis
 
 	for _, desc := range passthroughPipelineDescs {
+		select {
+		case <-ctx.Done():
+			return diagnoses, ctx.Err()
+		default:
+		}
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
 		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
@@ -269,6 +280,11 @@ func Diagnose() []diagnose.Diagnosis {
 			continue
 		}
 
+		select {
+		case <-ctx.Done():
+			return diagnoses, ctx.Err()
+		default:
+		}
 		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
 		name := fmt.Sprintf("Connectivity to %s", url)
 		if err == nil {
@@ -290,7 +306,7 @@ func Diagnose() []diagnose.Diagnosis {
 		}
 	}
 
-	return diagnoses
+	return diagnoses, nil
 }
 
 // SendEventPlatformEventBlocking sends messages to the event platform intake.

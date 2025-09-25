@@ -90,12 +90,12 @@ func TestAcceptRedirection(t *testing.T) {
 	client := getClient(mockConfig, 1, mockLog, withOneRedirect())
 
 	url := ddURL + "/support/flare"
-	statusCode, err := sendHTTPHEADRequestToEndpoint(url, client)
+	statusCode, err := sendHTTPHEADRequestToEndpoint(context.Background(), url, client)
 	assert.Equal(t, 307, statusCode)
 	assert.NoError(t, err)
 
 	url2 := ddURL + "/flare/support"
-	statusCode2, err2 := sendHTTPHEADRequestToEndpoint(url2, client)
+	statusCode2, err2 := sendHTTPHEADRequestToEndpoint(context.Background(), url2, client)
 	assert.Equal(t, 500, statusCode2)
 	assert.Error(t, err2)
 
