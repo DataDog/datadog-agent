@@ -40,14 +40,7 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 				// More likely to have the agent come back up pointed to the same file compared to a rotated file
 				fingerprintsAlign = true
 			} else {
-				// if either fingerprint is insufficient data, assume they don't align
-				// to ensure proper rotation detection for small files
-				if prevFingerprint.IsInsufficientData() || newFingerprint.IsInsufficientData() {
-					fingerprintsAlign = false
-					log.Debugf("Insufficient data fingerprint detected for %s, treating as potential rotation", filePath)
-				} else {
-					fingerprintsAlign = prevFingerprint.Value == newFingerprint.Value
-				}
+				fingerprintsAlign = prevFingerprint.Equals(newFingerprint)
 			}
 		}
 	}

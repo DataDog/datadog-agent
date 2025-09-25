@@ -30,6 +30,11 @@ func (f *Fingerprint) String() string {
 
 // Equals compares two fingerprints and returns true if they are equal
 func (f *Fingerprint) Equals(other *Fingerprint) bool {
+	// If either fingerprint has insufficient data, they should not be considered equal
+	// to ensure proper rotation detection for small files
+	if f.IsInsufficientData() || other.IsInsufficientData() {
+		return false
+	}
 	return f.Value == other.Value
 }
 
