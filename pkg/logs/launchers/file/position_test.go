@@ -7,6 +7,8 @@ package file
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -133,19 +135,30 @@ func TestPositionFingerprintMismatch(t *testing.T) {
 		FingerprintStrategy: types.FingerprintStrategyByteChecksum, // Enable fingerprinting
 	}
 
+	// Create temporary files with different content to generate different fingerprints
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.log")
+
+	// Create first file with content
+	err := os.WriteFile(testFile, []byte("original content"), 0644)
+	assert.Nil(t, err)
+
 	mockFingerprinter := file.NewFingerprinter(*fingerprintConfig)
 
 	// 1. File has stored offset (was being tailed)
-	// 2. File was rotated (fingerprint computation will fail/differ)
-	identifier := "file:/nonexistent/path.log" // Will cause fingerprint computation to fail
+	identifier := "file:" + testFile
 	registry.SetOffset(identifier, "500")
 
-	// Set a previous fingerprint to simulate rotation scenario
+	// 2. Set a previous fingerprint (simulating old file content)
 	prevFingerprint := &types.Fingerprint{
-		Value:  67890,
+		Value:  12345, // Different from what the new file will generate
 		Config: fingerprintConfig,
 	}
 	registry.SetFingerprint(prevFingerprint)
+
+	// 3. Overwrite file with different content (simulating rotation)
+	err = os.WriteFile(testFile, []byte("rotated content - completely different"), 0644)
+	assert.Nil(t, err)
 
 	offset, whence, _ := Position(registry, identifier, config.End, *mockFingerprinter)
 
