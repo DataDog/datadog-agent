@@ -198,7 +198,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 						}
 						continue
 					}
-					filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
+					filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 				}
 			}
 		}
@@ -221,7 +221,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 		}
 
 		p.applyOrdering(wildcardFiles)
-		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter)
+		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter, registry)
 	} else if p.selectionMode == greedySelection {
 		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
 		for _, source := range inputSources {
@@ -242,7 +242,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 					}
 					continue
 				}
-				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
+				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 			}
 			files, err := p.CollectFiles(source)
 			if err != nil {

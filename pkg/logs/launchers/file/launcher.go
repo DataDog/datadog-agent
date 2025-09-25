@@ -142,7 +142,7 @@ func (s *Launcher) run() {
 
 			scanTicker.Stop()
 			go func() {
-				s.filesChan <- s.fileProvider.FilesToTail(s.ctx, s.validatePodContainerID, activeSourcesCopy)
+				s.filesChan <- s.fileProvider.FilesToTail(s.ctx, s.validatePodContainerID, activeSourcesCopy, s.registry)
 			}()
 		case files := <-s.filesChan:
 			s.cleanUpRotatedTailers()
@@ -189,10 +189,6 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	// Union so scan doesn't remove files added by addSource but not yet found by FilesToTail
 	tailersFilesCopy = append(tailersFilesCopy, s.addedSourceTailers...)
 	s.addedSourceTailers = s.addedSourceTailers[:0]
-}
-
-func (s *Launcher) scan() {
-	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources, s.registry)
 	filesTailed := make(map[string]bool)
 	var allFiles []string
 
