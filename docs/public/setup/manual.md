@@ -92,7 +92,7 @@ _Embedded_ builds download specifically-versioned dependencies and compile them 
   * some dependencies are not available on your system
   * you're working or debugging at a very low level: let's say you're adding a function to the Python bindings, you want to make sure you're using the exact same versions of Python as the official Agent packages
 
-Embedded builds rely on [Omnibus](https://github.com/chef/omnibus) to download and build dependencies, so you need a recent `ruby` environment with `bundler` installed. See [how to build Agent packages with Omnibus](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/agent_omnibus.md) for more details.
+Embedded builds rely on [Omnibus](https://github.com/chef/omnibus) to download and build dependencies, so you need a recent `ruby` environment with `bundler` installed. See [How to build agent distribution packages](../how-to/build/distributions.md) for more details.
 
 ### Systemd
 

@@ -184,7 +184,6 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			next := new(consumertest.LogsSink)
 			cfg := &Config{
-				Logs:        LogInfraAttributes{},
 				Cardinality: types.LowCardinality,
 			}
 			tc := testutil.NewTestTaggerClient()

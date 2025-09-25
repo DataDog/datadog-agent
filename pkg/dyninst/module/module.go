@@ -16,17 +16,17 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/unix"
 )
 
 // Module is the dynamic instrumentation system probe module
@@ -48,7 +48,8 @@ type Module struct {
 // NewModule creates a new dynamic instrumentation module
 func NewModule(
 	config *Config,
-	subscriber process.Subscriber,
+	subscriber ProcessSubscriber,
+	processSyncEnabled bool,
 ) (_ *Module, retErr error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
@@ -134,6 +135,9 @@ func NewModule(
 	m.close.unsubscribeExit = subscriber.SubscribeExit(procMon.NotifyExit)
 	const syncInterval = 30 * time.Second
 	go func() {
+		if !processSyncEnabled {
+			return
+		}
 		timer := time.NewTimer(0) // sync immediately on startup
 		defer timer.Stop()
 		for {
@@ -142,8 +146,8 @@ func NewModule(
 			case <-ctx.Done():
 				return
 			}
-			if err := subscriber.Sync(); err != nil {
-				log.Errorf("error syncing process monitor: %v", err)
+			if err := procMon.Sync(); err != nil {
+				log.Errorf("error syncing procmon: %v", err)
 			}
 			timer.Reset(jitter(syncInterval, 0.2))
 		}

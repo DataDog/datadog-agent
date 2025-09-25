@@ -59,6 +59,10 @@ deploy_mutable_image_tags-a7-win-only-rc:
           - "-servercore-ltsc2019-jmx"
           - "-ltsc2022-jmx"
           - "-servercore-ltsc2022-jmx"
+          - "-ltsc2025"
+          - "-servercore-ltsc2025"
+          - "-ltsc2025-jmx"
+          - "-servercore-ltsc2025-jmx"
 
 deploy_mutable_image_tags-a7-full-rc:
   extends: .deploy_mutable_image_tags_7-rc
@@ -143,14 +147,20 @@ deploy_mutable_image_tags-a7:
         IMG_NEW_TAGS: ["7-ltsc2019,latest-ltsc2019"]
       - SUFFIX: ["-ltsc2022"]
         IMG_NEW_TAGS: ["7-ltsc2022,latest-ltsc2022"]
+      - SUFFIX: ["-ltsc2025"]
+        IMG_NEW_TAGS: ["7-ltsc2025,latest-ltsc2025"]
       - SUFFIX: ["-servercore-ltsc2019"]
         IMG_NEW_TAGS: ["7-servercore-ltsc2019,latest-servercore-ltsc2019"]
       - SUFFIX: ["-servercore-ltsc2022"]
         IMG_NEW_TAGS: ["7-servercore-ltsc2022,latest-servercore-ltsc2022"]
+      - SUFFIX: ["-servercore-ltsc2025"]
+        IMG_NEW_TAGS: ["7-servercore-ltsc2025,latest-servercore-ltsc2025"]
       - SUFFIX: "-servercore-ltsc2019-jmx"
         IMG_NEW_TAGS: ["7-servercore-ltsc2019-jmx,latest-servercore-ltsc2019-jmx"]
       - SUFFIX: ["-servercore-ltsc2022-jmx"]
         IMG_NEW_TAGS: ["7-servercore-ltsc2022-jmx,latest-servercore-ltsc2022-jmx"]
+      - SUFFIX: ["-servercore-ltsc2025-jmx"]
+        IMG_NEW_TAGS: ["7-servercore-ltsc2025-jmx,latest-servercore-ltsc2025-jmx"]
       - SUFFIX: ["-full"]
         IMG_NEW_TAGS: ["7-full,latest-full"]
 

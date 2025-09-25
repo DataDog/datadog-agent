@@ -22,6 +22,7 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -108,7 +109,10 @@ func ValidateAgentUserRemoteUpdatePrerequisites(userName string) error {
 	// allowed this for convenience during MSI major upgrades, but it can cause issues
 	// when the upgrade must create a new service but doesn't have the password.
 	// Remote updates fully uninstall the previous version, so we need the password.
-	return fmt.Errorf("the Agent user password is not available. The password is required for domain accounts. Please reinstall the Agent with the password provided")
+	return installerErrors.Wrap(
+		installerErrors.ErrPasswordNotProvided,
+		fmt.Errorf("the Agent user password is not available. The password is required for domain accounts. Please reinstall the Agent with the password provided"),
+	)
 }
 
 // usernameHasExpectedFormat returns an error if the username is not in the expected format domain\\username
