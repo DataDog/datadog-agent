@@ -16,7 +16,6 @@ import (
 // LegacyPodProgram creates a program for filtering legacy pods.
 func LegacyPodProgram(config config.Component, loggger log.Component) program.FilterProgram {
 	programName := "LegacyPodProgram"
-	var initErrors []error
 
 	includeList := config.GetStringSlice("container_include")
 	excludeList := config.GetStringSlice("container_exclude")
@@ -32,21 +31,5 @@ func LegacyPodProgram(config config.Component, loggger log.Component) program.Fi
 		excludeList = config.GetStringSlice("ac_exclude")
 	}
 
-	includeProgram, includeErr := createProgramFromOldFilters(includeList, workloadfilter.PodType)
-	if includeErr != nil {
-		initErrors = append(initErrors, includeErr)
-		loggger.Warnf("error creating include program for %s: %v", programName, includeErr)
-	}
-	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.PodType)
-	if excludeErr != nil {
-		initErrors = append(initErrors, excludeErr)
-		loggger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Include:              includeProgram,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
+	return createFromOldFilters(programName, includeList, excludeList, workloadfilter.PodType, loggger)
 }

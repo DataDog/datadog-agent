@@ -7,33 +7,42 @@
 package catalog
 
 import (
-	"fmt"
-	"strconv"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
-// LegacyProcessExcludeProgram creates a program for filtering processes based on legacy disallowlist patterns
+// LegacyProcessExcludeProgram creates a regex-based program for filtering processes based on legacy disallowlist patterns
 func LegacyProcessExcludeProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyProcessExcludeProgram"
 	var initErrors []error
 
 	processPatterns := config.GetStringSlice("process_config.blacklist_patterns")
-	combinedPattern := strings.Join(processPatterns, "|")
-	celRules := fmt.Sprintf("process.cmdline.matches(%s)", strconv.Quote(combinedPattern))
-	excludeProgram, excludeErr := createCELProgram(celRules, workloadfilter.ProcessType)
-	if excludeErr != nil {
-		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+	if len(processPatterns) == 0 {
+		return &program.RegexProgram{
+			Name:                 programName,
+			InitializationErrors: initErrors,
+		}
 	}
 
-	return program.CELProgram{
+	combinedPattern := strings.Join(processPatterns, "|")
+	// Compile the regex pattern
+	excludeRegex, err := regexp.Compile(combinedPattern)
+	if err != nil {
+		initErrors = append(initErrors, err)
+		logger.Warnf("Error compiling regex pattern for %s: %v", programName, err)
+		return &program.RegexProgram{
+			Name:                 programName,
+			InitializationErrors: initErrors,
+		}
+	}
+
+	return &program.RegexProgram{
 		Name:                 programName,
-		Exclude:              excludeProgram,
+		ExcludeRegex:         []*regexp.Regexp{excludeRegex},
 		InitializationErrors: initErrors,
 	}
 }
