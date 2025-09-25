@@ -96,7 +96,7 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 	walk(data, func(key string, value interface{}) (bool, interface{}) {
 
 		if str, ok := value.(string); ok {
-			if isEnc := IsEnc(str); isEnc {
+			if IsEnc(str) {
 				return false, ""
 			}
 		}
