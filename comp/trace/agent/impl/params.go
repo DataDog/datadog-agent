@@ -18,4 +18,7 @@ type Params struct {
 	MemProfile string
 	// DisableInternalProfiling is used to disable internal profiling.
 	DisableInternalProfiling bool
+	// IntegratedMode indicates the trace agent is running integrated with another agent
+	// and should not shut down the entire application when disabled.
+	IntegratedMode bool
 }

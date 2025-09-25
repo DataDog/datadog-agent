@@ -110,15 +110,20 @@ type component struct {
 
 // NewAgent creates a new Agent component.
 func NewAgent(deps dependencies) (traceagent.Component, error) {
+	log.Infof("Trace agent component NewAgent called, IntegratedMode: %v, APM enabled: %v", deps.Params.IntegratedMode, deps.Config.Object().Enabled)
 	c := component{}
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
 		log.Info(messageAgentDisabled)
 		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
-		// Required to signal that the whole app must stop.
-		_ = deps.Shutdowner.Shutdown()
+		// Only shut down the app if not in integrated mode
+		if !deps.Params.IntegratedMode {
+			// Required to signal that the whole app must stop.
+			_ = deps.Shutdowner.Shutdown()
+		}
 		return c, nil
 	}
+	log.Info("Trace agent component initializing...")
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	c = component{
 		cancel:             cancel,
@@ -199,6 +204,7 @@ func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {
 }
 
 func start(ag component) error {
+	log.Info("Trace agent component start() called")
 	if ag.params.CPUProfile != "" {
 		f, err := os.Create(ag.params.CPUProfile)
 		if err != nil {

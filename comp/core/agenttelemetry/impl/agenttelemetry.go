@@ -595,10 +595,14 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 }
 
 func (a *atel) StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context) {
-	if a.lightTracer != nil {
-		return installertelemetry.StartSpanFromContext(a.cancelCtx, operationName)
+	ctx := a.cancelCtx
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return &installertelemetry.Span{}, a.cancelCtx
+	if a.lightTracer != nil {
+		return installertelemetry.StartSpanFromContext(ctx, operationName)
+	}
+	return &installertelemetry.Span{}, ctx
 }
 
 // start is called by FX when the application starts.

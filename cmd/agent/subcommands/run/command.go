@@ -9,13 +9,9 @@ package run
 import (
 	"context"
 	_ "expvar" // Blank import used because this isn't directly used in this file
-	"fmt"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
-	"os"
-	"os/signal"
 	"runtime"
-	"syscall"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -27,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
@@ -46,9 +41,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent"
 	// core components
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
-	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -71,7 +65,6 @@ import (
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
@@ -80,7 +73,6 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
@@ -101,7 +93,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -112,26 +103,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
-	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
-	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
-	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -148,7 +128,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
-	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
+	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
+	tracecompressionfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
+	tracecompconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	tracepayloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -171,6 +156,8 @@ import (
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
+	tracepkgconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	tracetelemetry "github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -200,12 +187,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	runE := func(*cobra.Command, []string) error {
-		// TODO: once the agent is represented as a component, and not a function (run),
-		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
-		return fxutil.OneShot(run,
+		// Run the agent continuously as a service
+		return fxutil.Run(
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
 			}),
+			fx.Invoke(startAgent),
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				SecretParams:         secrets.NewEnabledParams(),
@@ -216,6 +203,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			logging.EnableFxLoggingOnDebug[log.Component](),
 			getSharedFxOption(),
 			getPlatformModules(),
+			// Force instantiation of the trace agent component after all other components are set up
+			fx.Invoke(func(_ traceagent.Component) {}),
 		)
 	}
 
@@ -237,151 +226,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd, runCmd}
 }
 
-// run starts the main loop.
-func run(log log.Component,
-	cfg config.Component,
-	flare flare.Component,
-	telemetry telemetry.Component,
-	sysprobeconfig sysprobeconfig.Component,
-	server dogstatsdServer.Component,
-	_ replay.Component,
-	forwarder defaultforwarder.Component,
-	wmeta workloadmeta.Component,
-	filterStore workloadfilter.Component,
-	taggerComp tagger.Component,
-	ac autodiscovery.Component,
-	rcclient rcclient.Component,
-	_ runner.Component,
-	demultiplexer demultiplexer.Component,
-	sharedSerializer serializer.MetricSerializer,
-	logsAgent option.Option[logsAgent.Component],
-	_ statsd.Component,
-	processAgent processAgent.Component,
-	otelcollector otelcollector.Component,
-	_ host.Component,
-	_ inventoryagent.Component,
-	_ inventoryhost.Component,
-	_ inventoryotel.Component,
-	_ haagentmetadata.Component,
-	_ secrets.Component,
-	invChecks inventorychecks.Component,
-	logReceiver option.Option[integrations.Component],
-	_ netflowServer.Component,
-	_ snmptrapsServer.Component,
-	_ langDetectionCl.Component,
-	agentAPI internalAPI.Component,
-	_ packagesigning.Component,
-	_ systemprobemetadata.Component,
-	_ securityagentmetadata.Component,
-	statusComponent status.Component,
-	collector collector.Component,
-	cloudfoundrycontainer cloudfoundrycontainer.Component,
-	_ expvarserver.Component,
-	_ pid.Component,
-	jmxlogger jmxlogger.Component,
-	_ healthprobe.Component,
-	_ autoexit.Component,
-	settings settings.Component,
-	_ option.Option[gui.Component],
-	agenttelemetryComponent agenttelemetry.Component,
-	_ diagnose.Component,
-	hostname hostnameinterface.Component,
-	ipc ipc.Component,
-) error {
-	defer func() {
-		stopAgent()
-	}()
-
-	// Setup a channel to catch OS signals
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
-
-	// Make a channel to exit the function
-	stopCh := make(chan error)
-
-	go func() {
-		// Set up the signals async so we can Start the agent
-		select {
-		case <-signals.Stopper:
-			log.Info("Received stop command, shutting down...")
-			stopCh <- nil
-		case <-signals.ErrorStopper:
-			_ = log.Critical("The Agent has encountered an error, shutting down...")
-			stopCh <- fmt.Errorf("shutting down because of an error")
-		case sig := <-signalCh:
-			log.Infof("Received signal '%s', shutting down...", sig)
-			stopCh <- nil
-		}
-	}()
-
-	// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
-	// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
-	// We never want the agent to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
-	sigpipeCh := make(chan os.Signal, 1)
-	signal.Notify(sigpipeCh, syscall.SIGPIPE)
-	go func() {
-		//nolint:revive
-		for range sigpipeCh {
-			// do nothing
-		}
-	}()
-
-	if err := startAgent(
-		log,
-		flare,
-		telemetry,
-		sysprobeconfig,
-		server,
-		wmeta,
-		filterStore,
-		taggerComp,
-		ac,
-		rcclient,
-		logsAgent,
-		processAgent,
-		forwarder,
-		sharedSerializer,
-		otelcollector,
-		demultiplexer,
-		agentAPI,
-		invChecks,
-		logReceiver,
-		statusComponent,
-		collector,
-		cfg,
-		cloudfoundrycontainer,
-		jmxlogger,
-		settings,
-		agenttelemetryComponent,
-		hostname,
-		ipc,
-	); err != nil {
-		return err
-	}
-
-	agentStarted := telemetry.NewCounter(
-		"runtime",
-		"started",
-		[]string{},
-		"Establish if the agent has started",
-	)
-	agentRunning := telemetry.NewGauge(
-		"runtime",
-		"running",
-		[]string{},
-		"Establish if the agent is running",
-	)
-
-	// agentStarted and agentRunning are metrics used for Cross-org Agent Telemetry (COAT)
-	// for more details on the scheduling config check comp/core/agenttelemetry/impl/config.go
-	agentStarted.Inc()
-	agentRunning.Set(1)
-
-	return <-stopCh
-}
-
 func getSharedFxOption() fx.Option {
-	return fx.Options(
+	options := []fx.Option{
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
 			defaultpaths.PyChecksPath,
@@ -541,7 +387,40 @@ func getSharedFxOption() fx.Option {
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
+	}
+
+	// Always include trace agent component for testing
+	options = append(options,
+		fx.Provide(func() context.Context {
+			return context.Background()
+		}),
+		fx.Supply(&traceagentimpl.Params{
+			CPUProfile:     "",
+			MemProfile:     "",
+			PIDFilePath:    "",
+			IntegratedMode: true, // Running integrated with main agent
+		}),
+		// Provide telemetry collector for trace agent
+		fx.Provide(func(cfg config.Component, tagger tagger.Component, ipc ipc.Component) tracetelemetry.TelemetryCollector {
+			// Create trace config from main config
+			traceCfg, err := tracecompconfig.LoadConfigFile("", cfg, tagger, ipc)
+			if err != nil {
+				// If config loading fails, create a minimal config
+				traceCfg = &tracepkgconfig.AgentConfig{}
+			}
+			return tracetelemetry.NewCollector(traceCfg)
+		}),
+		// Provide compression for trace agent
+		tracecompressionfx.Module(),
+		// Provide trace config for trace agent
+		tracecompconfig.Module(),
+		// Provide nil payload modifier since main agent doesn't need payload modification
+		tracepayloadmodifierfx.NilModule(),
+		// Include the trace agent component
+		traceagentfx.Module(),
 	)
+
+	return fx.Options(options...)
 }
 
 // startAgent Initializes the agent process
