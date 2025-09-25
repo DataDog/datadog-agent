@@ -32,16 +32,6 @@ import (
 
 type metadata map[string]interface{}
 
-// State constants for cluster checks handler
-const (
-	// StateLeader indicates the cluster agent is the leader (NotRunning is empty)
-	StateLeader = ""
-	// StateFollower indicates the cluster agent is a follower
-	StateFollower = "currently follower"
-	// StateNotReady indicates the cluster checks handler is not ready (startup in progress)
-	StateNotReady = "Startup in progress"
-)
-
 // Payload handles the JSON unmarshalling of the cluster checks metadata payload
 type Payload struct {
 	// Cluster identification (required)
@@ -77,7 +67,7 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 type clusterChecksImpl struct {
 	util.InventoryPayload
 
-	m sync.RWMutex
+	handlerMutex sync.RWMutex
 
 	log  log.Component
 	conf config.Component
@@ -174,8 +164,8 @@ func (cc *clusterChecksImpl) getPayload() *Payload {
 		return nil
 	}
 
-	cc.m.RLock()
-	defer cc.m.RUnlock()
+	cc.handlerMutex.RLock()
+	defer cc.handlerMutex.RUnlock()
 
 	if cc.clusterHandler == nil {
 		cc.log.Debug("Cluster checks handler not available, skipping clusterchecks payload generation")
@@ -215,29 +205,25 @@ func (cc *clusterChecksImpl) MetadataProvider() runnerimpl.Provider {
 }
 
 // SetClusterHandler sets the cluster handler for the metadata component
-func (cc *clusterChecksImpl) SetClusterHandler(handler interface{}) {
-	cc.m.Lock()
-	defer cc.m.Unlock()
+func (cc *clusterChecksImpl) SetClusterHandler(handler *pkgclusterchecks.Handler) {
+	cc.handlerMutex.Lock()
+	defer cc.handlerMutex.Unlock()
 
-	if h, ok := handler.(*pkgclusterchecks.Handler); ok {
-		cc.clusterHandler = h
-		cc.log.Debug("Cluster handler set for metadata component")
-	} else {
-		cc.log.Warn("Failed to set cluster handler: invalid type")
-	}
+	cc.clusterHandler = handler
+	cc.log.Debug("Cluster handler set for metadata component")
 }
 
 // isLeader checks if the cluster agent is the leader using GetState.
 // Returns true only when the cluster agent is the leader (NotRunning == StateLeader).
 // Assumes the caller already holds a read lock on cc.m
 func (cc *clusterChecksImpl) isLeader(handler *pkgclusterchecks.Handler) bool {
-	state, err := handler.GetState()
+	state, err := handler.GetState(true)
 	if err != nil {
 		return false
 	}
 
 	// Check if we're the leader (NotRunning is empty)
-	return state.NotRunning == StateLeader
+	return state.NotRunning == ""
 }
 
 // collectClusterCheckMetadata populates the payload with cluster check metadata
@@ -248,7 +234,7 @@ func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
 	}
 
 	// Get full state with dispatch information
-	state, err := cc.clusterHandler.GetState()
+	state, err := cc.clusterHandler.GetState(true)
 	if err != nil {
 		cc.log.Debugf("Error getting cluster check state: %s", err)
 		return
