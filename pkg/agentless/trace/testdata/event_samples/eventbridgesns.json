@@ -1,0 +1,17 @@
+{
+  "Records":[
+    {
+      "SNS":{
+        "MessageID":"12345678-90abc-def-1234-567890abcdef",
+        "Type":"Notification",
+        "TopicArn":"arn:aws:sns:us-east-1:123456789012:test-notifier",
+        "MessageAttributes":{
+
+        },
+        "Timestamp":"2024-09-16T19:44:01.713Z",
+        "Subject":"",
+        "Message":"{\"version\":\"0\",\"id\":\"12345678-90abc-def-1234-567890abcdef\",\"detail-type\":\"TestDetail\",\"source\":\"com.test.source\",\"account\":\"12345667890\",\"time\":\"2024-09-16T19:44:01Z\",\"region\":\"us-east-1\",\"resources\":[],\"detail\":{\"foo\":\"bar\",\"_datadog\":{\"x-datadog-trace-id\":\"12345\",\"x-datadog-parent-id\":\"67890\",\"x-datadog-sampling-priority\":\"1\",\"x-datadog-start-time\":\"1726515840997\",\"x-datadog-resource-name\":\"test-bus\",\"x-datadog-tags\":\"_dd.p.dm=-1,_dd.p.tid=123567890\"}}}"
+      }
+    }
+  ]
+}

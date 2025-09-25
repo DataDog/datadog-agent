@@ -204,6 +204,9 @@ SBOMGEN_TAGS = {
 # SERVERLESS_TAGS lists the tags necessary to build serverless
 SERVERLESS_TAGS = {"grpcnotrace", "serverless", "otlp"}
 
+# AGENTLESS_TAGS lists the tags necessary to build agentless
+AGENTLESS_TAGS = {"grpcnotrace", "serverless", "otlp"}
+
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = {
     "datadog.no_waf",
@@ -288,6 +291,7 @@ build_tags = {
         "process-agent": PROCESS_AGENT_TAGS,
         "security-agent": SECURITY_AGENT_TAGS,
         "serverless": SERVERLESS_TAGS,
+        "agentless": AGENTLESS_TAGS,
         "system-probe": SYSTEM_PROBE_TAGS,
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
@@ -307,6 +311,7 @@ build_tags = {
         "process-agent": PROCESS_AGENT_TAGS.union(FIPS_TAGS),
         "security-agent": SECURITY_AGENT_TAGS.union(FIPS_TAGS),
         "serverless": SERVERLESS_TAGS.union(FIPS_TAGS),
+        "agentless": AGENTLESS_TAGS.union(FIPS_TAGS),
         "system-probe": SYSTEM_PROBE_TAGS.union(FIPS_TAGS),
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(FIPS_TAGS)
         .union(UNIT_TEST_TAGS)
