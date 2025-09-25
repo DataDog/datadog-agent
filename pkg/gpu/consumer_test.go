@@ -183,6 +183,7 @@ func TestConsumerProcessExitChannel(t *testing.T) {
 	// Set up the fake procfs
 	kernel.WithFakeProcFS(t, fakeProcFS)
 	ctx.procRoot = fakeProcFS
+	consumer.cfg.ProcRoot = fakeProcFS
 
 	// Start the consumer
 	consumer.Start()
@@ -238,6 +239,7 @@ func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
 	// Set up the fake procfs
 	kernel.WithFakeProcFS(t, fakeProcFS)
 	ctx.procRoot = fakeProcFS
+	consumer.cfg.ProcRoot = fakeProcFS
 
 	// Start the consumer
 	consumer.Start()
