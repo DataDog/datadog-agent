@@ -3228,7 +3228,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
 			func(sp *profile.Profile) bool {
 				imageName, _ = sp.GetImageNameTag()
-				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
+				nodes := WalkActivityTree(sp.ActivityTree, func(_ *ProcessNodeAndParent) bool {
 					return true
 				})
 
@@ -3255,7 +3255,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 		defer profile.Unlock()
 
 		// Count remaining nodes
-		allNodes := WalkActivityTree(profile.ActivityTree, func(node *ProcessNodeAndParent) bool {
+		allNodes := WalkActivityTree(profile.ActivityTree, func(_ *ProcessNodeAndParent) bool {
 			return true
 		})
 
