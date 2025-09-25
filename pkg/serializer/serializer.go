@@ -238,51 +238,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		return s.Forwarder.SubmitV1Series(seriesBytesPayloads, extraHeaders)
 	}
 
-	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
-	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
-	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
-	pipelines := []metricsserializer.Pipeline{}
-	if failoverActive {
-		// Default behavior, primary region only
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc:  func(series *metrics.Serie) bool { return true },
-			Destination: transaction.PrimaryOnly,
-		})
-
-		// Filter for MRF
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc: func(s *metrics.Serie) bool {
-				_, allowed := allowlistForMRF[s.Name]
-				return allowed
-			},
-			Destination: transaction.SecondaryOnly,
-		})
-
-		// Filter for Autoscaling
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc: func(s *metrics.Serie) bool {
-				_, allowed := allowlistForAutoscaling[s.Name]
-				return allowed
-			},
-			Destination: transaction.LocalOnly,
-		})
-	} else {
-		// Default behavior, all regions
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc:  func(series *metrics.Serie) bool { return true },
-			Destination: transaction.AllRegions,
-		})
-	}
-
-	if s.config.GetBool("preaggregation.enabled") {
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc: func(s *metrics.Serie) bool {
-				return true
-			},
-			Destination: transaction.PreaggrOnly,
-		})
-	}
-
+	pipelines := s.buildPipelines()
 	seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
 	extraHeaders = s.protobufExtraHeadersWithCompression
 
@@ -304,6 +260,98 @@ func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
 		}
 	}
 	return failoverActive, allowlist
+}
+
+func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
+	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
+	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
+	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
+
+	// Don't worry about preaggregation when failover is active
+	if failoverActive {
+		return []metricsserializer.Pipeline{
+			{
+				FilterFunc:  func(series *metrics.Serie) bool { return true },
+				Destination: transaction.PrimaryOnly,
+			},
+			{
+				FilterFunc: func(series *metrics.Serie) bool {
+					_, allowed := allowlistForMRF[series.Name]
+					return allowed
+				},
+				Destination: transaction.SecondaryOnly,
+			},
+			{
+				FilterFunc: func(series *metrics.Serie) bool {
+					_, allowed := allowlistForAutoscaling[series.Name]
+					return allowed
+				},
+				Destination: transaction.LocalOnly,
+			},
+		}
+	}
+
+	preaggregationEnabled, allowlistForPreaggr := s.getPreaggregationAllowlist()
+
+	// Normal operation: preaggregation or standard routing
+	if preaggregationEnabled {
+		hasAllowlist := len(allowlistForPreaggr) > 0
+
+		if hasAllowlist {
+			// Split routing: allowlist metrics → PreaggrOnly, others → AllRegions
+			return []metricsserializer.Pipeline{
+				{
+					FilterFunc: func(series *metrics.Serie) bool {
+						_, allowed := allowlistForPreaggr[series.Name]
+						return !allowed
+					},
+					Destination: transaction.AllRegions,
+				},
+				{
+					FilterFunc: func(series *metrics.Serie) bool {
+						_, allowed := allowlistForPreaggr[series.Name]
+						return allowed
+					},
+					Destination: transaction.PreaggrOnly,
+				},
+			}
+		} else {
+			// Dual-ship: all metrics → both destinations
+			return []metricsserializer.Pipeline{
+				{
+					FilterFunc:  func(series *metrics.Serie) bool { return true },
+					Destination: transaction.AllRegions,
+				},
+				{
+					FilterFunc:  func(series *metrics.Serie) bool { return true },
+					Destination: transaction.PreaggrOnly,
+				},
+			}
+		}
+	}
+
+	// Default: all metrics to AllRegions
+	return []metricsserializer.Pipeline{
+		{
+			FilterFunc:  func(series *metrics.Serie) bool { return true },
+			Destination: transaction.AllRegions,
+		},
+	}
+}
+
+func (s *Serializer) getPreaggregationAllowlist() (bool, map[string]struct{}) {
+	preaggregationEnabled := s.config.GetBool("preaggregation.enabled")
+	var allowlist map[string]struct{}
+	if preaggregationEnabled && s.config.IsConfigured("preaggregation.metric_allowlist") {
+		rawList := s.config.GetStringSlice("preaggregation.metric_allowlist")
+		if len(rawList) > 0 {
+			allowlist = make(map[string]struct{}, len(rawList))
+			for _, allowed := range rawList {
+				allowlist[allowed] = struct{}{}
+			}
+		}
+	}
+	return preaggregationEnabled, allowlist
 }
 
 func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{}) {
