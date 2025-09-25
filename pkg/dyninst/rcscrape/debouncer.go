@@ -14,16 +14,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // debouncer tracks messages from the dd-trace-go callback and coalesces them
-// into a single update for a process. We have to do this because there is
-// no sentinel message when the iteration through the configs begins or ends.
-// Instead, we rely on the idle period to determine when we've seen all the
-// configs for a process.
+// into a single update for a process. We have to do this because old tracer
+// versions didn't have a sentinel method we could probe to figure out when the
+// complete set of remote config configuration has been scraped (newer tracers
+// do have such a method, but we haven't started using it yet). Instead, we rely
+// on an idle period to determine when we've seen all the configs for a process.
 type debouncer struct {
 	idlePeriod time.Duration
 	processes  map[actuator.ProcessID]*debouncerProcess
@@ -37,105 +37,74 @@ func makeDebouncer(idlePeriod time.Duration) debouncer {
 }
 
 type debouncerProcess struct {
-	procmon.ProcessUpdate
-	runtimeID    string
-	lastUpdated  time.Time
-	files        []remoteConfigFile
+	// lastUpdate is the last time an update for the process was received; a
+	// ProcessUpdate is returned when some updates are pending, but no new one
+	// has been received for a while.
+	lastUpdated time.Time
+	// configuration accumulated over a debounce window
+	updates      []remoteConfigFile
 	symdbEnabled bool
 }
 
-func (c *debouncer) track(
-	proc procmon.ProcessUpdate,
-) {
-	c.processes[proc.ProcessID] = &debouncerProcess{
-		ProcessUpdate: proc,
-	}
+func (c *debouncer) clear(processID actuator.ProcessID) {
+	delete(c.processes, processID)
 }
 
-func (c *debouncer) untrack(processID actuator.ProcessID) {
-	delete(c.processes, processID)
+func (c *debouncer) addUpdate(
+	now time.Time,
+	processID actuator.ProcessID,
+	file remoteConfigFile,
+) {
+	p := c.getOrInsertProcess(processID)
+	p.lastUpdated = now
+	if file.ConfigContent == "" {
+		return
+	}
+	p.updates = append(p.updates, file)
 }
 
 func (c *debouncer) addSymdbEnabled(
 	now time.Time,
 	processID actuator.ProcessID,
-	runtimeID string,
 	symdbEnabled bool,
 ) {
-	p, ok := c.processes[processID]
-	if !ok {
-		// Update corresponds to an untracked process.
-		return
-	}
+	p := c.getOrInsertProcess(processID)
 	p.lastUpdated = now
-	if p.runtimeID != "" && p.runtimeID != runtimeID {
-		log.Warnf(
-			"rcscrape: process %v: runtime ID mismatch: %s != %s",
-			p.ProcessID, p.runtimeID, runtimeID,
-		)
-	}
-	p.runtimeID = runtimeID
 	p.symdbEnabled = symdbEnabled
-	if log.ShouldLog(log.TraceLvl) {
-		log.Tracef(
-			"rcscrape: process %v: symdb enabled: %t",
-			p.ProcessID, symdbEnabled,
-		)
-	}
 }
 
-func (c *debouncer) addInFlight(
-	now time.Time,
-	processID actuator.ProcessID,
-	file remoteConfigFile,
-) {
+func (c *debouncer) getOrInsertProcess(processID actuator.ProcessID) *debouncerProcess {
 	p, ok := c.processes[processID]
 	if !ok {
-		// Update corresponds to an untracked process.
-		return
+		p = &debouncerProcess{}
+		c.processes[processID] = p
 	}
-	p.lastUpdated = now
-	if p.runtimeID != "" && p.runtimeID != file.RuntimeID {
-		log.Warnf(
-			"rcscrape: process %v: runtime ID mismatch: %s != %s",
-			p.ProcessID, p.runtimeID, file.RuntimeID,
-		)
-		clear(p.files)
-	}
-	p.runtimeID = file.RuntimeID
-	if file.ConfigContent == "" {
-		return
-	}
-	p.files = append(p.files, file)
-	if log.ShouldLog(log.TraceLvl) {
-		log.Tracef(
-			"rcscrape: process %v: got update for %s",
-			p.ProcessID, file.ConfigPath,
-		)
-	}
+	return p
 }
 
-func (c *debouncer) coalesceInFlight(now time.Time) []ProcessUpdate {
-	var updates []ProcessUpdate
-
+// getUpdates returns the state of processes that have pending updates but
+// have been quiesced for a bit (thereby ending a debounce window). Processes
+// for which an updated state is returned are removed from c.processes.
+func (c *debouncer) getUpdates(now time.Time) []accumulatedState {
+	var res []accumulatedState
 	for procID, process := range c.processes {
-		if process.lastUpdated.IsZero() ||
-			process.lastUpdated.Add(c.idlePeriod).After(now) {
+		if process.lastUpdated.Add(c.idlePeriod).After(now) {
 			continue
 		}
-		probes := computeProbeDefinitions(procID, process.files)
-		process.files, process.lastUpdated = nil, time.Time{}
-		updates = append(updates, ProcessUpdate{
-			ProcessUpdate:     process.ProcessUpdate,
-			Probes:            probes,
-			RuntimeID:         process.runtimeID,
-			ShouldUploadSymDB: process.symdbEnabled,
+		res = append(res, accumulatedState{
+			procID:       procID,
+			probes:       computeProbeDefinitions(procID, process.updates),
+			symdbEnabled: process.symdbEnabled,
 		})
+		delete(c.processes, procID)
 	}
-	slices.SortFunc(updates, func(a, b ProcessUpdate) int {
-		return cmp.Compare(a.ProcessID.PID, b.ProcessID.PID)
-	})
-	return updates
+	return res
+}
+
+type accumulatedState struct {
+	procID       actuator.ProcessID
+	probes       []ir.ProbeDefinition
+	symdbEnabled bool
 }
 
 func computeProbeDefinitions(

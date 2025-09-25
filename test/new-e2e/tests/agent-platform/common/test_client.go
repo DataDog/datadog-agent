@@ -332,3 +332,25 @@ func execWithRetry(exec func(string) (string, error), cmd string) (string, error
 
 	return output, err
 }
+
+// MacOSTestClient is a helper to run commands on a Mac OS remote host for tests
+type MacOSTestClient struct {
+	host *components.RemoteHost
+}
+
+// NewMacOSTestClient creates a client to help write tests that run on a Mac OS remote host
+func NewMacOSTestClient(host *components.RemoteHost) *MacOSTestClient {
+	return &MacOSTestClient{
+		host: host,
+	}
+}
+
+// Execute runs commands on a Mac OS remote host
+func (c *MacOSTestClient) Execute(command string) (output string, err error) {
+	return c.host.Execute(command)
+}
+
+// ExecuteWithRetry execute the command with retry
+func (c *MacOSTestClient) ExecuteWithRetry(cmd string) (output string, err error) {
+	return execWithRetry(c.Execute, cmd)
+}

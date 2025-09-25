@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testInt64Array",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {

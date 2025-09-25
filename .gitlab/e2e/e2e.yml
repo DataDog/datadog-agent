@@ -4,7 +4,7 @@
 .new_e2e_template:
   stage: e2e
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     - !reference [.needs_new_e2e_template]
   before_script:
@@ -54,8 +54,8 @@
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     # set the environment variables for the windows test signing
-    - export WINDOWS_DDNPM_DRIVER=$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)
-    - export WINDOWS_DDPROCMON_DRIVER=$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)
+    - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
+    - export WINDOWS_DDPROCMON_DRIVER=${WINDOWS_DDPROCMON_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)}
   variables:
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi
@@ -82,6 +82,7 @@
     E2E_COVERAGE_OUT_DIR: $CI_PROJECT_DIR/coverage
     PRE_BUILT_BINARIES_FLAG: "--use-prebuilt-binaries"
     MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
+    REMOTE_STACK_CLEANING: "true"
   script:
     - dda inv -- -e new-e2e-tests.run $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
@@ -90,6 +91,8 @@
     - |
       if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
         dda inv -- -e coverage.process-e2e-coverage-folders $E2E_COVERAGE_OUT_DIR
+        pip install boto3==1.38.8 # TODO: Remove this before merging, after dda is bumped in test-infra-definitions
+        dda inv -- -e dyntest.compute-and-upload-job-index --bucket-uri $S3_PERMANENT_ARTIFACTS_URI --coverage-folder $E2E_COVERAGE_OUT_DIR --commit-sha $CI_COMMIT_SHA --job-id $CI_JOB_ID
       fi
   artifacts:
     expire_in: 2 weeks
@@ -110,13 +113,44 @@
 .needs_new_e2e_template:
   - go_e2e_deps
   - go_e2e_test_binaries
+  - job: new-e2e-base-coverage
+    optional: true
+
+new-e2e-base-coverage:
+  extends: .new_e2e_template
+  needs:
+    - go_e2e_deps
+    - go_e2e_test_binaries
+    - agent_deb-x64-a7
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_coverage_pipeline]
+  variables:
+    TARGETS: ./tests/agent-devx
+    TEAM: agent-devx
+    EXTRA_PARAMS: --run TestAgentBaselineSuite
+
+new-e2e-base:
+  extends: .new_e2e_template
+  needs:
+    - go_e2e_deps
+    - go_e2e_test_binaries
+    - agent_deb-x64-a7
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_coverage_pipeline]
+    - when: on_success
+  variables:
+    TARGETS: ./tests/agent-devx
+    TEAM: agent-devx
+    EXTRA_PARAMS: --run TestAgentBaselineSuite
 
 # Build test binaries job that creates pre-compiled test binaries
 # This job runs early in the pipeline and creates artifacts that can be reused by test jobs
 go_e2e_test_binaries:
   stage: binary_build
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     - go_e2e_deps
   variables:
@@ -127,7 +161,7 @@ go_e2e_test_binaries:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
     - pushd test/new-e2e
-    - go install github.com/DataDog/orchestrion@v1.4.0
+    - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - tar czf test-binaries.tar.gz test-binaries
@@ -193,8 +227,8 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20-04"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
@@ -232,7 +266,6 @@ new-e2e-containers-eks:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -442,7 +475,6 @@ new-e2e-npm-eks:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-npm:
   extends: .new_e2e_template
@@ -508,7 +540,6 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    REMOTE_STACK_CLEANING: "true"
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
   parallel:
@@ -633,90 +664,6 @@ new-e2e-installer:
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
     REMOTE_STACK_CLEANING: "true"
-
-new-e2e-installer-windows:
-  extends: .new_e2e_template
-  rules:
-    - !reference [.on_installer_or_e2e_changes]
-    - !reference [.manual]
-  needs:
-    - !reference [.needs_new_e2e_template]
-    - deploy_windows_testing-a7
-    - deploy_installer_oci
-    - deploy_agent_oci
-    - qa_installer_script_windows
-  before_script:
-    # CURRENT_AGENT_VERSION is used to verify the installed agent version
-    # Must run before new_e2e_template changes the aws profile
-    # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
-    # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
-    - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
-    - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
-    - !reference [.new_e2e_template, before_script]
-  variables:
-    TARGETS: ./tests/installer/windows
-    TEAM: fleet
-    FLEET_INSTALL_METHOD: "windows"
-    E2E_USE_AWS_PROFILE: "false"
-    MAX_RETRIES_FLAG: "--max-retries=3"
-  parallel:
-    matrix:
-      # agent-package
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeMSI$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageWithAltDir$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageAfterRollback$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeAgentPackage$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopExperiment$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentForNonExistingPackageFails$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentCurrentVersionFails$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopWithoutExperiment$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDies$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenTimeout$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentMSIRollbackMaintainsCustomUserAndAltDir$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDiesMaintainsCustomUserAndAltDir$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithHostNameChange$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRunAgentMSIAfterExperiment$"
-      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithAgentUser$"
-      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeMSI$"
-      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeAgentPackage$"
-      - EXTRA_PARAMS: --run "TestAgentUpgradesAfterDCPromotion$/TestUpgradeAfterDCPromotion$"
-      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeMSI$"
-      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
-      - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
-      - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
-      - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
-      - EXTRA_PARAMS: --run "TestUpgradeWithMissingPassword$/TestUpgradeWithMissingPassword$"
-      # agent config experiment
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeNewAgents$"
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
-      - EXTRA_PARAMS: --run "TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$"
-      # install-exe
-      - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
-      # install-script
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestFailedUnsupportedVersion$"
-      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
-      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUserOnDC$"
-      # installer-package
-      - EXTRA_PARAMS: --run "TestInstaller$"
-      # TODO: disabling tests during MSI merge, should be covered by regular Agent MSI tests
-      # - EXTRA_PARAMS: --run "TestInstallerRollback$"
-      # apm-library-dotnet
-      - EXTRA_PARAMS: --run "TestDotnetLibraryInstalls$"
-      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestInstallDotnetLibraryPackageWithoutIIS$"
-      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestMSIInstallDotnetLibraryFailsWithoutIIS$"
-      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestInstallFromMSI$"
-      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIThenRemoteUpgrade$"
-      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUpgradeWithMSI$"
-      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIRollbackRemovesLibrary$"
-      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$"
-      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallKeepsLibrary$"
-      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallScript$"
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -871,7 +818,6 @@ new-e2e-otel-eks:
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
     E2E_PRE_INITIALIZED: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-otel:
   extends: .new_e2e_template
@@ -893,7 +839,7 @@ new-e2e-otel:
   variables:
     TARGETS: ./tests/agent-platform/package-signing
     TEAM: agent-delivery
-    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    EXTRA_PARAMS: --osdescriptors $E2E_BRANCH_DESCRIPTORS
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-package-signing-debian-a7-x86_64:
@@ -901,10 +847,9 @@ new-e2e-package-signing-debian-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_package_signing
   variables:
-    E2E_ARCH: x86_64
-    E2E_OSVERS: "debian-9,debian-10,debian-11,debian-12"
-    E2E_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
-    E2E_BRANCH_OSVERS: "debian-11"
+    E2E_DESCRIPTORS: "debian/x86_64/9,debian/x86_64/10,debian/x86_64/11,debian/x86_64/12"
+    E2E_CWS_SUPPORTED_DESCRIPTORS: "debian/x86_64/10,debian/x86_64/11"
+    E2E_BRANCH_DESCRIPTORS: "debian/x86_64/11"
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
@@ -915,10 +860,9 @@ new-e2e-package-signing-suse-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_package_signing
   variables:
-    E2E_ARCH: x86_64
-    E2E_OSVERS: "sles-12,sles-15"
-    E2E_CWS_SUPPORTED_OSVERS: "sles-12,sles-15"
-    E2E_BRANCH_OSVERS: "sles-15"
+    E2E_DESCRIPTORS: "suse/x86_64/12,suse/x86_64/15-4"
+    E2E_CWS_SUPPORTED_DESCRIPTORS: "suse/x86_64/12,suse/x86_64/15-4"
+    E2E_BRANCH_DESCRIPTORS: "suse/x86_64/15-4"
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_suse-x64-a7
@@ -984,7 +928,7 @@ generate-flakes-finder-pipeline:
     - qa_agent
     - qa_agent_full
     - tests_windows_sysprobe_x64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - dda inv -- -e testwasher.generate-flake-finder-pipeline
@@ -1042,7 +986,7 @@ generate-fips-e2e-pipeline:
     - qa_agent_fips
     - qa_agent_fips_jmx
     - tests_windows_sysprobe_x64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - dda inv -- -e fips.generate-fips-e2e-pipeline
@@ -1070,7 +1014,7 @@ trigger-fips-e2e:
 
 new-e2e-cleanup-on-failure:
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   stage: e2e_cleanup
   dependencies: [go_e2e_deps]
   script:

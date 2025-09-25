@@ -89,7 +89,7 @@ static __always_inline void push_event_if_relevant(void *ctx, lib_path_t *path, 
     u64 gpu_libset_enabled = 0;
     LOAD_CONSTANT("gpu_libset_enabled", gpu_libset_enabled);
 
-    if (gpu_libset_enabled && (match6chars(0, 'c', 'u', 'd', 'a', 'r', 't'))) {
+    if (gpu_libset_enabled && (match6chars(0, 'c', 'u', 'd', 'a', 'r', 't') || match6chars(0, '4', 'j', 'c', 'u', 'd', 'a'))) {
         bpf_perf_event_output(ctx, &gpu_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
     }
 

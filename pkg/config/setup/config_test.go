@@ -228,7 +228,7 @@ func TestIsCloudProviderEnabled(t *testing.T) {
 
 func TestEnvNestedConfig(t *testing.T) {
 	config := newTestConf(t)
-	config.BindEnv("foo.bar.nested")
+	config.BindEnv("foo.bar.nested") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	t.Setenv("DD_FOO_BAR_NESTED", "baz")
 
 	assert.Equal(t, "baz", config.GetString("foo.bar.nested"))
@@ -260,7 +260,9 @@ func TestProxy(t *testing.T) {
 		{
 			name: "from configuration",
 			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
-				config.SetWithoutSource("proxy", expectedProxy)
+				config.SetWithoutSource("proxy.http", expectedProxy.HTTP)
+				config.SetWithoutSource("proxy.https", expectedProxy.HTTPS)
+				config.SetWithoutSource("proxy.no_proxy", expectedProxy.NoProxy)
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())
@@ -615,22 +617,11 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 func TestNumWorkers(t *testing.T) {
 	config := newTestConf(t)
 
-	config.SetWithoutSource("python_version", "2")
-	config.SetWithoutSource("tracemalloc_debug", true)
 	config.SetWithoutSource("check_runners", 4)
+	config.SetWithoutSource("tracemalloc_debug", false)
 
 	setNumWorkers(config)
 	workers := config.GetInt("check_runners")
-	assert.Equal(t, workers, config.GetInt("check_runners"))
-
-	config.SetWithoutSource("tracemalloc_debug", false)
-	setNumWorkers(config)
-	workers = config.GetInt("check_runners")
-	assert.Equal(t, workers, config.GetInt("check_runners"))
-
-	config.SetWithoutSource("python_version", "3")
-	setNumWorkers(config)
-	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
 	config.SetWithoutSource("tracemalloc_debug", true)
@@ -1597,9 +1588,9 @@ yet_another_key: "********"`
 
 func TestLoadProxyFromEnv(t *testing.T) {
 	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.SetKnown("proxy.http")
-	cfg.SetKnown("proxy.https")
-	cfg.SetKnown("proxy.no_proxy")
+	cfg.SetKnown("proxy.http")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetKnown("proxy.https")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetKnown("proxy.no_proxy") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	t.Setenv("DD_PROXY_HTTP", "http://www.example.com/")
 	cfg.BuildSchema()
 

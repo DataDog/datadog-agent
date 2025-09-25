@@ -47,13 +47,14 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 	mockDCAClient := &MockDCAClient{respCh: respCh}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"language_detection.reporting.enabled":       "true",
-			"language_detection.enabled":                 "true",
-			"cluster_agent.enabled":                      "true",
-			"language_detection.reporting.buffer_period": "50ms",
-		}}),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"language_detection.reporting.enabled":       "true",
+				"language_detection.enabled":                 "true",
+				"cluster_agent.enabled":                      "true",
+				"language_detection.reporting.buffer_period": "50ms",
+			})
+		}),
 		telemetryimpl.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -92,13 +93,14 @@ func TestClientEnabled(t *testing.T) {
 			testCase.clusterAgentEnabled),
 			func(t *testing.T) {
 				deps := fxutil.Test[dependencies](t, fx.Options(
-					config.MockModule(),
 					fxutil.ProvideOptional[secrets.Component](),
-					fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-						"language_detection.enabled":           testCase.languageDetectionEnabled,
-						"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
-						"cluster_agent.enabled":                testCase.clusterAgentEnabled,
-					}}),
+					fx.Provide(func() config.Component {
+						return config.NewMockWithOverrides(t, map[string]interface{}{
+							"language_detection.enabled":           testCase.languageDetectionEnabled,
+							"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
+							"cluster_agent.enabled":                testCase.clusterAgentEnabled,
+						})
+					}),
 					fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 					telemetryimpl.MockModule(),
 					fx.Provide(func() log.Component { return logmock.New(t) }),

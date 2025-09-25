@@ -5,8 +5,7 @@ fit for your use case, please [refer to the official documentation][custom-check
 
 ## JMX-based checks
 JMX-based checks are executed by a component of the Agent called `jmxfetch`.
-Refer to [./jmxfetch.md](./jmxfetch.md) for more.
-
+See the [JMXFetch repo](https://github.com/DataDog/JMXFetch) for more.
 ## Configuration
 
 Every check has its own YAML configuration file. The file has one mandatory key,
@@ -61,6 +60,10 @@ inherits from `AgentCheck` and implements the `check` method:
 from datadog_checks.checks import AgentCheck
 
 class MyCheck(AgentCheck):
+    def __init__(self, name, init_config, instances):
+        super().__init__(name, init_config, instances)
+        # Read config, set up instances, initialize checks
+        # ...
     def check(self, instance):
         # Collect metrics, emit events, submit service checks,
         # ...
@@ -135,11 +138,21 @@ checks code.
 Scenario: You have implemented a custom check called `hello_world` and you would
 like to run this with a local Agent build.
 
+Example contents of `hello_world.yaml`:
+```yaml
+instances:
+  - only_one_instance: true
+```
+
+The contents of the instance item are not important, but if an instance is not present the agent will not run the check.
+
 Example contents of `hello_world.py`:
 ```python
 from datadog_checks.checks import AgentCheck
 
 class MyCheck(AgentCheck):
+    def __init__(self, name, init_config, instances):
+        super().__init__(name, init_config, instances)
     def check(self, instance):
         self.gauge('hello.world', 1.23, tags=['foo:bar'])
 ```

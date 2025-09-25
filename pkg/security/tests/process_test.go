@@ -34,6 +34,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/syndtr/gocapability/capability"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1910,6 +1911,10 @@ func TestProcessExit(t *testing.T) {
 func TestProcessBusyboxSymlink(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_busybox_1",
@@ -1937,8 +1942,7 @@ func TestProcessBusyboxSymlink(t *testing.T) {
 
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
 	if err != nil {
-		t.Skip("docker not available")
-		return
+		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -1993,6 +1997,10 @@ func TestProcessBusyboxSymlink(t *testing.T) {
 func TestProcessBusyboxHardlink(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	checkKernelCompatibility(t, "Not supported on kernels < 5.12", func(kv *kernel.Version) bool {
 		return kv.Code < kernel.Kernel5_12
 	})
@@ -2017,8 +2025,7 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 	// busybox uses hardlinks
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
 	if err != nil {
-		t.Skip("docker not available")
-		return
+		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
 
 	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -2452,4 +2459,39 @@ func TestProcessFilelessExecution(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSymLinkResolution(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "symlink_true_exec",
+			Expression: `exec.file.name == "true"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("exec true via symlink", func(t *testing.T) {
+		tmpLink := filepath.Join(t.TempDir(), "my_symlink")
+		err := os.Symlink("/bin/true", tmpLink)
+		require.NoError(t, err)
+
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command(tmpLink)
+			cmd.Stdout = io.Discard
+			cmd.Stderr = io.Discard
+			_ = cmd.Run()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "symlink_true_exec")
+			assert.True(t, event.Exec.IsThroughSymLink, "event.Process.IsThroughSymLink not matching")
+		})
+		assert.NoError(t, err)
+	})
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
@@ -28,8 +27,6 @@ type windowsNetworkPathIntegrationTestSuite struct {
 //go:embed fixtures/network_path_windows.yaml
 var networkPathIntegrationWindows []byte
 
-var testAgentRunningMetricTagsTCPSocket = []string{"destination_hostname:8.8.8.8", "protocol:TCP", "destination_port:443"}
-
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
@@ -38,7 +35,7 @@ func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(networkPathIntegrationWindows)),
 		),
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 	)))
 }
 
@@ -52,15 +49,11 @@ func (s *windowsNetworkPathIntegrationTestSuite) SetupSuite() {
 }
 
 func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrationMetrics() {
-	// TODO remove after fixing metrics flake
-	flake.Mark(s.T())
-
 	fakeIntake := s.Env().FakeIntake
 	hostname := s.Env().Agent.Client.Hostname()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assertMetrics(fakeIntake, c, [][]string{
 			testAgentRunningMetricTagsTCP,
-			testAgentRunningMetricTagsTCPSocket,
 			testAgentRunningMetricTagsUDP,
 		})
 

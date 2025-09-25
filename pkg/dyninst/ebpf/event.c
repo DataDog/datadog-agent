@@ -22,7 +22,42 @@ struct {
   __type(value, uint64_t);
 } throttled_events SEC(".maps");
 
-SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
+static uint64_t read_goid(uint64_t g_ptr) {
+  uint64_t goid;
+  if (bpf_probe_read_user(
+          &goid, sizeof(goid),
+          (void*)(g_ptr + OFFSET_runtime_dot_g__goid))) {
+    LOG(2, "failed to read goid %llx", g_ptr);
+    return 0;
+  }
+  if (goid != 0) {
+    return goid;
+  }
+  // This is pseudo-g. Extract g_ptr->m->curg->goid.
+  uint64_t m_ptr;
+  if (bpf_probe_read_user(
+          &m_ptr, sizeof(m_ptr),
+          (void*)(g_ptr + OFFSET_runtime_dot_g__m))) {
+    LOG(2, "failed to read m %llx", g_ptr);
+    return 0;
+  }
+  if (bpf_probe_read_user(
+          &g_ptr, sizeof(g_ptr),
+          (void*)(m_ptr + OFFSET_runtime_dot_m__curg))) {
+    LOG(2, "failed to read curg %llx", m_ptr);
+    return 0;
+  }
+  if (bpf_probe_read_user(
+          &goid, sizeof(goid),
+          (void*)(g_ptr + OFFSET_runtime_dot_g__goid))) {
+    LOG(2, "failed to read goid %llx", g_ptr);
+    return 0;
+  }
+  return goid;
+}
+
+SEC("uprobe")
+int probe_run_with_cookie(struct pt_regs* regs) {
   uint64_t start_ns = bpf_ktime_get_ns();
 
   const uint64_t cookie = bpf_get_attach_cookie(regs);
@@ -43,7 +78,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     return 0;
   }
   global_ctx_t global_ctx;
-  global_ctx.stack_machine = stack_machine_ctx_load(params->pointer_chasing_limit);
+  global_ctx.stack_machine = stack_machine_ctx_load(params);
   if (!global_ctx.stack_machine) {
     return 0;
   }
@@ -72,6 +107,13 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
       .ktime_ns = start_ns,
       .prog_id = prog_id,
   };
+#if defined(bpf_target_x86)
+  header->goid = read_goid(regs->DWARF_REGISTER_14);
+#elif defined(bpf_target_arm64)
+  header->goid = read_goid(regs->DWARF_REGISTER(28));
+#else
+#error "Unsupported architecture"
+#endif
 
   __maybe_unused int process_steps = 0;
   __maybe_unused int chase_steps = 0;
@@ -99,7 +141,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     global_ctx.stack_walk->idx_shift = 1;
   }
 #else
-  #error "Unsupported architecture"
+#error "Unsupported architecture"
 #endif
   global_ctx.stack_walk->stack.pcs.len =
       bpf_loop(STACK_DEPTH, populate_stack_frame, &global_ctx.stack_walk, 0) +
@@ -116,14 +158,14 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
         .buf = global_ctx.buf,
     };
     bpf_loop(global_ctx.stack_walk->stack.pcs.len, copy_stack_loop,
-              &copy_stack_ctx, 0);
+             &copy_stack_ctx, 0);
     scratch_buf_increment_len(global_ctx.buf, header->stack_byte_len);
   } else {
     stack_hash = 0;
   }
   global_ctx.regs = &global_ctx.stack_walk->regs;
   frame_data_t frame_data = {
-    .stack_idx = 0,
+      .stack_idx = 0,
   };
   frame_data.cfa = calculate_cfa(global_ctx.regs, params->frameless);
   if (params->stack_machine_pc != 0) {

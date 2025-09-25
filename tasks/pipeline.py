@@ -410,11 +410,11 @@ def parse(commit_str):
 
 def is_system_probe(owners, files):
     target = {
-        ("TEAM", "@DataDog/Networks"),
         ("TEAM", "@DataDog/universal-service-monitoring"),
         ("TEAM", "@DataDog/ebpf-platform"),
         ("TEAM", "@DataDog/agent-security"),
         ("TEAM", "@DataDog/cloud-network-monitoring"),
+        ("TEAM", "@DataDog/debugger-go"),
     }
     for f in files:
         match_teams = set(owners.of(f)) & target

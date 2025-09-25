@@ -105,7 +105,7 @@ func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) 
 			GeneratedNameSource:      wlmProc.Service.GeneratedNameSource,
 			AdditionalGeneratedNames: wlmProc.Service.AdditionalGeneratedNames,
 			TracerMetadata:           wlmProc.Service.TracerMetadata,
-			DDService:                wlmProc.Service.DDService,
+			DDService:                wlmProc.Service.UST.Service,
 			APMInstrumentation:       wlmProc.Service.APMInstrumentation,
 		}
 		tcpPorts = wlmProc.Service.TCPPorts

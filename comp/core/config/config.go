@@ -128,6 +128,10 @@ func (c *cfg) fillFlare(fb flaretypes.FlareBuilder) error {
 
 		// use best effort to include security-agent.yaml to the flare
 		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml")) //nolint:errcheck
+
+		// use best effort to include application_monitoring.yaml to the flare
+		// application_monitoring.yaml is a file that lets customers configure Datadog SDKs at the level of the host
+		fb.CopyFileTo(filepath.Join(confDir, "application_monitoring.yaml"), filepath.Join("etc", "application_monitoring.yaml")) //nolint:errcheck
 	}
 
 	for _, path := range c.ExtraConfigFilesUsed() {

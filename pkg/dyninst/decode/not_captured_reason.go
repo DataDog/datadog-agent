@@ -19,6 +19,9 @@ var (
 	tokenNotCapturedReasonUnavailable    = jsontext.String("unavailable")
 	tokenNotCapturedReasonUnimplemented  = jsontext.String("unimplemented")
 	tokenNotCapturedReasonCycle          = jsontext.String("circular reference")
+	// This is used when we're missing the type information for a value
+	// underneath an interface.
+	tokenNotCapturedReasonMissingTypeInfo = jsontext.String("missing type information")
 	// tokenNotCapturedReasonFieldCount      = jsontext.String("fieldCount")
 
 	tokenTruncated = jsontext.String("truncated")

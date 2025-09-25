@@ -58,6 +58,7 @@ func (c *Check) Run() error {
 		Protocol:                  c.config.Protocol,
 		TCPMethod:                 c.config.TCPMethod,
 		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
+		ReverseDNS:                true,
 	}
 
 	tr, err := traceroute.New(cfg, c.telemetryComp)
@@ -76,12 +77,6 @@ func (c *Check) Run() error {
 	path.Destination.Service = c.config.DestinationService
 	path.Tags = append(path.Tags, c.config.Tags...)
 
-	// Perform reverse DNS lookup
-	path.Destination.ReverseDNSHostname = traceroute.GetHostname(path.Destination.IPAddress)
-	for i := range path.Hops {
-		path.Hops[i].Hostname = traceroute.GetHostname(path.Hops[i].IPAddress)
-	}
-
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
 	if err != nil {
@@ -89,6 +84,8 @@ func (c *Check) Run() error {
 	}
 
 	metricTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
+
+	// TODO: Remove static path telemetry code (separate PR)
 	c.submitTelemetry(metricSender, path, metricTags, startTime)
 
 	senderInstance.Commit()

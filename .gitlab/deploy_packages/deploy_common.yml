@@ -2,7 +2,7 @@
 .deploy_packages:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: deploy_packages
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   rules:
     !reference [.on_deploy]
   variables:
@@ -13,7 +13,7 @@
     - ls ${OMNIBUS_PACKAGE_DIR}/${ARTIFACT_NAME_PATTERN}
   script:
     - !reference [.setup_dd_pkg]
-    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" "${DD_PKG_EXTRA_ARGS}"
+    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" ${DD_PKG_EXTRA_ARGS}
 
 .deploy_packages_deb:
   extends: .deploy_packages
@@ -49,7 +49,7 @@
     !reference [.on_deploy_installer]
   resource_group: deb_bucket
   variables:
-    DD_PKG_EXTRA_ARGS: --project-name "datadog-installer"
+    DD_PKG_EXTRA_ARGS: --project-name datadog-installer
     ARTIFACT_NAME_PATTERN: "*_7.*${PACKAGE_ARCH}.deb"
 
 .deploy_installer_rpm:
@@ -58,13 +58,13 @@
     !reference [.on_deploy_installer]
   resource_group: rpm_bucket
   variables:
-    DD_PKG_EXTRA_ARGS: --project-name "datadog-installer"
+    DD_PKG_EXTRA_ARGS: --project-name datadog-installer
     ARTIFACT_NAME_PATTERN: "*-7.*${PACKAGE_ARCH}.rpm"
 
 .deploy_installer_suse_rpm:
   extends: .deploy_installer_rpm
   variables:
-    DD_PKG_EXTRA_ARGS: --suse --project-name "datadog-installer"
+    DD_PKG_EXTRA_ARGS: --suse --project-name datadog-installer
     OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
 
 deploy_installer_install_scripts:
@@ -74,7 +74,7 @@ deploy_installer_install_scripts:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: deploy_packages
   needs: ["installer-install-scripts"]
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:

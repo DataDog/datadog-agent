@@ -1,7 +1,6 @@
 # 3rd party dependencies
 
-# Defines a "bz2" target for the lib, "bzip2" for the CLI tool
-bazel_dep(name = "bzip2", version = "1.0.8")
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 # Defines a "libyaml" target for the lib
 bazel_dep(name = "libyaml", version = "0.2.5")
@@ -15,5 +14,63 @@ bazel_dep(name = "sqlite3", version = "3.46.1")
 # Defines a "lzma" target for the lib, "xz" for the CLI tools
 bazel_dep(name = "xz", version = "5.4.5.bcr.5")
 
-# Defines a "zlib" target for the lib
-bazel_dep(name = "zlib", version = "1.3.1.bcr.3")
+http_archive(
+    name = "zlib",
+    build_file = "//deps:zlib.BUILD.bazel",
+    sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+    strip_prefix = "zlib-1.3.1",
+    url = "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
+)
+
+http_archive(
+    name = "bzip2",
+    build_file = "//deps:bzip2.BUILD.bazel",
+    sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+    strip_prefix = "bzip2-1.0.8",
+    # The canonical source is in https://sourceware.org/pub/bzip2/, but the Bazel
+    # team mirror is more reliable.
+    url = "https://mirror.bazel.build/sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+)
+
+# Defines a "rules_foreign_cc" target to build openssl
+bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
+
+http_archive(
+    name = "openssl",
+    build_file = "//deps:openssl.BUILD.bazel",
+    sha256 = "c53a47e5e441c930c3928cf7bf6fb00e5d129b630e0aa873b08258656e7345ec",
+    strip_prefix = "openssl-3.5.2",
+    url = "https://www.openssl.org/source/openssl-3.5.2.tar.gz",
+)
+
+bazel_dep(name = "gcc_toolchain")
+git_override(
+    module_name = "gcc_toolchain",
+    commit = "0e2242b07961107d2b05a6552d70b2ef4ef485fb",
+    patch_args = ["-p1"],
+    patches = ["//bazel/patches:datadog_agent_toolchain.patch"],
+    remote = "https://github.com/f0rmiga/gcc-toolchain.git",
+)
+
+gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)
+gcc_toolchains.toolchain(
+    name = "gcc_toolchain_x86_64",
+    binary_prefix = "x86_64-unknown-linux-gnu-",
+    gcc_version = "11.4.0",
+    target_arch = "x86_64",
+)
+gcc_toolchains.toolchain(
+    name = "gcc_toolchain_aarch64",
+    binary_prefix = "aarch64-unknown-linux-gnu-",
+    gcc_version = "12.3.0",
+    target_arch = "aarch64",
+)
+use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
+use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
+
+# TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
+register_toolchains(
+    "@gcc_toolchain_x86_64//:cc_toolchain",
+    "@gcc_toolchain_aarch64//:cc_toolchain",
+    dev_dependency = True,
+)

@@ -28,7 +28,7 @@ func (lo LoaderOne) Name() string {
 	return "loader_one"
 }
 
-func (lo LoaderOne) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data) (check.Check, error) {
+func (lo LoaderOne) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data, _ int) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }
@@ -39,7 +39,7 @@ func (lt LoaderTwo) Name() string {
 	return "loader_two"
 }
 
-func (lt LoaderTwo) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data) (check.Check, error) {
+func (lt LoaderTwo) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data, _ int) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }
@@ -50,7 +50,7 @@ func (lt *LoaderThree) Name() string {
 	return "loader_three"
 }
 
-func (lt *LoaderThree) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data) (check.Check, error) {
+func (lt *LoaderThree) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data, _ int) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }

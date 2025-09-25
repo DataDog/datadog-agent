@@ -10,18 +10,20 @@
 package pod
 
 import (
-	"context"
 	"slices"
 	"sort"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	kubeletfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/kubelet"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -42,98 +44,112 @@ var includeContainerStateReason = map[string][]string{
 }
 
 const kubeNamespaceTag = tags.KubeNamespace
+const kubePodConditionResizePending = "PodResizePending"
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
-	filterStore workloadfilter.Component
-	config      *common.KubeletConfig
-	podUtils    *common.PodUtils
-	tagger      tagger.Component
+	store           workloadmeta.Component
+	containerFilter workloadfilter.FilterBundle
+	config          *common.KubeletConfig
+	podUtils        *common.PodUtils
+	tagger          tagger.Component
 	// now timer func is used to mock time in tests
 	now func() time.Time
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filterStore workloadfilter.Component, config *common.KubeletConfig, podUtils *common.PodUtils, tagger tagger.Component) *Provider {
+func NewProvider(filterStore workloadfilter.Component, store workloadmeta.Component, config *common.KubeletConfig,
+	podUtils *common.PodUtils, tagger tagger.Component) *Provider {
 	return &Provider{
-		filterStore: filterStore,
-		config:      config,
-		podUtils:    podUtils,
-		tagger:      tagger,
-		now:         time.Now,
+		containerFilter: filterStore.GetContainerSharedMetricFilters(),
+		store:           store,
+		config:          config,
+		podUtils:        podUtils,
+		tagger:          tagger,
+		now:             time.Now,
 	}
 }
 
-// Provide provides the metrics related to a Kubelet pods
-func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
-	// Collect raw data
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.config.Timeout)*time.Second)
-	pods, err := kc.GetLocalPodListWithMetadata(ctx)
-	cancel()
-	if err != nil {
-		return err
-	}
-	if pods == nil {
-		return nil
+// Provide provides the metrics related to Kubelet pods using workloadmeta
+func (p *Provider) Provide(_ kubelet.KubeUtilInterface, sender sender.Sender) error {
+	if kubeletMetrics, err := p.store.GetKubeletMetrics(); err == nil && kubeletMetrics != nil {
+		sender.Gauge(common.KubeletMetricsPrefix+"pods.expired", float64(kubeletMetrics.ExpiredPodCount), "", p.config.Tags)
 	}
 
-	// Report metrics
 	runningAggregator := newRunningAggregator()
 
-	sender.Gauge(common.KubeletMetricsPrefix+"pods.expired", float64(pods.ExpiredCount), "", p.config.Tags)
-
-	for _, pod := range pods.Items {
-		p.podUtils.PopulateForPod(pod)
-		// Combine regular containers with init and ephemeral containers for easier iteration
-		allContainers := make([]kubelet.ContainerSpec, 0, len(pod.Spec.InitContainers)+len(pod.Spec.Containers)+len(pod.Spec.EphemeralContainers))
-		allContainers = append(allContainers, pod.Spec.InitContainers...)
-		allContainers = append(allContainers, pod.Spec.Containers...)
-		allContainers = append(allContainers, pod.Spec.EphemeralContainers...)
-
-		for _, cStatus := range pod.Status.AllContainers {
-			if cStatus.ID == "" {
-				// no container ID means we could not find the matching container status for this container, which will make fetching tags difficult.
-				continue
-			}
-			cID, err := kubelet.KubeContainerIDToTaggerEntityID(cStatus.ID)
-			if err != nil {
-				// could not correctly parse container ID
-				continue
-			}
-
-			var container kubelet.ContainerSpec
-			for _, c := range allContainers {
-				if cStatus.Name == c.Name {
-					container = c
-					break
-				}
-			}
-			runningAggregator.recordContainer(p, pod, &cStatus, cID)
-
-			// don't exclude filtered containers from aggregation, but filter them out from other reported metrics
-			filterableContainer := kubeletfilter.CreateContainer(cStatus, kubeletfilter.CreatePod(pod))
-			selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
-			if p.filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
-				continue
-			}
-
-			p.generateContainerSpecMetrics(sender, pod, &container, &cStatus, cID)
-			p.generateContainerStatusMetrics(sender, pod, &container, &cStatus, cID)
-		}
-
-		p.generatePodTerminationMetric(sender, pod)
-
-		runningAggregator.recordPod(p, pod)
+	for _, pod := range p.store.ListKubernetesPods() {
+		p.processWorkloadmetaPod(pod, sender, runningAggregator)
 	}
+
 	runningAggregator.generateRunningAggregatorMetrics(sender)
 
 	return nil
 }
 
-func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
-	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
+func (p *Provider) processWorkloadmetaPod(pod *workloadmeta.KubernetesPod, sender sender.Sender, runningAggregator *runningAggregator) {
+	p.podUtils.PopulateForPod(pod)
+
+	allContainerStatuses := make([]workloadmeta.KubernetesContainerStatus, 0,
+		len(pod.InitContainerStatuses)+len(pod.ContainerStatuses)+len(pod.EphemeralContainerStatuses))
+	allContainerStatuses = append(allContainerStatuses, pod.InitContainerStatuses...)
+	allContainerStatuses = append(allContainerStatuses, pod.ContainerStatuses...)
+	allContainerStatuses = append(allContainerStatuses, pod.EphemeralContainerStatuses...)
+
+	allContainerSpecs := make([]workloadmeta.OrchestratorContainer, 0,
+		len(pod.InitContainers)+len(pod.Containers)+len(pod.EphemeralContainers))
+	allContainerSpecs = append(allContainerSpecs, pod.InitContainers...)
+	allContainerSpecs = append(allContainerSpecs, pod.Containers...)
+	allContainerSpecs = append(allContainerSpecs, pod.EphemeralContainers...)
+
+	for _, cStatus := range allContainerStatuses {
+		if cStatus.ContainerID == "" {
+			// no container ID means we could not find the matching container status
+			continue
+		}
+
+		cID, err := kubelet.KubeContainerIDToTaggerEntityID(cStatus.ContainerID)
+		if err != nil {
+			// could not correctly parse container ID
+			continue
+		}
+
+		// Find the corresponding container spec
+		var containerSpec *workloadmeta.OrchestratorContainer
+		for i := range allContainerSpecs {
+			if cStatus.Name == allContainerSpecs[i].Name {
+				containerSpec = &allContainerSpecs[i]
+				break
+			}
+		}
+
+		runningAggregator.recordContainer(p, pod, &cStatus, cID)
+
+		if containerSpec == nil {
+			continue
+		}
+
+		// don't exclude filtered containers from aggregation, but filter them out from other reported metrics
+		filterableContainer := workloadmetafilter.CreateContainerFromOrch(containerSpec, workloadmetafilter.CreatePod(pod))
+		if p.containerFilter.IsExcluded(filterableContainer) {
+			continue
+		}
+
+		p.generateContainerSpecMetrics(sender, pod, &cStatus, cID)
+		p.generateContainerStatusMetrics(sender, pod, &cStatus, cID)
+	}
+
+	p.generatePodTerminationMetric(sender, pod)
+	p.generatePodResizeMetric(sender, pod)
+
+	runningAggregator.recordPod(p, pod)
+}
+
+func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *workloadmeta.KubernetesPod, cStatus *workloadmeta.KubernetesContainerStatus, containerID types.EntityID) {
+	if pod.Phase != "Running" && pod.Phase != "Pending" {
 		return
 	}
+
 	// Filter out containers which have completed, as their resources should be freed
 	if cStatus.State.Terminated != nil && cStatus.State.Terminated.Reason == "Completed" {
 		return
@@ -146,19 +162,35 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
-	if container.Resources != nil { // Ephemeral containers do not have resources defined
-		for r, value := range container.Resources.Requests {
-			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tagList)
-		}
+	containerEntity, err := p.store.GetContainer(containerID.GetID())
+	if err != nil || containerEntity == nil {
+		// Container not found in workloadmeta, skip resource metrics
+		return
+	}
 
-		for r, value := range container.Resources.Limits {
-			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".limits", value.AsApproximateFloat64(), "", tagList)
+	tagList = common.AppendKubeStaticCPUsTag(p.store, pod.QOSClass, containerID, tagList)
+
+	for r, value := range containerEntity.Resources.RawRequests {
+		quantity, err := resource.ParseQuantity(value)
+		if err != nil {
+			log.Warnf("Failed to parse resource quantity %s: %s", value, err)
+			continue
 		}
+		sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", quantity.AsApproximateFloat64(), "", tagList)
+	}
+
+	for r, value := range containerEntity.Resources.RawLimits {
+		quantity, err := resource.ParseQuantity(value)
+		if err != nil {
+			log.Warnf("Failed to parse resource quantity %s: %s", value, err)
+			continue
+		}
+		sender.Gauge(common.KubeletMetricsPrefix+string(r)+".limits", quantity.AsApproximateFloat64(), "", tagList)
 	}
 }
 
-func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, _ *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
-	if pod.Metadata.UID == "" || pod.Metadata.Name == "" {
+func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *workloadmeta.KubernetesPod, cStatus *workloadmeta.KubernetesContainerStatus, containerID types.EntityID) {
+	if pod.ID == "" || pod.Name == "" {
 		return
 	}
 
@@ -171,7 +203,7 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kub
 
 	sender.Gauge(common.KubeletMetricsPrefix+"containers.restarts", float64(cStatus.RestartCount), "", tagList)
 
-	for key, state := range map[string]kubelet.ContainerState{"state": cStatus.State, "last_state": cStatus.LastState} {
+	for key, state := range map[string]workloadmeta.KubernetesContainerState{"state": cStatus.State, "last_state": cStatus.LastTerminationState} {
 		if state.Terminated != nil && slices.Contains(includeContainerStateReason["terminated"], strings.ToLower(state.Terminated.Reason)) {
 			termTags := utils.ConcatenateStringTags(tagList, "reason:"+strings.ToLower(state.Terminated.Reason))
 			sender.Gauge(common.KubeletMetricsPrefix+"containers."+key+".terminated", 1, "", termTags)
@@ -183,21 +215,21 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kub
 	}
 }
 
-func (p *Provider) generatePodTerminationMetric(sender sender.Sender, pod *kubelet.Pod) {
+func (p *Provider) generatePodTerminationMetric(sender sender.Sender, pod *workloadmeta.KubernetesPod) {
 	// This field is set by the server when a graceful deletion is requested by the user, and is not directly settable by a client.
 	// If there is no DeletionTimestamp then POD is not in Termination and no metric is needed.
-	if pod.Metadata.DeletionTimestamp == nil {
+	if pod.DeletionTimestamp == nil {
 		return
 	}
 
-	dur := p.now().Sub(*pod.Metadata.DeletionTimestamp)
+	dur := p.now().Sub(*pod.DeletionTimestamp)
 
 	// While DeletionTimestamp is in the future metric is not emitted.
 	if dur < 0 {
 		return
 	}
 
-	podID := pod.Metadata.UID
+	podID := pod.ID
 	if podID == "" {
 		log.Debug("skipping pod with no uid for termination metric, duration: %f", dur.Seconds())
 		return
@@ -207,6 +239,36 @@ func (p *Provider) generatePodTerminationMetric(sender sender.Sender, pod *kubel
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
 	sender.Gauge(common.KubeletMetricsPrefix+"pod.terminating.duration", float64(dur.Seconds()), "", tagList)
+}
+
+func (p *Provider) generatePodResizeMetric(sender sender.Sender, pod *workloadmeta.KubernetesPod) {
+	var cond *workloadmeta.KubernetesPodCondition
+	for _, c := range pod.Conditions {
+		if c.Type == kubePodConditionResizePending {
+			cond = &c
+			break
+		}
+	}
+
+	if cond == nil {
+		// nothing to report if condition is not on the pod
+		return
+	}
+
+	podID := pod.ID
+	if podID == "" {
+		log.Debug("skipping pod with no uid for pod resize metric")
+		return
+	}
+	entityID := types.NewEntityID(types.KubernetesPodUID, podID)
+	tagList, _ := p.tagger.Tag(entityID, types.HighCardinality)
+	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
+
+	// reason could be Infeasible or Deferred
+	// See: https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/#pod-resize-status
+	tagList = utils.ConcatenateStringTags(tagList, "reason:"+strings.ToLower(cond.Reason))
+
+	sender.Gauge(common.KubeletMetricsPrefix+"pod.resize.pending", 1.0, "", tagList)
 }
 
 type runningAggregator struct {
@@ -227,11 +289,11 @@ func newRunningAggregator() *runningAggregator {
 	}
 }
 
-func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
-	if cStatus.State.Running == nil || time.Time.IsZero(cStatus.State.Running.StartedAt) {
+func (r *runningAggregator) recordContainer(p *Provider, pod *workloadmeta.KubernetesPod, cStatus *workloadmeta.KubernetesContainerStatus, containerID types.EntityID) {
+	if cStatus.State.Running == nil || cStatus.State.Running.StartedAt.IsZero() {
 		return
 	}
-	r.podHasRunningContainers[pod.Metadata.UID] = true
+	r.podHasRunningContainers[pod.ID] = true
 	tagList, _ := p.tagger.Tag(containerID, types.LowCardinality)
 	// Skip recording containers without kubelet information in tagger or if there are no tags
 	if !isTagKeyPresent(kubeNamespaceTag, tagList) || len(tagList) == 0 {
@@ -244,11 +306,11 @@ func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStat
 	}
 }
 
-func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
-	if !r.podHasRunningContainers[pod.Metadata.UID] {
+func (r *runningAggregator) recordPod(p *Provider, pod *workloadmeta.KubernetesPod) {
+	if !r.podHasRunningContainers[pod.ID] {
 		return
 	}
-	podID := pod.Metadata.UID
+	podID := pod.ID
 	if podID == "" {
 		log.Debug("skipping pod with no uid")
 		return

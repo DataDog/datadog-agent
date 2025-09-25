@@ -372,6 +372,10 @@ func TestCGroupSnapshot(t *testing.T) {
 func TestCGroupVariables(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_set_variable",
@@ -410,10 +414,8 @@ func TestCGroupVariables(t *testing.T) {
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
-		t.Skip("Skipping created time in containers tests: Docker not available")
-		return
+		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
-	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "cgroup-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {

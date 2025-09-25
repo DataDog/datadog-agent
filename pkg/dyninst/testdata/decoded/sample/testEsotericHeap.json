@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testEsotericHeap",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -28,7 +28,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 43
+            "lineNumber": 45
           },
           {
             "function": "runtime.main",
@@ -67,11 +67,22 @@
                       },
                       "val": {
                         "type": "interface {}",
-                        "notCapturedReason": "unimplemented"
+                        "fields": {
+                          "data": {
+                            "type": "int",
+                            "value": "42"
+                          }
+                        }
                       },
                       "work": {
                         "type": "main.something",
-                        "notCapturedReason": "unimplemented"
+                        "fields": {
+                          "data": {
+                            "type": "*main.somethingImpl",
+                            "address": "[addr]",
+                            "fields": {}
+                          }
+                        }
                       },
                       "foo": {
                         "type": "func()",
@@ -80,21 +91,7 @@
                     }
                   },
                   "mu": "[sync.Mutex (different in different versions)]",
-                  "once": {
-                    "type": "sync.Once",
-                    "fields": {
-                      "done": {
-                        "type": "sync/atomic.Uint32",
-                        "fields": {
-                          "v": {
-                            "type": "uint32",
-                            "value": "0"
-                          }
-                        }
-                      },
-                      "m": "[sync.Mutex (different in different versions)]"
-                    }
-                  },
+                  "once": "[sync.Once (different in different versions)]",
                   "wg": {
                     "type": "sync.WaitGroup",
                     "fields": {

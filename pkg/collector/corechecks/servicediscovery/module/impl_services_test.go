@@ -45,19 +45,18 @@ import (
 
 // getServices call the /discovery/services endpoint. It will perform a /proc scan
 // to get the list of running pids and use them as the pids query param.
-func getServices(t require.TestingT, url string) *model.ServicesEndpointResponse {
+func getServices(t require.TestingT, url string) *model.ServicesResponse {
 	location := url + "/" + string(config.DiscoveryModule) + pathServices
 	params := &core.Params{
-		Pids: getRunningPids(t),
+		NewPids: getRunningPids(t),
 	}
 
-	return makeRequest[model.ServicesEndpointResponse](t, location, params)
+	return makeRequest[model.ServicesResponse](t, location, params)
 }
 
 // Check that we get (only) listening processes for all expected protocols using the services endpoint.
 func TestServicesBasic(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	var expectedPIDs []int
 	var unexpectedPIDs []int
@@ -102,7 +101,6 @@ func TestServicesBasic(t *testing.T) {
 		for _, pid := range expectedPIDs {
 			require.Contains(collect, seen, pid)
 			assert.Equal(collect, seen[pid].PID, pid)
-			assert.Greater(collect, seen[pid].StartTimeMilli, uint64(0))
 			if expectedTCPPort, ok := exceptedTCPPorts[pid]; ok {
 				require.Contains(collect, seen[pid].TCPPorts, uint16(expectedTCPPort))
 			}
@@ -119,7 +117,6 @@ func TestServicesBasic(t *testing.T) {
 // Check that we get all listening ports for a process using the services endpoint
 func TestServicesPorts(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	var expectedTCPPorts []uint16
 	var expectedUDPPorts []uint16
@@ -200,7 +197,6 @@ func TestServicesPorts(t *testing.T) {
 
 func TestServicesPortsLimits(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	var expectedPorts []int
 
@@ -237,7 +233,6 @@ func TestServicesPortsLimits(t *testing.T) {
 
 func TestServicesServiceName(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	trMeta := tracermetadata.TracerMetadata{
 		SchemaVersion:  1,
@@ -267,6 +262,8 @@ func TestServicesServiceName(t *testing.T) {
 	cmd.Dir = "/tmp/"
 	cmd.Env = append(cmd.Env, "OTHER_ENV=test")
 	cmd.Env = append(cmd.Env, "DD_SERVICE=foo😀bar")
+	cmd.Env = append(cmd.Env, "DD_ENV=my😀dd-env")
+	cmd.Env = append(cmd.Env, "DD_VERSION=my😀dd-version")
 	cmd.Env = append(cmd.Env, "YET_OTHER_ENV=test")
 	err = cmd.Start()
 	require.NoError(t, err)
@@ -280,11 +277,12 @@ func TestServicesServiceName(t *testing.T) {
 		svc = findService(pid, resp.Services)
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 
-		// Non-ASCII character removed due to normalization.
-		assert.Equal(collect, "foo_bar", svc.DDService)
+		assert.Equal(collect, "foo😀bar", svc.UST.Service)
+		assert.Equal(collect, "my😀dd-env", svc.UST.Env)
+		assert.Equal(collect, "my😀dd-version", svc.UST.Version)
+
 		assert.Equal(collect, "sleep", svc.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
-		assert.False(collect, svc.DDServiceInjected)
 	}, 30*time.Second, 100*time.Millisecond)
 
 	// Verify tracer metadata
@@ -331,7 +329,6 @@ func testServicesCaptureWrappedCommands(t *testing.T, script string, commandWrap
 	t.Cleanup(func() { _ = proc.Kill() })
 
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	pid := int(proc.Pid)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -391,7 +388,6 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 
 	serverDir := buildFakeServer(t)
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -412,7 +408,6 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 				require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
 
 				assert.Equal(collect, startEvent.PID, pid)
-				assert.Greater(collect, startEvent.StartTimeMilli, uint64(0))
 				assert.Equal(collect, string(test.language), startEvent.Language)
 				assert.Equal(collect, string(apm.Provided), startEvent.APMInstrumentation)
 			}, 30*time.Second, 100*time.Millisecond)
@@ -423,7 +418,6 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 func TestServicesCommandLineSanitization(t *testing.T) {
 	serverDir := buildFakeServer(t)
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -456,7 +450,6 @@ func TestServicesNodeDocker(t *testing.T) {
 	require.NoError(t, err)
 
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	pid := int(nodeJSPID)
 
@@ -467,7 +460,6 @@ func TestServicesNodeDocker(t *testing.T) {
 
 		// test@... changed to test_... due to normalization.
 		assert.Equal(collect, svc.PID, pid)
-		assert.Greater(collect, svc.StartTimeMilli, uint64(0))
 		assert.Equal(collect, "test_nodejs-https-server", svc.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), svc.GeneratedNameSource)
 		assert.Equal(collect, "provided", svc.APMInstrumentation)
@@ -518,7 +510,6 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 			require.NoError(t, err)
 
 			discovery := setupDiscoveryModule(t)
-			discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 			pid := cmd.Process.Pid
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -528,7 +519,6 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 				svc := findService(pid, resp.Services)
 				require.NotNilf(collect, svc, "could not find start event for pid %v", pid)
 				assert.Equal(collect, svc.PID, pid)
-				assert.Greater(collect, svc.StartTimeMilli, uint64(0))
 				assert.Equal(collect, string(test.language), svc.Language)
 				assert.Equal(collect, string(apm.Provided), svc.APMInstrumentation)
 			}, 30*time.Second, 100*time.Millisecond)
@@ -539,7 +529,6 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 // Check that we can get listening processes in other namespaces using the services endpoint.
 func TestServicesNamespaces(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	// Needed when changing namespaces
 	runtime.LockOSThread()
@@ -601,7 +590,6 @@ func TestServicesNamespaces(t *testing.T) {
 // Check that we are able to find services inside Docker containers using the services endpoint.
 func TestServicesDocker(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	dir, _ := testutil.CurDir()
 	scanner, err := globalutils.NewScanner(regexp.MustCompile("Serving.*"), globalutils.NoPattern)

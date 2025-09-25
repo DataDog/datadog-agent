@@ -111,10 +111,10 @@ func GenerateIr(
 	tempDir string,
 	binPath string,
 	cfgName string,
-) (*object.ElfFile, *ir.Program) {
+) (*object.ElfFileWithDwarf, *ir.Program) {
 	probes := testprogs.MustGetProbeDefinitions(t, cfgName)
 
-	obj, err := object.OpenElfFile(binPath)
+	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 
 	irp, err := irgen.GenerateIR(1, obj, probes)
@@ -175,14 +175,14 @@ func StartProcess(ctx context.Context, t *testing.T, tempDir string, binPath str
 func AttachBPFProbes(
 	t *testing.T,
 	binPath string,
-	obj *object.ElfFile,
+	obj object.File,
 	pid int,
 	program *loader.Program,
 ) func() {
 	sampleLink, err := link.OpenExecutable(binPath)
 	require.NoError(t, err)
-	textSection, err := object.FindTextSectionHeader(obj.Underlying.Elf)
-	require.NoError(t, err)
+	textSection := obj.Section(".text")
+	require.NotNil(t, textSection)
 
 	var allAttached []link.Link
 	for _, attachpoint := range program.Attachpoints {

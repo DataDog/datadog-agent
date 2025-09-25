@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -29,9 +30,10 @@ const (
 type language string
 
 func (l language) defaultLibInfo(registry, ctrName string) libInfo {
-	return l.libInfo(ctrName, l.libImageName(registry, l.defaultLibVersion()))
+	return l.libInfoWithResolver(ctrName, registry, l.defaultLibVersion())
 }
 
+// DEV: This is just formatting, no resolution is done here
 func (l language) libImageName(registry, tag string) string {
 	if tag == defaultVersionMagicString {
 		tag = l.defaultLibVersion()
@@ -40,11 +42,28 @@ func (l language) libImageName(registry, tag string) string {
 	return fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, tag)
 }
 
+// DEV: Legacy
 func (l language) libInfo(ctrName, image string) libInfo {
 	return libInfo{
 		lang:    l,
 		ctrName: ctrName,
 		image:   image,
+	}
+}
+
+// DEV: Will attempt to resolve, defaults to legacy if unable
+func (l language) libInfoWithResolver(ctrName, registry string, version string) libInfo {
+	if version == defaultVersionMagicString {
+		version = l.defaultLibVersion()
+	}
+
+	return libInfo{
+		lang:       l,
+		ctrName:    ctrName,
+		image:      l.libImageName(registry, version),
+		registry:   registry,
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        version,
 	}
 }
 
@@ -68,7 +87,7 @@ func (l language) libVersionAnnotationExtractor(registry string) annotationExtra
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
 		do: func(version string) (libInfo, error) {
-			return l.libInfo("", l.libImageName(registry, version)), nil
+			return l.libInfoWithResolver("", registry, version), nil
 		},
 	}
 }
@@ -86,7 +105,7 @@ func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotat
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
 		do: func(version string) (libInfo, error) {
-			return l.libInfo(ctr, l.libImageName(registry, version)), nil
+			return l.libInfoWithResolver(ctr, registry, version), nil
 		},
 	}
 }
@@ -148,14 +167,17 @@ func (l language) defaultLibVersion() string {
 }
 
 type libInfo struct {
-	ctrName string // empty means all containers
-	lang    language
-	image   string
+	ctrName    string // empty means all containers
+	lang       language
+	image      string
+	registry   string
+	repository string
+	tag        string
 }
 
-func (i libInfo) podMutator(v version, opts libRequirementOptions) podMutator {
+func (i libInfo) podMutator(v version, opts libRequirementOptions, imageResolver ImageResolver) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		reqs, ok := i.libRequirement(v)
+		reqs, ok := i.libRequirement(v, imageResolver)
 		if !ok {
 			return fmt.Errorf(
 				"language %q is not supported. Supported languages are %v",
@@ -175,7 +197,7 @@ func (i libInfo) podMutator(v version, opts libRequirementOptions) podMutator {
 
 // initContainers is which initContainers we are injecting
 // into the pod that runs for this language.
-func (i libInfo) initContainers(v version) []initContainer {
+func (i libInfo) initContainers(v version, resolver ImageResolver) []initContainer {
 	var (
 		args, command []string
 		mounts        []corev1.VolumeMount
@@ -204,6 +226,14 @@ func (i libInfo) initContainers(v version) []initContainer {
 	} else {
 		mounts = []corev1.VolumeMount{v1VolumeMount.VolumeMount}
 		command = []string{"sh", "copy-lib.sh", mounts[0].MountPath}
+	}
+
+	if resolver != nil {
+		log.Debugf("Resolving image %s/%s:%s", i.registry, i.repository, i.tag)
+		image, ok := resolver.Resolve(i.registry, i.repository, i.tag)
+		if ok {
+			i.image = image.FullImageRef
+		}
 	}
 
 	return []initContainer{
@@ -298,14 +328,14 @@ func (i libInfo) envVars(v version) []envVar {
 	}
 }
 
-func (i libInfo) libRequirement(v version) (libRequirement, bool) {
+func (i libInfo) libRequirement(v version, resolver ImageResolver) (libRequirement, bool) {
 	if !i.lang.isSupported() {
 		return libRequirement{}, false
 	}
 
 	return libRequirement{
 		envVars:        i.envVars(v),
-		initContainers: i.initContainers(v),
+		initContainers: i.initContainers(v, resolver),
 		volumeMounts:   []volumeMount{i.volumeMount(v)},
 		volumes:        []volume{sourceVolume},
 	}, true

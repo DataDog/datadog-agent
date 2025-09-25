@@ -14,13 +14,13 @@ import (
 	"fmt"
 	"iter"
 	"math"
-	"runtime/debug"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
+	"golang.org/x/time/rate"
 
 	dwarf2 "github.com/DataDog/datadog-agent/pkg/dyninst/dwarf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
@@ -31,18 +31,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
+var functionParseLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 5)
+
 // PackagesIterator returns an iterator over the packages in the binary.
 //
 // PackagesIterator can only be used if the packagesIterator was configured with
 // ExtractOptions.IncludeInlinedFunctions=false (i.e. if we're ignoring inlined
 // functions), since inlined functions can appear in different compile units
 // than their package.
-func PackagesIterator(binaryPath string, opt ExtractOptions) (iter.Seq2[Package, error], error) {
+func PackagesIterator(binaryPath string, loader object.Loader, opt ExtractOptions) (iter.Seq2[Package, error], error) {
 	if opt.IncludeInlinedFunctions {
 		return nil, fmt.Errorf("cannot overate over packages when IncludeInlinedFunctions is set")
 	}
 
-	bin, err := openBinary(binaryPath, opt)
+	bin, err := openBinary(binaryPath, loader, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -53,8 +56,8 @@ func PackagesIterator(binaryPath string, opt ExtractOptions) (iter.Seq2[Package,
 
 // ExtractSymbols walks the DWARF data and accumulates the symbols to send to
 // SymDB.
-func ExtractSymbols(binaryPath string, opt ExtractOptions) (Symbols, error) {
-	bin, err := openBinary(binaryPath, opt)
+func ExtractSymbols(binaryPath string, loader object.Loader, opt ExtractOptions) (Symbols, error) {
+	bin, err := openBinary(binaryPath, loader, opt)
 	if err != nil {
 		return Symbols{}, err
 	}
@@ -145,46 +148,27 @@ type PackageStats struct {
 	// collected symbols.
 	NumTypes int
 	// NumFunctions is the number of functions in this package represented in
-	// the collected symbols.
+	// the collected symbols. This includes methods.
 	NumFunctions int
-	// NumSourceFiles is the number of source files that contain functions in
-	// this package.
-	NumSourceFiles int
 }
 
 func (s PackageStats) String() string {
-	return fmt.Sprintf("Types: %d, Functions: %d, Source files: %d",
-		s.NumTypes, s.NumFunctions, s.NumSourceFiles)
+	return fmt.Sprintf("Types: %d, Functions: %d", s.NumTypes, s.NumFunctions)
 }
 
 // Stats computes statistics about the package's symbols.
 //
-// sourceFiles will be populated with files encoutered while going through this
+// sourceFiles will be populated with files encountered while going through this
 // package's compile unit. Nil can be passed if the caller is not interested.
 // Note that it's possible for multiple compile units to reference the same file
 // due to inlined functions; in such cases, the file will arbitrarily count
 // towards the stats of the first package that adds it to the map.
-func (p Package) Stats(sourceFiles map[string]struct{}) PackageStats {
+func (p Package) Stats() PackageStats {
 	var res PackageStats
-	if sourceFiles == nil {
-		sourceFiles = make(map[string]struct{})
-	}
 	res.NumTypes += len(p.Types)
 	res.NumFunctions += len(p.Functions)
-	recordFile := func(file string) {
-		if _, ok := sourceFiles[file]; !ok {
-			sourceFiles[file] = struct{}{}
-			res.NumSourceFiles++
-		}
-	}
 	for _, t := range p.Types {
 		res.NumFunctions += len(t.Methods)
-		for _, f := range t.Methods {
-			recordFile(f.File)
-		}
-	}
-	for _, f := range p.Functions {
-		recordFile(f.File)
 	}
 	return res
 }
@@ -390,7 +374,6 @@ const mainPackageName = "main"
 
 // packagesIterator walks the DWARF data for a binary, extracting symbols in the
 // SymDB format.
-// nolint:revive  // ignore stutter rule
 type packagesIterator struct {
 	// The DWARF data to extract symbols from.
 	dwarfData *dwarf.Data
@@ -696,7 +679,7 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 		dwarfData:           bin.obj.DwarfData(),
 		sym:                 bin.symTable,
 		loclistReader:       bin.obj.LoclistReader(),
-		pointerSize:         int(bin.obj.PointerSize()),
+		pointerSize:         int(bin.obj.Architecture().PointerSize()),
 		options:             opt,
 		mainModule:          bin.mainModule,
 		firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
@@ -716,7 +699,7 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 }
 
 type binaryInfo struct {
-	obj                 *object.ElfFile
+	obj                 object.FileWithDwarf
 	mainModule          string
 	goDebugSections     *object.GoDebugSections
 	symTable            *gosym.GoSymbolTable
@@ -724,8 +707,8 @@ type binaryInfo struct {
 	filesFilter         []string
 }
 
-func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
-	obj, err := object.OpenElfFile(binaryPath)
+func openBinary(binaryPath string, loader object.Loader, opt ExtractOptions) (binaryInfo, error) {
+	obj, err := loader.Load(binaryPath)
 	if err != nil {
 		return binaryInfo{}, fmt.Errorf("failed to open file: %w", err)
 	}
@@ -737,32 +720,7 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	}
 	mainModule := binfo.Main.Path
 
-	moduledata, err := object.ParseModuleData(obj.Underlying)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-	goVersion, err := object.ReadGoVersion(obj.Underlying)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-
-	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
-	if err != nil {
-		return binaryInfo{}, err
-	}
-
-	// goDebugSections cannot be Close()'ed while symTable is in use. Ownership of
-	// goDebugSections is transferred to the SymDBBuilder.
-
-	symTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
+	symTable, err := object.ParseGoSymbolTable(obj)
 	if err != nil {
 		return binaryInfo{}, err
 	}
@@ -792,8 +750,8 @@ func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	return binaryInfo{
 		obj:                 obj,
 		mainModule:          mainModule,
-		goDebugSections:     goDebugSections,
-		symTable:            symTable,
+		goDebugSections:     &symTable.GoDebugSections,
+		symTable:            &symTable.GoSymbolTable,
 		firstPartyPkgPrefix: firstPartyPkgPrefix,
 		filesFilter:         filesFilter,
 	}, nil
@@ -809,6 +767,18 @@ func (b *packagesIterator) close() {
 // iterator returns a Go iterator that yields packages one by one. The returned
 // iterator takes ownership of the Elf file, so it must be called (or used in a
 // range loop) in order to eventually release resources.
+//
+// Depending on the IncludeInlinedFunctions option, the yielded packages will
+// have their Types populated or not: if IncludeInlinedFunctions is true, then
+// the Types field is not filled in (since types can be discovered in different
+// compile units than the package they belong to); instead the data is
+// accumulated and addAbstractFunctions must be called later to gather the final
+// types (which will then include functions that were inlined in other compile
+// units).
+//
+// If IncludeInlinedFunctions is true, empty packages can be yielded (since they
+// may get functions and types  later when addAbstractFunctions is called).
+// Otherwise, packages with no types or functions are ignored.
 func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 	var err error
 	return func(yield func(pkg Package, err error) bool) {
@@ -841,7 +811,11 @@ func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 			// accumulated types to the output package. If we are dealing with
 			// inlined functions, then this will happen later, once we've
 			// discovered all the abstract functions and their inlined
-			// instances, both of which can be in different compile units.
+			// instances, both of which can be in different compile units. Note
+			// that, when IncludeInlinedFunctions is true, we may have
+			// discovered types belonging to different packages while exploring
+			// this compile unit; that's why we accumulate the types in b.types
+			// instead of returning them with this package.
 			if !b.options.IncludeInlinedFunctions {
 				numPkgs := len(b.types.packages)
 				if numPkgs > 1 {
@@ -880,8 +854,13 @@ func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 				clear(b.types.types)
 			}
 
-			if !yield(pkg, nil) {
-				break
+			// Yield the package. But don't yield empty packages when
+			// IncludeInlinedFunctions is not set.
+			pkgEmpty := len(pkg.Functions) == 0 && len(pkg.Types) == 0
+			if b.options.IncludeInlinedFunctions || !pkgEmpty {
+				if !yield(pkg, nil) {
+					break
+				}
 			}
 		}
 		if err != nil {
@@ -911,7 +890,7 @@ func interestingPackage(pkgName string, mainModule string, firstPartyPkgPrefix s
 }
 
 // addAbstractFunctions takes the aggregated data about inlined functions and
-// adds the functions to the corresponding packages and types.
+// adds the functions to the corresponding packages and types in `packages`.
 func (b *packagesIterator) addAbstractFunctions(packages map[string]*Package) error {
 	// Sort abstract functions so that output is stable.
 	abstractFunctions := make([]*abstractFunction, 0, len(b.abstractFunctions))
@@ -993,7 +972,10 @@ type typeInfo struct {
 type ExtractOptions struct {
 	Scope ExtractScope
 	// If set, abstract functions and their inlined instances are not explored.
-	// The produced
+	// The output will not contain functions that are ever inlined (including
+	// functions that are only sometimes inlined). The line availability for
+	// variables will not include information from inlined instances of the
+	// function.
 	IncludeInlinedFunctions bool
 }
 
@@ -1095,7 +1077,7 @@ func (b *packagesIterator) exploreCompileUnit(
 	}
 	duration := time.Since(start)
 	if duration > 5*time.Second {
-		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats(nil))
+		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats())
 	}
 
 	return res, nil
@@ -1193,11 +1175,22 @@ func (b *packagesIterator) exploreSubprogram(
 
 	lowpc, ok := entry.Val(dwarf.AttrLowpc).(uint64)
 	if !ok {
-		return Function{}, fmt.Errorf("subprogram without lowpc: %s", funcQualifiedName)
+		return Function{}, fmt.Errorf("subprogram without lowpc: %s @ 0x%x", funcQualifiedName, entry.Offset)
 	}
-	highpc, ok := entry.Val(dwarf.AttrHighpc).(uint64)
-	if !ok {
-		return Function{}, errors.New("subprogram without highpc")
+	highPCField := entry.AttrField(dwarf.AttrHighpc)
+	if highPCField == nil {
+		return Function{}, fmt.Errorf("subprogram without highpc: %s @ 0x%x", funcQualifiedName, entry.Offset)
+	}
+	// The highpc can either be an absolute value, or a delta relative to the
+	// lowpc. We distinguish based on the field's class.
+	var highpc uint64
+	switch highPCField.Class {
+	case dwarf.ClassAddress:
+		highpc = highPCField.Val.(uint64)
+	case dwarf.ClassConstant:
+		highpc = lowpc + uint64(highPCField.Val.(int64))
+	default:
+		return Function{}, fmt.Errorf("unrecognized highpc class: %d for %s @ 0x%x", highPCField.Class, funcQualifiedName, entry.Offset)
 	}
 
 	lines, err := b.sym.FunctionLines(lowpc)
@@ -1255,10 +1248,17 @@ func (b *packagesIterator) exploreSubprogram(
 		// exploreCode() call above.
 		typ := b.types.getType(typeQualifiedName)
 		if typ == nil {
-			return Function{}, fmt.Errorf(
-				"%s is a method of type %s, but that type is missing from the cache. DWARF offset: 0x%x",
-				funcQualifiedName, typeQualifiedName, entry.Offset,
-			)
+			// We think this is a method, but the type is missing from the
+			// cache. This could mean that we parsed the function wrong -- e.g.
+			// it's an anonymous function, not a method. Log and ignore skip the
+			// function.
+			if functionParseLogLimiter.Allow() {
+				log.Warnf(
+					"%s is a method of type %s, but that type is missing from the cache. DWARF offset: 0x%x",
+					funcQualifiedName, typeQualifiedName, entry.Offset,
+				)
+				return Function{}, nil
+			}
 		}
 		typ.Methods = append(typ.Methods, res)
 		// We don't return a Function for methods.
@@ -1291,17 +1291,11 @@ func (b *packagesIterator) exploreInlinedInstance(
 	af, ok := b.abstractFunctions[origin]
 	if !ok {
 		var err error
-		af, err = b.parseAbstractFunction(reader, origin)
+		af, err = b.parseAbstractFunction(origin)
 		if err != nil {
 			return err
 		}
 		b.abstractFunctions[origin] = af
-		// Reset the reader.
-		reader.Seek(entry.Offset)
-		_, err = reader.Next()
-		if err != nil {
-			return err
-		}
 	}
 	if !af.interesting {
 		return earlyExit()
@@ -1509,7 +1503,13 @@ func (b *packagesIterator) parseFunctionName(entry *dwarf.Entry) (
 	return
 }
 
-func (b *packagesIterator) parseAbstractFunction(reader *dwarf.Reader, offset dwarf.Offset) (*abstractFunction, error) {
+func (b *packagesIterator) parseAbstractFunction(offset dwarf.Offset) (*abstractFunction, error) {
+	// TODO: once we switch to Go 1.25, instead of constructing a new Reader, we
+	// should take one in and Seek() to the desired offset; that would be more
+	// efficient when seeking within the same compilation unit as the one we're
+	// already in. Unfortunately, seeking across compilation units is broken
+	// until Go 1.25 (see https://go-review.googlesource.com/c/go/+/655976).
+	reader := b.dwarfData.Reader()
 	reader.Seek(offset)
 	entry, err := reader.Next()
 	if err != nil {
@@ -1574,7 +1574,6 @@ func (b *packagesIterator) parseAbstractFunction(reader *dwarf.Reader, offset dw
 func (b *packagesIterator) parseAbstractVariable(entry *dwarf.Entry) (Variable, typeInfo, error) {
 	name, ok := entry.Val(dwarf.AttrName).(string)
 	if !ok {
-		debug.PrintStack()
 		return Variable{}, typeInfo{}, fmt.Errorf("variable without name at 0x%x", entry.Offset)
 	}
 	declLine, ok := entry.Val(dwarf.AttrDeclLine).(int64)
@@ -1625,7 +1624,7 @@ func (b *packagesIterator) parseVariableLocations(
 	if locField == nil {
 		return out, nil
 	}
-	pcRanges, err := b.processLocations(unit, block, locField, typeSize)
+	pcRanges, err := b.processLocations(unit, block, entry.Offset, locField, typeSize)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"error processing locations for variable at 0x%x: %w", entry.Offset, err,
@@ -1673,6 +1672,7 @@ func coalesceLineRanges(ranges []LineRange) []LineRange {
 func (b *packagesIterator) processLocations(
 	unit *dwarf.Entry,
 	block codeBlock,
+	entryOffset dwarf.Offset,
 	locField *dwarf.Field,
 	totalSize uint32,
 ) ([]dwarfutil.PCRange, error) {
@@ -1685,7 +1685,13 @@ func (b *packagesIterator) processLocations(
 	}
 	loclists, err := dwarfutil.ProcessLocations(locField, unit, b.loclistReader, pcRanges, totalSize, uint8(b.pointerSize))
 	if err != nil {
-		return nil, err
+		// Do not fail hard, just pretend the variable is not available.
+		if loclistErrorLogLimiter.Allow() {
+			log.Warnf(
+				"ignoring locations for variable at 0x%x: %v", entryOffset, err,
+			)
+		}
+		return nil, nil
 	}
 	loclists = dwarfutil.FilterIncompleteLocationLists(loclists)
 	res := make([]dwarfutil.PCRange, len(loclists))

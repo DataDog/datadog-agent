@@ -221,6 +221,7 @@ func (s *Status) GetAllContainers() []ContainerStatus {
 type Conditions struct {
 	Type   string `json:"type,omitempty"`
 	Status string `json:"status,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers
@@ -280,4 +281,16 @@ type ContainerStateTerminated struct {
 	StartedAt  time.Time `json:"startedAt"`
 	FinishedAt time.Time `json:"finishedAt"`
 	Reason     string    `json:"reason"`
+}
+
+// ConfigSpec is the kubelet configuration, only the
+// necessary fields are stored
+type ConfigSpec struct {
+	CPUManagerPolicy string `json:"cpuManagerPolicy"`
+}
+
+// ConfigDocument is the wrapper struct that holds
+// the kubelet config
+type ConfigDocument struct {
+	KubeletConfig ConfigSpec `json:"kubeletconfig"`
 }

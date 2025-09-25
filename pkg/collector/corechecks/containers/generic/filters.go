@@ -42,18 +42,20 @@ func (f ANDContainerFilter) IsExcluded(container *workloadmeta.Container) bool {
 
 // LegacyContainerFilter allows to use old containers.Filter within this new framework
 type LegacyContainerFilter struct {
-	FilterStore workloadfilter.Component
-	Store       workloadmeta.Component
+	ContainerFilter workloadfilter.FilterBundle
+	Store           workloadmeta.Component
 }
 
 // IsExcluded returns if a container should be excluded or not
 func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) bool {
-	if f.FilterStore == nil {
+	if f.ContainerFilter == nil {
 		return false
 	}
+
 	pod, _ := f.Store.GetKubernetesPodForContainer(container.ID)
 
-	return f.FilterStore.IsContainerExcluded(workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)), workloadfilter.GetContainerSharedMetricFilters())
+	filterableContainer := workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod))
+	return f.ContainerFilter.IsExcluded(filterableContainer)
 }
 
 // RuntimeContainerFilter filters containers by runtime

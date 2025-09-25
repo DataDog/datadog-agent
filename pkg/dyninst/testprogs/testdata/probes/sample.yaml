@@ -133,6 +133,15 @@ probes:
   where:
     methodName: main.testMassiveString
   captureSnapshot: true
+- id: testMassiveStringWithSizeLimit
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMassiveString
+  captureSnapshot: true
+  capture:
+    maxLength: 11
 - id: testEmptyString
   type: LOG_PROBE
   tags:
@@ -140,6 +149,8 @@ probes:
   where:
     methodName: main.testEmptyString
   captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
 - id: testThreeStrings
   type: LOG_PROBE
   tags:
@@ -292,7 +303,7 @@ probes:
   tags:
     - "foo:bar"
   where:
-     methodName: main.testArrayOfArraysOfArrays
+    methodName: main.testArrayOfArraysOfArrays
   captureSnapshot: true
 # - id: testArrayOfStructs
 #   type: LOG_PROBE
@@ -313,6 +324,15 @@ probes:
   where:
     methodName: main.testVeryLargeSlice
   captureSnapshot: true
+- id: testVeryLargeSliceWithSizeLimit
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testVeryLargeSlice
+  captureSnapshot: true
+  capture:
+    collectionSizeLimit: 12
 - id: testVeryLargeArray
   type: LOG_PROBE
   tags:
@@ -427,11 +447,18 @@ probes:
   captureSnapshot: true
 - id: testInterface
   type: LOG_PROBE
-  tags:
-    - "foo:bar"
   where:
     methodName: main.testInterface
   captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
+- id: testAny
+  type: LOG_PROBE
+  where:
+    methodName: main.testAny
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
 - id: testError
   type: LOG_PROBE
   tags:
@@ -551,6 +578,15 @@ probes:
   where:
     methodName: main.testMapMassive
   captureSnapshot: true
+- id: testMapMassiveWithSizeLimit
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapMassive
+  captureSnapshot: true
+  capture:
+    collectionSizeLimit: 3
 - id: testMapEmbeddedMaps
   type: LOG_PROBE
   tags:
@@ -729,4 +765,89 @@ probes:
     - "foo:bar"
   where:
     methodName: main.testFramelessArray
+  captureSnapshot: true
+- id: testDeepPtr1
+  type: LOG_PROBE
+  where:
+    methodName: main.testDeepPtr1
+  captureSnapshot: true
+  capture:
+    maxReferenceDepth: 1
+- id: testDeepPtr7
+  type: LOG_PROBE
+  where:
+    methodName: main.testDeepPtr7
+  captureSnapshot: true
+  capture:
+    maxReferenceDepth: 5
+- id: testDeepSlice1
+  type: LOG_PROBE
+  where:
+    methodName: main.testDeepSlice1
+  captureSnapshot: true
+  capture:
+    maxReferenceDepth: 1
+- id: testDeepSlice7
+  type: LOG_PROBE
+  where:
+    methodName: main.testDeepSlice7
+  captureSnapshot: true
+  capture:
+    maxReferenceDepth: 5
+- id: testDeepMap1
+  type: LOG_PROBE
+  where:
+    methodName: main.testDeepMap1
+  captureSnapshot: true
+  capture:
+    maxReferenceDepth: 1
+- id: testDeepMap7
+  type: LOG_PROBE
+  where:
+    methodName: main.testDeepMap7
+  captureSnapshot: true
+  capture:
+    maxReferenceDepth: 5
+- id: testStringType1
+  type: LOG_PROBE
+  where:
+    methodName: main.testStringType1
+  captureSnapshot: true
+  capture:
+    maxReferenceDepth: 1
+- id: testStringType2
+  type: LOG_PROBE
+  where:
+    methodName: main.testStringType2
+  captureSnapshot: true
+  capture:
+    maxReferenceDepth: 1
+- id: testEmptyStructPointer
+  type: LOG_PROBE
+  where:
+    methodName: main.testEmptyStructPointer
+  captureSnapshot: true
+- id: testAnyPtr
+  type: LOG_PROBE
+  where:
+    methodName: main.testAnyPtr
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
+- id: testStructWithAny
+  type: LOG_PROBE
+  where:
+    methodName: main.testStructWithAny
+  captureSnapshot: true
+  capture:
+    maxReferenceDepth: 1
+- id: testStructWithCyclicSlices
+  type: LOG_PROBE
+  where:
+    methodName: main.testStructWithCyclicSlices
+  captureSnapshot: true
+- id: testStructWithCyclicMaps
+  type: LOG_PROBE
+  where:
+    methodName: main.testStructWithCyclicMaps
   captureSnapshot: true

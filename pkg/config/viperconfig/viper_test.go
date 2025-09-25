@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -68,12 +67,12 @@ func TestConcurrencyUnmarshalling(_ *testing.T) {
 func TestGetConfigEnvVars(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	config.BindEnv("app_key")
+	config.BindEnv("app_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	assert.Contains(t, config.GetEnvVars(), "DD_APP_KEY")
-	config.BindEnv("logs_config.run_path")
+	config.BindEnv("logs_config.run_path") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	assert.Contains(t, config.GetEnvVars(), "DD_LOGS_CONFIG_RUN_PATH")
 
-	config.BindEnv("config_option", "DD_CONFIG_OPTION")
+	config.BindEnv("config_option", "DD_CONFIG_OPTION") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	assert.Contains(t, config.GetEnvVars(), "DD_CONFIG_OPTION")
 }
 
@@ -83,8 +82,8 @@ func TestGetConfigEnvVars(t *testing.T) {
 func TestGetConfigEnvVarsDedupe(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	config.BindEnv("config_option_1", "DD_CONFIG_OPTION")
-	config.BindEnv("config_option_2", "DD_CONFIG_OPTION")
+	config.BindEnv("config_option_1", "DD_CONFIG_OPTION") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("config_option_2", "DD_CONFIG_OPTION") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	count := 0
 	for _, v := range config.GetEnvVars() {
 		if v == "DD_CONFIG_OPTION" {
@@ -156,13 +155,13 @@ func TestIsKnown(t *testing.T) {
 				config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 				if tc.setKnown {
-					config.SetKnown(configName)
+					config.SetKnown(configName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 				}
 				if tc.setDefault {
 					config.SetDefault(configName, configDefault)
 				}
 				if tc.setEnv {
-					config.BindEnv(configName, configEnv)
+					config.BindEnv(configName, configEnv) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 				}
 
 				assert.Equal(t, tc.expected, config.IsKnown(configName))
@@ -207,82 +206,38 @@ foo: bar
 func TestNotification(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	notifications1 := make(chan string, 3)
-	config.OnUpdate(func(key string, _ model.Source, _, _ any, _ uint64) {
-		notifications1 <- key
-	})
+	updatedKeyCB1 := []string{}
+	updatedKeyCB2 := []string{}
+
+	config.OnUpdate(func(key string, _ model.Source, _, _ any, _ uint64) { updatedKeyCB1 = append(updatedKeyCB1, key) })
 
 	config.Set("foo", "bar", model.SourceFile)
+	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
 
-	notifications2 := make(chan string, 2)
-	config.OnUpdate(func(key string, _ model.Source, _, _ any, _ uint64) {
-		notifications2 <- key
-	})
+	config.OnUpdate(func(key string, _ model.Source, _, _ any, _ uint64) { updatedKeyCB2 = append(updatedKeyCB2, key) })
 
 	config.Set("foo", "bar2", model.SourceFile)
 	config.Set("foo2", "bar2", model.SourceFile)
-
-	collected1 := []string{}
-	for i := 0; i < 3; i++ {
-		select {
-		case key := <-notifications1:
-			collected1 = append(collected1, key)
-		case <-time.After(2 * time.Second):
-			t.Fatalf("timed out waiting for notification %d for listener 1", i+1)
-		}
-	}
-	assert.Equal(t, []string{"foo", "foo", "foo2"}, collected1)
-
-	collected2 := []string{}
-	for i := 0; i < 2; i++ {
-		select {
-		case key := <-notifications2:
-			collected2 = append(collected2, key)
-		case <-time.After(2 * time.Second):
-			t.Fatalf("timed out waiting for notification %d for listener 2", i+1)
-		}
-	}
-	assert.Equal(t, []string{"foo", "foo2"}, collected2)
+	assert.Equal(t, []string{"foo", "foo", "foo2"}, updatedKeyCB1)
+	assert.Equal(t, []string{"foo", "foo2"}, updatedKeyCB2)
 }
 
 func TestNotificationNoChange(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+
 	updatedKeyCB1 := []string{}
-	notifications := make(chan string, 10)
+
 	config.OnUpdate(func(key string, _ model.Source, _, newValue any, _ uint64) {
-		notifications <- key + ":" + newValue.(string)
+		updatedKeyCB1 = append(updatedKeyCB1, key+":"+newValue.(string))
 	})
 
 	config.Set("foo", "bar", model.SourceFile)
-	for len(updatedKeyCB1) < 1 {
-		select {
-		case key := <-notifications:
-			updatedKeyCB1 = append(updatedKeyCB1, key)
-		case <-time.After(2 * time.Second):
-			t.Fatalf("timed out waiting for notification")
-		}
-	}
 	assert.Equal(t, []string{"foo:bar"}, updatedKeyCB1)
 
 	config.Set("foo", "bar", model.SourceFile)
-	for len(updatedKeyCB1) < 1 {
-		select {
-		case <-notifications:
-			t.Fatalf("received unexpected notification")
-		case <-time.After(2 * time.Second):
-		}
-	}
 	assert.Equal(t, []string{"foo:bar"}, updatedKeyCB1)
 
 	config.Set("foo", "baz", model.SourceAgentRuntime)
-	for len(updatedKeyCB1) < 2 {
-		select {
-		case key := <-notifications:
-			updatedKeyCB1 = append(updatedKeyCB1, key)
-		case <-time.After(2 * time.Second):
-			t.Fatalf("timed out waiting for notification")
-		}
-	}
 	assert.Equal(t, []string{"foo:bar", "foo:baz"}, updatedKeyCB1)
 
 	config.Set("foo", "bar2", model.SourceFile)
@@ -292,7 +247,7 @@ func TestNotificationNoChange(t *testing.T) {
 func TestCheckKnownKey(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig) // nolint: forbidigo
 
-	config.SetKnown("foo")
+	config.SetKnown("foo") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.Get("foo")
 	assert.Empty(t, config.unknownKeys)
 
@@ -386,7 +341,7 @@ func TestMergeFleetPolicy(t *testing.T) {
 func TestParseEnvAsStringSlice(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	config.BindEnv("slice_of_string")
+	config.BindEnv("slice_of_string") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.ParseEnvAsStringSlice("slice_of_string", func(string) []string { return []string{"a", "b", "c"} })
 
 	t.Setenv("DD_SLICE_OF_STRING", "__some_data__")
@@ -396,7 +351,7 @@ func TestParseEnvAsStringSlice(t *testing.T) {
 func TestParseEnvAsMapStringInterface(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	config.BindEnv("map_of_float")
+	config.BindEnv("map_of_float") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.ParseEnvAsMapStringInterface("map_of_float", func(string) map[string]interface{} { return map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0} })
 
 	t.Setenv("DD_MAP_OF_FLOAT", "__some_data__")
@@ -407,7 +362,7 @@ func TestParseEnvAsMapStringInterface(t *testing.T) {
 func TestParseEnvAsSliceMapString(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	config.BindEnv("map")
+	config.BindEnv("map") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.ParseEnvAsSliceMapString("map", func(string) []map[string]string { return []map[string]string{{"a": "a", "b": "b", "c": "c"}} })
 
 	t.Setenv("DD_MAP", "__some_data__")
@@ -419,32 +374,21 @@ func TestListenersUnsetForSource(t *testing.T) {
 
 	// Create a listener that will keep track of the changes
 	logLevels := []string{}
-	notifications := make(chan string, 10)
-
 	config.OnUpdate(func(_ string, _ model.Source, _, next any, _ uint64) {
 		nextString := next.(string)
-		notifications <- nextString
+		logLevels = append(logLevels, nextString)
 	})
 
 	config.Set("log_level", "info", model.SourceFile)
 	config.Set("log_level", "debug", model.SourceRC)
 	config.UnsetForSource("log_level", model.SourceRC)
-	timeout := time.After(5 * time.Second)
 
-	for len(logLevels) < 3 {
-		select {
-		case level := <-notifications:
-			logLevels = append(logLevels, level)
-		case <-timeout:
-			t.Fatal("Timeout waiting for notifications")
-		}
-	}
 	assert.Equal(t, []string{"info", "debug", "info"}, logLevels)
 }
 
 func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	cfg := NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.BindEnv("api_key")
+	cfg.BindEnv("api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BuildSchema()
 
 	// api_key is not in the config (does not have a default value)

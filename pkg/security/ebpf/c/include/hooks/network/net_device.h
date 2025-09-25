@@ -251,7 +251,7 @@ __attribute__((always_inline)) int trace_dev_change_net_namespace(ctx_t *ctx) {
     fill_cgroup_context(entry, &evt.cgroup);
     fill_span_context(&evt.span);
 
-    send_event(ctx, EVENT_VETH_PAIR, evt);
+    send_event(ctx, EVENT_VETH_PAIR_NS, evt);
     return 0;
 }
 

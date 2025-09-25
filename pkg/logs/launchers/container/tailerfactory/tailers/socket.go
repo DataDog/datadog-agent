@@ -5,7 +5,7 @@
 
 //go:build docker
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package tailers provides tailers for API logs
 package tailers
 
 import (
@@ -26,6 +26,7 @@ import (
 // modified to suit the Tailer interface directly and to handle connection
 // failures on its own, and this wrapper will no longer be necessary.
 
+// DockerSocketTailer is a tailer for docker socket logs
 type DockerSocketTailer struct {
 	dockerutil containerTailerPkg.DockerContainerLogInterface
 	base

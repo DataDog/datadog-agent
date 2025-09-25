@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && trivy
+//go:build linux
 
 // Package sbom holds sbom related files
 package sbom
@@ -18,18 +18,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -84,9 +81,9 @@ func (s *SBOM) IsComputed() bool {
 }
 
 // SetReport sets the SBOM report
-func (s *SBOM) setReport(report *types.Report) {
+func (s *SBOM) setReport(pkgs []sbomtypes.PackageWithInstalledFiles) {
 	// build file cache
-	s.data.files = newFileQuerier(report)
+	s.data.files = newFileQuerier(pkgs)
 }
 
 func (s *SBOM) stop() {
@@ -129,7 +126,7 @@ type Resolver struct {
 	pendingScan     []containerutils.ContainerID
 
 	statsdClient   statsd.ClientInterface
-	sbomCollector  *host.Collector
+	sbomCollector  sbomCollector
 	hostRootDevice uint64
 	hostSBOM       *SBOM
 
@@ -139,12 +136,13 @@ type Resolver struct {
 	sbomsCacheMiss        *atomic.Uint64
 }
 
+type sbomCollector interface {
+	ScanInstalledPackages(ctx context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error)
+}
+
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	opts := sbom.ScanOptions{
-		Analyzers: c.SBOMResolverAnalyzers,
-	}
-	sbomCollector, err := host.NewCollectorForCWS(pkgconfigsetup.SystemProbe(), opts)
+	sbomCollector, err := selectCollector(c)
 	if err != nil {
 		return nil, err
 	}
@@ -266,12 +264,12 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 	return fmt.Errorf("container %s not found", containerID)
 }
 
-// generateSBOM calls Trivy to generate the SBOM of a sbom
-func (r *Resolver) generateSBOM(root string) (*types.Report, error) {
+// generateSBOM calls the collector to generate the SBOM of a sbom
+func (r *Resolver) generateSBOM(root string) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	report, err := r.sbomCollector.DirectScanForTrivyReport(context.Background(), root)
+	report, err := r.sbomCollector.ScanInstalledPackages(context.Background(), root)
 	if err != nil {
 		r.failedSBOMGenerations.Inc()
 		return nil, fmt.Errorf("failed to generate SBOM for %s: %w", root, err)
@@ -282,11 +280,11 @@ func (r *Resolver) generateSBOM(root string) (*types.Report, error) {
 	return report, nil
 }
 
-func (r *Resolver) doScan(sbom *SBOM) (*types.Report, error) {
+func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	var (
 		lastErr error
 		scanned bool
-		report  *types.Report
+		report  []sbomtypes.PackageWithInstalledFiles
 	)
 
 	cfs := utils.DefaultCGroupFS()
@@ -369,12 +367,14 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 
 	seclog.Infof("analyzing sbom '%s'", sbom.ContainerID)
 
-	if sbom.state.Load() != pendingState {
+	if currentState := sbom.state.Load(); currentState != pendingState {
 		r.removePendingScan(sbom.ContainerID)
 
-		// should not append, ignore
-		seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sbom.ContainerID, sbom.state.Load())
-		return nil
+		if currentState != stoppedState {
+			// should not append, ignore
+			seclog.Warnf("trying to analyze a sbom not in pending state for '%s': %d", sbom.ContainerID, currentState)
+			return nil
+		}
 	}
 
 	// bail out if the workload has been analyzed while queued up
@@ -426,7 +426,7 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
 // resolved.
-func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *model.FileEvent) *Package {
+func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *model.FileEvent) *sbomtypes.Package {
 	sbom := r.getSBOM(containerID)
 	if sbom == nil {
 		return nil

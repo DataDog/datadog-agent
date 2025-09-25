@@ -10,7 +10,15 @@ generator:
       method:
         post:
           maximum_prebuild_cache_size_bytes: "512 MiB"
-          variant: "opentelemetry_metrics"
+          variant:
+            opentelemetry_metrics:
+              metric_weights:
+                  gauge: 50
+                  sum_delta: 25
+                  sum_cumulative: 25
+              contexts:
+                total_contexts:
+                  constant: 256
 
 blackhole:
   - http:

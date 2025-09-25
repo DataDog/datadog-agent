@@ -127,6 +127,12 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
+			if entityID.Kind == workloadmeta.KindKubeletMetrics ||
+				entityID.Kind == workloadmeta.KindKubelet {
+				// No tags. Ignore
+				continue
+			}
+
 			taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 			// keep track of children of this entity from previous
@@ -152,7 +158,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			case workloadmeta.KindKubernetesMetadata:
 				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
 			case workloadmeta.KindProcess:
-				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
+				tagInfos = append(tagInfos, c.handleProcess(ev)...)
 			case workloadmeta.KindKubernetesDeployment:
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindGPU:
@@ -249,6 +255,44 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		{
 			Source:               containerSource,
 			EntityID:             common.BuildTaggerEntityID(container.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+}
+
+func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.TagInfo {
+	process := ev.Entity.(*workloadmeta.Process)
+
+	// Only create tags if the process has service metadata with UST information
+	if process.Service == nil {
+		return nil
+	}
+
+	tagList := taglist.NewTagList()
+
+	// Add Unified Service Tagging tags if present in the service metadata
+	if process.Service.UST.Service != "" {
+		tagList.AddStandard(tags.Service, process.Service.UST.Service)
+	}
+	if process.Service.UST.Env != "" {
+		tagList.AddStandard(tags.Env, process.Service.UST.Env)
+	}
+	if process.Service.UST.Version != "" {
+		tagList.AddStandard(tags.Version, process.Service.UST.Version)
+	}
+
+	low, orch, high, standard := tagList.Compute()
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	return []*types.TagInfo{
+		{
+			Source:               processSource,
+			EntityID:             common.BuildTaggerEntityID(process.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -730,6 +774,10 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
 		if len(deployment) > 0 {
 			tagList.AddLow(tags.KubeDeployment, deployment)
+			// Add Argo Rollout tag key if the deployment is controlled by Argo Rollout
+			if pod.Labels[kubernetes.ArgoRolloutLabelKey] != "" {
+				tagList.AddLow(tags.KubeArgoRollout, deployment)
+			}
 		}
 		tagList.AddLow(tags.KubeReplicaSet, owner.Name)
 	}

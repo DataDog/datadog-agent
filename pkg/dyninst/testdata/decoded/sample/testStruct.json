@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testStruct",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,12 +18,12 @@
           {
             "function": "main.testStruct",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
-            "lineNumber": 56
+            "lineNumber": 84
           },
           {
             "function": "main.executeStructFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
-            "lineNumber": 111
+            "lineNumber": 143
           },
           {
             "function": "main.main",

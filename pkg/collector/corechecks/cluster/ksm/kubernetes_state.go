@@ -72,9 +72,11 @@ const (
 )
 
 var extendedCollectors = map[string]string{
-	"jobs":  "batch/v1, Resource=jobs_extended",
-	"nodes": "core/v1, Resource=nodes_extended",
-	"pods":  "core/v1, Resource=pods_extended",
+	"deployments": "apps/v1, Resource=deployments_extended",
+	"replicasets": "apps/v1, Resource=replicasets_extended",
+	"jobs":        "batch/v1, Resource=jobs_extended",
+	"nodes":       "core/v1, Resource=nodes_extended",
+	"pods":        "core/v1, Resource=pods_extended",
 }
 
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
@@ -537,6 +539,8 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewExtendedNodeFactory(c),
 		customresources.NewExtendedPodFactory(c),
 		customresources.NewVerticalPodAutoscalerFactory(c),
+		customresources.NewDeploymentRolloutFactory(c),
+		customresources.NewReplicaSetRolloutFactory(c),
 	}
 
 	factories = manageResourcesReplacement(c, factories, resources)
@@ -600,6 +604,13 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	return factories
 }
 
+func (k *KSMCheck) shouldDropForMetadata(name string) bool {
+	if strings.HasPrefix(name, "kube_customresource") {
+		return false
+	}
+	return k.metadataMetricsRegex.MatchString(name)
+}
+
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
 	if err := k.initRetry.TriggerRetry(); err != nil {
@@ -656,17 +667,35 @@ func (k *KSMCheck) Run() error {
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
 	for _, stores := range k.allStores {
 		for _, store := range stores {
-			metrics := store.(*ksmstore.MetricsStore).Push(k.familyFilter, k.metricFilter)
-			labelJoiner.insertFamilies(metrics)
+			var metricsStore *ksmstore.MetricsStore
+			if ms, ok := store.(*ksmstore.MetricsStore); ok {
+				metricsStore = ms
+			} else if rolloutStore, ok := store.(*ksmstore.RolloutMetricsStore); ok {
+				metricsStore = rolloutStore.MetricsStore
+			}
+
+			if metricsStore != nil {
+				metrics := metricsStore.Push(k.familyFilter, k.metricFilter)
+				labelJoiner.insertFamilies(metrics)
+			}
 		}
 	}
 
 	currentTime := time.Now()
 	for _, stores := range k.allStores {
 		for _, store := range stores {
-			metrics := store.(*ksmstore.MetricsStore).Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
-			k.processMetrics(sender, metrics, labelJoiner, currentTime)
-			k.processTelemetry(metrics)
+			var metricsStore *ksmstore.MetricsStore
+			if ms, ok := store.(*ksmstore.MetricsStore); ok {
+				metricsStore = ms
+			} else if rolloutStore, ok := store.(*ksmstore.RolloutMetricsStore); ok {
+				metricsStore = rolloutStore.MetricsStore
+			}
+
+			if metricsStore != nil {
+				metrics := metricsStore.Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
+				k.processMetrics(sender, metrics, labelJoiner, currentTime)
+				k.processTelemetry(metrics)
+			}
 		}
 	}
 
@@ -718,9 +747,9 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if _, found := k.metricAggregators[metricFamily.Name]; found {
 				continue
 			}
-			if k.metadataMetricsRegex.MatchString(metricFamily.Name) {
+			if k.shouldDropForMetadata(metricFamily.Name) {
 				// metadata metrics are only used by the check for label joins
-				// they shouldn't be forwarded to Datadog
+				// they shouldn't be forwarded to Datadog unless they're customresource metrics
 				continue
 			}
 			// ignore the metric if it doesn't have a transformer

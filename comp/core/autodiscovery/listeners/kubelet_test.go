@@ -14,6 +14,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -137,6 +138,9 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		},
 		IP: "127.0.0.1",
 	}
+
+	podWithTolerateUnreadyAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
+	podWithTolerateUnreadyAnnotation.Annotations["ad.datadoghq.com/tolerate-unready"] = "true"
 
 	podWithExcludeAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
 	podWithExcludeAnnotation.Annotations[fmt.Sprintf("ad.datadoghq.com/%s.exclude", containerName)] = `true`
@@ -513,6 +517,41 @@ func TestKubeletCreateContainerService(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "pod with tolerate-unready annotation",
+			pod:  podWithTolerateUnreadyAnnotation,
+			podContainer: &workloadmeta.OrchestratorContainer{
+				ID:    containerID,
+				Name:  containerName,
+				Image: basicImage,
+			},
+			container: customIDsContainer,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					parent: "kubernetes_pod://foobar",
+					service: &service{
+						entity: customIDsContainer,
+						adIdentifiers: []string{
+							"customid",
+							"docker://foobarquux",
+							"foobar",
+						},
+						hosts: map[string]string{
+							"pod": "127.0.0.1",
+						},
+						ports:      []ContainerPort{},
+						checkNames: []string{"customcheck"},
+						extraConfig: map[string]string{
+							"namespace": podNamespace,
+							"pod_name":  podName,
+							"pod_uid":   podID,
+						},
+						tagger: taggerComponent,
+						ready:  true, // // Because of the tolerate-unready annotation
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -618,5 +657,11 @@ func newKubeletListener(t *testing.T, tagger tagger.Component) (*KubeletListener
 	wlm := newTestWorkloadmetaListener(t)
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	return &KubeletListener{workloadmetaListener: wlm, filterStore: filterStore, tagger: tagger}, wlm
+	return &KubeletListener{
+		workloadmetaListener: wlm,
+		globalFilter:         filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter:        filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:           filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:               tagger,
+	}, wlm
 }

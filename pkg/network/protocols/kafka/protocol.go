@@ -15,6 +15,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
+	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -265,13 +266,22 @@ func (p *protocol) Name() string {
 // Configuring the kafka event stream with the manager and its options, and enabling the kafka_monitoring_enabled eBPF
 // option.
 func (p *protocol) ConfigureOptions(opts *manager.Options) {
+	var mapFlags uint32
+	editorFlag := manager.EditMaxEntries
+	if p.cfg.DisableMapPreallocation {
+		mapFlags = unix.BPF_F_NO_PREALLOC
+		editorFlag |= manager.EditFlags
+	}
+
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
-		EditorFlag: manager.EditMaxEntries,
+		Flags:      mapFlags,
+		EditorFlag: editorFlag,
 	}
 	opts.MapSpecEditors[responseMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
-		EditorFlag: manager.EditMaxEntries,
+		Flags:      mapFlags,
+		EditorFlag: editorFlag,
 	}
 	netifProbeID := manager.ProbeIdentificationPair{
 		EBPFFuncName: netifProbe,
@@ -392,6 +402,7 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 		}, func() {
 			for _, s := range stats {
 				s.Close()
+				requestStatsPool.Put(s)
 			}
 		}
 }

@@ -22,17 +22,26 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -147,10 +156,25 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	suite.tagger = fakeTagger
 
+	// The workloadmeta collectors live in an "internal" package, so we can't
+	// import them here. That means we can’t reuse the pod parsing logic in the
+	// kubelet collector to read the test file and populate workloadmeta.
+	// So instead of that, we're going to configure workloadmeta with the
+	// kubelet collector.
+	env.SetFeatures(suite.T(), env.Kubernetes) // Required to enable the "kubelet" collector
+	wmeta := fxutil.Test[workloadmeta.Component](suite.T(), fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		// GetCatalog() returns all collectors but only the kubelet one will
+		// be active, thanks to the SetFeatures call above
+		wmcatalog.GetCatalog(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(suite.T()) }),
+	))
+
 	mockConfig.SetWithoutSource("container_exclude", "name:agent-excluded")
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
-	suite.provider = NewProvider(mockFilterStore, config, common.NewPodUtils(fakeTagger), fakeTagger)
+	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger)
 }
 
 func (suite *ProviderTestSuite) TearDownTest() {
@@ -162,9 +186,12 @@ func TestProviderTestSuite(t *testing.T) {
 }
 
 func (suite *ProviderTestSuite) TestTransformRunningPods() {
-	err := suite.dummyKubelet.loadPodList("../../testdata/pods.json")
+	testDataFile := "../../testdata/pods.json"
+	err := suite.dummyKubelet.loadPodList(testDataFile)
 	require.Nil(suite.T(), err)
 	config := suite.provider.config
+
+	suite.waitForPodsInWorkloadMeta(testDataFile)
 
 	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
 	require.Nil(suite.T(), err)
@@ -232,9 +259,12 @@ func (suite *ProviderTestSuite) TestTransformRunningPods() {
 }
 
 func (suite *ProviderTestSuite) TestTransformCrashedPods() {
-	err := suite.dummyKubelet.loadPodList("../../testdata/pods_crashed.json")
+	testDataFile := "../../testdata/pods_crashed.json"
+	err := suite.dummyKubelet.loadPodList(testDataFile)
 	require.Nil(suite.T(), err)
 	config := suite.provider.config
+
+	suite.waitForPodsInWorkloadMeta(testDataFile)
 
 	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
 	require.Nil(suite.T(), err)
@@ -277,9 +307,12 @@ func (suite *ProviderTestSuite) TestTransformCrashedPods() {
 }
 
 func (suite *ProviderTestSuite) TestTransformPodsRequestsLimits() {
-	err := suite.dummyKubelet.loadPodList("../../testdata/pods_requests_limits.json")
+	testDataFile := "../../testdata/pods_requests_limits.json"
+	err := suite.dummyKubelet.loadPodList(testDataFile)
 	require.Nil(suite.T(), err)
 	config := suite.provider.config
+
+	suite.waitForPodsInWorkloadMeta(testDataFile)
 
 	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
 	require.Nil(suite.T(), err)
@@ -287,16 +320,19 @@ func (suite *ProviderTestSuite) TestTransformPodsRequestsLimits() {
 	// container resource metrics
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"cpu.requests", 0.5, "", append(config.Tags, "pod_name:cassandra-0"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.requests", 1073741824.0, "", append(config.Tags, "pod_name:cassandra-0"))
-	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral-storage.requests", 0.5, "", append(config.Tags, "pod_name:cassandra-0"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral-storage.requests", 524288000.0, "", append(config.Tags, "pod_name:cassandra-0"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"cpu.limits", 0.5, "", append(config.Tags, "pod_name:cassandra-0"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.limits", 1073741824.0, "", append(config.Tags, "pod_name:cassandra-0"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral-storage.limits", 2147483648.0, "", append(config.Tags, "pod_name:cassandra-0"))
 }
 
 func (suite *ProviderTestSuite) TestNoMetricNoKubeletData() {
-	err := suite.dummyKubelet.loadPodList("../../testdata/pod_list_with_no_kube_tags.json")
+	testDataFile := "../../testdata/pod_list_with_no_kube_tags.json"
+	err := suite.dummyKubelet.loadPodList(testDataFile)
 	require.Nil(suite.T(), err)
 	config := suite.provider.config
+
+	suite.waitForPodsInWorkloadMeta(testDataFile)
 
 	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
 	require.Nil(suite.T(), err)
@@ -308,9 +344,12 @@ func (suite *ProviderTestSuite) TestNoMetricNoKubeletData() {
 
 func (suite *ProviderTestSuite) TestNoPodMetricsIfDurationIsNegative() {
 	// termination time: 2018-02-14T14:57:17Z
-	err := suite.dummyKubelet.loadPodList("../../testdata/pods_termination.json")
+	testDataFile := "../../testdata/pods_termination.json"
+	err := suite.dummyKubelet.loadPodList(testDataFile)
 	require.Nil(suite.T(), err)
 	config := suite.provider.config
+
+	suite.waitForPodsInWorkloadMeta(testDataFile)
 
 	suite.provider.now = func() time.Time {
 		t, _ := time.Parse(time.RFC3339, "2018-02-14T10:57:17Z")
@@ -325,9 +364,12 @@ func (suite *ProviderTestSuite) TestNoPodMetricsIfDurationIsNegative() {
 
 func (suite *ProviderTestSuite) TestPodMetricsIfDurationIsPositive() {
 	// termination time: 2018-02-14T14:57:17Z
-	err := suite.dummyKubelet.loadPodList("../../testdata/pods_termination.json")
+	testDataFile := "../../testdata/pods_termination.json"
+	err := suite.dummyKubelet.loadPodList(testDataFile)
 	require.Nil(suite.T(), err)
 	config := suite.provider.config
+
+	suite.waitForPodsInWorkloadMeta(testDataFile)
 
 	suite.provider.now = func() time.Time {
 		t, _ := time.Parse(time.RFC3339, "2018-02-15T14:57:17Z")
@@ -338,4 +380,48 @@ func (suite *ProviderTestSuite) TestPodMetricsIfDurationIsPositive() {
 	require.Nil(suite.T(), err)
 	// ensure that metrics are not emitted when there are no kubelet tags
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.terminating.duration", 86400, "", config.Tags)
+}
+
+func (suite *ProviderTestSuite) TestPodResizeMetrics() {
+	testDataFile := "../../testdata/pods_pending.json"
+	err := suite.dummyKubelet.loadPodList(testDataFile)
+	require.Nil(suite.T(), err)
+	config := suite.provider.config
+
+	suite.waitForPodsInWorkloadMeta(testDataFile)
+
+	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
+	require.Nil(suite.T(), err)
+
+	// ensure that metrics are not emitted when there are no kubelet tags
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.resize.pending", append(config.Tags, "reason:infeasible"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.resize.pending", append(config.Tags, "reason:deferred"))
+}
+
+func (suite *ProviderTestSuite) waitForPodsInWorkloadMeta(testDataFile string) {
+	podCount, err := getPodCountFromTestData(testDataFile)
+	require.NoError(suite.T(), err)
+
+	require.Eventually(
+		suite.T(),
+		func() bool {
+			return len(suite.provider.store.ListKubernetesPods()) == podCount
+		},
+		10*time.Second,
+		10*time.Millisecond,
+	)
+}
+
+func getPodCountFromTestData(jsonFilePath string) (int, error) {
+	data, err := os.ReadFile(jsonFilePath)
+	if err != nil {
+		return 0, err
+	}
+
+	var podList kubelet.PodList
+	if err := jsoniter.Unmarshal(data, &podList); err != nil {
+		return 0, err
+	}
+
+	return len(podList.Items), nil
 }

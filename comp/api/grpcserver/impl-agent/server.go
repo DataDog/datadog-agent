@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
@@ -60,6 +61,7 @@ type serverSecure struct {
 	remoteAgentRegistry remoteagentregistry.Component
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
+	configStreamServer  *configstreamServer.Server
 }
 
 func (s *agentServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -234,6 +236,10 @@ func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentS
 func (s *serverSecure) GetHostTags(ctx context.Context, _ *pb.HostTagRequest) (*pb.HostTagReply, error) {
 	tags := hosttags.Get(ctx, true, s.configComp)
 	return &pb.HostTagReply{System: tags.System, GoogleCloudPlatform: tags.GoogleCloudPlatform}, nil
+}
+
+func (s *serverSecure) StreamConfigEvents(in *pb.ConfigStreamRequest, out pb.AgentSecure_StreamConfigEventsServer) error {
+	return s.configStreamServer.StreamConfigEvents(in, out)
 }
 
 func init() {

@@ -9,14 +9,20 @@
 package orchestrator
 
 import (
+	"context"
 	"expvar"
 	"strings"
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -32,6 +38,10 @@ const (
 	defaultExtraSyncTimeout = 60 * time.Second
 	defaultMaximumCRDs      = 100
 	datadogAPIGroup         = "datadoghq.com"
+	ArgoAPIGroup            = "argoproj.io"
+	KarpenterAPIGroup       = "karpenter.sh"
+	KarpenterAWSAPIGroup    = "karpenter.k8s.aws"
+	KarpenterAzureAPIGroup  = "karpenter.azure.com"
 )
 
 var (
@@ -417,8 +427,8 @@ func (cb *CollectorBundle) GetTerminatedResourceBundle() *TerminatedResourceBund
 
 // importBuiltinCollectors imports the builtin collectors into the bundle.
 func (cb *CollectorBundle) importBuiltinCollectors() {
-	// add datadog CR collectors
-	builtinCollectors := cb.getDatadogCustomResourceCollectors()
+	// add builtin CR collectors
+	builtinCollectors := cb.getBuiltinCustomResourceCollectors()
 
 	// add terminated pod collector
 	terminatedPodCollector := cb.getTerminatedPodCollector()
@@ -434,42 +444,113 @@ func (cb *CollectorBundle) importBuiltinCollectors() {
 		}
 
 		cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
+		log.Debugf("import builtin collector: %s", collector.Metadata().FullName())
 		cb.collectors = append(cb.collectors, collector)
 	}
 }
 
-// getDatadogCustomResourceCollectors returns a list of collectors for the Datadog custom resources
-func (cb *CollectorBundle) getDatadogCustomResourceCollectors() []collectors.K8sCollector {
-	if !cb.check.orchestratorConfig.CollectDatadogCustomResources {
-		return []collectors.K8sCollector{}
-	}
+// builtinCRDConfig represents the configuration for a built-in custom resource definition.
+type builtinCRDConfig struct {
+	// group is the API group name for the custom resource
+	group string
+	// kind is the resource kind name
+	kind string
+	// enabled indicates whether collection of this CRD is enabled
+	enabled bool
+	// preferredVersion is the preferred API version we want to collect for this custom resource
+	preferredVersion string
+	// fallbackVersions is a list of versions that we can fall back to in order when preferredVersion is unavailable
+	fallbackVersions []string
+}
 
+// newBuiltinCRDConfig creates a new builtinCRDConfig.
+func newBuiltinCRDConfig(group, kind string, enabled bool, preferredVersion string, fallbackVersions ...string) builtinCRDConfig {
+	return builtinCRDConfig{
+		group:            group,
+		preferredVersion: preferredVersion,
+		fallbackVersions: fallbackVersions,
+		kind:             kind,
+		enabled:          enabled,
+	}
+}
+
+// newBuiltinCRDConfigs returns the configuration for all built-in CRDs.
+func newBuiltinCRDConfigs() []builtinCRDConfig {
+	isOOTBCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.ootb.enabled")
+
+	return []builtinCRDConfig{
+		// Datadog resources
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogslos", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogdashboards", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagentprofiles", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmonitors", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmetrics", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalers", isOOTBCRDEnabled, "v1alpha2"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagents", isOOTBCRDEnabled, "v2alpha1"),
+
+		// Argo resources
+		newBuiltinCRDConfig(ArgoAPIGroup, "rollouts", isOOTBCRDEnabled, "v1alpha1"),
+
+		// Karpenter resources (empty kind = all resources in group)
+		newBuiltinCRDConfig(KarpenterAPIGroup, "", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "", isOOTBCRDEnabled, "v1beta1"),
+	}
+}
+
+// getBuiltinCustomResourceCollectors returns the list of builtin custom resource collectors.
+func (cb *CollectorBundle) getBuiltinCustomResourceCollectors() []collectors.K8sCollector {
 	// Check if the CRD collector is present, if not, return an empty list
 	// This is to ensure that we only collect CRs if the CRD collector is present
-	hasCRDCollector := false
-	for _, collector := range cb.collectors {
-		if collector.Metadata().Name == utilTypes.CrdName {
-			hasCRDCollector = true
-			break
-		}
-	}
-	if !hasCRDCollector {
+	if !cb.hasCRDCollector() {
 		return []collectors.K8sCollector{}
 	}
 
-	crs := cb.collectorDiscovery.List(datadogAPIGroup)
+	crCollectors := make([]collectors.K8sCollector, 0, 10)
+	for _, builtinCustomResource := range newBuiltinCRDConfigs() {
+		crCollectors = append(crCollectors, cb.collectorsForBuiltinCRD(builtinCustomResource)...)
+	}
 
-	crCollectors := make([]collectors.K8sCollector, 0, len(crs))
+	crCollectors = filterCRCollectorsByPermission(crCollectors, cb.isForbidden)
+
+	return crCollectors
+}
+
+// collectorsForBuiltinCRD returns the list of collectors for a built-in CRD.
+func (cb *CollectorBundle) collectorsForBuiltinCRD(builtinCustomResource builtinCRDConfig) []collectors.K8sCollector {
+	if !builtinCustomResource.enabled {
+		return nil
+	}
+
+	version, ok := cb.collectorDiscovery.OptimalVersion(builtinCustomResource.group, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
+	if !ok {
+		log.Infof("Skipping built-in CR collector: no supported version found for %s/%s (preferred: %s, fallback: %s)",
+			builtinCustomResource.group, builtinCustomResource.kind, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
+		return nil
+	}
+
+	crCollectors := make([]collectors.K8sCollector, 0, 10)
+	crs := cb.collectorDiscovery.List(builtinCustomResource.group, version, builtinCustomResource.kind)
 	for _, c := range crs {
-		collector, err := cb.collectorDiscovery.VerifyForCRDInventory(c.Name, c.Version)
+		collector, err := cb.collectorDiscovery.VerifyForCRDInventory(c.Kind, c.GroupVersion)
 		if err != nil {
-			_ = cb.check.Warnf("Unsupported collector: %s/%s: %s", c.Version, c.Name, err)
+			log.Infof("Unsupported built-in CR collector: %s/%s: %s", c.GroupVersion, c.Kind, err)
 			continue
 		}
 
 		crCollectors = append(crCollectors, collector)
 	}
 	return crCollectors
+}
+
+// hasCRDCollector returns true if the CRD collector is present.
+func (cb *CollectorBundle) hasCRDCollector() bool {
+	for _, collector := range cb.collectors {
+		if collector.Metadata().Name == utilTypes.CrdName {
+			return true
+		}
+	}
+	return false
 }
 
 // getTerminatedPodCollector returns the terminated pod collector if the unassigned pod collector is present and the terminated pod collector is stable.
@@ -497,4 +578,25 @@ func (cb *CollectorBundle) getTerminatedPodCollector() collectors.K8sCollector {
 		}
 	}
 	return nil
+}
+
+// isForbidden runs a single List request to check if cluster agent is forbidden to list the given resource
+func (cb *CollectorBundle) isForbidden(gvr schema.GroupVersionResource) bool {
+	_, err := cb.runCfg.APIClient.DynamicCl.Resource(gvr).List(context.Background(), metav1.ListOptions{})
+	return errors.IsForbidden(err)
+}
+
+// filterCRCollectorsByPermission filters collectors based on permissions, keeping only those with sufficient access.
+func filterCRCollectorsByPermission(crCollectors []collectors.K8sCollector, isForbidden func(gvr schema.GroupVersionResource) bool) []collectors.K8sCollector {
+	filteredCollectors := make([]collectors.K8sCollector, 0, len(crCollectors))
+	for _, c := range crCollectors {
+		if cr, ok := c.(*k8s.CRCollector); ok {
+			if isForbidden(cr.GetGRV()) {
+				log.Infof("Skipping built-in collector due to insufficient permissions: %s", cr.GetGRV().String())
+				continue
+			}
+			filteredCollectors = append(filteredCollectors, c)
+		}
+	}
+	return filteredCollectors
 }

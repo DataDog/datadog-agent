@@ -41,7 +41,7 @@ datadog-agent-oci-x64-a7:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     [
       "go_mod_tidy_check",
@@ -62,7 +62,7 @@ datadog-agent-oci-arm64-a7:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   needs:
     [
       "go_mod_tidy_check",
@@ -85,7 +85,7 @@ installer-install-scripts:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     [
       "go_mod_tidy_check",
@@ -172,7 +172,7 @@ installer-amd64:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
@@ -187,7 +187,7 @@ installer-arm64:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
@@ -212,43 +212,3 @@ installer-arm64-oci:
     - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
     - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
-
-windows-installer-amd64:
-  stage: package_build
-  extends: .windows_docker_default
-  needs: ["go_mod_tidy_check", "go_deps"]
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  script:
-    - $ErrorActionPreference = 'Stop'
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-    - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
-    - mkdir omnibus\pkg
-    - >
-      docker run --rm
-      -m 8192M
-      -v "$(Get-Location):c:\mnt"
-      -e CI_JOB_ID=${CI_JOB_ID}
-      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
-      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
-      -e CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH}
-      -e CI_JOB_NAME_SLUG=${CI_JOB_NAME_SLUG}
-      -e CI_COMMIT_REF_NAME=${CI_COMMIT_REF_NAME}
-      -e WINDOWS_BUILDER=true
-      -e GOMODCACHE="c:\modcache"
-      -e AWS_NETWORKING=true
-      -e SIGN_WINDOWS_DD_WCS=true
-      -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
-      -e API_KEY_ORG2=${API_KEY_ORG2}
-      -e CI_JOB_TOKEN=${CI_JOB_TOKEN}
-      ${WINBUILDIMAGE}
-      powershell -C "c:\mnt\tasks\winbuildscripts\Build-InstallerPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
-  after_script:
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
-  variables:
-    ARCH: "x64"

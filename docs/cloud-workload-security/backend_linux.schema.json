@@ -237,6 +237,27 @@
       "type": "object",
       "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
     },
+    "CapabilitiesEvent": {
+      "properties": {
+        "caps_attempted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Capabilities that the process attempted to use since it started running"
+        },
+        "caps_used": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Capabilities that the process successfully used since it started running"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "CapabilitiesEventSerializer serializes a capabilities usage event"
+    },
     "ConnectEvent": {
       "properties": {
         "addr": {
@@ -522,6 +543,26 @@
           "type": "string",
           "description": "System package version"
         },
+        "package_epoch": {
+          "type": "integer",
+          "description": "System package epoch"
+        },
+        "package_release": {
+          "type": "string",
+          "description": "System package release"
+        },
+        "package_source_version": {
+          "type": "string",
+          "description": "System package source version"
+        },
+        "package_source_epoch": {
+          "type": "integer",
+          "description": "System package source epoch"
+        },
+        "package_source_release": {
+          "type": "string",
+          "description": "System package source release"
+        },
         "hashes": {
           "items": {
             "type": "string"
@@ -656,6 +697,26 @@
         "package_version": {
           "type": "string",
           "description": "System package version"
+        },
+        "package_epoch": {
+          "type": "integer",
+          "description": "System package epoch"
+        },
+        "package_release": {
+          "type": "string",
+          "description": "System package release"
+        },
+        "package_source_version": {
+          "type": "string",
+          "description": "System package source version"
+        },
+        "package_source_epoch": {
+          "type": "integer",
+          "description": "System package source epoch"
+        },
+        "package_source_release": {
+          "type": "string",
+          "description": "System package source release"
         },
         "hashes": {
           "items": {
@@ -1104,6 +1165,10 @@
         "network_direction": {
           "type": "string",
           "description": "network_direction indicates if the packet was captured on ingress or egress"
+        },
+        "type": {
+          "type": "string",
+          "description": "type is the type of the protocol of the network event"
         }
       },
       "additionalProperties": false,
@@ -1113,8 +1178,7 @@
         "l4_protocol",
         "source",
         "destination",
-        "size",
-        "network_direction"
+        "size"
       ],
       "description": "NetworkContextSerializer serializes the network context to JSON"
     },
@@ -1198,6 +1262,28 @@
       ],
       "description": "PTraceEventSerializer serializes a mmap event to JSON"
     },
+    "PrCtlEvent": {
+      "properties": {
+        "option": {
+          "type": "string",
+          "description": "PrCtl Option"
+        },
+        "new_name": {
+          "type": "string",
+          "description": "New name of the process"
+        },
+        "is_name_truncated": {
+          "type": "boolean",
+          "description": "Name truncated"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "option"
+      ],
+      "description": "PrCtlEventSerializer serializes a prctl event"
+    },
     "Process": {
       "properties": {
         "pid": {
@@ -1258,6 +1344,20 @@
         "credentials": {
           "$ref": "#/$defs/ProcessCredentials",
           "description": "Credentials associated with the process"
+        },
+        "caps_attempted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsAttempted lists the capabilities that this process tried to use"
+        },
+        "caps_used": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
         "user_session": {
           "$ref": "#/$defs/UserSessionContext",
@@ -1401,6 +1501,20 @@
         "credentials": {
           "$ref": "#/$defs/ProcessCredentials",
           "description": "Credentials associated with the process"
+        },
+        "caps_attempted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsAttempted lists the capabilities that this process tried to use"
+        },
+        "caps_used": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
         "user_session": {
           "$ref": "#/$defs/UserSessionContext",
@@ -1620,8 +1734,15 @@
           "type": "string",
           "description": "network_direction indicates if the packet was captured on ingress or egress"
         },
+        "type": {
+          "type": "string",
+          "description": "type is the type of the protocol of the network event"
+        },
         "tls": {
           "$ref": "#/$defs/TLSContext"
+        },
+        "dropped": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -1631,8 +1752,7 @@
         "l4_protocol",
         "source",
         "destination",
-        "size",
-        "network_direction"
+        "size"
       ],
       "description": "RawPacketSerializer defines a raw packet serializer"
     },
@@ -1978,6 +2098,9 @@
         },
         "setsockopt": {
           "$ref": "#/$defs/SyscallArgs"
+        },
+        "prctl": {
+          "$ref": "#/$defs/SyscallArgs"
         }
       },
       "additionalProperties": false,
@@ -2164,6 +2287,12 @@
     },
     "cgroup_write": {
       "$ref": "#/$defs/CGroupWriteEvent"
+    },
+    "capabilities": {
+      "$ref": "#/$defs/CapabilitiesEvent"
+    },
+    "prctl": {
+      "$ref": "#/$defs/PrCtlEvent"
     }
   },
   "additionalProperties": false,

@@ -25,6 +25,7 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/serverless/trace/modifier"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -99,13 +100,13 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 
 // StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
 type StartServerlessTraceAgentArgs struct {
-	Enabled               bool
-	LoadConfig            Load
-	LambdaSpanChan        chan<- *pb.Span
-	ColdStartSpanID       uint64
-	AzureContainerAppTags string
-	FunctionTags          string
-	RCService             *remoteconfig.CoreAgentService
+	Enabled             bool
+	LoadConfig          Load
+	LambdaSpanChan      chan<- *pb.Span
+	ColdStartSpanID     uint64
+	AzureServerlessTags string
+	FunctionTags        string
+	RCService           *remoteconfig.CoreAgentService
 }
 
 // Start starts the agent
@@ -128,16 +129,14 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			tc.AzureContainerAppTags = args.AzureContainerAppTags
+			tc.AzureServerlessTags = args.AzureServerlessTags
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 			ta.SpanModifier = &spanModifier{
 				coldStartSpanId: args.ColdStartSpanID,
 				lambdaSpanChan:  args.LambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
 			}
-			ta.TracerPayloadModifier = &tracerPayloadModifier{
-				functionTags: args.FunctionTags,
-			}
+			ta.TracerPayloadModifier = serverlessmodifier.NewTracerPayloadModifier(args.FunctionTags)
 
 			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			startTraceAgentConfigEndpoint(args.RCService, tc)

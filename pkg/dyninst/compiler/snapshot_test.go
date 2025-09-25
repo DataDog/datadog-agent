@@ -54,7 +54,7 @@ func runTest(
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
 	probeDefs := testprogs.MustGetProbeDefinitions(t, caseName)
-	obj, err := object.OpenElfFile(binPath)
+	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { _ = obj.Close() }()
 	ir, err := irgen.GenerateIR(1, obj, probeDefs)
@@ -78,9 +78,13 @@ func runTest(
 			t.GetID(), t.GetByteSize(), metadata.FunctionLoc[ProcessType{Type: t}]))
 	}
 
-	outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".sm.txt")
+	const outputFileSuffix = ".sm.txt"
+	outputFilePrefix := caseName + "." + cfg.String()
+	outputFileName := outputFilePrefix + outputFileSuffix
+	outputFile := path.Join(snapshotDir, outputFileName)
 	if *rewrite {
-		tmpFile, err := os.CreateTemp(snapshotDir, "sm.c")
+		outputFileTmpPattern := ".tmp." + outputFilePrefix + ".*" + outputFileSuffix
+		tmpFile, err := os.CreateTemp(snapshotDir, outputFileTmpPattern)
 		require.NoError(t, err)
 		name := tmpFile.Name()
 		defer func() { _ = os.Remove(name) }()

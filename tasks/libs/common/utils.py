@@ -258,9 +258,6 @@ def get_build_flags(
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
-    ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
-    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython=3 "
-
     # adding rtloader libs and headers to the env
     if rtloader_lib:
         if not headless_mode:
@@ -325,6 +322,9 @@ def get_build_flags(
                 ),
                 file=sys.stderr,
             )
+    elif sys.platform.startswith('linux'):
+        # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
+        extldflags += "-Wl,-z,lazy "
 
     if os.getenv("DD_CC"):
         env["CC"] = os.getenv("DD_CC")

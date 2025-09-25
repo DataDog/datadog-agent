@@ -6,6 +6,12 @@
 
 // Data that programs the stack machine and event processing.
 
+volatile const uint64_t VARIABLE_runtime_dot_firstmoduledata = 0;
+volatile const uint32_t OFFSET_runtime_dot_moduledata__types = 0;
+volatile const uint32_t OFFSET_runtime_dot_g__goid = 0;
+volatile const uint32_t OFFSET_runtime_dot_g__m = 0;
+volatile const uint32_t OFFSET_runtime_dot_m__curg = 0;
+
 volatile const uint32_t prog_id = 0;
 
 struct {
@@ -48,5 +54,21 @@ struct {
   __type(value, probe_params_t);
 } probe_params SEC(".maps");
 volatile const uint32_t num_probe_params = 0;
+
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __uint(max_entries, 0);
+  __type(key, uint32_t);
+  __type(value, uint32_t);
+} go_runtime_types SEC(".maps");
+
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __uint(max_entries, 0);
+  __type(key, uint32_t);
+  __type(value, uint32_t);
+} go_runtime_type_ids SEC(".maps");
+
+volatile const uint32_t num_go_runtime_types = 0;
 
 #endif // __PROGRAM_H__

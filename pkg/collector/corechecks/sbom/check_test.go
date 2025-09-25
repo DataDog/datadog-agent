@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -160,13 +162,13 @@ func TestConfigure(t *testing.T) {
 	defer scanner2.SetGlobalScanner(scanner)
 
 	app := fxutil.Test[workloadmetaAndConfig](t, fx.Options(
-		fx.Replace(config.MockParams{
-			Overrides: map[string]interface{}{
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
 				"sbom.enabled":      true,
 				"sbom.host.enabled": true,
-			},
+			})
 		}),
-		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: workloadmetainit.GetWorkloadmetaInit(),

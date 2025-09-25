@@ -10,12 +10,12 @@ import (
 	"context"
 	"errors"
 
-	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
-	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/hostmetadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
+
+	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 )
 
 // Type exports the internal metadata type for easy reference
@@ -48,11 +48,7 @@ func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, c
 	}
 	var sourceProvider source.Provider
 	if f.traceAgent == nil {
-		var err error
-		sourceProvider, err = hostmetadata.GetSourceProvider(set.TelemetrySettings, "", 0)
-		if err != nil {
-			return nil, err
-		}
+		sourceProvider = nil // hostmetadata capability commented out
 	}
 
 	return NewExtension(config, set.BuildInfo, f.traceAgent, f.log, sourceProvider)

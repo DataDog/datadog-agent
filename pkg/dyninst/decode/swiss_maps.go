@@ -14,7 +14,6 @@ import (
 
 	"github.com/go-json-experiment/json/jsontext"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,18 +21,18 @@ import (
 func (s *goSwissMapHeaderType) encodeSwissMapTables(
 	d *Decoder,
 	enc *jsontext.Encoder,
-	tablePtrSliceDataItem output.DataItem,
+	tablePtrSliceDataItem []byte,
 ) (totalElementsEncoded int, err error) {
-	tablePointers := tablePtrSliceDataItem.Data()
 	addrs := []uint64{}
-	for i := range tablePtrSliceDataItem.Header().Length / 8 {
+	numPtrs := uint32(len(tablePtrSliceDataItem) / 8)
+	for i := range numPtrs {
 		startIdx := i * 8
 		endIdx := startIdx + 8
-		if endIdx > uint32(len(tablePointers)) {
+		if endIdx > uint32(len(tablePtrSliceDataItem)) {
 			return totalElementsEncoded, fmt.Errorf("table pointer %d extends beyond data bounds: need %d bytes, have %d",
-				i, endIdx, len(tablePointers))
+				i, endIdx, len(tablePtrSliceDataItem))
 		}
-		addrs = append(addrs, binary.NativeEndian.Uint64(tablePointers[startIdx:endIdx]))
+		addrs = append(addrs, binary.NativeEndian.Uint64(tablePtrSliceDataItem[startIdx:endIdx]))
 	}
 	// Deduplicate addrs by sorting and then removing duplicates.
 	// Go swiss maps may have multiple table pointers for the same group.
@@ -47,19 +46,33 @@ func (s *goSwissMapHeaderType) encodeSwissMapTables(
 		if !ok {
 			continue
 		}
-		groupData := tableDataItem.Data()[s.groupFieldOffset : s.groupFieldOffset+uint32(s.groupFieldSize)]
-		groupAddress := groupData[s.dataFieldOffset : s.dataFieldOffset+uint32(s.dataFieldSize)]
-		groupDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(s.groupSliceTypeID),
-			addr:   binary.NativeEndian.Uint64(groupAddress),
-		}]
+		tableData, ok := tableDataItem.Data()
 		if !ok {
-			log.Tracef("group data item not found for addr %x", binary.NativeEndian.Uint64(groupAddress))
+			// Should we tell the user about this fault?
 			continue
 		}
-		numberOfGroups := groupDataItem.Header().Length / s.elementTypeSize
+		groupsData := tableData[s.groupFieldOffset : s.groupFieldOffset+uint32(s.groupFieldSize)]
+		groupsPtrData := groupsData[s.dataFieldOffset : s.dataFieldOffset+uint32(s.dataFieldSize)]
+		groupsPtr := binary.NativeEndian.Uint64(groupsPtrData)
+		groupsArrayDataItem, ok := d.dataItems[typeAndAddr{
+			irType: uint32(s.groupSliceTypeID),
+			addr:   groupsPtr,
+		}]
+		if !ok {
+			if log.ShouldLog(log.TraceLvl) {
+				groupsPtr := groupsPtr
+				log.Tracef("group data item not found for addr %x", groupsPtr)
+			}
+			continue
+		}
+		groupsArrayData, ok := groupsArrayDataItem.Data()
+		if !ok {
+			// Should we tell the user about this fault?
+			continue
+		}
+		numberOfGroups := uint32(len(groupsArrayData)) / s.elementTypeSize
 		for i := range numberOfGroups {
-			singleGroupData := groupDataItem.Data()[s.elementTypeSize*i : s.elementTypeSize*(i+1)]
+			singleGroupData := groupsArrayData[s.elementTypeSize*i : s.elementTypeSize*(i+1)]
 			elementsEncoded, err := s.encodeSwissMapGroup(d, enc, singleGroupData)
 			if err != nil {
 				return totalElementsEncoded, err

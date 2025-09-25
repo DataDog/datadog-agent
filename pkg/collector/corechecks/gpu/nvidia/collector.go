@@ -14,9 +14,7 @@ package nvidia
 
 import (
 	"errors"
-	"fmt"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,16 +37,14 @@ const (
 type CollectorName string
 
 const (
-	field        CollectorName = "fields"
-	clock        CollectorName = "clocks"
-	device       CollectorName = "device"
-	memory       CollectorName = "memory"
-	remappedRows CollectorName = "remapped_rows"
-	samples      CollectorName = "samples"
-	process      CollectorName = "process"
-	nvlink       CollectorName = "nvlink"
-	gpm          CollectorName = "gpm"
-	ebpf         CollectorName = "ebpf"
+	// Consolidated collectors
+	stateless CollectorName = "stateless" // Consolidates memory, device, clock, remappedRows
+	sampling  CollectorName = "sampling"  // Consolidates process, samples
+
+	// Specialized collectors (kept separate)
+	field CollectorName = "fields"
+	gpm   CollectorName = "gpm"
+	ebpf  CollectorName = "ebpf"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -79,15 +75,13 @@ type subsystemBuilder func(device ddnvml.Device) (Collector, error)
 
 // factory is a map of all the subsystems that can be used to collect metrics from NVML.
 var factory = map[CollectorName]subsystemBuilder{
-	clock:        newClocksCollector,
-	device:       newDeviceCollector,
-	field:        newFieldsCollector,
-	gpm:          newGPMCollector,
-	memory:       newMemoryCollector,
-	nvlink:       newNVLinkCollector,
-	process:      newProcessCollector,
-	remappedRows: newRemappedRowsCollector,
-	samples:      newSamplesCollector,
+	// Consolidated collectors that combine multiple collector types into single instances
+	stateless: newStatelessCollector, // Consolidates memory, device, clocks, remappedrows
+	sampling:  newSamplingCollector,  // Consolidates process, samples
+
+	// Specialized collectors that remain unchanged (complex or unique logic)
+	field: newFieldsCollector,
+	gpm:   newGPMCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
@@ -136,96 +130,4 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 	}
 
 	return collectors, nil
-}
-
-// GetDeviceTagsMapping returns the mapping of tags per GPU device.
-func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Component) map[string][]string {
-	devCount := deviceCache.Count()
-	if devCount == 0 {
-		return nil
-	}
-
-	tagsMapping := make(map[string][]string, devCount)
-
-	for _, dev := range deviceCache.AllPhysicalDevices() {
-		uuid := dev.GetDeviceInfo().UUID
-		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
-		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
-		if err != nil {
-			log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
-		}
-
-		if len(tags) == 0 {
-			// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
-			// add at least the UUID as a tag to distinguish the values.
-			tags = []string{fmt.Sprintf("gpu_uuid:%s", uuid)}
-		}
-
-		tagsMapping[uuid] = tags
-	}
-
-	return tagsMapping
-}
-
-// RemoveDuplicateMetrics filters metrics by priority across collectors while preserving all metrics within each collector.
-// For each metric name, it finds the collector with the highest priority metric of that name, then includes
-// ALL metrics with that name from the winning collector. This preserves multiple metrics with the same name
-// but different tags (e.g., multiple memory.usage metrics with different PIDs) from the same collector,
-// while still allowing cross-collector deduplication based on priority.
-//
-// Input: map from collector ID to slice of metrics from that collector
-// Output: flat slice of metrics with duplicates removed according to the priority rules
-//
-// Example:
-//
-//	CollectorA: [
-//	  {Name: "memory.usage", Priority: 10, Tags: ["pid:1001"]},
-//	  {Name: "memory.usage", Priority: 10, Tags: ["pid:1002"]},
-//	  {Name: "core.temp", Priority: 0}
-//	]
-//	CollectorB: [
-//	  {Name: "memory.usage", Priority: 5, Tags: ["pid:1003"]},
-//	  {Name: "fan.speed", Priority: 0}
-//	]
-//
-// Result: [
-//
-//	{Name: "memory.usage", Priority: 10, Tags: ["pid:1001"]},  // From CollectorA (winner)
-//	{Name: "memory.usage", Priority: 10, Tags: ["pid:1002"]},  // From CollectorA (winner)
-//	{Name: "core.temp", Priority: 0},                          // From CollectorA (unique)
-//	{Name: "fan.speed", Priority: 0}                           // From CollectorB (unique)
-//
-// ]
-func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
-	// Map metric name -> collector ID -> []Metric (with that name)
-	nameToCollectorMetrics := make(map[string]map[CollectorName][]Metric)
-
-	for collectorID, metrics := range allMetrics {
-		for _, m := range metrics {
-			if _, ok := nameToCollectorMetrics[m.Name]; !ok {
-				nameToCollectorMetrics[m.Name] = make(map[CollectorName][]Metric)
-			}
-			nameToCollectorMetrics[m.Name][collectorID] = append(nameToCollectorMetrics[m.Name][collectorID], m)
-		}
-	}
-
-	var result []Metric
-
-	// For each metric name, pick all matching metrics from the collector with the highest-priority metric of that name
-	for _, collectorMetrics := range nameToCollectorMetrics {
-		maxPriority := Low
-		var winningCollectorID CollectorName
-		for collectorID, metrics := range collectorMetrics {
-			for _, m := range metrics {
-				if m.Priority >= maxPriority {
-					maxPriority = m.Priority
-					winningCollectorID = collectorID
-				}
-			}
-		}
-		// Add all metrics for that name from the winning collector
-		result = append(result, collectorMetrics[winningCollectorID]...)
-	}
-
-	return result
 }

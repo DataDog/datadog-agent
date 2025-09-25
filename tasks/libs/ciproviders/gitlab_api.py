@@ -5,6 +5,7 @@ Provides functions to interact with the API and also helpers to manipulate and r
 
 from __future__ import annotations
 
+import glob
 import json
 import os
 import platform
@@ -998,7 +999,7 @@ def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_
     if isinstance(yaml_files, str):
         yaml_files = [yaml_files]
 
-    for yaml_file in yaml_files:
+    for yaml_file in [f for p in yaml_files for f in glob.glob(p, recursive=True)]:
         current_file = read_content(ctx, yaml_file, git_ref=git_ref)
 
         if add_file_path:
@@ -1036,11 +1037,14 @@ def read_content(ctx, file_path, git_ref: str | None = None):
             response = requests.get(file_path)
             response.raise_for_status()
             content = response.text
-        elif git_ref:
-            content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
-        else:
+        elif not git_ref:
             with open(file_path) as f:
                 content = f.read()
+        elif ctx.run(f"git cat-file -e '{git_ref}:{file_path}'", hide=True, warn=True).ok:
+            content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
+        else:
+            print(f"{file_path!r} didn't exist in {git_ref!r} - assuming empty")
+            content = "{}"
 
         return yaml.safe_load(content)
 

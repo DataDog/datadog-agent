@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"slices"
 	"sort"
 	"text/tabwriter"
@@ -26,6 +27,8 @@ import (
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
 func GetClusterChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	urlValues := url.Values{}
+	urlValues.Set("scrub", "true")
 
 	if w != color.Output {
 		color.NoColor = true
@@ -36,7 +39,7 @@ func GetClusterChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
 		return nil
 	}
 
-	r, err := c.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
+	r, err := c.Get(urlstr, ipchttp.WithLeaveConnectionOpen, ipchttp.WithValues(urlValues))
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(w, "The agent ran into an error while checking config: %s\n", string(r))

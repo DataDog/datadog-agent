@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -19,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -34,6 +38,7 @@ type serviceLogRef struct {
 
 type processLogConfigProvider struct {
 	workloadmetaStore    workloadmeta.Component
+	tagger               tagger.Component
 	serviceLogRefs       map[string]*serviceLogRef
 	pidToServiceIDs      map[int32][]string
 	unreadableFilesCache *simplelru.LRU[string, struct{}]
@@ -45,13 +50,14 @@ var _ types.ConfigProvider = &processLogConfigProvider{}
 var _ types.StreamingConfigProvider = &processLogConfigProvider{}
 
 // NewProcessLogConfigProvider returns a new ConfigProvider subscribed to process events
-func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
 	cache, err := simplelru.NewLRU[string, struct{}](128, nil)
 	if err != nil {
 		return nil, err
 	}
 	return &processLogConfigProvider{
 		workloadmetaStore:    wmeta,
+		tagger:               tagger,
 		serviceLogRefs:       make(map[string]*serviceLogRef),
 		pidToServiceIDs:      make(map[int32][]string),
 		unreadableFilesCache: cache,
@@ -288,11 +294,25 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 
 // getServiceName returns the name of the service to be used in the log config.
 func getServiceName(service *workloadmeta.Service) string {
-	if service.DDService != "" {
-		return service.DDService
+	if service.UST.Service != "" {
+		return service.UST.Service
 	}
 
 	return service.GeneratedName
+}
+
+var generatedNameToSource = map[string]string{
+	"apache2":           "apache",
+	"catalina":          "tomcat",
+	"clickhouse-server": "clickhouse",
+	"cockroach":         "cockroachdb",
+	"kafka.Kafka":       "kafka",
+	"postgres":          "postgresql",
+	"mongod":            "mongodb",
+	"mysqld":            "mysql",
+	"redis-server":      "redis",
+	"slapd":             "openldap",
+	"tailscaled":        "tailscale",
 }
 
 // getSource returns the source to be used in the log config. This needs to
@@ -300,25 +320,23 @@ func getServiceName(service *workloadmeta.Service) string {
 // https://app.datadoghq.com/logs/pipelines/pipeline/library. For now, this has
 // some handling for some common cases, until a better solution is available.
 func getSource(service *workloadmeta.Service) string {
-	source := service.GeneratedName
+	generatedName := service.GeneratedName
 
-	// Binary name differs from the integration name
-	if source == "apache2" {
-		return "apache"
+	if replacement, ok := generatedNameToSource[generatedName]; ok {
+		return replacement
 	}
-	if source == "postgres" {
-		return "postgresql"
+	if strings.HasPrefix(generatedName, "org.elasticsearch.") {
+		return "elasticsearch"
 	}
-	if source == "catalina" {
-		return "tomcat"
+	if strings.HasPrefix(generatedName, "org.sonar.") {
+		return "sonarqube"
 	}
-
 	// The generated name may be the WSGI application name
 	if service.GeneratedNameSource == "gunicorn" {
 		return "gunicorn"
 	}
 
-	return source
+	return generatedName
 }
 
 func getIntegrationName(logFile string) string {
@@ -327,6 +345,14 @@ func getIntegrationName(logFile string) string {
 
 func getServiceID(logFile string) string {
 	return fmt.Sprintf("%s://%s", names.ProcessLog, logFile)
+}
+
+func (p *processLogConfigProvider) getProcessTags(pid int32) ([]string, error) {
+	if p.tagger == nil {
+		return nil, fmt.Errorf("tagger not available")
+	}
+	entityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(pid)))
+	return p.tagger.Tag(entityID, taggertypes.HighCardinality)
 }
 
 func (p *processLogConfigProvider) buildConfig(process *workloadmeta.Process, logFile string) (integration.Config, error) {
@@ -338,6 +364,10 @@ func (p *processLogConfigProvider) buildConfig(process *workloadmeta.Process, lo
 		"path":    logFile,
 		"service": name,
 		"source":  source,
+	}
+
+	if tags, err := p.getProcessTags(process.Pid); err == nil && len(tags) > 0 {
+		logConfig["tags"] = tags
 	}
 
 	data, err := json.Marshal([]map[string]interface{}{logConfig})

@@ -25,15 +25,18 @@ const (
 	// EventTypeNetworkPath is the event type for network devices Network Path data
 	EventTypeNetworkPath = "network-path"
 
+	// EventTypeSynthetics is the event type for Synthetics test results
+	EventTypeSynthetics = "synthetics"
+
+	// EventTypeNetworkConfigManagement is the event type for network device configuration management
+	EventTypeNetworkConfigManagement = "ndmconfig"
+
 	// EventTypeContainerLifecycle represents a container lifecycle event
 	EventTypeContainerLifecycle = "container-lifecycle"
 	// EventTypeContainerImages represents a container images event
 	EventTypeContainerImages = "container-images"
 	// EventTypeContainerSBOM represents a container SBOM event
 	EventTypeContainerSBOM = "container-sbom"
-
-	// EventTypeServiceDiscovery represents an instrumentation-telemetry event
-	EventTypeServiceDiscovery = "service-discovery"
 )
 
 // Component is the interface of the event platform forwarder component.

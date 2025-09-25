@@ -108,10 +108,32 @@ Package: main
 		Arg: a: int (declared at line 93, available: [93-93])
 		Arg: b: error (declared at line 93, available: [93-93])
 		Arg: c: uint (declared at line 93, available: [93-93])
-	Function: executeComplexFuncs (main.executeComplexFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [96:146]
-		Var: s: []*string (declared at line 108, available: )
-		Var: str: string (declared at line 107, available: [96-146])
-		Var: circ: main.circularReferenceType (declared at line 129, available: [96-146])
+	Function: init.0 (main.init.0) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [113:113]
+	Function: testDeepPtr1 (main.testDeepPtr1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [116:116]
+		Arg: a: main.deepPtr1 (declared at line 116, available: [116-116])
+	Function: testDeepPtr7 (main.testDeepPtr7) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [119:119]
+		Arg: a: *main.deepPtr7 (declared at line 119, available: [119-119])
+	Function: init.1 (main.init.1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [139:139]
+	Function: testDeepSlice1 (main.testDeepSlice1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [142:142]
+		Arg: a: main.deepSlice1 (declared at line 142, available: [142-142])
+	Function: testDeepSlice7 (main.testDeepSlice7) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [145:145]
+		Arg: a: *main.deepSlice7 (declared at line 145, available: [145-145])
+	Function: init.2 (main.init.2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [177:177]
+	Function: testDeepMap1 (main.testDeepMap1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [180:180]
+		Arg: a: main.deepMap1 (declared at line 180, available: [180-180])
+	Function: testDeepMap7 (main.testDeepMap7) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [183:183]
+		Arg: a: *main.deepMap7 (declared at line 183, available: [183-183])
+	Function: testStringType1 (main.testStringType1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [194:194]
+		Arg: a: *main.stringType1 (declared at line 194, available: [194-194])
+	Function: testStringType2 (main.testStringType2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [200:200]
+		Arg: a: **main.stringType2 (declared at line 200, available: [200-200])
+	Function: executeComplexFuncs (main.executeComplexFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [203:267]
+		Var: s: []*string (declared at line 215, available: )
+		Var: str: string (declared at line 214, available: [203-267])
+		Var: circ: main.circularReferenceType (declared at line 236, available: [203-267])
+		Var: s1: main.stringType1 (declared at line 262, available: [257-267])
+		Var: s2: main.stringType2 (declared at line 263, available: [257-267])
+		Var: s2p: *main.stringType2 (declared at line 264, available: [257-267])
 	Function: testEsotericStack (main.testEsotericStack) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [42:44]
 		Arg: e: main.esotericStack (declared at line 42, available: [42-43])
 	Function: testEsotericHeap (main.testEsotericHeap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [47:49]
@@ -155,19 +177,37 @@ Package: main
 		Var: x: int (declared at line 99, available: )
 		Var: y: int (declared at line 100, available: [97-106])
 		Var: a: [5]int (declared at line 98, available: [97-106])
-	Function: testInterface (main.testInterface) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [48:55]
-		Arg: b: main.behavior (declared at line 48, available: [48-51])
-		Arg: ~r0: string (declared at line 48, available: )
-		Var: hash: string (declared at line 51, available: [48-55])
-		Var: inter: string (declared at line 52, available: [48-55])
-		Var: iType: string (declared at line 53, available: [48-55])
-		Var: iFun: string (declared at line 54, available: [48-48], [55-55])
+	Function: testInterface (main.testInterface) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [50:50]
+		Arg: b: main.behavior (declared at line 50, available: [50-50])
+	Function: testAny (main.testAny) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [54:55]
+		Arg: a: interface {} (declared at line 54, available: [54-55])
+		Arg: ~r0: string (declared at line 54, available: )
 	Function: testError (main.testError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [60:60]
 		Arg: e: error (declared at line 60, available: [60-60])
-	Function: executeInterfaceFuncs (main.executeInterfaceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [63:67]
-	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [19:48]
-		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 39, available: [19-48])
-	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.3.0-dev/ddtrace/tracer/option.go [986:989]
+	Function: testAnyPtr (main.testAnyPtr) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [64:65]
+		Arg: a: *interface {} (declared at line 64, available: [64-65])
+		Arg: ~r0: string (declared at line 64, available: )
+	Function: testStructWithAny (main.testStructWithAny) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [73:73]
+		Arg: s: main.structWithAny (declared at line 73, available: [73-73])
+	Function: executeInterfaceFuncs (main.executeInterfaceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [76:124]
+		Var: &one: *int (declared at line 95, available: [76-124])
+		Var: &foo: *string (declared at line 98, available: [76-124])
+		Var: &boxedTypedNil: *interface {} (declared at line 106, available: [76-124])
+		Var: &boxedOne: *interface {} (declared at line 102, available: [76-124])
+		Var: &boxedOnePtr: *interface {} (declared at line 103, available: [76-124])
+		Var: &boxedPtrToBoxedOne: *interface {} (declared at line 104, available: [76-124])
+		Var: &boxedNil: *interface {} (declared at line 105, available: [76-124])
+		Var: .autotmp_22: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 92, available: [76-124])
+		Scope: 117-124
+			Var: structWithAny0: main.structWithAny (declared at line 116, available: )
+			Var: structWithAny1: main.structWithAny (declared at line 117, available: )
+			Var: structWithAny2: main.structWithAny (declared at line 118, available: )
+			Var: structWithAny3: main.structWithAny (declared at line 119, available: )
+			Var: structWithAny4: main.structWithAny (declared at line 120, available: )
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [19:50]
+		Var: it: main.iterExample (declared at line 41, available: [19-50])
+		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 39, available: [19-50])
+	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [986:989]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
 		Var: name: string (declared at line 987, available: [987-989])
 	Function: testStructWithMap (main.testStructWithMap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [18:18]
@@ -445,61 +485,111 @@ Package: main
 		Arg: x: string (declared at line 46, available: [46-46])
 	Function: testEmptyString (main.testEmptyString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [50:50]
 		Arg: x: string (declared at line 50, available: [50-50])
-	Function: executeStringFuncs (main.executeStringFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [53:64]
-		Var: uninitializedString: string (declared at line 61, available: )
-	Function: testStructWithUnsupportedFields (main.testStructWithUnsupportedFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [20:20]
-		Arg: a: main.hasUnsupportedFields (declared at line 20, available: [20-20])
-	Function: testStructWithArray (main.testStructWithArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [32:32]
-		Arg: a: main.structWithAnArray (declared at line 32, available: [32-32])
-	Function: testStructWithASlice (main.testStructWithASlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [36:36]
-		Arg: s: main.structWithASlice (declared at line 36, available: [36-36])
-	Function: testStructWithAnEmptySlice (main.testStructWithAnEmptySlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [40:40]
-		Arg: s: main.structWithASlice (declared at line 40, available: [40-40])
-	Function: testStructWithANilSlice (main.testStructWithANilSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [44:44]
-		Arg: s: main.structWithASlice (declared at line 44, available: [44-44])
-	Function: testPointerToStructWithASlice (main.testPointerToStructWithASlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [48:48]
-		Arg: s: *main.structWithASlice (declared at line 48, available: [48-48])
-	Function: testPointerToStructWithAString (main.testPointerToStructWithAString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [52:52]
-		Arg: s: *main.structWithAString (declared at line 52, available: [52-52])
-	Function: testStruct (main.testStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [56:56]
-		Arg: x: main.aStruct (declared at line 56, available: [56-56])
-	Function: testStructWithArrays (main.testStructWithArrays) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [60:60]
-		Arg: s: main.structWithTwoArrays (declared at line 60, available: [60-60])
-	Function: testNonembeddedStruct (main.testNonembeddedStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [64:64]
-		Arg: x: main.nStruct (declared at line 64, available: [64-64])
-	Function: testMultipleEmbeddedStruct (main.testMultipleEmbeddedStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [68:68]
-		Arg: b: main.bStruct (declared at line 68, available: [68-68])
-	Function: testNoStringStruct (main.testNoStringStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [72:72]
-		Arg: c: main.cStruct (declared at line 72, available: [72-72])
-	Function: testStructAndByte (main.testStructAndByte) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [76:76]
-		Arg: w: uint8 (declared at line 76, available: [76-76])
-		Arg: x: main.aStruct (declared at line 76, available: [76-76])
-	Function: testNestedPointer (main.testNestedPointer) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [80:80]
-		Arg: x: *main.anotherStruct (declared at line 80, available: [80-80])
-	Function: testTenStrings (main.testTenStrings) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [84:84]
-		Arg: x: main.tenStrings (declared at line 84, available: [84-84])
-	Function: testStringStruct (main.testStringStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [88:88]
-		Arg: t: main.threestrings (declared at line 88, available: [88-88])
-	Function: testDeepStruct (main.testDeepStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [92:92]
-		Arg: t: main.deepStruct1 (declared at line 92, available: [92-92])
-	Function: testEmptyStruct (main.testEmptyStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [96:96]
-		Arg: e: main.emptyStruct (declared at line 96, available: )
-	Function: testLotsOfFields (main.testLotsOfFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [100:100]
-		Arg: l: main.lotsOfFields (declared at line 100, available: [100-100])
-	Function: executeStructFuncs (main.executeStructFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [103:182]
-		Var: n: main.nStruct (declared at line 107, available: )
-		Var: ns: main.structWithNoStrings (declared at line 116, available: )
-		Var: cs: main.cStruct (declared at line 117, available: )
-		Var: rcvr: main.receiver (declared at line 164, available: )
-		Var: ts: main.threestrings (declared at line 104, available: [103-182])
-		Var: s: main.aStruct (declared at line 110, available: [103-182])
-		Var: b: main.bStruct (declared at line 113, available: [103-182])
-		Var: tenStr: main.tenStrings (declared at line 130, available: [103-182])
-		Var: deep: main.deepStruct1 (declared at line 144, available: [103-182])
-		Var: fields: main.lotsOfFields (declared at line 161, available: [103-182])
-		Var: sta: main.structWithTwoArrays (declared at line 170, available: [103-182])
-		Var: .autotmp_13: [0]uint8 (declared at line 125, available: [103-182])
-		Var: .autotmp_33: main.emptyStruct (declared at line 158, available: [103-182])
+	Function: executeStringFuncs (main.executeStringFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [53:66]
+		Var: abc: string (declared at line 54, available: )
+		Var: uninitializedString: string (declared at line 62, available: )
+	Function: testStructWithCyclicSlices (main.testStructWithCyclicSlices) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [31:31]
+		Arg: a: main.structWithCyclicSlices (declared at line 31, available: [31-31])
+	Function: testStructWithCyclicMaps (main.testStructWithCyclicMaps) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [44:44]
+		Arg: a: main.structWithCyclicMaps (declared at line 44, available: [44-44])
+	Function: testStructWithUnsupportedFields (main.testStructWithUnsupportedFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [48:48]
+		Arg: a: main.hasUnsupportedFields (declared at line 48, available: [48-48])
+	Function: testStructWithArray (main.testStructWithArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [60:60]
+		Arg: a: main.structWithAnArray (declared at line 60, available: [60-60])
+	Function: testStructWithASlice (main.testStructWithASlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [64:64]
+		Arg: s: main.structWithASlice (declared at line 64, available: [64-64])
+	Function: testStructWithAnEmptySlice (main.testStructWithAnEmptySlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [68:68]
+		Arg: s: main.structWithASlice (declared at line 68, available: [68-68])
+	Function: testStructWithANilSlice (main.testStructWithANilSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [72:72]
+		Arg: s: main.structWithASlice (declared at line 72, available: [72-72])
+	Function: testPointerToStructWithASlice (main.testPointerToStructWithASlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [76:76]
+		Arg: s: *main.structWithASlice (declared at line 76, available: [76-76])
+	Function: testPointerToStructWithAString (main.testPointerToStructWithAString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [80:80]
+		Arg: s: *main.structWithAString (declared at line 80, available: [80-80])
+	Function: testStruct (main.testStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [84:84]
+		Arg: x: main.aStruct (declared at line 84, available: [84-84])
+	Function: testStructWithArrays (main.testStructWithArrays) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [88:88]
+		Arg: s: main.structWithTwoArrays (declared at line 88, available: [88-88])
+	Function: testNonembeddedStruct (main.testNonembeddedStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [92:92]
+		Arg: x: main.nStruct (declared at line 92, available: [92-92])
+	Function: testMultipleEmbeddedStruct (main.testMultipleEmbeddedStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [96:96]
+		Arg: b: main.bStruct (declared at line 96, available: [96-96])
+	Function: testNoStringStruct (main.testNoStringStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [100:100]
+		Arg: c: main.cStruct (declared at line 100, available: [100-100])
+	Function: testStructAndByte (main.testStructAndByte) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [104:104]
+		Arg: w: uint8 (declared at line 104, available: [104-104])
+		Arg: x: main.aStruct (declared at line 104, available: [104-104])
+	Function: testNestedPointer (main.testNestedPointer) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [108:108]
+		Arg: x: *main.anotherStruct (declared at line 108, available: [108-108])
+	Function: testTenStrings (main.testTenStrings) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [112:112]
+		Arg: x: main.tenStrings (declared at line 112, available: [112-112])
+	Function: testStringStruct (main.testStringStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [116:116]
+		Arg: t: main.threestrings (declared at line 116, available: [116-116])
+	Function: testDeepStruct (main.testDeepStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [120:120]
+		Arg: t: main.deepStruct1 (declared at line 120, available: [120-120])
+	Function: testEmptyStruct (main.testEmptyStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [124:124]
+		Arg: e: main.emptyStruct (declared at line 124, available: )
+	Function: testEmptyStructPointer (main.testEmptyStructPointer) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [128:128]
+		Arg: e: *main.emptyStruct (declared at line 128, available: [128-128])
+	Function: testLotsOfFields (main.testLotsOfFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [132:132]
+		Arg: l: main.lotsOfFields (declared at line 132, available: [132-132])
+	Function: executeStructFuncs (main.executeStructFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [135:236]
+		Var: n: main.nStruct (declared at line 139, available: )
+		Var: ns: main.structWithNoStrings (declared at line 148, available: )
+		Var: cs: main.cStruct (declared at line 149, available: )
+		Var: rcvr: main.receiver (declared at line 197, available: )
+		Var: ts: main.threestrings (declared at line 136, available: [135-236])
+		Var: s: main.aStruct (declared at line 142, available: [135-236])
+		Var: b: main.bStruct (declared at line 145, available: [135-236])
+		Var: tenStr: main.tenStrings (declared at line 162, available: [135-236])
+		Var: deep: main.deepStruct1 (declared at line 176, available: [135-236])
+		Var: fields: main.lotsOfFields (declared at line 194, available: [135-236])
+		Var: sta: main.structWithTwoArrays (declared at line 203, available: [135-236])
+		Var: .autotmp_112: [0]main.structWithCyclicSlices (declared at line 223, available: [135-236])
+		Var: .autotmp_131: [0][]main.structWithCyclicSlices (declared at line 226, available: [135-236])
+		Var: .autotmp_138: [0]main.structWithCyclicSlices (declared at line 226, available: [135-236])
+		Var: .autotmp_143: [0]main.structWithCyclicSlices (declared at line 226, available: [135-236])
+		Var: .autotmp_15: [0]main.structWithCyclicSlices (declared at line 220, available: [135-236])
+		Var: .autotmp_167: [0][][]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_174: [0][]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_179: [0][]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_18: [0][]main.structWithCyclicSlices (declared at line 223, available: [135-236])
+		Var: .autotmp_186: [0]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_19: [0]main.structWithCyclicSlices (declared at line 223, available: [135-236])
+		Var: .autotmp_192: [0]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_197: [0]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_204: [0]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_210: [0]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_215: [0]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_227: [0][][][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_234: [0][][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_239: [0][][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_24: [0][][]main.structWithCyclicSlices (declared at line 226, available: [135-236])
+		Var: .autotmp_246: [0][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_25: [0][]main.structWithCyclicSlices (declared at line 226, available: [135-236])
+		Var: .autotmp_252: [0][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_257: [0][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_264: [0][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_27: [0]main.structWithCyclicSlices (declared at line 226, available: [135-236])
+		Var: .autotmp_270: [0][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_275: [0][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_282: [0]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_289: [0]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_295: [0]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_300: [0]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_34: [0][][][]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_35: [0][][]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_37: [0][]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_40: [0]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_44: [0]main.structWithCyclicSlices (declared at line 229, available: [135-236])
+		Var: .autotmp_49: [0][][][][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_50: [0][][][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_52: [0][][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_55: [0][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_59: [0][]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_63: [0]main.structWithCyclicSlices (declared at line 232, available: [135-236])
+		Var: .autotmp_13: [0]uint8 (declared at line 157, available: [135-236])
+		Var: .autotmp_88: main.emptyStruct (declared at line 190, available: [135-236])
 	Function: executeStack (main.executeStack) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [29:30]
 	Function: testInlinedBBB (main.testInlinedBBB) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [48:49]
 	Function: testInlinedBCA (main.testInlinedBCA) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [62:63]
@@ -524,6 +614,18 @@ Package: main
 		Field: writer: io.Writer
 	Type: main.circularReferenceType
 		Field: t: *main.circularReferenceType
+	Type: main.deepPtr1
+		Field: a: *main.deepPtr2
+	Type: main.deepPtr7
+		Field: a: *main.deepPtr8
+	Type: main.deepSlice1
+		Field: a: []*main.deepSlice2
+	Type: main.deepSlice7
+		Field: a: []*main.deepSlice8
+	Type: main.deepMap1
+		Field: a: map[int]*main.deepMap2
+	Type: main.deepMap7
+		Field: a: map[int]*main.deepMap8
 	Type: main.somethingImpl
 		Function: Do (main.(*somethingImpl).Do) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [21:21]
 			Arg: s: *main.somethingImpl (declared at line 21, available: [21-21])
@@ -543,12 +645,17 @@ Package: main
 		Field: a: sync/atomic.Int32
 	Type: main.firstBehavior
 		Field: s: string
-		Function: DoSomething (main.firstBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [26:27]
-			Arg: b: main.firstBehavior (declared at line 0, available: [26-27])
+		Function: DoSomething (main.firstBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [28:29]
+			Arg: b: main.firstBehavior (declared at line 0, available: [28-29])
 	Type: main.secondBehavior
 		Field: i: int
-		Function: DoSomething (main.secondBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [30:31]
-			Arg: b: main.secondBehavior (declared at line 0, available: [30-31])
+		Function: DoSomething (main.secondBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [32:33]
+			Arg: b: main.secondBehavior (declared at line 0, available: [32-33])
+	Type: main.structWithAny
+		Field: a: interface {}
+	Type: main.iterExample
+		Function: rangeOverIterator (main.iterExample.rangeOverIterator) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/ranges.go [15:19]
+			Arg: ~p0: main.iterExample (declared at line 15, available: )
 	Type: main.structWithMap
 		Field: m: map[int]int
 	Type: main.node
@@ -580,18 +687,32 @@ Package: main
 		Field: c: string
 	Type: main.oneStringStruct
 		Field: a: string
+	Type: main.structWithCyclicSlices
+		Field: s1: []main.structWithCyclicSlices
+		Field: s2: [][]main.structWithCyclicSlices
+		Field: s3: [][][]main.structWithCyclicSlices
+		Field: s4: [][][][]main.structWithCyclicSlices
+		Field: s5: [][][][][]main.structWithCyclicSlices
+		Field: s6: [][][][][][]main.structWithCyclicSlices
+	Type: main.structWithCyclicMaps
+		Field: m1: map[struct {}]main.structWithCyclicMaps
+		Field: m2: map[struct {}]map[struct {}]main.structWithCyclicMaps
+		Field: m3: map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
+		Field: m4: map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
+		Field: m5: map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
+		Field: m6: map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
 	Type: main.hasUnsupportedFields
 		Field: b: int
 		Field: c: float32
 		Field: d: []uint8
 	Type: main.receiver
 		Field: u: uint
-		Function: testPointerMethodReceiver (main.(*receiver).testPointerMethodReceiver) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [24:24]
-			Arg: r: *main.receiver (declared at line 24, available: [24-24])
-			Arg: a: int (declared at line 24, available: [24-24])
-		Function: testMethodReceiver (main.receiver.testMethodReceiver) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [28:28]
-			Arg: r: main.receiver (declared at line 28, available: [28-28])
-			Arg: a: int (declared at line 28, available: [28-28])
+		Function: testPointerMethodReceiver (main.(*receiver).testPointerMethodReceiver) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [52:52]
+			Arg: r: *main.receiver (declared at line 52, available: [52-52])
+			Arg: a: int (declared at line 52, available: [52-52])
+		Function: testMethodReceiver (main.receiver.testMethodReceiver) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [56:56]
+			Arg: r: main.receiver (declared at line 56, available: [56-56])
+			Arg: a: int (declared at line 56, available: [56-56])
 	Type: main.structWithAnArray
 		Field: arr: [5]uint8
 	Type: main.structWithASlice
@@ -674,5 +795,7 @@ Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
 	Function: FooV2 (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.FooV2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [17:18]
 	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type
+		Function: MyMethod (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.(*V2Type).MyMethod) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [22:24]
+			Arg: v: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.V2Type (declared at line 22, available: [22-23])
 		Function: MyMethod (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.(*V2Type).MyMethod) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [22:23]
 			Arg: v: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.V2Type (declared at line 0, available: )

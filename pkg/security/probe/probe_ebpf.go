@@ -135,8 +135,9 @@ type EBPFProbe struct {
 	ipc       ipc.Component
 
 	// TC Classifier & raw packets
-	newTCNetDevices           chan model.NetDevice
+	tcRequests                chan tcClassifierRequest
 	rawPacketFilterCollection *lib.Collection
+	rawPacketActionCollection *lib.Collection
 
 	// Ring
 	eventStream EventStream
@@ -161,7 +162,7 @@ type EBPFProbe struct {
 	processKiller         *ProcessKiller
 
 	isRuntimeDiscarded bool
-	constantOffsets    map[string]uint64
+	constantOffsets    *constantfetch.ConstantFetcherStatus
 	runtimeCompiled    bool
 	useSyscallWrapper  bool
 	useFentry          bool
@@ -182,6 +183,12 @@ type EBPFProbe struct {
 
 	// Setsockopt and BPF Filter
 	BPFFilterTruncated *atomic.Uint64
+
+	// raw packet filter for actions
+	rawPacketActionFilters []rawpacket.Filter
+
+	// PrCtl and name truncation
+	MetricNameTruncated *atomic.Uint64
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -325,6 +332,10 @@ func (p *EBPFProbe) isNetworkFlowMonitorNotSupported() bool {
 	return IsNetworkFlowMonitorNotSupported(p.kernelVersion)
 }
 
+func (p *EBPFProbe) isCapabilitiesMonitoringSupported() bool {
+	return IsCapabilitiesMonitoringSupported(p.kernelVersion)
+}
+
 func (p *EBPFProbe) sanityChecks() error {
 	// make sure debugfs is mounted
 	if _, err := tracefs.Root(); err != nil {
@@ -345,6 +356,11 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkRawPacketEnabled = false
 	}
 
+	if p.config.Probe.NetworkRawPacketEnabled && !p.config.Probe.NetworkEnabled {
+		seclog.Warnf("the raw packet feature of CWS requires event_monitoring_config.network.enabled to be true, setting event_monitoring_config.network.raw_packet.enabled to false")
+		p.config.Probe.NetworkRawPacketEnabled = false
+	}
+
 	if p.config.Probe.NetworkFlowMonitorEnabled && !p.config.Probe.NetworkEnabled {
 		seclog.Warnf("The network flow monitor feature of CWS requires event_monitoring_config.network.enabled to be true, setting event_monitoring_config.network.flow_monitor.enabled to false")
 		p.config.Probe.NetworkFlowMonitorEnabled = false
@@ -358,6 +374,16 @@ func (p *EBPFProbe) sanityChecks() error {
 	if p.config.RuntimeSecurity.SysCtlEnabled && p.isCgroupSysCtlNotSupported() {
 		seclog.Warnf("The sysctl tracking feature of CWS requires a more recent kernel with support for the cgroup/sysctl program type, setting runtime_security_config.sysctl.enabled to false")
 		p.config.RuntimeSecurity.SysCtlEnabled = false
+	}
+
+	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
+		seclog.Warnf("The capabilities monitoring feature of CWS requires a more recent kernel (at least 5.17), setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		p.config.Probe.CapabilitiesMonitoringEnabled = false
+	}
+
+	if p.config.Probe.CapabilitiesMonitoringEnabled && p.config.Probe.CapabilitiesMonitoringPeriod < 1*time.Second {
+		seclog.Warnf("The capabilities monitoring period is too short (minimum is 1 second), setting event_monitoring_config.capabilities_monitoring.period to 1 second")
+		p.config.Probe.CapabilitiesMonitoringPeriod = 1 * time.Second
 	}
 
 	return nil
@@ -569,23 +595,27 @@ func (p *EBPFProbe) IsRuntimeCompiled() bool {
 	return p.runtimeCompiled
 }
 
-func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
-	rawPacketEventMap, _, err := p.Manager.GetMap("raw_packet_event")
+func (p *EBPFProbe) getRawPacketMaps() (rawPacketEventMap, routerMap *lib.Map, err error) {
+	rawPacketEventMap, _, err = p.Manager.GetMap("raw_packet_event")
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	if rawPacketEventMap == nil {
-		return errors.New("unable to find `rawpacket_event` map")
+		return nil, nil, errors.New("unable to find `rawpacket_event` map")
 	}
 
-	routerMap, _, err := p.Manager.GetMap("raw_packet_classifier_router")
+	routerMap, _, err = p.Manager.GetMap("raw_packet_classifier_router")
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	if routerMap == nil {
-		return errors.New("unable to find `classifier_router` map")
+		return nil, nil, errors.New("unable to find `classifier_router` map")
 	}
 
+	return rawPacketEventMap, routerMap, nil
+}
+
+func (p *EBPFProbe) enableRawPacket(enable bool) error {
 	enabledMap, _, err := p.Manager.GetMap("raw_packet_enabled")
 	if err != nil {
 		return err
@@ -594,53 +624,30 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		return errors.New("unable to find `raw_packet_enabled` map")
 	}
 
-	var rawPacketFilters []rawpacket.Filter
-	for id, rule := range rs.GetRules() {
-		for _, field := range rule.GetFieldValues("packet.filter") {
-			rawPacketFilters = append(rawPacketFilters, rawpacket.Filter{
-				RuleID:    id,
-				BPFFilter: field.Value.(string),
-			})
+	enabledData := make([]uint32, p.numCPU)
+	if enable {
+		for i := range enabledData {
+			enabledData[i] = 1
 		}
 	}
+	return enabledMap.Put(uint32(0), enabledData)
+}
 
-	// enable raw packet or not
-	enabled := make([]uint32, p.numCPU)
-	if len(rawPacketFilters) > 0 {
-		for i := range enabled {
-			enabled[i] = 1
-		}
-	}
-	if err = enabledMap.Put(uint32(0), enabled); err != nil {
-		seclog.Errorf("couldn't push raw_packet_enabled entry to kernel space: %s", err)
-	}
+func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey uint32, maxProgs int, collectionPtr **lib.Collection) error {
+	collection := *collectionPtr
 
 	// unload the previews one
-	if p.rawPacketFilterCollection != nil {
-		p.rawPacketFilterCollection.Close()
-		ddebpf.RemoveNameMappingsCollection(p.rawPacketFilterCollection)
+	if collection != nil {
+		collection.Close()
+		ddebpf.RemoveNameMappingsCollection(collection)
+		collection = nil
 	}
 
-	// not enabled
-	if enabled[0] == 0 {
-		return nil
-	}
-
-	// adapt max instruction limits depending of the kernel version
-	opts := rawpacket.DefaultProgOpts()
-	if p.kernelVersion.Code >= kernel.Kernel5_2 {
-		opts.MaxProgSize = 1_000_000
-	}
-
-	seclog.Debugf("generate rawpacker filter programs with a limit of %d max instructions", opts.MaxProgSize)
-
-	// compile the filters
-	progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
-	if err != nil {
-		return err
-	}
-
-	if len(progSpecs) == 0 {
+	if len(progSpecs) > 0 {
+		if err := p.enableRawPacket(true); err != nil {
+			return err
+		}
+	} else {
 		return nil
 	}
 
@@ -652,8 +659,7 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 	}
 
 	// verify that the programs are using the TC_ACT_UNSPEC return code
-	err = probes.CheckUnspecReturnCode(colSpec.Programs)
-	if err != nil {
+	if err := probes.CheckUnspecReturnCode(colSpec.Programs); err != nil {
 		return fmt.Errorf("programs are not using the TC_ACT_UNSPEC return code: %w", err)
 	}
 
@@ -661,18 +667,17 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 	if err != nil {
 		return fmt.Errorf("failed to load program: %w", err)
 	}
-	p.rawPacketFilterCollection = col
+	*collectionPtr = col
 
-	// check that the sender program is not overridden. The default opts should avoid this.
-	if probes.TCRawPacketFilterKey+uint32(len(progSpecs)) >= probes.TCRawPacketParserSenderKey {
-		return fmt.Errorf("sender program overridden")
+	if len(progSpecs) > maxProgs {
+		return fmt.Errorf("too many programs, max is %d", maxProgs)
 	}
 
 	// setup tail calls
 	for i, progSpec := range progSpecs {
 		if err := p.Manager.UpdateTailCallRoutes(manager.TailCallRoute{
 			Program:       col.Programs[progSpec.Name],
-			Key:           probes.TCRawPacketFilterKey + uint32(i),
+			Key:           progKey + uint32(i),
 			ProgArrayName: "raw_packet_classifier_router",
 		}); err != nil {
 			return err
@@ -680,6 +685,89 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 	}
 
 	return nil
+}
+
+func (p *EBPFProbe) setupRawPacketFilters(rs *rules.RuleSet) error {
+	var rawPacketFilters []rawpacket.Filter
+	for id, rule := range rs.GetRules() {
+		for _, field := range rule.GetFieldValues("packet.filter") {
+			rawPacketFilters = append(rawPacketFilters, rawpacket.Filter{
+				RuleID:    id,
+				BPFFilter: field.Value.(string),
+				Policy:    rawpacket.PolicyAllow,
+			})
+		}
+	}
+
+	opts := rawpacket.DefaultProgOpts()
+	opts.WithProgPrefix("raw_packet_filter_")
+
+	// adapt max instruction limits depending of the kernel version
+	if p.kernelVersion.Code >= kernel.Kernel5_2 {
+		opts.MaxProgSize = 1_000_000
+	}
+
+	seclog.Debugf("generate rawpacket filter programs with a limit of %d max instructions", opts.MaxProgSize)
+
+	rawPacketEventMap, routerMap, err := p.getRawPacketMaps()
+	if err != nil {
+		return err
+	}
+
+	var progSpecs []*lib.ProgramSpec
+	if len(rawPacketFilters) > 0 {
+		progSpecs, err = rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
+		if err != nil {
+			return err
+		}
+	}
+
+	// add or close if none
+	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketFilterKey, probes.RawPacketMaxTailCall, &p.rawPacketFilterCollection)
+}
+
+func (p *EBPFProbe) applyRawPacketActionFilters() error {
+	// TODO check cgroupv2
+
+	opts := rawpacket.DefaultProgOpts()
+	opts.WithProgPrefix("raw_packet_drop_action_")
+	opts.WithGetCurrentCgroupID(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS())
+
+	// adapt max instruction limits depending of the kernel version
+	if p.kernelVersion.Code >= kernel.Kernel5_2 {
+		opts.MaxProgSize = 1_000_000
+	}
+
+	seclog.Debugf("generate rawpacket filter programs with a limit of %d max instructions", opts.MaxProgSize)
+
+	rawPacketEventMap, routerMap, err := p.getRawPacketMaps()
+	if err != nil {
+		return err
+	}
+
+	var progSpecs []*lib.ProgramSpec
+	if len(p.rawPacketActionFilters) > 0 {
+		progSpecs, err = rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), p.rawPacketActionFilters, opts)
+		if err != nil {
+			return err
+		}
+	}
+
+	// add or close if none
+	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketActionCollection)
+}
+
+func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) error {
+	seclog.Infof("add raw packet action filter: %+v\n", actionFilter)
+
+	if slices.ContainsFunc(p.rawPacketActionFilters, func(af rawpacket.Filter) bool {
+		return actionFilter.Key() == af.Key()
+	}) {
+		return nil
+	}
+	p.rawPacketActionFilters = append(p.rawPacketActionFilters, actionFilter)
+
+	return p.applyRawPacketActionFilters()
 }
 
 // Start the probe
@@ -715,6 +803,8 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
 		}
+
+		event.AddToFlags(model.EventFlagsIsSnapshot)
 
 		events = append(events, event)
 
@@ -792,8 +882,25 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
-		imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
-		p.profileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext, imageTag)
+		var workloadID containerutils.WorkloadID
+		var imageTag string
+		if containerID := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); containerID != "" {
+			workloadID = containerID
+			imageTag = utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+		} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+			workloadID = containerutils.CGroupID(cgroupID)
+			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
+			if err != nil {
+				seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
+				return
+			}
+			imageTag = utils.GetTagValue("version", tags)
+		}
+
+		if workloadID != nil {
+			p.profileManager.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
+		}
+
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}
@@ -816,6 +923,11 @@ func (p *EBPFProbe) SendStats() error {
 
 	value := p.BPFFilterTruncated.Swap(0)
 	if err := p.statsdClient.Count(metrics.MetricBPFFilterTruncated, int64(value), []string{}, 1.0); err != nil {
+		return err
+	}
+
+	valueNameTruncated := p.MetricNameTruncated.Swap(0)
+	if err := p.statsdClient.Count(metrics.MetricNameTruncated, int64(valueNameTruncated), []string{}, 1.0); err != nil {
 		return err
 	}
 
@@ -847,7 +959,7 @@ func eventWithNoProcessContext(eventType model.EventType) bool {
 	case model.ShortDNSResponseEventType,
 		model.DNSEventType,
 		model.IMDSEventType,
-		model.RawPacketEventType,
+		model.RawPacketFilterEventType,
 		model.LoadModuleEventType,
 		model.UnloadModuleEventType,
 		model.NetworkFlowMonitorEventType:
@@ -933,7 +1045,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 }
 
 func (p *EBPFProbe) zeroEvent() *model.Event {
-	p.event.Zero()
+	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFOrigin
 	return p.event
@@ -1120,9 +1232,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	}
 
+	// resolve the container context
+	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
+
 	switch eventType {
 
-	case model.FileMountEventType:
+	case model.FileMountEventType, model.FileMoveMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
@@ -1385,13 +1500,29 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode net_device event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		p.pushNewTCClassifierRequest(event.NetDevice.Device)
-	case model.VethPairEventType:
+
+		request := tcClassifierRequest{
+			requestType: tcNewDeviceRequestType,
+			device:      event.NetDevice.Device,
+		}
+		p.pushNewTCClassifierRequest(request)
+	case model.VethPairEventType, model.VethPairNsEventType:
 		if _, err = event.VethPair.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		p.pushNewTCClassifierRequest(event.VethPair.PeerDevice)
+
+		request := tcClassifierRequest{
+			device: event.VethPair.PeerDevice,
+		}
+
+		if eventType == model.VethPairEventType {
+			request.requestType = tcNewDeviceRequestType
+		} else {
+			request.requestType = tcDeviceUpdateRequestType
+		}
+
+		p.pushNewTCClassifierRequest(request)
 	case model.DNSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
@@ -1456,11 +1587,28 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
-	case model.RawPacketEventType:
+	case model.RawPacketFilterEventType:
 		if _, err = event.RawPacket.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		event.NetworkContext = event.RawPacket.NetworkContext
+	case model.RawPacketActionEventType:
+		if _, err = event.RawPacket.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		event.NetworkContext = event.RawPacket.NetworkContext
+
+		tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
+		if service := p.probe.GetService(event); service != "" {
+			tags = append(tags, "service:"+service)
+		}
+		p.probe.DispatchCustomEvent(
+			events.NewCustomRule(events.RawPacketActionRuleID, events.RulesetLoadedRuleDesc),
+			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
+		)
+		return
 	case model.NetworkFlowMonitorEventType:
 		if _, err = event.NetworkFlowMonitor.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode NetworkFlowMonitor event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1529,11 +1677,27 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
 		}
 		event.Setrlimit.Target = &pce.ProcessContext
-
+	case model.CapabilitiesEventType:
+		if _, err = event.CapabilitiesUsage.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode capabilities usage event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		if event.CapabilitiesUsage.Attempted == 0 && event.CapabilitiesUsage.Used == 0 {
+			seclog.Debugf("capabilities usage event with no attempted or used capabilities, skipping")
+			return
+		}
+		// is this thread-safe?
+		event.ProcessCacheEntry.CapsAttempted |= event.CapabilitiesUsage.Attempted
+		event.ProcessCacheEntry.CapsUsed |= event.CapabilitiesUsage.Used
+	case model.PrCtlEventType:
+		if _, err = event.PrCtl.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode prctl event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		if event.PrCtl.IsNameTruncated {
+			p.MetricNameTruncated.Add(1)
+		}
 	}
-
-	// resolve the container context
-	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// send related events
 	for _, relatedEvent := range relatedEvents {
@@ -1700,15 +1864,17 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 
 func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	switch eventType {
-	case "dns":
+	case model.DNSEventType.String():
 		return p.probe.IsNetworkEnabled()
-	case "imds":
+	case model.IMDSEventType.String():
 		return p.probe.IsNetworkEnabled()
-	case "packet":
+	case model.RawPacketFilterEventType.String():
 		return p.probe.IsNetworkRawPacketEnabled()
-	case "network_flow_monitor":
+	case model.RawPacketActionEventType.String():
+		return p.probe.IsNetworkRawPacketEnabled()
+	case model.NetworkFlowMonitorEventType.String():
 		return p.probe.IsNetworkFlowMonitorEnabled()
-	case "sysctl":
+	case model.SyscallsEventType.String():
 		return p.probe.IsSysctlEventEnabled()
 	}
 	return true
@@ -1716,10 +1882,10 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 
 // updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscalls bool) error {
+func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSyscalls bool) error {
 	// event types enabled either by event handlers or by rules
 	requestedEventTypes := append([]eval.EventType{}, defaultEventTypes...)
-	requestedEventTypes = append(requestedEventTypes, ruleEventTypes...)
+	requestedEventTypes = append(requestedEventTypes, ruleSetEventTypes...)
 	for eventType, handlers := range p.probe.eventHandlers {
 		if len(handlers) == 0 {
 			continue
@@ -1734,9 +1900,16 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 
 	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
+	if p.config.Probe.CapabilitiesMonitoringEnabled {
+		activatedProbes = append(activatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
+	}
+
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
-		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType) || p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket()) {
+		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
+			p.isNeededForActivityDump(eventType) ||
+			p.isNeededForSecurityProfile(eventType) ||
+			p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 
 			// to ensure the `enabled_events` map is correctly set with events that are enabled because of ADs
@@ -1928,6 +2101,10 @@ func (p *EBPFProbe) Close() error {
 		p.rawPacketFilterCollection.Close()
 	}
 
+	if p.rawPacketActionCollection != nil {
+		p.rawPacketActionCollection.Close()
+	}
+
 	ddebpf.RemoveNameMappings(p.Manager)
 	ebpftelemetry.UnregisterTelemetry(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
@@ -1940,7 +2117,7 @@ func (p *EBPFProbe) Close() error {
 	}
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
-	close(p.newTCNetDevices)
+	close(p.tcRequests)
 
 	return p.Resolvers.Close()
 }
@@ -1980,15 +2157,27 @@ func (err QueuedNetworkDeviceError) Error() string {
 	return err.msg
 }
 
-func (p *EBPFProbe) pushNewTCClassifierRequest(device model.NetDevice) {
+type tcClassifierRequestType int
+
+const (
+	tcNewDeviceRequestType tcClassifierRequestType = iota
+	tcDeviceUpdateRequestType
+)
+
+type tcClassifierRequest struct {
+	requestType tcClassifierRequestType
+	device      model.NetDevice
+}
+
+func (p *EBPFProbe) pushNewTCClassifierRequest(request tcClassifierRequest) {
 	select {
 	case <-p.ctx.Done():
 		// the probe is stopping, do not push the new tc classifier request
 		return
-	case p.newTCNetDevices <- device:
+	case p.tcRequests <- request:
 		// do nothing
 	default:
-		seclog.Errorf("failed to slot new tc classifier request: %v", device)
+		seclog.Errorf("failed to slot new tc classifier request: %+v", request)
 	}
 }
 
@@ -1997,20 +2186,27 @@ func (p *EBPFProbe) startSetupNewTCClassifierLoop() {
 		select {
 		case <-p.ctx.Done():
 			return
-		case netDevice, ok := <-p.newTCNetDevices:
+		case request, ok := <-p.tcRequests:
 			if !ok {
 				return
 			}
 
-			if err := p.setupNewTCClassifier(netDevice); err != nil {
+			if err := p.setupNewTCClassifier(request.device); err != nil {
 				var qnde QueuedNetworkDeviceError
 				var linkNotFound netlink.LinkNotFoundError
+
 				if errors.As(err, &qnde) {
 					seclog.Debugf("%v", err)
 				} else if errors.As(err, &linkNotFound) {
 					seclog.Debugf("link not found while setting up new tc classifier: %v", err)
+				} else if errors.Is(err, manager.ErrIdentificationPairInUse) {
+					if request.requestType != tcDeviceUpdateRequestType {
+						seclog.Errorf("tc classifier already exists: %v", err)
+					} else {
+						seclog.Debugf("tc classifier already exists: %v", err)
+					}
 				} else {
-					seclog.Errorf("error setting up new tc classifier: %v", err)
+					seclog.Errorf("error setting up new tc classifier on %+v: %v", request.device, err)
 				}
 			}
 		}
@@ -2060,7 +2256,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
-	if !m.Detached {
+	if !m.Detached && ev.GetEventType() != model.FileMoveMountEventType {
 		// Resolve mount point
 		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 			return fmt.Errorf("failed to set mount point: %w", err)
@@ -2072,8 +2268,14 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 		}
 	}
 
-	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.Resolvers.MountResolver.Insert(*m, 0); err != nil {
+	var err error
+	if ev.GetEventType() == model.FileMoveMountEventType {
+		err = p.Resolvers.MountResolver.InsertMoved(*m)
+	} else {
+		err = p.Resolvers.MountResolver.Insert(*m, 0)
+	}
+
+	if err != nil {
 		return fmt.Errorf("failed to insert mount event: %w", err)
 	}
 
@@ -2106,6 +2308,17 @@ func isKillActionPresent(rs *rules.RuleSet) bool {
 	for _, rule := range rs.GetRules() {
 		for _, action := range rule.Def.Actions {
 			if action.Kill != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isRawPacketActionPresent(rs *rules.RuleSet) bool {
+	for _, rule := range rs.GetRules() {
+		for _, action := range rule.Def.Actions {
+			if action.NetworkFilter != nil {
 				return true
 			}
 		}
@@ -2170,6 +2383,13 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		p.onDemandManager.setHookPoints(hookPoints)
 	}
 
+	// check if there is a network packet action
+	if isRawPacketActionPresent(rs) && p.config.RuntimeSecurity.EnforcementEnabled {
+		if !slices.Contains(eventTypes, model.RawPacketFilterEventType.String()) {
+			eventTypes = append(eventTypes, model.RawPacketFilterEventType.String())
+		}
+	}
+
 	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
@@ -2184,8 +2404,21 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 	}
 
 	if p.probe.IsNetworkRawPacketEnabled() {
-		if err := p.setupRawPacketProgs(rs); err != nil {
+		// disable first, and let the following code enable it if needed
+		if err := p.enableRawPacket(false); err != nil {
+			seclog.Errorf("unable to disable raw packet filter programs: %v", err)
+		}
+
+		if err := p.setupRawPacketFilters(rs); err != nil {
 			seclog.Errorf("unable to load raw packet filter programs: %v", err)
+		}
+
+		// reset action filter
+		if p.config.RuntimeSecurity.EnforcementEnabled {
+			p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
+			if err := p.applyRawPacketActionFilters(); err != nil {
+				seclog.Errorf("unable to load raw packet action programs: %v", err)
+			}
 		}
 	}
 
@@ -2371,6 +2604,18 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "sched_cls_has_current_pid_tgid_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS()),
 		},
+		manager.ConstantEditor{
+			Name:  "sched_cls_has_current_cgroup_id_helper",
+			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
+		},
+		manager.ConstantEditor{
+			Name:  "capabilities_monitoring_enabled",
+			Value: utils.BoolTouint64(p.config.Probe.CapabilitiesMonitoringEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "capabilities_monitoring_period",
+			Value: uint64(p.config.Probe.CapabilitiesMonitoringPeriod.Nanoseconds()),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
@@ -2416,15 +2661,17 @@ func (p *EBPFProbe) isSKStorageSupported() bool {
 // initManagerOptionsMaps initializes the eBPF manager map spec editors and map reader startup
 func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 	opts := probes.MapSpecEditorOpts{
-		TracedCgroupSize:          p.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
-		UseRingBuffers:            p.useRingBuffers,
-		UseMmapableMaps:           p.useMmapableMaps,
-		RingBufferSize:            uint32(p.config.Probe.EventStreamBufferSize),
-		PathResolutionEnabled:     p.probe.Opts.PathResolutionEnabled,
-		SecurityProfileMaxCount:   p.config.RuntimeSecurity.SecurityProfileMaxCount,
-		NetworkFlowMonitorEnabled: p.config.Probe.NetworkFlowMonitorEnabled,
-		NetworkSkStorageEnabled:   p.isSKStorageSupported(),
-		SpanTrackMaxCount:         1,
+		TracedCgroupSize:              p.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
+		UseRingBuffers:                p.useRingBuffers,
+		UseMmapableMaps:               p.useMmapableMaps,
+		RingBufferSize:                uint32(p.config.Probe.EventStreamBufferSize),
+		PathResolutionEnabled:         p.probe.Opts.PathResolutionEnabled,
+		SecurityProfileMaxCount:       p.config.RuntimeSecurity.SecurityProfileMaxCount,
+		NetworkFlowMonitorEnabled:     p.config.Probe.NetworkFlowMonitorEnabled,
+		NetworkSkStorageEnabled:       p.isSKStorageSupported(),
+		SpanTrackMaxCount:             1,
+		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
+		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {
@@ -2454,8 +2701,13 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 	// prevent some TC classifiers from loading
 	if !p.config.Probe.NetworkEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllSocketProgramFunctions()...)
 	} else if !p.config.Probe.NetworkRawPacketEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetRawPacketTCProgramFunctions()...)
+	}
+
+	if !p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket() {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllSocketProgramFunctions()...)
 	}
 
 	// prevent some tal calls from loading
@@ -2480,6 +2732,11 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 	if !p.config.RuntimeSecurity.SysCtlEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SysCtlProbeFunctionName)
 	}
+
+	if !p.config.Probe.CapabilitiesMonitoringEnabled {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
+	}
+
 	return nil
 }
 
@@ -2504,6 +2761,10 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 		}
 	}
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
+
+	if p.config.Probe.CapabilitiesMonitoringEnabled {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
+	}
 }
 
 // initManagerOptions initializes the eBPF manager options
@@ -2546,12 +2807,13 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		isRuntimeDiscarded:   !probe.Opts.DontDiscardRuntime,
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
-		newTCNetDevices:      make(chan model.NetDevice, 16),
+		tcRequests:           make(chan tcClassifierRequest, 16),
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		playSnapShotState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
 		ipc:                  ipc,
 		BPFFilterTruncated:   atomic.NewUint64(0),
+		MetricNameTruncated:  atomic.NewUint64(0),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -2603,7 +2865,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
 
-	p.constantOffsets, err = p.GetOffsetConstants()
+	p.constantOffsets, err = p.getOffsetConstants()
 	if err != nil {
 		seclog.Warnf("constant fetcher failed: %v", err)
 		return nil, err
@@ -2808,18 +3070,16 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 	}
 }
 
-// GetOffsetConstants returns the offsets and struct sizes constants
-func (p *EBPFProbe) GetOffsetConstants() (map[string]uint64, error) {
-	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion))
-	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
-	return constantFetcher.FinishAndGetResults()
-}
-
-// GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
-func (p *EBPFProbe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
+// getOffsetConstants returns the offsets and struct sizes constants
+func (p *EBPFProbe) getOffsetConstants() (*constantfetch.ConstantFetcherStatus, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.config.Probe, p.kernelVersion))
 	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetStatus()
+}
+
+// GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
+func (p *EBPFProbe) GetConstantFetcherStatus() *constantfetch.ConstantFetcherStatus {
+	return p.constantOffsets
 }
 
 // AppendProbeRequestsToFetcher returns the offsets and struct sizes constants, from a constant fetcher
@@ -2996,6 +3256,41 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			}
 		case action.Def.Hash != nil:
 			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev) {
+				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
+		case action.Def.NetworkFilter != nil:
+			if !p.config.RuntimeSecurity.EnforcementEnabled {
+				return
+			}
+
+			var policy rawpacket.Policy
+			policy.Parse(action.Def.NetworkFilter.Policy)
+
+			if policy == rawpacket.PolicyDrop {
+				dropActionFilter := rawpacket.Filter{
+					RuleID:    rule.ID,
+					BPFFilter: action.Def.NetworkFilter.BPFFilter,
+					Policy:    policy,
+				}
+
+				if action.Def.NetworkFilter.Scope == "cgroup" {
+					dropActionFilter.CGroupPathKey = ev.CGroupContext.CGroupFile
+				} else {
+					dropActionFilter.Pid = ev.ProcessContext.Pid
+				}
+
+				if err := p.addRawPacketActionFilter(dropActionFilter); err != nil {
+					seclog.Errorf("failed to setup raw packet action programs: %s", err)
+				}
+
+				report := &RawPacketActionReport{
+					Filter: action.Def.NetworkFilter.BPFFilter,
+					Policy: policy.String(),
+					rule:   rule,
+				}
+
+				ev.ActionReports = append(ev.ActionReports, report)
+
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}

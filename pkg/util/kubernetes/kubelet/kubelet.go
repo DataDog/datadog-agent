@@ -30,6 +30,7 @@ import (
 )
 
 const (
+	kubeletConfigPath      = "/configz"
 	kubeletPodPath         = "/pods"
 	kubeletMetricsPath     = "/metrics"
 	kubeletStatsSummary    = "/stats/summary"
@@ -392,6 +393,25 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	return data, nil
 }
 
+// GetConfig returns the kubelet configuration from /configz
+func (ku *KubeUtil) GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error) {
+	bytes, code, err := ku.QueryKubelet(ctx, kubeletConfigPath)
+	if err != nil {
+		return bytes, nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletClient.kubeletURL, kubeletConfigPath, err)
+	}
+	if code != http.StatusOK {
+		return bytes, nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletConfigPath, string(bytes))
+	}
+
+	var config *ConfigDocument
+	err = json.Unmarshal(bytes, &config)
+	if err != nil {
+		return bytes, nil, err
+	}
+
+	return bytes, config, nil
+}
+
 // IsPodReady return a bool if the Pod is ready
 func IsPodReady(pod *Pod) bool {
 	// static pods are always reported as Pending, so we make an exception there
@@ -403,9 +423,16 @@ func IsPodReady(pod *Pod) bool {
 		return false
 	}
 
-	if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
-		return true
+	// In the previous implementation that used the pod watcher, the
+	// tolerate-unready annotation logic was handled here. The new
+	// implementation moves this logic into the autodiscovery parts that need
+	// it.
+	if pkgconfigsetup.Datadog().GetBool("kubelet_use_pod_watcher") {
+		if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
+			return true
+		}
 	}
+
 	for _, status := range pod.Status.Conditions {
 		if status.Type == "Ready" && status.Status == "True" {
 			return true

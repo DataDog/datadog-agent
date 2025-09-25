@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -127,11 +128,18 @@ func (c *collector) processScanResult(result sbom.ScanResult) {
 		return
 	}
 
-	c.notifyStoreWithSBOMForImage(result.ImgMeta.ID, result.ConvertScanResultToSBOM())
+	sbom := result.ConvertScanResultToSBOM()
+	csbom, err := sbomutil.CompressSBOM(sbom)
+	if err != nil {
+		log.Errorf("Failed to compress SBOM for image %s: %v", result.ImgMeta.ID, err)
+		return
+	}
+
+	c.notifyStoreWithSBOMForImage(result.ImgMeta.ID, csbom)
 }
 
 // notifyStoreWithSBOMForImage notifies the store about the SBOM for a given image.
-func (c *collector) notifyStoreWithSBOMForImage(imageID string, sbom *workloadmeta.SBOM) {
+func (c *collector) notifyStoreWithSBOMForImage(imageID string, sbom *workloadmeta.CompressedSBOM) {
 	c.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,

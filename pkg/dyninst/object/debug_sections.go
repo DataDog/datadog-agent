@@ -9,7 +9,11 @@ package object
 
 import (
 	"debug/dwarf"
+	"fmt"
 	"iter"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // SectionData holds the data for an object file section.  The data may be
@@ -58,6 +62,54 @@ type DebugSections struct {
 
 	// NB: We're intentionally not loading the .debug_frame or .eh_frame
 	// sections.
+}
+
+func loadDebugSections(f File) (_ DebugSections, retErr error) {
+	dwarfSuffix := func(s *safeelf.SectionHeader) string {
+		const debug = ".debug_"
+		const zdebug = ".zdebug_"
+		switch {
+		case strings.HasPrefix(s.Name, debug):
+			return s.Name[len(debug):]
+		case strings.HasPrefix(s.Name, zdebug):
+			return s.Name[len(zdebug):]
+		default:
+			return ""
+		}
+	}
+	// There are many DWARf sections, but these are the ones
+	// the debug/dwarf package started with.
+	var ds DebugSections
+	defer func() {
+		if retErr == nil {
+			return
+		}
+		for _, s := range ds.sections() {
+			if s != nil {
+				_ = s.Close()
+			}
+		}
+	}()
+	for _, s := range f.SectionHeaders() {
+		suffix := dwarfSuffix(s)
+		if suffix == "" {
+			continue
+		}
+		sd := ds.getSection(suffix)
+		if sd == nil {
+			continue
+		}
+		if *sd != nil {
+			return DebugSections{}, fmt.Errorf("section %s already loaded", s.Name)
+		}
+
+		data, err := f.SectionData(s)
+		if err != nil {
+			return DebugSections{}, fmt.Errorf("failed to load section data: %w", err)
+		}
+		*sd = data
+	}
+	return ds, nil
 }
 
 func getData(m SectionData) []byte {

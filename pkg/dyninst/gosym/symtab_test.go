@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package gosym
+package gosym_test
 
 import (
 	"bytes"
@@ -55,33 +55,16 @@ func runTest(
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
 	probesCfgs := testprogs.MustGetProbeDefinitions(t, caseName)
-	obj, err := object.OpenElfFile(binPath)
+	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 	iro, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
 	require.Empty(t, iro.Issues)
 
-	moduledata, err := object.ParseModuleData(obj.Underlying)
+	symtab, err := object.OpenGoSymbolTable(binPath)
 	require.NoError(t, err)
-
-	goVersion, err := object.ReadGoVersion(obj.Underlying)
-	require.NoError(t, err)
-
-	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, goDebugSections.Close()) }()
-
-	symtab, err := ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
-	require.NoError(t, err)
+	defer func() { require.NoError(t, symtab.Close()) }()
 
 	var out bytes.Buffer
 	var inlinedSp *ir.Subprogram

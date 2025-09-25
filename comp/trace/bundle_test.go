@@ -29,6 +29,7 @@ import (
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -46,6 +47,7 @@ func TestBundleDependencies(t *testing.T) {
 		zstdfx.Module(),
 		taggerfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
+		payloadmodifierfx.NilModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	)
 }
@@ -64,7 +66,7 @@ func TestMockBundleDependencies(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, fx.Options(
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
-		coreconfig.MockModule(),
+		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 		fxutil.ProvideNoneOptional[secrets.Component](),
 		telemetryimpl.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -74,6 +76,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		statsd.MockModule(),
 		zstdfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
+		payloadmodifierfx.NilModule(),
 		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
 		taggerfx.Module(),

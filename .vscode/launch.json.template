@@ -3,7 +3,7 @@
     "configurations": [
         {
             "name": "Build Run Debug",
-            "preLaunchTask": "build agent",
+            "preLaunchTask": "build debug agent",
             "type": "go",
             "request": "launch",
             "mode": "exec",
@@ -26,6 +26,37 @@
                 "run",
                 "-c",
                 "${workspaceRoot}/bin/agent/dist/datadog.yaml"
+            ]
+        },
+        {
+            "name": "Build Run Debug Otel agent",
+            "preLaunchTask": "build debug otel-agent",
+            "type": "go",
+            "request": "launch",
+            "mode": "exec",
+            "program": "${workspaceRoot}/bin/otel-agent/otel-agent",
+            "env": {
+                "DD_OTELCOLLECTOR_ENABLED": "true"
+            },
+            "args": [
+                "run",
+                "--config", "${workspaceRoot}/cmd/otel-agent/dist/otel-config.yaml",
+                "--core-config" , "${workspaceRoot}/dev/dist/datadog.yaml",
+            ]
+        },
+        {
+            "name": "Run Debug Otel Agent",
+            "type": "go",
+            "request": "launch",
+            "mode": "exec",
+            "program": "${workspaceRoot}/bin/otel-agent/otel-agent",
+            "env": {
+                "DD_OTELCOLLECTOR_ENABLED": "true"
+            },
+            "args": [
+                "run",
+                "--config", "${workspaceRoot}/cmd/otel-agent/dist/otel-config.yaml",
+                "--core-config" , "${workspaceRoot}/dev/dist/datadog.yaml",
             ]
         },
         {

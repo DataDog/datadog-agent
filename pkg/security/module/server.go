@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api/transform"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -143,7 +144,8 @@ type APIServer struct {
 	cwsConsumer        *CWSConsumer
 	policiesStatusLock sync.RWMutex
 	policiesStatus     []*api.PolicyStatus
-	msgSender          MsgSender
+	msgSender          EventMsgSender
+	activityDumpSender ActivityDumpMsgSender
 	connEstablished    *atomic.Bool
 	envAsTags          []string
 	containerFilter    *containers.Filter
@@ -173,26 +175,17 @@ func (a *APIServer) GetActivityDumpStream(_ *api.ActivityDumpStreamParams, strea
 }
 
 // SendActivityDump queues an activity dump to the chan of activity dumps
-func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
-	// send the dump to the channel
-	select {
-	case a.activityDumps <- dump:
-		break
-	default:
-		// The channel is full, consume the oldest dump
-		oldestDump := <-a.activityDumps
-		// Try to send the event again
-		select {
-		case a.activityDumps <- dump:
-			break
-		default:
-			// Looks like the channel is full again, expire the current message too
-			a.expireDump(dump)
-			break
-		}
-		a.expireDump(oldestDump)
-		break
+func (a *APIServer) SendActivityDump(imageName string, imageTag string, header []byte, data []byte) {
+	dump := &api.ActivityDumpStreamMessage{
+		Selector: &api.WorkloadSelectorMessage{
+			Name: imageName,
+			Tag:  imageTag,
+		},
+		Header: header,
+		Data:   data,
 	}
+
+	a.activityDumpSender.Send(dump, a.expireDump)
 }
 
 // GetEvents waits for security events
@@ -520,9 +513,9 @@ func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
 
-// GetStats returns a map indexed by ruleIDs that describes the amount of events
+// getStats returns a map indexed by ruleIDs that describes the amount of events
 // that were expired or rate limited before reaching
-func (a *APIServer) GetStats() map[string]int64 {
+func (a *APIServer) getStats() map[string]int64 {
 	a.expiredEventsLock.RLock()
 	defer a.expiredEventsLock.RUnlock()
 
@@ -533,9 +526,10 @@ func (a *APIServer) GetStats() map[string]int64 {
 	return stats
 }
 
-// SendStats sends statistics about the number of dropped events
+// SendStats sends statistics
 func (a *APIServer) SendStats() error {
-	for ruleID, val := range a.GetStats() {
+	// statistics about the number of dropped events
+	for ruleID, val := range a.getStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if val > 0 {
 			if err := a.statsdClient.Count(metrics.MetricEventServerExpired, val, tags, 1.0); err != nil {
@@ -543,6 +537,11 @@ func (a *APIServer) SendStats() error {
 			}
 		}
 	}
+
+	// telemetry for msg senders
+	a.msgSender.SendTelemetry(a.statsdClient)
+	a.activityDumpSender.SendTelemetry(a.statsdClient)
+
 	return nil
 }
 
@@ -583,7 +582,7 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 	}
 
 	return &api.GetRuleSetReportMessage{
-		RuleSetReportMessage: api.FromFilterReportToProtoRuleSetReportMessage(report),
+		RuleSetReportMessage: transform.FromFilterReportToProtoRuleSetReportMessage(report),
 	}, nil
 }
 
@@ -632,6 +631,76 @@ func (a *APIServer) Stop() {
 	a.stopper.Stop()
 }
 
+// GetStatus returns the status of the module
+func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
+	var apiStatus api.Status
+
+	if a.cfg.SendPayloadsFromSystemProbe {
+		var endpointsStatus []string
+		if senderStatus, ok := a.msgSender.(EndpointsStatusFetcher); ok {
+			endpointsStatus = append(endpointsStatus, senderStatus.GetEndpointsStatus()...)
+		}
+		if dumpSenderStatus, ok := a.activityDumpSender.(EndpointsStatusFetcher); ok {
+			endpointsStatus = append(endpointsStatus, dumpSenderStatus.GetEndpointsStatus()...)
+		}
+		apiStatus.DirectSenderStatus = &api.DirectSenderStatus{
+			Endpoints: endpointsStatus,
+		}
+	}
+
+	if a.selfTester != nil {
+		apiStatus.SelfTests = a.selfTester.GetStatus()
+	}
+	apiStatus.PoliciesStatus = a.policiesStatus
+
+	seclVariables := a.GetSECLVariables()
+
+	var globals []*api.SECLVariableState
+	for _, global := range seclVariables {
+		if !strings.Contains(global.Name, ".") {
+			globals = append(globals, global)
+		}
+	}
+	apiStatus.GlobalVariables = globals
+
+	scopedVariables := make(map[string]map[string][]*api.SECLVariableState)
+	for _, scoped := range seclVariables {
+		split := strings.SplitN(scoped.Name, ".", 3)
+		if len(split) < 3 {
+			continue
+		}
+		scope, name, key := split[0], split[1], split[2]
+		if scope != "" {
+			if _, found := scopedVariables[scope]; !found {
+				scopedVariables[scope] = make(map[string][]*api.SECLVariableState)
+			}
+
+			scopedVariables[scope][key] = append(scopedVariables[scope][key], &api.SECLVariableState{
+				Name:  name,
+				Value: scoped.Value,
+			})
+		}
+	}
+	apiStatus.ScopedVariables = make(map[string]*api.ScopedVariableStore)
+	for scope, vars := range scopedVariables {
+		store := &api.ScopedVariableStore{
+			KeyValues: make(map[string]*api.SECLVariableStateList),
+		}
+		for key, values := range vars {
+			store.KeyValues[key] = &api.SECLVariableStateList{
+				Variables: values,
+			}
+		}
+		apiStatus.ScopedVariables[scope] = store
+	}
+
+	if err := a.fillStatusPlatform(&apiStatus); err != nil {
+		return nil, err
+	}
+
+	return &apiStatus, nil
+}
+
 // SetCWSConsumer sets the CWS consumer
 func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 	a.cwsConsumer = consumer
@@ -665,7 +734,7 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 	containerFilter, err := utils.NewContainerFilter()
 	if err != nil {
@@ -693,10 +762,10 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	as.collectOSReleaseData()
 
 	if as.msgSender == nil {
-		if cfg.SendEventFromSystemProbe {
-			msgSender, err := NewDirectMsgSender(stopper, compression, ipc)
+		if cfg.SendPayloadsFromSystemProbe {
+			msgSender, err := NewDirectEventMsgSender(stopper, compression, ipc)
 			if err != nil {
-				log.Errorf("failed to setup direct reporter: %v", err)
+				log.Errorf("failed to setup direct event sender: %v", err)
 			} else {
 				as.msgSender = msgSender
 			}
@@ -704,6 +773,21 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 
 		if as.msgSender == nil {
 			as.msgSender = NewChanMsgSender(as.msgs)
+		}
+	}
+
+	if as.activityDumpSender == nil {
+		if cfg.SendPayloadsFromSystemProbe {
+			adSender, err := NewDirectActivityDumpMsgSender()
+			if err != nil {
+				log.Errorf("failed to setup direct activity dump sender: %v", err)
+			} else {
+				as.activityDumpSender = adSender
+			}
+		}
+
+		if as.activityDumpSender == nil {
+			as.activityDumpSender = NewChanMsgSender(as.activityDumps)
 		}
 	}
 

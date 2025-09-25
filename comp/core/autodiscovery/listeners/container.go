@@ -36,16 +36,20 @@ const (
 // workloadmeta store.
 type ContainerListener struct {
 	workloadmetaListener
-	filterStore workloadfilter.Component
-	tagger      tagger.Component
+	globalFilter  workloadfilter.FilterBundle
+	metricsFilter workloadfilter.FilterBundle
+	logsFilter    workloadfilter.FilterBundle
+	tagger        tagger.Component
 }
 
 // NewContainerListener returns a new ContainerListener.
 func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{
-		filterStore: options.Filter,
-		tagger:      options.Tagger,
+		globalFilter:  options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter: options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:    options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:        options.Tagger,
 	}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
@@ -76,10 +80,9 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		}
 	}
 	containerImg := container.Image
-	if l.filterStore.IsContainerExcluded(
-		workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-		workloadfilter.GetAutodiscoveryFilters(workloadfilter.GlobalFilter),
-	) {
+	filterableContainer := workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod))
+
+	if l.globalFilter.IsExcluded(filterableContainer) {
 		log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)
 		return
 	}
@@ -121,24 +124,29 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			containerImg.RawName,
 			container.Labels,
 		),
-		ports:    ports,
-		pid:      container.PID,
-		hostname: container.Hostname,
-		tagger:   l.tagger,
+		ports:           ports,
+		pid:             container.PID,
+		hostname:        container.Hostname,
+		metricsExcluded: l.metricsFilter.IsExcluded(filterableContainer),
+		logsExcluded:    l.logsFilter.IsExcluded(filterableContainer),
+		tagger:          l.tagger,
 	}
 
 	if pod != nil {
 		svc.hosts = map[string]string{"pod": pod.IP}
-		svc.ready = pod.Ready
+		svc.ready = pod.Ready || shouldSkipPodReadiness(pod)
 
-		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
-			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.MetricsFilter),
-		)
-		svc.logsExcluded = l.filterStore.IsContainerExcluded(
-			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.LogsFilter),
-		)
+		adIdentifier := container.Name
+		if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, container.Name); found {
+			adIdentifier = customADID
+			svc.adIdentifiers = append(svc.adIdentifiers, customADID)
+		}
+
+		checkNames, err := utils.ExtractCheckNamesFromPodAnnotations(pod.Annotations, adIdentifier)
+		if err != nil {
+			log.Errorf("error extracting check names from pod annotations: %s", err)
+		}
+		svc.checkNames = checkNames
 	} else {
 		checkNames, err := utils.ExtractCheckNamesFromContainerLabels(container.Labels)
 		if err != nil {
@@ -162,14 +170,6 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		svc.ready = true
 		svc.hosts = hosts
 		svc.checkNames = checkNames
-		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
-			workloadmetafilter.CreateContainer(container, nil),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.MetricsFilter),
-		)
-		svc.logsExcluded = l.filterStore.IsContainerExcluded(
-			workloadmetafilter.CreateContainer(container, nil),
-			workloadfilter.GetAutodiscoveryFilters(workloadfilter.LogsFilter),
-		)
 	}
 
 	svcID := buildSvcID(container.GetID())

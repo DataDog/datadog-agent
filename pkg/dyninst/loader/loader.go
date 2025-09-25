@@ -280,8 +280,10 @@ func (l *Loader) loadData(
 	const throttlerMapName = "throttler_params"
 	const throttlerStateMapName = "throttler_buf"
 	const probeParamsMapName = "probe_params"
+	const goRuntimeTypeIDsMapName = "go_runtime_type_ids"
+	const goRuntimeTypesMapName = "go_runtime_types"
 
-	mapSpec, codeMap, err := makeArrayMap(codeMapName, serialized.code, true /* singleEntry */)
+	mapSpec, codeMap, err := makeArrayMap(codeMapName, serialized.code, forceSingleEntryMap)
 	spec.Maps[codeMapName] = mapSpec
 	if err != nil {
 		return nil, fmt.Errorf("failed to create code map: %w", err)
@@ -308,11 +310,13 @@ func (l *Loader) loadData(
 		return nil, fmt.Errorf("failed to set prog_id: %w", err)
 	}
 
-	mapSpec, typeIDsMap, err := makeArrayMap(typeIDsMapName, serialized.typeIDs, false /* singleEntry */)
-	spec.Maps[typeIDsMapName] = mapSpec
+	mapSpec, typeIDsMap, err := makeArrayMap(
+		typeIDsMapName, serialized.typeIDs, allowMultipleMapEntries,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create type_ids map: %w", err)
 	}
+	spec.Maps[typeIDsMapName] = mapSpec
 	defer func() {
 		if typeIDsMap != nil {
 			typeIDsMap.Close()
@@ -323,7 +327,9 @@ func (l *Loader) loadData(
 		return nil, fmt.Errorf("failed to set num_types: %w", err)
 	}
 
-	mapSpec, typeInfoMap, err := makeArrayMap(typeInfoMapName, serialized.typeInfos, false /* singleEntry */)
+	mapSpec, typeInfoMap, err := makeArrayMap(
+		typeInfoMapName, serialized.typeInfos, allowMultipleMapEntries,
+	)
 	spec.Maps[typeInfoMapName] = mapSpec
 	if err != nil {
 		return nil, fmt.Errorf("failed to create type_info map: %w", err)
@@ -333,19 +339,63 @@ func (l *Loader) loadData(
 			typeInfoMap.Close()
 		}
 	}()
+	grts := &serialized.goRuntimeTypeIDs
+	numGoRuntimeTypes := uint32(grts.Len())
+	if numGoRuntimeTypes == 0 {
+		// We're not allowed to have empty maps, so we set a single element with
+		// a zero value, but the associated variable for the length will still
+		// be set to zero.
+		grts.goRuntimeTypes = []uint64{0}
+		grts.typeIDs = []uint64{0}
+	}
+	goRuntimeTypeIDsMapSpec, goRuntimeTypeIDsMap, err := makeArrayMap(
+		goRuntimeTypeIDsMapName, grts.typeIDs, allowMultipleMapEntries,
+	)
+	spec.Maps[goRuntimeTypeIDsMapName] = goRuntimeTypeIDsMapSpec
+	if err != nil {
+		return nil, fmt.Errorf("failed to create go_runtime_type_ids map: %w", err)
+	}
+	defer func() {
+		if goRuntimeTypeIDsMap != nil {
+			goRuntimeTypeIDsMap.Close()
+		}
+	}()
+	goRuntimeTypesMapSpec, goRuntimeTypesMap, err := makeArrayMap(
+		goRuntimeTypesMapName, grts.goRuntimeTypes, allowMultipleMapEntries,
+	)
+	spec.Maps[goRuntimeTypesMapName] = goRuntimeTypesMapSpec
+	if err != nil {
+		return nil, fmt.Errorf("failed to create go_runtime_types map: %w", err)
+	}
+	defer func() {
+		if goRuntimeTypesMap != nil {
+			goRuntimeTypesMap.Close()
+		}
+	}()
+	if err := setVariable(
+		spec, "num_go_runtime_types", numGoRuntimeTypes,
+	); err != nil {
+		return nil, fmt.Errorf("failed to set num_go_runtime_types: %w", err)
+	}
+	if err := setCommonConstants(spec, serialized); err != nil {
+		return nil, fmt.Errorf("failed to set common constants: %w", err)
+	}
 
-	mapSpec, throttlerMap, err := makeArrayMap(throttlerMapName, serialized.throttlerParams, false /* singleEntry */)
-	spec.Maps[throttlerMapName] = mapSpec
+	mapSpec, throttlerMap, err := makeArrayMap(
+		throttlerMapName, serialized.throttlerParams, allowMultipleMapEntries,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create throttler_params map: %w", err)
 	}
+	spec.Maps[throttlerMapName] = mapSpec
 	defer func() {
 		if throttlerMap != nil {
 			throttlerMap.Close()
 		}
 	}()
-	err = setVariable(spec, "num_throttlers", uint32(len(serialized.throttlerParams)))
-	if err != nil {
+	if err := setVariable(
+		spec, "num_throttlers", uint32(len(serialized.throttlerParams)),
+	); err != nil {
 		return nil, fmt.Errorf("failed to set num_throttlers: %w", err)
 	}
 
@@ -355,7 +405,9 @@ func (l *Loader) loadData(
 	}
 	mapSpec.MaxEntries = uint32(len(serialized.throttlerParams))
 
-	mapSpec, probeParamsMap, err := makeArrayMap(probeParamsMapName, serialized.probeParams, false /* singleEntry */)
+	mapSpec, probeParamsMap, err := makeArrayMap(
+		probeParamsMapName, serialized.probeParams, allowMultipleMapEntries,
+	)
 	spec.Maps[probeParamsMapName] = mapSpec
 	if err != nil {
 		return nil, fmt.Errorf("failed to create probe_params map: %w", err)
@@ -378,21 +430,80 @@ func (l *Loader) loadData(
 	}
 
 	m := map[string]*ebpf.Map{
-		codeMapName:        codeMap,
-		typeIDsMapName:     typeIDsMap,
-		typeInfoMapName:    typeInfoMap,
-		throttlerMapName:   throttlerMap,
-		probeParamsMapName: probeParamsMap,
+		codeMapName:             codeMap,
+		typeIDsMapName:          typeIDsMap,
+		typeInfoMapName:         typeInfoMap,
+		throttlerMapName:        throttlerMap,
+		probeParamsMapName:      probeParamsMap,
+		goRuntimeTypeIDsMapName: goRuntimeTypeIDsMap,
+		goRuntimeTypesMapName:   goRuntimeTypesMap,
 	}
 	codeMap = nil
 	typeIDsMap = nil
 	typeInfoMap = nil
 	throttlerMap = nil
 	probeParamsMap = nil
+	goRuntimeTypeIDsMap = nil
+	goRuntimeTypesMap = nil
 	return m, nil
 }
 
-func makeArrayMap[T any](name string, data []T, singleEntry bool) (*ebpf.MapSpec, *ebpf.Map, error) {
+func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram) error {
+	if err := setVariable(
+		spec, "VARIABLE_runtime_dot_firstmoduledata",
+		serialized.goModuledataInfo.FirstModuledataAddr,
+	); err != nil {
+		return err
+	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_moduledata__types",
+		serialized.goModuledataInfo.TypesOffset,
+	); err != nil {
+		return err
+	}
+	offset, err := serialized.commonTypes.G.FieldOffsetByName("goid")
+	if err != nil {
+		return err
+	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_g__goid",
+		offset,
+	); err != nil {
+		return err
+	}
+	offset, err = serialized.commonTypes.G.FieldOffsetByName("m")
+	if err != nil {
+		return err
+	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_g__m",
+		offset,
+	); err != nil {
+		return err
+	}
+	offset, err = serialized.commonTypes.M.FieldOffsetByName("curg")
+	if err != nil {
+		return err
+	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_m__curg",
+		offset,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+type arrayMapConfig bool
+
+const (
+	forceSingleEntryMap     arrayMapConfig = true
+	allowMultipleMapEntries arrayMapConfig = false
+)
+
+func makeArrayMap[T any](
+	name string, data []T, cfg arrayMapConfig,
+) (*ebpf.MapSpec, *ebpf.Map, error) {
 	var val T
 	elemSize := uint32(unsafe.Sizeof(val))
 	mapSpec := &ebpf.MapSpec{
@@ -404,12 +515,15 @@ func makeArrayMap[T any](name string, data []T, singleEntry bool) (*ebpf.MapSpec
 		Flags:      features.BPF_F_MMAPABLE,
 	}
 	// singleEntry makes the map have a single element holding all the data.
-	if singleEntry {
+	if cfg == forceSingleEntryMap {
 		mapSpec.ValueSize = mapSpec.MaxEntries * mapSpec.ValueSize
 		mapSpec.MaxEntries = 1
 	}
-	if mapSpec.ValueSize%8 != 0 && !singleEntry {
-		return nil, nil, fmt.Errorf("map %s has value size %d which is not a multiple of 8", name, mapSpec.ValueSize)
+	if mapSpec.ValueSize%8 != 0 && cfg == allowMultipleMapEntries {
+		return nil, nil, fmt.Errorf(
+			"map %s has value size %d which is not a multiple of 8",
+			name, mapSpec.ValueSize,
+		)
 	}
 	m, err := ebpf.NewMap(mapSpec)
 	if err != nil {
@@ -437,7 +551,9 @@ func makeArrayMap[T any](name string, data []T, singleEntry bool) (*ebpf.MapSpec
 	return mapSpec, m, nil
 }
 
-func setVariable(spec *ebpf.CollectionSpec, name string, value uint32) error {
+func setVariable[I uint32 | uint64](
+	spec *ebpf.CollectionSpec, name string, value I,
+) error {
 	vari, ok := spec.Variables[name]
 	if !ok {
 		return fmt.Errorf("variable %s not found in spec", name)

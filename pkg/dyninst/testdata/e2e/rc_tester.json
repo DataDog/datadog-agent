@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.HandleHTTP",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -26,7 +26,49 @@
             "arguments": {
               "w": {
                 "type": "net/http.ResponseWriter",
-                "notCapturedReason": "unimplemented"
+                "fields": {
+                  "data": {
+                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "fields": {
+                      "monitoredResponseWriter": {
+                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "fields": {
+                          "data": {
+                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Flusher": {
+                        "type": "net/http.Flusher",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "CloseNotifier": {
+                        "type": "net/http.CloseNotifier",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Hijacker": {
+                        "type": "net/http.Hijacker",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
               },
               "r": {
                 "type": "*net/http.Request",
@@ -38,53 +80,7 @@
                   },
                   "URL": {
                     "type": "*net/url.URL",
-                    "address": "[addr]",
-                    "fields": {
-                      "Scheme": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "Opaque": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "User": {
-                        "type": "*net/url.Userinfo",
-                        "isNull": true
-                      },
-                      "Host": {
-                        "type": "string",
-                        "value": "[host network address]"
-                      },
-                      "Path": {
-                        "type": "string",
-                        "value": "/0"
-                      },
-                      "RawPath": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "OmitHost": {
-                        "type": "bool",
-                        "value": "false"
-                      },
-                      "ForceQuery": {
-                        "type": "bool",
-                        "value": "false"
-                      },
-                      "RawQuery": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "Fragment": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "RawFragment": {
-                        "type": "string",
-                        "value": ""
-                      }
-                    }
+                    "notCapturedReason": "depth"
                   },
                   "Proto": {
                     "type": "string",
@@ -100,45 +96,16 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "size": "2",
-                    "entries": [
-                      [
-                        {
-                          "type": "string",
-                          "value": "Accept-Encoding"
-                        },
-                        {
-                          "type": "[]string",
-                          "size": "1",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "gzip"
-                            }
-                          ]
-                        }
-                      ],
-                      [
-                        {
-                          "type": "string",
-                          "value": "User-Agent"
-                        },
-                        {
-                          "type": "[]string",
-                          "size": "1",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "Go-http-client/1.1"
-                            }
-                          ]
-                        }
-                      ]
-                    ]
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",
-                    "notCapturedReason": "unimplemented"
+                    "fields": {
+                      "data": {
+                        "type": "http.noBody",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "GetBody": {
                     "type": "func() (io.ReadCloser, error)",
@@ -202,52 +169,16 @@
                   },
                   "ctx": {
                     "type": "context.Context",
-                    "notCapturedReason": "unimplemented"
+                    "fields": {
+                      "data": {
+                        "type": "*context.valueCtx",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "pat": {
                     "type": "*net/http.pattern",
-                    "address": "[addr]",
-                    "fields": {
-                      "str": {
-                        "type": "string",
-                        "value": "/"
-                      },
-                      "method": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "host": {
-                        "type": "string",
-                        "value": "/"
-                      },
-                      "segments": {
-                        "type": "[]net/http.segment",
-                        "size": "1",
-                        "elements": [
-                          {
-                            "type": "net/http.segment",
-                            "fields": {
-                              "s": {
-                                "type": "string",
-                                "value": ""
-                              },
-                              "wild": {
-                                "type": "bool",
-                                "value": "true"
-                              },
-                              "multi": {
-                                "type": "bool",
-                                "value": "true"
-                              }
-                            }
-                          }
-                        ]
-                      },
-                      "loc": {
-                        "type": "string",
-                        "value": "[datadogagent]pkg/dyninst/testprogs/progs/[binary]/main.go:[line]"
-                      }
-                    }
+                    "notCapturedReason": "depth"
                   },
                   "matches": {
                     "type": "[]string",
@@ -273,7 +204,7 @@
       "name": "",
       "method": "main.LookAtTheRequest",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -309,7 +240,7 @@
       "name": "",
       "method": "main.HandleHTTP",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -329,7 +260,49 @@
             "arguments": {
               "w": {
                 "type": "net/http.ResponseWriter",
-                "notCapturedReason": "unimplemented"
+                "fields": {
+                  "data": {
+                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "fields": {
+                      "monitoredResponseWriter": {
+                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "fields": {
+                          "data": {
+                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Flusher": {
+                        "type": "net/http.Flusher",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "CloseNotifier": {
+                        "type": "net/http.CloseNotifier",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Hijacker": {
+                        "type": "net/http.Hijacker",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
               },
               "r": {
                 "type": "*net/http.Request",
@@ -341,53 +314,7 @@
                   },
                   "URL": {
                     "type": "*net/url.URL",
-                    "address": "[addr]",
-                    "fields": {
-                      "Scheme": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "Opaque": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "User": {
-                        "type": "*net/url.Userinfo",
-                        "isNull": true
-                      },
-                      "Host": {
-                        "type": "string",
-                        "value": "[host network address]"
-                      },
-                      "Path": {
-                        "type": "string",
-                        "value": "/1"
-                      },
-                      "RawPath": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "OmitHost": {
-                        "type": "bool",
-                        "value": "false"
-                      },
-                      "ForceQuery": {
-                        "type": "bool",
-                        "value": "false"
-                      },
-                      "RawQuery": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "Fragment": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "RawFragment": {
-                        "type": "string",
-                        "value": ""
-                      }
-                    }
+                    "notCapturedReason": "depth"
                   },
                   "Proto": {
                     "type": "string",
@@ -403,45 +330,16 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "size": "2",
-                    "entries": [
-                      [
-                        {
-                          "type": "string",
-                          "value": "Accept-Encoding"
-                        },
-                        {
-                          "type": "[]string",
-                          "size": "1",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "gzip"
-                            }
-                          ]
-                        }
-                      ],
-                      [
-                        {
-                          "type": "string",
-                          "value": "User-Agent"
-                        },
-                        {
-                          "type": "[]string",
-                          "size": "1",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "Go-http-client/1.1"
-                            }
-                          ]
-                        }
-                      ]
-                    ]
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",
-                    "notCapturedReason": "unimplemented"
+                    "fields": {
+                      "data": {
+                        "type": "http.noBody",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "GetBody": {
                     "type": "func() (io.ReadCloser, error)",
@@ -505,52 +403,16 @@
                   },
                   "ctx": {
                     "type": "context.Context",
-                    "notCapturedReason": "unimplemented"
+                    "fields": {
+                      "data": {
+                        "type": "*context.valueCtx",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "pat": {
                     "type": "*net/http.pattern",
-                    "address": "[addr]",
-                    "fields": {
-                      "str": {
-                        "type": "string",
-                        "value": "/"
-                      },
-                      "method": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "host": {
-                        "type": "string",
-                        "value": "/"
-                      },
-                      "segments": {
-                        "type": "[]net/http.segment",
-                        "size": "1",
-                        "elements": [
-                          {
-                            "type": "net/http.segment",
-                            "fields": {
-                              "s": {
-                                "type": "string",
-                                "value": ""
-                              },
-                              "wild": {
-                                "type": "bool",
-                                "value": "true"
-                              },
-                              "multi": {
-                                "type": "bool",
-                                "value": "true"
-                              }
-                            }
-                          }
-                        ]
-                      },
-                      "loc": {
-                        "type": "string",
-                        "value": "[datadogagent]pkg/dyninst/testprogs/progs/[binary]/main.go:[line]"
-                      }
-                    }
+                    "notCapturedReason": "depth"
                   },
                   "matches": {
                     "type": "[]string",
@@ -576,7 +438,7 @@
       "name": "",
       "method": "main.LookAtTheRequest",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -612,7 +474,7 @@
       "name": "",
       "method": "main.HandleHTTP",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -632,7 +494,49 @@
             "arguments": {
               "w": {
                 "type": "net/http.ResponseWriter",
-                "notCapturedReason": "unimplemented"
+                "fields": {
+                  "data": {
+                    "type": "struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }",
+                    "fields": {
+                      "monitoredResponseWriter": {
+                        "type": "github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1",
+                        "fields": {
+                          "data": {
+                            "type": "*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Flusher": {
+                        "type": "net/http.Flusher",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "CloseNotifier": {
+                        "type": "net/http.CloseNotifier",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      },
+                      "Hijacker": {
+                        "type": "net/http.Hijacker",
+                        "fields": {
+                          "data": {
+                            "type": "*net/http.response",
+                            "notCapturedReason": "depth"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
               },
               "r": {
                 "type": "*net/http.Request",
@@ -644,53 +548,7 @@
                   },
                   "URL": {
                     "type": "*net/url.URL",
-                    "address": "[addr]",
-                    "fields": {
-                      "Scheme": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "Opaque": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "User": {
-                        "type": "*net/url.Userinfo",
-                        "isNull": true
-                      },
-                      "Host": {
-                        "type": "string",
-                        "value": "[host network address]"
-                      },
-                      "Path": {
-                        "type": "string",
-                        "value": "/2"
-                      },
-                      "RawPath": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "OmitHost": {
-                        "type": "bool",
-                        "value": "false"
-                      },
-                      "ForceQuery": {
-                        "type": "bool",
-                        "value": "false"
-                      },
-                      "RawQuery": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "Fragment": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "RawFragment": {
-                        "type": "string",
-                        "value": ""
-                      }
-                    }
+                    "notCapturedReason": "depth"
                   },
                   "Proto": {
                     "type": "string",
@@ -706,45 +564,16 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "size": "2",
-                    "entries": [
-                      [
-                        {
-                          "type": "string",
-                          "value": "Accept-Encoding"
-                        },
-                        {
-                          "type": "[]string",
-                          "size": "1",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "gzip"
-                            }
-                          ]
-                        }
-                      ],
-                      [
-                        {
-                          "type": "string",
-                          "value": "User-Agent"
-                        },
-                        {
-                          "type": "[]string",
-                          "size": "1",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "Go-http-client/1.1"
-                            }
-                          ]
-                        }
-                      ]
-                    ]
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",
-                    "notCapturedReason": "unimplemented"
+                    "fields": {
+                      "data": {
+                        "type": "http.noBody",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "GetBody": {
                     "type": "func() (io.ReadCloser, error)",
@@ -808,52 +637,16 @@
                   },
                   "ctx": {
                     "type": "context.Context",
-                    "notCapturedReason": "unimplemented"
+                    "fields": {
+                      "data": {
+                        "type": "*context.valueCtx",
+                        "notCapturedReason": "missing type information"
+                      }
+                    }
                   },
                   "pat": {
                     "type": "*net/http.pattern",
-                    "address": "[addr]",
-                    "fields": {
-                      "str": {
-                        "type": "string",
-                        "value": "/"
-                      },
-                      "method": {
-                        "type": "string",
-                        "value": ""
-                      },
-                      "host": {
-                        "type": "string",
-                        "value": "/"
-                      },
-                      "segments": {
-                        "type": "[]net/http.segment",
-                        "size": "1",
-                        "elements": [
-                          {
-                            "type": "net/http.segment",
-                            "fields": {
-                              "s": {
-                                "type": "string",
-                                "value": ""
-                              },
-                              "wild": {
-                                "type": "bool",
-                                "value": "true"
-                              },
-                              "multi": {
-                                "type": "bool",
-                                "value": "true"
-                              }
-                            }
-                          }
-                        ]
-                      },
-                      "loc": {
-                        "type": "string",
-                        "value": "[datadogagent]pkg/dyninst/testprogs/progs/[binary]/main.go:[line]"
-                      }
-                    }
+                    "notCapturedReason": "depth"
                   },
                   "matches": {
                     "type": "[]string",
@@ -879,7 +672,7 @@
       "name": "",
       "method": "main.LookAtTheRequest",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {

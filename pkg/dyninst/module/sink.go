@@ -8,15 +8,14 @@
 package module
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"time"
 
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -24,7 +23,7 @@ import (
 )
 
 type sink struct {
-	controller   *Controller
+	runtime      *runtimeImpl
 	decoder      Decoder
 	symbolicator symbol.Symbolicator
 	programID    ir.ProgramID
@@ -32,21 +31,25 @@ type sink struct {
 	logUploader  LogsUploader
 }
 
-var _ actuator.Sink = &sink{}
+var _ dispatcher.Sink = &sink{}
 
 // We don't want to be too noisy about decoding errors, but we do want to learn
 // about them and we don't want to bail out completely.
 var decodingErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 func (s *sink) HandleEvent(event output.Event) error {
-	var buf bytes.Buffer
-	probe, err := s.decoder.Decode(decode.Event{
+	var (
+		decodedBytes []byte
+		probe        ir.ProbeDefinition
+		err          error
+	)
+	decodedBytes, probe, err = s.decoder.Decode(decode.Event{
 		Event:       event,
 		ServiceName: s.service,
-	}, s.symbolicator, &buf)
+	}, s.symbolicator, decodedBytes)
 	if err != nil {
 		if probe != nil {
-			if reported := s.controller.reportProbeError(
+			if reported := s.runtime.reportProbeError(
 				s.programID, probe, err, "DecodeFailed",
 			); reported {
 				log.Warnf(
@@ -71,8 +74,8 @@ func (s *sink) HandleEvent(event output.Event) error {
 		// or program.
 		return nil
 	}
-	s.controller.setProbeMaybeEmitting(s.programID, probe)
-	s.logUploader.Enqueue(json.RawMessage(buf.Bytes()))
+	s.runtime.setProbeMaybeEmitting(s.programID, probe)
+	s.logUploader.Enqueue(json.RawMessage(decodedBytes))
 	return nil
 }
 
@@ -86,8 +89,3 @@ func (s *sink) Close() {
 		}
 	}
 }
-
-type noopSink struct{}
-
-func (n noopSink) Close()                         {}
-func (n noopSink) HandleEvent(output.Event) error { return nil }

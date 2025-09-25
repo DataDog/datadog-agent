@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testMapSmallKeyLargeValue",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -28,7 +28,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 45
+            "lineNumber": 47
           },
           {
             "function": "runtime.main",

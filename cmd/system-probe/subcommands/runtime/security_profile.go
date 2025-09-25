@@ -158,6 +158,7 @@ func printActivityTreeStats(prefix string, msg *api.ActivityTreeStatsMessage) {
 	fmt.Printf("%s    file_nodes_count: %v\n", prefix, msg.GetFileNodesCount())
 	fmt.Printf("%s    dns_nodes_count: %v\n", prefix, msg.GetDNSNodesCount())
 	fmt.Printf("%s    socket_nodes_count: %v\n", prefix, msg.GetSocketNodesCount())
+	fmt.Printf("%s    capabilities_nodes_count: %v\n", prefix, msg.GetCapabilityNodesCount())
 }
 
 func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
@@ -194,7 +195,13 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 	if len(msg.GetInstances()) > 0 {
 		fmt.Printf("%s  instances:\n", prefix)
 		for _, inst := range msg.GetInstances() {
-			fmt.Printf("%s    . container_id: %s\n", prefix, inst.GetContainerID())
+			if inst.GetContainerID() != "" {
+				fmt.Printf("%s    . container_id: %s\n", prefix, inst.GetContainerID())
+			} else if inst.GetCGroupID() != "" {
+				fmt.Printf("%s    . cgroup_id: %s\n", prefix, inst.GetCGroupID())
+			} else {
+				fmt.Printf("%s    . workload_id: (unknown)\n", prefix)
+			}
 			fmt.Printf("%s      tags: %v\n", prefix, inst.GetTags())
 		}
 	}

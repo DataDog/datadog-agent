@@ -93,6 +93,8 @@ const (
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
+	// VethPairNsEventType is sent when a veth pair is moved to a new network namespace
+	VethPairNsEventType
 	// AcceptEventType Accept event
 	AcceptEventType
 	// BindEventType Bind event
@@ -103,7 +105,7 @@ const (
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
-	// IMDSEventType is sent when an IMDS request or qnswer is captured
+	// IMDSEventType is sent when an IMDS request or answer is captured
 	IMDSEventType
 	// OnDemandEventType is sent for on-demand events
 	OnDemandEventType
@@ -111,10 +113,12 @@ const (
 	LoginUIDWriteEventType
 	// CgroupWriteEventType is sent when a new cgroup was created
 	CgroupWriteEventType
-	// RawPacketEventType raw packet event
-	RawPacketEventType
+	// RawPacketFilterEventType raw packet filter event
+	RawPacketFilterEventType
 	// NetworkFlowMonitorEventType is sent to monitor network activity
 	NetworkFlowMonitorEventType
+	// PrCtlEventType is sent when a prctl event is captured
+	PrCtlEventType
 	// StatEventType stat event (used kernel side only)
 	StatEventType
 	// SysCtlEventType sysctl event
@@ -127,6 +131,12 @@ const (
 	FileFsmountEventType
 	// FileOpenTreeEventType Open Tree event
 	FileOpenTreeEventType
+	// RawPacketActionEventType raw packet action event
+	RawPacketActionEventType
+	// CapabilitiesEventType is used to track capabilities usage
+	CapabilitiesEventType
+	// FileMoveMountEventType Move Mount even
+	FileMoveMountEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -239,10 +249,14 @@ func (t EventType) String() string {
 		return "cgroup_tracing"
 	case DNSEventType:
 		return "dns"
+	case ShortDNSResponseEventType:
+		return "dns_response_short"
 	case NetDeviceEventType:
 		return "net_device"
 	case VethPairEventType:
 		return "veth_pair"
+	case VethPairNsEventType:
+		return "veth_pair_ns"
 	case BindEventType:
 		return "bind"
 	case AcceptEventType:
@@ -257,8 +271,10 @@ func (t EventType) String() string {
 		return "imds"
 	case OnDemandEventType:
 		return "ondemand"
-	case RawPacketEventType:
+	case RawPacketFilterEventType:
 		return "packet"
+	case RawPacketActionEventType:
+		return "packet_action"
 	case NetworkFlowMonitorEventType:
 		return "network_flow_monitor"
 	case StatEventType:
@@ -293,6 +309,16 @@ func (t EventType) String() string {
 		return "dns_response"
 	case SetSockOptEventType:
 		return "setsockopt"
+	case CapabilitiesEventType:
+		return "capabilities"
+	case PrCtlEventType:
+		return "prctl"
+	case FileFsmountEventType:
+		return "fsmount"
+	case FileOpenTreeEventType:
+		return "open_tree"
+	case FileMoveMountEventType:
+		return "move_mount"
 	default:
 		return "unknown"
 	}

@@ -124,7 +124,7 @@ func testAllProbes(t *testing.T, binPath string) {
 		})
 	}
 
-	obj, err := object.OpenElfFile(binPath)
+	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 	v, err := irgen.GenerateIR(1, obj, probes)

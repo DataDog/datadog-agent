@@ -5,7 +5,7 @@
 
 //go:build windows
 
-//nolint:revive // TODO(WINA) Fix revive linter
+// Package windowsevent provides Windows event log tailers
 package windowsevent
 
 import (

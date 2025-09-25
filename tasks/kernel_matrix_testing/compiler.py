@@ -218,6 +218,9 @@ class CompilerImage:
                 user="root",
             )
 
+        # We need to make the /go directory writable by the compiler user
+        self.exec("chmod -R a+rw /go", user="root")
+
         cross_arch = ARCH_ARM64 if self.arch == ARCH_AMD64 else ARCH_AMD64
         self.exec("chmod a+rx /root", user="root")  # Some binaries will be in /root and need to be readable
         self.exec(f"dpkg --add-architecture {cross_arch.go_arch}", user="root")

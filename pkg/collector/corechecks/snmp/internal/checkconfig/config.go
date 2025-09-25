@@ -9,13 +9,14 @@ package checkconfig
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"hash/fnv"
 	"net"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 
 	"gopkg.in/yaml.v2"
 
@@ -224,13 +225,11 @@ func (c *CheckConfig) GetStaticTags() []string {
 		tags = append(tags, deviceIDTagKey+":"+c.DeviceID)
 	}
 
-	if c.UseDeviceIDAsHostname {
-		hname, err := hostname.Get(context.TODO())
-		if err != nil {
-			log.Warnf("Error getting the hostname: %v", err)
-		} else {
-			tags = append(tags, "agent_host:"+hname)
-		}
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting the hostname: %v", err)
+	} else {
+		tags = append(tags, "agent_host:"+hname)
 	}
 	return tags
 }

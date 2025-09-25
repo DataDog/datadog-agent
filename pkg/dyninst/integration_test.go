@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"os"
 	"path"
@@ -29,14 +30,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
@@ -46,6 +49,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/uprobe"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 //go:embed testdata/decoded
@@ -53,11 +58,14 @@ var testdataFS embed.FS
 
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
+	current := goleak.IgnoreCurrent()
+	t.Cleanup(func() { goleak.VerifyNone(t, current) })
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	programs := testprogs.MustGetPrograms(t)
 	var integrationTestPrograms = map[string]struct{}{
 		"simple": {},
 		"sample": {},
+		"fault":  {},
 	}
 
 	sem := dyninsttest.MakeSemaphore()
@@ -85,16 +93,132 @@ func TestDyninst(t *testing.T) {
 		})
 	}
 	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
+
 	for _, svc := range programs {
 		if _, ok := integrationTestPrograms[svc]; !ok {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
 		t.Run(svc, func(t *testing.T) {
-			runIntegrationTestSuite(t, svc, rewrite, sem, cfgs...)
+			runIntegrationTestSuite(
+				t, svc, rewrite, sem, cfgs...,
+			)
 		})
 	}
 }
+
+type testRuntime struct {
+	irgen      *irgen.Generator
+	loader     *loader.Loader
+	dispatcher *dispatcher.Dispatcher
+	attached   chan *testMessageSink
+	t          *testing.T
+	irDump     *os.File
+}
+
+// Load implements actuator.Runtime.
+func (t *testRuntime) Load(
+	programID ir.ProgramID,
+	executable actuator.Executable,
+	processID actuator.ProcessID,
+	probes []ir.ProbeDefinition,
+) (actuator.LoadedProgram, error) {
+	ir, err := t.irgen.GenerateIR(programID, executable.Path, probes)
+	if err != nil {
+		if t.attached != nil {
+			close(t.attached)
+		}
+		return nil, err
+	}
+	if t.irDump != nil {
+		if yaml, err := irprinter.PrintYAML(ir); err != nil {
+			if t.t != nil {
+				t.t.Errorf("failed to print IR: %v", err)
+			}
+		} else {
+			if _, err := t.irDump.Write(yaml); err != nil {
+				if t.t != nil {
+					t.t.Errorf("failed to write IR to file: %v", err)
+				}
+			}
+		}
+	}
+	smProgram, err := compiler.GenerateProgram(ir)
+	if err != nil {
+		if t.attached != nil {
+			close(t.attached)
+		}
+		return nil, err
+	}
+	lp, err := t.loader.Load(smProgram)
+	if err != nil {
+		if t.attached != nil {
+			close(t.attached)
+		}
+		return nil, err
+	}
+	sink := &testMessageSink{
+		irp: ir,
+		ch:  make(chan output.Event, 1000),
+	}
+	if t.dispatcher != nil {
+		t.dispatcher.RegisterSink(ir.ID, sink)
+	}
+	return &testLoadedProgram{
+		lp:         lp,
+		ir:         ir,
+		executable: executable,
+		processID:  processID,
+		probes:     probes,
+		tr:         t,
+		sink:       sink,
+		dispatcher: t.dispatcher,
+	}, nil
+}
+
+func (t *testRuntime) Close() error {
+	return nil
+}
+
+type testLoadedProgram struct {
+	lp         *loader.Program
+	ir         *ir.Program
+	executable actuator.Executable
+	processID  actuator.ProcessID
+	probes     []ir.ProbeDefinition
+	tr         *testRuntime
+	sink       *testMessageSink
+	dispatcher *dispatcher.Dispatcher
+}
+
+func (t *testLoadedProgram) IR() *ir.Program {
+	return t.ir
+}
+
+func (t *testLoadedProgram) Attach(
+	processID actuator.ProcessID, executable actuator.Executable,
+) (actuator.AttachedProgram, error) {
+	v, err := uprobe.Attach(t.lp, executable, processID)
+	if err != nil {
+		log.Errorf("rcscrape: failed to attach to process %v: %v", processID, err)
+		close(t.tr.attached)
+		return nil, err
+	}
+	t.tr.attached <- t.sink
+	return v, nil
+}
+
+func (t *testLoadedProgram) Close() error {
+	if t.dispatcher != nil {
+		t.dispatcher.UnregisterSink(t.ir.ID)
+	} else {
+		t.sink.Close()
+	}
+	t.lp.Close()
+	return nil
+}
+
+var _ actuator.Runtime = (*testRuntime)(nil)
 
 func testDyninst(
 	t *testing.T,
@@ -131,12 +255,23 @@ func testDyninst(
 	if debug {
 		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
 	}
-	reporter := makeTestReporter(t, irDump)
 	loader, err := loader.NewLoader(loaderOpts...)
+	t.Cleanup(func() { loader.Close() })
 	require.NoError(t, err)
-	a := actuator.NewActuator(loader)
+	disp := dispatcher.NewDispatcher(loader.OutputReader())
+	t.Cleanup(func() { require.NoError(t, disp.Shutdown()) })
+	a := actuator.NewActuator()
+	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 	require.NoError(t, err)
-	at := a.NewTenant("integration-test", reporter, irgen.NewGenerator())
+	rt := &testRuntime{
+		irgen:      irgen.NewGenerator(),
+		loader:     loader,
+		dispatcher: disp,
+		attached:   make(chan *testMessageSink, 1),
+		t:          t,
+		irDump:     irDump,
+	}
+	at := a.NewTenant("integration-test", rt)
 
 	// Launch the sample service.
 	t.Logf("launching %s", service)
@@ -178,7 +313,7 @@ func testDyninst(
 
 	// Wait for the process to be attached.
 	t.Log("Waiting for attachment")
-	sink, ok := <-reporter.attached
+	sink, ok := <-rt.attached
 	require.True(t, ok)
 	if t.Failed() {
 		return nil
@@ -208,12 +343,18 @@ func testDyninst(
 	timeoutCh := time.After(timeout)
 	var read []output.Event
 	var timedOut bool
-	for !timedOut && len(read) < totalExpectedEvents {
+	done := false
+	for !done && len(read) < totalExpectedEvents {
 		select {
-		case m := <-sink.ch:
+		case m, ok := <-sink.ch:
+			if !ok {
+				done = true
+				continue
+			}
 			read = append(read, m)
 		case <-timeoutCh:
 			timedOut = true
+			done = true
 		}
 	}
 	if !rewriteEnabled && timedOut {
@@ -233,38 +374,29 @@ func testDyninst(
 
 	t.Logf("processing output")
 	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	obj, err := object.OpenElfFile(servicePath)
+	obj, err := object.OpenElfFileWithDwarf(servicePath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 
-	moduledata, err := object.ParseModuleData(obj.Underlying)
+	symbolTable, err := object.ParseGoSymbolTable(obj)
 	require.NoError(t, err)
-
-	goVersion, err := object.ReadGoVersion(obj.Underlying)
+	defer func() { require.NoError(t, symbolTable.Close()) }()
 	require.NoError(t, err)
-
-	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, goDebugSections.Close()) }()
-
-	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
-	require.NoError(t, err)
-	symbolicator := symbol.NewGoSymbolicator(symbolTable)
+	symbolicator := symbol.NewGoSymbolicator(&symbolTable.GoSymbolTable)
 	require.NotNil(t, symbolicator)
 
 	cachingSymbolicator, err := symbol.NewCachingSymbolicator(symbolicator, 10000)
 	require.NotNil(t, symbolicator)
 	require.NoError(t, err)
 
-	decoder, err := decode.NewDecoder(sink.irp)
+	gotypeTable, err := gotype.NewTable(obj)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, gotypeTable.Close()) }()
+
+	decoder, err := decode.NewDecoder(
+		sink.irp, (*decode.GoTypeNameResolver)(gotypeTable),
+		time.Now(),
+	)
 	require.NoError(t, err)
 
 	retMap := make(map[string][]json.RawMessage)
@@ -280,13 +412,13 @@ func testDyninst(
 			Event:       ev,
 			ServiceName: service,
 		}
-		var decodeOut bytes.Buffer
-		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
+		decodeOut := []byte{}
+		decodeOut, probe, err := decoder.Decode(event, cachingSymbolicator, decodeOut)
 		require.NoError(t, err)
 		if os.Getenv("DEBUG") != "" {
-			t.Logf("Output: %s", decodeOut.String())
+			t.Logf("Output: %s", string(decodeOut))
 		}
-		redacted := redactJSON(t, "", decodeOut.Bytes(), defaultRedactors)
+		redacted := redactJSON(t, "", decodeOut, defaultRedactors)
 		if os.Getenv("DEBUG") != "" {
 			t.Logf("Sorted and redacted: %s", redacted)
 		}
@@ -347,24 +479,41 @@ func runIntegrationTestSuite(
 			t.Parallel()
 			bin := testprogs.MustGetBinary(t, service, cfg)
 			for _, debug := range []bool{false, true} {
-				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
+				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) map[string][]json.RawMessage {
 					t.Parallel()
 					actual := testDyninst(
-						t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
+						t, service, bin, probeSlice, rewrite, expectedOutput,
+						debug, sem,
 					)
 					if t.Failed() {
-						return
+						return nil
 					}
 					outputs.Lock()
 					defer outputs.Unlock()
 					outputs.byTest[t.Name()] = actual
+					return actual
 				}
 				t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
 					if debug && testing.Short() {
 						t.Skip("skipping debug with short")
 					}
 					t.Parallel()
-					t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
+					t.Run("all-probes", func(t *testing.T) {
+						got := runTest(t, probes)
+						if got == nil || rewrite || debug {
+							return
+						}
+						// Ensure that we don't have any unexpected probes on
+						// disk.
+						unexpectedProbes := slices.DeleteFunc(
+							slices.Collect(maps.Keys(expectedOutput)),
+							func(id string) bool { _, ok := got[id]; return ok },
+						)
+						require.Empty(
+							t, unexpectedProbes,
+							"output has probes that are not expected",
+						)
+					})
 					for i := range probes {
 						probeID := probes[i].GetID()
 						t.Run(probeID, func(t *testing.T) {
@@ -443,82 +592,6 @@ func (d *testMessageSink) HandleEvent(ev output.Event) error {
 
 func (d *testMessageSink) Close() {
 	close(d.ch)
-}
-
-type testReporter struct {
-	attached chan *testMessageSink
-	t        *testing.T
-	sink     testMessageSink
-	irDump   *os.File
-}
-
-// ReportLoaded implements actuator.Reporter.
-func (r *testReporter) ReportLoaded(_ actuator.ProcessID, _ actuator.Executable, p *ir.Program) (actuator.Sink, error) {
-	if yaml, err := irprinter.PrintYAML(p); err != nil {
-		r.t.Errorf("failed to print IR: %v", err)
-	} else if _, err := io.Copy(r.irDump, bytes.NewReader(yaml)); err != nil {
-		r.t.Errorf("failed to write IR to file: %v", err)
-	}
-	r.sink = testMessageSink{
-		irp: p,
-		ch:  make(chan output.Event, 100),
-	}
-	return &r.sink, nil
-}
-
-// ReportAttached implements actuator.Reporter.
-func (r *testReporter) ReportAttached(actuator.ProcessID, *ir.Program) {
-	select {
-	case r.attached <- &r.sink:
-	default:
-	}
-}
-
-// ReportDetached implements actuator.Reporter.
-func (r *testReporter) ReportDetached(actuator.ProcessID, *ir.Program) {}
-
-// ReportIRGenFailed implements actuator.Reporter.
-func (r *testReporter) ReportIRGenFailed(
-	processID actuator.ProcessID,
-	err error,
-	probes []ir.ProbeDefinition,
-) {
-	defer close(r.attached)
-	r.t.Fatalf(
-		"IR generation failed for process %v: %#+v (with probes: %v)",
-		processID, err, probes,
-	)
-}
-
-// ReportLoadingFailed implements actuator.Reporter.
-func (r *testReporter) ReportLoadingFailed(
-	processID actuator.ProcessID,
-	program *ir.Program,
-	err error,
-) {
-	defer close(r.attached)
-	r.t.Fatalf(
-		"loading failed for program %d for process %v: %v", program.ID, processID, err,
-	)
-}
-
-// ReportAttachingFailed implements actuator.Reporter.
-func (r *testReporter) ReportAttachingFailed(
-	processID actuator.ProcessID, program *ir.Program, err error,
-) {
-	defer close(r.attached)
-	r.t.Fatalf(
-		"attaching failed for program %d to process %v: %v",
-		program.ID, processID, err,
-	)
-}
-
-func makeTestReporter(t *testing.T, irDump *os.File) *testReporter {
-	return &testReporter{
-		t:        t,
-		attached: make(chan *testMessageSink, 1),
-		irDump:   irDump,
-	}
 }
 
 func getProbeOutputFilename(service, probeID string) string {

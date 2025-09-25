@@ -638,7 +638,8 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	tags := []string{"tag0"}
 	conns[0].Tags = []uint32{0}
 
-	expectedTags := []string{"tag0", "process_context:my-server"}
+	// Have to be sorted with the usage of tags encoder v3
+	expectedTags := []string{"process_context:my-server", "tag0"}
 
 	procsByPid := map[int32]*procutil.Process{
 		conns[0].Pid: {

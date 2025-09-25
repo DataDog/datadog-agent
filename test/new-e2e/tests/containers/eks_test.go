@@ -28,6 +28,7 @@ func TestEKSSuite(t *testing.T) {
 			tifeks.WithWindowsNodeGroup(),
 			tifeks.WithBottlerocketNodeGroup(),
 			tifeks.WithLinuxARMNodeGroup(),
+			tifeks.WithUseAL2023Nodes(),
 		),
 		awskubernetes.WithDeployDogstatsd(),
 		awskubernetes.WithDeployTestWorkload(),

@@ -8,8 +8,6 @@ import requests
 
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.utils import get_metric_origin
-from tasks.libs.releasing.version import RELEASE_JSON_DEPENDENCIES
-from tasks.release import _get_release_json_value
 
 # Increase this value to force an update to the cache key, invalidating existing
 # caches and forcing a rebuild
@@ -73,6 +71,12 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'VSTUDIO_ROOT': 'For symbol inspector',
         'WINDIR': 'Windows operating system directory',
         'WINDOWS_BUILDER': 'Used to decide whether to assume a role for S3 access',
+        'WINDOWS_DDNPM_DRIVER': 'Windows Network Driver',
+        'WINDOWS_DDNPM_VERSION': 'Windows Network Driver Version',
+        'WINDOWS_DDNPM_SHASUM': 'Windows Network Driver Checksum',
+        'WINDOWS_DDPROCMON_DRIVER': 'Windows Kernel Procmon Driver',
+        'WINDOWS_DDPROCMON_VERSION': 'Windows Kernel Procmon Driver Version',
+        'WINDOWS_DDPROCMON_SHASUM': 'Windows Kernel Procmon Driver Checksum',
     },
     'linux': {
         'DEB_GPG_KEY': 'Used to sign packages',
@@ -85,10 +89,6 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
     },
     'darwin': {},
 }
-
-
-def _get_omnibus_commits(field):
-    return _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{field}')
 
 
 def _get_environment_for_cache(env: dict[str, str]) -> dict:
@@ -186,13 +186,6 @@ def omnibus_compute_cache_key(ctx, env: dict[str, str]) -> str:
     )
     print(f'Current hash value: {h.hexdigest()}')
     h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
-    # Some values can be forced through the environment so we need to read it
-    # from there first, and fallback to release.json
-    release_json_values = ['OMNIBUS_RUBY_VERSION', 'INTEGRATIONS_CORE_VERSION']
-    for val_key in release_json_values:
-        value = os.getenv(val_key, _get_omnibus_commits(val_key))
-        print(f'{val_key}: {value}')
-        h.update(str.encode(value))
     environment = _get_environment_for_cache(env)
     for k, v in sorted(environment.items()):
         print(f'\tUsing environment variable {k} to compute cache key')
