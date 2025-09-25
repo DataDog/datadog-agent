@@ -8,6 +8,7 @@ include:
   - .gitlab/check_merge/do_not_merge.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/pr_commenter.yml
+  - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
   - .gitlab/container_scan/container_scan.yml
   - .gitlab/deploy_containers/deploy_containers.yml
@@ -172,11 +173,6 @@ variables:
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v51662543-bc5e2989
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v51662543-bc5e2989
-  # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
-  # and check the job creating the image to make sure you have the right SHA prefix
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: f9c444a17bdc
   DATADOG_AGENT_BUILDERS: v76124889-5d86b9fb
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
