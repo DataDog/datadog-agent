@@ -1,0 +1,78 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build linux
+
+// Package collectorimpl implements the collector component interface
+package collectorimpl
+
+import (
+	"go.opentelemetry.io/collector/exporter/debugexporter"
+	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
+	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/processor"
+	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
+)
+
+// ExtraFactories is an interface that provides extra factories for the collector.
+// It is used to provide extra factories for the collector when the Agent Core is available or not.
+type ExtraFactories interface {
+	GetProcessors() []processor.Factory
+}
+
+// extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
+type extraFactoriesWithAgentCore struct{}
+
+var _ ExtraFactories = &extraFactoriesWithAgentCore{}
+
+func NewExtraFactoriesWithAgentCore() ExtraFactories {
+	return extraFactoriesWithAgentCore{}
+}
+
+func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
+	return []processor.Factory{}
+}
+
+// extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is NOT available.
+type extraFactoriesWithoutAgentCore struct{}
+
+var _ ExtraFactories = &extraFactoriesWithoutAgentCore{}
+
+func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
+	return extraFactoriesWithoutAgentCore{}
+}
+
+func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
+	return []processor.Factory{}
+}
+
+// createFactories creates a function that returns the factories for the collector.
+func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, error) {
+	return func() (otelcol.Factories, error) {
+		recvMap, err := otelcol.MakeFactoryMap(ebpfcollector.NewFactory())
+		if err != nil {
+			return otelcol.Factories{}, err
+		}
+
+		expMap, err := otelcol.MakeFactoryMap(
+			debugexporter.NewFactory(),
+			otlphttpexporter.NewFactory(),
+		)
+		if err != nil {
+			return otelcol.Factories{}, err
+		}
+
+		processors, err := otelcol.MakeFactoryMap(extraFactories.GetProcessors()...)
+		if err != nil {
+			return otelcol.Factories{}, err
+		}
+
+		return otelcol.Factories{
+			Receivers:  recvMap,
+			Exporters:  expMap,
+			Processors: processors,
+		}, nil
+	}
+}

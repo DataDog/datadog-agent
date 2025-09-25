@@ -15,11 +15,8 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
-	"go.opentelemetry.io/collector/exporter/debugexporter"
-	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/otelcol"
-	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
 )
 
 // Params contains the parameters for the collector component.
@@ -36,7 +33,8 @@ func NewParams(uri string) Params {
 
 // Requires defines the dependencies for the collector component
 type Requires struct {
-	Params Params
+	Params         Params
+	ExtraFactories ExtraFactories
 }
 
 // Provides defines the output of the collector component.
@@ -56,7 +54,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
-	settings, err := newCollectorSettings(reqs.Params.uri)
+	settings, err := newCollectorSettings(reqs.Params.uri, reqs.ExtraFactories)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -77,9 +75,9 @@ func (c *collectorImpl) Run() error {
 	return c.collector.Run(context.Background())
 }
 
-func newCollectorSettings(uri string) (otelcol.CollectorSettings, error) {
+func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.CollectorSettings, error) {
 	return otelcol.CollectorSettings{
-		Factories: createFactories,
+		Factories: createFactories(extraFactories),
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
 			ResolverSettings: confmap.ResolverSettings{
 				URIs: []string{uri},
@@ -89,25 +87,5 @@ func newCollectorSettings(uri string) (otelcol.CollectorSettings, error) {
 				},
 			},
 		},
-	}, nil
-}
-
-func createFactories() (otelcol.Factories, error) {
-	recvMap, err := otelcol.MakeFactoryMap(ebpfcollector.NewFactory())
-	if err != nil {
-		return otelcol.Factories{}, err
-	}
-
-	expMap, err := otelcol.MakeFactoryMap(
-		debugexporter.NewFactory(),
-		otlphttpexporter.NewFactory(),
-	)
-	if err != nil {
-		return otelcol.Factories{}, err
-	}
-
-	return otelcol.Factories{
-		Receivers: recvMap,
-		Exporters: expMap,
 	}, nil
 }

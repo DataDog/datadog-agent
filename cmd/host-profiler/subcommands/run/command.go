@@ -43,10 +43,18 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 }
 
 func runHostProfilerCommand(_ context.Context, cliParams *cliParams) error {
-	return fxutil.Run(
+	var opts []fx.Option = []fx.Option{
 		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath)),
 		fx.Invoke(func(collector collector.Component) error {
 			return collector.Run()
 		}),
-	)
+	}
+
+	if cliParams.GlobalParams.CoreConfPath != "" {
+		opts = append(opts, fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore))
+	} else {
+		opts = append(opts, fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore))
+	}
+
+	return fxutil.Run(opts...)
 }
