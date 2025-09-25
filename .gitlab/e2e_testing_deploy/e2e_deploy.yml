@@ -213,7 +213,7 @@ deploy_windows_testing-a7:
   tags: ["arch:amd64", "specific:true"]
   retry: 2
   needs:
-    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
+    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
@@ -222,7 +222,6 @@ deploy_windows_testing-a7:
       --exclude "*"
       --include "datadog-agent-7.*.msi"
       --include "datadog-agent-upgrade-test-7.*.msi"
-      --include "datadog-installer-*-1-x86_64.msi"
       --include "datadog-installer-*-1-x86_64.exe"
       $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
