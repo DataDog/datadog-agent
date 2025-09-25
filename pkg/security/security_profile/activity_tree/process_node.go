@@ -413,7 +413,10 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 	}
 
 	// Insert bind event
-	newNode, anyBindNodeTagged := sock.InsertBindEvent(&evt.Bind, evt, imageTag, generationType, evt.Rules, dryRun)
+	tmpNewNode, anyBindNodeTagged := sock.InsertBindEvent(&evt.Bind, evt, imageTag, generationType, evt.Rules, dryRun)
+	if tmpNewNode {
+		newNode = true
+	}
 
 	if anyBindNodeTagged {
 		pn.AppendImageTag(imageTag, evt.ResolveEventTime())
