@@ -475,11 +475,11 @@ func TestInjectSocket(t *testing.T) {
 			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 
 			datadogConfig := config.NewMockWithOverrides(t, map[string]interface{}{
-				"csi.enabled": test.withCSIDriver,
-				"admission_controller.inject_config.trace_agent_host_socket_path":     test.TraceHostSocketPath,
-				"admission_controller.inject_config.dogstatsd_agent_host_socket_path": test.DogStatsDHostSocketPath,
-				"apm_config.receiver_socket":                                          test.apmSocketFilePath,
-				"dogstatsd_socket":                                                    test.dsdSocketFilePath,
+				"csi.enabled":                  test.withCSIDriver,
+				"trace_agent_host_socket_path": test.TraceHostSocketPath,
+				"dogstatsd_host_socket_path":   test.DogStatsDHostSocketPath,
+				"apm_config.receiver_socket":   test.apmSocketFilePath,
+				"dogstatsd_socket":             test.dsdSocketFilePath,
 			})
 
 			filter, err := NewFilter(datadogConfig)
@@ -497,9 +497,8 @@ func TestInjectSocket(t *testing.T) {
 			}
 			safe := pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation]
 			parts := []string{}
-			if safe != "" {
-				parts = strings.Split(safe, ",")
-			}
+
+			parts = strings.Split(safe, ",")
 
 			expectedNames := make([]string, 0, len(test.expectedVolumes))
 			for _, v := range test.expectedVolumes {
@@ -531,8 +530,8 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			withCSIDriver:           false,
 			DogStatsDHostSocketPath: "/var/run/datadog-dsd",
 			TraceHostSocketPath:     "/var/run/datadog-apm",
-			apmSocketFilePath:       "apm.sock",
-			dsdSocketFilePath:       "dsd.socket",
+			apmSocketFilePath:       "/var/run/datadog/apm.sock",
+			dsdSocketFilePath:       "/var/run/datadog/dsd.socket",
 			globalTypeSocketVolumes: true,
 			expectedVolumes: []corev1.Volume{
 				{
@@ -621,8 +620,8 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			name:                    "with csi driver",
 			withCSIDriver:           true,
 			globalTypeSocketVolumes: true,
-			apmSocketFilePath:       "apm.sock",
-			dsdSocketFilePath:       "dsd.socket",
+			apmSocketFilePath:       "/var/run/datadog/apm.sock",
+			dsdSocketFilePath:       "/var/run/datadog/dsd.socket",
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: "datadog-dogstatsd",
@@ -684,14 +683,14 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 			pod = mutatecommon.WithLabels(pod, labels)
 
 			datadogConfig := config.NewMockWithOverrides(t, map[string]interface{}{
-				"csi.enabled":                                                         test.withCSIDriver,
-				"admission_controller.csi.enabled":                                    test.withCSIDriver,
-				"admission_controller.inject_config.csi.enabled":                      test.withCSIDriver,
-				"admission_controller.inject_config.type_socket_volumes":              test.globalTypeSocketVolumes,
-				"admission_controller.inject_config.dogstatsd_agent_host_socket_path": test.DogStatsDHostSocketPath,
-				"admission_controller.inject_config.trace_agent_host_socket_path":     test.TraceHostSocketPath,
-				"apm_config.receiver_socket":                                          test.apmSocketFilePath,
-				"dogstatsd_socket":                                                    test.dsdSocketFilePath,
+				"csi.enabled":                                            test.withCSIDriver,
+				"admission_controller.csi.enabled":                       test.withCSIDriver,
+				"admission_controller.inject_config.csi.enabled":         test.withCSIDriver,
+				"admission_controller.inject_config.type_socket_volumes": test.globalTypeSocketVolumes,
+				"dogstatsd_host_socket_path":                             test.DogStatsDHostSocketPath,
+				"trace_agent_host_socket_path":                           test.TraceHostSocketPath,
+				"apm_config.receiver_socket":                             test.apmSocketFilePath,
+				"dogstatsd_socket":                                       test.dsdSocketFilePath,
 			})
 			wmeta := fxutil.Test[workloadmeta.Component](
 				t,

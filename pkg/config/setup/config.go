@@ -839,8 +839,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket / csi
 	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
-	config.BindEnvAndSetDefault("admission_controller.inject_config.trace_agent_host_socket_path", "/var/run/datadog")
-	config.BindEnvAndSetDefault("admission_controller.inject_config.dogstatsd_agent_host_socket_path", "/var/run/datadog")
+	config.BindEnvAndSetDefault("trace_agent_host_socket_path", "/var/run/datadog")
+	config.BindEnvAndSetDefault("dogstatsd_host_socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.type_socket_volumes", false)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)

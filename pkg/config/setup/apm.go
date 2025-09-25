@@ -163,12 +163,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		return mappings
 	})
 
-	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
-		config.BindEnvAndSetDefault("apm_config.receiver_socket", "/var/run/datadog/apm.socket", "DD_APM_RECEIVER_SOCKET")
-	} else {
-		// Windows/Darwin default to empty
-		config.BindEnvAndSetDefault("apm_config.receiver_socket", "", "DD_APM_RECEIVER_SOCKET")
-	}
+	config.BindEnvAndSetDefault("apm_config.receiver_socket", "/var/run/datadog/apm.socket", "DD_APM_RECEIVER_SOCKET")
 	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")
 	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")
 	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")
