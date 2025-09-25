@@ -26,11 +26,10 @@ import (
 // Config is the configuration for the dynamic instrumentation module.
 type Config struct {
 	ebpf.Config
-	DynamicInstrumentationEnabled bool
-	LogUploaderURL                string
-	DiagsUploaderURL              string
-	SymDBUploadEnabled            bool
-	SymDBUploaderURL              string
+	LogUploaderURL     string
+	DiagsUploaderURL   string
+	SymDBUploadEnabled bool
+	SymDBUploaderURL   string
 
 	// DiskCacheEnabled enables the disk cache for debug info.  If this is
 	// false, no disk cache will be used and the debug info will be stored in
@@ -58,10 +57,6 @@ func (e *erasedActuator[A, AT]) Shutdown() error {
 
 // NewConfig creates a new Config object.
 func NewConfig(spConfig *sysconfigtypes.Config) (*Config, error) {
-	var diEnabled bool
-	if spConfig != nil {
-		_, diEnabled = spConfig.EnabledModules[sysconfig.DynamicInstrumentationModule]
-	}
 	traceAgentURL := getTraceAgentURL(os.Getenv)
 	cacheConfig, cacheEnabled, err := getDebugInfoDiskCacheConfig()
 	if err != nil {
@@ -69,14 +64,13 @@ func NewConfig(spConfig *sysconfigtypes.Config) (*Config, error) {
 	}
 
 	c := &Config{
-		Config:                        *ebpf.NewConfig(),
-		DynamicInstrumentationEnabled: diEnabled,
-		LogUploaderURL:                withPath(traceAgentURL, logUploaderPath),
-		DiagsUploaderURL:              withPath(traceAgentURL, diagsUploaderPath),
-		SymDBUploadEnabled:            pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
-		SymDBUploaderURL:              withPath(traceAgentURL, symdbUploaderPath),
-		DiskCacheEnabled:              cacheEnabled,
-		DiskCacheConfig:               cacheConfig,
+		Config:             *ebpf.NewConfig(),
+		LogUploaderURL:     withPath(traceAgentURL, logUploaderPath),
+		DiagsUploaderURL:   withPath(traceAgentURL, diagsUploaderPath),
+		SymDBUploadEnabled: pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
+		SymDBUploaderURL:   withPath(traceAgentURL, symdbUploaderPath),
+		DiskCacheEnabled:   cacheEnabled,
+		DiskCacheConfig:    cacheConfig,
 	}
 	return c, nil
 }
