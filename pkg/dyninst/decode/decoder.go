@@ -195,8 +195,6 @@ type snapshotMessage struct {
 	Logger    logger           `json:"logger"`
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
-
-	rootData []byte
 }
 
 func (s *snapshotMessage) init(
@@ -214,6 +212,7 @@ func (s *snapshotMessage) init(
 	}
 	var rootType *ir.EventRootType
 	var probe ir.ProbeDefinition
+	var rootData []byte
 
 	for item, err := range event.Event.DataItems() {
 		if err != nil {
@@ -221,7 +220,7 @@ func (s *snapshotMessage) init(
 		}
 		if rootType == nil {
 			var ok bool
-			s.rootData, ok = item.Data()
+			rootData, ok = item.Data()
 			if !ok {
 				// This should never happen.
 				return probe, errors.New("root data item marked as a failed read")
@@ -294,9 +293,8 @@ func (s *snapshotMessage) init(
 
 	decoder.skippedArgumentExpressions.reset(len(rootType.Expressions))
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
-		event:            event,
 		rootType:         rootType,
-		rootData:         s.rootData,
+		rootData:         rootData,
 		decoder:          decoder,
 		evaluationErrors: &s.Debugger.EvaluationErrors,
 		skippedIndices:   &decoder.skippedArgumentExpressions,

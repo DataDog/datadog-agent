@@ -67,7 +67,6 @@ type capturePointData struct {
 type argumentsData struct {
 	rootData         []byte
 	rootType         *ir.EventRootType
-	event            Event
 	decoder          *Decoder
 	evaluationErrors *[]string
 	skippedIndices   *bitset
