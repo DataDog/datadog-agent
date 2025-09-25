@@ -31,6 +31,7 @@ const (
 	tracerouteNS                 = "traceroute"
 	discoveryNS                  = "discovery"
 	gpuNS                        = "gpu_monitoring"
+	privilegedLogsNS             = "privileged_logs"
 	swNS                         = "software_inventory"
 	defaultConnsMessageBatchSize = 600
 
@@ -322,7 +323,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_kprobe_fallback"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.buffer_size"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.kretprobe_max_active"), 512)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"})
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT"})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), true)
@@ -368,6 +369,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.period"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "service_collection_interval"), "60s")
+
+	// Privileged Logs config
+	cfg.BindEnvAndSetDefault(join(privilegedLogsNS, "enabled"), false)
 
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'

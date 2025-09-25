@@ -240,7 +240,7 @@ func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Compone
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if !config.IsSet("api_key") {
+	if !config.IsConfigured("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return
 	}

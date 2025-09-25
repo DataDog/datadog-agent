@@ -41,7 +41,7 @@ func (r *Resolver) ResolveFilePath(e *model.FileFields) (string, error) {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: err}
 		}
-		return pathStr, &ErrPathResolution{Err: err}
+		return "", &ErrPathResolution{Err: err}
 	}
 
 	return pathStr, nil

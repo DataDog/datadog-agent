@@ -7,11 +7,57 @@ package tagger
 
 import (
 	"crypto/tls"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
+
+// Option is a function that modifies the RemoteParams
+type Option = func(*RemoteParams)
+
+// WithRemoteTarget sets the RemoteTarget function
+func WithRemoteTarget(remoteTarget func(config.Component) (string, error)) Option {
+	return func(params *RemoteParams) {
+		params.RemoteTarget = remoteTarget
+	}
+}
+
+// WithRemoteFilter sets the RemoteFilter function
+func WithRemoteFilter(filter *types.Filter) Option {
+	return func(params *RemoteParams) {
+		params.RemoteFilter = filter
+	}
+}
+
+// WithOverrideTLSConfigGetter sets the OverrideTLSConfigGetter function
+func WithOverrideTLSConfigGetter(getter func() (*tls.Config, error)) Option {
+	return func(params *RemoteParams) {
+		params.OverrideTLSConfigGetter = getter
+	}
+}
+
+// WithOverrideAuthTokenGetter sets the OverrideAuthTokenGetter function
+func WithOverrideAuthTokenGetter(getter func(pkgconfigmodel.Reader) (string, error)) Option {
+	return func(params *RemoteParams) {
+		params.OverrideAuthTokenGetter = getter
+	}
+}
+
+// NewRemoteParams creates a new RemoteParams with the default values
+func NewRemoteParams(opts ...Option) RemoteParams {
+	params := RemoteParams{
+		RemoteTarget: func(c config.Component) (string, error) {
+			return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+		},
+		RemoteFilter: types.NewMatchAllFilter(),
+	}
+	for _, opt := range opts {
+		opt(&params)
+	}
+	return params
+}
 
 // RemoteParams provides remote tagger parameters
 type RemoteParams struct {

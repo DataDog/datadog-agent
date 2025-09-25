@@ -777,3 +777,10 @@ Package metricscompression provides the component for metrics compression
 *Datadog Team*: ndm-core
 
 Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device
+
+### [comp/syntheticstestscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/syntheticstestscheduler)
+
+*Datadog Team*: synthetics-executing
+
+Package syntheticstestscheduler defines a synthetics scheduler component to run
+network tests based on remote config.

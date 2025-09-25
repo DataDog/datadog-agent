@@ -1,0 +1,49 @@
+"""Agent specific BUILD file for bzip2."""
+
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+
+# Forwarder to make this more accessible to the rest of the build.
+alias(
+    name = "bzip2",
+    actual = "@bzip2//:bzip2",
+)
+
+# Mirror the tests from the upstream Makefile.
+# Consider upstreaming to the BCR copy some day.
+_test_cases = [
+    #  original, compress flag, expected
+    ("sample1_comp", "sample1.ref", "-1", "sample1.bz2"),
+    ("sample2_comp", "sample2.ref", "-2", "sample2.bz2"),
+    ("sample3_comp", "sample3.ref", "-3", "sample3.bz2"),
+    ("sample1_decomp", "sample1.bz2", "-d", "sample1.ref"),
+    ("sample2_decomp", "sample2.bz2", "-d", "sample2.ref"),
+    ("sample3_decomp", "sample3.bz2", "-ds", "sample3.ref"),
+]
+
+[
+    genrule(
+        name = "_gen_%s_" % case[1],
+        srcs = [
+            "@bzip2//:%s" % case[1],
+        ],
+        outs = ["_%s" % case[1]],
+        cmd = " ".join([
+            "$(location :bzip2)",
+            case[2],
+            "<$(location @bzip2//:%s)" % case[1],
+            ">$@",
+        ]),
+        tools = [":bzip2"],
+    )
+    for case in _test_cases
+]
+
+[
+    diff_test(
+        name = case[0],
+        failure_message = "compress or decompress fail",
+        file1 = ":_%s" % case[1],
+        file2 = "@bzip2//:%s" % case[3],
+    )
+    for case in _test_cases
+]

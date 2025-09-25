@@ -32,6 +32,7 @@ import (
 )
 
 var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
+var functionParseLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 5)
 
 // PackagesIterator returns an iterator over the packages in the binary.
 //
@@ -1247,10 +1248,17 @@ func (b *packagesIterator) exploreSubprogram(
 		// exploreCode() call above.
 		typ := b.types.getType(typeQualifiedName)
 		if typ == nil {
-			return Function{}, fmt.Errorf(
-				"%s is a method of type %s, but that type is missing from the cache. DWARF offset: 0x%x",
-				funcQualifiedName, typeQualifiedName, entry.Offset,
-			)
+			// We think this is a method, but the type is missing from the
+			// cache. This could mean that we parsed the function wrong -- e.g.
+			// it's an anonymous function, not a method. Log and ignore skip the
+			// function.
+			if functionParseLogLimiter.Allow() {
+				log.Warnf(
+					"%s is a method of type %s, but that type is missing from the cache. DWARF offset: 0x%x",
+					funcQualifiedName, typeQualifiedName, entry.Offset,
+				)
+				return Function{}, nil
+			}
 		}
 		typ.Methods = append(typ.Methods, res)
 		// We don't return a Function for methods.
