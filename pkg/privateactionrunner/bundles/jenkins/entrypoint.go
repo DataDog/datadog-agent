@@ -6,23 +6,32 @@
 package com_datadoghq_jenkins
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type Jenkins struct {
-	actions map[string]types.Action
 }
 
 func NewJenkins() *Jenkins {
-	return &Jenkins{
-		actions: map[string]types.Action{
-			"buildJenkinsJob":  NewBuildJobHandler(),
-			"getJobStatus":     NewGetJobStatusHandler(),
-			"deleteJenkinsJob": NewDeleteJobHandler(),
-		},
+	return &Jenkins{}
+}
+
+func (j *Jenkins) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "buildJenkinsJob":
+		return j.RunBuildJob(ctx, task, credential)
+	case "getJobStatus":
+		return j.RunGetJobStatus(ctx, task, credential)
+	case "deleteJenkinsJob":
+		return j.RunDeleteJob(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
-func (h *Jenkins) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+func (h *Jenkins) GetAction(_ string) types.Action {
+	return h
 }

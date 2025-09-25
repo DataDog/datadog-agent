@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdateCronJobHandler struct{}
-
-func NewUpdateCronJobHandler() *UpdateCronJobHandler {
-	return &UpdateCronJobHandler{}
-}
-
 type UpdateCronJobInputs struct {
 	*support.UpdateFields
 	Namespace string      `json:"namespace,omitempty"`
@@ -35,11 +29,11 @@ type UpdateCronJobOutputs struct {
 	Status     v1.CronJobStatus  `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *UpdateCronJobHandler) Run(
+func (b *KubernetesBatch) RunUpdateCronJob(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[UpdateCronJobInputs](task)
 	if err != nil {
 		return nil, err

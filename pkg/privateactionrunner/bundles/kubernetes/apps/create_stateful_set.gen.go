@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateStatefulSetHandler struct{}
-
-func NewCreateStatefulSetHandler() *CreateStatefulSetHandler {
-	return &CreateStatefulSetHandler{}
-}
-
 type CreateStatefulSetInputs struct {
 	*support.CreateFields
 	Namespace string          `json:"namespace,omitempty"`
@@ -35,11 +29,11 @@ type CreateStatefulSetOutputs struct {
 	Status     v1.StatefulSetStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *CreateStatefulSetHandler) Run(
+func (b *KubernetesApps) RunCreateStatefulSet(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[CreateStatefulSetInputs](task)
 	if err != nil {
 		return nil, err

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type SubscribeToIssueHandler struct{}
-
-func NewSubscribeToIssueHandler() *SubscribeToIssueHandler {
-	return &SubscribeToIssueHandler{}
-}
-
 type SubscribeToIssueInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -28,7 +22,7 @@ type SubscribeToIssueOutputs struct {
 	Issue *gitlab.Issue `json:"issue"`
 }
 
-func (h *SubscribeToIssueHandler) Run(
+func (b *GitlabIssuesBundle) RunSubscribeToIssue(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

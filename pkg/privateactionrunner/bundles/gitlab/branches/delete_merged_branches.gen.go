@@ -12,19 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMergedBranchesHandler struct{}
-
-func NewDeleteMergedBranchesHandler() *DeleteMergedBranchesHandler {
-	return &DeleteMergedBranchesHandler{}
-}
-
 type DeleteMergedBranchesInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 }
 
 type DeleteMergedBranchesOutputs struct{}
 
-func (h *DeleteMergedBranchesHandler) Run(
+func (b *GitlabBranchesBundle) RunDeleteMergedBranches(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

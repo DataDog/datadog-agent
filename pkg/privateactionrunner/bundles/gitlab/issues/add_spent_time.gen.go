@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type AddSpentTimeHandler struct{}
-
-func NewAddSpentTimeHandler() *AddSpentTimeHandler {
-	return &AddSpentTimeHandler{}
-}
-
 type AddSpentTimeInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -29,10 +23,9 @@ type AddSpentTimeOutputs struct {
 	TimeStats *gitlab.TimeStats `json:"time_stats"`
 }
 
-func (h *AddSpentTimeHandler) Run(
+func (b *GitlabIssuesBundle) RunAddSpentTime(
 	ctx context.Context,
 	task *types.Task, credential interface{},
-
 ) (any, error) {
 	inputs, err := types.ExtractInputs[AddSpentTimeInputs](task)
 	if err != nil {

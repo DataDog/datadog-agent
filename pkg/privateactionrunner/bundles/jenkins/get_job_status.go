@@ -17,21 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 )
 
-type GetJobStatusHandler struct {
-	httpClientProvider httpclient.Provider
-}
-
-func (h *GetJobStatusHandler) WithHttpClientProvider(httpClientProvider httpclient.Provider) *GetJobStatusHandler {
-	h.httpClientProvider = httpClientProvider
-	return h
-}
-
-func NewGetJobStatusHandler() *GetJobStatusHandler {
-	return &GetJobStatusHandler{
-		httpClientProvider: httpclient.NewDefaultProvider(),
-	}
-}
-
 type GetJobStatusInputs struct {
 	JobName string `json:"jobName,omitempty"`
 }
@@ -46,7 +31,7 @@ type GetJobStatusOutputs struct {
 	URL               string `json:"url,omitempty"`
 }
 
-func (h *GetJobStatusHandler) Run(
+func (j *Jenkins) RunGetJobStatus(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
@@ -68,7 +53,8 @@ func (h *GetJobStatusHandler) Run(
 	for k, v := range domainAndHeaders.Headers {
 		req.Header.Set(k, v[0])
 	}
-	client, err := h.httpClientProvider.NewDefaultClient()
+	httpClientProvider := httpclient.NewDefaultProvider()
+	client, err := httpClientProvider.NewDefaultClient()
 	if err != nil {
 		return nil, err
 	}

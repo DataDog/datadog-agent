@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type SetCustomProjectAttributeHandler struct{}
-
-func NewSetCustomProjectAttributeHandler() *SetCustomProjectAttributeHandler {
-	return &SetCustomProjectAttributeHandler{}
-}
-
 type SetCustomProjectAttributeInputs struct {
 	ProjectId int `json:"project_id,omitempty"`
 	gitlab.CustomAttribute
@@ -28,7 +22,7 @@ type SetCustomProjectAttributeOutputs struct {
 	CustomAttribute *gitlab.CustomAttribute `json:"custom_attribute"`
 }
 
-func (h *SetCustomProjectAttributeHandler) Run(
+func (b *GitlabCustomAttributesBundle) RunSetCustomProjectAttribute(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

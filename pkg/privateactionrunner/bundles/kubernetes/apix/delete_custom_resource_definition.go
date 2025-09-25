@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package com_datadoghq_kubernetes_apiextensions
+package com_datadoghq_kubernetes_apix
 
 import (
 	"context"
@@ -13,23 +13,17 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type DeleteCustomResourceDefinitionHandler struct{}
-
-func NewDeleteCustomResourceDefinitionHandler() *DeleteCustomResourceDefinitionHandler {
-	return &DeleteCustomResourceDefinitionHandler{}
-}
-
 type DeleteCustomResourceDefinitionInputs struct {
 	*support.DeleteFields
 }
 
 type DeleteCustomResourceDefinitionOutputs struct{}
 
-func (h *DeleteCustomResourceDefinitionHandler) Run(
+func (b *KubernetesApiExtensions) RunDeleteCustomResourceDefinition(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[DeleteCustomResourceDefinitionInputs](task)
 	if err != nil {
 		return nil, err

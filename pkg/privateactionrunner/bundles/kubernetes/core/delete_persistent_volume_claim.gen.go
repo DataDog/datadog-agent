@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeletePersistentVolumeClaimHandler struct{}
-
-func NewDeletePersistentVolumeClaimHandler() *DeletePersistentVolumeClaimHandler {
-	return &DeletePersistentVolumeClaimHandler{}
-}
-
 type DeletePersistentVolumeClaimInputs struct {
 	*support.DeleteFields
 	Namespace string `json:"namespace,omitempty"`
@@ -28,7 +22,7 @@ type DeletePersistentVolumeClaimInputs struct {
 
 type DeletePersistentVolumeClaimOutputs struct{}
 
-func (h *DeletePersistentVolumeClaimHandler) Run(
+func (b *KubernetesCore) RunDeletePersistentVolumeClaim(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

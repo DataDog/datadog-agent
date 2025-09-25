@@ -19,12 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type ListPodHandler struct{}
-
-func NewListPodHandler() *ListPodHandler {
-	return &ListPodHandler{}
-}
-
 type ListPodInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -35,7 +29,7 @@ type ListPodOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListPodHandler) Run(
+func (b *KubernetesCore) RunListPod(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

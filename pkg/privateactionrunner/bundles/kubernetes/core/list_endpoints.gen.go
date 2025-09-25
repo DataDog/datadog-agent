@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListEndpointsHandler struct{}
-
-func NewListEndpointsHandler() *ListEndpointsHandler {
-	return &ListEndpointsHandler{}
-}
-
 type ListEndpointsInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,7 +27,7 @@ type ListEndpointsOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListEndpointsHandler) Run(
+func (b *KubernetesCore) RunListEndpoints(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

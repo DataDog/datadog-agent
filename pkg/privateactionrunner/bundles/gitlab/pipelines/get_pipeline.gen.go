@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetPipelineHandler struct{}
-
-func NewGetPipelineHandler() *GetPipelineHandler {
-	return &GetPipelineHandler{}
-}
-
 type GetPipelineInputs struct {
 	ProjectId  lib.GitlabID `json:"project_id,omitempty"`
 	PipelineId int          `json:"pipeline_id,omitempty"`
@@ -28,7 +22,7 @@ type GetPipelineOutputs struct {
 	Pipeline *gitlab.Pipeline `json:"pipeline"`
 }
 
-func (h *GetPipelineHandler) Run(
+func (b *GitlabPipelinesBundle) RunGetPipeline(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

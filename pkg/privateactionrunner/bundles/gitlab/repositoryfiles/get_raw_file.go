@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GetRawFileHandler struct{}
-
-func NewGetRawFileHandler() *GetRawFileHandler {
-	return &GetRawFileHandler{}
-}
-
 type GetRawFileInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	FilePath  string       `json:"file_path,omitempty"`
@@ -35,7 +29,7 @@ type GetRawFileOutputs struct {
 	Content any `json:"content,omitempty"`
 }
 
-func (h *GetRawFileHandler) Run(
+func (b *GitlabRepositoryFilesBundle) RunGetRawFile(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

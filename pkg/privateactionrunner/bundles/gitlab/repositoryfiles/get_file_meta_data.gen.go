@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetFileMetaDataHandler struct{}
-
-func NewGetFileMetaDataHandler() *GetFileMetaDataHandler {
-	return &GetFileMetaDataHandler{}
-}
-
 type GetFileMetaDataInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	FilePath  string       `json:"file_path,omitempty"`
@@ -29,7 +23,7 @@ type GetFileMetaDataOutputs struct {
 	File *gitlab.File `json:"file"`
 }
 
-func (h *GetFileMetaDataHandler) Run(
+func (b *GitlabRepositoryFilesBundle) RunGetFileMetaData(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

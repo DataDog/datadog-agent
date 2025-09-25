@@ -6,26 +6,35 @@
 package com_datadoghq_gitlab_groups
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/pkg/errors"
 )
 
-type GitlabGroupsBundle struct {
-	actions map[string]types.Action
-}
+type GitlabGroupsBundle struct{}
 
 func NewGitlabGroups() types.Bundle {
-	return &GitlabGroupsBundle{
-		actions: map[string]types.Action{
-			// Auto-generated actions
-			"createGroup": NewCreateGroupHandler(),
-			"deleteGroup": NewDeleteGroupHandler(),
-			"getGroup":    NewGetGroupHandler(),
-			"listGroups":  NewListGroupsHandler(),
-			"updateGroup": NewUpdateGroupHandler(),
-		},
-	}
+	return &GitlabGroupsBundle{}
 }
 
-func (h *GitlabGroupsBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+func (b *GitlabGroupsBundle) GetAction(actionName string) types.Action {
+	return b
+}
+
+func (b *GitlabGroupsBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "createGroup":
+		return b.RunCreateGroup(ctx, task, credential)
+	case "deleteGroup":
+		return b.RunDeleteGroup(ctx, task, credential)
+	case "getGroup":
+		return b.RunGetGroup(ctx, task, credential)
+	case "listGroups":
+		return b.RunListGroups(ctx, task, credential)
+	case "updateGroup":
+		return b.RunUpdateGroup(ctx, task, credential)
+	default:
+		return nil, errors.Errorf("unknown action: %s", actionName)
+	}
 }

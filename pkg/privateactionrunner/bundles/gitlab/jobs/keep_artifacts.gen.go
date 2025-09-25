@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type KeepArtifactsHandler struct{}
-
-func NewKeepArtifactsHandler() *KeepArtifactsHandler {
-	return &KeepArtifactsHandler{}
-}
-
 type KeepArtifactsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	JobId     int          `json:"job_id,omitempty"`
@@ -28,7 +22,7 @@ type KeepArtifactsOutputs struct {
 	Job *gitlab.Job `json:"job"`
 }
 
-func (h *KeepArtifactsHandler) Run(
+func (b *GitlabJobsBundle) RunKeepArtifacts(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

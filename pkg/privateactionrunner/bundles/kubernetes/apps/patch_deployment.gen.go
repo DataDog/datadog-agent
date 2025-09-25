@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchDeploymentHandler struct{}
-
-func NewPatchDeploymentHandler() *PatchDeploymentHandler {
-	return &PatchDeploymentHandler{}
-}
-
 type PatchDeploymentInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,11 +30,11 @@ type PatchDeploymentOutputs struct {
 	Status     v1.DeploymentStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchDeploymentHandler) Run(
+func (b *KubernetesApps) RunPatchDeployment(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[PatchDeploymentInputs](task)
 	if err != nil {
 		return nil, err

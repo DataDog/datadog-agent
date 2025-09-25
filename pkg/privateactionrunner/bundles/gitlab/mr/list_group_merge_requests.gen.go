@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListGroupMergeRequestsHandler struct{}
-
-func NewListGroupMergeRequestsHandler() *ListGroupMergeRequestsHandler {
-	return &ListGroupMergeRequestsHandler{}
-}
-
 type ListGroupMergeRequestsInputs struct {
 	GroupId lib.GitlabID `json:"group_id,omitempty"`
 	*gitlab.ListGroupMergeRequestsOptions
@@ -28,7 +22,7 @@ type ListGroupMergeRequestsOutputs struct {
 	BasicMergeRequests []*gitlab.BasicMergeRequest `json:"merge_requests"`
 }
 
-func (h *ListGroupMergeRequestsHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunListGroupMergeRequests(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

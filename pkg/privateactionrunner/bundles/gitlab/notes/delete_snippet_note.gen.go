@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteSnippetNoteHandler struct{}
-
-func NewDeleteSnippetNoteHandler() *DeleteSnippetNoteHandler {
-	return &DeleteSnippetNoteHandler{}
-}
-
 type DeleteSnippetNoteInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	SnippetId int          `json:"snippet_id,omitempty"`
@@ -26,7 +20,7 @@ type DeleteSnippetNoteInputs struct {
 
 type DeleteSnippetNoteOutputs struct{}
 
-func (h *DeleteSnippetNoteHandler) Run(
+func (b *GitlabNotesBundle) RunDeleteSnippetNote(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type UpdateProjectDeploymentHandler struct{}
-
-func NewUpdateProjectDeploymentHandler() *UpdateProjectDeploymentHandler {
-	return &UpdateProjectDeploymentHandler{}
-}
-
 type UpdateProjectDeploymentInputs struct {
 	ProjectId    lib.GitlabID `json:"project_id,omitempty"`
 	DeploymentId int          `json:"deployment_id,omitempty"`
@@ -29,7 +23,7 @@ type UpdateProjectDeploymentOutputs struct {
 	Deployment *gitlab.Deployment `json:"deployment"`
 }
 
-func (h *UpdateProjectDeploymentHandler) Run(
+func (b *GitlabDeploymentsBundle) RunUpdateProjectDeployment(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

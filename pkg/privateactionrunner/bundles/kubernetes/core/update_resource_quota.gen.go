@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdateResourceQuotaHandler struct{}
-
-func NewUpdateResourceQuotaHandler() *UpdateResourceQuotaHandler {
-	return &UpdateResourceQuotaHandler{}
-}
-
 type UpdateResourceQuotaInputs struct {
 	*support.UpdateFields
 	Namespace string            `json:"namespace,omitempty"`
@@ -35,7 +29,7 @@ type UpdateResourceQuotaOutputs struct {
 	Status     v1.ResourceQuotaStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *UpdateResourceQuotaHandler) Run(
+func (b *KubernetesCore) RunUpdateResourceQuota(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

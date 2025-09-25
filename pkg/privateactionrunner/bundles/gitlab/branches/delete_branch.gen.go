@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteBranchHandler struct{}
-
-func NewDeleteBranchHandler() *DeleteBranchHandler {
-	return &DeleteBranchHandler{}
-}
-
 type DeleteBranchInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Branch    string       `json:"branch,omitempty"`
@@ -25,7 +19,7 @@ type DeleteBranchInputs struct {
 
 type DeleteBranchOutputs struct{}
 
-func (h *DeleteBranchHandler) Run(
+func (b *GitlabBranchesBundle) RunDeleteBranch(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

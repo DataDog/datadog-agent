@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetLabelHandler struct{}
-
-func NewGetLabelHandler() *GetLabelHandler {
-	return &GetLabelHandler{}
-}
-
 type GetLabelInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	LabelId   lib.GitlabID `json:"label_id,omitempty"`
@@ -28,7 +22,7 @@ type GetLabelOutputs struct {
 	Label *gitlab.Label `json:"label"`
 }
 
-func (h *GetLabelHandler) Run(
+func (b *GitlabLabelsBundle) RunGetLabel(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

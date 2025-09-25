@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchServiceAccountHandler struct{}
-
-func NewPatchServiceAccountHandler() *PatchServiceAccountHandler {
-	return &PatchServiceAccountHandler{}
-}
-
 type PatchServiceAccountInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -37,7 +31,7 @@ type PatchServiceAccountOutputs struct {
 	AutomountServiceAccountToken *bool                     `json:"automountServiceAccountToken,omitempty" protobuf:"varint,4,opt,name=automountServiceAccountToken"`
 }
 
-func (h *PatchServiceAccountHandler) Run(
+func (b *KubernetesCore) RunPatchServiceAccount(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

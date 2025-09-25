@@ -17,12 +17,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type RestartDeploymentHandler struct{}
-
-func NewRestartDeploymentHandler() *RestartDeploymentHandler {
-	return &RestartDeploymentHandler{}
-}
-
 type RestartDeploymentInputs struct {
 	Namespace string `json:"namespace,omitempty"`
 	Name      string `json:"name,omitempty"`
@@ -34,11 +28,12 @@ type RestartDeploymentOutputs struct {
 	Status     v1.DeploymentStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *RestartDeploymentHandler) Run(
+func (b *KubernetesApps) RunRestartDeployment(
+
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[RestartDeploymentInputs](task)
 	if err != nil {
 		return nil, err

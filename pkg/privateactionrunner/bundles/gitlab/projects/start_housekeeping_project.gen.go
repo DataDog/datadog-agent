@@ -12,19 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type StartHousekeepingProjectHandler struct{}
-
-func NewStartHousekeepingProjectHandler() *StartHousekeepingProjectHandler {
-	return &StartHousekeepingProjectHandler{}
-}
-
 type StartHousekeepingProjectInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 }
 
 type StartHousekeepingProjectOutputs struct{}
 
-func (h *StartHousekeepingProjectHandler) Run(
+func (b *GitlabProjectsBundle) StartHousekeepingProject(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

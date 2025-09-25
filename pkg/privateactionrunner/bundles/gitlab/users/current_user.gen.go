@@ -13,19 +13,13 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CurrentUserHandler struct{}
-
-func NewCurrentUserHandler() *CurrentUserHandler {
-	return &CurrentUserHandler{}
-}
-
 type CurrentUserInputs struct{}
 
 type CurrentUserOutputs struct {
 	User *gitlab.User `json:"user"`
 }
 
-func (h *CurrentUserHandler) Run(
+func (b *GitlabUsersBundle) RunCurrentUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateServiceHandler struct{}
-
-func NewCreateServiceHandler() *CreateServiceHandler {
-	return &CreateServiceHandler{}
-}
-
 type CreateServiceInputs struct {
 	*support.CreateFields
 	Namespace string      `json:"namespace,omitempty"`
@@ -35,7 +29,7 @@ type CreateServiceOutputs struct {
 	Status     v1.ServiceStatus  `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *CreateServiceHandler) Run(
+func (b *KubernetesCore) RunCreateService(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

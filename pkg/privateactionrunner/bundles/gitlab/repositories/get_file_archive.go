@@ -14,12 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GetFileArchiveHandler struct{}
-
-func NewGetFileArchiveHandler() *GetFileArchiveHandler {
-	return &GetFileArchiveHandler{}
-}
-
 type GetFileArchiveInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ArchiveOptions
@@ -32,7 +26,7 @@ type GetFileArchiveOutputs struct {
 	Encoding string `json:"encoding"`
 }
 
-func (h *GetFileArchiveHandler) Run(
+func (b *GitlabRepositoriesBundle) RunGetFileArchive(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

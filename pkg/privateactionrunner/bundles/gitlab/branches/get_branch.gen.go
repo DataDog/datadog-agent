@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetBranchHandler struct{}
-
-func NewGetBranchHandler() *GetBranchHandler {
-	return &GetBranchHandler{}
-}
-
 type GetBranchInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Branch    string       `json:"branch,omitempty"`
@@ -28,7 +22,7 @@ type GetBranchOutputs struct {
 	Branch *gitlab.Branch `json:"branch"`
 }
 
-func (h *GetBranchHandler) Run(
+func (b *GitlabBranchesBundle) RunGetBranch(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -14,12 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type EditProjectHandler struct{}
-
-func NewEditProjectHandler() *EditProjectHandler {
-	return &EditProjectHandler{}
-}
-
 type EditProjectInputs struct {
 	ProjectId     lib.GitlabID               `json:"project_id,omitempty"`
 	Name          *string                    `json:"name"`
@@ -33,7 +27,7 @@ type EditProjectOutputs struct {
 	Project *gitlab.Project `json:"project"`
 }
 
-func (h *EditProjectHandler) Run(
+func (b *GitlabProjectsBundle) EditProject(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

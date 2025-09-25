@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetJobHandler struct{}
-
-func NewGetJobHandler() *GetJobHandler {
-	return &GetJobHandler{}
-}
-
 type GetJobInputs struct {
 	*support.GetFields
 	Namespace string `json:"namespace,omitempty"`
@@ -34,11 +28,11 @@ type GetJobOutputs struct {
 	Status     v1.JobStatus      `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *GetJobHandler) Run(
+func (b *KubernetesBatch) RunGetJob(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[GetJobInputs](task)
 	if err != nil {
 		return nil, err

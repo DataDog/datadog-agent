@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetCommitStatusesHandler struct{}
-
-func NewGetCommitStatusesHandler() *GetCommitStatusesHandler {
-	return &GetCommitStatusesHandler{}
-}
-
 type GetCommitStatusesInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -29,7 +23,7 @@ type GetCommitStatusesOutputs struct {
 	CommitStatuses []*gitlab.CommitStatus `json:"commit_statuses"`
 }
 
-func (h *GetCommitStatusesHandler) Run(
+func (b *GitlabCommitsBundle) RunGetCommitStatuses(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

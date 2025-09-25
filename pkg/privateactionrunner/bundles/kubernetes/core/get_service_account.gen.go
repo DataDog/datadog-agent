@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetServiceAccountHandler struct{}
-
-func NewGetServiceAccountHandler() *GetServiceAccountHandler {
-	return &GetServiceAccountHandler{}
-}
-
 type GetServiceAccountInputs struct {
 	*support.GetFields
 	Namespace string `json:"namespace,omitempty"`
@@ -35,7 +29,7 @@ type GetServiceAccountOutputs struct {
 	AutomountServiceAccountToken *bool                     `json:"automountServiceAccountToken,omitempty" protobuf:"varint,4,opt,name=automountServiceAccountToken"`
 }
 
-func (h *GetServiceAccountHandler) Run(
+func (b *KubernetesCore) RunGetServiceAccount(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

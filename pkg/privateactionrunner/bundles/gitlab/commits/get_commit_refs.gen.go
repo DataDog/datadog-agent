@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetCommitRefsHandler struct{}
-
-func NewGetCommitRefsHandler() *GetCommitRefsHandler {
-	return &GetCommitRefsHandler{}
-}
-
 type GetCommitRefsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -29,7 +23,7 @@ type GetCommitRefsOutputs struct {
 	CommitRefs []*gitlab.CommitRef `json:"commit_refs"`
 }
 
-func (h *GetCommitRefsHandler) Run(
+func (b *GitlabCommitsBundle) RunGetCommitRefs(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

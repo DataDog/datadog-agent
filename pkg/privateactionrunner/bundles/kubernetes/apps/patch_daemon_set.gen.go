@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchDaemonSetHandler struct{}
-
-func NewPatchDaemonSetHandler() *PatchDaemonSetHandler {
-	return &PatchDaemonSetHandler{}
-}
-
 type PatchDaemonSetInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,11 +30,11 @@ type PatchDaemonSetOutputs struct {
 	Status     v1.DaemonSetStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchDaemonSetHandler) Run(
+func (b *KubernetesApps) RunPatchDaemonSet(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[PatchDaemonSetInputs](task)
 	if err != nil {
 		return nil, err

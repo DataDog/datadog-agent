@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdateEndpointsHandler struct{}
-
-func NewUpdateEndpointsHandler() *UpdateEndpointsHandler {
-	return &UpdateEndpointsHandler{}
-}
-
 type UpdateEndpointsInputs struct {
 	*support.UpdateFields
 	Namespace string        `json:"namespace,omitempty"`
@@ -34,7 +28,7 @@ type UpdateEndpointsOutputs struct {
 	Subsets    []v1.EndpointSubset `json:"subsets,omitempty" protobuf:"bytes,2,rep,name=subsets"`
 }
 
-func (h *UpdateEndpointsHandler) Run(
+func (b *KubernetesCore) RunUpdateEndpoints(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

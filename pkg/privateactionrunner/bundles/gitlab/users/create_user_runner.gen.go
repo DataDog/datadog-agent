@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CreateUserRunnerHandler struct{}
-
-func NewCreateUserRunnerHandler() *CreateUserRunnerHandler {
-	return &CreateUserRunnerHandler{}
-}
-
 type CreateUserRunnerInputs struct {
 	*gitlab.CreateUserRunnerOptions
 }
@@ -27,7 +21,7 @@ type CreateUserRunnerOutputs struct {
 	UserRunner *gitlab.UserRunner `json:"user_runner"`
 }
 
-func (h *CreateUserRunnerHandler) Run(
+func (b *GitlabUsersBundle) RunCreateUserRunner(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

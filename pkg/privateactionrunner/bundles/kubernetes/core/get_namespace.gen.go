@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetNamespaceHandler struct{}
-
-func NewGetNamespaceHandler() *GetNamespaceHandler {
-	return &GetNamespaceHandler{}
-}
-
 type GetNamespaceInputs struct {
 	*support.GetFields
 }
@@ -33,7 +27,7 @@ type GetNamespaceOutputs struct {
 	Status     v1.NamespaceStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *GetNamespaceHandler) Run(
+func (b *KubernetesCore) RunGetNamespace(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

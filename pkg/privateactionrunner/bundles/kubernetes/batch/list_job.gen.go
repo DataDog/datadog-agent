@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListJobHandler struct{}
-
-func NewListJobHandler() *ListJobHandler {
-	return &ListJobHandler{}
-}
-
 type ListJobInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,11 +27,11 @@ type ListJobOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListJobHandler) Run(
+func (b *KubernetesBatch) RunListJob(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[ListJobInputs](task)
 	if err != nil {
 		return nil, err

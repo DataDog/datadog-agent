@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateNamespaceHandler struct{}
-
-func NewCreateNamespaceHandler() *CreateNamespaceHandler {
-	return &CreateNamespaceHandler{}
-}
-
 type CreateNamespaceInputs struct {
 	*support.CreateFields
 	Body *v1.Namespace `json:"body,omitempty"`
@@ -34,7 +28,7 @@ type CreateNamespaceOutputs struct {
 	Status     v1.NamespaceStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *CreateNamespaceHandler) Run(
+func (b *KubernetesCore) RunCreateNamespace(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type ListWorkflowsHandler struct{}
-
-func NewListWorkflowsHandler() *ListWorkflowsHandler {
-	return &ListWorkflowsHandler{}
-}
-
 type ListWorkflowsInputs struct {
 	Query     string `json:"query,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
@@ -30,7 +24,7 @@ type ListWorkflowsOutputs struct {
 	Workflows []*v112.WorkflowExecutionInfo `json:"workflows"`
 }
 
-func (h *ListWorkflowsHandler) Run(
+func (t *Temporal) RunListWorkflows(
 	ctx context.Context,
 	task *types.Task,
 	credentials interface{},

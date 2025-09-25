@@ -6,29 +6,41 @@
 package com_datadoghq_gitlab_repository_files
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GitlabRepositoryFilesBundle struct {
-	actions map[string]types.Action
-}
+type GitlabRepositoryFilesBundle struct{}
 
 func NewGitlabRepositoryFiles() types.Bundle {
-	return &GitlabRepositoryFilesBundle{
-		actions: map[string]types.Action{
-			// Manual actions
-			"getRawFile": NewGetRawFileHandler(),
-			// Auto-generated actions
-			"createFile":      NewCreateFileHandler(),
-			"deleteFile":      NewDeleteFileHandler(),
-			"getFile":         NewGetFileHandler(),
-			"getFileBlame":    NewGetFileBlameHandler(),
-			"getFileMetaData": NewGetFileMetaDataHandler(),
-			"updateFile":      NewUpdateFileHandler(),
-		},
+	return &GitlabRepositoryFilesBundle{}
+}
+
+func (b *GitlabRepositoryFilesBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	// Manual actions
+	case "getRawFile":
+		return b.RunGetRawFile(ctx, task, credential)
+	// Auto-generated actions
+	case "createFile":
+		return b.RunCreateFile(ctx, task, credential)
+	case "deleteFile":
+		return b.RunDeleteFile(ctx, task, credential)
+	case "getFile":
+		return b.RunGetFile(ctx, task, credential)
+	case "getFileBlame":
+		return b.RunGetFileBlame(ctx, task, credential)
+	case "getFileMetaData":
+		return b.RunGetFileMetaData(ctx, task, credential)
+	case "updateFile":
+		return b.RunUpdateFile(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
 func (h *GitlabRepositoryFilesBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+	return h
 }

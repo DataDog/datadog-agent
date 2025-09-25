@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type MoveIssueHandler struct{}
-
-func NewMoveIssueHandler() *MoveIssueHandler {
-	return &MoveIssueHandler{}
-}
-
 type MoveIssueInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -29,7 +23,7 @@ type MoveIssueOutputs struct {
 	Issue *gitlab.Issue `json:"issue"`
 }
 
-func (h *MoveIssueHandler) Run(
+func (b *GitlabIssuesBundle) RunMoveIssue(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

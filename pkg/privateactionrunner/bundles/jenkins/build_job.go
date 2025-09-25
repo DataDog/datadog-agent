@@ -16,21 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 )
 
-type BuildJobHandler struct {
-	httpClientProvider httpclient.Provider
-}
-
-func (h *BuildJobHandler) WithHttpClientProvider(httpClientProvider httpclient.Provider) *BuildJobHandler {
-	h.httpClientProvider = httpClientProvider
-	return h
-}
-
-func NewBuildJobHandler() *BuildJobHandler {
-	return &BuildJobHandler{
-		httpClientProvider: httpclient.NewDefaultProvider(),
-	}
-}
-
 type BuildJobInputs struct {
 	JobName             string               `json:"jobName,omitempty"`
 	BuildWithParameters *BuildWithParameters `json:"buildWithParameters,omitempty"`
@@ -50,7 +35,7 @@ type BuildWithParameters struct {
 
 type BuildJobOutputs struct{}
 
-func (h *BuildJobHandler) Run(
+func (j *Jenkins) RunBuildJob(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
@@ -74,7 +59,8 @@ func (h *BuildJobHandler) Run(
 	for k, v := range domainAndHeaders.Headers {
 		req.Header.Set(k, v[0])
 	}
-	client, err := h.httpClientProvider.NewDefaultClient()
+	httpClientProvider := httpclient.NewDefaultProvider()
+	client, err := httpClientProvider.NewDefaultClient()
 	if err != nil {
 		return nil, err
 	}

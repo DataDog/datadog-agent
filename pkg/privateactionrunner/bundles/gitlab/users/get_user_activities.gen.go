@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetUserActivitiesHandler struct{}
-
-func NewGetUserActivitiesHandler() *GetUserActivitiesHandler {
-	return &GetUserActivitiesHandler{}
-}
-
 type GetUserActivitiesInputs struct {
 	*gitlab.GetUserActivitiesOptions
 }
@@ -27,7 +21,7 @@ type GetUserActivitiesOutputs struct {
 	UserActivities []*gitlab.UserActivity `json:"user_activities"`
 }
 
-func (h *GetUserActivitiesHandler) Run(
+func (b *GitlabUsersBundle) RunGetUserActivities(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

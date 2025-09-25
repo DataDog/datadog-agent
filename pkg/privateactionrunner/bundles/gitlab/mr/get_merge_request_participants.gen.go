@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetMergeRequestParticipantsHandler struct{}
-
-func NewGetMergeRequestParticipantsHandler() *GetMergeRequestParticipantsHandler {
-	return &GetMergeRequestParticipantsHandler{}
-}
-
 type GetMergeRequestParticipantsInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -28,7 +22,7 @@ type GetMergeRequestParticipantsOutputs struct {
 	BasicUsers []*gitlab.BasicUser `json:"basic_users"`
 }
 
-func (h *GetMergeRequestParticipantsHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunGetMergeRequestParticipants(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

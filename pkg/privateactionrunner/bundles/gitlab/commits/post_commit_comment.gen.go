@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type PostCommitCommentHandler struct{}
-
-func NewPostCommitCommentHandler() *PostCommitCommentHandler {
-	return &PostCommitCommentHandler{}
-}
-
 type PostCommitCommentInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -29,7 +23,7 @@ type PostCommitCommentOutputs struct {
 	CommitComment *gitlab.CommitComment `json:"commit_comment"`
 }
 
-func (h *PostCommitCommentHandler) Run(
+func (b *GitlabCommitsBundle) RunPostCommitComment(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

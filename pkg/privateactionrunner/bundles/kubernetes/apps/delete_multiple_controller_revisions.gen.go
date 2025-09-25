@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMultipleControllerRevisionsHandler struct{}
-
-func NewDeleteMultipleControllerRevisionsHandler() *DeleteMultipleControllerRevisionsHandler {
-	return &DeleteMultipleControllerRevisionsHandler{}
-}
-
 type DeleteMultipleControllerRevisionsInputs struct {
 	*support.DeleteFields
 	*support.ListFields
@@ -29,11 +23,11 @@ type DeleteMultipleControllerRevisionsInputs struct {
 
 type DeleteMultipleControllerRevisionsOutputs struct{}
 
-func (h *DeleteMultipleControllerRevisionsHandler) Run(
+func (b *KubernetesApps) RunDeleteMultipleControllerRevisions(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[DeleteMultipleControllerRevisionsInputs](task)
 	if err != nil {
 		return nil, err

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListMergeRequestDiffsHandler struct{}
-
-func NewListMergeRequestDiffsHandler() *ListMergeRequestDiffsHandler {
-	return &ListMergeRequestDiffsHandler{}
-}
-
 type ListMergeRequestDiffsInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -29,7 +23,7 @@ type ListMergeRequestDiffsOutputs struct {
 	MergeRequestDiffs []*gitlab.MergeRequestDiff `json:"merge_request_diffs"`
 }
 
-func (h *ListMergeRequestDiffsHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunListMergeRequestDiffs(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

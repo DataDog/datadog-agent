@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListServiceHandler struct{}
-
-func NewListServiceHandler() *ListServiceHandler {
-	return &ListServiceHandler{}
-}
-
 type ListServiceInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,7 +27,7 @@ type ListServiceOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListServiceHandler) Run(
+func (b *KubernetesCore) RunListService(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetUserStatusHandler struct{}
-
-func NewGetUserStatusHandler() *GetUserStatusHandler {
-	return &GetUserStatusHandler{}
-}
-
 type GetUserStatusInputs struct {
 	UserId int `json:"user_id,omitempty"`
 }
@@ -27,7 +21,7 @@ type GetUserStatusOutputs struct {
 	UserStatus *gitlab.UserStatus `json:"user_status"`
 }
 
-func (h *GetUserStatusHandler) Run(
+func (b *GitlabUsersBundle) RunGetUserStatus(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

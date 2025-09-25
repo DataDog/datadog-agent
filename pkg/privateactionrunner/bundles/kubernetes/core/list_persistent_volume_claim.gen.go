@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListPersistentVolumeClaimHandler struct{}
-
-func NewListPersistentVolumeClaimHandler() *ListPersistentVolumeClaimHandler {
-	return &ListPersistentVolumeClaimHandler{}
-}
-
 type ListPersistentVolumeClaimInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,7 +27,7 @@ type ListPersistentVolumeClaimOutputs struct {
 	ListMeta metav1.ListMeta            `json:"metadata"`
 }
 
-func (h *ListPersistentVolumeClaimHandler) Run(
+func (b *KubernetesCore) RunListPersistentVolumeClaim(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

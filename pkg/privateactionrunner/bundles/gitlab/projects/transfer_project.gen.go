@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type TransferProjectHandler struct{}
-
-func NewTransferProjectHandler() *TransferProjectHandler {
-	return &TransferProjectHandler{}
-}
-
 type TransferProjectInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.TransferProjectOptions
@@ -28,7 +22,7 @@ type TransferProjectOutputs struct {
 	Project *gitlab.Project `json:"project"`
 }
 
-func (h *TransferProjectHandler) Run(
+func (b *GitlabProjectsBundle) TransferProject(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

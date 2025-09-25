@@ -18,12 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-type UpdateControllerRevisionHandler struct{}
-
-func NewUpdateControllerRevisionHandler() *UpdateControllerRevisionHandler {
-	return &UpdateControllerRevisionHandler{}
-}
-
 type UpdateControllerRevisionInputs struct {
 	*support.UpdateFields
 	Namespace string                 `json:"namespace,omitempty"`
@@ -36,11 +30,11 @@ type UpdateControllerRevisionOutputs struct {
 	Revision   int64                `json:"revision" protobuf:"varint,3,opt,name=revision"`
 }
 
-func (h *UpdateControllerRevisionHandler) Run(
+func (b *KubernetesApps) RunUpdateControllerRevision(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[UpdateControllerRevisionInputs](task)
 	if err != nil {
 		return nil, err

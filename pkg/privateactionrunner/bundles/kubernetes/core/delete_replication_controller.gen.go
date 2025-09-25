@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteReplicationControllerHandler struct{}
-
-func NewDeleteReplicationControllerHandler() *DeleteReplicationControllerHandler {
-	return &DeleteReplicationControllerHandler{}
-}
-
 type DeleteReplicationControllerInputs struct {
 	*support.DeleteFields
 	Namespace string `json:"namespace,omitempty"`
@@ -28,7 +22,7 @@ type DeleteReplicationControllerInputs struct {
 
 type DeleteReplicationControllerOutputs struct{}
 
-func (h *DeleteReplicationControllerHandler) Run(
+func (b *KubernetesCore) RunDeleteReplicationController(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

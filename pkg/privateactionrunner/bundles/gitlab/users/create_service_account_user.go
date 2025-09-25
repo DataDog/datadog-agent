@@ -14,12 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type CreateServiceAccountUserHandler struct{}
-
-func NewCreateServiceAccountUserHandler() *CreateServiceAccountUserHandler {
-	return &CreateServiceAccountUserHandler{}
-}
-
 type CreateServiceAccountUserInputs struct {
 	*gitlab.CreateServiceAccountUserOptions
 }
@@ -33,7 +27,7 @@ type CreateServiceAccountUserOutputs struct {
 	ServiceAccount *ServiceAccount `json:"service_account"`
 }
 
-func (h *CreateServiceAccountUserHandler) Run(
+func (b *GitlabUsersBundle) RunCreateServiceAccountUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

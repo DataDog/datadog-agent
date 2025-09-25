@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type UpdateLabelHandler struct{}
-
-func NewUpdateLabelHandler() *UpdateLabelHandler {
-	return &UpdateLabelHandler{}
-}
-
 type UpdateLabelInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	LabelId   lib.GitlabID `json:"label_id,omitempty"`
@@ -29,7 +23,7 @@ type UpdateLabelOutputs struct {
 	Label *gitlab.Label `json:"label"`
 }
 
-func (h *UpdateLabelHandler) Run(
+func (b *GitlabLabelsBundle) RunUpdateLabel(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

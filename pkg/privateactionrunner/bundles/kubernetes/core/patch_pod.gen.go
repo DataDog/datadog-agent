@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchPodHandler struct{}
-
-func NewPatchPodHandler() *PatchPodHandler {
-	return &PatchPodHandler{}
-}
-
 type PatchPodInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,7 +30,7 @@ type PatchPodOutputs struct {
 	Status     v1.PodStatus      `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchPodHandler) Run(
+func (b *KubernetesCore) RunPatchPod(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

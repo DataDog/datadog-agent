@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CreateSnippetNoteHandler struct{}
-
-func NewCreateSnippetNoteHandler() *CreateSnippetNoteHandler {
-	return &CreateSnippetNoteHandler{}
-}
-
 type CreateSnippetNoteInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	SnippetId int          `json:"snippet_id,omitempty"`
@@ -29,7 +23,7 @@ type CreateSnippetNoteOutputs struct {
 	Note *gitlab.Note `json:"note"`
 }
 
-func (h *CreateSnippetNoteHandler) Run(
+func (b *GitlabNotesBundle) RunCreateSnippetNote(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -16,12 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type InsertOneAction struct{}
-
-func NewInsertOneHandler() types.Action {
-	return &InsertOneAction{}
-}
-
 type InsertOneInputs struct {
 	Collection string         `json:"collection,omitempty"`
 	Document   map[string]any `json:"document,omitempty"`
@@ -31,7 +25,7 @@ type InsertOneOutputs struct {
 	InsertedID string `json:"insertedId"`
 }
 
-func (ioa InsertOneAction) Run(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
+func (m *MongoDB) RunInsertOne(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
 	inputs, err := types.ExtractInputs[InsertOneInputs](task)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract inputs: %w", err)

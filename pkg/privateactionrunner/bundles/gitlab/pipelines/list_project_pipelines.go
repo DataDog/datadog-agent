@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type ListProjectPipelinesHandler struct{}
-
-func NewListProjectPipelinesHandler() *ListProjectPipelinesHandler {
-	return &ListProjectPipelinesHandler{}
-}
-
 type ListProjectPipelinesInputs struct {
 	ProjectID lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ListProjectPipelinesOptions
@@ -30,7 +24,7 @@ type ListProjectPipelinesOutputs struct {
 	Pipelines []*gitlab.PipelineInfo `json:"pipelines"`
 }
 
-func (h *ListProjectPipelinesHandler) Run(
+func (b *GitlabPipelinesBundle) RunListProjectPipelines(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

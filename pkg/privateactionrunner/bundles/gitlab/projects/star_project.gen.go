@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type StarProjectHandler struct{}
-
-func NewStarProjectHandler() *StarProjectHandler {
-	return &StarProjectHandler{}
-}
-
 type StarProjectInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 }
@@ -27,7 +21,7 @@ type StarProjectOutputs struct {
 	Project *gitlab.Project `json:"project"`
 }
 
-func (h *StarProjectHandler) Run(
+func (b *GitlabProjectsBundle) StarProject(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

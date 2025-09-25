@@ -6,26 +6,36 @@
 package com_datadoghq_gitlab_branches
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type GitlabBranchesBundle struct {
-	actions map[string]types.Action
 }
 
 func NewGitlabBranches() types.Bundle {
-	return &GitlabBranchesBundle{
-		actions: map[string]types.Action{
-			// Auto-generated actions
-			"createBranch":         NewCreateBranchHandler(),
-			"deleteBranch":         NewDeleteBranchHandler(),
-			"deleteMergedBranches": NewDeleteMergedBranchesHandler(),
-			"getBranch":            NewGetBranchHandler(),
-			"listBranches":         NewListBranchesHandler(),
-		},
+	return &GitlabBranchesBundle{}
+}
+
+func (b *GitlabBranchesBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "createBranch":
+		return b.RunCreateBranch(ctx, task, credential)
+	case "deleteBranch":
+		return b.RunDeleteBranch(ctx, task, credential)
+	case "deleteMergedBranches":
+		return b.RunDeleteMergedBranches(ctx, task, credential)
+	case "getBranch":
+		return b.RunGetBranch(ctx, task, credential)
+	case "listBranches":
+		return b.RunListBranches(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
 func (h *GitlabBranchesBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+	return h
 }

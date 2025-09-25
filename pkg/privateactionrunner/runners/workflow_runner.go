@@ -95,7 +95,7 @@ func (n *WorkflowRunner) RunTask(
 	defer heartbeatCancel()
 	go n.startHeartbeat(heartbeatCtx, task)
 
-	output, err := action.Run(ctx, task, credential)
+	output, err := action.Run(ctx, actionName, task, credential)
 
 	if err != nil {
 		return nil, utils.DefaultActionError(err)

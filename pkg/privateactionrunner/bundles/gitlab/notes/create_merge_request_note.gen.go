@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CreateMergeRequestNoteHandler struct{}
-
-func NewCreateMergeRequestNoteHandler() *CreateMergeRequestNoteHandler {
-	return &CreateMergeRequestNoteHandler{}
-}
-
 type CreateMergeRequestNoteInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -29,7 +23,7 @@ type CreateMergeRequestNoteOutputs struct {
 	Note *gitlab.Note `json:"note"`
 }
 
-func (h *CreateMergeRequestNoteHandler) Run(
+func (b *GitlabNotesBundle) RunCreateMergeRequestNote(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

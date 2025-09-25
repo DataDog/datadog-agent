@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMultipleReplicationControllersHandler struct{}
-
-func NewDeleteMultipleReplicationControllersHandler() *DeleteMultipleReplicationControllersHandler {
-	return &DeleteMultipleReplicationControllersHandler{}
-}
-
 type DeleteMultipleReplicationControllersInputs struct {
 	*support.DeleteFields
 	*support.ListFields
@@ -29,7 +23,7 @@ type DeleteMultipleReplicationControllersInputs struct {
 
 type DeleteMultipleReplicationControllersOutputs struct{}
 
-func (h *DeleteMultipleReplicationControllersHandler) Run(
+func (b *KubernetesCore) RunDeleteMultipleReplicationControllers(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

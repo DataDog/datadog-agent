@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type PromoteLabelHandler struct{}
-
-func NewPromoteLabelHandler() *PromoteLabelHandler {
-	return &PromoteLabelHandler{}
-}
-
 type PromoteLabelInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	LabelId   lib.GitlabID `json:"label_id,omitempty"`
@@ -25,7 +19,7 @@ type PromoteLabelInputs struct {
 
 type PromoteLabelOutputs struct{}
 
-func (h *PromoteLabelHandler) Run(
+func (b *GitlabLabelsBundle) RunPromoteLabel(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

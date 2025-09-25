@@ -16,12 +16,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 )
 
-type InsertHandler struct{}
-
-func NewInsertHandler() *InsertHandler {
-	return &InsertHandler{}
-}
-
 type InsertInputs struct {
 	Table   string   `json:"table,omitempty"`
 	Columns []string `json:"columns,omitempty"`
@@ -32,7 +26,7 @@ type InsertOutputs struct {
 	CommandTag any `json:"commandTag"`
 }
 
-func (h *InsertHandler) Run(
+func (p *PostgreSQL) RunInsert(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

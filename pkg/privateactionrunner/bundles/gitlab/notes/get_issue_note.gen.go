@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetIssueNoteHandler struct{}
-
-func NewGetIssueNoteHandler() *GetIssueNoteHandler {
-	return &GetIssueNoteHandler{}
-}
-
 type GetIssueNoteInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -29,7 +23,7 @@ type GetIssueNoteOutputs struct {
 	Note *gitlab.Note `json:"note"`
 }
 
-func (h *GetIssueNoteHandler) Run(
+func (b *GitlabNotesBundle) RunGetIssueNote(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

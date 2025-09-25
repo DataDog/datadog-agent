@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchCronJobHandler struct{}
-
-func NewPatchCronJobHandler() *PatchCronJobHandler {
-	return &PatchCronJobHandler{}
-}
-
 type PatchCronJobInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,11 +30,11 @@ type PatchCronJobOutputs struct {
 	Status     v1.CronJobStatus  `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchCronJobHandler) Run(
+func (b *KubernetesBatch) RunPatchCronJob(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[PatchCronJobInputs](task)
 	if err != nil {
 		return nil, err

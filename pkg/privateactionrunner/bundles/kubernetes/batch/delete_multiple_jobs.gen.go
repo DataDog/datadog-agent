@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMultipleJobsHandler struct{}
-
-func NewDeleteMultipleJobsHandler() *DeleteMultipleJobsHandler {
-	return &DeleteMultipleJobsHandler{}
-}
-
 type DeleteMultipleJobsInputs struct {
 	*support.DeleteFields
 	*support.ListFields
@@ -29,11 +23,11 @@ type DeleteMultipleJobsInputs struct {
 
 type DeleteMultipleJobsOutputs struct{}
 
-func (h *DeleteMultipleJobsHandler) Run(
+func (b *KubernetesBatch) RunDeleteMultipleJobs(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[DeleteMultipleJobsInputs](task)
 	if err != nil {
 		return nil, err

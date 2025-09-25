@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetSSHKeyForUserHandler struct{}
-
-func NewGetSSHKeyForUserHandler() *GetSSHKeyForUserHandler {
-	return &GetSSHKeyForUserHandler{}
-}
-
 type GetSSHKeyForUserInputs struct {
 	UserId int `json:"user_id,omitempty"`
 	KeyId  int `json:"key_id,omitempty"`
@@ -28,7 +22,7 @@ type GetSSHKeyForUserOutputs struct {
 	SshKey *gitlab.SSHKey `json:"ssh_key"`
 }
 
-func (h *GetSSHKeyForUserHandler) Run(
+func (b *GitlabUsersBundle) RunGetSSHKeyForUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type UnprotectRepositoryBranchHandler struct{}
-
-func NewUnprotectRepositoryBranchHandler() *UnprotectRepositoryBranchHandler {
-	return &UnprotectRepositoryBranchHandler{}
-}
-
 type UnprotectRepositoryBranchInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Branch    string       `json:"branch,omitempty"`
@@ -25,7 +19,7 @@ type UnprotectRepositoryBranchInputs struct {
 
 type UnprotectRepositoryBranchOutputs struct{}
 
-func (h *UnprotectRepositoryBranchHandler) Run(
+func (b *GitlabProtectedBranchesBundle) RunUnprotectRepositoryBranch(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

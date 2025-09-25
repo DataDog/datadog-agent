@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetMergeRequestHandler struct{}
-
-func NewGetMergeRequestHandler() *GetMergeRequestHandler {
-	return &GetMergeRequestHandler{}
-}
-
 type GetMergeRequestInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -29,7 +23,7 @@ type GetMergeRequestOutputs struct {
 	MergeRequest *gitlab.MergeRequest `json:"merge_request"`
 }
 
-func (h *GetMergeRequestHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunGetMergeRequest(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

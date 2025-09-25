@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CompareHandler struct{}
-
-func NewCompareHandler() *CompareHandler {
-	return &CompareHandler{}
-}
-
 type CompareInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.CompareOptions
@@ -28,7 +22,7 @@ type CompareOutputs struct {
 	Compare *gitlab.Compare `json:"compare"`
 }
 
-func (h *CompareHandler) Run(
+func (b *GitlabRepositoriesBundle) RunCompare(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

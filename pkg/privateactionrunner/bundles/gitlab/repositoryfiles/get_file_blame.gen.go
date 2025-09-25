@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetFileBlameHandler struct{}
-
-func NewGetFileBlameHandler() *GetFileBlameHandler {
-	return &GetFileBlameHandler{}
-}
-
 type GetFileBlameInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	FilePath  string       `json:"file_path,omitempty"`
@@ -29,7 +23,7 @@ type GetFileBlameOutputs struct {
 	FileBlameRanges []*gitlab.FileBlameRange `json:"file_blame_ranges"`
 }
 
-func (h *GetFileBlameHandler) Run(
+func (b *GitlabRepositoryFilesBundle) RunGetFileBlame(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

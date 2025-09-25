@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListProtectedBranchesHandler struct{}
-
-func NewListProtectedBranchesHandler() *ListProtectedBranchesHandler {
-	return &ListProtectedBranchesHandler{}
-}
-
 type ListProtectedBranchesInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ListProtectedBranchesOptions
@@ -28,7 +22,7 @@ type ListProtectedBranchesOutputs struct {
 	ProtectedBranches []*gitlab.ProtectedBranch `json:"protected_branches"`
 }
 
-func (h *ListProtectedBranchesHandler) Run(
+func (b *GitlabProtectedBranchesBundle) RunListProtectedBranches(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

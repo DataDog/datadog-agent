@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteTagHandler struct{}
-
-func NewDeleteTagHandler() *DeleteTagHandler {
-	return &DeleteTagHandler{}
-}
-
 type DeleteTagInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	TagName   string       `json:"tag_name,omitempty"`
@@ -25,7 +19,7 @@ type DeleteTagInputs struct {
 
 type DeleteTagOutputs struct{}
 
-func (h *DeleteTagHandler) Run(
+func (b *GitlabTagsBundle) RunDeleteTag(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetProjectLanguagesHandler struct{}
-
-func NewGetProjectLanguagesHandler() *GetProjectLanguagesHandler {
-	return &GetProjectLanguagesHandler{}
-}
-
 type GetProjectLanguagesInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 }
@@ -27,7 +21,7 @@ type GetProjectLanguagesOutputs struct {
 	ProjectLanguages *gitlab.ProjectLanguages `json:"project_languages"`
 }
 
-func (h *GetProjectLanguagesHandler) Run(
+func (b *GitlabProjectsBundle) GetProjectLanguages(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

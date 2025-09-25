@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteServiceAccountHandler struct{}
-
-func NewDeleteServiceAccountHandler() *DeleteServiceAccountHandler {
-	return &DeleteServiceAccountHandler{}
-}
-
 type DeleteServiceAccountInputs struct {
 	*support.DeleteFields
 	Namespace string `json:"namespace,omitempty"`
@@ -28,7 +22,7 @@ type DeleteServiceAccountInputs struct {
 
 type DeleteServiceAccountOutputs struct{}
 
-func (h *DeleteServiceAccountHandler) Run(
+func (b *KubernetesCore) RunDeleteServiceAccount(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

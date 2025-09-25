@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteCustomGroupAttributeHandler struct{}
-
-func NewDeleteCustomGroupAttributeHandler() *DeleteCustomGroupAttributeHandler {
-	return &DeleteCustomGroupAttributeHandler{}
-}
-
 type DeleteCustomGroupAttributeInputs struct {
 	GroupId int    `json:"group_id,omitempty"`
 	Key     string `json:"key,omitempty"`
@@ -25,10 +19,9 @@ type DeleteCustomGroupAttributeInputs struct {
 
 type DeleteCustomGroupAttributeOutputs struct{}
 
-func (h *DeleteCustomGroupAttributeHandler) Run(
+func (b *GitlabCustomAttributesBundle) RunDeleteCustomGroupAttribute(
 	ctx context.Context,
 	task *types.Task, credential interface{},
-
 ) (any, error) {
 	inputs, err := types.ExtractInputs[DeleteCustomGroupAttributeInputs](task)
 	if err != nil {

@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListConfigMapHandler struct{}
-
-func NewListConfigMapHandler() *ListConfigMapHandler {
-	return &ListConfigMapHandler{}
-}
-
 type ListConfigMapInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,7 +27,7 @@ type ListConfigMapOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListConfigMapHandler) Run(
+func (b *KubernetesCore) RunListConfigMap(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

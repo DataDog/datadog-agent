@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetGPGSignatureHandler struct{}
-
-func NewGetGPGSignatureHandler() *GetGPGSignatureHandler {
-	return &GetGPGSignatureHandler{}
-}
-
 type GetGPGSignatureInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -28,7 +22,7 @@ type GetGPGSignatureOutputs struct {
 	GpgSignature *gitlab.GPGSignature `json:"gpg_signature"`
 }
 
-func (h *GetGPGSignatureHandler) Run(
+func (b *GitlabCommitsBundle) RunGetGPGSignature(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

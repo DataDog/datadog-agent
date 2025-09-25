@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type UnsubscribeFromIssueHandler struct{}
-
-func NewUnsubscribeFromIssueHandler() *UnsubscribeFromIssueHandler {
-	return &UnsubscribeFromIssueHandler{}
-}
-
 type UnsubscribeFromIssueInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -28,7 +22,7 @@ type UnsubscribeFromIssueOutputs struct {
 	Issue *gitlab.Issue `json:"issue"`
 }
 
-func (h *UnsubscribeFromIssueHandler) Run(
+func (b *GitlabIssuesBundle) RunUnsubscribeFromIssue(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

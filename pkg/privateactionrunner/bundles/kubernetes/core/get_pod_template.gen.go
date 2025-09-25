@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetPodTemplateHandler struct{}
-
-func NewGetPodTemplateHandler() *GetPodTemplateHandler {
-	return &GetPodTemplateHandler{}
-}
-
 type GetPodTemplateInputs struct {
 	*support.GetFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,7 +27,7 @@ type GetPodTemplateOutputs struct {
 	Template   v1.PodTemplateSpec `json:"template,omitempty" protobuf:"bytes,2,opt,name=template"`
 }
 
-func (h *GetPodTemplateHandler) Run(
+func (b *KubernetesCore) RunGetPodTemplate(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

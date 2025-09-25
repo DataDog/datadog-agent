@@ -6,22 +6,27 @@
 package com_datadoghq_gitlab_environments
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GitlabEnvironmentsBundle struct {
-	actions map[string]types.Action
-}
+type GitlabEnvironmentsBundle struct{}
 
 func NewGitlabEnvironments() types.Bundle {
-	return &GitlabEnvironmentsBundle{
-		actions: map[string]types.Action{
-			// Auto-generated actions
-			"listEnvironments": NewListEnvironmentsHandler(),
-		},
+	return &GitlabEnvironmentsBundle{}
+}
+
+func (b *GitlabEnvironmentsBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "listEnvironments":
+		return b.RunListEnvironments(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
-func (h *GitlabEnvironmentsBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+func (b *GitlabEnvironmentsBundle) GetAction(actionName string) types.Action {
+	return b
 }

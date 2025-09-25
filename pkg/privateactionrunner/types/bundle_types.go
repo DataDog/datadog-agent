@@ -18,6 +18,7 @@ type Bundle interface {
 type Action interface {
 	Run(
 		ctx context.Context,
+		actionName string,
 		task *Task,
 		credential interface{},
 	) (interface{}, error)

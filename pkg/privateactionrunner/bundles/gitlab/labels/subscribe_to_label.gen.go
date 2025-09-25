@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type SubscribeToLabelHandler struct{}
-
-func NewSubscribeToLabelHandler() *SubscribeToLabelHandler {
-	return &SubscribeToLabelHandler{}
-}
-
 type SubscribeToLabelInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	LabelId   lib.GitlabID `json:"label_id,omitempty"`
@@ -28,7 +22,7 @@ type SubscribeToLabelOutputs struct {
 	Label *gitlab.Label `json:"label"`
 }
 
-func (h *SubscribeToLabelHandler) Run(
+func (b *GitlabLabelsBundle) RunSubscribeToLabel(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

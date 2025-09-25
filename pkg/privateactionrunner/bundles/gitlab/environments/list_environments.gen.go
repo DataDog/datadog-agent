@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListEnvironmentsHandler struct{}
-
-func NewListEnvironmentsHandler() *ListEnvironmentsHandler {
-	return &ListEnvironmentsHandler{}
-}
-
 type ListEnvironmentsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ListEnvironmentsOptions
@@ -28,10 +22,9 @@ type ListEnvironmentsOutputs struct {
 	Environments []*gitlab.Environment `json:"environments"`
 }
 
-func (h *ListEnvironmentsHandler) Run(
+func (b *GitlabEnvironmentsBundle) RunListEnvironments(
 	ctx context.Context,
 	task *types.Task, credential interface{},
-
 ) (any, error) {
 	inputs, err := types.ExtractInputs[ListEnvironmentsInputs](task)
 	if err != nil {

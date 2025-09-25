@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetProtectedBranchHandler struct{}
-
-func NewGetProtectedBranchHandler() *GetProtectedBranchHandler {
-	return &GetProtectedBranchHandler{}
-}
-
 type GetProtectedBranchInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Name      string       `json:"name,omitempty"`
@@ -28,7 +22,7 @@ type GetProtectedBranchOutputs struct {
 	ProtectedBranch *gitlab.ProtectedBranch `json:"protected_branch"`
 }
 
-func (h *GetProtectedBranchHandler) Run(
+func (b *GitlabProtectedBranchesBundle) RunGetProtectedBranch(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

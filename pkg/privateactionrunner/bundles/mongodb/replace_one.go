@@ -17,12 +17,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type ReplaceOneAction struct{}
-
-func NewReplaceOneHandler() types.Action {
-	return &ReplaceOneAction{}
-}
-
 type ReplaceOneInputs struct {
 	Collection  string         `json:"collection,omitempty"`
 	Filter      map[string]any `json:"filter,omitempty"`
@@ -36,7 +30,7 @@ type ReplaceOneOutputs struct {
 	UpsertedID    interface{} `json:"upsertedId,omitempty"`
 }
 
-func (ro ReplaceOneAction) Run(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
+func (m *MongoDB) RunReplaceOne(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
 	inputs, err := types.ExtractInputs[ReplaceOneInputs](task)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract inputs: %w", err)

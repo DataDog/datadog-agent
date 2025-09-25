@@ -12,19 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type ActivateUserHandler struct{}
-
-func NewActivateUserHandler() *ActivateUserHandler {
-	return &ActivateUserHandler{}
-}
-
 type ActivateUserInputs struct {
 	UserId int `json:"user_id,omitempty"`
 }
 
 type ActivateUserOutputs struct{}
 
-func (h *ActivateUserHandler) Run(
+func (b *GitlabUsersBundle) RunActivateUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

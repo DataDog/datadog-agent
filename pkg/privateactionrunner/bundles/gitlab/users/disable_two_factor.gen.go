@@ -12,19 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DisableTwoFactorHandler struct{}
-
-func NewDisableTwoFactorHandler() *DisableTwoFactorHandler {
-	return &DisableTwoFactorHandler{}
-}
-
 type DisableTwoFactorInputs struct {
 	UserId int `json:"user_id,omitempty"`
 }
 
 type DisableTwoFactorOutputs struct{}
 
-func (h *DisableTwoFactorHandler) Run(
+func (b *GitlabUsersBundle) RunDisableTwoFactor(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

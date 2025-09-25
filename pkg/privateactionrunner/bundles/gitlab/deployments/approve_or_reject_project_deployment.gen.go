@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ApproveOrRejectProjectDeploymentHandler struct{}
-
-func NewApproveOrRejectProjectDeploymentHandler() *ApproveOrRejectProjectDeploymentHandler {
-	return &ApproveOrRejectProjectDeploymentHandler{}
-}
-
 type ApproveOrRejectProjectDeploymentInputs struct {
 	ProjectId    lib.GitlabID `json:"project_id,omitempty"`
 	DeploymentId int          `json:"deployment_id,omitempty"`
@@ -27,7 +21,7 @@ type ApproveOrRejectProjectDeploymentInputs struct {
 
 type ApproveOrRejectProjectDeploymentOutputs struct{}
 
-func (h *ApproveOrRejectProjectDeploymentHandler) Run(
+func (b *GitlabDeploymentsBundle) RunApproveOrRejectProjectDeployment(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

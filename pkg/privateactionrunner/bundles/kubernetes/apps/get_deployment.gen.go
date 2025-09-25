@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetDeploymentHandler struct{}
-
-func NewGetDeploymentHandler() *GetDeploymentHandler {
-	return &GetDeploymentHandler{}
-}
-
 type GetDeploymentInputs struct {
 	*support.GetFields
 	Namespace string `json:"namespace,omitempty"`
@@ -34,11 +28,11 @@ type GetDeploymentOutputs struct {
 	Status     v1.DeploymentStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *GetDeploymentHandler) Run(
+func (b *KubernetesApps) RunGetDeployment(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[GetDeploymentInputs](task)
 	if err != nil {
 		return nil, err

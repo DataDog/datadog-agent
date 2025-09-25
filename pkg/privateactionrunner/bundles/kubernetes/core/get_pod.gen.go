@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetPodHandler struct{}
-
-func NewGetPodHandler() *GetPodHandler {
-	return &GetPodHandler{}
-}
-
 type GetPodInputs struct {
 	*support.GetFields
 	Namespace string `json:"namespace,omitempty"`
@@ -34,7 +28,7 @@ type GetPodOutputs struct {
 	Status     v1.PodStatus      `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *GetPodHandler) Run(
+func (b *KubernetesCore) RunGetPod(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

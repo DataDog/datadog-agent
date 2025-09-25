@@ -6,29 +6,41 @@
 package com_datadoghq_gitlab_labels
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GitlabLabelsBundle struct {
-	actions map[string]types.Action
-}
+type GitlabLabelsBundle struct{}
 
 func NewGitlabLabels() types.Bundle {
-	return &GitlabLabelsBundle{
-		actions: map[string]types.Action{
-			// Auto-generated actions
-			"createLabel":          NewCreateLabelHandler(),
-			"deleteLabel":          NewDeleteLabelHandler(),
-			"getLabel":             NewGetLabelHandler(),
-			"listLabels":           NewListLabelsHandler(),
-			"promoteLabel":         NewPromoteLabelHandler(),
-			"subscribeToLabel":     NewSubscribeToLabelHandler(),
-			"unsubscribeFromLabel": NewUnsubscribeFromLabelHandler(),
-			"updateLabel":          NewUpdateLabelHandler(),
-		},
-	}
+	return &GitlabLabelsBundle{}
 }
 
-func (h *GitlabLabelsBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+func (b *GitlabLabelsBundle) GetAction(actionName string) types.Action {
+	return b
+}
+
+func (b *GitlabLabelsBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "createLabel":
+		return b.RunCreateLabel(ctx, task, credential)
+	case "deleteLabel":
+		return b.RunDeleteLabel(ctx, task, credential)
+	case "getLabel":
+		return b.RunGetLabel(ctx, task, credential)
+	case "listLabels":
+		return b.RunListLabels(ctx, task, credential)
+	case "promoteLabel":
+		return b.RunPromoteLabel(ctx, task, credential)
+	case "subscribeToLabel":
+		return b.RunSubscribeToLabel(ctx, task, credential)
+	case "unsubscribeFromLabel":
+		return b.RunUnsubscribeFromLabel(ctx, task, credential)
+	case "updateLabel":
+		return b.RunUpdateLabel(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("action not found %s", actionName)
+	}
 }

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type PlayJobHandler struct{}
-
-func NewPlayJobHandler() *PlayJobHandler {
-	return &PlayJobHandler{}
-}
-
 type PlayJobInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	JobId     int          `json:"job_id,omitempty"`
@@ -29,7 +23,7 @@ type PlayJobOutputs struct {
 	Job *gitlab.Job `json:"job"`
 }
 
-func (h *PlayJobHandler) Run(
+func (b *GitlabJobsBundle) RunPlayJob(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

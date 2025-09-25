@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ReorderIssueHandler struct{}
-
-func NewReorderIssueHandler() *ReorderIssueHandler {
-	return &ReorderIssueHandler{}
-}
-
 type ReorderIssueInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -29,7 +23,7 @@ type ReorderIssueOutputs struct {
 	Issue *gitlab.Issue `json:"issue"`
 }
 
-func (h *ReorderIssueHandler) Run(
+func (b *GitlabIssuesBundle) RunReorderIssue(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

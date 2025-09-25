@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type CancelQueryHandler struct{}
-
-func NewCancelQueryHandler() *CancelQueryHandler {
-	return &CancelQueryHandler{}
-}
-
 type CancelQueryInputs struct {
 	PID          int    `json:"pid,omitempty"`
 	DatabaseName string `json:"databaseName,omitempty"`
@@ -31,7 +25,7 @@ type CancelQueryOutputs struct {
 	Cancelled bool `json:"cancelled"`
 }
 
-func (h *CancelQueryHandler) Run(
+func (p *PostgreSQL) RunCancelQuery(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

@@ -16,12 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type FindAndModifyAction struct{}
-
-func NewFindAndModifyHandler() types.Action {
-	return &FindAndModifyAction{}
-}
-
 type FindAndModifyInputs struct {
 	Collection string                           `json:"collection,omitempty"`
 	Filter     map[string]interface{}           `json:"filter,omitempty"`
@@ -33,7 +27,7 @@ type FindAndModifyOutputs struct {
 	ModifiedDocument map[string]interface{} `json:"modifiedDocument,omitempty"`
 }
 
-func (fam FindAndModifyAction) Run(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
+func (m *MongoDB) RunFindAndModify(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
 	inputs, err := types.ExtractInputs[FindAndModifyInputs](task)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract inputs: %w", err)

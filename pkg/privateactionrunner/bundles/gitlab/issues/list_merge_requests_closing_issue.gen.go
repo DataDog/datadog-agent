@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListMergeRequestsClosingIssueHandler struct{}
-
-func NewListMergeRequestsClosingIssueHandler() *ListMergeRequestsClosingIssueHandler {
-	return &ListMergeRequestsClosingIssueHandler{}
-}
-
 type ListMergeRequestsClosingIssueInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -29,7 +23,7 @@ type ListMergeRequestsClosingIssueOutputs struct {
 	BasicMergeRequests []*gitlab.BasicMergeRequest `json:"merge_requests"`
 }
 
-func (h *ListMergeRequestsClosingIssueHandler) Run(
+func (b *GitlabIssuesBundle) RunListMergeRequestsClosingIssue(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

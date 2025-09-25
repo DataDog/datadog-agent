@@ -14,12 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type CreatePipelineHandler struct{}
-
-func NewCreatePipelineHandler() *CreatePipelineHandler {
-	return &CreatePipelineHandler{}
-}
-
 type CreatePipelineInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.CreatePipelineOptions
@@ -29,7 +23,7 @@ type CreatePipelineOutputs struct {
 	Pipeline *gitlab.Pipeline `json:"pipeline"`
 }
 
-func (h *CreatePipelineHandler) Run(
+func (b *GitlabPipelinesBundle) RunCreatePipeline(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

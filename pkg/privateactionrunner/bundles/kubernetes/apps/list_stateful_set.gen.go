@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListStatefulSetHandler struct{}
-
-func NewListStatefulSetHandler() *ListStatefulSetHandler {
-	return &ListStatefulSetHandler{}
-}
-
 type ListStatefulSetInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,11 +27,11 @@ type ListStatefulSetOutputs struct {
 	ListMeta metav1.ListMeta  `json:"metadata"`
 }
 
-func (h *ListStatefulSetHandler) Run(
+func (b *KubernetesApps) RunListStatefulSet(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[ListStatefulSetInputs](task)
 	if err != nil {
 		return nil, err

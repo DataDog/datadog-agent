@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type RawBlobContentHandler struct{}
-
-func NewRawBlobContentHandler() *RawBlobContentHandler {
-	return &RawBlobContentHandler{}
-}
-
 type RawBlobContentInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -32,7 +26,7 @@ type RawBlobContentOutputs struct {
 	Encoding string `json:"encoding"`
 }
 
-func (h *RawBlobContentHandler) Run(
+func (b *GitlabRepositoriesBundle) RunRawBlobContent(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

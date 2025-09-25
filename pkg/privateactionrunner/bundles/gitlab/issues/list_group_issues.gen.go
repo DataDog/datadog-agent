@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListGroupIssuesHandler struct{}
-
-func NewListGroupIssuesHandler() *ListGroupIssuesHandler {
-	return &ListGroupIssuesHandler{}
-}
-
 type ListGroupIssuesInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ListGroupIssuesOptions
@@ -28,7 +22,7 @@ type ListGroupIssuesOutputs struct {
 	Issues []*gitlab.Issue `json:"issues"`
 }
 
-func (h *ListGroupIssuesHandler) Run(
+func (b *GitlabIssuesBundle) RunListGroupIssues(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

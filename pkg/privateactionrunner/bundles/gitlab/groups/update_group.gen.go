@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type UpdateGroupHandler struct{}
-
-func NewUpdateGroupHandler() *UpdateGroupHandler {
-	return &UpdateGroupHandler{}
-}
-
 type UpdateGroupInputs struct {
 	GroupId lib.GitlabID `json:"group_id,omitempty"`
 	*gitlab.UpdateGroupOptions
@@ -28,10 +22,9 @@ type UpdateGroupOutputs struct {
 	Group *gitlab.Group `json:"group"`
 }
 
-func (h *UpdateGroupHandler) Run(
+func (b *GitlabGroupsBundle) RunUpdateGroup(
 	ctx context.Context,
 	task *types.Task, credential interface{},
-
 ) (any, error) {
 	inputs, err := types.ExtractInputs[UpdateGroupInputs](task)
 	if err != nil {

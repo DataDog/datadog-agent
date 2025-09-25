@@ -15,28 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 )
 
-type DeleteJobHandler struct {
-	httpClientProvider httpclient.Provider
-}
-
-func (h *DeleteJobHandler) WithHttpClientProvider(httpClientProvider httpclient.Provider) *DeleteJobHandler {
-	h.httpClientProvider = httpClientProvider
-	return h
-}
-
-func NewDeleteJobHandler() *DeleteJobHandler {
-	return &DeleteJobHandler{
-		httpClientProvider: httpclient.NewDefaultProvider(),
-	}
-}
-
 type DeleteJobInputs struct {
 	JobName string `json:"jobName,omitempty"`
 }
 
 type DeleteJobOutputs struct{}
 
-func (h *DeleteJobHandler) Run(
+func (j *Jenkins) RunDeleteJob(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
@@ -57,7 +42,8 @@ func (h *DeleteJobHandler) Run(
 	for k, v := range domainAndHeaders.Headers {
 		req.Header.Set(k, v[0])
 	}
-	client, err := h.httpClientProvider.NewDefaultClient()
+	httpClientProvider := httpclient.NewDefaultProvider()
+	client, err := httpClientProvider.NewDefaultClient()
 	if err != nil {
 		return nil, err
 	}

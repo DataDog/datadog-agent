@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListTreeHandler struct{}
-
-func NewListTreeHandler() *ListTreeHandler {
-	return &ListTreeHandler{}
-}
-
 type ListTreeInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ListTreeOptions
@@ -28,7 +22,7 @@ type ListTreeOutputs struct {
 	TreeNodes []*gitlab.TreeNode `json:"tree_nodes"`
 }
 
-func (h *ListTreeHandler) Run(
+func (b *GitlabRepositoriesBundle) RunListTree(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

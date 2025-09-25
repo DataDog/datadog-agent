@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListNodeHandler struct{}
-
-func NewListNodeHandler() *ListNodeHandler {
-	return &ListNodeHandler{}
-}
-
 type ListNodeInputs struct {
 	*support.ListFields
 }
@@ -32,7 +26,7 @@ type ListNodeOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListNodeHandler) Run(
+func (b *KubernetesCore) RunListNode(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

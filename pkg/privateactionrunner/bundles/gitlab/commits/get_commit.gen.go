@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetCommitHandler struct{}
-
-func NewGetCommitHandler() *GetCommitHandler {
-	return &GetCommitHandler{}
-}
-
 type GetCommitInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -29,7 +23,7 @@ type GetCommitOutputs struct {
 	Commit *gitlab.Commit `json:"commit"`
 }
 
-func (h *GetCommitHandler) Run(
+func (b *GitlabCommitsBundle) RunGetCommit(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

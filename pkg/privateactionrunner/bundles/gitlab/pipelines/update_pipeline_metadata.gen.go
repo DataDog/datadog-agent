@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type UpdatePipelineMetadataHandler struct{}
-
-func NewUpdatePipelineMetadataHandler() *UpdatePipelineMetadataHandler {
-	return &UpdatePipelineMetadataHandler{}
-}
-
 type UpdatePipelineMetadataInputs struct {
 	ProjectId  lib.GitlabID `json:"project_id,omitempty"`
 	PipelineId int          `json:"pipeline_id,omitempty"`
@@ -29,7 +23,7 @@ type UpdatePipelineMetadataOutputs struct {
 	Pipeline *gitlab.Pipeline `json:"pipeline"`
 }
 
-func (h *UpdatePipelineMetadataHandler) Run(
+func (b *GitlabPipelinesBundle) RunUpdatePipelineMetadata(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

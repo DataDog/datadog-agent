@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdateDeploymentHandler struct{}
-
-func NewUpdateDeploymentHandler() *UpdateDeploymentHandler {
-	return &UpdateDeploymentHandler{}
-}
-
 type UpdateDeploymentInputs struct {
 	*support.UpdateFields
 	Namespace string         `json:"namespace,omitempty"`
@@ -35,11 +29,11 @@ type UpdateDeploymentOutputs struct {
 	Status     v1.DeploymentStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *UpdateDeploymentHandler) Run(
+func (b *KubernetesApps) RunUpdateDeployment(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[UpdateDeploymentInputs](task)
 	if err != nil {
 		return nil, err

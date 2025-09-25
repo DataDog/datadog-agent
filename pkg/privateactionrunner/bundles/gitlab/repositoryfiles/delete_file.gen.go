@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type DeleteFileHandler struct{}
-
-func NewDeleteFileHandler() *DeleteFileHandler {
-	return &DeleteFileHandler{}
-}
-
 type DeleteFileInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	FilePath  string       `json:"file_path,omitempty"`
@@ -27,7 +21,7 @@ type DeleteFileInputs struct {
 
 type DeleteFileOutputs struct{}
 
-func (h *DeleteFileHandler) Run(
+func (b *GitlabRepositoryFilesBundle) RunDeleteFile(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

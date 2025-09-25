@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteCustomUserAttributeHandler struct{}
-
-func NewDeleteCustomUserAttributeHandler() *DeleteCustomUserAttributeHandler {
-	return &DeleteCustomUserAttributeHandler{}
-}
-
 type DeleteCustomUserAttributeInputs struct {
 	UserId int    `json:"user_id,omitempty"`
 	Key    string `json:"key,omitempty"`
@@ -25,7 +19,7 @@ type DeleteCustomUserAttributeInputs struct {
 
 type DeleteCustomUserAttributeOutputs struct{}
 
-func (h *DeleteCustomUserAttributeHandler) Run(
+func (b *GitlabCustomAttributesBundle) RunDeleteCustomUserAttribute(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

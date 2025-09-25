@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdateEventHandler struct{}
-
-func NewUpdateEventHandler() *UpdateEventHandler {
-	return &UpdateEventHandler{}
-}
-
 type UpdateEventInputs struct {
 	*support.UpdateFields
 	Namespace string    `json:"namespace,omitempty"`
@@ -47,7 +41,7 @@ type UpdateEventOutputs struct {
 	ReportingInstance   string              `json:"reportingInstance" protobuf:"bytes,15,opt,name=reportingInstance"`
 }
 
-func (h *UpdateEventHandler) Run(
+func (b *KubernetesCore) RunUpdateEvent(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

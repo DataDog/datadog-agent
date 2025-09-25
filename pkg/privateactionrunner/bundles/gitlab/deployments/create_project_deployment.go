@@ -14,12 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type CreateProjectDeploymentHandler struct{}
-
-func NewCreateProjectDeploymentHandler() *CreateProjectDeploymentHandler {
-	return &CreateProjectDeploymentHandler{}
-}
-
 type CreateProjectDeploymentInputs struct {
 	ProjectID lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.CreateProjectDeploymentOptions
@@ -29,7 +23,7 @@ type CreateProjectDeploymentOutputs struct {
 	Deployment *gitlab.Deployment `json:"deployment"`
 }
 
-func (h *CreateProjectDeploymentHandler) Run(
+func (b *GitlabDeploymentsBundle) RunCreateProjectDeployment(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

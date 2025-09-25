@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetNodeHandler struct{}
-
-func NewGetNodeHandler() *GetNodeHandler {
-	return &GetNodeHandler{}
-}
-
 type GetNodeInputs struct {
 	*support.GetFields
 }
@@ -33,7 +27,7 @@ type GetNodeOutputs struct {
 	Status     v1.NodeStatus     `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *GetNodeHandler) Run(
+func (b *KubernetesCore) RunGetNode(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

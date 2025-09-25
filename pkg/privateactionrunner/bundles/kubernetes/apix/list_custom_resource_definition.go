@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package com_datadoghq_kubernetes_apiextensions
+package com_datadoghq_kubernetes_apix
 
 import (
 	"context"
@@ -14,12 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type ListCustomResourceDefinitionHandler struct{}
-
-func NewListCustomResourceDefinitionHandler() *ListCustomResourceDefinitionHandler {
-	return &ListCustomResourceDefinitionHandler{}
-}
-
 type ListCustomResourceDefinitionInputs struct {
 	*support.ListFields
 }
@@ -29,11 +23,11 @@ type ListCustomResourceDefinitionOutputs struct {
 	Meta  interface{}                 `json:"metadata"`
 }
 
-func (h *ListCustomResourceDefinitionHandler) Run(
+func (b *KubernetesApiExtensions) RunListCustomResourceDefinition(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[ListCustomResourceDefinitionInputs](task)
 	if err != nil {
 		return nil, err

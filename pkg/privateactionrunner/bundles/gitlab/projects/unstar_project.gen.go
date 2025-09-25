@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type UnstarProjectHandler struct{}
-
-func NewUnstarProjectHandler() *UnstarProjectHandler {
-	return &UnstarProjectHandler{}
-}
-
 type UnstarProjectInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 }
@@ -27,7 +21,7 @@ type UnstarProjectOutputs struct {
 	Project *gitlab.Project `json:"project"`
 }
 
-func (h *UnstarProjectHandler) Run(
+func (b *GitlabProjectsBundle) UnstarProject(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

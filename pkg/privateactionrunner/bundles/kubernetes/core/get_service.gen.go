@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetServiceHandler struct{}
-
-func NewGetServiceHandler() *GetServiceHandler {
-	return &GetServiceHandler{}
-}
-
 type GetServiceInputs struct {
 	*support.GetFields
 	Namespace string `json:"namespace,omitempty"`
@@ -34,7 +28,7 @@ type GetServiceOutputs struct {
 	Status     v1.ServiceStatus  `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *GetServiceHandler) Run(
+func (b *KubernetesCore) RunGetService(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

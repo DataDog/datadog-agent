@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListGroupsHandler struct{}
-
-func NewListGroupsHandler() *ListGroupsHandler {
-	return &ListGroupsHandler{}
-}
-
 type ListGroupsInputs struct {
 	*gitlab.ListGroupsOptions
 }
@@ -27,10 +21,9 @@ type ListGroupsOutputs struct {
 	Groups []*gitlab.Group `json:"groups"`
 }
 
-func (h *ListGroupsHandler) Run(
+func (b *GitlabGroupsBundle) RunListGroups(
 	ctx context.Context,
 	task *types.Task, credential interface{},
-
 ) (any, error) {
 	inputs, err := types.ExtractInputs[ListGroupsInputs](task)
 	if err != nil {

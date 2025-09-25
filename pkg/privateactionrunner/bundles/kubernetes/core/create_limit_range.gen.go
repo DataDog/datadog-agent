@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateLimitRangeHandler struct{}
-
-func NewCreateLimitRangeHandler() *CreateLimitRangeHandler {
-	return &CreateLimitRangeHandler{}
-}
-
 type CreateLimitRangeInputs struct {
 	*support.CreateFields
 	Namespace string         `json:"namespace,omitempty"`
@@ -34,7 +28,7 @@ type CreateLimitRangeOutputs struct {
 	Spec       v1.LimitRangeSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
 }
 
-func (h *CreateLimitRangeHandler) Run(
+func (b *KubernetesCore) RunCreateLimitRange(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

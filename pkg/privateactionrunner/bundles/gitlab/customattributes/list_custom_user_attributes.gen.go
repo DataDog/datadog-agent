@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListCustomUserAttributesHandler struct{}
-
-func NewListCustomUserAttributesHandler() *ListCustomUserAttributesHandler {
-	return &ListCustomUserAttributesHandler{}
-}
-
 type ListCustomUserAttributesInputs struct {
 	UserId  int `json:"user_id,omitempty"`
 	Page    int `json:"page,omitempty"`
@@ -29,7 +23,7 @@ type ListCustomUserAttributesOutputs struct {
 	CustomAttributes []*gitlab.CustomAttribute `json:"custom_attributes"`
 }
 
-func (h *ListCustomUserAttributesHandler) Run(
+func (b *GitlabCustomAttributesBundle) RunListCustomUserAttributes(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

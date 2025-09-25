@@ -14,12 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type CreateProjectForUserHandler struct{}
-
-func NewCreateProjectForUserHandler() *CreateProjectForUserHandler {
-	return &CreateProjectForUserHandler{}
-}
-
 type CreateProjectForUserInputs struct {
 	UserId        int                                 `json:"user_id,omitempty"`
 	Name          *string                             `json:"name"`
@@ -33,7 +27,7 @@ type CreateProjectForUserOutputs struct {
 	Project *gitlab.Project `json:"project"`
 }
 
-func (h *CreateProjectForUserHandler) Run(
+func (b *GitlabProjectsBundle) CreateProjectForUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

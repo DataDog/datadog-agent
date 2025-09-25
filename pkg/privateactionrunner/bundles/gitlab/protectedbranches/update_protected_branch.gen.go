@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type UpdateProtectedBranchHandler struct{}
-
-func NewUpdateProtectedBranchHandler() *UpdateProtectedBranchHandler {
-	return &UpdateProtectedBranchHandler{}
-}
-
 type UpdateProtectedBranchInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Name      string       `json:"name,omitempty"`
@@ -29,7 +23,7 @@ type UpdateProtectedBranchOutputs struct {
 	ProtectedBranch *gitlab.ProtectedBranch `json:"protected_branch"`
 }
 
-func (h *UpdateProtectedBranchHandler) Run(
+func (b *GitlabProtectedBranchesBundle) RunUpdateProtectedBranch(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

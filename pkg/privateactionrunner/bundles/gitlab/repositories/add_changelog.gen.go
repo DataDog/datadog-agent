@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type AddChangelogHandler struct{}
-
-func NewAddChangelogHandler() *AddChangelogHandler {
-	return &AddChangelogHandler{}
-}
-
 type AddChangelogInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.AddChangelogOptions
@@ -26,7 +20,7 @@ type AddChangelogInputs struct {
 
 type AddChangelogOutputs struct{}
 
-func (h *AddChangelogHandler) Run(
+func (b *GitlabRepositoriesBundle) RunAddChangelog(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

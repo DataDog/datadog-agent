@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type SetCommitStatusHandler struct{}
-
-func NewSetCommitStatusHandler() *SetCommitStatusHandler {
-	return &SetCommitStatusHandler{}
-}
-
 type SetCommitStatusInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -29,7 +23,7 @@ type SetCommitStatusOutputs struct {
 	CommitStatus *gitlab.CommitStatus `json:"commit_status"`
 }
 
-func (h *SetCommitStatusHandler) Run(
+func (b *GitlabCommitsBundle) RunSetCommitStatus(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

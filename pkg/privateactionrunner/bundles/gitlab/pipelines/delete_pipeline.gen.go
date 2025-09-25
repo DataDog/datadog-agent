@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeletePipelineHandler struct{}
-
-func NewDeletePipelineHandler() *DeletePipelineHandler {
-	return &DeletePipelineHandler{}
-}
-
 type DeletePipelineInputs struct {
 	ProjectId  lib.GitlabID `json:"project_id,omitempty"`
 	PipelineId int          `json:"pipeline_id,omitempty"`
@@ -25,7 +19,7 @@ type DeletePipelineInputs struct {
 
 type DeletePipelineOutputs struct{}
 
-func (h *DeletePipelineHandler) Run(
+func (b *GitlabPipelinesBundle) RunDeletePipeline(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

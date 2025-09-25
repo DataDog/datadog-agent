@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListCronJobHandler struct{}
-
-func NewListCronJobHandler() *ListCronJobHandler {
-	return &ListCronJobHandler{}
-}
-
 type ListCronJobInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,11 +27,11 @@ type ListCronJobOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListCronJobHandler) Run(
+func (b *KubernetesBatch) RunListCronJob(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[ListCronJobInputs](task)
 	if err != nil {
 		return nil, err

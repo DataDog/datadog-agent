@@ -16,12 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type InsertManyAction struct{}
-
-func NewInsertManyHandler() types.Action {
-	return &InsertManyAction{}
-}
-
 type InsertManyInputs struct {
 	Collection string                     `json:"collection,omitempty"`
 	Documents  []interface{}              `json:"documents,omitempty"`
@@ -32,7 +26,7 @@ type InsertManyOutputs struct {
 	InsertedIDs []interface{} `json:"insertedIds"`
 }
 
-func (ima InsertManyAction) Run(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
+func (m *MongoDB) RunInsertMany(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
 	inputs, err := types.ExtractInputs[InsertManyInputs](task)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract inputs: %w", err)

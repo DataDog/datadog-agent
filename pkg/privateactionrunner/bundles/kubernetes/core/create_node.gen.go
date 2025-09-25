@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateNodeHandler struct{}
-
-func NewCreateNodeHandler() *CreateNodeHandler {
-	return &CreateNodeHandler{}
-}
-
 type CreateNodeInputs struct {
 	*support.CreateFields
 	Body *v1.Node `json:"body,omitempty"`
@@ -34,7 +28,7 @@ type CreateNodeOutputs struct {
 	Status     v1.NodeStatus     `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *CreateNodeHandler) Run(
+func (b *KubernetesCore) RunCreateNode(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

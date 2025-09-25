@@ -14,12 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GraphqlHandler struct{}
-
-func NewGraphqlHandler() *GraphqlHandler {
-	return &GraphqlHandler{}
-}
-
 type GraphqlInputs struct {
 	Query     string         `json:"query"`
 	Variables map[string]any `json:"variables,omitempty"`
@@ -29,10 +23,9 @@ type GraphqlOutputs struct {
 	Result any `json:"result"`
 }
 
-func (h *GraphqlHandler) Run(
+func (b *GitlabGraphqlBundle) RunGraphql(
 	ctx context.Context,
 	task *types.Task, credential interface{},
-
 ) (any, error) {
 	inputs, err := types.ExtractInputs[GraphqlInputs](task)
 	if err != nil {

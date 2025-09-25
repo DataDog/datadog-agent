@@ -12,18 +12,9 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/kubernetes"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"k8s.io/kubectl/pkg/polymorphichelpers"
 )
-
-type RollbackDeploymentHandler struct {
-	c kubernetes.Interface
-}
-
-func NewRollbackDeploymentHandler() *RollbackDeploymentHandler {
-	return &RollbackDeploymentHandler{}
-}
 
 type RollbackDeploymentInputs struct {
 	*support.GetFields
@@ -34,7 +25,8 @@ type RollbackDeploymentInputs struct {
 
 type RollbackDeploymentOutputs struct{}
 
-func (h *RollbackDeploymentHandler) Run(
+func (b *KubernetesApps) RunRollbackDeployment(
+
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
@@ -43,7 +35,7 @@ func (h *RollbackDeploymentHandler) Run(
 	if err != nil {
 		return nil, err
 	}
-	client, err := h.getClient(credential)
+	client, err := support.KubeClient(credential)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +72,4 @@ func getDryRunStrategy(dryRunStrategy string) (cmdutil.DryRunStrategy, error) {
 	default:
 		return cmdutil.DryRunNone, fmt.Errorf(`invalid dry-run value (%v). Must be "none", "server", or "client"`, dryRunStrategy)
 	}
-}
-
-func (h *RollbackDeploymentHandler) getClient(credential interface{}) (kubernetes.Interface, error) {
-	if h.c != nil {
-		return h.c, nil
-	}
-	return support.KubeClient(credential)
 }

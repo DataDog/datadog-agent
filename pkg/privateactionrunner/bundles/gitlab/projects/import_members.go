@@ -16,12 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type ImportMembersHandler struct{}
-
-func NewImportMembersHandler() *ImportMembersHandler {
-	return &ImportMembersHandler{}
-}
-
 type ImportMembersInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id"`
 	SourceProjectId lib.GitlabID `json:"source_project_id"`
@@ -29,7 +23,7 @@ type ImportMembersInputs struct {
 
 type ImportMembersOutputs struct{}
 
-func (h *ImportMembersHandler) Run(
+func (b *GitlabProjectsBundle) ImportMembers(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

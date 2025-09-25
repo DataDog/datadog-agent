@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ShareProjectWithGroupHandler struct{}
-
-func NewShareProjectWithGroupHandler() *ShareProjectWithGroupHandler {
-	return &ShareProjectWithGroupHandler{}
-}
-
 type ShareProjectWithGroupInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ShareWithGroupOptions
@@ -26,7 +20,7 @@ type ShareProjectWithGroupInputs struct {
 
 type ShareProjectWithGroupOutputs struct{}
 
-func (h *ShareProjectWithGroupHandler) Run(
+func (b *GitlabProjectsBundle) ShareProjectWithGroup(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

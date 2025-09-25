@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetPersistentVolumeHandler struct{}
-
-func NewGetPersistentVolumeHandler() *GetPersistentVolumeHandler {
-	return &GetPersistentVolumeHandler{}
-}
-
 type GetPersistentVolumeInputs struct {
 	*support.GetFields
 }
@@ -33,7 +27,7 @@ type GetPersistentVolumeOutputs struct {
 	Status     v1.PersistentVolumeStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *GetPersistentVolumeHandler) Run(
+func (b *KubernetesCore) RunGetPersistentVolume(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

@@ -16,12 +16,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetConfigMapHandler struct{}
-
-func NewGetConfigMapHandler() *GetConfigMapHandler {
-	return &GetConfigMapHandler{}
-}
-
 type GetConfigMapInputs struct {
 	*support.GetFields
 	Namespace string `json:"namespace,omitempty"`
@@ -34,7 +28,7 @@ type GetConfigMapOutputs struct {
 	BinaryData map[string][]byte `json:"binaryData,omitempty" protobuf:"bytes,3,rep,name=binaryData"`
 }
 
-func (h *GetConfigMapHandler) Run(
+func (b *KubernetesCore) RunGetConfigMap(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

@@ -14,12 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type UpdateCustomObjectHandler struct{}
-
-func NewUpdateCustomObjectHandler() *UpdateCustomObjectHandler {
-	return &UpdateCustomObjectHandler{}
-}
-
 type UpdateCustomObjectInputs struct {
 	*support.UpdateFields
 	Namespace string                 `json:"namespace"`
@@ -31,11 +25,12 @@ type UpdateCustomObjectInputs struct {
 
 type UpdateCustomObjectOutputs = map[string]interface{}
 
-func (h *UpdateCustomObjectHandler) Run(
+func (b *KubernetesCustomResources) RunUpdateCustomObject(
+
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[UpdateCustomObjectInputs](task)
 	if err != nil {
 		return nil, err

@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type UnsubscribeFromLabelHandler struct{}
-
-func NewUnsubscribeFromLabelHandler() *UnsubscribeFromLabelHandler {
-	return &UnsubscribeFromLabelHandler{}
-}
-
 type UnsubscribeFromLabelInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	LabelId   lib.GitlabID `json:"label_id,omitempty"`
@@ -25,7 +19,7 @@ type UnsubscribeFromLabelInputs struct {
 
 type UnsubscribeFromLabelOutputs struct{}
 
-func (h *UnsubscribeFromLabelHandler) Run(
+func (b *GitlabLabelsBundle) RunUnsubscribeFromLabel(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

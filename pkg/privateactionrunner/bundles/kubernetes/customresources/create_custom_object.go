@@ -14,12 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type CreateCustomObjectHandler struct{}
-
-func NewCreateCustomObjectHandler() *CreateCustomObjectHandler {
-	return &CreateCustomObjectHandler{}
-}
-
 type CreateCustomObjectInputs struct {
 	*support.CreateFields
 	Namespace string                 `json:"namespace"`
@@ -31,11 +25,12 @@ type CreateCustomObjectInputs struct {
 
 type CreateCustomObjectOutputs = map[string]interface{}
 
-func (h *CreateCustomObjectHandler) Run(
+func (b *KubernetesCustomResources) RunCreateCustomObject(
+
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[CreateCustomObjectInputs](task)
 	if err != nil {
 		return nil, err

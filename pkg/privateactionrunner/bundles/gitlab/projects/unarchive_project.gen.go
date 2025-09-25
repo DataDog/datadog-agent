@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type UnarchiveProjectHandler struct{}
-
-func NewUnarchiveProjectHandler() *UnarchiveProjectHandler {
-	return &UnarchiveProjectHandler{}
-}
-
 type UnarchiveProjectInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 }
@@ -27,7 +21,7 @@ type UnarchiveProjectOutputs struct {
 	Project *gitlab.Project `json:"project"`
 }
 
-func (h *UnarchiveProjectHandler) Run(
+func (b *GitlabProjectsBundle) UnarchiveProject(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

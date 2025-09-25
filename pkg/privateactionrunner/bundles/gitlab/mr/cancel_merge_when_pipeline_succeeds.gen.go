@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CancelMergeWhenPipelineSucceedsHandler struct{}
-
-func NewCancelMergeWhenPipelineSucceedsHandler() *CancelMergeWhenPipelineSucceedsHandler {
-	return &CancelMergeWhenPipelineSucceedsHandler{}
-}
-
 type CancelMergeWhenPipelineSucceedsInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -28,7 +22,7 @@ type CancelMergeWhenPipelineSucceedsOutputs struct {
 	MergeRequest *gitlab.MergeRequest `json:"merge_request"`
 }
 
-func (h *CancelMergeWhenPipelineSucceedsHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunCancelMergeWhenPipelineSucceeds(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

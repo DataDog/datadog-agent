@@ -12,19 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteSSHKeyHandler struct{}
-
-func NewDeleteSSHKeyHandler() *DeleteSSHKeyHandler {
-	return &DeleteSSHKeyHandler{}
-}
-
 type DeleteSSHKeyInputs struct {
 	KeyId int `json:"key_id,omitempty"`
 }
 
 type DeleteSSHKeyOutputs struct{}
 
-func (h *DeleteSSHKeyHandler) Run(
+func (b *GitlabUsersBundle) RunDeleteSSHKey(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

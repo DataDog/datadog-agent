@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdateNodeHandler struct{}
-
-func NewUpdateNodeHandler() *UpdateNodeHandler {
-	return &UpdateNodeHandler{}
-}
-
 type UpdateNodeInputs struct {
 	*support.UpdateFields
 	Body *v1.Node `json:"body,omitempty"`
@@ -34,7 +28,7 @@ type UpdateNodeOutputs struct {
 	Status     v1.NodeStatus     `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *UpdateNodeHandler) Run(
+func (b *KubernetesCore) RunUpdateNode(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

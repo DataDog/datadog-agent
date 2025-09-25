@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListIssueNotesHandler struct{}
-
-func NewListIssueNotesHandler() *ListIssueNotesHandler {
-	return &ListIssueNotesHandler{}
-}
-
 type ListIssueNotesInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -29,7 +23,7 @@ type ListIssueNotesOutputs struct {
 	Notes []*gitlab.Note `json:"notes"`
 }
 
-func (h *ListIssueNotesHandler) Run(
+func (b *GitlabNotesBundle) RunListIssueNotes(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

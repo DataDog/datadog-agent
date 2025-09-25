@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchLimitRangeHandler struct{}
-
-func NewPatchLimitRangeHandler() *PatchLimitRangeHandler {
-	return &PatchLimitRangeHandler{}
-}
-
 type PatchLimitRangeInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -35,7 +29,7 @@ type PatchLimitRangeOutputs struct {
 	Spec       v1.LimitRangeSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
 }
 
-func (h *PatchLimitRangeHandler) Run(
+func (b *KubernetesCore) RunPatchLimitRange(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

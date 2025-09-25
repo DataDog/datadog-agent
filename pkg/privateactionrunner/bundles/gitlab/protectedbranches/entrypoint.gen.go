@@ -6,26 +6,35 @@
 package com_datadoghq_gitlab_protected_branches
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GitlabProtectedBranchesBundle struct {
-	actions map[string]types.Action
-}
+type GitlabProtectedBranchesBundle struct{}
 
 func NewGitlabProtectedBranches() types.Bundle {
-	return &GitlabProtectedBranchesBundle{
-		actions: map[string]types.Action{
-			// Auto-generated actions
-			"getProtectedBranch":        NewGetProtectedBranchHandler(),
-			"listProtectedBranches":     NewListProtectedBranchesHandler(),
-			"protectRepositoryBranch":   NewProtectRepositoryBranchHandler(),
-			"unprotectRepositoryBranch": NewUnprotectRepositoryBranchHandler(),
-			"updateProtectedBranch":     NewUpdateProtectedBranchHandler(),
-		},
+	return &GitlabProtectedBranchesBundle{}
+}
+
+func (b *GitlabProtectedBranchesBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "getProtectedBranch":
+		return b.RunGetProtectedBranch(ctx, task, credential)
+	case "listProtectedBranches":
+		return b.RunListProtectedBranches(ctx, task, credential)
+	case "protectRepositoryBranch":
+		return b.RunProtectRepositoryBranch(ctx, task, credential)
+	case "unprotectRepositoryBranch":
+		return b.RunUnprotectRepositoryBranch(ctx, task, credential)
+	case "updateProtectedBranch":
+		return b.RunUpdateProtectedBranch(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
 func (h *GitlabProtectedBranchesBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+	return h
 }

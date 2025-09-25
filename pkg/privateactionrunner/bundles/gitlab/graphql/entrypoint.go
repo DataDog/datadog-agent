@@ -6,21 +6,28 @@
 package com_datadoghq_gitlab_graphql
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type GitlabGraphqlBundle struct {
-	actions map[string]types.Action
 }
 
 func NewGitlabGraphql() types.Bundle {
-	return &GitlabGraphqlBundle{
-		actions: map[string]types.Action{
-			"graphql": NewGraphqlHandler(),
-		},
+	return &GitlabGraphqlBundle{}
+}
+
+func (b *GitlabGraphqlBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "graphql":
+		return b.RunGraphql(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
-func (h *GitlabGraphqlBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+func (b *GitlabGraphqlBundle) GetAction(actionName string) types.Action {
+	return b
 }

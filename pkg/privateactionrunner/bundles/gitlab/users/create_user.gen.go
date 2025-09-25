@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CreateUserHandler struct{}
-
-func NewCreateUserHandler() *CreateUserHandler {
-	return &CreateUserHandler{}
-}
-
 type CreateUserInputs struct {
 	*gitlab.CreateUserOptions
 }
@@ -27,7 +21,7 @@ type CreateUserOutputs struct {
 	User *gitlab.User `json:"user"`
 }
 
-func (h *CreateUserHandler) Run(
+func (b *GitlabUsersBundle) RunCreateUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

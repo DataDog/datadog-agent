@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListServiceAccountsHandler struct{}
-
-func NewListServiceAccountsHandler() *ListServiceAccountsHandler {
-	return &ListServiceAccountsHandler{}
-}
-
 type ListServiceAccountsInputs struct {
 	*gitlab.ListServiceAccountsOptions
 }
@@ -27,7 +21,7 @@ type ListServiceAccountsOutputs struct {
 	ServiceAccounts []*gitlab.ServiceAccount `json:"service_accounts"`
 }
 
-func (h *ListServiceAccountsHandler) Run(
+func (b *GitlabUsersBundle) RunListServiceAccounts(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdateConfigMapHandler struct{}
-
-func NewUpdateConfigMapHandler() *UpdateConfigMapHandler {
-	return &UpdateConfigMapHandler{}
-}
-
 type UpdateConfigMapInputs struct {
 	*support.UpdateFields
 	Namespace string        `json:"namespace,omitempty"`
@@ -36,7 +30,7 @@ type UpdateConfigMapOutputs struct {
 	BinaryData map[string][]byte `json:"binaryData,omitempty" protobuf:"bytes,3,rep,name=binaryData"`
 }
 
-func (h *UpdateConfigMapHandler) Run(
+func (b *KubernetesCore) RunUpdateConfigMap(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

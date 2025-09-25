@@ -6,25 +6,36 @@
 package com_datadoghq_postgresql
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type PostgreSQL struct {
-	actions map[string]types.Action
 }
 
 func NewPostgreSQL() *PostgreSQL {
-	return &PostgreSQL{
-		actions: map[string]types.Action{
-			"select":         NewSelectHandler(uint32(15 * 1024 * 1024)), // 15MB
-			"insert":         NewInsertHandler(),
-			"explain":        NewExplainHandler(),
-			"explainAnalyze": NewExplainAnalyzeHandler(),
-			"cancelQuery":    NewCancelQueryHandler(),
-		},
+	return &PostgreSQL{}
+}
+
+func (p *PostgreSQL) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "select":
+		return p.RunSelect(ctx, task, credential)
+	case "insert":
+		return p.RunInsert(ctx, task, credential)
+	case "explain":
+		return p.RunExplain(ctx, task, credential)
+	case "explainAnalyze":
+		return p.RunExplainAnalyze(ctx, task, credential)
+	case "cancelQuery":
+		return p.RunCancelQuery(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
-func (h *PostgreSQL) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+func (p *PostgreSQL) GetAction(actionName string) types.Action {
+	return p
 }

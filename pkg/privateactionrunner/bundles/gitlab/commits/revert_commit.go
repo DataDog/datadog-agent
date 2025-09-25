@@ -14,12 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type RevertCommitHandler struct{}
-
-func NewRevertCommitHandler() *RevertCommitHandler {
-	return &RevertCommitHandler{}
-}
-
 type RevertCommitInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -30,10 +24,9 @@ type RevertCommitOutputs struct {
 	Commit *gitlab.Commit `json:"commit"`
 }
 
-func (h *RevertCommitHandler) Run(
+func (b *GitlabCommitsBundle) RunRevertCommit(
 	ctx context.Context,
 	task *types.Task, credential interface{},
-
 ) (any, error) {
 	inputs, err := types.ExtractInputs[RevertCommitInputs](task)
 	if err != nil {

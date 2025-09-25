@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListPersistentVolumeHandler struct{}
-
-func NewListPersistentVolumeHandler() *ListPersistentVolumeHandler {
-	return &ListPersistentVolumeHandler{}
-}
-
 type ListPersistentVolumeInputs struct {
 	*support.ListFields
 }
@@ -32,7 +26,7 @@ type ListPersistentVolumeOutputs struct {
 	ListMeta metav1.ListMeta       `json:"metadata"`
 }
 
-func (h *ListPersistentVolumeHandler) Run(
+func (b *KubernetesCore) RunListPersistentVolume(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

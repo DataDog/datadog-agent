@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetPipelineTestReportHandler struct{}
-
-func NewGetPipelineTestReportHandler() *GetPipelineTestReportHandler {
-	return &GetPipelineTestReportHandler{}
-}
-
 type GetPipelineTestReportInputs struct {
 	ProjectId  lib.GitlabID `json:"project_id,omitempty"`
 	PipelineId int          `json:"pipeline_id,omitempty"`
@@ -28,7 +22,7 @@ type GetPipelineTestReportOutputs struct {
 	PipelineTestReport *gitlab.PipelineTestReport `json:"pipeline_test_report"`
 }
 
-func (h *GetPipelineTestReportHandler) Run(
+func (b *GitlabPipelinesBundle) RunGetPipelineTestReport(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

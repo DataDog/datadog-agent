@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMultipleEventsHandler struct{}
-
-func NewDeleteMultipleEventsHandler() *DeleteMultipleEventsHandler {
-	return &DeleteMultipleEventsHandler{}
-}
-
 type DeleteMultipleEventsInputs struct {
 	*support.DeleteFields
 	*support.ListFields
@@ -29,7 +23,7 @@ type DeleteMultipleEventsInputs struct {
 
 type DeleteMultipleEventsOutputs struct{}
 
-func (h *DeleteMultipleEventsHandler) Run(
+func (b *KubernetesCore) RunDeleteMultipleEvents(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

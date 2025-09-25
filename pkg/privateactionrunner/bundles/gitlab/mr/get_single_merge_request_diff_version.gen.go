@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetSingleMergeRequestDiffVersionHandler struct{}
-
-func NewGetSingleMergeRequestDiffVersionHandler() *GetSingleMergeRequestDiffVersionHandler {
-	return &GetSingleMergeRequestDiffVersionHandler{}
-}
-
 type GetSingleMergeRequestDiffVersionInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -30,7 +24,7 @@ type GetSingleMergeRequestDiffVersionOutputs struct {
 	MergeRequestDiffVersion *gitlab.MergeRequestDiffVersion `json:"merge_request_diff_version"`
 }
 
-func (h *GetSingleMergeRequestDiffVersionHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunGetSingleMergeRequestDiffVersion(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

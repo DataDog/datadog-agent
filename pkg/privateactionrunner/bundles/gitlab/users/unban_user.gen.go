@@ -12,19 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type UnbanUserHandler struct{}
-
-func NewUnbanUserHandler() *UnbanUserHandler {
-	return &UnbanUserHandler{}
-}
-
 type UnbanUserInputs struct {
 	UserId int `json:"user_id,omitempty"`
 }
 
 type UnbanUserOutputs struct{}
 
-func (h *UnbanUserHandler) Run(
+func (b *GitlabUsersBundle) RunUnbanUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

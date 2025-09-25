@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateJobHandler struct{}
-
-func NewCreateJobHandler() *CreateJobHandler {
-	return &CreateJobHandler{}
-}
-
 type CreateJobInputs struct {
 	*support.CreateFields
 	Namespace string  `json:"namespace,omitempty"`
@@ -35,11 +29,11 @@ type CreateJobOutputs struct {
 	Status     v1.JobStatus      `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *CreateJobHandler) Run(
+func (b *KubernetesBatch) RunCreateJob(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[CreateJobInputs](task)
 	if err != nil {
 		return nil, err

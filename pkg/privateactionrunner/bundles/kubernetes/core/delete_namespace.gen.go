@@ -15,19 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteNamespaceHandler struct{}
-
-func NewDeleteNamespaceHandler() *DeleteNamespaceHandler {
-	return &DeleteNamespaceHandler{}
-}
-
 type DeleteNamespaceInputs struct {
 	*support.DeleteFields
 }
 
 type DeleteNamespaceOutputs struct{}
 
-func (h *DeleteNamespaceHandler) Run(
+func (b *KubernetesCore) RunDeleteNamespace(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

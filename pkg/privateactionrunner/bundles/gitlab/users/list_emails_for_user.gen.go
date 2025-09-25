@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListEmailsForUserHandler struct{}
-
-func NewListEmailsForUserHandler() *ListEmailsForUserHandler {
-	return &ListEmailsForUserHandler{}
-}
-
 type ListEmailsForUserInputs struct {
 	UserId int `json:"user_id,omitempty"`
 	*gitlab.ListEmailsForUserOptions
@@ -28,7 +22,7 @@ type ListEmailsForUserOutputs struct {
 	Emails []*gitlab.Email `json:"emails"`
 }
 
-func (h *ListEmailsForUserHandler) Run(
+func (b *GitlabUsersBundle) RunListEmailsForUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

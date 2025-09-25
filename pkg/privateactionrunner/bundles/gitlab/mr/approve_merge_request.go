@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type ApproveMergeRequestHandler struct{}
-
-func NewApproveMergeRequestHandler() *ApproveMergeRequestHandler {
-	return &ApproveMergeRequestHandler{}
-}
-
 type ApproveMergeRequestInputs struct {
 	ProjectId       json.Number `json:"project_id,omitempty"`
 	MergeRequestIid int         `json:"merge_request_iid,omitempty"`
@@ -31,7 +25,7 @@ type ApproveMergeRequestOutputs struct {
 	MergeRequestApprovals *gitlab.MergeRequestApprovals `json:"merge_request_approvals"`
 }
 
-func (h *ApproveMergeRequestHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunApproveMergeRequest(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

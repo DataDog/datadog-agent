@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListLimitRangeHandler struct{}
-
-func NewListLimitRangeHandler() *ListLimitRangeHandler {
-	return &ListLimitRangeHandler{}
-}
-
 type ListLimitRangeInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,7 +27,7 @@ type ListLimitRangeOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListLimitRangeHandler) Run(
+func (b *KubernetesCore) RunListLimitRange(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

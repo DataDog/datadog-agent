@@ -22,15 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// RunPredefinedScriptHandler handles the execution of predefined scripts.
-type RunPredefinedScriptHandler struct {
-}
-
-// NewRunPredefinedScriptHandler creates a new RunPredefinedScriptHandler instance.
-func NewRunPredefinedScriptHandler() *RunPredefinedScriptHandler {
-	return &RunPredefinedScriptHandler{}
-}
-
 // RunPredefinedScriptInputs represents the input parameters for running a predefined script.
 type RunPredefinedScriptInputs struct {
 	ScriptName             string `json:"scriptName"`
@@ -48,8 +39,8 @@ type RunPredefinedScriptOutputs struct {
 	DurationMillis  int    `json:"durationMillis"`
 }
 
-// Run executes a predefined script with the given inputs.
-func (h *RunPredefinedScriptHandler) Run(
+// RunPredefinedScript executes a predefined script with the given inputs.
+func (s *Script) RunPredefinedScript(
 	ctx context.Context,
 	task *types.Task,
 	credentials interface{},

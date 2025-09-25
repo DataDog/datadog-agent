@@ -16,12 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type CountDocumentsAction struct{}
-
-func NewCountDocumentsHandler() types.Action {
-	return &CountDocumentsAction{}
-}
-
 type CountDocumentsInputs struct {
 	Collection string         `json:"collection,omitempty"`
 	Filter     map[string]any `json:"filter,omitempty"`
@@ -31,7 +25,7 @@ type CountDocumentsOutputs struct {
 	Count int64 `json:"count"`
 }
 
-func (cda CountDocumentsAction) Run(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
+func (m *MongoDB) RunCountDocuments(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
 	inputs, err := types.ExtractInputs[CountDocumentsInputs](task)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to extract inputs: %w", err)

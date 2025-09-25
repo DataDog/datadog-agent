@@ -6,35 +6,51 @@
 package com_datadoghq_gitlab_commits
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GitlabCommitsBundle struct {
-	actions map[string]types.Action
-}
+type GitlabCommitsBundle struct{}
 
 func NewGitlabCommits() types.Bundle {
-	return &GitlabCommitsBundle{
-		actions: map[string]types.Action{
-			// Manual actions
-			"revertCommit": NewRevertCommitHandler(),
-			// Auto-generated actions
-			"cherryPickCommit":          NewCherryPickCommitHandler(),
-			"createCommit":              NewCreateCommitHandler(),
-			"getCommit":                 NewGetCommitHandler(),
-			"getCommitComments":         NewGetCommitCommentsHandler(),
-			"getCommitDiff":             NewGetCommitDiffHandler(),
-			"getCommitRefs":             NewGetCommitRefsHandler(),
-			"getCommitStatuses":         NewGetCommitStatusesHandler(),
-			"getGPGSignature":           NewGetGPGSignatureHandler(),
-			"listCommits":               NewListCommitsHandler(),
-			"listMergeRequestsByCommit": NewListMergeRequestsByCommitHandler(),
-			"postCommitComment":         NewPostCommitCommentHandler(),
-			"setCommitStatus":           NewSetCommitStatusHandler(),
-		},
+	return &GitlabCommitsBundle{}
+}
+
+func (b *GitlabCommitsBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "revertCommit":
+		return b.RunRevertCommit(ctx, task, credential)
+	case "cherryPickCommit":
+		return b.RunCherryPickCommit(ctx, task, credential)
+	case "createCommit":
+		return b.RunCreateCommit(ctx, task, credential)
+	case "getCommit":
+		return b.RunGetCommit(ctx, task, credential)
+	case "getCommitComments":
+		return b.RunGetCommitComments(ctx, task, credential)
+	case "getCommitDiff":
+		return b.RunGetCommitDiff(ctx, task, credential)
+	case "getCommitRefs":
+		return b.RunGetCommitRefs(ctx, task, credential)
+	case "getCommitStatuses":
+		return b.RunGetCommitStatuses(ctx, task, credential)
+	case "getGPGSignature":
+		return b.RunGetGPGSignature(ctx, task, credential)
+	case "listCommits":
+		return b.RunListCommits(ctx, task, credential)
+	case "listMergeRequestsByCommit":
+		return b.RunListMergeRequestsByCommit(ctx, task, credential)
+	case "postCommitComment":
+		return b.RunPostCommitComment(ctx, task, credential)
+	case "setCommitStatus":
+		return b.RunSetCommitStatus(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
-func (h *GitlabCommitsBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+func (b *GitlabCommitsBundle) GetAction(actionName string) types.Action {
+	return b
 }

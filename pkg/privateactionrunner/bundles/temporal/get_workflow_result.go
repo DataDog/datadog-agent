@@ -13,12 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type GetWorkflowResultHandler struct{}
-
-func NewGetWorkflowResultHandler() *GetWorkflowResultHandler {
-	return &GetWorkflowResultHandler{}
-}
-
 type GetWorkflowResultInputs struct {
 	RunId      string `json:"runId,omitempty"`
 	WorkflowId string `json:"workflowId,omitempty"`
@@ -29,7 +23,7 @@ type GetWorkflowResultOutputs struct {
 	ExecutionResult string `json:"executionResult"`
 }
 
-func (h *GetWorkflowResultHandler) Run(
+func (t *Temporal) RunGetWorkflowResult(
 	ctx context.Context,
 	task *types.Task,
 	credentials interface{},

@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMultipleCronJobsHandler struct{}
-
-func NewDeleteMultipleCronJobsHandler() *DeleteMultipleCronJobsHandler {
-	return &DeleteMultipleCronJobsHandler{}
-}
-
 type DeleteMultipleCronJobsInputs struct {
 	*support.DeleteFields
 	*support.ListFields
@@ -29,11 +23,11 @@ type DeleteMultipleCronJobsInputs struct {
 
 type DeleteMultipleCronJobsOutputs struct{}
 
-func (h *DeleteMultipleCronJobsHandler) Run(
+func (b *KubernetesBatch) RunDeleteMultipleCronJobs(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[DeleteMultipleCronJobsInputs](task)
 	if err != nil {
 		return nil, err

@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchPersistentVolumeClaimHandler struct{}
-
-func NewPatchPersistentVolumeClaimHandler() *PatchPersistentVolumeClaimHandler {
-	return &PatchPersistentVolumeClaimHandler{}
-}
-
 type PatchPersistentVolumeClaimInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,7 +30,7 @@ type PatchPersistentVolumeClaimOutputs struct {
 	Status     v1.PersistentVolumeClaimStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchPersistentVolumeClaimHandler) Run(
+func (b *KubernetesCore) RunPatchPersistentVolumeClaim(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

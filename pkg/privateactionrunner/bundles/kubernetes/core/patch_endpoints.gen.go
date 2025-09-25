@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchEndpointsHandler struct{}
-
-func NewPatchEndpointsHandler() *PatchEndpointsHandler {
-	return &PatchEndpointsHandler{}
-}
-
 type PatchEndpointsInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -35,7 +29,7 @@ type PatchEndpointsOutputs struct {
 	Subsets    []v1.EndpointSubset `json:"subsets,omitempty" protobuf:"bytes,2,rep,name=subsets"`
 }
 
-func (h *PatchEndpointsHandler) Run(
+func (b *KubernetesCore) RunPatchEndpoints(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

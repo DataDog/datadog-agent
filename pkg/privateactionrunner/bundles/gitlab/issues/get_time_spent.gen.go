@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetTimeSpentHandler struct{}
-
-func NewGetTimeSpentHandler() *GetTimeSpentHandler {
-	return &GetTimeSpentHandler{}
-}
-
 type GetTimeSpentInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -28,7 +22,7 @@ type GetTimeSpentOutputs struct {
 	TimeStats *gitlab.TimeStats `json:"time_stats"`
 }
 
-func (h *GetTimeSpentHandler) Run(
+func (b *GitlabIssuesBundle) RunGetTimeSpent(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetCommitCommentsHandler struct{}
-
-func NewGetCommitCommentsHandler() *GetCommitCommentsHandler {
-	return &GetCommitCommentsHandler{}
-}
-
 type GetCommitCommentsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -29,7 +23,7 @@ type GetCommitCommentsOutputs struct {
 	CommitComments []*gitlab.CommitComment `json:"commit_comments"`
 }
 
-func (h *GetCommitCommentsHandler) Run(
+func (b *GitlabCommitsBundle) RunGetCommitComments(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

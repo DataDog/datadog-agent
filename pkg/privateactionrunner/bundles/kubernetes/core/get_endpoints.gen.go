@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetEndpointsHandler struct{}
-
-func NewGetEndpointsHandler() *GetEndpointsHandler {
-	return &GetEndpointsHandler{}
-}
-
 type GetEndpointsInputs struct {
 	*support.GetFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,7 +27,7 @@ type GetEndpointsOutputs struct {
 	Subsets    []v1.EndpointSubset `json:"subsets,omitempty" protobuf:"bytes,2,rep,name=subsets"`
 }
 
-func (h *GetEndpointsHandler) Run(
+func (b *KubernetesCore) RunGetEndpoints(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

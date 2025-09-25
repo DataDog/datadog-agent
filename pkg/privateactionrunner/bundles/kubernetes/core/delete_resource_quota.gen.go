@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteResourceQuotaHandler struct{}
-
-func NewDeleteResourceQuotaHandler() *DeleteResourceQuotaHandler {
-	return &DeleteResourceQuotaHandler{}
-}
-
 type DeleteResourceQuotaInputs struct {
 	*support.DeleteFields
 	Namespace string `json:"namespace,omitempty"`
@@ -28,7 +22,7 @@ type DeleteResourceQuotaInputs struct {
 
 type DeleteResourceQuotaOutputs struct{}
 
-func (h *DeleteResourceQuotaHandler) Run(
+func (b *KubernetesCore) RunDeleteResourceQuota(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

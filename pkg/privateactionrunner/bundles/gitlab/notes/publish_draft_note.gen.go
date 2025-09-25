@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type PublishDraftNoteHandler struct{}
-
-func NewPublishDraftNoteHandler() *PublishDraftNoteHandler {
-	return &PublishDraftNoteHandler{}
-}
-
 type PublishDraftNoteInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -26,7 +20,7 @@ type PublishDraftNoteInputs struct {
 
 type PublishDraftNoteOutputs struct{}
 
-func (h *PublishDraftNoteHandler) Run(
+func (b *GitlabNotesBundle) RunPublishDraftNote(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

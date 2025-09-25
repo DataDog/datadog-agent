@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetLatestPipelineHandler struct{}
-
-func NewGetLatestPipelineHandler() *GetLatestPipelineHandler {
-	return &GetLatestPipelineHandler{}
-}
-
 type GetLatestPipelineInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.GetLatestPipelineOptions
@@ -28,7 +22,7 @@ type GetLatestPipelineOutputs struct {
 	Pipeline *gitlab.Pipeline `json:"pipeline"`
 }
 
-func (h *GetLatestPipelineHandler) Run(
+func (b *GitlabPipelinesBundle) RunGetLatestPipeline(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

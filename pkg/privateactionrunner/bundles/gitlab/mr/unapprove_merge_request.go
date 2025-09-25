@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type UnapproveMergeRequestHandler struct{}
-
-func NewUnapproveMergeRequestHandler() *UnapproveMergeRequestHandler {
-	return &UnapproveMergeRequestHandler{}
-}
-
 type UnapproveMergeRequestInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -25,10 +19,9 @@ type UnapproveMergeRequestInputs struct {
 
 type UnapproveMergeRequestOutputs struct{}
 
-func (h *UnapproveMergeRequestHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunUnapproveMergeRequest(
 	ctx context.Context,
 	task *types.Task, credential interface{},
-
 ) (any, error) {
 	inputs, err := types.ExtractInputs[UnapproveMergeRequestInputs](task)
 	if err != nil {

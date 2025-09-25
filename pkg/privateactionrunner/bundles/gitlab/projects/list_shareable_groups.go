@@ -16,12 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type ListShareableGroupsHandler struct{}
-
-func NewListShareableGroupsHandler() *ListShareableGroupsHandler {
-	return &ListShareableGroupsHandler{}
-}
-
 type ListShareableGroupsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id"`
 	*ListShareableGroupsOptions
@@ -35,7 +29,7 @@ type ListShareableGroupsOutputs struct {
 	ProjectGroups []*gitlab.ProjectGroup `json:"project_groups"`
 }
 
-func (h *ListShareableGroupsHandler) Run(
+func (b *GitlabProjectsBundle) ListShareableGroups(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

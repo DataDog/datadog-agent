@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeletePodHandler struct{}
-
-func NewDeletePodHandler() *DeletePodHandler {
-	return &DeletePodHandler{}
-}
-
 type DeletePodInputs struct {
 	*support.DeleteFields
 	Namespace string `json:"namespace,omitempty"`
@@ -28,7 +22,7 @@ type DeletePodInputs struct {
 
 type DeletePodOutputs struct{}
 
-func (h *DeletePodHandler) Run(
+func (b *KubernetesCore) RunDeletePod(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

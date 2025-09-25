@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type DeleteProjectHandler struct{}
-
-func NewDeleteProjectHandler() *DeleteProjectHandler {
-	return &DeleteProjectHandler{}
-}
-
 type DeleteProjectInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.DeleteProjectOptions
@@ -26,7 +20,7 @@ type DeleteProjectInputs struct {
 
 type DeleteProjectOutputs struct{}
 
-func (h *DeleteProjectHandler) Run(
+func (b *GitlabProjectsBundle) DeleteProject(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

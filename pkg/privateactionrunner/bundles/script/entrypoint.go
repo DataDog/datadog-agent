@@ -7,24 +7,31 @@
 package com_datadoghq_script //nolint:revive
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 // Script provides script-related actions for private action bundles.
 type Script struct {
-	actions map[string]types.Action
 }
 
 // NewScript creates a new Script instance.
 func NewScript() *Script {
-	return &Script{
-		actions: map[string]types.Action{
-			"runPredefinedScript": NewRunPredefinedScriptHandler(),
-		},
+	return &Script{}
+}
+
+func (s *Script) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "runPredefinedScript":
+		return s.RunPredefinedScript(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
 // GetAction returns the action with the specified name.
-func (h *Script) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+func (s *Script) GetAction(actionName string) types.Action {
+	return s
 }

@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateDaemonSetHandler struct{}
-
-func NewCreateDaemonSetHandler() *CreateDaemonSetHandler {
-	return &CreateDaemonSetHandler{}
-}
-
 type CreateDaemonSetInputs struct {
 	*support.CreateFields
 	Namespace string        `json:"namespace,omitempty"`
@@ -35,11 +29,11 @@ type CreateDaemonSetOutputs struct {
 	Status     v1.DaemonSetStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *CreateDaemonSetHandler) Run(
+func (b *KubernetesApps) RunCreateDaemonSet(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[CreateDaemonSetInputs](task)
 	if err != nil {
 		return nil, err

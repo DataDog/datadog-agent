@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type RevokeImpersonationTokenHandler struct{}
-
-func NewRevokeImpersonationTokenHandler() *RevokeImpersonationTokenHandler {
-	return &RevokeImpersonationTokenHandler{}
-}
-
 type RevokeImpersonationTokenInputs struct {
 	UserId               int `json:"user_id,omitempty"`
 	ImpersonationTokenId int `json:"impersonation_token_id,omitempty"`
@@ -25,7 +19,7 @@ type RevokeImpersonationTokenInputs struct {
 
 type RevokeImpersonationTokenOutputs struct{}
 
-func (h *RevokeImpersonationTokenHandler) Run(
+func (b *GitlabUsersBundle) RunRevokeImpersonationToken(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

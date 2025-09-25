@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetJobHandler struct{}
-
-func NewGetJobHandler() *GetJobHandler {
-	return &GetJobHandler{}
-}
-
 type GetJobInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	JobId     int          `json:"job_id,omitempty"`
@@ -28,7 +22,7 @@ type GetJobOutputs struct {
 	Job *gitlab.Job `json:"job"`
 }
 
-func (h *GetJobHandler) Run(
+func (b *GitlabJobsBundle) RunGetJob(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

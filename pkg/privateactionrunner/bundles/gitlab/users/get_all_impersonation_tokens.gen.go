@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetAllImpersonationTokensHandler struct{}
-
-func NewGetAllImpersonationTokensHandler() *GetAllImpersonationTokensHandler {
-	return &GetAllImpersonationTokensHandler{}
-}
-
 type GetAllImpersonationTokensInputs struct {
 	UserId int `json:"user_id,omitempty"`
 	*gitlab.GetAllImpersonationTokensOptions
@@ -28,7 +22,7 @@ type GetAllImpersonationTokensOutputs struct {
 	ImpersonationTokens []*gitlab.ImpersonationToken `json:"impersonation_tokens"`
 }
 
-func (h *GetAllImpersonationTokensHandler) Run(
+func (b *GitlabUsersBundle) RunGetAllImpersonationTokens(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

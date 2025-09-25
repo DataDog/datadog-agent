@@ -16,12 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type RestoreProjectHandler struct{}
-
-func NewRestoreProjectHandler() *RestoreProjectHandler {
-	return &RestoreProjectHandler{}
-}
-
 type RestoreProjectInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 }
@@ -30,7 +24,7 @@ type RestoreProjectOutputs struct {
 	Project *gitlab.Project `json:"project"`
 }
 
-func (h *RestoreProjectHandler) Run(
+func (b *GitlabProjectsBundle) RestoreProject(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

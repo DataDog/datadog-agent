@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type DeleteGroupHandler struct{}
-
-func NewDeleteGroupHandler() *DeleteGroupHandler {
-	return &DeleteGroupHandler{}
-}
-
 type DeleteGroupInputs struct {
 	GroupId lib.GitlabID `json:"group_id,omitempty"`
 	*gitlab.DeleteGroupOptions
@@ -26,10 +20,9 @@ type DeleteGroupInputs struct {
 
 type DeleteGroupOutputs struct{}
 
-func (h *DeleteGroupHandler) Run(
+func (b *GitlabGroupsBundle) RunDeleteGroup(
 	ctx context.Context,
 	task *types.Task, credential interface{},
-
 ) (any, error) {
 	inputs, err := types.ExtractInputs[DeleteGroupInputs](task)
 	if err != nil {

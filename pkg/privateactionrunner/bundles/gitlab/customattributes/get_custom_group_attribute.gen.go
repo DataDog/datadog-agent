@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetCustomGroupAttributeHandler struct{}
-
-func NewGetCustomGroupAttributeHandler() *GetCustomGroupAttributeHandler {
-	return &GetCustomGroupAttributeHandler{}
-}
-
 type GetCustomGroupAttributeInputs struct {
 	GroupId int    `json:"group_id,omitempty"`
 	Key     string `json:"key,omitempty"`
@@ -28,7 +22,7 @@ type GetCustomGroupAttributeOutputs struct {
 	CustomAttribute *gitlab.CustomAttribute `json:"custom_attribute"`
 }
 
-func (h *GetCustomGroupAttributeHandler) Run(
+func (b *GitlabCustomAttributesBundle) RunGetCustomGroupAttribute(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

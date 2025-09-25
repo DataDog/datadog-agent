@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteProjectDeploymentHandler struct{}
-
-func NewDeleteProjectDeploymentHandler() *DeleteProjectDeploymentHandler {
-	return &DeleteProjectDeploymentHandler{}
-}
-
 type DeleteProjectDeploymentInputs struct {
 	ProjectId    lib.GitlabID `json:"project_id,omitempty"`
 	DeploymentId int          `json:"deployment_id,omitempty"`
@@ -25,7 +19,7 @@ type DeleteProjectDeploymentInputs struct {
 
 type DeleteProjectDeploymentOutputs struct{}
 
-func (h *DeleteProjectDeploymentHandler) Run(
+func (b *GitlabDeploymentsBundle) RunDeleteProjectDeployment(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

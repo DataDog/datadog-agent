@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type SubscribeToMergeRequestHandler struct{}
-
-func NewSubscribeToMergeRequestHandler() *SubscribeToMergeRequestHandler {
-	return &SubscribeToMergeRequestHandler{}
-}
-
 type SubscribeToMergeRequestInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -28,7 +22,7 @@ type SubscribeToMergeRequestOutputs struct {
 	MergeRequest *gitlab.MergeRequest `json:"merge_request"`
 }
 
-func (h *SubscribeToMergeRequestHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunSubscribeToMergeRequest(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

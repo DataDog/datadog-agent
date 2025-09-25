@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CancelPipelineBuildHandler struct{}
-
-func NewCancelPipelineBuildHandler() *CancelPipelineBuildHandler {
-	return &CancelPipelineBuildHandler{}
-}
-
 type CancelPipelineBuildInputs struct {
 	ProjectId  lib.GitlabID `json:"project_id,omitempty"`
 	PipelineId int          `json:"pipeline_id,omitempty"`
@@ -28,7 +22,7 @@ type CancelPipelineBuildOutputs struct {
 	Pipeline *gitlab.Pipeline `json:"pipeline"`
 }
 
-func (h *CancelPipelineBuildHandler) Run(
+func (b *GitlabPipelinesBundle) RunCancelPipelineBuild(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

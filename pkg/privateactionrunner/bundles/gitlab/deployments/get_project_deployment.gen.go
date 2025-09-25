@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetProjectDeploymentHandler struct{}
-
-func NewGetProjectDeploymentHandler() *GetProjectDeploymentHandler {
-	return &GetProjectDeploymentHandler{}
-}
-
 type GetProjectDeploymentInputs struct {
 	ProjectId    lib.GitlabID `json:"project_id,omitempty"`
 	DeploymentId int          `json:"deployment_id,omitempty"`
@@ -28,7 +22,7 @@ type GetProjectDeploymentOutputs struct {
 	Deployment *gitlab.Deployment `json:"deployment"`
 }
 
-func (h *GetProjectDeploymentHandler) Run(
+func (b *GitlabDeploymentsBundle) RunGetProjectDeployment(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

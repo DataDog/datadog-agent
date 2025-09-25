@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateResourceQuotaHandler struct{}
-
-func NewCreateResourceQuotaHandler() *CreateResourceQuotaHandler {
-	return &CreateResourceQuotaHandler{}
-}
-
 type CreateResourceQuotaInputs struct {
 	*support.CreateFields
 	Namespace string            `json:"namespace,omitempty"`
@@ -35,7 +29,7 @@ type CreateResourceQuotaOutputs struct {
 	Status     v1.ResourceQuotaStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *CreateResourceQuotaHandler) Run(
+func (b *KubernetesCore) RunCreateResourceQuota(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

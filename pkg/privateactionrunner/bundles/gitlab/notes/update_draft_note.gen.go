@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type UpdateDraftNoteHandler struct{}
-
-func NewUpdateDraftNoteHandler() *UpdateDraftNoteHandler {
-	return &UpdateDraftNoteHandler{}
-}
-
 type UpdateDraftNoteInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -30,7 +24,7 @@ type UpdateDraftNoteOutputs struct {
 	DraftNote *gitlab.DraftNote `json:"draft_note"`
 }
 
-func (h *UpdateDraftNoteHandler) Run(
+func (b *GitlabNotesBundle) RunUpdateDraftNote(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchNodeHandler struct{}
-
-func NewPatchNodeHandler() *PatchNodeHandler {
-	return &PatchNodeHandler{}
-}
-
 type PatchNodeInputs struct {
 	*support.PatchFields
 }
@@ -35,7 +29,7 @@ type PatchNodeOutputs struct {
 	Status     v1.NodeStatus     `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchNodeHandler) Run(
+func (b *KubernetesCore) RunPatchNode(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListSSHKeysHandler struct{}
-
-func NewListSSHKeysHandler() *ListSSHKeysHandler {
-	return &ListSSHKeysHandler{}
-}
-
 type ListSSHKeysInputs struct {
 	*gitlab.ListSSHKeysOptions
 }
@@ -27,7 +21,7 @@ type ListSSHKeysOutputs struct {
 	SshKeys []*gitlab.SSHKey `json:"ssh_keys"`
 }
 
-func (h *ListSSHKeysHandler) Run(
+func (b *GitlabUsersBundle) RunListSSHKeys(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

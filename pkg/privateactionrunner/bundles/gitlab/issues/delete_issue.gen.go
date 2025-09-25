@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteIssueHandler struct{}
-
-func NewDeleteIssueHandler() *DeleteIssueHandler {
-	return &DeleteIssueHandler{}
-}
-
 type DeleteIssueInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -25,7 +19,7 @@ type DeleteIssueInputs struct {
 
 type DeleteIssueOutputs struct{}
 
-func (h *DeleteIssueHandler) Run(
+func (b *GitlabIssuesBundle) RunDeleteIssue(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

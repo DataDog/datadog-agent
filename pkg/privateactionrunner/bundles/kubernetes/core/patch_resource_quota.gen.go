@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchResourceQuotaHandler struct{}
-
-func NewPatchResourceQuotaHandler() *PatchResourceQuotaHandler {
-	return &PatchResourceQuotaHandler{}
-}
-
 type PatchResourceQuotaInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,7 +30,7 @@ type PatchResourceQuotaOutputs struct {
 	Status     v1.ResourceQuotaStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchResourceQuotaHandler) Run(
+func (b *KubernetesCore) RunPatchResourceQuota(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

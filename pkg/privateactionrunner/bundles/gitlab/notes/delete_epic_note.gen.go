@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteEpicNoteHandler struct{}
-
-func NewDeleteEpicNoteHandler() *DeleteEpicNoteHandler {
-	return &DeleteEpicNoteHandler{}
-}
-
 type DeleteEpicNoteInputs struct {
 	GroupId lib.GitlabID `json:"group_id,omitempty"`
 	EpicId  int          `json:"epic_id,omitempty"`
@@ -26,7 +20,7 @@ type DeleteEpicNoteInputs struct {
 
 type DeleteEpicNoteOutputs struct{}
 
-func (h *DeleteEpicNoteHandler) Run(
+func (b *GitlabNotesBundle) RunDeleteEpicNote(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

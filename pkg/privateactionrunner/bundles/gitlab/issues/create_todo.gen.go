@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CreateTodoHandler struct{}
-
-func NewCreateTodoHandler() *CreateTodoHandler {
-	return &CreateTodoHandler{}
-}
-
 type CreateTodoInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -28,7 +22,7 @@ type CreateTodoOutputs struct {
 	Todo *gitlab.Todo `json:"todo"`
 }
 
-func (h *CreateTodoHandler) Run(
+func (b *GitlabIssuesBundle) RunCreateTodo(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

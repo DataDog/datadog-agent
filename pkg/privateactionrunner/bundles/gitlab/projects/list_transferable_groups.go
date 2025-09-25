@@ -16,12 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type ListTransferableGroupsHandler struct{}
-
-func NewListTransferableGroupsHandler() *ListTransferableGroupsHandler {
-	return &ListTransferableGroupsHandler{}
-}
-
 type ListTransferableGroupsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id"`
 	*ListTransferableGroupsOptions
@@ -37,7 +31,7 @@ type ListTransferableGroupsOutputs struct {
 	ProjectGroups []*gitlab.ProjectGroup `json:"project_groups"`
 }
 
-func (h *ListTransferableGroupsHandler) Run(
+func (b *GitlabProjectsBundle) ListTransferableGroups(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

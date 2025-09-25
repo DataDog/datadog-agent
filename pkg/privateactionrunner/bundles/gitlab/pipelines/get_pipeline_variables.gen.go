@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetPipelineVariablesHandler struct{}
-
-func NewGetPipelineVariablesHandler() *GetPipelineVariablesHandler {
-	return &GetPipelineVariablesHandler{}
-}
-
 type GetPipelineVariablesInputs struct {
 	ProjectId  lib.GitlabID `json:"project_id,omitempty"`
 	PipelineId int          `json:"pipeline_id,omitempty"`
@@ -30,7 +24,7 @@ type GetPipelineVariablesOutputs struct {
 	PipelineVariables []*gitlab.PipelineVariable `json:"pipeline_variables"`
 }
 
-func (h *GetPipelineVariablesHandler) Run(
+func (b *GitlabPipelinesBundle) RunGetPipelineVariables(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -6,31 +6,45 @@
 package com_datadoghq_gitlab_repositories
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GitlabRepositoriesBundle struct {
-	actions map[string]types.Action
-}
+type GitlabRepositoriesBundle struct{}
 
 func NewGitlabRepositories() types.Bundle {
-	return &GitlabRepositoriesBundle{
-		actions: map[string]types.Action{
-			// Manual actions
-			"contributors":   NewContributorsHandler(),
-			"getBlob":        NewGetBlobHandler(),
-			"getFileArchive": NewGetFileArchiveHandler(),
-			"rawBlobContent": NewRawBlobContentHandler(),
-			// Auto-generated actions
-			"addChangelog":          NewAddChangelogHandler(),
-			"compare":               NewCompareHandler(),
-			"generateChangelogData": NewGenerateChangelogDataHandler(),
-			"listTree":              NewListTreeHandler(),
-			"mergeBase":             NewMergeBaseHandler(),
-		},
+	return &GitlabRepositoriesBundle{}
+}
+
+func (b *GitlabRepositoriesBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	// Manual actions
+	case "contributors":
+		return b.RunContributors(ctx, task, credential)
+	case "getBlob":
+		return b.RunGetBlob(ctx, task, credential)
+	case "getFileArchive":
+		return b.RunGetFileArchive(ctx, task, credential)
+	case "rawBlobContent":
+		return b.RunRawBlobContent(ctx, task, credential)
+	// Auto-generated actions
+	case "addChangelog":
+		return b.RunAddChangelog(ctx, task, credential)
+	case "compare":
+		return b.RunCompare(ctx, task, credential)
+	case "generateChangelogData":
+		return b.RunGenerateChangelogData(ctx, task, credential)
+	case "listTree":
+		return b.RunListTree(ctx, task, credential)
+	case "mergeBase":
+		return b.RunMergeBase(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
 func (h *GitlabRepositoriesBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+	return h
 }

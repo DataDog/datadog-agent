@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchPodTemplateHandler struct{}
-
-func NewPatchPodTemplateHandler() *PatchPodTemplateHandler {
-	return &PatchPodTemplateHandler{}
-}
-
 type PatchPodTemplateInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -35,7 +29,7 @@ type PatchPodTemplateOutputs struct {
 	Template   v1.PodTemplateSpec `json:"template,omitempty" protobuf:"bytes,2,opt,name=template"`
 }
 
-func (h *PatchPodTemplateHandler) Run(
+func (b *KubernetesCore) RunPatchPodTemplate(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteEmailForUserHandler struct{}
-
-func NewDeleteEmailForUserHandler() *DeleteEmailForUserHandler {
-	return &DeleteEmailForUserHandler{}
-}
-
 type DeleteEmailForUserInputs struct {
 	UserId  int `json:"user_id,omitempty"`
 	EmailId int `json:"email_id,omitempty"`
@@ -25,7 +19,7 @@ type DeleteEmailForUserInputs struct {
 
 type DeleteEmailForUserOutputs struct{}
 
-func (h *DeleteEmailForUserHandler) Run(
+func (b *GitlabUsersBundle) RunDeleteEmailForUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

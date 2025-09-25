@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMultipleResourceQuotasHandler struct{}
-
-func NewDeleteMultipleResourceQuotasHandler() *DeleteMultipleResourceQuotasHandler {
-	return &DeleteMultipleResourceQuotasHandler{}
-}
-
 type DeleteMultipleResourceQuotasInputs struct {
 	*support.DeleteFields
 	*support.ListFields
@@ -29,7 +23,7 @@ type DeleteMultipleResourceQuotasInputs struct {
 
 type DeleteMultipleResourceQuotasOutputs struct{}
 
-func (h *DeleteMultipleResourceQuotasHandler) Run(
+func (b *KubernetesCore) RunDeleteMultipleResourceQuotas(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateConfigMapHandler struct{}
-
-func NewCreateConfigMapHandler() *CreateConfigMapHandler {
-	return &CreateConfigMapHandler{}
-}
-
 type CreateConfigMapInputs struct {
 	*support.CreateFields
 	Namespace string        `json:"namespace,omitempty"`
@@ -36,7 +30,7 @@ type CreateConfigMapOutputs struct {
 	BinaryData map[string][]byte `json:"binaryData,omitempty" protobuf:"bytes,3,rep,name=binaryData"`
 }
 
-func (h *CreateConfigMapHandler) Run(
+func (b *KubernetesCore) RunCreateConfigMap(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

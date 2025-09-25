@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ArchiveProjectHandler struct{}
-
-func NewArchiveProjectHandler() *ArchiveProjectHandler {
-	return &ArchiveProjectHandler{}
-}
-
 type ArchiveProjectInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 }
@@ -27,7 +21,7 @@ type ArchiveProjectOutputs struct {
 	Project *gitlab.Project `json:"project"`
 }
 
-func (h *ArchiveProjectHandler) Run(
+func (b *GitlabProjectsBundle) ArchiveProject(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

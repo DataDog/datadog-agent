@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdatePodHandler struct{}
-
-func NewUpdatePodHandler() *UpdatePodHandler {
-	return &UpdatePodHandler{}
-}
-
 type UpdatePodInputs struct {
 	*support.UpdateFields
 	Namespace string  `json:"namespace,omitempty"`
@@ -35,7 +29,7 @@ type UpdatePodOutputs struct {
 	Status     v1.PodStatus      `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *UpdatePodHandler) Run(
+func (b *KubernetesCore) RunUpdatePod(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

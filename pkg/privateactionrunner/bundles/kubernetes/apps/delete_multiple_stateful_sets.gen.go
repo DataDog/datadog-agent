@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMultipleStatefulSetsHandler struct{}
-
-func NewDeleteMultipleStatefulSetsHandler() *DeleteMultipleStatefulSetsHandler {
-	return &DeleteMultipleStatefulSetsHandler{}
-}
-
 type DeleteMultipleStatefulSetsInputs struct {
 	*support.DeleteFields
 	*support.ListFields
@@ -29,11 +23,11 @@ type DeleteMultipleStatefulSetsInputs struct {
 
 type DeleteMultipleStatefulSetsOutputs struct{}
 
-func (h *DeleteMultipleStatefulSetsHandler) Run(
+func (b *KubernetesApps) RunDeleteMultipleStatefulSets(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[DeleteMultipleStatefulSetsInputs](task)
 	if err != nil {
 		return nil, err

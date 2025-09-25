@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteConfigMapHandler struct{}
-
-func NewDeleteConfigMapHandler() *DeleteConfigMapHandler {
-	return &DeleteConfigMapHandler{}
-}
-
 type DeleteConfigMapInputs struct {
 	*support.DeleteFields
 	Namespace string `json:"namespace,omitempty"`
@@ -28,7 +22,7 @@ type DeleteConfigMapInputs struct {
 
 type DeleteConfigMapOutputs struct{}
 
-func (h *DeleteConfigMapHandler) Run(
+func (b *KubernetesCore) RunDeleteConfigMap(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

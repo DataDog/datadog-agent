@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListCommitsHandler struct{}
-
-func NewListCommitsHandler() *ListCommitsHandler {
-	return &ListCommitsHandler{}
-}
-
 type ListCommitsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ListCommitsOptions
@@ -28,7 +22,7 @@ type ListCommitsOutputs struct {
 	Commits []*gitlab.Commit `json:"commits"`
 }
 
-func (h *ListCommitsHandler) Run(
+func (b *GitlabCommitsBundle) RunListCommits(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

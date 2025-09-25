@@ -18,12 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-type CreateControllerRevisionHandler struct{}
-
-func NewCreateControllerRevisionHandler() *CreateControllerRevisionHandler {
-	return &CreateControllerRevisionHandler{}
-}
-
 type CreateControllerRevisionInputs struct {
 	*support.CreateFields
 	Namespace string                 `json:"namespace,omitempty"`
@@ -36,11 +30,11 @@ type CreateControllerRevisionOutputs struct {
 	Revision   int64                `json:"revision" protobuf:"varint,3,opt,name=revision"`
 }
 
-func (h *CreateControllerRevisionHandler) Run(
+func (b *KubernetesApps) RunCreateControllerRevision(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[CreateControllerRevisionInputs](task)
 	if err != nil {
 		return nil, err

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetProjectHandler struct{}
-
-func NewGetProjectHandler() *GetProjectHandler {
-	return &GetProjectHandler{}
-}
-
 type GetProjectInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.GetProjectOptions
@@ -28,7 +22,7 @@ type GetProjectOutputs struct {
 	Project *gitlab.Project `json:"project"`
 }
 
-func (h *GetProjectHandler) Run(
+func (b *GitlabProjectsBundle) GetProject(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteLimitRangeHandler struct{}
-
-func NewDeleteLimitRangeHandler() *DeleteLimitRangeHandler {
-	return &DeleteLimitRangeHandler{}
-}
-
 type DeleteLimitRangeInputs struct {
 	*support.DeleteFields
 	Namespace string `json:"namespace,omitempty"`
@@ -28,7 +22,7 @@ type DeleteLimitRangeInputs struct {
 
 type DeleteLimitRangeOutputs struct{}
 
-func (h *DeleteLimitRangeHandler) Run(
+func (b *KubernetesCore) RunDeleteLimitRange(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

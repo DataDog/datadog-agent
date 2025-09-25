@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListReplicationControllerHandler struct{}
-
-func NewListReplicationControllerHandler() *ListReplicationControllerHandler {
-	return &ListReplicationControllerHandler{}
-}
-
 type ListReplicationControllerInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,7 +27,7 @@ type ListReplicationControllerOutputs struct {
 	ListMeta metav1.ListMeta            `json:"metadata"`
 }
 
-func (h *ListReplicationControllerHandler) Run(
+func (b *KubernetesCore) RunListReplicationController(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

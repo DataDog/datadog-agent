@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type SetTimeEstimateHandler struct{}
-
-func NewSetTimeEstimateHandler() *SetTimeEstimateHandler {
-	return &SetTimeEstimateHandler{}
-}
-
 type SetTimeEstimateInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -29,7 +23,7 @@ type SetTimeEstimateOutputs struct {
 	TimeStats *gitlab.TimeStats `json:"time_stats"`
 }
 
-func (h *SetTimeEstimateHandler) Run(
+func (b *GitlabIssuesBundle) RunSetTimeEstimate(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

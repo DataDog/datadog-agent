@@ -18,12 +18,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchConfigMapHandler struct{}
-
-func NewPatchConfigMapHandler() *PatchConfigMapHandler {
-	return &PatchConfigMapHandler{}
-}
-
 type PatchConfigMapInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,7 +30,7 @@ type PatchConfigMapOutputs struct {
 	BinaryData map[string][]byte `json:"binaryData,omitempty" protobuf:"bytes,3,rep,name=binaryData"`
 }
 
-func (h *PatchConfigMapHandler) Run(
+func (b *KubernetesCore) RunPatchConfigMap(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

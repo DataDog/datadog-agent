@@ -12,19 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteGPGKeyHandler struct{}
-
-func NewDeleteGPGKeyHandler() *DeleteGPGKeyHandler {
-	return &DeleteGPGKeyHandler{}
-}
-
 type DeleteGPGKeyInputs struct {
 	KeyId int `json:"key_id,omitempty"`
 }
 
 type DeleteGPGKeyOutputs struct{}
 
-func (h *DeleteGPGKeyHandler) Run(
+func (b *GitlabUsersBundle) RunDeleteGPGKey(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

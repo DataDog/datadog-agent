@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateDeploymentHandler struct{}
-
-func NewCreateDeploymentHandler() *CreateDeploymentHandler {
-	return &CreateDeploymentHandler{}
-}
-
 type CreateDeploymentInputs struct {
 	*support.CreateFields
 	Namespace string         `json:"namespace,omitempty"`
@@ -35,11 +29,11 @@ type CreateDeploymentOutputs struct {
 	Status     v1.DeploymentStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *CreateDeploymentHandler) Run(
+func (b *KubernetesApps) RunCreateDeployment(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[CreateDeploymentInputs](task)
 	if err != nil {
 		return nil, err

@@ -16,12 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type CreateIndexAction struct{}
-
-func NewCreateIndexHandler() types.Action {
-	return &CreateIndexAction{}
-}
-
 type CreateIndexInputs struct {
 	Collection string                `json:"collection,omitempty"`
 	Keys       map[string]int32      `json:"keys,omitempty"`
@@ -32,7 +26,7 @@ type CreateIndexOutputs struct {
 	IndexName string `json:"indexName"`
 }
 
-func (ci CreateIndexAction) Run(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
+func (m *MongoDB) RunCreateIndex(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
 	inputs, err := types.ExtractInputs[CreateIndexInputs](task)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract inputs: %w", err)

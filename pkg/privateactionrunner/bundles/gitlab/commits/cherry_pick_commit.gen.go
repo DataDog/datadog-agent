@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CherryPickCommitHandler struct{}
-
-func NewCherryPickCommitHandler() *CherryPickCommitHandler {
-	return &CherryPickCommitHandler{}
-}
-
 type CherryPickCommitInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -29,10 +23,9 @@ type CherryPickCommitOutputs struct {
 	Commit *gitlab.Commit `json:"commit"`
 }
 
-func (h *CherryPickCommitHandler) Run(
+func (b *GitlabCommitsBundle) RunCherryPickCommit(
 	ctx context.Context,
 	task *types.Task, credential interface{},
-
 ) (any, error) {
 	inputs, err := types.ExtractInputs[CherryPickCommitInputs](task)
 	if err != nil {

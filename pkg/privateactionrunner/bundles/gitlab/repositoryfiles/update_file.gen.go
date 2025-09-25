@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type UpdateFileHandler struct{}
-
-func NewUpdateFileHandler() *UpdateFileHandler {
-	return &UpdateFileHandler{}
-}
-
 type UpdateFileInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	FilePath  string       `json:"file_path,omitempty"`
@@ -29,7 +23,7 @@ type UpdateFileOutputs struct {
 	FileInfo *gitlab.FileInfo `json:"file_info"`
 }
 
-func (h *UpdateFileHandler) Run(
+func (b *GitlabRepositoryFilesBundle) RunUpdateFile(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

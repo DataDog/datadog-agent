@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchNamespaceHandler struct{}
-
-func NewPatchNamespaceHandler() *PatchNamespaceHandler {
-	return &PatchNamespaceHandler{}
-}
-
 type PatchNamespaceInputs struct {
 	*support.PatchFields
 }
@@ -35,7 +29,7 @@ type PatchNamespaceOutputs struct {
 	Status     v1.NamespaceStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchNamespaceHandler) Run(
+func (b *KubernetesCore) RunPatchNamespace(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

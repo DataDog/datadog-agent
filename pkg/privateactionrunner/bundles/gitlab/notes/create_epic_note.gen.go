@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CreateEpicNoteHandler struct{}
-
-func NewCreateEpicNoteHandler() *CreateEpicNoteHandler {
-	return &CreateEpicNoteHandler{}
-}
-
 type CreateEpicNoteInputs struct {
 	GroupId lib.GitlabID `json:"group_id,omitempty"`
 	EpicId  int          `json:"epic_id,omitempty"`
@@ -29,7 +23,7 @@ type CreateEpicNoteOutputs struct {
 	Note *gitlab.Note `json:"note"`
 }
 
-func (h *CreateEpicNoteHandler) Run(
+func (b *GitlabNotesBundle) RunCreateEpicNote(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

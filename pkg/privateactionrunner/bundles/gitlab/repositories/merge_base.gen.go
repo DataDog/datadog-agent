@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type MergeBaseHandler struct{}
-
-func NewMergeBaseHandler() *MergeBaseHandler {
-	return &MergeBaseHandler{}
-}
-
 type MergeBaseInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.MergeBaseOptions
@@ -28,7 +22,7 @@ type MergeBaseOutputs struct {
 	Commit *gitlab.Commit `json:"commit"`
 }
 
-func (h *MergeBaseHandler) Run(
+func (b *GitlabRepositoriesBundle) RunMergeBase(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

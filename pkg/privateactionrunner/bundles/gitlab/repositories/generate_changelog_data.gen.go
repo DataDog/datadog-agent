@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GenerateChangelogDataHandler struct{}
-
-func NewGenerateChangelogDataHandler() *GenerateChangelogDataHandler {
-	return &GenerateChangelogDataHandler{}
-}
-
 type GenerateChangelogDataInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	gitlab.GenerateChangelogDataOptions
@@ -28,7 +22,7 @@ type GenerateChangelogDataOutputs struct {
 	ChangelogData *gitlab.ChangelogData `json:"changelog_data"`
 }
 
-func (h *GenerateChangelogDataHandler) Run(
+func (b *GitlabRepositoriesBundle) RunGenerateChangelogData(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

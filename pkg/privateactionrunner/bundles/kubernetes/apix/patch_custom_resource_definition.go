@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package com_datadoghq_kubernetes_apiextensions
+package com_datadoghq_kubernetes_apix
 
 import (
 	"context"
@@ -15,23 +15,17 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchCustomResourceDefinitionHandler struct{}
-
-func NewPatchCustomResourceDefinitionHandler() *PatchCustomResourceDefinitionHandler {
-	return &PatchCustomResourceDefinitionHandler{}
-}
-
 type PatchCustomResourceDefinitionInputs struct {
 	*support.PatchFields
 }
 
 type PatchCustomResourceDefinitionOutputs = map[string]interface{}
 
-func (h *PatchCustomResourceDefinitionHandler) Run(
+func (b *KubernetesApiExtensions) RunPatchCustomResourceDefinition(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[PatchCustomResourceDefinitionInputs](task)
 	if err != nil {
 		return nil, err

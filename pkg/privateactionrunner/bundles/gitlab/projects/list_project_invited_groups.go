@@ -16,12 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type ListProjectInvitedGroupsHandler struct{}
-
-func NewListProjectInvitedGroupsHandler() *ListProjectInvitedGroupsHandler {
-	return &ListProjectInvitedGroupsHandler{}
-}
-
 type ListProjectInvitedGroupsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id"`
 	*ListProjectInvitedGroupsOptions
@@ -38,7 +32,7 @@ type ListProjectInvitedGroupsOutputs struct {
 	ProjectGroups []*gitlab.ProjectGroup `json:"project_groups"`
 }
 
-func (h *ListProjectInvitedGroupsHandler) Run(
+func (b *GitlabProjectsBundle) ListProjectInvitedGroups(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

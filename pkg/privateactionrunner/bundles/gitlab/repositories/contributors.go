@@ -16,12 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type ContributorsHandler struct{}
-
-func NewContributorsHandler() *ContributorsHandler {
-	return &ContributorsHandler{}
-}
-
 type ContributorsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*ListContributorsOptions
@@ -36,7 +30,7 @@ type ContributorsOutputs struct {
 	Contributors []*gitlab.Contributor `json:"contributors"`
 }
 
-func (h *ContributorsHandler) Run(
+func (b *GitlabRepositoriesBundle) RunContributors(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

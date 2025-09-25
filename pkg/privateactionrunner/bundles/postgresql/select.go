@@ -16,14 +16,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 )
 
-type SelectHandler struct {
-	MaxBytes uint32
-}
-
-func NewSelectHandler(maxBytes uint32) *SelectHandler {
-	return &SelectHandler{MaxBytes: maxBytes}
-}
-
 type SelectInputs struct {
 	Columns     []string `json:"columns,omitempty"`
 	Table       string   `json:"table,omitempty"`
@@ -41,7 +33,7 @@ type SelectOutputs struct {
 	Columns          []string `json:"columns"`
 }
 
-func (h *SelectHandler) Run(
+func (p *PostgreSQL) RunSelect(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
@@ -121,7 +113,7 @@ func (h *SelectHandler) Run(
 
 		rowSize := unsafe.Sizeof(rowResult)
 		size += uint32(rowSize)
-		if size > h.MaxBytes {
+		if size > maxBytes {
 			log.Warn("Reached maximum output size before processing all rows.")
 			truncatedResults = true
 			break

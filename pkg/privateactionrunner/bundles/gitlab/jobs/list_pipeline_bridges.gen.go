@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListPipelineBridgesHandler struct{}
-
-func NewListPipelineBridgesHandler() *ListPipelineBridgesHandler {
-	return &ListPipelineBridgesHandler{}
-}
-
 type ListPipelineBridgesInputs struct {
 	ProjectId  lib.GitlabID `json:"project_id,omitempty"`
 	PipelineId int          `json:"pipeline_id,omitempty"`
@@ -29,7 +23,7 @@ type ListPipelineBridgesOutputs struct {
 	Bridges []*gitlab.Bridge `json:"bridges"`
 }
 
-func (h *ListPipelineBridgesHandler) Run(
+func (b *GitlabJobsBundle) RunListPipelineBridges(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteArtifactsHandler struct{}
-
-func NewDeleteArtifactsHandler() *DeleteArtifactsHandler {
-	return &DeleteArtifactsHandler{}
-}
-
 type DeleteArtifactsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	JobId     int          `json:"job_id,omitempty"`
@@ -25,7 +19,7 @@ type DeleteArtifactsInputs struct {
 
 type DeleteArtifactsOutputs struct{}
 
-func (h *DeleteArtifactsHandler) Run(
+func (b *GitlabJobsBundle) RunDeleteArtifacts(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

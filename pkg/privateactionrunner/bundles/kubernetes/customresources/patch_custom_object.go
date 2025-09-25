@@ -15,12 +15,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchCustomObjectHandler struct{}
-
-func NewPatchCustomObjectHandler() *PatchCustomObjectHandler {
-	return &PatchCustomObjectHandler{}
-}
-
 type PatchCustomObjectInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace"`
@@ -31,11 +25,12 @@ type PatchCustomObjectInputs struct {
 
 type PatchCustomObjectOutputs = map[string]interface{}
 
-func (h *PatchCustomObjectHandler) Run(
+func (b *KubernetesCustomResources) RunPatchCustomObject(
+
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[PatchCustomObjectInputs](task)
 	if err != nil {
 		return nil, err

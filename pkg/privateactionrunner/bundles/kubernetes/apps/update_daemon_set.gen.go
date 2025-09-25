@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdateDaemonSetHandler struct{}
-
-func NewUpdateDaemonSetHandler() *UpdateDaemonSetHandler {
-	return &UpdateDaemonSetHandler{}
-}
-
 type UpdateDaemonSetInputs struct {
 	*support.UpdateFields
 	Namespace string        `json:"namespace,omitempty"`
@@ -35,11 +29,11 @@ type UpdateDaemonSetOutputs struct {
 	Status     v1.DaemonSetStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *UpdateDaemonSetHandler) Run(
+func (b *KubernetesApps) RunUpdateDaemonSet(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[UpdateDaemonSetInputs](task)
 	if err != nil {
 		return nil, err

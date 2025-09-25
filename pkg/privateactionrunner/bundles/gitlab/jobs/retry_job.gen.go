@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type RetryJobHandler struct{}
-
-func NewRetryJobHandler() *RetryJobHandler {
-	return &RetryJobHandler{}
-}
-
 type RetryJobInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	JobId     int          `json:"job_id,omitempty"`
@@ -28,7 +22,7 @@ type RetryJobOutputs struct {
 	Job *gitlab.Job `json:"job"`
 }
 
-func (h *RetryJobHandler) Run(
+func (b *GitlabJobsBundle) RunRetryJob(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

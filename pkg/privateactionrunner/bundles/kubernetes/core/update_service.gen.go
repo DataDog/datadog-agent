@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdateServiceHandler struct{}
-
-func NewUpdateServiceHandler() *UpdateServiceHandler {
-	return &UpdateServiceHandler{}
-}
-
 type UpdateServiceInputs struct {
 	*support.UpdateFields
 	Namespace string      `json:"namespace,omitempty"`
@@ -35,7 +29,7 @@ type UpdateServiceOutputs struct {
 	Status     v1.ServiceStatus  `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *UpdateServiceHandler) Run(
+func (b *KubernetesCore) RunUpdateService(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

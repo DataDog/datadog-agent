@@ -13,12 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GetBlobHandler struct{}
-
-func NewGetBlobHandler() *GetBlobHandler {
-	return &GetBlobHandler{}
-}
-
 type GetBlobInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -35,7 +29,7 @@ type Blob struct {
 	Encoding string `json:"encoding,omitempty"`
 }
 
-func (h *GetBlobHandler) Run(
+func (b *GitlabRepositoriesBundle) RunGetBlob(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

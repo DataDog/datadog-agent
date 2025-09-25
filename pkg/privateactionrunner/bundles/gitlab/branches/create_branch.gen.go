@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CreateBranchHandler struct{}
-
-func NewCreateBranchHandler() *CreateBranchHandler {
-	return &CreateBranchHandler{}
-}
-
 type CreateBranchInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.CreateBranchOptions
@@ -28,7 +22,7 @@ type CreateBranchOutputs struct {
 	Branch *gitlab.Branch `json:"branch"`
 }
 
-func (h *CreateBranchHandler) Run(
+func (b *GitlabBranchesBundle) RunCreateBranch(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

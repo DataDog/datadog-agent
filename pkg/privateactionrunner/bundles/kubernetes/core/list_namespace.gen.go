@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListNamespaceHandler struct{}
-
-func NewListNamespaceHandler() *ListNamespaceHandler {
-	return &ListNamespaceHandler{}
-}
-
 type ListNamespaceInputs struct {
 	*support.ListFields
 }
@@ -32,7 +26,7 @@ type ListNamespaceOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListNamespaceHandler) Run(
+func (b *KubernetesCore) RunListNamespace(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

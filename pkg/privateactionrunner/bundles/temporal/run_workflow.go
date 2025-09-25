@@ -14,12 +14,6 @@ import (
 	"go.temporal.io/sdk/client"
 )
 
-type RunWorkflowHandler struct{}
-
-func NewRunWorkflowHandler() *RunWorkflowHandler {
-	return &RunWorkflowHandler{}
-}
-
 type RunWorkflowInputs struct {
 	WorkFlowType string      `json:"workflowType,omitempty"`
 	WorkflowArgs interface{} `json:"workflowArgs,omitempty"`
@@ -32,7 +26,7 @@ type RunWorkflowOutputs struct {
 	RunId string `json:"runId"`
 }
 
-func (h *RunWorkflowHandler) Run(
+func (t *Temporal) RunWorkflow(
 	ctx context.Context,
 	task *types.Task,
 	credentials interface{},

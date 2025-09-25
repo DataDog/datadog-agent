@@ -12,19 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type BlockUserHandler struct{}
-
-func NewBlockUserHandler() *BlockUserHandler {
-	return &BlockUserHandler{}
-}
-
 type BlockUserInputs struct {
 	UserId int `json:"user_id,omitempty"`
 }
 
 type BlockUserOutputs struct{}
 
-func (h *BlockUserHandler) Run(
+func (b *GitlabUsersBundle) RunBlockUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

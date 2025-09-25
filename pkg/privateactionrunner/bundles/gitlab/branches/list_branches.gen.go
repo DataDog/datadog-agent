@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListBranchesHandler struct{}
-
-func NewListBranchesHandler() *ListBranchesHandler {
-	return &ListBranchesHandler{}
-}
-
 type ListBranchesInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ListBranchesOptions
@@ -28,7 +22,7 @@ type ListBranchesOutputs struct {
 	Branches []*gitlab.Branch `json:"branches"`
 }
 
-func (h *ListBranchesHandler) Run(
+func (b *GitlabBranchesBundle) RunListBranches(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListPodTemplateHandler struct{}
-
-func NewListPodTemplateHandler() *ListPodTemplateHandler {
-	return &ListPodTemplateHandler{}
-}
-
 type ListPodTemplateInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,7 +27,7 @@ type ListPodTemplateOutputs struct {
 	ListMeta metav1.ListMeta  `json:"metadata"`
 }
 
-func (h *ListPodTemplateHandler) Run(
+func (b *KubernetesCore) RunListPodTemplate(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

@@ -16,12 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type FindAction struct{}
-
-func NewFindHandler() types.Action {
-	return &FindAction{}
-}
-
 type FindInputs struct {
 	Collection string         `json:"collection,omitempty"`
 	Filter     map[string]any `json:"filter,omitempty"`
@@ -31,7 +25,7 @@ type FindOutputs struct {
 	Results []map[string]interface{} `json:"results"`
 }
 
-func (fa FindAction) Run(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
+func (m *MongoDB) RunFind(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
 	inputs, err := types.ExtractInputs[FindInputs](task)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract inputs: %w", err)

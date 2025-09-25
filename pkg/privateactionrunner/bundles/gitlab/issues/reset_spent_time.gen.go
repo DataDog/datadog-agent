@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ResetSpentTimeHandler struct{}
-
-func NewResetSpentTimeHandler() *ResetSpentTimeHandler {
-	return &ResetSpentTimeHandler{}
-}
-
 type ResetSpentTimeInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -28,7 +22,7 @@ type ResetSpentTimeOutputs struct {
 	TimeStats *gitlab.TimeStats `json:"time_stats"`
 }
 
-func (h *ResetSpentTimeHandler) Run(
+func (b *GitlabIssuesBundle) RunResetSpentTime(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

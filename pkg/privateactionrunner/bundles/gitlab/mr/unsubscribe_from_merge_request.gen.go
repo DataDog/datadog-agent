@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type UnsubscribeFromMergeRequestHandler struct{}
-
-func NewUnsubscribeFromMergeRequestHandler() *UnsubscribeFromMergeRequestHandler {
-	return &UnsubscribeFromMergeRequestHandler{}
-}
-
 type UnsubscribeFromMergeRequestInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -28,7 +22,7 @@ type UnsubscribeFromMergeRequestOutputs struct {
 	MergeRequest *gitlab.MergeRequest `json:"merge_request"`
 }
 
-func (h *UnsubscribeFromMergeRequestHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunUnsubscribeFromMergeRequest(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

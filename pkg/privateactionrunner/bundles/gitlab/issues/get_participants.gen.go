@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetParticipantsHandler struct{}
-
-func NewGetParticipantsHandler() *GetParticipantsHandler {
-	return &GetParticipantsHandler{}
-}
-
 type GetParticipantsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -28,7 +22,7 @@ type GetParticipantsOutputs struct {
 	BasicUsers []*gitlab.BasicUser `json:"basic_users"`
 }
 
-func (h *GetParticipantsHandler) Run(
+func (b *GitlabIssuesBundle) RunGetParticipants(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

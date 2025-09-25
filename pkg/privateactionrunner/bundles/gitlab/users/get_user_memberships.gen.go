@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetUserMembershipsHandler struct{}
-
-func NewGetUserMembershipsHandler() *GetUserMembershipsHandler {
-	return &GetUserMembershipsHandler{}
-}
-
 type GetUserMembershipsInputs struct {
 	UserId int `json:"user_id,omitempty"`
 	*gitlab.GetUserMembershipOptions
@@ -28,7 +22,7 @@ type GetUserMembershipsOutputs struct {
 	UserMemberships []*gitlab.UserMembership `json:"user_memberships"`
 }
 
-func (h *GetUserMembershipsHandler) Run(
+func (b *GitlabUsersBundle) RunGetUserMemberships(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

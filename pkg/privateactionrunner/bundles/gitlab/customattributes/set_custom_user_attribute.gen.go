@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type SetCustomUserAttributeHandler struct{}
-
-func NewSetCustomUserAttributeHandler() *SetCustomUserAttributeHandler {
-	return &SetCustomUserAttributeHandler{}
-}
-
 type SetCustomUserAttributeInputs struct {
 	UserId int `json:"user_id,omitempty"`
 	gitlab.CustomAttribute
@@ -28,7 +22,7 @@ type SetCustomUserAttributeOutputs struct {
 	CustomAttribute *gitlab.CustomAttribute `json:"custom_attribute"`
 }
 
-func (h *SetCustomUserAttributeHandler) Run(
+func (b *GitlabCustomAttributesBundle) RunSetCustomUserAttribute(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

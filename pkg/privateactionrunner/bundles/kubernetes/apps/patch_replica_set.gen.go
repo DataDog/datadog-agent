@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchReplicaSetHandler struct{}
-
-func NewPatchReplicaSetHandler() *PatchReplicaSetHandler {
-	return &PatchReplicaSetHandler{}
-}
-
 type PatchReplicaSetInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,11 +30,11 @@ type PatchReplicaSetOutputs struct {
 	Status     v1.ReplicaSetStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchReplicaSetHandler) Run(
+func (b *KubernetesApps) RunPatchReplicaSet(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[PatchReplicaSetInputs](task)
 	if err != nil {
 		return nil, err

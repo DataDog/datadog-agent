@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMultiplePodTemplatesHandler struct{}
-
-func NewDeleteMultiplePodTemplatesHandler() *DeleteMultiplePodTemplatesHandler {
-	return &DeleteMultiplePodTemplatesHandler{}
-}
-
 type DeleteMultiplePodTemplatesInputs struct {
 	*support.DeleteFields
 	*support.ListFields
@@ -29,7 +23,7 @@ type DeleteMultiplePodTemplatesInputs struct {
 
 type DeleteMultiplePodTemplatesOutputs struct{}
 
-func (h *DeleteMultiplePodTemplatesHandler) Run(
+func (b *KubernetesCore) RunDeleteMultiplePodTemplates(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

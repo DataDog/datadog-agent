@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type RebaseMergeRequestHandler struct{}
-
-func NewRebaseMergeRequestHandler() *RebaseMergeRequestHandler {
-	return &RebaseMergeRequestHandler{}
-}
-
 type RebaseMergeRequestInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -27,7 +21,7 @@ type RebaseMergeRequestInputs struct {
 
 type RebaseMergeRequestOutputs struct{}
 
-func (h *RebaseMergeRequestHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunRebaseMergeRequest(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

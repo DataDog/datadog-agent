@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchControllerRevisionHandler struct{}
-
-func NewPatchControllerRevisionHandler() *PatchControllerRevisionHandler {
-	return &PatchControllerRevisionHandler{}
-}
-
 type PatchControllerRevisionInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,11 +30,11 @@ type PatchControllerRevisionOutputs struct {
 	Revision   int64                `json:"revision" protobuf:"varint,3,opt,name=revision"`
 }
 
-func (h *PatchControllerRevisionHandler) Run(
+func (b *KubernetesApps) RunPatchControllerRevision(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[PatchControllerRevisionInputs](task)
 	if err != nil {
 		return nil, err

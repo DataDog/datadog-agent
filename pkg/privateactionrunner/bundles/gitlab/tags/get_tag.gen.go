@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetTagHandler struct{}
-
-func NewGetTagHandler() *GetTagHandler {
-	return &GetTagHandler{}
-}
-
 type GetTagInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	TagName   string       `json:"tag_name,omitempty"`
@@ -28,7 +22,7 @@ type GetTagOutputs struct {
 	Tag *gitlab.Tag `json:"tag"`
 }
 
-func (h *GetTagHandler) Run(
+func (b *GitlabTagsBundle) RunGetTag(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

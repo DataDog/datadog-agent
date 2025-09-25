@@ -13,12 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type DeleteMultipleCustomObjectsHandler struct{}
-
-func NewDeleteMultipleCustomObjectsHandler() *DeleteMultipleCustomObjectsHandler {
-	return &DeleteMultipleCustomObjectsHandler{}
-}
-
 type DeleteMultipleCustomObjectsInputs struct {
 	*support.DeleteFields
 	*support.ListFields
@@ -30,11 +24,12 @@ type DeleteMultipleCustomObjectsInputs struct {
 
 type DeleteMultipleCustomObjectsOutputs struct{}
 
-func (h *DeleteMultipleCustomObjectsHandler) Run(
+func (b *KubernetesCustomResources) RunDeleteMultipleCustomObjects(
+
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[DeleteMultipleCustomObjectsInputs](task)
 	if err != nil {
 		return nil, err

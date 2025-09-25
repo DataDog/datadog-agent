@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteSharedProjectFromGroupHandler struct{}
-
-func NewDeleteSharedProjectFromGroupHandler() *DeleteSharedProjectFromGroupHandler {
-	return &DeleteSharedProjectFromGroupHandler{}
-}
-
 type DeleteSharedProjectFromGroupInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	GroupId   int          `json:"group_id,omitempty"`
@@ -25,7 +19,7 @@ type DeleteSharedProjectFromGroupInputs struct {
 
 type DeleteSharedProjectFromGroupOutputs struct{}
 
-func (h *DeleteSharedProjectFromGroupHandler) Run(
+func (b *GitlabProjectsBundle) DeleteSharedProjectFromGroup(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

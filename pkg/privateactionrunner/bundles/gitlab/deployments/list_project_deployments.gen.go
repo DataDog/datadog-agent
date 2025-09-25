@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListProjectDeploymentsHandler struct{}
-
-func NewListProjectDeploymentsHandler() *ListProjectDeploymentsHandler {
-	return &ListProjectDeploymentsHandler{}
-}
-
 type ListProjectDeploymentsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ListProjectDeploymentsOptions
@@ -28,7 +22,7 @@ type ListProjectDeploymentsOutputs struct {
 	Deployments []*gitlab.Deployment `json:"deployments"`
 }
 
-func (h *ListProjectDeploymentsHandler) Run(
+func (b *GitlabDeploymentsBundle) RunListProjectDeployments(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListLabelsHandler struct{}
-
-func NewListLabelsHandler() *ListLabelsHandler {
-	return &ListLabelsHandler{}
-}
-
 type ListLabelsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ListLabelsOptions
@@ -28,7 +22,7 @@ type ListLabelsOutputs struct {
 	Labels []*gitlab.Label `json:"labels"`
 }
 
-func (h *ListLabelsHandler) Run(
+func (b *GitlabLabelsBundle) RunListLabels(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

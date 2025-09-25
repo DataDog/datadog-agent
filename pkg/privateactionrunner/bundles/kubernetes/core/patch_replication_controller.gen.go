@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchReplicationControllerHandler struct{}
-
-func NewPatchReplicationControllerHandler() *PatchReplicationControllerHandler {
-	return &PatchReplicationControllerHandler{}
-}
-
 type PatchReplicationControllerInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,7 +30,7 @@ type PatchReplicationControllerOutputs struct {
 	Status     v1.ReplicationControllerStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchReplicationControllerHandler) Run(
+func (b *KubernetesCore) RunPatchReplicationController(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

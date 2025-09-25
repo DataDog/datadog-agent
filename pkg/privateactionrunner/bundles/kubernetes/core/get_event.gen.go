@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetEventHandler struct{}
-
-func NewGetEventHandler() *GetEventHandler {
-	return &GetEventHandler{}
-}
-
 type GetEventInputs struct {
 	*support.GetFields
 	Namespace string `json:"namespace,omitempty"`
@@ -46,7 +40,7 @@ type GetEventOutputs struct {
 	ReportingInstance   string              `json:"reportingInstance" protobuf:"bytes,15,opt,name=reportingInstance"`
 }
 
-func (h *GetEventHandler) Run(
+func (b *KubernetesCore) RunGetEvent(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

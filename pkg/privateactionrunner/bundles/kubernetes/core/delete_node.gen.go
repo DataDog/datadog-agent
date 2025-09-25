@@ -15,19 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteNodeHandler struct{}
-
-func NewDeleteNodeHandler() *DeleteNodeHandler {
-	return &DeleteNodeHandler{}
-}
-
 type DeleteNodeInputs struct {
 	*support.DeleteFields
 }
 
 type DeleteNodeOutputs struct{}
 
-func (h *DeleteNodeHandler) Run(
+func (b *KubernetesCore) RunDeleteNode(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

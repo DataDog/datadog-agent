@@ -14,12 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type RetryPipelineBuildHandler struct{}
-
-func NewRetryPipelineBuildHandler() *RetryPipelineBuildHandler {
-	return &RetryPipelineBuildHandler{}
-}
-
 type RetryPipelineBuildInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Pipeline  int          `json:"pipeline_id,omitempty"`
@@ -29,7 +23,7 @@ type RetryPipelineBuildOutputs struct {
 	Pipeline *gitlab.Pipeline `json:"pipeline"`
 }
 
-func (h *RetryPipelineBuildHandler) Run(
+func (b *GitlabPipelinesBundle) RunRetryPipelineBuild(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

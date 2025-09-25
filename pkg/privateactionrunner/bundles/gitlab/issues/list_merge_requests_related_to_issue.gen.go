@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListMergeRequestsRelatedToIssueHandler struct{}
-
-func NewListMergeRequestsRelatedToIssueHandler() *ListMergeRequestsRelatedToIssueHandler {
-	return &ListMergeRequestsRelatedToIssueHandler{}
-}
-
 type ListMergeRequestsRelatedToIssueInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	IssueIid  int          `json:"issue_iid,omitempty"`
@@ -29,7 +23,7 @@ type ListMergeRequestsRelatedToIssueOutputs struct {
 	BasicMergeRequests []*gitlab.BasicMergeRequest `json:"merge_requests"`
 }
 
-func (h *ListMergeRequestsRelatedToIssueHandler) Run(
+func (b *GitlabIssuesBundle) RunListMergeRequestsRelatedToIssue(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

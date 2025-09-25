@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CancelJobHandler struct{}
-
-func NewCancelJobHandler() *CancelJobHandler {
-	return &CancelJobHandler{}
-}
-
 type CancelJobInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	JobId     int          `json:"job_id,omitempty"`
@@ -28,7 +22,7 @@ type CancelJobOutputs struct {
 	Job *gitlab.Job `json:"job"`
 }
 
-func (h *CancelJobHandler) Run(
+func (b *GitlabJobsBundle) RunCancelJob(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

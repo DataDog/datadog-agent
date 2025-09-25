@@ -12,19 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteUserHandler struct{}
-
-func NewDeleteUserHandler() *DeleteUserHandler {
-	return &DeleteUserHandler{}
-}
-
 type DeleteUserInputs struct {
 	UserId int `json:"user_id,omitempty"`
 }
 
 type DeleteUserOutputs struct{}
 
-func (h *DeleteUserHandler) Run(
+func (b *GitlabUsersBundle) RunDeleteUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

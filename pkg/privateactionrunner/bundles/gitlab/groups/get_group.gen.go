@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetGroupHandler struct{}
-
-func NewGetGroupHandler() *GetGroupHandler {
-	return &GetGroupHandler{}
-}
-
 type GetGroupInputs struct {
 	GroupId lib.GitlabID `json:"group_id,omitempty"`
 	*gitlab.GetGroupOptions
@@ -28,10 +22,9 @@ type GetGroupOutputs struct {
 	Group *gitlab.Group `json:"group"`
 }
 
-func (h *GetGroupHandler) Run(
+func (b *GitlabGroupsBundle) RunGetGroup(
 	ctx context.Context,
 	task *types.Task, credential interface{},
-
 ) (any, error) {
 	inputs, err := types.ExtractInputs[GetGroupInputs](task)
 	if err != nil {

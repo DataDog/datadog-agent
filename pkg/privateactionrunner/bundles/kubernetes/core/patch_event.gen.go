@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchEventHandler struct{}
-
-func NewPatchEventHandler() *PatchEventHandler {
-	return &PatchEventHandler{}
-}
-
 type PatchEventInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -48,7 +42,7 @@ type PatchEventOutputs struct {
 	ReportingInstance   string              `json:"reportingInstance" protobuf:"bytes,15,opt,name=reportingInstance"`
 }
 
-func (h *PatchEventHandler) Run(
+func (b *KubernetesCore) RunPatchEvent(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

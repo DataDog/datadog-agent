@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListTagsHandler struct{}
-
-func NewListTagsHandler() *ListTagsHandler {
-	return &ListTagsHandler{}
-}
-
 type ListTagsInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	*gitlab.ListTagsOptions
@@ -28,7 +22,7 @@ type ListTagsOutputs struct {
 	Tags []*gitlab.Tag `json:"tags"`
 }
 
-func (h *ListTagsHandler) Run(
+func (b *GitlabTagsBundle) RunListTags(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

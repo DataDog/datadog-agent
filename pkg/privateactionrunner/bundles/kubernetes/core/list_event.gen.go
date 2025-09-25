@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListEventHandler struct{}
-
-func NewListEventHandler() *ListEventHandler {
-	return &ListEventHandler{}
-}
-
 type ListEventInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,7 +27,7 @@ type ListEventOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListEventHandler) Run(
+func (b *KubernetesCore) RunListEvent(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

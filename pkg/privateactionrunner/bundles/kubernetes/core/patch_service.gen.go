@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchServiceHandler struct{}
-
-func NewPatchServiceHandler() *PatchServiceHandler {
-	return &PatchServiceHandler{}
-}
-
 type PatchServiceInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,7 +30,7 @@ type PatchServiceOutputs struct {
 	Status     v1.ServiceStatus  `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchServiceHandler) Run(
+func (b *KubernetesCore) RunPatchService(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

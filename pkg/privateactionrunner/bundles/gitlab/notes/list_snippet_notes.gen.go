@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListSnippetNotesHandler struct{}
-
-func NewListSnippetNotesHandler() *ListSnippetNotesHandler {
-	return &ListSnippetNotesHandler{}
-}
-
 type ListSnippetNotesInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	SnippetId int          `json:"snippet_id,omitempty"`
@@ -29,7 +23,7 @@ type ListSnippetNotesOutputs struct {
 	Notes []*gitlab.Note `json:"notes"`
 }
 
-func (h *ListSnippetNotesHandler) Run(
+func (b *GitlabNotesBundle) RunListSnippetNotes(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ModifyUserHandler struct{}
-
-func NewModifyUserHandler() *ModifyUserHandler {
-	return &ModifyUserHandler{}
-}
-
 type ModifyUserInputs struct {
 	UserId int `json:"user_id,omitempty"`
 	*gitlab.ModifyUserOptions
@@ -28,7 +22,7 @@ type ModifyUserOutputs struct {
 	User *gitlab.User `json:"user"`
 }
 
-func (h *ModifyUserHandler) Run(
+func (b *GitlabUsersBundle) RunModifyUser(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

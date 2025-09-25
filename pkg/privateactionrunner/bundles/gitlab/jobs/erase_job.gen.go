@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type EraseJobHandler struct{}
-
-func NewEraseJobHandler() *EraseJobHandler {
-	return &EraseJobHandler{}
-}
-
 type EraseJobInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	JobId     int          `json:"job_id,omitempty"`
@@ -28,7 +22,7 @@ type EraseJobOutputs struct {
 	Job *gitlab.Job `json:"job"`
 }
 
-func (h *EraseJobHandler) Run(
+func (b *GitlabJobsBundle) RunEraseJob(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

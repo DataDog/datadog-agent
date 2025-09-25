@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetCommitDiffHandler struct{}
-
-func NewGetCommitDiffHandler() *GetCommitDiffHandler {
-	return &GetCommitDiffHandler{}
-}
-
 type GetCommitDiffInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	Sha       string       `json:"sha,omitempty"`
@@ -29,7 +23,7 @@ type GetCommitDiffOutputs struct {
 	Diffs []*gitlab.Diff `json:"diffs"`
 }
 
-func (h *GetCommitDiffHandler) Run(
+func (b *GitlabCommitsBundle) RunGetCommitDiff(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

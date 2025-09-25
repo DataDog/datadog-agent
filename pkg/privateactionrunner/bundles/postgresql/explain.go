@@ -17,12 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type ExplainHandler struct{}
-
-func NewExplainHandler() *ExplainHandler {
-	return &ExplainHandler{}
-}
-
 type ExplainInputs struct {
 	Statement string `json:"statement"`
 }
@@ -31,7 +25,7 @@ type ExplainOutputs struct {
 	Output any `json:"output"`
 }
 
-func (h *ExplainHandler) Run(
+func (p *PostgreSQL) RunExplain(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

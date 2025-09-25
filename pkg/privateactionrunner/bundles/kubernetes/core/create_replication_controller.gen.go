@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateReplicationControllerHandler struct{}
-
-func NewCreateReplicationControllerHandler() *CreateReplicationControllerHandler {
-	return &CreateReplicationControllerHandler{}
-}
-
 type CreateReplicationControllerInputs struct {
 	*support.CreateFields
 	Namespace string                    `json:"namespace,omitempty"`
@@ -35,7 +29,7 @@ type CreateReplicationControllerOutputs struct {
 	Status     v1.ReplicationControllerStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *CreateReplicationControllerHandler) Run(
+func (b *KubernetesCore) RunCreateReplicationController(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

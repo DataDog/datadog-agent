@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type CreateFileHandler struct{}
-
-func NewCreateFileHandler() *CreateFileHandler {
-	return &CreateFileHandler{}
-}
-
 type CreateFileInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	FilePath  string       `json:"file_path,omitempty"`
@@ -29,7 +23,7 @@ type CreateFileOutputs struct {
 	FileInfo *gitlab.FileInfo `json:"file_info"`
 }
 
-func (h *CreateFileHandler) Run(
+func (b *GitlabRepositoryFilesBundle) RunCreateFile(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type DeleteLabelHandler struct{}
-
-func NewDeleteLabelHandler() *DeleteLabelHandler {
-	return &DeleteLabelHandler{}
-}
-
 type DeleteLabelInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	LabelId   lib.GitlabID `json:"label_id,omitempty"`
@@ -27,7 +21,7 @@ type DeleteLabelInputs struct {
 
 type DeleteLabelOutputs struct{}
 
-func (h *DeleteLabelHandler) Run(
+func (b *GitlabLabelsBundle) RunDeleteLabel(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

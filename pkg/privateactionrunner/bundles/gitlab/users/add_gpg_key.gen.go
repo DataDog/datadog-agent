@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type AddGPGKeyHandler struct{}
-
-func NewAddGPGKeyHandler() *AddGPGKeyHandler {
-	return &AddGPGKeyHandler{}
-}
-
 type AddGPGKeyInputs struct {
 	*gitlab.AddGPGKeyOptions
 }
@@ -27,7 +21,7 @@ type AddGPGKeyOutputs struct {
 	GpgKey *gitlab.GPGKey `json:"gpg_key"`
 }
 
-func (h *AddGPGKeyHandler) Run(
+func (b *GitlabUsersBundle) RunAddGPGKey(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

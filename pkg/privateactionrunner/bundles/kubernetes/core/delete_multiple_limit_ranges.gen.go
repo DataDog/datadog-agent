@@ -15,12 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMultipleLimitRangesHandler struct{}
-
-func NewDeleteMultipleLimitRangesHandler() *DeleteMultipleLimitRangesHandler {
-	return &DeleteMultipleLimitRangesHandler{}
-}
-
 type DeleteMultipleLimitRangesInputs struct {
 	*support.DeleteFields
 	*support.ListFields
@@ -29,7 +23,7 @@ type DeleteMultipleLimitRangesInputs struct {
 
 type DeleteMultipleLimitRangesOutputs struct{}
 
-func (h *DeleteMultipleLimitRangesHandler) Run(
+func (b *KubernetesCore) RunDeleteMultipleLimitRanges(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

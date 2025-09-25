@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type AddSSHKeyHandler struct{}
-
-func NewAddSSHKeyHandler() *AddSSHKeyHandler {
-	return &AddSSHKeyHandler{}
-}
-
 type AddSSHKeyInputs struct {
 	*gitlab.AddSSHKeyOptions
 }
@@ -27,7 +21,7 @@ type AddSSHKeyOutputs struct {
 	SshKey *gitlab.SSHKey `json:"ssh_key"`
 }
 
-func (h *AddSSHKeyHandler) Run(
+func (b *GitlabUsersBundle) RunAddSSHKey(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

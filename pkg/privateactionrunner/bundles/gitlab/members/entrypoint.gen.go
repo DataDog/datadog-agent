@@ -6,22 +6,28 @@
 package com_datadoghq_gitlab_members
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type GitlabMembersBundle struct {
-	actions map[string]types.Action
 }
 
 func NewGitlabMembers() types.Bundle {
-	return &GitlabMembersBundle{
-		actions: map[string]types.Action{
-			// Auto-generated actions
-			"listProjectMembers": NewListProjectMembersHandler(),
-		},
+	return &GitlabMembersBundle{}
+}
+
+func (b *GitlabMembersBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "listProjectMembers":
+		return b.RunListProjectMembers(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
-func (h *GitlabMembersBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+func (b *GitlabMembersBundle) GetAction(actionName string) types.Action {
+	return b
 }

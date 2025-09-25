@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type GetFileHandler struct{}
-
-func NewGetFileHandler() *GetFileHandler {
-	return &GetFileHandler{}
-}
-
 type GetFileInputs struct {
 	ProjectId lib.GitlabID `json:"project_id,omitempty"`
 	FilePath  string       `json:"file_path,omitempty"`
@@ -29,7 +23,7 @@ type GetFileOutputs struct {
 	File *gitlab.File `json:"file"`
 }
 
-func (h *GetFileHandler) Run(
+func (b *GitlabRepositoryFilesBundle) RunGetFile(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

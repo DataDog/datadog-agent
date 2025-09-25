@@ -19,12 +19,6 @@ import (
 	typesv1 "k8s.io/apimachinery/pkg/types"
 )
 
-type PatchJobHandler struct{}
-
-func NewPatchJobHandler() *PatchJobHandler {
-	return &PatchJobHandler{}
-}
-
 type PatchJobInputs struct {
 	*support.PatchFields
 	Namespace string `json:"namespace,omitempty"`
@@ -36,11 +30,11 @@ type PatchJobOutputs struct {
 	Status     v1.JobStatus      `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *PatchJobHandler) Run(
+func (b *KubernetesBatch) RunPatchJob(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[PatchJobInputs](task)
 	if err != nil {
 		return nil, err

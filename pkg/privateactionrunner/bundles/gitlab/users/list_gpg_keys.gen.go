@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListGPGKeysHandler struct{}
-
-func NewListGPGKeysHandler() *ListGPGKeysHandler {
-	return &ListGPGKeysHandler{}
-}
-
 type ListGPGKeysInputs struct {
 	Page    int `json:"page,omitempty"`
 	PerPage int `json:"per_page,omitempty"`
@@ -28,7 +22,7 @@ type ListGPGKeysOutputs struct {
 	GpgKeys []*gitlab.GPGKey `json:"gpg_keys"`
 }
 
-func (h *ListGPGKeysHandler) Run(
+func (b *GitlabUsersBundle) RunListGPGKeys(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

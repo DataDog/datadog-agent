@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListResourceQuotaHandler struct{}
-
-func NewListResourceQuotaHandler() *ListResourceQuotaHandler {
-	return &ListResourceQuotaHandler{}
-}
-
 type ListResourceQuotaInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,7 +27,7 @@ type ListResourceQuotaOutputs struct {
 	ListMeta metav1.ListMeta    `json:"metadata"`
 }
 
-func (h *ListResourceQuotaHandler) Run(
+func (b *KubernetesCore) RunListResourceQuota(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

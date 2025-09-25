@@ -14,12 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type ListCustomObjectHandler struct{}
-
-func NewListCustomObjectHandler() *ListCustomObjectHandler {
-	return &ListCustomObjectHandler{}
-}
-
 type ListCustomObjectInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace"`
@@ -33,11 +27,12 @@ type ListCustomObjectOutputs struct {
 	Meta  interface{}                 `json:"metadata"`
 }
 
-func (h *ListCustomObjectHandler) Run(
+func (b *KubernetesCustomResources) RunListCustomObject(
+
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[ListCustomObjectInputs](task)
 	if err != nil {
 		return nil, err

@@ -16,12 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type UpdateManyAction struct{}
-
-func NewUpdateManyHandler() types.Action {
-	return &UpdateManyAction{}
-}
-
 type UpdateManyInputs struct {
 	Collection string         `json:"collection,omitempty"`
 	Filter     map[string]any `json:"filter,omitempty"`
@@ -34,7 +28,7 @@ type UpdateManyOutputs struct {
 	UpsertedID    any   `json:"upsertedId,omitempty"`
 }
 
-func (um UpdateManyAction) Run(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
+func (m *MongoDB) RunUpdateMany(ctx context.Context, task *types.Task, credential interface{}) (interface{}, error) {
 	inputs, err := types.ExtractInputs[UpdateManyInputs](task)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract inputs: %w", err)

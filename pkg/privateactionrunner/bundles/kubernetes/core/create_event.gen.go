@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CreateEventHandler struct{}
-
-func NewCreateEventHandler() *CreateEventHandler {
-	return &CreateEventHandler{}
-}
-
 type CreateEventInputs struct {
 	*support.CreateFields
 	Namespace string    `json:"namespace,omitempty"`
@@ -47,7 +41,7 @@ type CreateEventOutputs struct {
 	ReportingInstance   string              `json:"reportingInstance" protobuf:"bytes,15,opt,name=reportingInstance"`
 }
 
-func (h *CreateEventHandler) Run(
+func (b *KubernetesCore) RunCreateEvent(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package com_datadoghq_kubernetes_apiextensions
+package com_datadoghq_kubernetes_apix
 
 import (
 	"context"
@@ -14,12 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type UpdateCustomResourceDefinitionHandler struct{}
-
-func NewUpdateCustomResourceDefinitionHandler() *UpdateCustomResourceDefinitionHandler {
-	return &UpdateCustomResourceDefinitionHandler{}
-}
-
 type UpdateCustomResourceDefinitionInputs struct {
 	*support.UpdateFields
 	Body map[string]interface{} `json:"body,omitempty"`
@@ -27,11 +21,11 @@ type UpdateCustomResourceDefinitionInputs struct {
 
 type UpdateCustomResourceDefinitionOutputs = map[string]interface{}
 
-func (h *UpdateCustomResourceDefinitionHandler) Run(
+func (b *KubernetesApiExtensions) RunUpdateCustomResourceDefinition(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[UpdateCustomResourceDefinitionInputs](task)
 	if err != nil {
 		return nil, err

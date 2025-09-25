@@ -13,12 +13,6 @@ import (
 	"gitlab.com/gitlab-org/api/client-go"
 )
 
-type ListMergeRequestPipelinesHandler struct{}
-
-func NewListMergeRequestPipelinesHandler() *ListMergeRequestPipelinesHandler {
-	return &ListMergeRequestPipelinesHandler{}
-}
-
 type ListMergeRequestPipelinesInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -30,7 +24,7 @@ type ListMergeRequestPipelinesOutputs struct {
 	PipelineInfos []*gitlab.PipelineInfo `json:"pipeline_infos"`
 }
 
-func (h *ListMergeRequestPipelinesHandler) Run(
+func (b *GitlabMergeRequestsBundle) RunListMergeRequestPipelines(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

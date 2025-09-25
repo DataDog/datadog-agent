@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListDaemonSetHandler struct{}
-
-func NewListDaemonSetHandler() *ListDaemonSetHandler {
-	return &ListDaemonSetHandler{}
-}
-
 type ListDaemonSetInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,11 +27,11 @@ type ListDaemonSetOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListDaemonSetHandler) Run(
+func (b *KubernetesApps) RunListDaemonSet(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[ListDaemonSetInputs](task)
 	if err != nil {
 		return nil, err

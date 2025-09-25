@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListControllerRevisionHandler struct{}
-
-func NewListControllerRevisionHandler() *ListControllerRevisionHandler {
-	return &ListControllerRevisionHandler{}
-}
-
 type ListControllerRevisionInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,11 +27,11 @@ type ListControllerRevisionOutputs struct {
 	ListMeta metav1.ListMeta         `json:"metadata"`
 }
 
-func (h *ListControllerRevisionHandler) Run(
+func (b *KubernetesApps) RunListControllerRevision(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[ListControllerRevisionInputs](task)
 	if err != nil {
 		return nil, err

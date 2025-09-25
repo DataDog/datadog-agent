@@ -6,25 +6,33 @@
 package com_datadoghq_gitlab_tags
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GitlabTagsBundle struct {
-	actions map[string]types.Action
-}
+type GitlabTagsBundle struct{}
 
 func NewGitlabTags() types.Bundle {
-	return &GitlabTagsBundle{
-		actions: map[string]types.Action{
-			// Auto-generated actions
-			"createTag": NewCreateTagHandler(),
-			"deleteTag": NewDeleteTagHandler(),
-			"getTag":    NewGetTagHandler(),
-			"listTags":  NewListTagsHandler(),
-		},
+	return &GitlabTagsBundle{}
+}
+
+func (b *GitlabTagsBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "createTag":
+		return b.RunCreateTag(ctx, task, credential)
+	case "deleteTag":
+		return b.RunDeleteTag(ctx, task, credential)
+	case "getTag":
+		return b.RunGetTag(ctx, task, credential)
+	case "listTags":
+		return b.RunListTags(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("unknown action: %s", actionName)
 	}
 }
 
 func (h *GitlabTagsBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+	return h
 }

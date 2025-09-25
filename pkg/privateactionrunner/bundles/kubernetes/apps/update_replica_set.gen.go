@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdateReplicaSetHandler struct{}
-
-func NewUpdateReplicaSetHandler() *UpdateReplicaSetHandler {
-	return &UpdateReplicaSetHandler{}
-}
-
 type UpdateReplicaSetInputs struct {
 	*support.UpdateFields
 	Namespace string         `json:"namespace,omitempty"`
@@ -35,11 +29,11 @@ type UpdateReplicaSetOutputs struct {
 	Status     v1.ReplicaSetStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *UpdateReplicaSetHandler) Run(
+func (b *KubernetesApps) RunUpdateReplicaSet(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[UpdateReplicaSetInputs](task)
 	if err != nil {
 		return nil, err

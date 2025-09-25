@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type GetResourceQuotaHandler struct{}
-
-func NewGetResourceQuotaHandler() *GetResourceQuotaHandler {
-	return &GetResourceQuotaHandler{}
-}
-
 type GetResourceQuotaInputs struct {
 	*support.GetFields
 	Namespace string `json:"namespace,omitempty"`
@@ -34,7 +28,7 @@ type GetResourceQuotaOutputs struct {
 	Status     v1.ResourceQuotaStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
-func (h *GetResourceQuotaHandler) Run(
+func (b *KubernetesCore) RunGetResourceQuota(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},

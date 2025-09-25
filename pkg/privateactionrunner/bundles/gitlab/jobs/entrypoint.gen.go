@@ -6,33 +6,49 @@
 package com_datadoghq_gitlab_jobs
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type GitlabJobsBundle struct {
-	actions map[string]types.Action
-}
+type GitlabJobsBundle struct{}
 
 func NewGitlabJobs() types.Bundle {
-	return &GitlabJobsBundle{
-		actions: map[string]types.Action{
-			// Auto-generated actions
-			"cancelJob":              NewCancelJobHandler(),
-			"deleteArtifacts":        NewDeleteArtifactsHandler(),
-			"deleteProjectArtifacts": NewDeleteProjectArtifactsHandler(),
-			"eraseJob":               NewEraseJobHandler(),
-			"getJob":                 NewGetJobHandler(),
-			"getJobTokensJob":        NewGetJobTokensJobHandler(),
-			"keepArtifacts":          NewKeepArtifactsHandler(),
-			"listPipelineBridges":    NewListPipelineBridgesHandler(),
-			"listPipelineJobs":       NewListPipelineJobsHandler(),
-			"listProjectJobs":        NewListProjectJobsHandler(),
-			"playJob":                NewPlayJobHandler(),
-			"retryJob":               NewRetryJobHandler(),
-		},
-	}
+	return &GitlabJobsBundle{}
 }
 
-func (h *GitlabJobsBundle) GetAction(actionName string) types.Action {
-	return h.actions[actionName]
+func (b *GitlabJobsBundle) GetAction(actionName string) types.Action {
+	return b
+}
+
+func (b *GitlabJobsBundle) Run(ctx context.Context, actionName string, task *types.Task, credential interface{}) (any, error) {
+	switch actionName {
+	case "cancelJob":
+		return b.RunCancelJob(ctx, task, credential)
+	case "deleteArtifacts":
+		return b.RunDeleteArtifacts(ctx, task, credential)
+	case "deleteProjectArtifacts":
+		return b.RunDeleteProjectArtifacts(ctx, task, credential)
+	case "eraseJob":
+		return b.RunEraseJob(ctx, task, credential)
+	case "getJob":
+		return b.RunGetJob(ctx, task, credential)
+	case "getJobTokensJob":
+		return b.RunGetJobTokensJob(ctx, task, credential)
+	case "keepArtifacts":
+		return b.RunKeepArtifacts(ctx, task, credential)
+	case "listPipelineBridges":
+		return b.RunListPipelineBridges(ctx, task, credential)
+	case "listPipelineJobs":
+		return b.RunListPipelineJobs(ctx, task, credential)
+	case "listProjectJobs":
+		return b.RunListProjectJobs(ctx, task, credential)
+	case "playJob":
+		return b.RunPlayJob(ctx, task, credential)
+	case "retryJob":
+		return b.RunRetryJob(ctx, task, credential)
+	default:
+		return nil, fmt.Errorf("action not found %s", actionName)
+	}
 }

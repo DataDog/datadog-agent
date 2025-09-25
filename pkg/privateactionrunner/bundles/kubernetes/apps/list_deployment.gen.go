@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListDeploymentHandler struct{}
-
-func NewListDeploymentHandler() *ListDeploymentHandler {
-	return &ListDeploymentHandler{}
-}
-
 type ListDeploymentInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,11 +27,11 @@ type ListDeploymentOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListDeploymentHandler) Run(
+func (b *KubernetesApps) RunListDeployment(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[ListDeploymentInputs](task)
 	if err != nil {
 		return nil, err

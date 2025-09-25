@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ListReplicaSetHandler struct{}
-
-func NewListReplicaSetHandler() *ListReplicaSetHandler {
-	return &ListReplicaSetHandler{}
-}
-
 type ListReplicaSetInputs struct {
 	*support.ListFields
 	Namespace string `json:"namespace,omitempty"`
@@ -33,11 +27,11 @@ type ListReplicaSetOutputs struct {
 	ListMeta metav1.ListMeta `json:"metadata"`
 }
 
-func (h *ListReplicaSetHandler) Run(
+func (b *KubernetesApps) RunListReplicaSet(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
-) (outputs interface{}, err error) {
+) (interface{}, error) {
 	inputs, err := types.ExtractInputs[ListReplicaSetInputs](task)
 	if err != nil {
 		return nil, err

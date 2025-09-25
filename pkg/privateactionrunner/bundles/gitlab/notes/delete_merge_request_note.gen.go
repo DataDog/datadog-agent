@@ -12,12 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type DeleteMergeRequestNoteHandler struct{}
-
-func NewDeleteMergeRequestNoteHandler() *DeleteMergeRequestNoteHandler {
-	return &DeleteMergeRequestNoteHandler{}
-}
-
 type DeleteMergeRequestNoteInputs struct {
 	ProjectId       lib.GitlabID `json:"project_id,omitempty"`
 	MergeRequestIid int          `json:"merge_request_iid,omitempty"`
@@ -26,7 +20,7 @@ type DeleteMergeRequestNoteInputs struct {
 
 type DeleteMergeRequestNoteOutputs struct{}
 
-func (h *DeleteMergeRequestNoteHandler) Run(
+func (b *GitlabNotesBundle) RunDeleteMergeRequestNote(
 	ctx context.Context,
 	task *types.Task, credential interface{},
 

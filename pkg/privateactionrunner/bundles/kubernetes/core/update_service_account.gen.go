@@ -17,12 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type UpdateServiceAccountHandler struct{}
-
-func NewUpdateServiceAccountHandler() *UpdateServiceAccountHandler {
-	return &UpdateServiceAccountHandler{}
-}
-
 type UpdateServiceAccountInputs struct {
 	*support.UpdateFields
 	Namespace string             `json:"namespace,omitempty"`
@@ -36,7 +30,7 @@ type UpdateServiceAccountOutputs struct {
 	AutomountServiceAccountToken *bool                     `json:"automountServiceAccountToken,omitempty" protobuf:"varint,4,opt,name=automountServiceAccountToken"`
 }
 
-func (h *UpdateServiceAccountHandler) Run(
+func (b *KubernetesCore) RunUpdateServiceAccount(
 	ctx context.Context,
 	task *types.Task,
 	credential interface{},
