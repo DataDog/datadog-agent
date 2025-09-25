@@ -242,8 +242,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (Node, error) {
 	tree, err := c.getTreeBySource(source)
 	if err != nil {
-		log.Errorf("Set invalid source: %s", source)
-		return nil, fmt.Errorf("invalid source: %s", source)
+		return nil, log.Errorf("Set invalid source: %s", source)
 	}
 
 	parts := splitKey(key)
