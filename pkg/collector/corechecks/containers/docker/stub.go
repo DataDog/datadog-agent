@@ -11,7 +11,7 @@ package docker
 import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -19,6 +19,6 @@ const (
 	CheckName = "docker"
 )
 
-func Factory(_ workloadmeta.Component) optional.Option[func() check.Check] {
-	return optional.NewNoneOption[func() check.Check]()
+func Factory(_ workloadmeta.Component) option.Option[func() check.Check] {
+	return option.None[func() check.Check]()
 }

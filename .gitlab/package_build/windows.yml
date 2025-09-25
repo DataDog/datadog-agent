@@ -44,7 +44,6 @@
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg
     - !reference [.upload_sbom_artifacts_windows]
-  after_script:
   artifacts:
     expire_in: 2 weeks
     paths:

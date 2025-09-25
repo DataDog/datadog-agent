@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: opentelemetry-agent
+// team: opentelemetry
 
 // TODO: This component can't use the fx lifecycle hooks for starting and stopping
 // because it depends on the logs agent component's log channel which isn't ready at

@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -47,7 +47,7 @@ type dependencies struct {
 	Log        logComp.Component
 	TaggerComp tagger.Component
 	Secrets    secrets.Component
-	WMeta      optional.Option[workloadmeta.Component]
+	WMeta      option.Option[workloadmeta.Component]
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -69,7 +69,7 @@ type AutoConfig struct {
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
 	providerCatalog          map[string]providers.ConfigProviderFactory
 	started                  bool
-	wmeta                    optional.Option[workloadmeta.Component]
+	wmeta                    option.Option[workloadmeta.Component]
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -130,7 +130,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component]) *AutoConfig {
+func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component]) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -602,9 +602,9 @@ type optionalModuleDeps struct {
 	Lc         fx.Lifecycle
 	Config     configComponent.Component
 	Log        logComp.Component
-	TaggerComp optional.Option[tagger.Component]
+	TaggerComp option.Option[tagger.Component]
 	Secrets    secrets.Component
-	WMeta      optional.Option[workloadmeta.Component]
+	WMeta      option.Option[workloadmeta.Component]
 }
 
 // OptionalModule defines the fx options when ac should be used as an optional and not started
@@ -616,11 +616,11 @@ func OptionalModule() fxutil.Module {
 }
 
 // newOptionalAutoConfig creates an optional AutoConfig instance if tagger is available
-func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[autodiscovery.Component] {
+func newOptionalAutoConfig(deps optionalModuleDeps) option.Option[autodiscovery.Component] {
 	_, ok := deps.TaggerComp.Get()
 	if !ok {
-		return optional.NewNoneOption[autodiscovery.Component]()
+		return option.None[autodiscovery.Component]()
 	}
-	return optional.NewOption[autodiscovery.Component](
+	return option.New[autodiscovery.Component](
 		createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta))
 }

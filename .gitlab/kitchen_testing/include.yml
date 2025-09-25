@@ -4,7 +4,6 @@
 
 include:
   - .gitlab/kitchen_testing/centos.yml
-  - .gitlab/kitchen_testing/debian.yml
   - .gitlab/kitchen_testing/new-e2e_testing.yml
   - .gitlab/kitchen_testing/new-e2e_testing/include.yml
   - .gitlab/kitchen_testing/testing.yml

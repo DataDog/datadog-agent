@@ -12,7 +12,7 @@ import (
 	"regexp"
 
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
@@ -28,7 +28,7 @@ func compileRegexPatterns(patterns []string) ([]*regexp.Regexp, error) {
 	return res, nil
 }
 
-func serverIsLocal(server optional.Option[string]) bool {
+func serverIsLocal(server option.Option[string]) bool {
 	val, isSet := server.Get()
 	return !isSet ||
 		len(val) == 0 ||
@@ -52,7 +52,7 @@ func evtRPCFlagsFromString(flags string) (uint, error) {
 	}
 }
 
-func evtRPCFlagsFromOption(authType optional.Option[string]) (uint, error) {
+func evtRPCFlagsFromOption(authType option.Option[string]) (uint, error) {
 	val, isSet := authType.Get()
 	if !isSet {
 		return 0, fmt.Errorf("option is not set")
@@ -60,12 +60,12 @@ func evtRPCFlagsFromOption(authType optional.Option[string]) (uint, error) {
 	return evtRPCFlagsFromString(val)
 }
 
-func isaffirmative(o optional.Option[bool]) bool {
+func isaffirmative(o option.Option[bool]) bool {
 	val, isSet := o.Get()
 	return isSet && val
 }
 
-func getEventPriorityFromOption(o optional.Option[string]) (agentEvent.EventPriority, error) {
+func getEventPriorityFromOption(o option.Option[string]) (agentEvent.EventPriority, error) {
 	val, isSet := o.Get()
 	if !isSet {
 		return "", fmt.Errorf("option is not set")

@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MockModule defines the fx options for this mock component.
@@ -24,6 +24,6 @@ func MockModule() fxutil.Module {
 
 // NewMockOrchestratorForwarder returns an orchestratorForwarder
 func NewMockOrchestratorForwarder() orchestrator.Component {
-	forwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	forwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	return &forwarder
 }

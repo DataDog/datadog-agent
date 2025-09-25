@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type cliParams struct {
@@ -93,10 +93,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
-				fx.Supply(optional.NewNoneOption[collector.Component]()),
+				fx.Supply(option.None[collector.Component]()),
 				core.Bundle(),
 				diagnosesendermanagerimpl.Module(),
-				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
+				fx.Supply(option.None[autodiscovery.Component]()),
 			)
 		},
 	}
@@ -159,9 +159,9 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 
 func run(cliParams *cliParams,
 	diagnoseSenderManager diagnosesendermanager.Component,
-	collector optional.Option[collector.Component],
+	collector option.Option[collector.Component],
 	secretResolver secrets.Component,
-	ac optional.Option[autodiscovery.Component]) error {
+	ac option.Option[autodiscovery.Component]) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
 		profile flare.ProfileData
@@ -220,7 +220,7 @@ func run(cliParams *cliParams,
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		diagnoseDeps := diagnose.NewSuitesDeps(diagnoseSenderManager, collector, secretResolver, optional.NewNoneOption[workloadmeta.Component](), ac)
+		diagnoseDeps := diagnose.NewSuitesDeps(diagnoseSenderManager, collector, secretResolver, option.None[workloadmeta.Component](), ac)
 		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseDeps, nil)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)

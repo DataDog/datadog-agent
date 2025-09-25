@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type serverDeps struct {
@@ -44,7 +44,7 @@ type serverDeps struct {
 	Demultiplexer demultiplexer.FakeSamplerMock
 	Replay        replay.Component
 	Debug         serverdebug.Component
-	WMeta         optional.Option[workloadmeta.Component]
+	WMeta         option.Option[workloadmeta.Component]
 	Server        Component
 }
 

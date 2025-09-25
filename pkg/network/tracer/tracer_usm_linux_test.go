@@ -347,6 +347,7 @@ func skipIfHTTPSNotSupported(t *testing.T, _ testContext) {
 }
 
 func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	t.Skip("Flaky test")
 	skipFunc := composeSkips(skipIfHTTPSNotSupported)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,

@@ -10,31 +10,44 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
 type windowsStatusSuite struct {
 	baseStatusSuite
+	osOption awshost.ProvisionerOption
+}
+
+func (v *windowsStatusSuite) GetOs() awshost.ProvisionerOption {
+	return v.osOption
 }
 
 func TestWindowsStatusSuite(t *testing.T) {
-	e2e.Run(t, &windowsStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))
+	e2e.Run(t, &windowsStatusSuite{osOption: osOption}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(osOption)))
 }
 
 func (v *windowsStatusSuite) TestStatusHostname() {
+
+	config := agentparams.WithAgentConfig("ec2_prefer_imdsv2: true")
+	options := awshost.WithAgentOptions(config)
+	provisioner := awshost.ProvisionerNoFakeIntake(v.GetOs(), options)
+	v.UpdateEnv(provisioner)
+	// e2e metadata provider already uses IMDSv2
 	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	resourceID := metadata.Get("instance-id")
 
-	status := v.Env().Agent.Client.Status()
-
-	expected := expectedSection{
-		name:            `Hostname`,
-		shouldBePresent: true,
-		shouldContain:   []string{fmt.Sprintf("instance-id: %v", resourceID), "hostname provider: os"},
+	expectedSections := []expectedSection{
+		{
+			name:            `Hostname`,
+			shouldBePresent: true,
+			shouldContain:   []string{fmt.Sprintf("instance-id: %v", resourceID), "hostname provider: os"},
+		},
 	}
 
-	verifySectionContent(v.T(), status.Content, expected)
+	fetchAndCheckStatus(&v.baseStatusSuite, expectedSections)
 }

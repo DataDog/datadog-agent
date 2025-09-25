@@ -1,5 +1,5 @@
 variables:
-  BENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:trace-agent
+  BENCHMARKS_CI_IMAGE: registry.ddbuild.io/ci/benchmarking-platform:trace-agent
 
 .trace_agent_benchmarks:
   stage: benchmarks

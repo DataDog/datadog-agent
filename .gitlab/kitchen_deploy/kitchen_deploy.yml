@@ -2,16 +2,19 @@
 # kitchen_deploy stage
 # Contains jobs which deploy Agent package to testing repsoitories that are used in kitchen tests.
 
-.setup_rpm_signing_key: &setup_rpm_signing_key
-  - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
-  - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-  - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
+.setup_signing: &setup_signing
+  - ${CI_PROJECT_DIR}/tools/ci/retry.sh aws s3 cp s3://binaries-ddbuild-io-prod/dd-source/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault/dev/gpg-vault-v1.6.2-linux-amd64.tar.gz .
+  - tar -xzf gpg-vault-v1.6.2-linux-amd64.tar.gz
+  - mv gpg-vault-linux-amd64 /usr/bin/gpg-vault-bin
+  # Set up gpg shim
+  - echo '#!/usr/bin/env bash' > /usr/bin/gpg
+  - echo 'GPG_VAULT_COMPAT_MODE=true GPG_USER_ID="Datadog Packages" GPG_USER_EMAIL="package@datadoghq.com" /usr/bin/gpg-vault "$@"' >> /usr/bin/gpg
+  - chmod +x /usr/bin/gpg
 
-.setup_apt_signing_key: &setup_apt_signing_key
-  - APT_SIGNING_PRIVATE_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
-  - APT_SIGNING_KEY_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
-
-  - printf -- "$APT_SIGNING_PRIVATE_KEY" | gpg --import --batch
+  # Set up gpg-vault shim
+  - echo '#!/usr/bin/env bash' > /usr/bin/gpg-vault
+  - echo 'GPG_USER_ID="Datadog Packages" GPG_USER_EMAIL="package@datadoghq.com" /usr/bin/gpg-vault-bin "$@"' >> /usr/bin/gpg-vault
+  - chmod +x /usr/bin/gpg-vault
 
 .setup_signing_keys_package:
   &setup_signing_keys_package # Set up prod apt repo to get the datadog-signing-keys package
@@ -39,7 +42,7 @@
 
 .deploy_deb_testing-a6:
   stage: kitchen_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
   <<: *deploy_deb_resource_group-a6
   variables:
@@ -62,15 +65,16 @@ deploy_deb_testing-a6_x64:
       "lint_linux-x64",
     ]
   script:
-    - *setup_apt_signing_key
-    - set +x # make sure we don't output the creds to the build log
-
     - *setup_signing_keys_package
-
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 6 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 6 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 6 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 6 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - *setup_signing
+    - |
+      for package in $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb; do
+        tools/ci/signing/sign_deb_package.sh "$package" $GPG_TEST_KEY_ID out/
+      done
+    - deb-s3 upload -c "stable-x86_64" -m 6 -b $DEB_TESTING_S3_BUCKET --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} -a amd64 --sign=$GPG_TEST_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo sha512" --preserve_versions --visibility public out/datadog-*_6*amd64.deb
+    - deb-s3 upload -c "stable-x86_64" -m 6 -b $DEB_TESTING_S3_BUCKET --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} -a x86_64 --sign=$GPG_TEST_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo sha512" --preserve_versions --visibility public out/datadog-*_6*amd64.deb
+    - deb-s3 upload -c "stable-x86_64" -m 6 -b $DEB_TESTING_S3_BUCKET --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} -a amd64 --sign=$GPG_TEST_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo sha512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - deb-s3 upload -c "stable-x86_64" -m 6 -b $DEB_TESTING_S3_BUCKET --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} -a x86_64 --sign=$GPG_TEST_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo sha512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 deploy_deb_testing-a6_arm64:
   rules:
@@ -81,17 +85,18 @@ deploy_deb_testing-a6_arm64:
     - .deploy_deb_testing-a6
   needs: ["agent_deb-arm64-a6"]
   script:
-    - *setup_apt_signing_key
-    - set +x # make sure we don't output the creds to the build log
-
     - *setup_signing_keys_package
-
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 6 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*arm64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 6 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - *setup_signing
+    - |
+      for package in $OMNIBUS_PACKAGE_DIR/datadog-*_6*arm64.deb; do
+        tools/ci/signing/sign_deb_package.sh "$package" $GPG_TEST_KEY_ID out/
+      done
+    - deb-s3 upload -c "stable-arm64" -m 6 -b $DEB_TESTING_S3_BUCKET --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo sha512" --preserve_versions --visibility public out/datadog-*_6*arm64.deb
+    - deb-s3 upload -c "stable-arm64" -m 6 -b $DEB_TESTING_S3_BUCKET --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo sha512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 .deploy_rpm_testing-a6:
   stage: kitchen_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -112,9 +117,13 @@ deploy_rpm_testing-a6_x64:
       "lint_linux-x64",
     ]
   script:
-    - *setup_rpm_signing_key
-    - set +x
-    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-6.*x86_64.rpm
+    - *setup_signing
+    - |
+      for package in $OMNIBUS_PACKAGE_DIR/datadog-*-6.*x86_64.rpm; do
+        tools/ci/signing/sign_rpm_package.sh "$package" $GPG_TEST_KEY_ID out/
+      done
+    - export PATH=$(echo $PATH  | sed 's/\/.pyenv\/shims://')
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $GPG_TEST_KEY_ID out/datadog-*-6.*x86_64.rpm
 
 deploy_rpm_testing-a6_arm64:
   rules:
@@ -129,9 +138,14 @@ deploy_rpm_testing-a6_arm64:
       "lint_linux-arm64",
     ]
   script:
-    - *setup_rpm_signing_key
+    - *setup_signing
     - set +x
-    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/6/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-6.*aarch64.rpm
+    - |
+      for package in $OMNIBUS_PACKAGE_DIR/datadog-*-6.*aarch64.rpm; do
+        tools/ci/signing/sign_rpm_package.sh "$package" $GPG_TEST_KEY_ID out/
+      done
+    - export PATH=$(echo $PATH  | sed 's/\/.pyenv\/shims://')
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/6/aarch64/" -a "aarch64" --sign --metadata-signing-key $GPG_TEST_KEY_ID out/datadog-*-6.*aarch64.rpm
 
 deploy_suse_rpm_testing_x64-a6:
   rules:
@@ -139,7 +153,7 @@ deploy_suse_rpm_testing_x64-a6:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: kitchen_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
   needs:
     [
@@ -152,9 +166,14 @@ deploy_suse_rpm_testing_x64-a6:
     - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
-    - *setup_rpm_signing_key
+    - *setup_signing
     - set +x
-    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-6.*x86_64.rpm
+    - |
+      for package in $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-6.*x86_64.rpm; do
+        tools/ci/signing/sign_rpm_package.sh "$package" $GPG_TEST_KEY_ID out/
+      done
+    - export PATH=$(echo $PATH  | sed 's/\/.pyenv\/shims://')
+    - rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $GPG_TEST_KEY_ID --repodata-store-public-key out/datadog-*-6.*x86_64.rpm
 
 deploy_windows_testing-a6:
   rules:
@@ -162,7 +181,7 @@ deploy_windows_testing-a6:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: kitchen_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
   needs: ["lint_windows-x64", "windows_msi_x64-a6"]
   before_script:
@@ -170,3 +189,19 @@ deploy_windows_testing-a6:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+export_testing_public_key:
+  rules:
+    - when: never # Comment this to add a job to export the testing public GPG key. Needed after rotating the testing GPG key.
+    - !reference [.manual]
+  needs: []
+  stage: kitchen_deploy
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["arch:amd64"]
+  script:
+    - *setup_signing
+    - /usr/bin/gpg-vault export-public-key $GPG_TEST_KEY_ID > gpg-testing-public-key.asc
+  artifacts:
+    paths:
+      - gpg-testing-public-key.asc
+    expire_in: 1 day

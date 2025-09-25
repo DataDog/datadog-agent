@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -34,8 +34,8 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newRemoteConfigClient),
-		fx.Provide(func(c rcclient.Component) optional.Option[rcclient.Component] {
-			return optional.NewOption[rcclient.Component](c)
+		fx.Provide(func(c rcclient.Component) option.Option[rcclient.Component] {
+			return option.New[rcclient.Component](c)
 		}),
 	)
 }

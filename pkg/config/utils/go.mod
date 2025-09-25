@@ -16,7 +16,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../util/optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ../../util/option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
@@ -31,7 +31,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.53.2-rc.15
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.2-rc.15
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.2-rc.15
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.2-rc.15
+	github.com/DataDog/datadog-agent/pkg/util/option v0.53.2-rc.15
 	github.com/DataDog/datadog-agent/pkg/version v0.53.2-rc.15
 	github.com/stretchr/testify v1.10.0
 )

@@ -48,7 +48,7 @@ docker_build_agent6:
     - job: agent_deb-x64-a6
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -6
     BUILD_ARG: --target test --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
@@ -62,7 +62,7 @@ docker_build_agent6_arm64:
     - job: agent_deb-arm64-a6
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -6
     BUILD_ARG: --target test --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*arm64.deb
@@ -77,7 +77,7 @@ docker_build_agent6_jmx:
     - job: agent_deb-x64-a6
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     BUILD_ARTIFACT_GLOB: datadog-agent_6*_amd64.deb
     TAG_SUFFIX: -6-jmx
@@ -93,7 +93,7 @@ docker_build_agent6_jmx_arm64:
     - job: agent_deb-arm64-a6
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     BUILD_ARTIFACT_GLOB: datadog-agent_6*arm64.deb
     TAG_SUFFIX: -6-jmx
@@ -110,7 +110,7 @@ docker_build_agent6_py2py3_jmx:
     - job: agent_deb-x64-a6
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -6-py2py3-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
@@ -138,7 +138,7 @@ docker_build_cluster_agent_amd64:
     - job: cluster_agent-build_amd64
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
@@ -152,7 +152,7 @@ docker_build_cluster_agent_arm64:
     - job: cluster_agent-build_arm64
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
@@ -167,7 +167,7 @@ docker_build_cws_instrumentation_amd64:
     - job: cws_instrumentation-build_amd64
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cws-instrumentation
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
     BUILD_CONTEXT: Dockerfiles/cws-instrumentation
 
 docker_build_cws_instrumentation_arm64:
@@ -179,5 +179,5 @@ docker_build_cws_instrumentation_arm64:
     - job: cws_instrumentation-build_arm64
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cws-instrumentation
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
     BUILD_CONTEXT: Dockerfiles/cws-instrumentation

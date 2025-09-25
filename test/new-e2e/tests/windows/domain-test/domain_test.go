@@ -7,20 +7,21 @@ package domain
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
+
+	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
+	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test"
+	installtest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test"
 	"github.com/stretchr/testify/assert"
 )
 

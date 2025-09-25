@@ -154,8 +154,10 @@ import (
 	"github.com/DataDog/test-infra-definitions/components"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 
 	"github.com/stretchr/testify/suite"
@@ -175,7 +177,7 @@ type Suite[Env any] interface {
 
 	init(params []SuiteOption, self Suite[Env])
 
-	UpdateEnv(...Provisioner)
+	UpdateEnv(...provisioners.Provisioner)
 	Env() *Env
 }
 
@@ -189,8 +191,8 @@ type BaseSuite[Env any] struct {
 	datadogClient *datadog.Client
 	params        suiteParams
 
-	originalProvisioners ProvisionerMap
-	currentProvisioners  ProvisionerMap
+	originalProvisioners provisioners.ProvisionerMap
+	currentProvisioners  provisioners.ProvisionerMap
 
 	firstFailTest string
 	startTime     time.Time
@@ -211,9 +213,9 @@ func (bs *BaseSuite[Env]) Env() *Env {
 }
 
 // UpdateEnv updates the environment with new provisioners.
-func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...Provisioner) {
+func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...provisioners.Provisioner) {
 	uniqueIDs := make(map[string]struct{})
-	targetProvisioners := make(ProvisionerMap, len(newProvisioners))
+	targetProvisioners := make(provisioners.ProvisionerMap, len(newProvisioners))
 	for _, provisioner := range newProvisioners {
 		if _, found := uniqueIDs[provisioner.ID()]; found {
 			panic(fmt.Errorf("Multiple providers with same id found, provisioner with id %s already exists", provisioner.ID()))
@@ -275,7 +277,7 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 	bs.originalProvisioners = bs.params.provisioners
 }
 
-func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error {
+func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.ProvisionerMap) error {
 	if reflect.DeepEqual(bs.currentProvisioners, targetProvisioners) {
 		bs.T().Logf("No change in provisioners, skipping environment update")
 		return nil
@@ -300,22 +302,22 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 	}
 
 	// Then we provision new resources
-	resources := make(RawResources)
+	resources := make(provisioners.RawResources)
 	for id, provisioner := range targetProvisioners {
-		var provisionerResources RawResources
+		var provisionerResources provisioners.RawResources
 		var err error
 
 		switch pType := provisioner.(type) {
-		case TypedProvisioner[Env]:
+		case provisioners.TypedProvisioner[Env]:
 			provisionerResources, err = pType.ProvisionEnv(ctx, bs.params.stackName, logger, newEnv)
-		case UntypedProvisioner:
+		case provisioners.UntypedProvisioner:
 			provisionerResources, err = pType.Provision(ctx, bs.params.stackName, logger)
 		default:
 			return fmt.Errorf("provisioner of type %T does not implement UntypedProvisioner nor TypedProvisioner", provisioner)
 		}
 
 		if err != nil {
-			if diagnosableProvisioner, ok := provisioner.(Diagnosable); ok {
+			if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok {
 				stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
 				if err != nil {
 					bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
@@ -347,7 +349,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 	}
 
 	// If env implements Initializable, we call Init
-	if initializable, ok := any(newEnv).(Initializable); ok {
+	if initializable, ok := any(newEnv).(common.Initializable); ok {
 		if err := initializable.Init(bs); err != nil {
 			return fmt.Errorf("failed to init environment, err: %v", err)
 		}
@@ -355,7 +357,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 
 	// On success we update the current environment
 	// We need top copy provisioners to protect against external modifications
-	bs.currentProvisioners = copyProvisioners(targetProvisioners)
+	bs.currentProvisioners = provisioners.CopyProvisioners(targetProvisioners)
 	bs.env = newEnv
 	return nil
 }
@@ -403,7 +405,7 @@ func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Va
 	return &env, retainedFields, retainedValues, nil
 }
 
-func (bs *BaseSuite[Env]) buildEnvFromResources(resources RawResources, fields []reflect.StructField, values []reflect.Value) error {
+func (bs *BaseSuite[Env]) buildEnvFromResources(resources provisioners.RawResources, fields []reflect.StructField, values []reflect.Value) error {
 	if len(fields) != len(values) {
 		panic("fields and values must have the same length")
 	}
@@ -442,7 +444,7 @@ func (bs *BaseSuite[Env]) buildEnvFromResources(resources RawResources, fields [
 			}
 
 			// See if the component requires init
-			if initializable, ok := fieldValue.Interface().(Initializable); ok {
+			if initializable, ok := fieldValue.Interface().(common.Initializable); ok {
 				if err := initializable.Init(bs); err != nil {
 					return fmt.Errorf("failed to init resource named: %s with key: %s, err: %w", field.Name, resourceKey, err)
 				}
@@ -578,7 +580,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 
 	for id, provisioner := range bs.originalProvisioners {
 		// Run provisioner Diagnose before tearing down the stack
-		if diagnosableProvisioner, ok := provisioner.(Diagnosable); ok {
+		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok {
 			stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
 			if err != nil {
 				bs.T().Logf("unable to get stack name for diagnose, err: %v", err)

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: agent-runtimes
@@ -31,9 +31,9 @@ type Component interface {
 		wmeta workloadmeta.Component,
 		tagger tagger.Component,
 		ac autodiscovery.Component,
-		logsAgent optional.Option[logsAgent.Component],
+		logsAgent option.Option[logsAgent.Component],
 		senderManager sender.DiagnoseSenderManager,
-		collector optional.Option[collector.Component],
+		collector option.Option[collector.Component],
 	) error
 	StopServer()
 	ServerAddress() *net.TCPAddr

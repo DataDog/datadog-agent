@@ -78,6 +78,18 @@ func verifySectionContent(t require.TestingT, statusOutput string, section expec
 	}
 }
 
+// fetchAndCheckStatus execute the Agent status subcommand and compare it's output with the provided expectedSections via the verifySectionContent
+func fetchAndCheckStatus(v *baseStatusSuite, expectedSections []expectedSection) {
+	// the test will not run until the core-agent is running, but it can run before the process-agent or trace-agent are running
+	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		statusOutput := v.Env().Agent.Client.Status()
+
+		for _, section := range expectedSections {
+			verifySectionContent(t, statusOutput.Content, section)
+		}
+	}, 2*time.Minute, 20*time.Second)
+}
+
 func (v *baseStatusSuite) TestDefaultInstallStatus() {
 	expectedSections := []expectedSection{
 		{

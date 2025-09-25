@@ -8,7 +8,7 @@ package listeners
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -24,7 +24,7 @@ const (
 )
 
 // RegisterListeners registers the available autodiscovery listerners.
-func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactory, wmeta optional.Option[workloadmeta.Component]) {
+func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactory, wmeta option.Option[workloadmeta.Component]) {
 	// register the available listeners
 	Register(cloudFoundryBBSListenerName, NewCloudFoundryListener, serviceListenerFactories)
 	Register(containerListenerName, func(config Config) (ServiceListener, error) { return NewContainerListener(config, wmeta) }, serviceListenerFactories)
