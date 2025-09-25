@@ -703,9 +703,6 @@ func materializePending(
 				ranges = p.outOfLinePCRanges
 			}
 			isParameter := die.Tag == dwarf.TagFormalParameter
-			if !isParameter {
-				continue
-			}
 			v, err := processVariable(
 				p.unit, die, isParameter,
 				parseLocs, ranges,
@@ -714,8 +711,10 @@ func materializePending(
 			if err != nil {
 				return nil, err
 			}
-			sp.Variables = append(sp.Variables, v)
-			variableByOffset[die.Offset] = v
+			if v != nil {
+				sp.Variables = append(sp.Variables, v)
+				variableByOffset[die.Offset] = v
+			}
 		}
 		// Then, propagate locations and define additional vars from inlined instances.
 		for _, inl := range p.inlined {
@@ -727,9 +726,6 @@ func materializePending(
 			}
 			for _, inlVar := range inl.variables {
 				isParameter := inlVar.Tag == dwarf.TagFormalParameter
-				if !isParameter {
-					continue
-				}
 				abstractOrigin, ok, err := maybeGetAttr[dwarf.Offset](
 					inlVar, dwarf.AttrAbstractOrigin,
 				)
@@ -758,7 +754,9 @@ func materializePending(
 					if err != nil {
 						return nil, err
 					}
-					sp.Variables = append(sp.Variables, v)
+					if v != nil {
+						sp.Variables = append(sp.Variables, v)
+					}
 				}
 			}
 		}
@@ -1412,6 +1410,26 @@ func populateEventExpressions(
 				continue
 			}
 			variableKind = ir.RootExpressionKindLocal
+		case ir.EventKindLine:
+			// We capture any variable that is available at any of the injection points.
+			// We rely on both locations and injection points being sorted by PC to make
+			// this check linear. The location ranges might overlap, but this sweep is
+			// still correct.
+			available := false
+			locIdx := 0
+			for _, injectionPoint := range event.InjectionPoints {
+				for locIdx < len(variable.Locations) && variable.Locations[locIdx].Range[1] <= injectionPoint.PC {
+					locIdx++
+				}
+				if locIdx < len(variable.Locations) && injectionPoint.PC >= variable.Locations[locIdx].Range[0] {
+					available = true
+					break
+				}
+			}
+			if !available {
+				continue
+			}
+			variableKind = ir.RootExpressionKindLocal
 		default:
 			panic(fmt.Sprintf("unexpected event kind: %v", event.Kind))
 		}
@@ -1879,12 +1897,19 @@ func newProbe(
 	slices.SortFunc(injectionPoints, func(a, b ir.InjectionPoint) int {
 		return cmp.Compare(a.PC, b.PC)
 	})
+	var eventKind ir.EventKind
+	switch probeCfg.GetWhere().(type) {
+	case ir.FunctionWhere:
+		eventKind = ir.EventKindEntry
+	case ir.LineWhere:
+		eventKind = ir.EventKindLine
+	}
 	events := []*ir.Event{
 		{
 			ID:              eventIDAlloc.next(),
 			InjectionPoints: injectionPoints,
 			Condition:       nil,
-			Kind:            ir.EventKindEntry,
+			Kind:            eventKind,
 			// Will be populated after all the types have been resolved
 			// and placeholders have been filled in.
 			Type: nil,
@@ -2437,6 +2462,9 @@ func processVariable(
 	name, err := getAttr[string](entry, dwarf.AttrName)
 	if err != nil {
 		return nil, err
+	}
+	if strings.HasPrefix(name, ".") {
+		return nil, nil
 	}
 	typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
 	if err != nil {

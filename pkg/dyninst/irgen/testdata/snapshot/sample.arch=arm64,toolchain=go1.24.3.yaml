@@ -2749,6 +2749,15 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           IsParameter: true
           IsReturn: false
+        - Name: z
+          Type: 7 BaseType int
+          Locations:
+            - Range: 0x84ad2c..0x84ad3c
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x84ad3c..0x84add0
+              Pieces: [{Size: 8, Op: {CfaOffset: -48}}]
+          IsParameter: false
+          IsReturn: false
     - ID: 48
       Name: main.testInlinedBBA
       OutOfLinePCRanges: [0x84add0..0x84ae50]
@@ -2765,7 +2774,29 @@ Subprograms:
       Name: main.testInlinedBC
       OutOfLinePCRanges: [0x84ae50..0x84af70]
       InlinePCRanges: []
-      Variables: []
+      Variables:
+        - Name: s
+          Type: 7 BaseType int
+          Locations:
+            - Range: 0x84aeb8..0x84aec0
+              Pieces: [{Size: 8, Op: {CfaOffset: -72}}]
+            - Range: 0x84aec0..0x84aed8
+              Pieces: [{Size: 8, Op: {CfaOffset: -72}}]
+            - Range: 0x84aed8..0x84aeec
+              Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
+          IsParameter: false
+          IsReturn: false
+        - Name: i
+          Type: 7 BaseType int
+          Locations:
+            - Range: 0x84aeb4..0x84aebc
+              Pieces: [{Size: 8, Op: {CfaOffset: -64}}]
+            - Range: 0x84aebc..0x84aed8
+              Pieces: [{Size: 8, Op: {CfaOffset: -64}}]
+            - Range: 0x84aed8..0x84aee8
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          IsParameter: false
+          IsReturn: false
     - ID: 50
       Name: main.testFrameless
       OutOfLinePCRanges: [0x84af70..0x84af80]
@@ -3357,6 +3388,15 @@ Subprograms:
           Locations: [{Range: 0x84d5d0..0x84d670, Pieces: []}]
           IsParameter: true
           IsReturn: true
+        - Name: '&i'
+          Type: 99 PointerType *int
+          Locations:
+            - Range: 0x84d5f8..0x84d60c
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x84d60c..0x84d670
+              Pieces: [{Size: 8, Op: {CfaOffset: -16}}]
+          IsParameter: false
+          IsReturn: false
     - ID: 90
       Name: main.testReturnsIntAndFloat
       OutOfLinePCRanges: [0x84d670..0x84d730]
@@ -3381,6 +3421,15 @@ Subprograms:
           Locations: [{Range: 0x84d670..0x84d730, Pieces: []}]
           IsParameter: true
           IsReturn: true
+        - Name: f
+          Type: 18 BaseType float64
+          Locations:
+            - Range: 0x84d690..0x84d6bc
+              Pieces: [{Size: 8, Op: {RegNo: 64, Shift: 0}}]
+            - Range: 0x84d6bc..0x84d730
+              Pieces: [{Size: 8, Op: {CfaOffset: -64}}]
+          IsParameter: false
+          IsReturn: false
     - ID: 91
       Name: main.testReturnsError
       OutOfLinePCRanges: [0x84d730..0x84d7b0]
@@ -3509,6 +3558,45 @@ Subprograms:
           Locations: [{Range: 0x84d8e0..0x84da00, Pieces: []}]
           IsParameter: true
           IsReturn: true
+        - Name: b
+          Type: 156 GoInterfaceType main.behavior
+          Locations:
+            - Range: 0x84d8e0..0x84d91c
+              Pieces:
+                - Size: 8
+                  Op: null
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+            - Range: 0x84d91c..0x84d964
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {CfaOffset: 16}
+            - Range: 0x84d964..0x84d96c
+              Pieces:
+                - Size: 8
+                  Op: {CfaOffset: -48}
+                - Size: 8
+                  Op: {CfaOffset: 16}
+            - Range: 0x84d96c..0x84d990
+              Pieces:
+                - Size: 8
+                  Op: {CfaOffset: -48}
+                - Size: 8
+                  Op: {CfaOffset: 16}
+            - Range: 0x84d990..0x84d994
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {CfaOffset: 16}
+            - Range: 0x84d994..0x84d998
+              Pieces: [{Size: 8, Op: null}, {Size: 8, Op: {CfaOffset: 16}}]
+            - Range: 0x84d998..0x84da00
+              Pieces: [{Size: 8, Op: null}, {Size: 8, Op: {CfaOffset: 16}}]
+          IsParameter: false
+          IsReturn: false
     - ID: 95
       Name: main.testNamedReturn
       OutOfLinePCRanges: [0x84da00..0x84daa0]

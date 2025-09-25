@@ -12,12 +12,12 @@ Probes:
       events:
         - ID: 2
           Kind: Entry
-          Type: 201 EventRootType Probe[main.HandleHTTP]
+          Type: 267 EventRootType Probe[main.HandleHTTP]
           InjectionPoints: [{PC: "0xd31373", Frameless: false}]
           Condition: null
         - ID: 1
           Kind: Return
-          Type: 202 EventRootType Probe[main.HandleHTTP]Return
+          Type: 268 EventRootType Probe[main.HandleHTTP]Return
           InjectionPoints:
             - PC: "0xd315af"
               Frameless: false
@@ -36,12 +36,12 @@ Probes:
       events:
         - ID: 4
           Kind: Entry
-          Type: 203 EventRootType Probe[main.LookAtTheRequest]
+          Type: 269 EventRootType Probe[main.LookAtTheRequest]
           InjectionPoints: [{PC: "0xd316ce", Frameless: false}]
           Condition: null
         - ID: 3
           Kind: Return
-          Type: 204 EventRootType Probe[main.LookAtTheRequest]Return
+          Type: 270 EventRootType Probe[main.LookAtTheRequest]Return
           InjectionPoints: [{PC: "0xd3175d", Frameless: false}]
           Condition: null
 Subprograms:
@@ -82,6 +82,22 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
           IsParameter: true
           IsReturn: false
+        - Name: span
+          Type: 110 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
+          Locations:
+            - Range: 0xd313e8..0xd31421
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          IsParameter: false
+          IsReturn: false
+        - Name: '&buf'
+          Type: 112 PointerType *bytes.Buffer
+          Locations:
+            - Range: 0xd314f7..0xd31512
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xd31512..0xd315f9
+              Pieces: [{Size: 8, Op: {CfaOffset: -128}}]
+          IsParameter: false
+          IsReturn: false
     - ID: 2
       Name: main.LookAtTheRequest
       OutOfLinePCRanges: [0xd316c0..0xd31785]
@@ -100,15 +116,40 @@ Subprograms:
           IsReturn: false
 Types:
     - __kind: PointerType
-      ID: 162
+      ID: 251
+      Name: '**table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>'
+      ByteSize: 8
+      Pointee: 252 PointerType *table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
+    - __kind: PointerType
+      ID: 166
       Name: '**table<string,[]string>'
       ByteSize: 8
-      Pointee: 163 PointerType *table<string,[]string>
+      Pointee: 167 PointerType *table<string,[]string>
     - __kind: PointerType
-      ID: 181
+      ID: 219
+      Name: '**table<string,float64>'
+      ByteSize: 8
+      Pointee: 220 PointerType *table<string,float64>
+    - __kind: PointerType
+      ID: 214
+      Name: '**table<string,interface {}>'
+      ByteSize: 8
+      Pointee: 215 PointerType *table<string,interface {}>
+    - __kind: PointerType
+      ID: 185
       Name: '**table<string,string>'
       ByteSize: 8
-      Pointee: 182 PointerType *table<string,string>
+      Pointee: 186 PointerType *table<string,string>
+    - __kind: PointerType
+      ID: 247
+      Name: '*[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array'
+      ByteSize: 8
+      Pointee: 246 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array
+    - __kind: PointerType
+      ID: 255
+      Name: '*[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array'
+      ByteSize: 8
+      Pointee: 254 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array
     - __kind: PointerType
       ID: 39
       Name: '*[]runtime.ancestorInfo'
@@ -117,20 +158,20 @@ Types:
       GoKind: 22
       Pointee: 40 UnresolvedPointeeType []runtime.ancestorInfo
     - __kind: PointerType
-      ID: 192
+      ID: 196
       Name: '*[]string.array'
       ByteSize: 8
-      Pointee: 191 GoSliceDataType []string.array
+      Pointee: 195 GoSliceDataType []string.array
     - __kind: PointerType
-      ID: 113
+      ID: 117
       Name: '*[]uint8.array'
       ByteSize: 8
-      Pointee: 112 GoSliceDataType []uint8.array
+      Pointee: 116 GoSliceDataType []uint8.array
     - __kind: PointerType
-      ID: 115
+      ID: 119
       Name: '*[]uintptr.array'
       ByteSize: 8
-      Pointee: 114 GoSliceDataType []uintptr.array
+      Pointee: 118 GoSliceDataType []uintptr.array
     - __kind: PointerType
       ID: 11
       Name: '*bool'
@@ -139,12 +180,19 @@ Types:
       GoKind: 22
       Pointee: 4 BaseType bool
     - __kind: PointerType
-      ID: 170
+      ID: 112
+      Name: '*bytes.Buffer'
+      ByteSize: 8
+      GoRuntimeType: 2.316768e+06
+      GoKind: 22
+      Pointee: 113 StructureType bytes.Buffer
+    - __kind: PointerType
+      ID: 174
       Name: '*crypto/tls.ConnectionState'
       ByteSize: 8
       GoRuntimeType: 919424
       GoKind: 22
-      Pointee: 171 UnresolvedPointeeType crypto/tls.ConnectionState
+      Pointee: 175 UnresolvedPointeeType crypto/tls.ConnectionState
     - __kind: PointerType
       ID: 104
       Name: '*error'
@@ -167,12 +215,47 @@ Types:
       GoKind: 22
       Pointee: 18 BaseType float64
     - __kind: PointerType
-      ID: 116
+      ID: 110
+      Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span'
+      ByteSize: 8
+      GoRuntimeType: 2.32752e+06
+      GoKind: 22
+      Pointee: 111 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
+    - __kind: PointerType
+      ID: 227
+      Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext'
+      ByteSize: 8
+      GoRuntimeType: 2.046208e+06
+      GoKind: 22
+      Pointee: 228 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
+    - __kind: PointerType
+      ID: 222
+      Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink'
+      ByteSize: 8
+      GoRuntimeType: 1.210688e+06
+      GoKind: 22
+      Pointee: 223 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
+    - __kind: PointerType
+      ID: 225
+      Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent'
+      ByteSize: 8
+      GoRuntimeType: 1.210816e+06
+      GoKind: 22
+      Pointee: 226 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
+    - __kind: PointerType
+      ID: 262
+      Name: '*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute'
+      ByteSize: 8
+      GoRuntimeType: 1.211584e+06
+      GoKind: 22
+      Pointee: 263 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+    - __kind: PointerType
+      ID: 120
       Name: '*github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter'
       ByteSize: 8
       GoRuntimeType: 1.577632e+06
       GoKind: 22
-      Pointee: 117 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter
+      Pointee: 121 UnresolvedPointeeType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter
     - __kind: PointerType
       ID: 98
       Name: '*int'
@@ -209,22 +292,37 @@ Types:
       GoKind: 22
       Pointee: 15 BaseType int8
     - __kind: PointerType
-      ID: 160
+      ID: 249
+      Name: '*map<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>'
+      ByteSize: 8
+      Pointee: 250 GoSwissMapHeaderType map<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
+    - __kind: PointerType
+      ID: 164
       Name: '*map<string,[]string>'
       ByteSize: 8
-      Pointee: 161 GoSwissMapHeaderType map<string,[]string>
+      Pointee: 165 GoSwissMapHeaderType map<string,[]string>
     - __kind: PointerType
-      ID: 179
+      ID: 217
+      Name: '*map<string,float64>'
+      ByteSize: 8
+      Pointee: 218 GoSwissMapHeaderType map<string,float64>
+    - __kind: PointerType
+      ID: 212
+      Name: '*map<string,interface {}>'
+      ByteSize: 8
+      Pointee: 213 GoSwissMapHeaderType map<string,interface {}>
+    - __kind: PointerType
+      ID: 183
       Name: '*map<string,string>'
       ByteSize: 8
-      Pointee: 180 GoSwissMapHeaderType map<string,string>
+      Pointee: 184 GoSwissMapHeaderType map<string,string>
     - __kind: PointerType
-      ID: 168
+      ID: 172
       Name: '*mime/multipart.Form'
       ByteSize: 8
       GoRuntimeType: 920960
       GoKind: 22
-      Pointee: 169 UnresolvedPointeeType mime/multipart.Form
+      Pointee: 173 UnresolvedPointeeType mime/multipart.Form
     - __kind: PointerType
       ID: 108
       Name: '*net/http.Request'
@@ -233,50 +331,65 @@ Types:
       GoKind: 22
       Pointee: 109 StructureType net/http.Request
     - __kind: PointerType
-      ID: 173
+      ID: 177
       Name: '*net/http.Response'
       ByteSize: 8
       GoRuntimeType: 1.751392e+06
       GoKind: 22
-      Pointee: 174 UnresolvedPointeeType net/http.Response
+      Pointee: 178 UnresolvedPointeeType net/http.Response
     - __kind: PointerType
-      ID: 153
+      ID: 157
       Name: '*net/http.http2responseWriter'
       ByteSize: 8
       GoRuntimeType: 2.045344e+06
       GoKind: 22
-      Pointee: 154 UnresolvedPointeeType net/http.http2responseWriter
+      Pointee: 158 UnresolvedPointeeType net/http.http2responseWriter
     - __kind: PointerType
-      ID: 176
+      ID: 180
       Name: '*net/http.pattern'
       ByteSize: 8
       GoRuntimeType: 1.637792e+06
       GoKind: 22
-      Pointee: 177 UnresolvedPointeeType net/http.pattern
+      Pointee: 181 UnresolvedPointeeType net/http.pattern
     - __kind: PointerType
-      ID: 155
+      ID: 159
       Name: '*net/http.response'
       ByteSize: 8
       GoRuntimeType: 2.254144e+06
       GoKind: 22
-      Pointee: 156 UnresolvedPointeeType net/http.response
+      Pointee: 160 UnresolvedPointeeType net/http.response
     - __kind: PointerType
-      ID: 157
+      ID: 161
       Name: '*net/url.URL'
       ByteSize: 8
       GoRuntimeType: 2.16048e+06
       GoKind: 22
-      Pointee: 158 UnresolvedPointeeType net/url.URL
+      Pointee: 162 UnresolvedPointeeType net/url.URL
     - __kind: PointerType
-      ID: 185
+      ID: 258
+      Name: '*noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute'
+      ByteSize: 8
+      Pointee: 259 StructureType noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+    - __kind: PointerType
+      ID: 189
       Name: '*noalg.map.group[string][]string'
       ByteSize: 8
-      Pointee: 186 StructureType noalg.map.group[string][]string
+      Pointee: 190 StructureType noalg.map.group[string][]string
     - __kind: PointerType
-      ID: 195
+      ID: 240
+      Name: '*noalg.map.group[string]float64'
+      ByteSize: 8
+      Pointee: 241 StructureType noalg.map.group[string]float64
+    - __kind: PointerType
+      ID: 231
+      Name: '*noalg.map.group[string]interface {}'
+      ByteSize: 8
+      Pointee: 232 StructureType noalg.map.group[string]interface {}
+    - __kind: PointerType
+      ID: 199
       Name: '*noalg.map.group[string]string'
       ByteSize: 8
-      Pointee: 196 StructureType noalg.map.group[string]string
+      Pointee: 200 StructureType noalg.map.group[string]string
     - __kind: PointerType
       ID: 26
       Name: '*runtime._defer'
@@ -355,125 +468,140 @@ Types:
       GoKind: 22
       Pointee: 9 GoStringHeaderType string
     - __kind: PointerType
-      ID: 111
+      ID: 115
       Name: '*string.str'
       ByteSize: 8
-      Pointee: 110 GoStringDataType string.str
+      Pointee: 114 GoStringDataType string.str
     - __kind: PointerType
-      ID: 122
+      ID: 126
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier }'
       ByteSize: 8
       GoRuntimeType: 1.716704e+06
       GoKind: 22
-      Pointee: 123 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier }
+      Pointee: 127 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier }
     - __kind: PointerType
-      ID: 136
+      ID: 140
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier; net/http.Hijacker }'
       ByteSize: 8
       GoRuntimeType: 1.774624e+06
       GoKind: 22
-      Pointee: 137 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier; net/http.Hijacker }
+      Pointee: 141 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier; net/http.Hijacker }
     - __kind: PointerType
-      ID: 118
+      ID: 122
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher }'
       ByteSize: 8
       GoRuntimeType: 1.71632e+06
       GoKind: 22
-      Pointee: 119 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher }
+      Pointee: 123 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher }
     - __kind: PointerType
-      ID: 128
+      ID: 132
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier }'
       ByteSize: 8
       GoRuntimeType: 1.773856e+06
       GoKind: 22
-      Pointee: 129 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier }
+      Pointee: 133 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier }
     - __kind: PointerType
-      ID: 142
+      ID: 146
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }'
       ByteSize: 8
       GoRuntimeType: 1.845888e+06
       GoKind: 22
-      Pointee: 143 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }
+      Pointee: 147 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }
     - __kind: PointerType
-      ID: 130
+      ID: 134
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Hijacker }'
       ByteSize: 8
       GoRuntimeType: 1.774048e+06
       GoKind: 22
-      Pointee: 131 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Hijacker }
+      Pointee: 135 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Hijacker }
     - __kind: PointerType
-      ID: 126
+      ID: 130
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher }'
       ByteSize: 8
       GoRuntimeType: 1.773664e+06
       GoKind: 22
-      Pointee: 127 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher }
+      Pointee: 131 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher }
     - __kind: PointerType
-      ID: 138
+      ID: 142
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier }'
       ByteSize: 8
       GoRuntimeType: 1.84544e+06
       GoKind: 22
-      Pointee: 139 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier }
+      Pointee: 143 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier }
     - __kind: PointerType
-      ID: 146
+      ID: 150
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }'
       ByteSize: 8
       GoRuntimeType: 1.918112e+06
       GoKind: 22
-      Pointee: 147 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }
+      Pointee: 151 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }
     - __kind: PointerType
-      ID: 140
+      ID: 144
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.Hijacker }'
       ByteSize: 8
       GoRuntimeType: 1.845664e+06
       GoKind: 22
-      Pointee: 141 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.Hijacker }
+      Pointee: 145 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.Hijacker }
     - __kind: PointerType
-      ID: 124
+      ID: 128
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Hijacker }'
       ByteSize: 8
       GoRuntimeType: 1.716896e+06
       GoKind: 22
-      Pointee: 125 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Hijacker }
+      Pointee: 129 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Hijacker }
     - __kind: PointerType
-      ID: 120
+      ID: 124
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher }'
       ByteSize: 8
       GoRuntimeType: 1.716512e+06
       GoKind: 22
-      Pointee: 121 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher }
+      Pointee: 125 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher }
     - __kind: PointerType
-      ID: 132
+      ID: 136
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier }'
       ByteSize: 8
       GoRuntimeType: 1.77424e+06
       GoKind: 22
-      Pointee: 133 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier }
+      Pointee: 137 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier }
     - __kind: PointerType
-      ID: 144
+      ID: 148
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }'
       ByteSize: 8
       GoRuntimeType: 1.846112e+06
       GoKind: 22
-      Pointee: 145 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }
+      Pointee: 149 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }
     - __kind: PointerType
-      ID: 134
+      ID: 138
       Name: '*struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.Hijacker }'
       ByteSize: 8
       GoRuntimeType: 1.774432e+06
       GoKind: 22
-      Pointee: 135 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.Hijacker }
+      Pointee: 139 StructureType struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.Hijacker }
     - __kind: PointerType
-      ID: 163
+      ID: 252
+      Name: '*table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>'
+      ByteSize: 8
+      Pointee: 256 StructureType table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
+    - __kind: PointerType
+      ID: 167
       Name: '*table<string,[]string>'
       ByteSize: 8
-      Pointee: 183 StructureType table<string,[]string>
+      Pointee: 187 StructureType table<string,[]string>
     - __kind: PointerType
-      ID: 182
+      ID: 220
+      Name: '*table<string,float64>'
+      ByteSize: 8
+      Pointee: 238 StructureType table<string,float64>
+    - __kind: PointerType
+      ID: 215
+      Name: '*table<string,interface {}>'
+      ByteSize: 8
+      Pointee: 229 StructureType table<string,interface {}>
+    - __kind: PointerType
+      ID: 186
       Name: '*table<string,string>'
       ByteSize: 8
-      Pointee: 193 StructureType table<string,string>
+      Pointee: 197 StructureType table<string,string>
     - __kind: PointerType
       ID: 105
       Name: '*uint'
@@ -517,12 +645,12 @@ Types:
       GoKind: 22
       Pointee: 1 BaseType uintptr
     - __kind: GoChannelType
-      ID: 172
+      ID: 176
       Name: <-chan struct {}
       GoRuntimeType: 603424
       GoKind: 18
     - __kind: EventRootType
-      ID: 201
+      ID: 267
       Name: Probe[main.HandleHTTP]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -548,10 +676,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 202
+      ID: 268
       Name: Probe[main.HandleHTTP]Return
     - __kind: EventRootType
-      ID: 203
+      ID: 269
       Name: Probe[main.LookAtTheRequest]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -567,7 +695,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 204
+      ID: 270
       Name: Probe[main.LookAtTheRequest]Return
     - __kind: ArrayType
       ID: 92
@@ -676,35 +804,117 @@ Types:
       HasCount: true
       Element: 83 StructureType runtime.pcvalueCacheEnt
     - __kind: GoSliceDataType
-      ID: 189
+      ID: 264
+      Name: '[]*table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 8
+      Element: 252 PointerType *table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
+    - __kind: GoSliceDataType
+      ID: 193
       Name: '[]*table<string,[]string>.array'
       DynamicSizeClass: hashmap
       ByteSize: 8
-      Element: 163 PointerType *table<string,[]string>
+      Element: 167 PointerType *table<string,[]string>
     - __kind: GoSliceDataType
-      ID: 199
+      ID: 244
+      Name: '[]*table<string,float64>.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 8
+      Element: 220 PointerType *table<string,float64>
+    - __kind: GoSliceDataType
+      ID: 236
+      Name: '[]*table<string,interface {}>.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 8
+      Element: 215 PointerType *table<string,interface {}>
+    - __kind: GoSliceDataType
+      ID: 203
       Name: '[]*table<string,string>.array'
       DynamicSizeClass: hashmap
       ByteSize: 8
-      Element: 182 PointerType *table<string,string>
+      Element: 186 PointerType *table<string,string>
+    - __kind: GoSliceHeaderType
+      ID: 221
+      Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink'
+      ByteSize: 24
+      GoRuntimeType: 491520
+      GoKind: 23
+      RawFields:
+        - Name: array
+          Offset: 0
+          Type: 222 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
+        - Name: len
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: cap
+          Offset: 16
+          Type: 7 BaseType int
+      Data: 246 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array
     - __kind: GoSliceDataType
-      ID: 190
+      ID: 246
+      Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink.array'
+      DynamicSizeClass: slice
+      ByteSize: 56
+      Element: 223 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
+    - __kind: GoSliceHeaderType
+      ID: 224
+      Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent'
+      ByteSize: 24
+      GoRuntimeType: 491712
+      GoKind: 23
+      RawFields:
+        - Name: array
+          Offset: 0
+          Type: 225 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
+        - Name: len
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: cap
+          Offset: 16
+          Type: 7 BaseType int
+      Data: 254 GoSliceDataType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array
+    - __kind: GoSliceDataType
+      ID: 254
+      Name: '[]github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent.array'
+      DynamicSizeClass: slice
+      ByteSize: 40
+      Element: 226 StructureType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
+    - __kind: GoSliceDataType
+      ID: 265
+      Name: '[]noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 200
+      Element: 259 StructureType noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+    - __kind: GoSliceDataType
+      ID: 194
       Name: '[]noalg.map.group[string][]string.array'
       DynamicSizeClass: hashmap
       ByteSize: 328
-      Element: 186 StructureType noalg.map.group[string][]string
+      Element: 190 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
-      ID: 200
+      ID: 245
+      Name: '[]noalg.map.group[string]float64.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 200
+      Element: 241 StructureType noalg.map.group[string]float64
+    - __kind: GoSliceDataType
+      ID: 237
+      Name: '[]noalg.map.group[string]interface {}.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 264
+      Element: 232 StructureType noalg.map.group[string]interface {}
+    - __kind: GoSliceDataType
+      ID: 204
       Name: '[]noalg.map.group[string]string.array'
       DynamicSizeClass: hashmap
       ByteSize: 264
-      Element: 196 StructureType noalg.map.group[string]string
+      Element: 200 StructureType noalg.map.group[string]string
     - __kind: UnresolvedPointeeType
       ID: 40
       Name: '[]runtime.ancestorInfo'
       ByteSize: 8
     - __kind: GoSliceHeaderType
-      ID: 166
+      ID: 170
       Name: '[]string'
       ByteSize: 24
       GoRuntimeType: 498176
@@ -719,9 +929,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 191 GoSliceDataType []string.array
+      Data: 195 GoSliceDataType []string.array
     - __kind: GoSliceDataType
-      ID: 191
+      ID: 195
       Name: '[]string.array'
       DynamicSizeClass: slice
       ByteSize: 16
@@ -742,9 +952,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 112 GoSliceDataType []uint8.array
+      Data: 116 GoSliceDataType []uint8.array
     - __kind: GoSliceDataType
-      ID: 112
+      ID: 116
       Name: '[]uint8.array'
       DynamicSizeClass: slice
       ByteSize: 1
@@ -765,9 +975,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 7 BaseType int
-      Data: 114 GoSliceDataType []uintptr.array
+      Data: 118 GoSliceDataType []uintptr.array
     - __kind: GoSliceDataType
-      ID: 114
+      ID: 118
       Name: '[]uintptr.array'
       DynamicSizeClass: slice
       ByteSize: 8
@@ -778,6 +988,28 @@ Types:
       ByteSize: 1
       GoRuntimeType: 591392
       GoKind: 1
+    - __kind: StructureType
+      ID: 113
+      Name: bytes.Buffer
+      ByteSize: 40
+      GoRuntimeType: 1.635488e+06
+      GoKind: 25
+      RawFields:
+        - Name: buf
+          Offset: 0
+          Type: 38 GoSliceHeaderType []uint8
+        - Name: off
+          Offset: 24
+          Type: 7 BaseType int
+        - Name: lastRead
+          Offset: 32
+          Type: 266 BaseType bytes.readOp
+    - __kind: BaseType
+      ID: 266
+      Name: bytes.readOp
+      ByteSize: 1
+      GoRuntimeType: 589536
+      GoKind: 3
     - __kind: BaseType
       ID: 95
       Name: complex128
@@ -791,7 +1023,7 @@ Types:
       GoRuntimeType: 591136
       GoKind: 15
     - __kind: GoInterfaceType
-      ID: 175
+      ID: 179
       Name: context.Context
       ByteSize: 16
       GoRuntimeType: 1.298688e+06
@@ -804,7 +1036,7 @@ Types:
           Offset: 8
           Type: 14 VoidPointerType unsafe.Pointer
     - __kind: UnresolvedPointeeType
-      ID: 171
+      ID: 175
       Name: crypto/tls.ConnectionState
       ByteSize: 8
     - __kind: GoInterfaceType
@@ -839,7 +1071,7 @@ Types:
       GoRuntimeType: 482080
       GoKind: 19
     - __kind: GoSubroutineType
-      ID: 165
+      ID: 169
       Name: func() (io.ReadCloser, error)
       ByteSize: 8
       GoRuntimeType: 701280
@@ -850,8 +1082,149 @@ Types:
       ByteSize: 8
       GoRuntimeType: 863936
       GoKind: 19
+    - __kind: StructureType
+      ID: 111
+      Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
+      ByteSize: 288
+      GoRuntimeType: 2.39312e+06
+      GoKind: 25
+      RawFields:
+        - Name: mu
+          Offset: 0
+          Type: 205 StructureType sync.RWMutex
+        - Name: name
+          Offset: 24
+          Type: 9 GoStringHeaderType string
+        - Name: service
+          Offset: 40
+          Type: 9 GoStringHeaderType string
+        - Name: resource
+          Offset: 56
+          Type: 9 GoStringHeaderType string
+        - Name: spanType
+          Offset: 72
+          Type: 9 GoStringHeaderType string
+        - Name: start
+          Offset: 88
+          Type: 12 BaseType int64
+        - Name: duration
+          Offset: 96
+          Type: 12 BaseType int64
+        - Name: meta
+          Offset: 104
+          Type: 182 GoMapType map[string]string
+        - Name: metaStruct
+          Offset: 112
+          Type: 211 GoMapType github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.metaStructMap
+        - Name: metrics
+          Offset: 120
+          Type: 216 GoMapType map[string]float64
+        - Name: spanID
+          Offset: 128
+          Type: 8 BaseType uint64
+        - Name: traceID
+          Offset: 136
+          Type: 8 BaseType uint64
+        - Name: parentID
+          Offset: 144
+          Type: 8 BaseType uint64
+        - Name: error
+          Offset: 152
+          Type: 10 BaseType int32
+        - Name: spanLinks
+          Offset: 160
+          Type: 221 GoSliceHeaderType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
+        - Name: spanEvents
+          Offset: 184
+          Type: 224 GoSliceHeaderType []github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
+        - Name: goExecTraced
+          Offset: 208
+          Type: 4 BaseType bool
+        - Name: noDebugStack
+          Offset: 209
+          Type: 4 BaseType bool
+        - Name: finished
+          Offset: 210
+          Type: 4 BaseType bool
+        - Name: context
+          Offset: 216
+          Type: 227 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
+        - Name: integration
+          Offset: 224
+          Type: 9 GoStringHeaderType string
+        - Name: supportsEvents
+          Offset: 240
+          Type: 4 BaseType bool
+        - Name: pprofCtxActive
+          Offset: 248
+          Type: 179 GoInterfaceType context.Context
+        - Name: pprofCtxRestore
+          Offset: 264
+          Type: 179 GoInterfaceType context.Context
+        - Name: taskEnd
+          Offset: 280
+          Type: 59 GoSubroutineType func()
+    - __kind: UnresolvedPointeeType
+      ID: 228
+      Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext
+      ByteSize: 8
+    - __kind: StructureType
+      ID: 223
+      Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanLink
+      ByteSize: 56
+      GoRuntimeType: 1.947136e+06
+      GoKind: 25
+      RawFields:
+        - Name: TraceID
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: TraceIDHigh
+          Offset: 8
+          Type: 8 BaseType uint64
+        - Name: SpanID
+          Offset: 16
+          Type: 8 BaseType uint64
+        - Name: Attributes
+          Offset: 24
+          Type: 182 GoMapType map[string]string
+        - Name: Tracestate
+          Offset: 32
+          Type: 9 GoStringHeaderType string
+        - Name: Flags
+          Offset: 48
+          Type: 2 BaseType uint32
+    - __kind: GoMapType
+      ID: 211
+      Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.metaStructMap
+      ByteSize: 8
+      GoRuntimeType: 1.299968e+06
+      GoKind: 21
+      HeaderType: 213 GoSwissMapHeaderType map<string,interface {}>
+    - __kind: StructureType
+      ID: 226
+      Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEvent
+      ByteSize: 40
+      GoRuntimeType: 1.781696e+06
+      GoKind: 25
+      RawFields:
+        - Name: Name
+          Offset: 0
+          Type: 9 GoStringHeaderType string
+        - Name: TimeUnixNano
+          Offset: 16
+          Type: 8 BaseType uint64
+        - Name: Attributes
+          Offset: 24
+          Type: 248 GoMapType map[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+        - Name: RawAttributes
+          Offset: 32
+          Type: 253 GoMapType map[string]interface {}
+    - __kind: UnresolvedPointeeType
+      ID: 263
+      Name: github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+      ByteSize: 8
     - __kind: GoInterfaceType
-      ID: 148
+      ID: 152
       Name: github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
       ByteSize: 16
       GoRuntimeType: 1.440512e+06
@@ -864,37 +1237,79 @@ Types:
           Offset: 8
           Type: 14 VoidPointerType unsafe.Pointer
     - __kind: UnresolvedPointeeType
-      ID: 117
+      ID: 121
       Name: github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.responseWriter
       ByteSize: 8
     - __kind: GoSwissMapGroupsType
-      ID: 184
+      ID: 257
+      Name: groupReference<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
+      ByteSize: 16
+      GoKind: 25
+      RawFields:
+        - Name: data
+          Offset: 0
+          Type: 258 PointerType *noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+        - Name: lengthMask
+          Offset: 8
+          Type: 8 BaseType uint64
+      GroupType: 259 StructureType noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+      GroupSliceType: 265 GoSliceDataType []noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute.array
+    - __kind: GoSwissMapGroupsType
+      ID: 188
       Name: groupReference<string,[]string>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 185 PointerType *noalg.map.group[string][]string
+          Type: 189 PointerType *noalg.map.group[string][]string
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 186 StructureType noalg.map.group[string][]string
-      GroupSliceType: 190 GoSliceDataType []noalg.map.group[string][]string.array
+      GroupType: 190 StructureType noalg.map.group[string][]string
+      GroupSliceType: 194 GoSliceDataType []noalg.map.group[string][]string.array
     - __kind: GoSwissMapGroupsType
-      ID: 194
+      ID: 239
+      Name: groupReference<string,float64>
+      ByteSize: 16
+      GoKind: 25
+      RawFields:
+        - Name: data
+          Offset: 0
+          Type: 240 PointerType *noalg.map.group[string]float64
+        - Name: lengthMask
+          Offset: 8
+          Type: 8 BaseType uint64
+      GroupType: 241 StructureType noalg.map.group[string]float64
+      GroupSliceType: 245 GoSliceDataType []noalg.map.group[string]float64.array
+    - __kind: GoSwissMapGroupsType
+      ID: 230
+      Name: groupReference<string,interface {}>
+      ByteSize: 16
+      GoKind: 25
+      RawFields:
+        - Name: data
+          Offset: 0
+          Type: 231 PointerType *noalg.map.group[string]interface {}
+        - Name: lengthMask
+          Offset: 8
+          Type: 8 BaseType uint64
+      GroupType: 232 StructureType noalg.map.group[string]interface {}
+      GroupSliceType: 237 GoSliceDataType []noalg.map.group[string]interface {}.array
+    - __kind: GoSwissMapGroupsType
+      ID: 198
       Name: groupReference<string,string>
       ByteSize: 16
       GoKind: 25
       RawFields:
         - Name: data
           Offset: 0
-          Type: 195 PointerType *noalg.map.group[string]string
+          Type: 199 PointerType *noalg.map.group[string]string
         - Name: lengthMask
           Offset: 8
           Type: 8 BaseType uint64
-      GroupType: 196 StructureType noalg.map.group[string]string
-      GroupSliceType: 200 GoSliceDataType []noalg.map.group[string]string.array
+      GroupType: 200 StructureType noalg.map.group[string]string
+      GroupSliceType: 204 GoSliceDataType []noalg.map.group[string]string.array
     - __kind: BaseType
       ID: 7
       Name: int
@@ -925,6 +1340,19 @@ Types:
       ByteSize: 1
       GoRuntimeType: 590432
       GoKind: 3
+    - __kind: GoEmptyInterfaceType
+      ID: 235
+      Name: interface {}
+      ByteSize: 16
+      GoRuntimeType: 863648
+      GoKind: 20
+      RawFields:
+        - Name: _type
+          Offset: 0
+          Type: 14 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 14 VoidPointerType unsafe.Pointer
     - __kind: StructureType
       ID: 86
       Name: internal/chacha8rand.State
@@ -1024,8 +1452,21 @@ Types:
       GoRuntimeType: 1.007872e+06
       GoKind: 25
       RawFields: []
+    - __kind: StructureType
+      ID: 208
+      Name: internal/sync.Mutex
+      ByteSize: 8
+      GoRuntimeType: 1.512992e+06
+      GoKind: 25
+      RawFields:
+        - Name: state
+          Offset: 0
+          Type: 10 BaseType int32
+        - Name: sema
+          Offset: 4
+          Type: 2 BaseType uint32
     - __kind: GoInterfaceType
-      ID: 164
+      ID: 168
       Name: io.ReadCloser
       ByteSize: 16
       GoRuntimeType: 1.130304e+06
@@ -1038,7 +1479,39 @@ Types:
           Offset: 8
           Type: 14 VoidPointerType unsafe.Pointer
     - __kind: GoSwissMapHeaderType
-      ID: 161
+      ID: 250
+      Name: map<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
+      ByteSize: 48
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: seed
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: dirPtr
+          Offset: 16
+          Type: 251 PointerType **table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
+        - Name: dirLen
+          Offset: 24
+          Type: 7 BaseType int
+        - Name: globalDepth
+          Offset: 32
+          Type: 3 BaseType uint8
+        - Name: globalShift
+          Offset: 33
+          Type: 3 BaseType uint8
+        - Name: writing
+          Offset: 34
+          Type: 3 BaseType uint8
+        - Name: clearSeq
+          Offset: 40
+          Type: 8 BaseType uint64
+      TablePtrSliceType: 264 GoSliceDataType []*table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>.array
+      GroupType: 259 StructureType noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+    - __kind: GoSwissMapHeaderType
+      ID: 165
       Name: map<string,[]string>
       ByteSize: 48
       GoKind: 25
@@ -1051,7 +1524,7 @@ Types:
           Type: 1 BaseType uintptr
         - Name: dirPtr
           Offset: 16
-          Type: 162 PointerType **table<string,[]string>
+          Type: 166 PointerType **table<string,[]string>
         - Name: dirLen
           Offset: 24
           Type: 7 BaseType int
@@ -1067,10 +1540,74 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 189 GoSliceDataType []*table<string,[]string>.array
-      GroupType: 186 StructureType noalg.map.group[string][]string
+      TablePtrSliceType: 193 GoSliceDataType []*table<string,[]string>.array
+      GroupType: 190 StructureType noalg.map.group[string][]string
     - __kind: GoSwissMapHeaderType
-      ID: 180
+      ID: 218
+      Name: map<string,float64>
+      ByteSize: 48
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: seed
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: dirPtr
+          Offset: 16
+          Type: 219 PointerType **table<string,float64>
+        - Name: dirLen
+          Offset: 24
+          Type: 7 BaseType int
+        - Name: globalDepth
+          Offset: 32
+          Type: 3 BaseType uint8
+        - Name: globalShift
+          Offset: 33
+          Type: 3 BaseType uint8
+        - Name: writing
+          Offset: 34
+          Type: 3 BaseType uint8
+        - Name: clearSeq
+          Offset: 40
+          Type: 8 BaseType uint64
+      TablePtrSliceType: 244 GoSliceDataType []*table<string,float64>.array
+      GroupType: 241 StructureType noalg.map.group[string]float64
+    - __kind: GoSwissMapHeaderType
+      ID: 213
+      Name: map<string,interface {}>
+      ByteSize: 48
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: seed
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: dirPtr
+          Offset: 16
+          Type: 214 PointerType **table<string,interface {}>
+        - Name: dirLen
+          Offset: 24
+          Type: 7 BaseType int
+        - Name: globalDepth
+          Offset: 32
+          Type: 3 BaseType uint8
+        - Name: globalShift
+          Offset: 33
+          Type: 3 BaseType uint8
+        - Name: writing
+          Offset: 34
+          Type: 3 BaseType uint8
+        - Name: clearSeq
+          Offset: 40
+          Type: 8 BaseType uint64
+      TablePtrSliceType: 236 GoSliceDataType []*table<string,interface {}>.array
+      GroupType: 232 StructureType noalg.map.group[string]interface {}
+    - __kind: GoSwissMapHeaderType
+      ID: 184
       Name: map<string,string>
       ByteSize: 48
       GoKind: 25
@@ -1083,7 +1620,7 @@ Types:
           Type: 1 BaseType uintptr
         - Name: dirPtr
           Offset: 16
-          Type: 181 PointerType **table<string,string>
+          Type: 185 PointerType **table<string,string>
         - Name: dirLen
           Offset: 24
           Type: 7 BaseType int
@@ -1099,21 +1636,42 @@ Types:
         - Name: clearSeq
           Offset: 40
           Type: 8 BaseType uint64
-      TablePtrSliceType: 199 GoSliceDataType []*table<string,string>.array
-      GroupType: 196 StructureType noalg.map.group[string]string
+      TablePtrSliceType: 203 GoSliceDataType []*table<string,string>.array
+      GroupType: 200 StructureType noalg.map.group[string]string
     - __kind: GoMapType
-      ID: 178
+      ID: 248
+      Name: map[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+      ByteSize: 8
+      GoRuntimeType: 1.153728e+06
+      GoKind: 21
+      HeaderType: 250 GoSwissMapHeaderType map<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
+    - __kind: GoMapType
+      ID: 216
+      Name: map[string]float64
+      ByteSize: 8
+      GoRuntimeType: 1.1536e+06
+      GoKind: 21
+      HeaderType: 218 GoSwissMapHeaderType map<string,float64>
+    - __kind: GoMapType
+      ID: 253
+      Name: map[string]interface {}
+      ByteSize: 8
+      GoRuntimeType: 1.146944e+06
+      GoKind: 21
+      HeaderType: 213 GoSwissMapHeaderType map<string,interface {}>
+    - __kind: GoMapType
+      ID: 182
       Name: map[string]string
       ByteSize: 8
       GoRuntimeType: 1.149376e+06
       GoKind: 21
-      HeaderType: 180 GoSwissMapHeaderType map<string,string>
+      HeaderType: 184 GoSwissMapHeaderType map<string,string>
     - __kind: UnresolvedPointeeType
-      ID: 169
+      ID: 173
       Name: mime/multipart.Form
       ByteSize: 8
     - __kind: GoInterfaceType
-      ID: 151
+      ID: 155
       Name: net/http.CloseNotifier
       ByteSize: 16
       GoRuntimeType: 1.04576e+06
@@ -1126,7 +1684,7 @@ Types:
           Offset: 8
           Type: 14 VoidPointerType unsafe.Pointer
     - __kind: GoInterfaceType
-      ID: 149
+      ID: 153
       Name: net/http.Flusher
       ByteSize: 16
       GoRuntimeType: 1.044352e+06
@@ -1139,14 +1697,14 @@ Types:
           Offset: 8
           Type: 14 VoidPointerType unsafe.Pointer
     - __kind: GoMapType
-      ID: 159
+      ID: 163
       Name: net/http.Header
       ByteSize: 8
       GoRuntimeType: 2.148192e+06
       GoKind: 21
-      HeaderType: 161 GoSwissMapHeaderType map<string,[]string>
+      HeaderType: 165 GoSwissMapHeaderType map<string,[]string>
     - __kind: GoInterfaceType
-      ID: 152
+      ID: 156
       Name: net/http.Hijacker
       ByteSize: 16
       GoRuntimeType: 1.04448e+06
@@ -1159,7 +1717,7 @@ Types:
           Offset: 8
           Type: 14 VoidPointerType unsafe.Pointer
     - __kind: GoInterfaceType
-      ID: 150
+      ID: 154
       Name: net/http.Pusher
       ByteSize: 16
       GoRuntimeType: 1.044736e+06
@@ -1183,7 +1741,7 @@ Types:
           Type: 9 GoStringHeaderType string
         - Name: URL
           Offset: 16
-          Type: 157 PointerType *net/url.URL
+          Type: 161 PointerType *net/url.URL
         - Name: Proto
           Offset: 24
           Type: 9 GoStringHeaderType string
@@ -1195,19 +1753,19 @@ Types:
           Type: 7 BaseType int
         - Name: Header
           Offset: 56
-          Type: 159 GoMapType net/http.Header
+          Type: 163 GoMapType net/http.Header
         - Name: Body
           Offset: 64
-          Type: 164 GoInterfaceType io.ReadCloser
+          Type: 168 GoInterfaceType io.ReadCloser
         - Name: GetBody
           Offset: 80
-          Type: 165 GoSubroutineType func() (io.ReadCloser, error)
+          Type: 169 GoSubroutineType func() (io.ReadCloser, error)
         - Name: ContentLength
           Offset: 88
           Type: 12 BaseType int64
         - Name: TransferEncoding
           Offset: 96
-          Type: 166 GoSliceHeaderType []string
+          Type: 170 GoSliceHeaderType []string
         - Name: Close
           Offset: 120
           Type: 4 BaseType bool
@@ -1216,16 +1774,16 @@ Types:
           Type: 9 GoStringHeaderType string
         - Name: Form
           Offset: 144
-          Type: 167 GoMapType net/url.Values
+          Type: 171 GoMapType net/url.Values
         - Name: PostForm
           Offset: 152
-          Type: 167 GoMapType net/url.Values
+          Type: 171 GoMapType net/url.Values
         - Name: MultipartForm
           Offset: 160
-          Type: 168 PointerType *mime/multipart.Form
+          Type: 172 PointerType *mime/multipart.Form
         - Name: Trailer
           Offset: 168
-          Type: 159 GoMapType net/http.Header
+          Type: 163 GoMapType net/http.Header
         - Name: RemoteAddr
           Offset: 176
           Type: 9 GoStringHeaderType string
@@ -1234,30 +1792,30 @@ Types:
           Type: 9 GoStringHeaderType string
         - Name: TLS
           Offset: 208
-          Type: 170 PointerType *crypto/tls.ConnectionState
+          Type: 174 PointerType *crypto/tls.ConnectionState
         - Name: Cancel
           Offset: 216
-          Type: 172 GoChannelType <-chan struct {}
+          Type: 176 GoChannelType <-chan struct {}
         - Name: Response
           Offset: 224
-          Type: 173 PointerType *net/http.Response
+          Type: 177 PointerType *net/http.Response
         - Name: Pattern
           Offset: 232
           Type: 9 GoStringHeaderType string
         - Name: ctx
           Offset: 248
-          Type: 175 GoInterfaceType context.Context
+          Type: 179 GoInterfaceType context.Context
         - Name: pat
           Offset: 264
-          Type: 176 PointerType *net/http.pattern
+          Type: 180 PointerType *net/http.pattern
         - Name: matches
           Offset: 272
-          Type: 166 GoSliceHeaderType []string
+          Type: 170 GoSliceHeaderType []string
         - Name: otherValues
           Offset: 296
-          Type: 178 GoMapType map[string]string
+          Type: 182 GoMapType map[string]string
     - __kind: UnresolvedPointeeType
-      ID: 174
+      ID: 178
       Name: net/http.Response
       ByteSize: 8
     - __kind: GoInterfaceType
@@ -1274,48 +1832,88 @@ Types:
           Offset: 8
           Type: 14 VoidPointerType unsafe.Pointer
     - __kind: UnresolvedPointeeType
-      ID: 154
+      ID: 158
       Name: net/http.http2responseWriter
       ByteSize: 8
     - __kind: UnresolvedPointeeType
-      ID: 177
+      ID: 181
       Name: net/http.pattern
       ByteSize: 8
     - __kind: UnresolvedPointeeType
-      ID: 156
+      ID: 160
       Name: net/http.response
       ByteSize: 8
     - __kind: UnresolvedPointeeType
-      ID: 158
+      ID: 162
       Name: net/url.URL
       ByteSize: 8
     - __kind: GoMapType
-      ID: 167
+      ID: 171
       Name: net/url.Values
       ByteSize: 8
       GoRuntimeType: 1.9208e+06
       GoKind: 21
-      HeaderType: 161 GoSwissMapHeaderType map<string,[]string>
+      HeaderType: 165 GoSwissMapHeaderType map<string,[]string>
     - __kind: ArrayType
-      ID: 187
+      ID: 260
+      Name: noalg.[8]struct { key string; elem *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute }
+      ByteSize: 192
+      GoRuntimeType: 711904
+      GoKind: 17
+      Count: 8
+      HasCount: true
+      Element: 261 StructureType noalg.struct { key string; elem *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute }
+    - __kind: ArrayType
+      ID: 191
       Name: noalg.[8]struct { key string; elem []string }
       ByteSize: 320
       GoRuntimeType: 697312
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 188 StructureType noalg.struct { key string; elem []string }
+      Element: 192 StructureType noalg.struct { key string; elem []string }
     - __kind: ArrayType
-      ID: 197
+      ID: 242
+      Name: noalg.[8]struct { key string; elem float64 }
+      ByteSize: 192
+      GoRuntimeType: 711808
+      GoKind: 17
+      Count: 8
+      HasCount: true
+      Element: 243 StructureType noalg.struct { key string; elem float64 }
+    - __kind: ArrayType
+      ID: 233
+      Name: noalg.[8]struct { key string; elem interface {} }
+      ByteSize: 256
+      GoRuntimeType: 688768
+      GoKind: 17
+      Count: 8
+      HasCount: true
+      Element: 234 StructureType noalg.struct { key string; elem interface {} }
+    - __kind: ArrayType
+      ID: 201
       Name: noalg.[8]struct { key string; elem string }
       ByteSize: 256
       GoRuntimeType: 701472
       GoKind: 17
       Count: 8
       HasCount: true
-      Element: 198 StructureType noalg.struct { key string; elem string }
+      Element: 202 StructureType noalg.struct { key string; elem string }
     - __kind: StructureType
-      ID: 186
+      ID: 259
+      Name: noalg.map.group[string]*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+      ByteSize: 200
+      GoRuntimeType: 1.327872e+06
+      GoKind: 25
+      RawFields:
+        - Name: ctrl
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: slots
+          Offset: 8
+          Type: 260 ArrayType noalg.[8]struct { key string; elem *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute }
+    - __kind: StructureType
+      ID: 190
       Name: noalg.map.group[string][]string
       ByteSize: 328
       GoRuntimeType: 1.312128e+06
@@ -1326,9 +1924,35 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 187 ArrayType noalg.[8]struct { key string; elem []string }
+          Type: 191 ArrayType noalg.[8]struct { key string; elem []string }
     - __kind: StructureType
-      ID: 196
+      ID: 241
+      Name: noalg.map.group[string]float64
+      ByteSize: 200
+      GoRuntimeType: 1.327616e+06
+      GoKind: 25
+      RawFields:
+        - Name: ctrl
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: slots
+          Offset: 8
+          Type: 242 ArrayType noalg.[8]struct { key string; elem float64 }
+    - __kind: StructureType
+      ID: 232
+      Name: noalg.map.group[string]interface {}
+      ByteSize: 264
+      GoRuntimeType: 1.309568e+06
+      GoKind: 25
+      RawFields:
+        - Name: ctrl
+          Offset: 0
+          Type: 8 BaseType uint64
+        - Name: slots
+          Offset: 8
+          Type: 233 ArrayType noalg.[8]struct { key string; elem interface {} }
+    - __kind: StructureType
+      ID: 200
       Name: noalg.map.group[string]string
       ByteSize: 264
       GoRuntimeType: 1.314432e+06
@@ -1339,9 +1963,22 @@ Types:
           Type: 8 BaseType uint64
         - Name: slots
           Offset: 8
-          Type: 197 ArrayType noalg.[8]struct { key string; elem string }
+          Type: 201 ArrayType noalg.[8]struct { key string; elem string }
     - __kind: StructureType
-      ID: 188
+      ID: 261
+      Name: noalg.struct { key string; elem *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute }
+      ByteSize: 24
+      GoRuntimeType: 1.327744e+06
+      GoKind: 25
+      RawFields:
+        - Name: key
+          Offset: 0
+          Type: 9 GoStringHeaderType string
+        - Name: elem
+          Offset: 16
+          Type: 262 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute
+    - __kind: StructureType
+      ID: 192
       Name: noalg.struct { key string; elem []string }
       ByteSize: 40
       GoRuntimeType: 1.312e+06
@@ -1352,9 +1989,35 @@ Types:
           Type: 9 GoStringHeaderType string
         - Name: elem
           Offset: 16
-          Type: 166 GoSliceHeaderType []string
+          Type: 170 GoSliceHeaderType []string
     - __kind: StructureType
-      ID: 198
+      ID: 243
+      Name: noalg.struct { key string; elem float64 }
+      ByteSize: 24
+      GoRuntimeType: 1.327488e+06
+      GoKind: 25
+      RawFields:
+        - Name: key
+          Offset: 0
+          Type: 9 GoStringHeaderType string
+        - Name: elem
+          Offset: 16
+          Type: 18 BaseType float64
+    - __kind: StructureType
+      ID: 234
+      Name: noalg.struct { key string; elem interface {} }
+      ByteSize: 32
+      GoRuntimeType: 1.30944e+06
+      GoKind: 25
+      RawFields:
+        - Name: key
+          Offset: 0
+          Type: 9 GoStringHeaderType string
+        - Name: elem
+          Offset: 16
+          Type: 235 GoEmptyInterfaceType interface {}
+    - __kind: StructureType
+      ID: 202
       Name: noalg.struct { key string; elem string }
       ByteSize: 32
       GoRuntimeType: 1.314304e+06
@@ -2129,18 +2792,18 @@ Types:
       RawFields:
         - Name: str
           Offset: 0
-          Type: 111 PointerType *string.str
+          Type: 115 PointerType *string.str
         - Name: len
           Offset: 8
           Type: 7 BaseType int
-      Data: 110 GoStringDataType string.str
+      Data: 114 GoStringDataType string.str
     - __kind: GoStringDataType
-      ID: 110
+      ID: 114
       Name: string.str
       DynamicSizeClass: string
       ByteSize: 1
     - __kind: StructureType
-      ID: 123
+      ID: 127
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier }
       ByteSize: 32
       GoRuntimeType: 1.982976e+06
@@ -2148,12 +2811,12 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: CloseNotifier
           Offset: 16
-          Type: 151 GoInterfaceType net/http.CloseNotifier
+          Type: 155 GoInterfaceType net/http.CloseNotifier
     - __kind: StructureType
-      ID: 137
+      ID: 141
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.CloseNotifier; net/http.Hijacker }
       ByteSize: 48
       GoRuntimeType: 2.06032e+06
@@ -2161,15 +2824,15 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: CloseNotifier
           Offset: 16
-          Type: 151 GoInterfaceType net/http.CloseNotifier
+          Type: 155 GoInterfaceType net/http.CloseNotifier
         - Name: Hijacker
           Offset: 32
-          Type: 152 GoInterfaceType net/http.Hijacker
+          Type: 156 GoInterfaceType net/http.Hijacker
     - __kind: StructureType
-      ID: 119
+      ID: 123
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher }
       ByteSize: 32
       GoRuntimeType: 1.982464e+06
@@ -2177,12 +2840,12 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Flusher
           Offset: 16
-          Type: 149 GoInterfaceType net/http.Flusher
+          Type: 153 GoInterfaceType net/http.Flusher
     - __kind: StructureType
-      ID: 129
+      ID: 133
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier }
       ByteSize: 48
       GoRuntimeType: 2.059168e+06
@@ -2190,15 +2853,15 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Flusher
           Offset: 16
-          Type: 149 GoInterfaceType net/http.Flusher
+          Type: 153 GoInterfaceType net/http.Flusher
         - Name: CloseNotifier
           Offset: 32
-          Type: 151 GoInterfaceType net/http.CloseNotifier
+          Type: 155 GoInterfaceType net/http.CloseNotifier
     - __kind: StructureType
-      ID: 143
+      ID: 147
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.CloseNotifier; net/http.Hijacker }
       ByteSize: 64
       GoRuntimeType: 2.129376e+06
@@ -2206,18 +2869,18 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Flusher
           Offset: 16
-          Type: 149 GoInterfaceType net/http.Flusher
+          Type: 153 GoInterfaceType net/http.Flusher
         - Name: CloseNotifier
           Offset: 32
-          Type: 151 GoInterfaceType net/http.CloseNotifier
+          Type: 155 GoInterfaceType net/http.CloseNotifier
         - Name: Hijacker
           Offset: 48
-          Type: 152 GoInterfaceType net/http.Hijacker
+          Type: 156 GoInterfaceType net/http.Hijacker
     - __kind: StructureType
-      ID: 131
+      ID: 135
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Hijacker }
       ByteSize: 48
       GoRuntimeType: 2.059456e+06
@@ -2225,15 +2888,15 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Flusher
           Offset: 16
-          Type: 149 GoInterfaceType net/http.Flusher
+          Type: 153 GoInterfaceType net/http.Flusher
         - Name: Hijacker
           Offset: 32
-          Type: 152 GoInterfaceType net/http.Hijacker
+          Type: 156 GoInterfaceType net/http.Hijacker
     - __kind: StructureType
-      ID: 127
+      ID: 131
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher }
       ByteSize: 48
       GoRuntimeType: 2.05888e+06
@@ -2241,15 +2904,15 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Flusher
           Offset: 16
-          Type: 149 GoInterfaceType net/http.Flusher
+          Type: 153 GoInterfaceType net/http.Flusher
         - Name: Pusher
           Offset: 32
-          Type: 150 GoInterfaceType net/http.Pusher
+          Type: 154 GoInterfaceType net/http.Pusher
     - __kind: StructureType
-      ID: 139
+      ID: 143
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier }
       ByteSize: 64
       GoRuntimeType: 2.128736e+06
@@ -2257,18 +2920,18 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Flusher
           Offset: 16
-          Type: 149 GoInterfaceType net/http.Flusher
+          Type: 153 GoInterfaceType net/http.Flusher
         - Name: Pusher
           Offset: 32
-          Type: 150 GoInterfaceType net/http.Pusher
+          Type: 154 GoInterfaceType net/http.Pusher
         - Name: CloseNotifier
           Offset: 48
-          Type: 151 GoInterfaceType net/http.CloseNotifier
+          Type: 155 GoInterfaceType net/http.CloseNotifier
     - __kind: StructureType
-      ID: 147
+      ID: 151
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }
       ByteSize: 80
       GoRuntimeType: 2.191008e+06
@@ -2276,21 +2939,21 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Flusher
           Offset: 16
-          Type: 149 GoInterfaceType net/http.Flusher
+          Type: 153 GoInterfaceType net/http.Flusher
         - Name: Pusher
           Offset: 32
-          Type: 150 GoInterfaceType net/http.Pusher
+          Type: 154 GoInterfaceType net/http.Pusher
         - Name: CloseNotifier
           Offset: 48
-          Type: 151 GoInterfaceType net/http.CloseNotifier
+          Type: 155 GoInterfaceType net/http.CloseNotifier
         - Name: Hijacker
           Offset: 64
-          Type: 152 GoInterfaceType net/http.Hijacker
+          Type: 156 GoInterfaceType net/http.Hijacker
     - __kind: StructureType
-      ID: 141
+      ID: 145
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Flusher; net/http.Pusher; net/http.Hijacker }
       ByteSize: 64
       GoRuntimeType: 2.129056e+06
@@ -2298,18 +2961,18 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Flusher
           Offset: 16
-          Type: 149 GoInterfaceType net/http.Flusher
+          Type: 153 GoInterfaceType net/http.Flusher
         - Name: Pusher
           Offset: 32
-          Type: 150 GoInterfaceType net/http.Pusher
+          Type: 154 GoInterfaceType net/http.Pusher
         - Name: Hijacker
           Offset: 48
-          Type: 152 GoInterfaceType net/http.Hijacker
+          Type: 156 GoInterfaceType net/http.Hijacker
     - __kind: StructureType
-      ID: 125
+      ID: 129
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Hijacker }
       ByteSize: 32
       GoRuntimeType: 1.983232e+06
@@ -2317,12 +2980,12 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Hijacker
           Offset: 16
-          Type: 152 GoInterfaceType net/http.Hijacker
+          Type: 156 GoInterfaceType net/http.Hijacker
     - __kind: StructureType
-      ID: 121
+      ID: 125
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher }
       ByteSize: 32
       GoRuntimeType: 1.98272e+06
@@ -2330,12 +2993,12 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Pusher
           Offset: 16
-          Type: 150 GoInterfaceType net/http.Pusher
+          Type: 154 GoInterfaceType net/http.Pusher
     - __kind: StructureType
-      ID: 133
+      ID: 137
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier }
       ByteSize: 48
       GoRuntimeType: 2.059744e+06
@@ -2343,15 +3006,15 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Pusher
           Offset: 16
-          Type: 150 GoInterfaceType net/http.Pusher
+          Type: 154 GoInterfaceType net/http.Pusher
         - Name: CloseNotifier
           Offset: 32
-          Type: 151 GoInterfaceType net/http.CloseNotifier
+          Type: 155 GoInterfaceType net/http.CloseNotifier
     - __kind: StructureType
-      ID: 145
+      ID: 149
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.CloseNotifier; net/http.Hijacker }
       ByteSize: 64
       GoRuntimeType: 2.129696e+06
@@ -2359,18 +3022,18 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Pusher
           Offset: 16
-          Type: 150 GoInterfaceType net/http.Pusher
+          Type: 154 GoInterfaceType net/http.Pusher
         - Name: CloseNotifier
           Offset: 32
-          Type: 151 GoInterfaceType net/http.CloseNotifier
+          Type: 155 GoInterfaceType net/http.CloseNotifier
         - Name: Hijacker
           Offset: 48
-          Type: 152 GoInterfaceType net/http.Hijacker
+          Type: 156 GoInterfaceType net/http.Hijacker
     - __kind: StructureType
-      ID: 135
+      ID: 139
       Name: struct { github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter = github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1; net/http.Pusher; net/http.Hijacker }
       ByteSize: 48
       GoRuntimeType: 2.060032e+06
@@ -2378,15 +3041,99 @@ Types:
       RawFields:
         - Name: monitoredResponseWriter
           Offset: 0
-          Type: 148 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
+          Type: 152 GoInterfaceType github.com/DataDog/dd-trace-go/v2/instrumentation/httptrace.monitoredResponseWriter·1
         - Name: Pusher
           Offset: 16
-          Type: 150 GoInterfaceType net/http.Pusher
+          Type: 154 GoInterfaceType net/http.Pusher
         - Name: Hijacker
           Offset: 32
-          Type: 152 GoInterfaceType net/http.Hijacker
+          Type: 156 GoInterfaceType net/http.Hijacker
     - __kind: StructureType
-      ID: 183
+      ID: 206
+      Name: sync.Mutex
+      ByteSize: 8
+      GoRuntimeType: 1.489632e+06
+      GoKind: 25
+      RawFields:
+        - Name: _
+          Offset: 0
+          Type: 207 StructureType sync.noCopy
+        - Name: mu
+          Offset: 0
+          Type: 208 StructureType internal/sync.Mutex
+    - __kind: StructureType
+      ID: 205
+      Name: sync.RWMutex
+      ByteSize: 24
+      GoRuntimeType: 1.872192e+06
+      GoKind: 25
+      RawFields:
+        - Name: w
+          Offset: 0
+          Type: 206 StructureType sync.Mutex
+        - Name: writerSem
+          Offset: 8
+          Type: 2 BaseType uint32
+        - Name: readerSem
+          Offset: 12
+          Type: 2 BaseType uint32
+        - Name: readerCount
+          Offset: 16
+          Type: 209 StructureType sync/atomic.Int32
+        - Name: readerWait
+          Offset: 20
+          Type: 209 StructureType sync/atomic.Int32
+    - __kind: StructureType
+      ID: 207
+      Name: sync.noCopy
+      GoRuntimeType: 1.003072e+06
+      GoKind: 25
+      RawFields: []
+    - __kind: StructureType
+      ID: 209
+      Name: sync/atomic.Int32
+      ByteSize: 4
+      GoRuntimeType: 1.490912e+06
+      GoKind: 25
+      RawFields:
+        - Name: _
+          Offset: 0
+          Type: 210 StructureType sync/atomic.noCopy
+        - Name: v
+          Offset: 0
+          Type: 10 BaseType int32
+    - __kind: StructureType
+      ID: 210
+      Name: sync/atomic.noCopy
+      GoRuntimeType: 1.003168e+06
+      GoKind: 25
+      RawFields: []
+    - __kind: StructureType
+      ID: 256
+      Name: table<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
+      ByteSize: 32
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 6 BaseType uint16
+        - Name: capacity
+          Offset: 2
+          Type: 6 BaseType uint16
+        - Name: growthLeft
+          Offset: 4
+          Type: 6 BaseType uint16
+        - Name: localDepth
+          Offset: 6
+          Type: 3 BaseType uint8
+        - Name: index
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: groups
+          Offset: 16
+          Type: 257 GoSwissMapGroupsType groupReference<string,*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.spanEventAttribute>
+    - __kind: StructureType
+      ID: 187
       Name: table<string,[]string>
       ByteSize: 32
       GoKind: 25
@@ -2408,9 +3155,57 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 184 GoSwissMapGroupsType groupReference<string,[]string>
+          Type: 188 GoSwissMapGroupsType groupReference<string,[]string>
     - __kind: StructureType
-      ID: 193
+      ID: 238
+      Name: table<string,float64>
+      ByteSize: 32
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 6 BaseType uint16
+        - Name: capacity
+          Offset: 2
+          Type: 6 BaseType uint16
+        - Name: growthLeft
+          Offset: 4
+          Type: 6 BaseType uint16
+        - Name: localDepth
+          Offset: 6
+          Type: 3 BaseType uint8
+        - Name: index
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: groups
+          Offset: 16
+          Type: 239 GoSwissMapGroupsType groupReference<string,float64>
+    - __kind: StructureType
+      ID: 229
+      Name: table<string,interface {}>
+      ByteSize: 32
+      GoKind: 25
+      RawFields:
+        - Name: used
+          Offset: 0
+          Type: 6 BaseType uint16
+        - Name: capacity
+          Offset: 2
+          Type: 6 BaseType uint16
+        - Name: growthLeft
+          Offset: 4
+          Type: 6 BaseType uint16
+        - Name: localDepth
+          Offset: 6
+          Type: 3 BaseType uint8
+        - Name: index
+          Offset: 8
+          Type: 7 BaseType int
+        - Name: groups
+          Offset: 16
+          Type: 230 GoSwissMapGroupsType groupReference<string,interface {}>
+    - __kind: StructureType
+      ID: 197
       Name: table<string,string>
       ByteSize: 32
       GoKind: 25
@@ -2432,7 +3227,7 @@ Types:
           Type: 7 BaseType int
         - Name: groups
           Offset: 16
-          Type: 194 GoSwissMapGroupsType groupReference<string,string>
+          Type: 198 GoSwissMapGroupsType groupReference<string,string>
     - __kind: BaseType
       ID: 16
       Name: uint
@@ -2475,7 +3270,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 591456
       GoKind: 26
-MaxTypeID: 204
+MaxTypeID: 270
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x18b56e0", TypesOffset: 296}
 CommonTypes:
