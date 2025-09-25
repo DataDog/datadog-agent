@@ -37,23 +37,32 @@ func Check(
 	config config.Component,
 	log log.Component,
 ) (map[string][]DiagnosisPayload, error) {
-	diagnoses, err := connectivity.DiagnoseInventory(ctx, config, log)
-	if err != nil {
-		return nil, err
+	type diagFn func() ([]diagnose.Diagnosis, error)
+
+	steps := []diagFn{
+		func() ([]diagnose.Diagnosis, error) { return connectivity.DiagnoseInventory(ctx, config, log) },
+		func() ([]diagnose.Diagnosis, error) { return eventplatformimpl.Diagnose(), nil },
+		func() ([]diagnose.Diagnosis, error) { return connectivity.Diagnose(diagnose.Config{}, log), nil },
 	}
 
 	diagnosesPayload := []DiagnosisPayload{}
-	for _, diagnosis := range diagnoses {
-		diagnosesPayload = append(diagnosesPayload, toPayload(diagnosis))
-	}
 
-	eventplatformDiagnoses := eventplatformimpl.Diagnose()
-	for _, diagnosis := range eventplatformDiagnoses {
-		diagnosesPayload = append(diagnosesPayload, toPayload(diagnosis))
-	}
+	for _, step := range steps {
+		select {
+		case <-ctx.Done():
+			return map[string][]DiagnosisPayload{
+				"connectivity": diagnosesPayload,
+			}, ctx.Err()
+		default:
+		}
 
-	for _, diagnosis := range connectivity.Diagnose(diagnose.Config{}, log) {
-		diagnosesPayload = append(diagnosesPayload, toPayload(diagnosis))
+		diagnoses, err := step()
+		if err != nil {
+			return nil, err
+		}
+		for _, diagnosis := range diagnoses {
+			diagnosesPayload = append(diagnosesPayload, toPayload(diagnosis))
+		}
 	}
 
 	return map[string][]DiagnosisPayload{
