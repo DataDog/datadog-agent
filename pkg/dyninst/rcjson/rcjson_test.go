@@ -38,8 +38,9 @@ var testCases = []testCase{
 				"type": "LOG_PROBE",
 				"version": 1,
 				"where": {
+					"methodName": "MyMethod",
 					"sourceFile": "myfile.go",
-					"lines": ["10", "20"]
+					"lines": ["10"]
 				},
 				"tags": ["tag1", "tag2"],
 				"language": "go",
@@ -55,7 +56,6 @@ var testCases = []testCase{
 				},
 				"evaluateAt": "entry"
 			}`,
-		validationErr: `sourceFile and lines are not supported`,
 		want: &LogProbe{
 			LogProbeCommon: LogProbeCommon{
 				ProbeCommon: ProbeCommon{
@@ -63,8 +63,9 @@ var testCases = []testCase{
 					Version: 1,
 					Type:    TypeLogProbe.String(),
 					Where: &Where{
+						MethodName: "MyMethod",
 						SourceFile: "myfile.go",
-						Lines:      []string{"10", "20"},
+						Lines:      []string{"10"},
 					},
 					Tags:       []string{"tag1", "tag2"},
 					Language:   "go",

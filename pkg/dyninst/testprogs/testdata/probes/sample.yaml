@@ -851,3 +851,63 @@ probes:
   where:
     methodName: main.testStructWithCyclicMaps
   captureSnapshot: true
+- id: testInlinedPrintLine
+  type: LOG_PROBE
+  where:
+    methodName: main.testInlinedPrint
+    sourceFile: inlined.go
+    lines:
+      - "14"
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 100
+- id: testInlinedBCALine
+  type: LOG_PROBE
+  where:
+    methodName: main.testInlinedBCA
+    sourceFile: inlined.go
+    lines:
+      - "63"
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 100
+- id: testInlinedBCBLine
+  type: LOG_PROBE
+  where:
+    methodName: main.testInlinedBCB
+    sourceFile: inlined.go
+    lines:
+      - "67"
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 100
+- id: testInlinedBCLine
+  type: LOG_PROBE
+  where:
+    methodName: main.testInlinedBC
+    sourceFile: inlined.go
+    lines:
+      - "58"
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 100
+- id: testInlinedSqLine
+  type: LOG_PROBE
+  where:
+    methodName: main.testInlinedSq
+    sourceFile: inlined.go
+    lines:
+      - "75"
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 100
+- id: testFramelessArrayLine
+  type: LOG_PROBE
+  where:
+    methodName: main.testFramelessArray
+    sourceFile: inlined.go
+    lines:
+      - "93"
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 100

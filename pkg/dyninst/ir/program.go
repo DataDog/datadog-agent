@@ -77,7 +77,9 @@ type CommonTypes struct {
 // subprogram A, that has been inlined into subprogram B, and subprogram B has been inlined
 // to a subprogram C, and C is not inlined, then these are pc ranges of C.
 type InlinePCRanges struct {
-	Ranges     []PCRange
+	// Non-overlapping and sorted.
+	Ranges []PCRange
+	// Non-overlapping and sorted.
 	RootRanges []PCRange
 }
 
@@ -106,6 +108,7 @@ type Variable struct {
 	// Type is the type of the variable.
 	Type Type
 	// Locations are the locations of the variable in the subprogram.
+	// Sorted by their non-overlapping PC ranges.
 	Locations []Location
 	// IsParameter is true if the variable is a parameter.
 	IsParameter bool
@@ -134,7 +137,7 @@ type Event struct {
 	ID EventID
 	// The datatype of the event.
 	Type *EventRootType
-	// The PC values at which the event should be injected.
+	// The PC values at which the event should be injected. Sorted by PC.
 	InjectionPoints []InjectionPoint
 	// The condition that must be met for the event to be injected.
 	Condition *Expression

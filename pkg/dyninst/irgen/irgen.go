@@ -35,6 +35,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -731,7 +732,6 @@ func materializePending(
 						baseVar.Locations = append(baseVar.Locations, locs...)
 					}
 				} else {
-
 					// Fully defined var in the inlined instance.
 					v, err := processVariable(
 						p.unit, inlVar, isParameter,
@@ -742,6 +742,16 @@ func materializePending(
 						return nil, err
 					}
 					sp.Variables = append(sp.Variables, v)
+				}
+			}
+		}
+		for _, v := range sp.Variables {
+			slices.SortFunc(v.Locations, func(a, b ir.Location) int {
+				return cmp.Compare(a.Range[0], b.Range[0])
+			})
+			for i := 1; i < len(v.Locations); i++ {
+				if v.Locations[i-1].Range[1] > v.Locations[i].Range[0] {
+					return nil, fmt.Errorf("overlapping locations for variable %q in subprogram %q", v.Name, sp.Name)
 				}
 			}
 		}
@@ -1370,7 +1380,23 @@ func populateEventExpressions(
 	id := typeCatalog.idAlloc.next()
 	var expressions []*ir.RootExpression
 	for _, variable := range probe.Subprogram.Variables {
-		if !variable.IsParameter || variable.IsReturn {
+		if strings.HasPrefix(variable.Name, "~") {
+			continue
+		}
+		// Check if the variable is available at any of the injection points.
+		// Both locations and injection points are sorted by PC.
+		available := false
+		locIdx := 0
+		for _, injectionPoint := range event.InjectionPoints {
+			for locIdx < len(variable.Locations) && variable.Locations[locIdx].Range[1] <= injectionPoint.PC {
+				locIdx++
+			}
+			if locIdx < len(variable.Locations) && injectionPoint.PC >= variable.Locations[locIdx].Range[0] {
+				available = true
+				break
+			}
+		}
+		if !available {
 			continue
 		}
 		variableSize := variable.Type.GetByteSize()
@@ -1787,47 +1813,42 @@ func newProbe(
 		}, nil
 	}
 	if subprogram.OutOfLinePCRanges != nil {
-		loc, ok := lineData[subprogram.OutOfLinePCRanges[0]]
-		if !ok {
-			return nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x]",
-				subprogram.OutOfLinePCRanges[0][0], subprogram.OutOfLinePCRanges[0][1])
-		}
-		if loc.err != nil {
-			return nil, ir.Issue{
-				Kind:    ir.IssueKindInvalidDWARF,
-				Message: loc.err.Error(),
-			}, nil
-		}
-		frameless := loc.prologueEnd == 0
-		injectionPC := loc.prologueEnd
-		if injectionPC == 0 {
-			injectionPC = subprogram.OutOfLinePCRanges[0][0]
-		}
-		switch arch {
-		case "amd64":
-			// Do nothing
-		case "arm64":
-			// On arm, the prologue end is marked before the stack allocation.
-			frameless = true
-		default:
-			return nil, ir.Issue{}, fmt.Errorf("unsupported architecture: %s", arch)
+		pc, frameless, issue, err := pickInjectionPoint(
+			subprogram.OutOfLinePCRanges,
+			subprogram.OutOfLinePCRanges,
+			false, /* inlined */
+			probeCfg.GetWhere(),
+			arch,
+			lineData,
+		)
+		if issue != (ir.Issue{}) || err != nil {
+			return nil, issue, err
 		}
 		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC:        injectionPC,
+			PC:        pc,
 			Frameless: frameless,
 		})
 	}
 	for _, inlined := range subprogram.InlinePCRanges {
-		loc, ok := lineData[inlined.RootRanges[0]]
-		if !ok {
-			return nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x]",
-				inlined.RootRanges[0][0], inlined.RootRanges[0][1])
+		pc, frameless, issue, err := pickInjectionPoint(
+			inlined.Ranges,
+			inlined.RootRanges,
+			true, /* inlined */
+			probeCfg.GetWhere(),
+			arch,
+			lineData,
+		)
+		if issue != (ir.Issue{}) || err != nil {
+			return nil, issue, err
 		}
 		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC:        inlined.Ranges[0][0],
-			Frameless: loc.prologueEnd == 0,
+			PC:        pc,
+			Frameless: frameless,
 		})
 	}
+	slices.SortFunc(injectionPoints, func(a, b ir.InjectionPoint) int {
+		return cmp.Compare(a.PC, b.PC)
+	})
 
 	// TODO: Find the return locations and add a return event.
 	events := []*ir.Event{
@@ -1846,6 +1867,105 @@ func newProbe(
 		Events:          events,
 	}
 	return probe, ir.Issue{}, nil
+}
+
+func pickInjectionPoint(
+	ranges []ir.PCRange,
+	rootRanges []ir.PCRange,
+	inlined bool,
+	where ir.Where,
+	arch object.Architecture,
+	lineData map[ir.PCRange]lineData,
+) (uint64, bool, ir.Issue, error) {
+	lines, ok := lineData[rootRanges[0]]
+	if !ok {
+		return 0, false, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
+			rootRanges[0][0], rootRanges[0][1])
+	}
+	if lines.err != nil {
+		return 0, false, ir.Issue{
+			Kind:    ir.IssueKindInvalidDWARF,
+			Message: lines.err.Error(),
+		}, nil
+	}
+	frameless := lines.prologueEnd == 0
+	var injectionPC uint64
+	switch where := where.(type) {
+	case ir.FunctionWhere:
+		if inlined {
+			injectionPC = ranges[0][0]
+		} else {
+			injectionPC = lines.prologueEnd
+			if injectionPC == 0 {
+				injectionPC = ranges[0][0]
+			}
+		}
+		if !inlined && arch == "arm64" {
+			// On arm, the prologue end is marked before the stack allocation.
+			// We need to pretend that non-inlined functions are frameless.
+			frameless = true
+		}
+	case ir.LineWhere:
+		_, _, lineStr := where.Line()
+		line, err := strconv.Atoi(lineStr)
+		if err != nil {
+			return 0, false, ir.Issue{
+				Kind:    ir.IssueKindInvalidProbeDefinition,
+				Message: fmt.Sprintf("invalid line number: %v", lineStr),
+			}, nil
+		}
+		var issue ir.Issue
+		injectionPC, issue, err = pickLineInjectionPC(line, ranges, rootRanges, lineData)
+		if issue != (ir.Issue{}) || err != nil {
+			return 0, false, issue, err
+		}
+	}
+	return injectionPC, frameless, ir.Issue{}, nil
+}
+
+func pickLineInjectionPC(
+	line int, ranges []ir.PCRange, rootRanges []ir.PCRange, lineData map[ir.PCRange]lineData,
+) (uint64, ir.Issue, error) {
+	nonStmtPc := uint64(0)
+	rootIdx := 0
+	for _, r := range ranges {
+		for rootIdx < len(rootRanges) && rootRanges[rootIdx][1] < r[1] {
+			rootIdx++
+		}
+		if rootIdx >= len(rootRanges) || rootRanges[rootIdx][0] > r[0] {
+			return 0, ir.Issue{}, fmt.Errorf("no root range found for range: [0x%x, 0x%x)",
+				r[0], r[1])
+		}
+		lines, ok := lineData[rootRanges[rootIdx]]
+		if !ok {
+			return 0, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
+				r[0], r[1])
+		}
+		for _, l := range lines.lines {
+			if l.pc < r[0] {
+				continue
+			}
+			if l.pc >= r[1] {
+				break
+			}
+			if l.line == uint32(line) {
+				if l.isStatement {
+					// Statements are preferred as injection points.
+					return l.pc, ir.Issue{}, nil
+				}
+				if nonStmtPc == 0 {
+					nonStmtPc = l.pc
+				}
+			}
+		}
+	}
+	if nonStmtPc == 0 {
+		return 0, ir.Issue{
+			Kind:    ir.IssueKindInvalidProbeDefinition,
+			Message: fmt.Sprintf("no suitable injection point found for line: %v", line),
+		}, nil
+	}
+	return nonStmtPc, ir.Issue{}, nil
 }
 
 func collectLineDataForRange(
@@ -1924,6 +2044,16 @@ func (v *subprogramChildVisitor) subprogramPCRanges() ([]ir.PCRange, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse pc ranges: %w", err)
 	}
+	slices.SortFunc(ranges, func(a, b ir.PCRange) int {
+		return cmp.Compare(a[0], b[0])
+	})
+	for i := 1; i < len(ranges); i++ {
+		if ranges[i-1][1] > ranges[i][0] {
+			return nil, fmt.Errorf("overlapping pc ranges for subprogram at 0x%x: [0x%x, 0x%x) and [0x%x, 0x%x)",
+				v.subprogramEntry.Offset,
+				ranges[i-1][0], ranges[i-1][1], ranges[i][0], ranges[i][1])
+		}
+	}
 	v.cachedSubprogramPCRanges = ranges
 	return ranges, nil
 }
@@ -1975,6 +2105,16 @@ func processInlinedSubroutineEntry(
 	ranges, err := root.dwarf.Ranges(subroutine)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse pc ranges %w", err)
+	}
+	slices.SortFunc(ranges, func(a, b ir.PCRange) int {
+		return cmp.Compare(a[0], b[0])
+	})
+	for i := 1; i < len(ranges); i++ {
+		if ranges[i-1][1] > ranges[i][0] {
+			return nil, fmt.Errorf("overlapping pc ranges for inlined subroutine at 0x%x: [0x%x, 0x%x) and [0x%x, 0x%x)",
+				subroutine.Offset,
+				ranges[i-1][0], ranges[i-1][1], ranges[i][0], ranges[i][1])
+		}
 	}
 	sp := &inlinedSubprogram{
 		abstractOrigin: abstractOrigin,
@@ -2029,6 +2169,14 @@ func processVariable(
 				unit, entry.Offset, subprogramPCRanges, typ, locField, loclistReader,
 				pointerSize,
 			)
+		}
+		slices.SortFunc(locations, func(a, b ir.Location) int {
+			return cmp.Compare(a.Range[0], b.Range[0])
+		})
+		for i := 1; i < len(locations); i++ {
+			if locations[i-1].Range[1] > locations[i].Range[0] {
+				return nil, fmt.Errorf("overlapping locations for variable 0x%x %q", entry.Offset, name)
+			}
 		}
 	}
 	isReturn, _, err := maybeGetAttr[bool](entry, dwarf.AttrVarParam)
@@ -2201,6 +2349,10 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 		switch where := probe.GetWhere().(type) {
 		case ir.FunctionWhere:
 			methodName := where.Location()
+			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
+			i.subprograms[methodName] = append(i.subprograms[methodName], probe)
+		case ir.LineWhere:
+			methodName, _, _ := where.Line()
 			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
 			i.subprograms[methodName] = append(i.subprograms[methodName], probe)
 		default:
