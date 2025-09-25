@@ -88,7 +88,7 @@ type Subprogram struct {
 	// Name is the name of the subprogram.
 	Name string
 	// OutOfLinePCRanges are the ranges of PC values that will be probed for the
-	// out-of-line-instances of the subprogram. These are sorted by start PC.
+	// out-of-line instance of the subprogram. These are sorted by start PC.
 	// Some functions may be inlined only in certain callers, in which case
 	// both OutOfLinePCRanges and InlinedPCRanges will be non-empty.
 	OutOfLinePCRanges []PCRange
@@ -97,17 +97,6 @@ type Subprogram struct {
 	InlinePCRanges []InlinePCRanges
 	// Variables are the variables that are used in the subprogram.
 	Variables []*Variable
-}
-
-// SubprogramLine represents a line in the subprogram.
-type SubprogramLine struct {
-	PC              uint64
-	File            string
-	Line            uint32
-	Column          uint32
-	IsStatement     bool
-	IsPrologueEnd   bool
-	IsEpilogueStart bool
 }
 
 // Variable represents a variable or parameter in the subprogram.
