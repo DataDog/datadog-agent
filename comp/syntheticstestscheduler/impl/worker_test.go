@@ -202,7 +202,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 						Type:     "network",
 						Version:  1,
 						Config: struct {
-							Assertions []interface{}        `json:"assertions"`
+							Assertions []common.Assertion   `json:"assertions"`
 							Request    common.ConfigRequest `json:"request"`
 						}{
 							Request: common.ICMPConfigRequest{
@@ -238,7 +238,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 						Type:     "network",
 						Version:  1,
 						Config: struct {
-							Assertions []interface{}        `json:"assertions"`
+							Assertions []common.Assertion   `json:"assertions"`
 							Request    common.ConfigRequest `json:"request"`
 						}{
 							Request: common.ICMPConfigRequest{
