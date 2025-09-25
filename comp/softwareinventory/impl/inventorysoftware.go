@@ -255,7 +255,7 @@ func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
 	}
 
 	return &Payload{
-		Hostname:  is.hostname,           // Set from the component's hostname field
+		Hostname: is.hostname, // Set from the component's hostname field
 		Metadata: HostSoftware{
 			Software: is.cachedInventory,
 		},
