@@ -171,7 +171,7 @@ func (h *StatKeeper) add(tx Transaction) {
 	if latency <= 0 {
 		h.telemetry.invalidLatency.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Warnf("latency should never be equal to 0: %s", tx.String())
+			log.Warnf("latency should never be non positive: %s", tx.String())
 		}
 		return
 	}
