@@ -1,6 +1,4 @@
 api_key: ggggg77777
 otelcollector:
-  gateway:
-    enabled: true
   converter:
     features: [pprof, zpages, health_check, datadog, ddflare]
