@@ -22,6 +22,12 @@ if [ -f "/etc/init.d/datadog-agent" ]; then
     /etc/init.d/datadog-agent stop || true
 fi
 
+# Old version of the install scripts created a __pycache__ directory in the python-scripts directory
+# Remove it to avoid any issues with the new package.
+if [ -d "${INSTALL_DIR}/python-scripts/__pycache__" ]; then
+    rm -rf "${INSTALL_DIR}/python-scripts/__pycache__" || true
+fi
+
 # Run the upgrade prerm if supported in the previous version. See pkg/fleet/installer/packages/datadog_agent_linux.go
 if [ "$*" = "2" ] && [ -f "${INSTALL_DIR}/embedded/bin/installer" ] && ${INSTALL_DIR}/embedded/bin/installer is-prerm-supported; then
     ${INSTALL_DIR}/embedded/bin/installer prerm --upgrade datadog-agent rpm || true
