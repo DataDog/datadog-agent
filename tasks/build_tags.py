@@ -66,6 +66,7 @@ ALL_TAGS = {
     "zk",
     "zlib",
     "zstd",
+    "cel",
 }
 
 ### Tag inclusion lists
@@ -103,6 +104,7 @@ AGENT_TAGS = {
     "zk",
     "zlib",
     "zstd",
+    "cel",
 }
 
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
@@ -139,6 +141,7 @@ CLUSTER_AGENT_TAGS = {
     "zlib",
     "zstd",
     "ec2",
+    "cel",
 }
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
@@ -148,7 +151,7 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "grpcnotrace"}
 DOGSTATSD_TAGS = {"containerd", "grpcnotrace", "no_dynamic_plugins", "docker", "kubelet", "podman", "zlib", "zstd"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = {"grpcnotrace", "jetson", "otlp", "systemd", "zlib", "zstd"}
+IOT_AGENT_TAGS = {"grpcnotrace", "jetson", "otlp", "systemd", "zlib", "zstd", "cel"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
 INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
