@@ -14,8 +14,8 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -23,7 +23,7 @@ import (
 )
 
 type sink struct {
-	controller   *Controller
+	runtime      *runtimeImpl
 	decoder      Decoder
 	symbolicator symbol.Symbolicator
 	programID    ir.ProgramID
@@ -31,7 +31,7 @@ type sink struct {
 	logUploader  LogsUploader
 }
 
-var _ actuator.Sink = &sink{}
+var _ dispatcher.Sink = &sink{}
 
 // We don't want to be too noisy about decoding errors, but we do want to learn
 // about them and we don't want to bail out completely.
@@ -49,7 +49,7 @@ func (s *sink) HandleEvent(event output.Event) error {
 	}, s.symbolicator, decodedBytes)
 	if err != nil {
 		if probe != nil {
-			if reported := s.controller.reportProbeError(
+			if reported := s.runtime.reportProbeError(
 				s.programID, probe, err, "DecodeFailed",
 			); reported {
 				log.Warnf(
@@ -74,7 +74,7 @@ func (s *sink) HandleEvent(event output.Event) error {
 		// or program.
 		return nil
 	}
-	s.controller.setProbeMaybeEmitting(s.programID, probe)
+	s.runtime.setProbeMaybeEmitting(s.programID, probe)
 	s.logUploader.Enqueue(json.RawMessage(decodedBytes))
 	return nil
 }
@@ -89,8 +89,3 @@ func (s *sink) Close() {
 		}
 	}
 }
-
-type noopSink struct{}
-
-func (n noopSink) Close()                         {}
-func (n noopSink) HandleEvent(output.Event) error { return nil }

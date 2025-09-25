@@ -48,6 +48,12 @@ type symdbManager struct {
 	workerCancel context.CancelCauseFunc
 }
 
+type symdbManagerInterface interface {
+	queueUpload(runtimeID procRuntimeID, executablePath string) error
+	removeUpload(runtimeID procRuntimeID)
+	removeUploadByPID(pid procmon.ProcessID)
+}
+
 type processKey struct {
 	pid     procmon.ProcessID
 	service string

@@ -145,7 +145,7 @@ func (er *effectRecorder) attachToProcess(
 	processID ProcessID,
 ) {
 	er.recordEffect(effectAttachToProcess{
-		programID:  loaded.ir.ID,
+		programID:  loaded.programID,
 		processID:  processID,
 		executable: executable,
 	})
@@ -153,14 +153,14 @@ func (er *effectRecorder) attachToProcess(
 
 func (er *effectRecorder) detachFromProcess(attached *attachedProgram) {
 	er.recordEffect(effectDetachFromProcess{
-		programID: attached.ir.ID,
-		processID: attached.procID,
+		programID: attached.programID,
+		processID: attached.processID,
 	})
 }
 
 func (er *effectRecorder) unloadProgram(lp *loadedProgram) {
 	// For tests we just record that the sink and program are being closed.
 	er.recordEffect(effectUnloadProgram{
-		programID: lp.ir.ID,
+		programID: lp.programID,
 	})
 }

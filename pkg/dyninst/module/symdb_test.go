@@ -59,6 +59,7 @@ func TestSymdbManagerUpload(t *testing.T) {
 
 	// Create process store and symdb manager
 	manager := newSymdbManager(symdbURL, object.NewInMemoryLoader())
+	t.Cleanup(manager.stop)
 
 	// Create runtime ID for testing
 	runtimeID := procRuntimeID{
@@ -136,7 +137,7 @@ func testSymdbManagerCancellation(t *testing.T, useStop bool) {
 		// flushes.
 		withMaxBufferFuncs(1),
 	)
-
+	t.Cleanup(manager.stop)
 	// Create a dummy runtime ID
 	runtimeID := procRuntimeID{
 		ProcessID:   procmon.ProcessID{PID: 12345},
