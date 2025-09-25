@@ -56,7 +56,7 @@ func (e *erasedActuator[A, AT]) Shutdown() error {
 }
 
 // NewConfig creates a new Config object.
-func NewConfig(spConfig *sysconfigtypes.Config) (*Config, error) {
+func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 	traceAgentURL := getTraceAgentURL(os.Getenv)
 	cacheConfig, cacheEnabled, err := getDebugInfoDiskCacheConfig()
 	if err != nil {
