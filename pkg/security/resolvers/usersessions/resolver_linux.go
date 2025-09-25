@@ -147,6 +147,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 }
 
 func parseSSHLogLine(line string, ctx *model.UserSessionContext) {
+	fmt.Printf("SSH log line: %s\n", line)
 	type SSHLogLine struct {
 		Date      string
 		Hostname  string
@@ -183,7 +184,6 @@ func parseSSHLogLine(line string, ctx *model.UserSessionContext) {
 	default:
 		return
 	}
-	fmt.Printf("SSH log line: %s\n", line)
 	// if the first word starts with "sshd" and the second word is the username, then print the line
 	if strings.HasPrefix(sshLogLine.Service, "sshd") && strings.HasPrefix(sshLogLine.Remaining, "Accepted") {
 		// One example of line is Accepted publickey for lima from 192.168.5.2 port 38835 ssh2: ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU
@@ -248,26 +248,33 @@ func resolveFromJournalctl(ctx *model.UserSessionContext) {
 
 // ResolveSSHUserSession resolves the ssh user session from the auth log
 func ResolveSSHUserSession(ctx *model.UserSessionContext) {
-	// Artificially test where we use that
-	// f, err := os.OpenFile("/var/log/auth.log", os.O_RDONLY, 0644)
-	// if err == nil {
-	// 	fmt.Print("Found /var/log/auth.log\n")
-	// }
-	// if err != nil {
-	// Fallback for Red Hat / CentOS / Fedora
-	f, err := os.OpenFile("/var/log/secure", os.O_RDONLY, 0644)
-	if err != nil {
-		// Last Fallback for openSUSE
-		f, err = os.OpenFile("/var/log/messages", os.O_RDONLY, 0644)
-		if err != nil {
-			fmt.Printf("Can't find any log file")
-			resolveFromJournalctl(ctx)
-			return
-		}
-		fmt.Print("Found /var/log/messages\n")
+	f, err := os.OpenFile("/var/log/auth.log", os.O_RDONLY, 0644)
+	if err == nil {
+		ctx.WhereIsLog = 1
+		fmt.Print("Found /var/log/auth.log\n")
 	}
-	fmt.Print("Found /var/log/secure\n")
-
+	if err != nil {
+		// Fallback for Red Hat / CentOS / Fedora
+		f, err = os.OpenFile("/var/log/secure", os.O_RDONLY, 0644)
+		if err == nil {
+			ctx.WhereIsLog = 2
+			fmt.Print("Found /var/log/secure\n")
+		}
+		if err != nil {
+			// Last Fallback for openSUSE
+			f, err = os.OpenFile("/var/log/messages", os.O_RDONLY, 0644)
+			if err == nil {
+				ctx.WhereIsLog = 3
+				fmt.Print("Found /var/log/messages\n")
+			}
+			if err != nil {
+				fmt.Printf("Can't find any log file")
+				ctx.WhereIsLog = 4
+				resolveFromJournalctl(ctx)
+				return
+			}
+		}
+	}
 	defer f.Close()
 
 	sc := bufio.NewScanner(f)

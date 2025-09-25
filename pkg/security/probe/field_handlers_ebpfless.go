@@ -645,3 +645,8 @@ func (fh *EBPFLessFieldHandlers) ResolveSSHPublicKey(_ *model.Event, _ *model.Us
 func (fh *EBPFLessFieldHandlers) ResolveSSHPort(_ *model.Event, _ *model.UserSessionContext) int {
 	return 0 // EBPFLess mode does not support ssh usage reporting, so we return 0
 }
+
+// ResolveWhereIsLog resolves the log flag
+func (fh *EBPFLessFieldHandlers) ResolveWhereIsLog(_ *model.Event, _ *model.UserSessionContext) int {
+	return 0 // EBPFLess mode does not support ssh usage reporting, so we return 0
+}

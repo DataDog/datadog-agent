@@ -154,6 +154,7 @@ func TestPam(t *testing.T) {
 			assert.Equal(t, usersession.UserSessionTypes["ssh"], event.ProcessContext.UserSession.SessionType)
 			assert.Equal(t, currentUser.Username, event.ProcessContext.UserSession.SSHUsername)
 			assert.Contains(t, []string{"127.0.0.1", "::1"}, event.ProcessContext.UserSession.SSHClientIP)
+			assert.Equal(t, event.ProcessContext.UserSession.WhereIsLog, 1)
 		})
 	})
 }

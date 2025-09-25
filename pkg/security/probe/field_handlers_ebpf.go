@@ -1064,3 +1064,9 @@ func (fh *EBPFFieldHandlers) ResolveSSHPort(_ *model.Event, evtCtx *model.UserSe
 	fh.ResolveUserSessionContext(evtCtx)
 	return evtCtx.SSHPort
 }
+
+// ResolveWhereIsLog resolves the log flag
+func (fh *EBPFFieldHandlers) ResolveWhereIsLog(_ *model.Event, evtCtx *model.UserSessionContext) int {
+	fh.ResolveUserSessionContext(evtCtx)
+	return evtCtx.WhereIsLog
+}
