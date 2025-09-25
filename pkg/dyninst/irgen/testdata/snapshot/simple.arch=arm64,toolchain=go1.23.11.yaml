@@ -54,10 +54,10 @@ Probes:
         - ID: 12
           Type: 167 EventRootType Probe[main.inlined]
           InjectionPoints:
-            - PC: "0xb573c"
-              Frameless: true
             - PC: "0xb519c"
               Frameless: false
+            - PC: "0xb573c"
+              Frameless: true
           Condition: null
     - id: intArg
       version: 0
