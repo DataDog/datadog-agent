@@ -5,17 +5,10 @@
 
 //go:build linux_bpf
 
-package uploader_test
+package module
 
-import (
-	"testing"
+type Dependencies = dependencies
 
-	"go.uber.org/goleak"
-
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
-)
-
-func TestMain(m *testing.M) {
-	dyninsttest.SetupLogging()
-	goleak.VerifyTestMain(m, goleak.IgnoreCurrent())
+func EraseActuator[A Actuator[AT], AT ActuatorTenant](a A) Actuator[ActuatorTenant] {
+	return &erasedActuator[A, AT]{a: a}
 }

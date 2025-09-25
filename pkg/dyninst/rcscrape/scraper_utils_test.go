@@ -20,3 +20,13 @@ func (s *Scraper) GetTrackedProcesses() []procmon.ProcessID {
 	}
 	return processes
 }
+
+// NewScraperWithIRGenerator creates a new Scraper with a custom IR generator
+// for testing.
+func NewScraperWithIRGenerator[A Actuator[AT], AT ActuatorTenant](
+	a A, d Dispatcher, loader Loader, irGenerator IRGenerator,
+) *Scraper {
+	return newScraper(a, d, loader, irGenerator)
+}
+
+type IRGeneratorImpl = irGenerator
