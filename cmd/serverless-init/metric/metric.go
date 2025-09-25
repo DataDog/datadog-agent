@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Add records a distribution metric sample using the agent's extra tags plus any
+// optional tags supplied as `key:value` strings through extraTags.
 func Add(name string, value float64, source metrics.MetricSource, agent serverlessMetrics.ServerlessMetricAgent, extraTags ...string) {
 	if agent.Demux == nil {
 		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
