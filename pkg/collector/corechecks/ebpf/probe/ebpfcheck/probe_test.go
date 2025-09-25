@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -93,6 +94,9 @@ func TestMinMapSize(t *testing.T) {
 	require.NoError(t, err)
 	nrcpus := uint64(cpus)
 
+	kv, err := kernel.HostVersion()
+	require.NoError(t, err)
+
 	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
 		cfg := testConfig()
 		const keySize, valueSize, maxEntries = 50, 150, 1000
@@ -107,7 +111,7 @@ func TestMinMapSize(t *testing.T) {
 			{Type: ebpf.Hash, KeySize: keySize},
 			{Type: ebpf.LRUHash, KeySize: keySize},
 			{Type: ebpf.LRUCPUHash, KeySize: keySize},
-			{Type: ebpf.PerCPUHash, KeySize: keySize},
+			{Type: ebpf.PerCPUHash, KeySize: keySize, Flags: unix.BPF_F_NO_PREALLOC},
 			{Type: ebpf.LPMTrie, KeySize: 8, ValueSize: 8, Flags: unix.BPF_F_NO_PREALLOC},
 		}
 
@@ -166,8 +170,17 @@ func TestMinMapSize(t *testing.T) {
 			} else {
 				minSize = (ks + uint64(mt.ValueSize)) * uint64(mt.MaxEntries)
 			}
-			t.Logf("type: %s min: %d val: %d", mt.Type, minSize, typStats.MaxSize)
+
+			t.Logf("type: %s min: %d val: %d, rss: %d", mt.Type, minSize, typStats.MaxSize, typStats.RSS)
 			assert.GreaterOrEqual(t, typStats.MaxSize, minSize, "map type: %s", mt.Type)
+			assert.GreaterOrEqual(t, typStats.MaxSize, typStats.RSS, "map type: %s", mt.Type)
+			if strings.Contains(mt.Type.String(), "Hash") &&
+				(mt.Flags&unix.BPF_F_NO_PREALLOC) != 0 &&
+				kv < kernel.VersionCode(6, 4, 0) {
+				assert.Zero(t, typStats.RSS, "map type: %s", mt.Type)
+			} else {
+				assert.NotZero(t, typStats.RSS, "map type: %s", mt.Type)
+			}
 		}
 	})
 }

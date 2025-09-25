@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // ChownSelfTest defines a chown self test
@@ -57,7 +58,20 @@ func (o *ChownSelfTest) GenerateEvent(ctx context.Context) error {
 
 // HandleEvent handles self test events
 func (o *ChownSelfTest) HandleEvent(event selfTestEvent) {
-	o.isSuccess = event.RuleID == o.ruleID
+	if event.Event == nil ||
+		event.Event.BaseEventSerializer == nil ||
+		event.Event.BaseEventSerializer.FileEventSerializer == nil {
+		seclog.Errorf("Chown SelfTest event received with nil Event or File fields")
+		o.isSuccess = false
+		return
+	}
+
+	// debug logs
+	if event.RuleID == o.ruleID && o.filename != event.Event.BaseEventSerializer.FileEventSerializer.Path {
+		seclog.Errorf("Chown SelfTest event received with different filepaths: %s VS %s", o.filename, event.Event.BaseEventSerializer.FileEventSerializer.Path)
+	}
+
+	o.isSuccess = event.RuleID == o.ruleID && o.filename == event.Event.BaseEventSerializer.FileEventSerializer.Path
 }
 
 // IsSuccess return the state of the test

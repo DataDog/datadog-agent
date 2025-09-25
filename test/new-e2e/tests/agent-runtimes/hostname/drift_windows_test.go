@@ -20,5 +20,5 @@ type windowsHostnameDriftSuite struct {
 func TestWindowsHostnameDriftSuite(t *testing.T) {
 	t.Parallel()
 	suite := &windowsHostnameDriftSuite{}
-	e2e.Run(t, suite, suite.getSuiteOptions(os.WindowsDefault)...)
+	e2e.Run(t, suite, suite.getSuiteOptions(os.WindowsServerDefault)...)
 }

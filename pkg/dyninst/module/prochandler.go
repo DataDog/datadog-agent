@@ -12,13 +12,13 @@ import (
 )
 
 type processHandler struct {
-	controller     *Controller
+	module         *Module
 	scraperHandler procmon.Handler
 }
 
 var _ procmon.Handler = (*processHandler)(nil)
 
 func (c *processHandler) HandleUpdate(update procmon.ProcessesUpdate) {
-	c.controller.handleRemovals(update.Removals)
+	c.module.handleRemovals(update.Removals)
 	c.scraperHandler.HandleUpdate(update)
 }

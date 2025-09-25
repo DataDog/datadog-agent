@@ -103,9 +103,6 @@ func TestPackages(t *testing.T) {
 			if flavor.Flavor == e2eos.Suse && method == InstallMethodAnsible {
 				continue
 			}
-			if flavor.Flavor == e2eos.Suse {
-				continue
-			}
 
 			suite := test.t(flavor, flavor.Architecture, method)
 			t.Run(suite.Name(), func(t *testing.T) {
