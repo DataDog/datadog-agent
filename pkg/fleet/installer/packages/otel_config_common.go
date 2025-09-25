@@ -36,6 +36,7 @@ func enableOtelCollectorConfigCommon(datadogYamlPath string) error {
 }
 
 // disableOtelCollectorConfigCommon removes otelcollector and agent_ipc from the given datadog.yaml path
+// nolint:unused // Used only on Windows; Linux doesn’t disable otelcollector on remove
 func disableOtelCollectorConfigCommon(datadogYamlPath string) error {
 	data, err := os.ReadFile(datadogYamlPath)
 	if err != nil {
