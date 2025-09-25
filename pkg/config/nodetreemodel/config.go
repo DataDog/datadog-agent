@@ -990,7 +990,7 @@ func (c *ntmConfig) GetSubfields(key string) []string {
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
 func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
-	c.BindEnv(key, envvars...) //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
 	c.SetDefault(key, val)
 }
 
@@ -1024,6 +1024,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		remoteConfig:       newInnerNode(nil),
 		fleetPolicies:      newInnerNode(nil),
 		cli:                newInnerNode(nil),
+		root:               newInnerNode(nil),
 		envTransform:       make(map[string]func(string) interface{}),
 		configName:         "datadog",
 	}

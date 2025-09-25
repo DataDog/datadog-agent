@@ -1187,6 +1187,108 @@ func TestGetKubernetesPodByName(t *testing.T) {
 	}
 }
 
+func TestListKubernetesPods(t *testing.T) {
+	pod1 := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
+			ID:   "123",
+		},
+	}
+	pod2 := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
+			ID:   "456",
+		},
+	}
+
+	tests := []struct {
+		name      string
+		preEvents []wmdef.CollectorEvent
+		expected  []*wmdef.KubernetesPod
+	}{
+		{
+			name: "some pods stored",
+			preEvents: []wmdef.CollectorEvent{
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: pod1,
+				},
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: pod2,
+				},
+			},
+			expected: []*wmdef.KubernetesPod{pod1, pod2},
+		},
+		{
+			name:      "no pods stored",
+			preEvents: nil,
+			expected:  []*wmdef.KubernetesPod{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wmeta := newWorkloadmetaObject(t)
+			wmeta.handleEvents(test.preEvents)
+
+			assert.ElementsMatch(t, test.expected, wmeta.ListKubernetesPods())
+		})
+	}
+}
+
+func TestGetKubeletMetrics(t *testing.T) {
+	testKubeletMetrics := &wmdef.KubeletMetrics{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubeletMetrics,
+			ID:   "kubelet-metrics",
+		},
+		ExpiredPodCount: 10,
+	}
+
+	tests := []struct {
+		name       string
+		preEvents  []wmdef.CollectorEvent
+		expected   *wmdef.KubeletMetrics
+		expectsErr bool
+	}{
+		{
+			name: "kubelet metrics stored",
+			preEvents: []wmdef.CollectorEvent{
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: testKubeletMetrics,
+				},
+			},
+			expected:   testKubeletMetrics,
+			expectsErr: false,
+		},
+		{
+			name:       "no kubelet metrics stored",
+			preEvents:  nil,
+			expectsErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wmeta := newWorkloadmetaObject(t)
+			wmeta.handleEvents(test.preEvents)
+
+			kubeletMetrics, err := wmeta.GetKubeletMetrics()
+			if test.expectsErr {
+				assert.Error(t, err, errors.NewNotFound(string(wmdef.KindKubeletMetrics)).Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, test.expected, kubeletMetrics)
+			}
+		})
+	}
+}
+
 func TestListImages(t *testing.T) {
 	image := &wmdef.ContainerImageMetadata{
 		EntityID: wmdef.EntityID{

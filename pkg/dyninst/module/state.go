@@ -135,13 +135,3 @@ func (ps *processStore) updateOnLoad(
 	ps.processByProgID[programID] = procID
 	return p.procRuntimeID, true
 }
-
-func (ps *processStore) getRuntimeID(procID actuator.ProcessID) (procRuntimeID, bool) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	p, ok := ps.processes[procID]
-	if !ok {
-		return procRuntimeID{}, false
-	}
-	return p.procRuntimeID, true
-}
