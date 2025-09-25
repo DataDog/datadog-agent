@@ -25,6 +25,7 @@ import (
 	"cmp"
 	"container/heap"
 	"debug/dwarf"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -1851,8 +1852,9 @@ func newProbe(
 		for seg := range templateDef.GetSegments() {
 			// Check content rather than just interface implementation
 			// since rcjson.TemplateSegment implements both interfaces
-			if exprSeg, ok := seg.(ir.TemplateSegmentExpression); ok && exprSeg.GetDSL() != "" {
-				// This is an expression segment (has DSL content)
+
+			if exprSeg, ok := seg.(ir.TemplateSegmentExpression); ok && expressionIsSupported(exprSeg.GetJSON(), subprogram) {
+				// This is an expression segment (has JSON content)
 				segments = append(segments, ir.JSONSegment{
 					JSON:            exprSeg.GetJSON(),
 					DSL:             exprSeg.GetDSL(),
@@ -2284,4 +2286,66 @@ func compileUnitFromName(name string) string {
 		return runtimePackageName
 	}
 	return name[:packageNameEnd]
+}
+
+// expressionFormat represents the structure of expression JSON messages
+type expressionFormat struct {
+	DSL  string          `json:"dsl"`
+	JSON json.RawMessage `json:"json"`
+}
+
+// supportedInstruction represents a validation function for an AST instruction
+type supportedInstruction func(arg any, subprogram *ir.Subprogram) bool
+
+// supportedInstructions maps instruction names to their validation functions
+var supportedInstructions = map[string]supportedInstruction{
+	"ref": validateRefInstruction,
+}
+
+// validateRefInstruction validates the "ref" instruction argument
+func validateRefInstruction(arg any, subprogram *ir.Subprogram) bool {
+	// ref instruction expects a string argument
+	refValue, ok := arg.(string)
+	if !ok || refValue == "" {
+		return false
+	}
+	// Check if the referenced parameter exists in the subprogram's parameters
+	for _, variable := range subprogram.Variables {
+		if variable.IsParameter && variable.Name == refValue {
+			return true
+		}
+	}
+	return false
+}
+
+// validateAST validates that all instructions in the AST are supported
+func validateAST(astData map[string]any, subprogram *ir.Subprogram) bool {
+	if len(astData) == 0 {
+		return false
+	}
+	for instruction, argument := range astData {
+		validator, ok := supportedInstructions[instruction]
+		if !ok {
+			return false
+		}
+		if !validator(argument, subprogram) {
+			return false
+		}
+	}
+	return true
+}
+
+func expressionIsSupported(msg json.RawMessage, subprogram *ir.Subprogram) bool {
+	if msg == nil {
+		return false
+	}
+
+	// Parse the JSON field as a generic AST (map of instructions to arguments)
+	var ast map[string]any
+	if err := json.Unmarshal(msg, &ast); err != nil {
+		return false
+	}
+
+	// Validate that all instructions in the AST are supported
+	return validateAST(ast, subprogram)
 }
