@@ -65,6 +65,8 @@ dd_mods=$(find . -type f -name "go.mod" -exec dirname {} \; | sort | sed 's/.//'
 	for mod in $dd_mods; do
 		echo "- github.com/DataDog/datadog-agent$mod => $current_dir$mod"
 	done
+	# to be removed in v0.137.0
+    echo "- github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter => github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.136.1-0.20250924124118-d5b415b0878f"
 } >>"$WORK_DIR/builder-config.yaml"
 
 # Install and configure OCB
