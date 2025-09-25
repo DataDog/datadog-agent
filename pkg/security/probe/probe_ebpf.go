@@ -3181,8 +3181,28 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSocketStructSK, "struct socket", "sk")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockCommonStructSKCNum, "struct sock_common", "skc_num")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockStructSKProtocol, "struct sock", "sk_protocol")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFlowI4StructProto, "struct flowi4", "flowi4_proto")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFlowI6StructProto, "struct flowi6", "flowi6_proto")
+	constantFetcher.AppendOffsetofRequestWithFallbacks(
+		constantfetch.OffsetNameFlowI4StructProto,
+		constantfetch.TypeFieldPair{
+			TypeName:  "struct flowi4",
+			FieldName: "flowi4_proto",
+		},
+		constantfetch.TypeFieldPair{
+			TypeName:  "struct flowi_common",
+			FieldName: "flowic_proto",
+		},
+	)
+	constantFetcher.AppendOffsetofRequestWithFallbacks(
+		constantfetch.OffsetNameFlowI6StructProto,
+		constantfetch.TypeFieldPair{
+			TypeName:  "struct flowi6",
+			FieldName: "flowi6_proto",
+		},
+		constantfetch.TypeFieldPair{
+			TypeName:  "struct flowi_common",
+			FieldName: "flowic_proto",
+		},
+	)
 
 	// Interpreter constants
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructFile, "struct linux_binprm", "file")
