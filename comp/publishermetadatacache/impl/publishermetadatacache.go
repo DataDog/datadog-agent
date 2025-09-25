@@ -53,7 +53,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Register cleanup hook to close all handles when component shuts down
 	reqs.Lc.Append(fx.Hook{
-		OnStop: func(ctx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			return cache.stop()
 		},
 	})
@@ -98,10 +98,7 @@ func (c *publisherMetadataCache) flushOldestEntry() {
 func (c *publisherMetadataCache) isMetadataHandleValid(handle evtapi.EventPublisherMetadataHandle) bool {
 	// Guid should be a simple scalar property to check
 	_, err := c.evtapi.EvtGetPublisherMetadataProperty(handle, evtapi.EvtPublisherMetadataPublisherGuid)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 // Get retrieves a cached EventPublisherMetadataHandle for the given publisher name.
@@ -137,13 +134,4 @@ func (c *publisherMetadataCache) stop() error {
 		delete(c.cache, publisherName)
 	}
 	return nil
-}
-
-// NewTestCache creates a new publishermetadatacache for testing purposes
-func NewTestCache(api evtapi.API, maxCacheSize int) *publisherMetadataCache {
-	return &publisherMetadataCache{
-		cache:        make(map[string]cacheItem),
-		evtapi:       api,
-		maxCacheSize: maxCacheSize,
-	}
 }

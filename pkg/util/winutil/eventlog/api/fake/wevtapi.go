@@ -459,7 +459,7 @@ func (api *API) EvtRenderEventValues(_ evtapi.EventRenderContextHandle, _ evtapi
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtopenpublishermetadata
 func (api *API) EvtOpenPublisherMetadata(
 	PublisherID string,
-	LogFilePath string) (evtapi.EventPublisherMetadataHandle, error) {
+	_ string) (evtapi.EventPublisherMetadataHandle, error) {
 
 	publisher := &publisherMetadata{
 		publisherID: PublisherID,
