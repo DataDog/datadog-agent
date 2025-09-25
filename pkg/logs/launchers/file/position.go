@@ -39,13 +39,16 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 				log.Warnf("Failed to compute fingerprint for file %s: %v", filePath, err)
 				// More likely to have the agent come back up pointed to the same file compared to a rotated file
 				fingerprintsAlign = true
-				log.Infof("POSITION DEBUG: Fingerprint computation failed, defaulting to fingerprintsAlign=true")
 			} else {
-				fingerprintsAlign = prevFingerprint.Value == newFingerprint.Value
-				log.Infof("POSITION DEBUG: Computed new fingerprint for %s (value: 0x%x), fingerprintsAlign=%t", identifier, newFingerprint.Value, fingerprintsAlign)
+				// if either fingerprint is insufficient data, assume they don't align
+				// to ensure proper rotation detection for small files
+				if prevFingerprint.IsInsufficientData() || newFingerprint.IsInsufficientData() {
+					fingerprintsAlign = false
+					log.Debugf("Insufficient data fingerprint detected for %s, treating as potential rotation", filePath)
+				} else {
+					fingerprintsAlign = prevFingerprint.Value == newFingerprint.Value
+				}
 			}
-		} else {
-			log.Infof("POSITION DEBUG: No previous fingerprint found for %s, fingerprintsAlign=true (default)", identifier)
 		}
 	}
 
@@ -73,8 +76,7 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 		}
 	case value != "" && !fingerprintsAlign:
 		// Fingerprints don't match - likely rotation detected, start from beginning to avoid missing data
-		log.Infof("ROTATION DETECTED: Fingerprints don't align for file %s (identifier: %s, saved offset: %s), starting from beginning", filePath, identifier, value)
-		log.Infof("ROTATION DETECTED: Previous fingerprint exists, new fingerprint differs - this is file rotation scenario")
+		log.Debugf("File rotation detected via fingerprint mismatch for %s, starting from beginning", filePath)
 		offset, whence = 0, io.SeekStart
 	case mode == config.Beginning:
 		log.Debugf("HIT: Beginning case")

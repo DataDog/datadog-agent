@@ -399,7 +399,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
 
-	log.Infof("ROTATION: Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
+	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
 	err = tailer.Start(offset, whence)
 	if err != nil {
 		log.Warn(err)
@@ -500,9 +500,8 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 }
 
 func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *tailer.File) bool {
-	log.Infof("ROTATION: Log rotation detected for %s, stopping old tailer", file.Path)
+	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
-	log.Infof("ROTATION: Old tailer stopped for %s, new tailer will be created in next scan", file.Path)
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()

@@ -7,10 +7,9 @@ package file
 
 import (
 	"io"
-	"os"
 	"path/filepath"
 	"testing"
-
+	"os"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
