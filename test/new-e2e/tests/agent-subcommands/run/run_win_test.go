@@ -25,7 +25,7 @@ type windowsRunSuite struct {
 
 func TestWindowsRunSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsRunSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &windowsRunSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
 }
 
 func (s *windowsRunSuite) TestRunWhenAgentAlreadyRunning() {
