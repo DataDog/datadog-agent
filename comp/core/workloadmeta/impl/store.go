@@ -447,8 +447,8 @@ func (w *workloadmeta) GetKubernetesMetadata(id wmdef.KubeMetadataEntityID) (*wm
 func (w *workloadmeta) GetKubernetesNodeMetadataByName(nodeName string) (*wmdef.KubernetesMetadata, error) {
 	entities := w.listEntitiesByKind(wmdef.KindKubernetesMetadata)
 	for k := range entities {
-		if entities[k].(*wmdef.KubernetesMetadata).GVR.Resource == "nodes" && entities[k].(*wmdef.KubernetesMetadata).Name == nodeName {
-			return entities[k].(*wmdef.KubernetesMetadata), nil
+		if metadata, ok := entities[k].(*wmdef.KubernetesMetadata); ok && metadata.GVR.Resource == "nodes" && metadata.Name == nodeName {
+			return metadata, nil
 		}
 	}
 	return nil, errors.NewNotFound(nodeName)
