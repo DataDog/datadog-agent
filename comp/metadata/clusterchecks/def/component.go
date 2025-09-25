@@ -8,6 +8,8 @@ package clusterchecks
 
 import (
 	"net/http"
+
+	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
 // team: container-platform
@@ -18,5 +20,5 @@ type Component interface {
 	WritePayloadAsJSON(w http.ResponseWriter, r *http.Request)
 
 	// SetClusterHandler sets the cluster handler for collecting metadata
-	SetClusterHandler(handler interface{})
+	SetClusterHandler(handler *pkgclusterchecks.Handler)
 }
