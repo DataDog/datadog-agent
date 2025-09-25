@@ -16,3 +16,6 @@ skip-ci-check:
             exit 1
       fi
     - "echo 'success: No check skip found'"
+  variables:
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"

@@ -9,3 +9,6 @@ build_fakeintake:
   tags: ["arch:amd64", "specific:true"]
   script:
     - dda inv -- fakeintake.build
+  variables:
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"

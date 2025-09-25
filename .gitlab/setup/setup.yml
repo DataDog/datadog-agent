@@ -27,6 +27,9 @@ github_rate_limit_info:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
+  variables:
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"
   script:
     - dda self dep sync -f legacy-tasks
     # Send stats for app 1

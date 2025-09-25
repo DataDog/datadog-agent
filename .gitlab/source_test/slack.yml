@@ -10,3 +10,6 @@ slack_teams_channels_check:
     - when: on_success
   script:
     - dda inv -- -e notify.check-teams
+  variables:
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"

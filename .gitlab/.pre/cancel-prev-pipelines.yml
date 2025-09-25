@@ -2,6 +2,9 @@ cancel-prev-pipelines:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
+  variables:
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"
   rules:
     - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
       when: never

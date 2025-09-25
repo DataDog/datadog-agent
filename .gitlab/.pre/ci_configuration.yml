@@ -60,3 +60,6 @@ lint_github_actions_shellcheck:
   allow_failure: true
   script:
     - dda inv -- -e linter.github-actions-shellcheck
+  variables:
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"

@@ -22,6 +22,8 @@
     BAZEL_OUTPUT_USER_ROOT: "$XDG_CACHE_HOME/bazel"
     BAZEL_REPO_CONTENTS_CACHE: "$BAZEL_OUTPUT_USER_ROOT/repo-contents"
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "2"
 
 .bazel:ext:windows:
   extends: .windows_docker_default

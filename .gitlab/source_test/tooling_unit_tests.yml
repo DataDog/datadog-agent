@@ -10,3 +10,6 @@ invoke_unit_tests:
   script:
     - dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
     - dda inv -- -e invoke-unit-tests.run
+  variables:
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"

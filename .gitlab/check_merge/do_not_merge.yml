@@ -27,3 +27,6 @@ do-not-merge:
       fi
     - dda inv -- -e release.check-omnibus-branches --no-worktree || exit 1
     - exit 0
+  variables:
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"

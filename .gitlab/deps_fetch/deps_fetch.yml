@@ -118,6 +118,8 @@ fetch_openjdk:
     JDK_FILENAME: OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip
     JDK_URL: https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9
     JDK_SHA256: 052f09448d5b8d9afb7a8e5049d40d7fafa8f5884afe6043bb2359787fd41e84
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"
   script:
     - wget "$JDK_URL/$JDK_FILENAME" -O "$JDK_FILENAME"
     - echo "$JDK_SHA256  $JDK_FILENAME" | sha256sum -c

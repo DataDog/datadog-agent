@@ -231,6 +231,8 @@ docker_build_fips_agent7_arm64_jmx:
     BUILD_CONTEXT: Dockerfiles/base-image
     TARGET_ARG: --target release
     CACHE_TARGET: release
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"
 
 docker_build_base_image_amd64:
   extends: [.docker_build_base_image, .docker_build_amd64]

@@ -10,3 +10,6 @@ test_fuzz:
   script:
     - dda self dep sync -f legacy-tasks
     - dda inv -- build-and-upload-fuzz
+  variables:
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"

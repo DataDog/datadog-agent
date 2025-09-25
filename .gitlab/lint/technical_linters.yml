@@ -4,6 +4,9 @@
   tags: ["arch:amd64", "specific:true"]
   needs: []
   retry: !reference [.retry_only_infra_failure, retry]
+  variables:
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"
 
 lint_licenses:
   extends: .lint

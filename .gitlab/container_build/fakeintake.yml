@@ -13,6 +13,8 @@ docker_build_fakeintake:
     DOCKERFILE: test/fakeintake/Dockerfile
     PLATFORMS: linux/amd64,linux/arm64
     BUILD_CONTEXT: .
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"
   script:
     - !reference [.login_to_docker_readonly]
     - docker buildx build --push --pull --platform ${PLATFORMS} --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT

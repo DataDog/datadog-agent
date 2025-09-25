@@ -264,6 +264,9 @@ export_testing_public_key:
     paths:
       - gpg-testing-public-key.asc
     expire_in: 1 day
+  variables:
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"
 
 .deploy_dmg_testing-a7:
   rules:
@@ -281,7 +284,7 @@ export_testing_public_key:
     - |
       echo "Listing all datadog-agent-7.*.dmg files in $OMNIBUS_PACKAGE_DIR:"
       ls -la "$OMNIBUS_PACKAGE_DIR"/datadog-agent-7.*.dmg 2>/dev/null || echo "No datadog-agent-7.*.dmg files found"
-      
+
       count=$(ls -1 "$OMNIBUS_PACKAGE_DIR"/datadog-agent-7.*.dmg 2>/dev/null | wc -l || true)
       if [ "$count" -eq 0 ]; then
         echo "No DMG found in $OMNIBUS_PACKAGE_DIR matching datadog-agent-7.*.dmg" >&2

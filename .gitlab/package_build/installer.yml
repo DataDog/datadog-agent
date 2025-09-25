@@ -125,6 +125,8 @@ powershell_script_signing:
   needs: []
   variables:
     ARCH: "x64"
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

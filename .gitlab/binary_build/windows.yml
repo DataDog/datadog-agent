@@ -9,6 +9,8 @@ build_windows_container_entrypoint:
   extends: .windows_docker_default
   variables:
     ARCH: "x64"
+    GIT_STRATEGY: "clone"
+    GIT_DEPTH: "1"
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
