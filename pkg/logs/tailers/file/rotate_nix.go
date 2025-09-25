@@ -74,6 +74,22 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, er
 	// If fingerprints are different, it means the file was rotated.
 	// This is also true if the new fingerprint is invalid (Value=0), which means the file was truncated.
 	rotated := !t.fingerprint.Equals(newFingerprint)
+
+	// Special case: When both fingerprints are insufficient data, the Equals() method returns false
+	// to be conservative. But we should validate this with file-system level checks to avoid
+	// false positives that could cause unnecessary restarts.
+	if rotated && t.fingerprint.IsInsufficientData() && newFingerprint.IsInsufficientData() {
+		// Both are insufficient data - use file-system level validation
+		fileRotated, err := t.DidRotate()
+		if err == nil && !fileRotated {
+			// File-system says no rotation, trust that over insufficient fingerprints
+			rotated = false
+			log.Debugf("Insufficient data fingerprints suggested rotation for %s, but file-system check says no rotation", t.file.Path)
+		} else if err == nil && fileRotated {
+			log.Debugf("File rotation confirmed for insufficient data fingerprints using file-based detection for %s", t.file.Path)
+		}
+	}
+
 	if rotated {
 		log.Debugf("File rotation detected via fingerprint mismatch for %s (old: 0x%x, new: 0x%x)",
 			t.file.Path, t.fingerprint.Value, newFingerprint.Value)
