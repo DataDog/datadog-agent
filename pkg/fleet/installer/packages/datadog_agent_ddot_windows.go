@@ -247,6 +247,7 @@ func ensureDDOTService() error {
 		}
 		return nil
 	}
+	// TODO(WINA-1619): Change service user to ddagentuser
 	s, err = m.CreateService(otelServiceName, bin, mgr.Config{
 		DisplayName:      "Datadog Distribution of OpenTelemetry Collector",
 		Description:      "Datadog OpenTelemetry Collector",
