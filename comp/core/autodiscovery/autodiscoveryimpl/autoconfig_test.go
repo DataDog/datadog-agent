@@ -410,7 +410,7 @@ func TestResolveTemplate(t *testing.T) {
 	})
 
 	t.Run("CEL Identifier on Kubernetes Service", func(t *testing.T) {
-		sch, ac := getResolveTestConfig(t)
+		_, ac := getResolveTestConfig(t)
 
 		tpl := integration.Config{
 			Name:        "service-check",
@@ -418,19 +418,28 @@ func TestResolveTemplate(t *testing.T) {
 		}
 		changes := ac.processNewConfig(tpl)
 		ac.applyChanges(changes)
-		assert.Equal(t, sch.scheduledSize(), 0)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
 
+		// Test matching services
+		matchingService := listeners.CreateDummyKubeService("redis-service", "default", map[string]string{})
+		ac.processNewService(matchingService)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		// Test non-matching services
 		service := listeners.CreateDummyKubeService("other-service", "default", map[string]string{})
-		changes = ac.cfgMgr.processNewService(service)
-		assert.Len(t, changes.Schedule, 0)
+		ac.processNewService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
 
-		service = listeners.CreateDummyKubeService("redis-service", "default", map[string]string{})
-		changes = ac.cfgMgr.processNewService(service)
-		assert.Len(t, changes.Schedule, 1)
+		// Test service deletion
+		ac.processDelService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		ac.processDelService(matchingService)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
 	})
 
 	t.Run("CEL Identifier on Kubernetes Endpoint", func(t *testing.T) {
-		sch, ac := getResolveTestConfig(t)
+		_, ac := getResolveTestConfig(t)
 
 		tpl := integration.Config{
 			Name:        "endpoint-check",
@@ -438,31 +447,33 @@ func TestResolveTemplate(t *testing.T) {
 		}
 		changes := ac.processNewConfig(tpl)
 		ac.applyChanges(changes)
-		assert.Equal(t, sch.scheduledSize(), 0)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
 
-		service := listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{})
-		changes = ac.cfgMgr.processNewService(service)
-		assert.Len(t, changes.Schedule, 1)
+		// Test matching endpoints
+		matchingService := listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{})
+		ac.processNewService(matchingService)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
 
-		service = listeners.CreateDummyKubeEndpoint("name", "default", map[string]string{})
-		changes = ac.cfgMgr.processNewService(service)
-		assert.Len(t, changes.Schedule, 0)
+		// Test non-matching endpoints
+		service := listeners.CreateDummyKubeEndpoint("name", "default", map[string]string{})
+		ac.processNewService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
 
 		service = listeners.CreateDummyKubeEndpoint("exclude-name", "include-ns", map[string]string{})
-		changes = ac.cfgMgr.processNewService(service)
-		assert.Len(t, changes.Schedule, 0)
-
-		service = listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{})
-		changes = ac.cfgMgr.processNewService(service)
-		assert.Len(t, changes.Schedule, 0)
+		ac.processNewService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
 
 		service = listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{"team": "exclude"})
-		changes = ac.cfgMgr.processNewService(service)
-		assert.Len(t, changes.Schedule, 0)
+		ac.processNewService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		// Test endpoint deletion
+		ac.processDelService(matchingService)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
 	})
 
 	t.Run("CEL Identifier on Kubernetes Pod", func(t *testing.T) {
-		sch, ac := getResolveTestConfig(t)
+		_, ac := getResolveTestConfig(t)
 
 		tpl := integration.Config{
 			Name:        "pod-check",
@@ -470,22 +481,28 @@ func TestResolveTemplate(t *testing.T) {
 		}
 		changes := ac.processNewConfig(tpl)
 		ac.applyChanges(changes)
-		assert.Equal(t, sch.scheduledSize(), 0)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
 
+		// Test matching pod
 		wmetaPod := listeners.CreateDummyPod("name", "include-ns", nil)
-		service := listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
-		changes = ac.cfgMgr.processNewService(service)
-		assert.Len(t, changes.Schedule, 1)
+		svc1 := listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
+		ac.processNewService(svc1)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
 
+		// Test non-matching pods
 		wmetaPod = listeners.CreateDummyPod("excluded-name", "include-ns", map[string]string{})
-		service = listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
-		changes = ac.cfgMgr.processNewService(service)
-		assert.Len(t, changes.Schedule, 0)
+		svc2 := listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
+		ac.processNewService(svc2)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
 
 		wmetaPod = listeners.CreateDummyPod("name", "include-ns", map[string]string{"team": "exclude"})
-		service = listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
-		changes = ac.cfgMgr.processNewService(service)
-		assert.Len(t, changes.Schedule, 0)
+		svc3 := listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
+		ac.processNewService(svc3)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		// Test pod deletion
+		ac.processDelService(svc1)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
 	})
 
 	t.Run("CEL Identifier on Container", func(t *testing.T) {
@@ -493,68 +510,56 @@ func TestResolveTemplate(t *testing.T) {
 		wmetaPod := listeners.CreateDummyPod("pod-name", "pod-ns", nil)
 		wmetaCtn := listeners.CreateDummyContainer("container-name", "container-image")
 		wmetaCtn.Owner = &wmetaPod.EntityID
-
 		mockStore.Set(wmetaPod)
 		mockStore.Set(wmetaCtn)
 
-		getPod, err := mockStore.GetKubernetesPodForContainer(wmetaCtn.ID)
-		require.NoError(t, err)
-		require.NotNil(t, getPod)
-		require.Equal(t, wmetaPod.ID, getPod.ID)
-
-		// Test CEL selector on container and pod fields
-		sch, ac := getResolveTestConfig(t)
+		_, ac := getResolveTestConfig(t)
 
 		service := listeners.CreateDummyContainerService(wmetaCtn, mockTagger, mockStore)
-		changes := ac.cfgMgr.processNewService(service)
-		assert.Len(t, changes.Schedule, 0)
+		ac.processNewService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
 
 		// Container name and image matching
-		tpl1 := integration.Config{
+		tpl := integration.Config{
 			Name:        "container-check-1",
 			CELSelector: workloadfilter.Rules{Containers: []string{`container.name.matches("container-name") && container.image.matches("container-image")`}},
 		}
-		changes = ac.processNewConfig(tpl1)
+		changes := ac.processNewConfig(tpl)
 		ac.applyChanges(changes)
-		assert.Eventually(t, func() bool {
-			return sch.scheduledSize() == 1
-		}, 3*time.Second, 10*time.Millisecond)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
 
 		// Pod name and namespace matching
-		tpl2 := integration.Config{
+		tpl = integration.Config{
 			Name:        "container-check-2",
 			CELSelector: workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name") && container.pod.namespace.matches("pod-ns")`}},
 		}
-		changes = ac.processNewConfig(tpl2)
-		ac.applyChanges(changes)
-		assert.Eventually(t, func() bool {
-			return sch.scheduledSize() == 2
-		}, 3*time.Second, 10*time.Millisecond)
+		ac.applyChanges(ac.processNewConfig(tpl))
+		assert.Equal(t, countLoadedConfigs(ac), 2)
 
 		// AD Identifier + CEL matching
-		tpl3 := integration.Config{
+		tpl = integration.Config{
 			Name:          "container-check-3",
 			ADIdentifiers: []string{"container-image"},
 			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name")`}},
 		}
-		changes = ac.processNewConfig(tpl3)
-		ac.applyChanges(changes)
-		assert.Eventually(t, func() bool {
-			return sch.scheduledSize() == 3
-		}, 3*time.Second, 10*time.Millisecond)
+		ac.applyChanges(ac.processNewConfig(tpl))
+		assert.Equal(t, countLoadedConfigs(ac), 3)
 
 		// Bad AD Identifier + CEL matching
-		tpl4 := integration.Config{
+		tpl = integration.Config{
 			Name:          "container-check-4",
 			ADIdentifiers: []string{"not-container-image"},
 			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name")`}},
 		}
-		changes = ac.processNewConfig(tpl4)
-		ac.applyChanges(changes)
-		assert.Neverf(t, func() bool {
-			return sch.scheduledSize() > 3
-		}, 3*time.Second, 10*time.Millisecond, "No additional configs should be scheduled")
+		ac.applyChanges(ac.processNewConfig(tpl))
+		assert.Equal(t, countLoadedConfigs(ac), 3)
 
+		// Test service deletion
+		ac.processRemovedConfigs(changes.Schedule)
+		assert.Equal(t, countLoadedConfigs(ac), 2)
+
+		ac.processDelService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
 	})
 }
 
