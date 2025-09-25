@@ -45,9 +45,8 @@ cc_binary(
         ":bz2",
     ],
     copts = [
-        "-I.",
         "-Wall",
-        # This is probably obsolete with modern compilers, but that is what
+        # -Winline is probably obsolete with modern compilers, but that is what
         # the upstream project uses.
         "-Winline",
         "-D_FILE_OFFSET_BITS=64",
@@ -69,7 +68,6 @@ cc_library(
     ],
     hdrs = _PUBLIC_HEADERS,
     copts = [
-        "-I.",
         "-Wall",
         "-D_FILE_OFFSET_BITS=64",
     ] + select({
