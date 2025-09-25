@@ -67,6 +67,7 @@ dd_mods=$(find . -type f -name "go.mod" -exec dirname {} \; | sort | sed 's/.//'
 	done
 	# to be removed in v0.137.0
     echo "- github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter => github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.136.1-0.20250924124118-d5b415b0878f"
+	echo "- github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog => github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.136.1-0.20250924124118-d5b415b0878f"
 } >>"$WORK_DIR/builder-config.yaml"
 
 # Install and configure OCB
