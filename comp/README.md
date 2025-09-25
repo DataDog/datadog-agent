@@ -769,12 +769,11 @@ Package metricscompression provides the component for metrics compression
 
 Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device
 
-
 ### [comp/softwareinventory](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/softwareinventory)
 
 *Datadog Team*: windows-products
 
-Package softwareinventory defines the interface for the software inventory component.
+Package softwareinventory defines the interface for the inventory software component.
 This component collects and reports software inventory information from the host system.
 It provides metadata about installed software applications, including their names,
 versions, installation dates, and other relevant details for inventory tracking.
@@ -785,4 +784,3 @@ versions, installation dates, and other relevant details for inventory tracking.
 
 Package syntheticstestscheduler defines a synthetics scheduler component to run
 network tests based on remote config.
-
