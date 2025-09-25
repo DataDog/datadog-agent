@@ -749,7 +749,6 @@ func materializePending(
 						baseVar.Locations = append(baseVar.Locations, locs...)
 					}
 				} else {
-
 					// Fully defined var in the inlined instance.
 					v, err := processVariable(
 						p.unit, inlVar, isParameter,
@@ -762,6 +761,11 @@ func materializePending(
 					sp.Variables = append(sp.Variables, v)
 				}
 			}
+		}
+		for _, v := range sp.Variables {
+			slices.SortFunc(v.Locations, func(a, b ir.Location) int {
+				return cmp.Compare(a.Range[0], b.Range[0])
+			})
 		}
 		subprograms = append(subprograms, sp)
 	}
@@ -1872,6 +1876,9 @@ func newProbe(
 			return nil, issue, err
 		}
 	}
+	slices.SortFunc(injectionPoints, func(a, b ir.InjectionPoint) int {
+		return cmp.Compare(a.PC, b.PC)
+	})
 	events := []*ir.Event{
 		{
 			ID:              eventIDAlloc.next(),
@@ -2451,6 +2458,9 @@ func processVariable(
 				pointerSize,
 			)
 		}
+		slices.SortFunc(locations, func(a, b ir.Location) int {
+			return cmp.Compare(a.Range[0], b.Range[0])
+		})
 	}
 	isReturn, _, err := maybeGetAttr[bool](entry, dwarf.AttrVarParam)
 	if err != nil {

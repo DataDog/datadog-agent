@@ -108,6 +108,8 @@ type Variable struct {
 	// Type is the type of the variable.
 	Type Type
 	// Locations are the locations of the variable in the subprogram.
+	// Sorted by low limit of their ranges. Note the ranges might overlap,
+	// in case of variables inlined multiple times in the same parent subprogram.
 	Locations []Location
 	// IsParameter is true if the variable is a parameter.
 	IsParameter bool
@@ -138,7 +140,7 @@ type Event struct {
 	Kind EventKind
 	// The datatype of the event.
 	Type *EventRootType
-	// The PC values at which the event should be injected.
+	// The PC values at which the event should be injected. Sorted by PC.
 	InjectionPoints []InjectionPoint
 	// The condition that must be met for the event to be injected.
 	Condition *Expression

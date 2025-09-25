@@ -63,9 +63,9 @@ Probes:
           Kind: Entry
           Type: 204 EventRootType Probe[main.inlined]
           InjectionPoints:
-            - PC: "0x4aea2a"
-              Frameless: false
             - PC: "0x4ae40e"
+              Frameless: false
+            - PC: "0x4aea2a"
               Frameless: false
           Condition: null
         - ID: 22
