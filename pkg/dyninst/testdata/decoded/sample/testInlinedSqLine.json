@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testStringType2",
+      "method": "main.testInlinedSq",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,24 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testStringType2",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 201
+            "function": "main.testInlinedSq",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
+            "lineNumber": 75
           },
           {
-            "function": "main.executeComplexFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 287
+            "function": "main.testFrameless",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
+            "lineNumber": 80
+          },
+          {
+            "function": "main.executeInlined",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
+            "lineNumber": 104
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 36
+            "lineNumber": 34
           },
           {
             "function": "runtime.main",
@@ -42,17 +47,19 @@
           }
         ],
         "probe": {
-          "id": "testStringType2",
+          "id": "testInlinedSqLine",
           "location": {
-            "method": "main.testStringType2"
+            "method": "main.testInlinedSq",
+            "file": "inlined.go",
+            "line": 75
           }
         },
         "captures": {
           "entry": {
-            "arguments": {
-              "a": {
-                "type": "**main.stringType2",
-                "notCapturedReason": "depth"
+            "locals": {
+              "x": {
+                "type": "int",
+                "value": "10"
               }
             }
           }

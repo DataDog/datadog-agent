@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testStringType2",
+      "method": "main.testLongFunctionWithChangingState",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testStringType2",
+            "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 201
+            "lineNumber": 208
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 287
+            "lineNumber": 289
           },
           {
             "function": "main.main",
@@ -42,21 +42,14 @@
           }
         ],
         "probe": {
-          "id": "testStringType2",
+          "id": "testLongFunctionWithChangingStateLineA",
           "location": {
-            "method": "main.testStringType2"
+            "method": "main.testLongFunctionWithChangingState",
+            "file": "complex.go",
+            "line": 208
           }
         },
-        "captures": {
-          "entry": {
-            "arguments": {
-              "a": {
-                "type": "**main.stringType2",
-                "notCapturedReason": "depth"
-              }
-            }
-          }
-        }
+        "captures": {}
       }
     },
     "timestamp": "[ts]"
