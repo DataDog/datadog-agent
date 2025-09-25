@@ -2481,6 +2481,7 @@ core,go.opentelemetry.io/ebpf-profiler/libpf/basehash,Apache-2.0,Copyright The O
 core,go.opentelemetry.io/ebpf-profiler/libpf/hash,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/pfelf,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/pfelf/internal/mmap,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/libpf/pfunsafe,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/readatbuf,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/xsync,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/lpm,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2499,6 +2500,7 @@ core,go.opentelemetry.io/ebpf-profiler/processmanager/ebpfapi,Apache-2.0,Copyrig
 core,go.opentelemetry.io/ebpf-profiler/processmanager/execinfomanager,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/remotememory,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/reporter,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/reporter/internal/orderedset,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/reporter/internal/pdata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/reporter/samples,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/rlimit,Apache-2.0,Copyright The OpenTelemetry Authors
