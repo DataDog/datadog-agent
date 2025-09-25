@@ -13,24 +13,15 @@ import (
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
-// MockPublisherMetadataCache is a mock implementation of the publishermetadatacache Component
-type MockPublisherMetadataCache struct {
-	GetFunc func(publisherName string, event evtapi.EventRecordHandle) (evtapi.EventPublisherMetadataHandle, error)
-}
+// PublisherMetadataCache is a mock implementation of the publishermetadatacache Component
+type PublisherMetadataCache struct{}
 
 // Mock returns a mock for publishermetadatacache component.
 func Mock() publishermetadatacache.Component {
-	return &MockPublisherMetadataCache{
-		GetFunc: func(publisherName string, event evtapi.EventRecordHandle) (evtapi.EventPublisherMetadataHandle, error) {
-			return evtapi.EventPublisherMetadataHandle(12345), nil
-		},
-	}
+	return &PublisherMetadataCache{}
 }
 
 // Get implements the Component interface
-func (m *MockPublisherMetadataCache) Get(publisherName string, event evtapi.EventRecordHandle) (evtapi.EventPublisherMetadataHandle, error) {
-	if m.GetFunc != nil {
-		return m.GetFunc(publisherName, event)
-	}
+func (m *PublisherMetadataCache) Get(_ string, _ evtapi.EventRecordHandle) (evtapi.EventPublisherMetadataHandle, error) {
 	return evtapi.EventPublisherMetadataHandle(12345), nil
 }
