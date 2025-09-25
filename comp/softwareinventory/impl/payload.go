@@ -20,11 +20,7 @@ type Payload struct {
 	// Hostname is the name of the host system where the software inventory was collected.
 	// This field helps identify which system the inventory data belongs to.
 	Hostname string `json:"hostname"`
-
-	// Timestamp is the Unix timestamp (in nanoseconds) when the inventory data was collected.
-	// This field provides temporal context for when the software inventory was gathered.
-	Timestamp int64 `json:"timestamp"`
-
+	
 	// Metadata contains the actual software inventory data collected from the host system.
 	// This includes detailed information about each installed software application.
 	Metadata HostSoftware `json:"host_software"`

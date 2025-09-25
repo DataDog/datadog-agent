@@ -256,7 +256,6 @@ func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
 
 	return &Payload{
 		Hostname:  is.hostname,           // Set from the component's hostname field
-		Timestamp: time.Now().UnixNano(), // Set to current time (nanoseconds)
 		Metadata: HostSoftware{
 			Software: is.cachedInventory,
 		},
