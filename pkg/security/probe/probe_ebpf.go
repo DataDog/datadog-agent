@@ -43,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
-	ddebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -1839,7 +1838,7 @@ func (b *filterPolicyBlock) apply(m *manager.Manager) error {
 		return fmt.Errorf("unable to find policy table: %w", err)
 	}
 
-	if ddebpfmaps.BatchAPISupported() {
+	if ebpf.BatchAPISupported() {
 		_, err := table.BatchUpdate(b.eventTypes, b.policies, &lib.BatchOptions{ElemFlags: uint64(lib.UpdateAny)})
 		return err
 	}
