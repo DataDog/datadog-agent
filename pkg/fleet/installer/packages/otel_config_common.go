@@ -14,6 +14,7 @@ import (
 )
 
 // enableOtelCollectorConfigCommon adds otelcollector.enabled and agent_ipc defaults to the given datadog.yaml path
+// nolint:unused // Called only from platform-specific code/contexts
 func enableOtelCollectorConfigCommon(datadogYamlPath string) error {
 	data, err := os.ReadFile(datadogYamlPath)
 	if err != nil {
@@ -36,7 +37,7 @@ func enableOtelCollectorConfigCommon(datadogYamlPath string) error {
 }
 
 // disableOtelCollectorConfigCommon removes otelcollector and agent_ipc from the given datadog.yaml path
-// nolint:unused // Used only on Windows; Linux doesn’t disable otelcollector on remove
+// nolint:unused // Called only from platform-specific code/contexts
 func disableOtelCollectorConfigCommon(datadogYamlPath string) error {
 	data, err := os.ReadFile(datadogYamlPath)
 	if err != nil {
@@ -60,6 +61,7 @@ func disableOtelCollectorConfigCommon(datadogYamlPath string) error {
 
 // writeOTelConfigCommon creates otel-config.yaml from a template by substituting api_key and site found in datadog.yaml
 // If preserveIfExists is true and outPath already exists, the function returns without writing.
+// nolint:unused // Called only from platform-specific code/contexts
 func writeOTelConfigCommon(datadogYamlPath, templatePath, outPath string, preserveIfExists bool, mode os.FileMode) error {
 	if preserveIfExists {
 		if _, err := os.Stat(outPath); err == nil {
