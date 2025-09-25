@@ -579,8 +579,8 @@ func (db *dictionaryBuilder) internTags1(prefixID int64, tags []string) int64 {
 
 	db.tagsLastID++
 	db.tagsIndex[key] = db.tagsLastID
-	db.txn.Sint64(columnDictTagsets, int64(len(db.tagsBuffer)))
 
+	db.txn.Sint64(columnDictTagsets, int64(len(db.tagsBuffer)))
 	for _, idx := range db.tagsBuffer {
 		db.txn.Sint64(columnDictTagsets, idx)
 	}
