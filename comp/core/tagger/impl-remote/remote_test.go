@@ -45,9 +45,9 @@ func TestNewComponent(t *testing.T) {
 		Lc:     compdef.NewTestLifecycle(t),
 		Config: configmock.New(t),
 		Log:    logmock.New(t),
-		Params: tagger.RemoteParams{
-			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-		},
+		Params: tagger.NewRemoteParams(
+			tagger.WithRemoteTarget(func(config.Component) (string, error) { return ":5001", nil }),
+		),
 		Telemetry: nooptelemetry.GetCompatComponent(),
 		IPC:       ipcmock.New(t),
 	}
@@ -62,9 +62,9 @@ func TestNewComponentNonBlocking(t *testing.T) {
 		Lc:     compdef.NewTestLifecycle(t),
 		Config: configmock.New(t),
 		Log:    logmock.New(t),
-		Params: tagger.RemoteParams{
-			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-		},
+		Params: tagger.NewRemoteParams(
+			tagger.WithRemoteTarget(func(config.Component) (string, error) { return ":5001", nil }),
+		),
 		Telemetry: nooptelemetry.GetCompatComponent(),
 		IPC:       ipcmock.New(t),
 	}
@@ -79,9 +79,9 @@ func TestNewComponentSetsTaggerListEndpoint(t *testing.T) {
 		Lc:     compdef.NewTestLifecycle(t),
 		Config: configmock.New(t),
 		Log:    logmock.New(t),
-		Params: tagger.RemoteParams{
-			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-		},
+		Params: tagger.NewRemoteParams(
+			tagger.WithRemoteTarget(func(config.Component) (string, error) { return ":5001", nil }),
+		),
 		Telemetry: nooptelemetry.GetCompatComponent(),
 		IPC:       ipcmock.New(t),
 	}
@@ -124,18 +124,18 @@ func TestNewComponentWithOverride(t *testing.T) {
 			Lc:     compdef.NewTestLifecycle(t),
 			Config: configmock.New(t),
 			Log:    logmock.New(t),
-			Params: tagger.RemoteParams{
-				RemoteTarget: func(config.Component) (string, error) { return server.URL, nil },
-				OverrideTLSConfigGetter: func() (*tls.Config, error) {
+			Params: tagger.NewRemoteParams(
+				tagger.WithRemoteTarget(func(config.Component) (string, error) { return server.URL, nil }),
+				tagger.WithOverrideTLSConfigGetter(func() (*tls.Config, error) {
 					return &tls.Config{
 						InsecureSkipVerify: true,
 					}, nil
-				},
-				OverrideAuthTokenGetter: func(_ configmodel.Reader) (string, error) {
+				}),
+				tagger.WithOverrideAuthTokenGetter(func(_ configmodel.Reader) (string, error) {
 					time.Sleep(2 * time.Second)
 					return "test-token", nil
-				},
-			},
+				}),
+			),
 			Telemetry: nooptelemetry.GetCompatComponent(),
 			IPC:       ipcComp,
 		}
@@ -151,17 +151,17 @@ func TestNewComponentWithOverride(t *testing.T) {
 			Lc:     compdef.NewTestLifecycle(t),
 			Config: configmock.New(t),
 			Log:    logmock.New(t),
-			Params: tagger.RemoteParams{
-				RemoteTarget: func(config.Component) (string, error) { return server.URL, nil },
-				OverrideTLSConfigGetter: func() (*tls.Config, error) {
+			Params: tagger.NewRemoteParams(
+				tagger.WithRemoteTarget(func(config.Component) (string, error) { return server.URL, nil }),
+				tagger.WithOverrideTLSConfigGetter(func() (*tls.Config, error) {
 					return &tls.Config{
 						InsecureSkipVerify: true,
 					}, nil
-				},
-				OverrideAuthTokenGetter: func(_ configmodel.Reader) (string, error) {
+				}),
+
+				tagger.WithOverrideAuthTokenGetter(func(_ configmodel.Reader) (string, error) {
 					return "", fmt.Errorf("auth token getter always fails")
-				},
-			},
+				})),
 			Telemetry: nooptelemetry.GetCompatComponent(),
 			IPC:       ipcComp,
 		}

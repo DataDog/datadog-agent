@@ -102,12 +102,17 @@ func TestWinCrashReporting(t *testing.T) {
 	t.Run("test that a crash is properly reported", func(t *testing.T) {
 		testSetup(t)
 		p = &probe.WinCrashStatus{
-			StatusCode: probe.WinCrashStatusCodeSuccess,
-			FileName:   `c:\windows\memory.dmp`,
-			Type:       probe.DumpTypeAutomatic,
-			DateString: `Fri Jun 30 15:33:05.086 2023 (UTC - 7:00)`,
-			Offender:   `somedriver.sys`,
-			BugCheck:   "0x00000007",
+			StatusCode:   probe.WinCrashStatusCodeSuccess,
+			FileName:     `c:\windows\memory.dmp`,
+			Type:         probe.DumpTypeAutomatic,
+			DateString:   `Fri Jun 30 15:33:05.086 2023 (UTC - 7:00)`,
+			Offender:     `somedriver.sys`,
+			BugCheck:     "0x00000007",
+			BugCheckArg1: "0x1",
+			BugCheckArg2: "0x2",
+			BugCheckArg3: "0x3",
+			BugCheckArg4: "0x4",
+			Callstack:    "frame1,frame2",
 		}
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
@@ -115,6 +120,7 @@ func TestWinCrashReporting(t *testing.T) {
 		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
 		assert.NoError(t, err)
 
+		// The text field describes the bugcheck information and callstack.
 		expected := event.Event{
 			Priority:       event.PriorityNormal,
 			SourceTypeName: CheckName,
@@ -212,6 +218,11 @@ func TestCrashReportingStates(t *testing.T) {
 		wcs.DateString = crashStatus.DateString
 		wcs.Offender = crashStatus.Offender
 		wcs.BugCheck = crashStatus.BugCheck
+		wcs.BugCheckArg1 = crashStatus.BugCheckArg1
+		wcs.BugCheckArg2 = crashStatus.BugCheckArg2
+		wcs.BugCheckArg3 = crashStatus.BugCheckArg3
+		wcs.BugCheckArg4 = crashStatus.BugCheckArg4
+		wcs.Callstack = crashStatus.Callstack
 
 		// Signal that the artificial delay is done.
 		wg.Done()
@@ -240,13 +251,18 @@ func TestCrashReportingStates(t *testing.T) {
 		assert.NoError(t, err)
 
 		crashStatus = &probe.WinCrashStatus{
-			StatusCode: probe.WinCrashStatusCodeSuccess,
-			FileName:   `c:\windows\memory.dmp`,
-			Type:       probe.DumpTypeAutomatic,
-			ErrString:  "",
-			DateString: `Fri Jun 30 15:33:05.086 2023 (UTC - 7:00)`,
-			Offender:   `somedriver.sys`,
-			BugCheck:   "0x00000007",
+			StatusCode:   probe.WinCrashStatusCodeSuccess,
+			FileName:     `c:\windows\memory.dmp`,
+			Type:         probe.DumpTypeAutomatic,
+			ErrString:    "",
+			DateString:   `Fri Jun 30 15:33:05.086 2023 (UTC - 7:00)`,
+			Offender:     `somedriver.sys`,
+			BugCheck:     "0x00000007",
+			BugCheckArg1: "0x1",
+			BugCheckArg2: "0x2",
+			BugCheckArg3: "0x3",
+			BugCheckArg4: "0x4",
+			Callstack:    "frame1,frame2",
 		}
 
 		// Test the 2-check response from crash reporting.
@@ -266,6 +282,7 @@ func TestCrashReportingStates(t *testing.T) {
 		wg.Wait()
 		time.Sleep(4 * time.Second)
 
+		// The text field describes the bugcheck information and callstack.
 		expected := event.Event{
 			Priority:       event.PriorityNormal,
 			SourceTypeName: CheckName,

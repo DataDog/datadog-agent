@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -105,7 +104,7 @@ func TestPackages(t *testing.T) {
 				continue
 			}
 			if flavor.Flavor == e2eos.Suse {
-				flake.Mark(t) // #incident-43183
+				continue
 			}
 
 			suite := test.t(flavor, flavor.Architecture, method)

@@ -20,6 +20,6 @@ type windowsHealthSuite struct {
 
 func TestWindowsHealthSuite(t *testing.T) {
 	t.Parallel()
-	suite := &windowsHealthSuite{baseHealthSuite{descriptor: os.WindowsDefault}}
+	suite := &windowsHealthSuite{baseHealthSuite{descriptor: os.WindowsServerDefault}}
 	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner()))
 }

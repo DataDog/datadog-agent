@@ -47,15 +47,10 @@ func (s *dpkgScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtype
 
 	pkgsWithFiles := make([]sbomtypes.PackageWithInstalledFiles, 0, len(pkgs))
 	for _, pkg := range pkgs {
-		pkg := sbomtypes.PackageWithInstalledFiles{
-			Package: sbomtypes.Package{
-				Name:       pkg.Name,
-				Version:    pkg.Version,
-				SrcVersion: pkg.SrcVersion,
-			},
+		pkgsWithFiles = append(pkgsWithFiles, sbomtypes.PackageWithInstalledFiles{
+			Package:        pkg,
 			InstalledFiles: installedFiles[pkg.Name],
-		}
-		pkgsWithFiles = append(pkgsWithFiles, pkg)
+		})
 	}
 
 	return pkgsWithFiles, nil
@@ -92,6 +87,12 @@ func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]sbomtypes.Package, err
 		}
 
 		for _, statusFile := range statusFiles {
+			// on distroless images, there are some md5sums files in the status.d directory
+			// ignore them
+			if strings.HasSuffix(statusFile.Name(), md5sumsSuffix) {
+				continue
+			}
+
 			fullPath := filepath.Join(statusDPath, statusFile.Name())
 			pkg, err := s.parseStatusFile(root, fullPath)
 			if err != nil {
@@ -179,10 +180,16 @@ func (s *dpkgScanner) parseInfoFile(root *os.Root, path string) ([]string, error
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		_, installedPath, ok := strings.Cut(scanner.Text(), "  ")
+		// according to the doc the md5sums file are formatted as:
+		// <md5sum><2 spaces><path>
+		// https: //man7.org/linux/man-pages/man5/deb-md5sums.5.html
+		// but some files have a single space, especially mongodb-database-tools
+		// so we cut on the first space and then trim the path
+		_, installedPath, ok := strings.Cut(scanner.Text(), " ")
 		if !ok {
 			return nil, fmt.Errorf("failed to parse installed file line, bad format")
 		}
+		installedPath = strings.TrimSpace(installedPath)
 		installedFiles = append(installedFiles, "/"+installedPath)
 	}
 	if err := scanner.Err(); err != nil {

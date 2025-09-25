@@ -21,7 +21,7 @@ type windowsConfigSuite struct {
 }
 
 func TestWindowsConfigSuite(t *testing.T) {
-	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))
+	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))
 	t.Parallel()
-	e2e.Run(t, &windowsConfigSuite{baseConfigSuite: baseConfigSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &windowsConfigSuite{baseConfigSuite: baseConfigSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
 }

@@ -29,7 +29,7 @@ int __attribute__((always_inline)) credentials_predicate(u64 type) {
 }
 
 int __attribute__((always_inline)) mountpoint_predicate(u64 type) {
-    return type == EVENT_MOUNT || type == EVENT_UNSHARE_MNTNS || type == EVENT_OPEN_TREE;
+    return type == EVENT_MOUNT || type == EVENT_UNSHARE_MNTNS || type == EVENT_OPEN_TREE || type == EVENT_MOVE_MOUNT;
 }
 
 int __attribute__((always_inline)) mount_or_open_tree(u64 type) {
@@ -38,6 +38,18 @@ int __attribute__((always_inline)) mount_or_open_tree(u64 type) {
 
 int __attribute__((always_inline)) unshare_or_open_tree(u64 type) {
     return type == EVENT_UNSHARE_MNTNS || type == EVENT_OPEN_TREE;
+}
+
+int __attribute__((always_inline)) unshare_or_move_mount(u64 type) {
+    return type == EVENT_UNSHARE_MNTNS || type == EVENT_MOVE_MOUNT;
+}
+
+int __attribute__((always_inline)) mount_or_move_mount(u64 type) {
+    return type == EVENT_MOUNT || type == EVENT_MOVE_MOUNT;
+}
+
+int __attribute__((always_inline)) unshare_or_open_tree_or_move_mount(u64 type) {
+    return type == EVENT_UNSHARE_MNTNS || type == EVENT_OPEN_TREE || type == EVENT_MOVE_MOUNT;
 }
 
 #endif
