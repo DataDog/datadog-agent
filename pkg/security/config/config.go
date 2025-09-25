@@ -641,10 +641,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		FileMetadataResolverEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.file_metadata_resolver.enabled"),
 	}
 
-	if slices.Contains(rsConfig.ActivityDumpTracedEventTypes, model.ExecEventType) {
-		rsConfig.ActivityDumpTracedEventTypes = append(rsConfig.ActivityDumpTracedEventTypes, model.ExitEventType)
-	}
-
 	compilationFlags := pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.kernel_compilation_flags")
 	if len(compilationFlags) == 0 {
 		compilationFlags = defaultKernelCompilationFlags
