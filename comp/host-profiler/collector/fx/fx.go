@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build hostprofiler
+//go:build linux
 
 // Package fx provides the fx module for the collector component.
 //

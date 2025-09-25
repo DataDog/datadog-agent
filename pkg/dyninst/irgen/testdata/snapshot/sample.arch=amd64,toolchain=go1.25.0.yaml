@@ -9377,145 +9377,145 @@ Types:
     - __kind: GoSliceDataType
       ID: 415
       Name: '[]noalg.map.group[[4]int][4]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 520
       Element: 411 StructureType noalg.map.group[[4]int][4]int
     - __kind: GoSliceDataType
       ID: 407
       Name: '[]noalg.map.group[[4]int]uint8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 403 StructureType noalg.map.group[[4]int]uint8
     - __kind: GoSliceDataType
       ID: 356
       Name: '[]noalg.map.group[[4]string][2]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 648
       Element: 351 StructureType noalg.map.group[[4]string][2]int
     - __kind: GoSliceDataType
       ID: 374
       Name: '[]noalg.map.group[bool]main.node.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 200
       Element: 370 StructureType noalg.map.group[bool]main.node
     - __kind: GoSliceDataType
       ID: 315
       Name: '[]noalg.map.group[int]*main.deepMap2.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 309 StructureType noalg.map.group[int]*main.deepMap2
     - __kind: GoSliceDataType
       ID: 1203
       Name: '[]noalg.map.group[int]*main.deepMap3.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 1197 StructureType noalg.map.group[int]*main.deepMap3
     - __kind: GoSliceDataType
       ID: 1237
       Name: '[]noalg.map.group[int]*main.deepMap8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 1231 StructureType noalg.map.group[int]*main.deepMap8
     - __kind: GoSliceDataType
       ID: 1252
       Name: '[]noalg.map.group[int]*main.deepMap9.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 1246 StructureType noalg.map.group[int]*main.deepMap9
     - __kind: GoSliceDataType
       ID: 323
       Name: '[]noalg.map.group[int]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 319 StructureType noalg.map.group[int]int
     - __kind: GoSliceDataType
       ID: 1265
       Name: '[]noalg.map.group[int]interface {}.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 200
       Element: 1261 StructureType noalg.map.group[int]interface {}
     - __kind: GoSliceDataType
       ID: 382
       Name: '[]noalg.map.group[int]uint8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 378 StructureType noalg.map.group[int]uint8
     - __kind: GoSliceDataType
       ID: 366
       Name: '[]noalg.map.group[string][]main.structWithMap.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 360 StructureType noalg.map.group[string][]main.structWithMap
     - __kind: GoSliceDataType
       ID: 347
       Name: '[]noalg.map.group[string][]string.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 343 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
       ID: 961
       Name: '[]noalg.map.group[string]github.com/DataDog/go-tuf/data.HexBytes.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 957 StructureType noalg.map.group[string]github.com/DataDog/go-tuf/data.HexBytes
     - __kind: GoSliceDataType
       ID: 339
       Name: '[]noalg.map.group[string]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 200
       Element: 335 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
       ID: 331
       Name: '[]noalg.map.group[string]main.nestedStruct.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 327 StructureType noalg.map.group[string]main.nestedStruct
     - __kind: GoSliceDataType
       ID: 448
       Name: '[]noalg.map.group[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 392
       Element: 443 StructureType noalg.map.group[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 456
       Name: '[]noalg.map.group[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 452 StructureType noalg.map.group[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 464
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 460 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 472
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 468 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 480
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 476 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 488
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 484 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 399
       Name: '[]noalg.map.group[uint8][4]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 394 StructureType noalg.map.group[uint8][4]int
     - __kind: GoSliceDataType
       ID: 390
       Name: '[]noalg.map.group[uint8]uint8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 24
       Element: 386 StructureType noalg.map.group[uint8]uint8
     - __kind: UnresolvedPointeeType
