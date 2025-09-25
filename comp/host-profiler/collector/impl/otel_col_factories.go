@@ -9,6 +9,9 @@
 package collectorimpl
 
 import (
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/otelcol"
@@ -23,22 +26,30 @@ type ExtraFactories interface {
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
-type extraFactoriesWithAgentCore struct{}
+type extraFactoriesWithAgentCore struct {
+	tagger   tagger.Component
+	hostname hostname.Component
+}
 
-var _ ExtraFactories = &extraFactoriesWithAgentCore{}
+var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
 
-func NewExtraFactoriesWithAgentCore() ExtraFactories {
-	return extraFactoriesWithAgentCore{}
+func NewExtraFactoriesWithAgentCore(tagger tagger.Component, hostname hostname.Component) ExtraFactories {
+	return extraFactoriesWithAgentCore{
+		tagger:   tagger,
+		hostname: hostname,
+	}
 }
 
 func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
-	return []processor.Factory{}
+	return []processor.Factory{
+		infraattributesprocessor.NewFactoryForAgent(e.tagger, e.hostname.Get),
+	}
 }
 
 // extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is NOT available.
 type extraFactoriesWithoutAgentCore struct{}
 
-var _ ExtraFactories = &extraFactoriesWithoutAgentCore{}
+var _ ExtraFactories = (*extraFactoriesWithoutAgentCore)(nil)
 
 func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 	return extraFactoriesWithoutAgentCore{}

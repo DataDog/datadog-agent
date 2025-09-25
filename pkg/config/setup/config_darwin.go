@@ -22,6 +22,8 @@ const (
 	DefaultProcessAgentLogFile = "/opt/datadog-agent/logs/process-agent.log"
 	// DefaultOTelAgentLogFile is the default otel-agent log file
 	DefaultOTelAgentLogFile = "/opt/datadog-agent/logs/otel-agent.log"
+	// DefaultHostProfilerLogFile is the default host-profiler log file
+	DefaultHostProfilerLogFile = "/opt/datadog-agent/logs/host-profiler.log"
 	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	DefaultSystemProbeAddress = "/opt/datadog-agent/run/sysprobe.sock"
 	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
