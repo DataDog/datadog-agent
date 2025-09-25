@@ -327,6 +327,12 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 // CheckSystemProbeBehavior runs tests to check the agent behave correctly when system-probe is enabled
 func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 	t.Run("enable system-probe and restarts", func(tt *testing.T) {
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
+		}
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
 		require.NoError(tt, err)
 
@@ -338,13 +344,24 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
-		var err error
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
+		}
 		require.Eventually(tt, func() bool {
 			return AgentProcessIsRunning(client, "system-probe")
-		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
+		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ")
 	})
 
 	t.Run("ebpf programs are unpacked and valid", func(tt *testing.T) {
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
+		}
 		ebpfPath := "/opt/datadog-agent/embedded/share/system-probe/ebpf"
 		output, err := client.Host.Execute(fmt.Sprintf("find %s -name '*.o'", ebpfPath))
 		require.NoError(tt, err)

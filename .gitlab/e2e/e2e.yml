@@ -196,8 +196,8 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20-04"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
@@ -892,7 +892,7 @@ new-e2e-otel:
   variables:
     TARGETS: ./tests/agent-platform/package-signing
     TEAM: agent-delivery
-    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    EXTRA_PARAMS: --osdescriptors $E2E_BRANCH_DESCRIPTORS
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-package-signing-debian-a7-x86_64:
@@ -900,10 +900,9 @@ new-e2e-package-signing-debian-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_package_signing
   variables:
-    E2E_ARCH: x86_64
-    E2E_OSVERS: "debian-9,debian-10,debian-11,debian-12"
-    E2E_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
-    E2E_BRANCH_OSVERS: "debian-11"
+    E2E_DESCRIPTORS: "debian/x86_64/9,debian/x86_64/10,debian/x86_64/11,debian/x86_64/12"
+    E2E_CWS_SUPPORTED_DESCRIPTORS: "debian/x86_64/10,debian/x86_64/11"
+    E2E_BRANCH_DESCRIPTORS: "debian/x86_64/11"
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
@@ -914,10 +913,9 @@ new-e2e-package-signing-suse-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_package_signing
   variables:
-    E2E_ARCH: x86_64
-    E2E_OSVERS: "sles-12,sles-15"
-    E2E_CWS_SUPPORTED_OSVERS: "sles-12,sles-15"
-    E2E_BRANCH_OSVERS: "sles-15"
+    E2E_DESCRIPTORS: "suse/x86_64/12,suse/x86_64/15-4"
+    E2E_CWS_SUPPORTED_DESCRIPTORS: "suse/x86_64/12,suse/x86_64/15-4"
+    E2E_BRANCH_DESCRIPTORS: "suse/x86_64/15-4"
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_suse-x64-a7
