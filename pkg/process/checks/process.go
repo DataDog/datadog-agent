@@ -515,6 +515,7 @@ func fmtProcesses(
 			PortInfo:         formatPorts(fp.PortsCollected, fp.TCPPorts, fp.UDPPorts), // only populated if service discovery is enabled + linux
 			Language:         formatLanguage(fp.Language),                              // only populated if language detection is enabled + linux
 			ServiceDiscovery: formatServiceDiscovery(fp.Service),                       // only populated if service discovery is enabled + linux
+			IsInjected:       fp.IsInjected,                                            // only populated if service discovery is enabled + linux
 		}
 
 		if tags, ok := pidToGPUTags[fp.Pid]; ok {

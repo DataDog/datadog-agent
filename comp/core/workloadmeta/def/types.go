@@ -1651,6 +1651,7 @@ type Process struct {
 	ContainerID  string
 	CreationTime time.Time // Process Start Time -- /proc/[pid]/stat
 	Language     *languagemodels.Language
+	IsInjected   bool // APM auto-injector detected
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
@@ -1702,6 +1703,7 @@ func (p Process) String(verbose bool) string {
 	if p.Language != nil {
 		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
 	}
+	_, _ = fmt.Fprintln(&sb, "APM Injected:", p.IsInjected)
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Comm:", p.Comm)

@@ -412,7 +412,7 @@ func (c *collector) handleServiceRetries(pid int32) {
 }
 
 // getProcessEntitiesFromServices creates Process entities with service discovery data
-func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service) []*workloadmeta.Process {
+func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service, injectedPids core.PidSet) []*workloadmeta.Process {
 	entities := make([]*workloadmeta.Process, 0, len(pidsToService))
 	now := c.clock.Now().UTC()
 
@@ -420,6 +420,18 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 	for _, pid := range newPids {
 		service := pidsToService[pid]
 		if service == nil {
+			// Handle injected processes that are not services
+			if injectedPids.Has(pid) {
+				entity := &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   strconv.Itoa(int(pid)),
+					},
+					Pid:        pid,
+					IsInjected: true,
+				}
+				entities = append(entities, entity)
+			}
 			c.handleServiceRetries(pid)
 			continue
 		}
@@ -432,8 +444,9 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 				Kind: workloadmeta.KindProcess,
 				ID:   strconv.Itoa(service.PID),
 			},
-			Pid:     int32(service.PID),
-			Service: convertModelServiceToService(service),
+			Pid:        int32(service.PID),
+			Service:    convertModelServiceToService(service),
+			IsInjected: injectedPids.Has(int32(service.PID)),
 			// language is captured here since language+process collection can be disabled
 			Language: convertServiceLanguageToWLMLanguage(service.Language),
 		}
@@ -474,8 +487,9 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 				Kind: workloadmeta.KindProcess,
 				ID:   strconv.Itoa(service.PID),
 			},
-			Pid:     int32(service.PID),
-			Service: &preservedService,
+			Pid:        int32(service.PID),
+			Service:    &preservedService,
+			IsInjected: existingProcess.IsInjected, // Preserve injection status from existing process
 			// Preserve language from existing process
 			Language: existingProcess.Language,
 		}
@@ -487,7 +501,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 }
 
 // updateServices retrieves service discovery data for alive processes and returns workloadmeta entities
-func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, map[int32]*model.Service) {
+func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, core.PidSet) {
 	newPids, heartbeatPids, pidsToService := c.filterPidsToRequest(alivePids, procs)
 	if len(newPids) == 0 && len(heartbeatPids) == 0 {
 		return nil, nil
@@ -507,7 +521,13 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 		pidsToService[int32(service.PID)] = &resp.Services[i]
 	}
 
-	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService), pidsToService
+	// Convert InjectedPIDs to PidSet for efficient lookup
+	injectedPids := make(core.PidSet)
+	for _, pid := range resp.InjectedPIDs {
+		injectedPids.Add(int32(pid))
+	}
+
+	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids), injectedPids
 }
 
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
