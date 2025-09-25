@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Set exit code as a tag in the task ended enhanced shutdown metric for Cloud Run Jobs.
+    The `task.ended` enhanced shutdown metric for Cloud Run Jobs now includes the exit code as a tag.
