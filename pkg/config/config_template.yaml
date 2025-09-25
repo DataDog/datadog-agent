@@ -774,28 +774,6 @@ api_key:
 #
 # check_runners: 4
 
-## @param check_runner_utilization_threshold - float - optional - default: 0.95
-## @env DD_CHECK_RUNNER_UTILIZATION_THRESHOLD - float - optional - default: 0.95
-## The threshold above which workers are considered over-utilized. This is used by the
-## utilization monitor to identify workers that may need attention. The value should be
-## between 0.0 and 1.0, where 1.0 means 100% utilization.
-#
-# check_runner_utilization_threshold: 0.95
-
-## @param check_runner_utilization_monitor_interval - duration - optional - default: 60s
-## @env DD_CHECK_RUNNER_UTILIZATION_MONITOR_INTERVAL - duration - optional - default: 60s
-## The interval at which the worker utilization monitor checks and logs worker utilization
-## statistics. This helps identify performance bottlenecks in check execution.
-#
-# check_runner_utilization_monitor_interval: 60s
-
-## @param check_runner_utilization_warning_cooldown - duration - optional - default: 10m
-## @env DD_CHECK_RUNNER_UTILIZATION_WARNING_COOLDOWN - duration - optional - default: 10m
-## The cooldown period between warning log messages about workers being over the utilization
-## threshold. This prevents log spam when workers are consistently over-utilized.
-#
-# check_runner_utilization_warning_cooldown: 10m
-
 ## @param enable_metadata_collection - boolean - optional - default: true
 ## @env DD_ENABLE_METADATA_COLLECTION - boolean - optional - default: true
 ## Metadata collection should always be enabled, except if you are running several
