@@ -12,7 +12,7 @@
 #include "queue.h"
 #include "chased_pointers_trie.h"
 
-const int32_t defaultCollectionSizeBytesLimit = 2048;
+const int32_t defaultCollectionSizeBytesLimit = 512;
 
 DEFINE_BINARY_SEARCH(
     lookup_type_info,

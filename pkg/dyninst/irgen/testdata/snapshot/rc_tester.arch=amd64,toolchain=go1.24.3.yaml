@@ -665,13 +665,13 @@ Types:
     - __kind: GoSliceDataType
       ID: 190
       Name: '[]noalg.map.group[string][]string.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 186 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
       ID: 200
       Name: '[]noalg.map.group[string]string.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 264
       Element: 196 StructureType noalg.map.group[string]string
     - __kind: UnresolvedPointeeType

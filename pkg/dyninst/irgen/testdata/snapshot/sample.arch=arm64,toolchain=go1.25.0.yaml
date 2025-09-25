@@ -12,7 +12,7 @@ Probes:
       events:
         - ID: 100
           Type: 1365 EventRootType Probe[main.stackC]
-          InjectionPoints: [{PC: "0x809fac", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a05c", Frameless: true}]
           Condition: null
     - id: testAny
       version: 0
@@ -278,7 +278,7 @@ Probes:
       events:
         - ID: 90
           Type: 1355 EventRootType Probe[main.testEmptySlice]
-          InjectionPoints: [{PC: "0x809c80", Frameless: true}]
+          InjectionPoints: [{PC: "0x809d30", Frameless: true}]
           Condition: null
     - id: testEmptySliceOfStructs
       version: 0
@@ -292,7 +292,7 @@ Probes:
       events:
         - ID: 93
           Type: 1358 EventRootType Probe[main.testEmptySliceOfStructs]
-          InjectionPoints: [{PC: "0x809cb0", Frameless: true}]
+          InjectionPoints: [{PC: "0x809d60", Frameless: true}]
           Condition: null
     - id: testEmptyString
       version: 0
@@ -307,7 +307,7 @@ Probes:
       events:
         - ID: 109
           Type: 1374 EventRootType Probe[main.testEmptyString]
-          InjectionPoints: [{PC: "0x80a070", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a120", Frameless: true}]
           Condition: null
     - id: testEmptyStruct
       version: 0
@@ -321,7 +321,7 @@ Probes:
       events:
         - ID: 113
           Type: 1378 EventRootType Probe[main.testEmptyStruct]
-          InjectionPoints: [{PC: "0x80a340", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a3f0", Frameless: true}]
           Condition: null
     - id: testEmptyStructPointer
       version: 0
@@ -334,7 +334,7 @@ Probes:
       events:
         - ID: 114
           Type: 1379 EventRootType Probe[main.testEmptyStructPointer]
-          InjectionPoints: [{PC: "0x80a350", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a400", Frameless: true}]
           Condition: null
     - id: testError
       version: 0
@@ -910,7 +910,7 @@ Probes:
       events:
         - ID: 106
           Type: 1371 EventRootType Probe[main.testMassiveString]
-          InjectionPoints: [{PC: "0x80a050", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a100", Frameless: true}]
           Condition: null
     - id: testMassiveStringWithSizeLimit
       version: 0
@@ -925,7 +925,7 @@ Probes:
       events:
         - ID: 107
           Type: 1372 EventRootType Probe[main.testMassiveString]
-          InjectionPoints: [{PC: "0x80a050", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a100", Frameless: true}]
           Condition: null
     - id: testMultipleSimpleParams
       version: 0
@@ -967,7 +967,7 @@ Probes:
       events:
         - ID: 97
           Type: 1362 EventRootType Probe[main.testNilSlice]
-          InjectionPoints: [{PC: "0x809cf0", Frameless: true}]
+          InjectionPoints: [{PC: "0x809da0", Frameless: true}]
           Condition: null
     - id: testNilSliceOfStructs
       version: 0
@@ -981,7 +981,7 @@ Probes:
       events:
         - ID: 94
           Type: 1359 EventRootType Probe[main.testNilSliceOfStructs]
-          InjectionPoints: [{PC: "0x809cc0", Frameless: true}]
+          InjectionPoints: [{PC: "0x809d70", Frameless: true}]
           Condition: null
     - id: testNilSliceWithOtherParams
       version: 0
@@ -995,7 +995,7 @@ Probes:
       events:
         - ID: 96
           Type: 1361 EventRootType Probe[main.testNilSliceWithOtherParams]
-          InjectionPoints: [{PC: "0x809ce0", Frameless: true}]
+          InjectionPoints: [{PC: "0x809d90", Frameless: true}]
           Condition: null
     - id: testOneStringInStructPointer
       version: 0
@@ -1009,7 +1009,7 @@ Probes:
       events:
         - ID: 105
           Type: 1370 EventRootType Probe[main.testOneStringInStructPointer]
-          InjectionPoints: [{PC: "0x80a040", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a0f0", Frameless: true}]
           Condition: null
     - id: testPointerLoop
       version: 0
@@ -1219,7 +1219,7 @@ Probes:
       events:
         - ID: 101
           Type: 1366 EventRootType Probe[main.testSingleString]
-          InjectionPoints: [{PC: "0x80a000", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a0b0", Frameless: true}]
           Condition: null
     - id: testSingleUint
       version: 0
@@ -1303,7 +1303,7 @@ Probes:
       events:
         - ID: 91
           Type: 1356 EventRootType Probe[main.testSliceOfSlices]
-          InjectionPoints: [{PC: "0x809c90", Frameless: true}]
+          InjectionPoints: [{PC: "0x809d40", Frameless: true}]
           Condition: null
     - id: testSmallMap
       version: 0
@@ -1359,7 +1359,7 @@ Probes:
       events:
         - ID: 95
           Type: 1360 EventRootType Probe[main.testStringSlice]
-          InjectionPoints: [{PC: "0x809cd0", Frameless: true}]
+          InjectionPoints: [{PC: "0x809d80", Frameless: true}]
           Condition: null
     - id: testStringType1
       version: 0
@@ -1401,7 +1401,7 @@ Probes:
       events:
         - ID: 112
           Type: 1377 EventRootType Probe[main.testStruct]
-          InjectionPoints: [{PC: "0x80a270", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a320", Frameless: true}]
           Condition: null
     - id: testStructSlice
       version: 0
@@ -1415,7 +1415,7 @@ Probes:
       events:
         - ID: 92
           Type: 1357 EventRootType Probe[main.testStructSlice]
-          InjectionPoints: [{PC: "0x809ca0", Frameless: true}]
+          InjectionPoints: [{PC: "0x809d50", Frameless: true}]
           Condition: null
     - id: testStructWithAny
       version: 0
@@ -1442,7 +1442,7 @@ Probes:
       events:
         - ID: 111
           Type: 1376 EventRootType Probe[main.testStructWithCyclicMaps]
-          InjectionPoints: [{PC: "0x80a1c0", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a270", Frameless: true}]
           Condition: null
     - id: testStructWithCyclicSlices
       version: 0
@@ -1455,7 +1455,7 @@ Probes:
       events:
         - ID: 110
           Type: 1375 EventRootType Probe[main.testStructWithCyclicSlices]
-          InjectionPoints: [{PC: "0x80a1b0", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a260", Frameless: true}]
           Condition: null
     - id: testStructWithMap
       version: 0
@@ -1483,7 +1483,7 @@ Probes:
       events:
         - ID: 102
           Type: 1367 EventRootType Probe[main.testThreeStrings]
-          InjectionPoints: [{PC: "0x80a010", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a0c0", Frameless: true}]
           Condition: null
     - id: testThreeStringsInStruct
       version: 0
@@ -1497,7 +1497,7 @@ Probes:
       events:
         - ID: 103
           Type: 1368 EventRootType Probe[main.testThreeStringsInStruct]
-          InjectionPoints: [{PC: "0x80a020", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a0d0", Frameless: true}]
           Condition: null
     - id: testThreeStringsInStructPointer
       version: 0
@@ -1511,7 +1511,7 @@ Probes:
       events:
         - ID: 104
           Type: 1369 EventRootType Probe[main.testThreeStringsInStructPointer]
-          InjectionPoints: [{PC: "0x80a030", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a0e0", Frameless: true}]
           Condition: null
     - id: testTypeAlias
       version: 0
@@ -1623,7 +1623,7 @@ Probes:
       events:
         - ID: 89
           Type: 1354 EventRootType Probe[main.testUintSlice]
-          InjectionPoints: [{PC: "0x809c70", Frameless: true}]
+          InjectionPoints: [{PC: "0x809d20", Frameless: true}]
           Condition: null
     - id: testUnitializedString
       version: 0
@@ -1637,7 +1637,7 @@ Probes:
       events:
         - ID: 108
           Type: 1373 EventRootType Probe[main.testUnitializedString]
-          InjectionPoints: [{PC: "0x80a060", Frameless: true}]
+          InjectionPoints: [{PC: "0x80a110", Frameless: true}]
           Condition: null
     - id: testUnsafePointer
       version: 0
@@ -1679,7 +1679,7 @@ Probes:
       events:
         - ID: 98
           Type: 1363 EventRootType Probe[main.testVeryLargeSlice]
-          InjectionPoints: [{PC: "0x809d00", Frameless: true}]
+          InjectionPoints: [{PC: "0x809db0", Frameless: true}]
           Condition: null
     - id: testVeryLargeSliceWithSizeLimit
       version: 0
@@ -1693,7 +1693,7 @@ Probes:
       events:
         - ID: 99
           Type: 1364 EventRootType Probe[main.testVeryLargeSlice]
-          InjectionPoints: [{PC: "0x809d00", Frameless: true}]
+          InjectionPoints: [{PC: "0x809db0", Frameless: true}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -2917,13 +2917,13 @@ Subprograms:
           IsReturn: false
     - ID: 88
       Name: main.testUintSlice
-      OutOfLinePCRanges: [0x809c70..0x809c80]
+      OutOfLinePCRanges: [0x809d20..0x809d30]
       InlinePCRanges: []
       Variables:
         - Name: u
           Type: 231 GoSliceHeaderType []uint
           Locations:
-            - Range: 0x809c70..0x809c80
+            - Range: 0x809d20..0x809d30
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -2935,13 +2935,13 @@ Subprograms:
           IsReturn: false
     - ID: 89
       Name: main.testEmptySlice
-      OutOfLinePCRanges: [0x809c80..0x809c90]
+      OutOfLinePCRanges: [0x809d30..0x809d40]
       InlinePCRanges: []
       Variables:
         - Name: u
           Type: 231 GoSliceHeaderType []uint
           Locations:
-            - Range: 0x809c80..0x809c90
+            - Range: 0x809d30..0x809d40
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -2953,13 +2953,13 @@ Subprograms:
           IsReturn: false
     - ID: 90
       Name: main.testSliceOfSlices
-      OutOfLinePCRanges: [0x809c90..0x809ca0]
+      OutOfLinePCRanges: [0x809d40..0x809d50]
       InlinePCRanges: []
       Variables:
         - Name: u
           Type: 232 GoSliceHeaderType [][]uint
           Locations:
-            - Range: 0x809c90..0x809ca0
+            - Range: 0x809d40..0x809d50
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -2971,13 +2971,13 @@ Subprograms:
           IsReturn: false
     - ID: 91
       Name: main.testStructSlice
-      OutOfLinePCRanges: [0x809ca0..0x809cb0]
+      OutOfLinePCRanges: [0x809d50..0x809d60]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 234 GoSliceHeaderType []main.structWithNoStrings
           Locations:
-            - Range: 0x809ca0..0x809cb0
+            - Range: 0x809d50..0x809d60
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -2990,19 +2990,19 @@ Subprograms:
         - Name: a
           Type: 7 BaseType int
           Locations:
-            - Range: 0x809ca0..0x809cb0
+            - Range: 0x809d50..0x809d60
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 92
       Name: main.testEmptySliceOfStructs
-      OutOfLinePCRanges: [0x809cb0..0x809cc0]
+      OutOfLinePCRanges: [0x809d60..0x809d70]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 234 GoSliceHeaderType []main.structWithNoStrings
           Locations:
-            - Range: 0x809cb0..0x809cc0
+            - Range: 0x809d60..0x809d70
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3015,19 +3015,19 @@ Subprograms:
         - Name: a
           Type: 7 BaseType int
           Locations:
-            - Range: 0x809cb0..0x809cc0
+            - Range: 0x809d60..0x809d70
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 93
       Name: main.testNilSliceOfStructs
-      OutOfLinePCRanges: [0x809cc0..0x809cd0]
+      OutOfLinePCRanges: [0x809d70..0x809d80]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 234 GoSliceHeaderType []main.structWithNoStrings
           Locations:
-            - Range: 0x809cc0..0x809cd0
+            - Range: 0x809d70..0x809d80
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3040,19 +3040,19 @@ Subprograms:
         - Name: a
           Type: 7 BaseType int
           Locations:
-            - Range: 0x809cc0..0x809cd0
+            - Range: 0x809d70..0x809d80
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 94
       Name: main.testStringSlice
-      OutOfLinePCRanges: [0x809cd0..0x809ce0]
+      OutOfLinePCRanges: [0x809d80..0x809d90]
       InlinePCRanges: []
       Variables:
         - Name: s
           Type: 237 GoSliceHeaderType []string
           Locations:
-            - Range: 0x809cd0..0x809ce0
+            - Range: 0x809d80..0x809d90
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3064,20 +3064,20 @@ Subprograms:
           IsReturn: false
     - ID: 95
       Name: main.testNilSliceWithOtherParams
-      OutOfLinePCRanges: [0x809ce0..0x809cf0]
+      OutOfLinePCRanges: [0x809d90..0x809da0]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 17 BaseType int8
           Locations:
-            - Range: 0x809ce0..0x809cf0
+            - Range: 0x809d90..0x809da0
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
         - Name: s
           Type: 238 GoSliceHeaderType []bool
           Locations:
-            - Range: 0x809ce0..0x809cf0
+            - Range: 0x809d90..0x809da0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
@@ -3090,19 +3090,19 @@ Subprograms:
         - Name: x
           Type: 10 BaseType uint
           Locations:
-            - Range: 0x809ce0..0x809cf0
+            - Range: 0x809d90..0x809da0
               Pieces: [{Size: 8, Op: {RegNo: 4, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 96
       Name: main.testNilSlice
-      OutOfLinePCRanges: [0x809cf0..0x809d00]
+      OutOfLinePCRanges: [0x809da0..0x809db0]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 239 GoSliceHeaderType []uint16
           Locations:
-            - Range: 0x809cf0..0x809d00
+            - Range: 0x809da0..0x809db0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3114,13 +3114,13 @@ Subprograms:
           IsReturn: false
     - ID: 97
       Name: main.testVeryLargeSlice
-      OutOfLinePCRanges: [0x809d00..0x809d10]
+      OutOfLinePCRanges: [0x809db0..0x809dc0]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 231 GoSliceHeaderType []uint
           Locations:
-            - Range: 0x809d00..0x809d10
+            - Range: 0x809db0..0x809dc0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3132,23 +3132,23 @@ Subprograms:
           IsReturn: false
     - ID: 98
       Name: main.stackC
-      OutOfLinePCRanges: [0x809fa0..0x80a000]
+      OutOfLinePCRanges: [0x80a050..0x80a0b0]
       InlinePCRanges: []
       Variables:
         - Name: ~r0
           Type: 9 GoStringHeaderType string
-          Locations: [{Range: 0x809fa0..0x80a000, Pieces: []}]
+          Locations: [{Range: 0x80a050..0x80a0b0, Pieces: []}]
           IsParameter: true
           IsReturn: true
     - ID: 99
       Name: main.testSingleString
-      OutOfLinePCRanges: [0x80a000..0x80a010]
+      OutOfLinePCRanges: [0x80a0b0..0x80a0c0]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0x80a000..0x80a010
+            - Range: 0x80a0b0..0x80a0c0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3158,13 +3158,13 @@ Subprograms:
           IsReturn: false
     - ID: 100
       Name: main.testThreeStrings
-      OutOfLinePCRanges: [0x80a010..0x80a020]
+      OutOfLinePCRanges: [0x80a0c0..0x80a0d0]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0x80a010..0x80a020
+            - Range: 0x80a0c0..0x80a0d0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3175,7 +3175,7 @@ Subprograms:
         - Name: y
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0x80a010..0x80a020
+            - Range: 0x80a0c0..0x80a0d0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
@@ -3186,7 +3186,7 @@ Subprograms:
         - Name: z
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0x80a010..0x80a020
+            - Range: 0x80a0c0..0x80a0d0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 4, Shift: 0}
@@ -3196,13 +3196,13 @@ Subprograms:
           IsReturn: false
     - ID: 101
       Name: main.testThreeStringsInStruct
-      OutOfLinePCRanges: [0x80a020..0x80a030]
+      OutOfLinePCRanges: [0x80a0d0..0x80a0e0]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 240 StructureType main.threeStringStruct
           Locations:
-            - Range: 0x80a020..0x80a030
+            - Range: 0x80a0d0..0x80a0e0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3220,37 +3220,37 @@ Subprograms:
           IsReturn: false
     - ID: 102
       Name: main.testThreeStringsInStructPointer
-      OutOfLinePCRanges: [0x80a030..0x80a040]
+      OutOfLinePCRanges: [0x80a0e0..0x80a0f0]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 241 PointerType *main.threeStringStruct
           Locations:
-            - Range: 0x80a030..0x80a040
+            - Range: 0x80a0e0..0x80a0f0
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 103
       Name: main.testOneStringInStructPointer
-      OutOfLinePCRanges: [0x80a040..0x80a050]
+      OutOfLinePCRanges: [0x80a0f0..0x80a100]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 242 PointerType *main.oneStringStruct
           Locations:
-            - Range: 0x80a040..0x80a050
+            - Range: 0x80a0f0..0x80a100
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 104
       Name: main.testMassiveString
-      OutOfLinePCRanges: [0x80a050..0x80a060]
+      OutOfLinePCRanges: [0x80a100..0x80a110]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0x80a050..0x80a060
+            - Range: 0x80a100..0x80a110
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3260,13 +3260,13 @@ Subprograms:
           IsReturn: false
     - ID: 105
       Name: main.testUnitializedString
-      OutOfLinePCRanges: [0x80a060..0x80a070]
+      OutOfLinePCRanges: [0x80a110..0x80a120]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0x80a060..0x80a070
+            - Range: 0x80a110..0x80a120
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3276,13 +3276,13 @@ Subprograms:
           IsReturn: false
     - ID: 106
       Name: main.testEmptyString
-      OutOfLinePCRanges: [0x80a070..0x80a080]
+      OutOfLinePCRanges: [0x80a120..0x80a130]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0x80a070..0x80a080
+            - Range: 0x80a120..0x80a130
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3292,25 +3292,25 @@ Subprograms:
           IsReturn: false
     - ID: 107
       Name: main.testStructWithCyclicSlices
-      OutOfLinePCRanges: [0x80a1b0..0x80a1c0]
+      OutOfLinePCRanges: [0x80a260..0x80a270]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 244 StructureType main.structWithCyclicSlices
           Locations:
-            - Range: 0x80a1b0..0x80a1c0
+            - Range: 0x80a260..0x80a270
               Pieces: [{Size: 144, Op: {CfaOffset: 8}}]
           IsParameter: true
           IsReturn: false
     - ID: 108
       Name: main.testStructWithCyclicMaps
-      OutOfLinePCRanges: [0x80a1c0..0x80a1d0]
+      OutOfLinePCRanges: [0x80a270..0x80a280]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 257 StructureType main.structWithCyclicMaps
           Locations:
-            - Range: 0x80a1c0..0x80a1d0
+            - Range: 0x80a270..0x80a280
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3328,13 +3328,13 @@ Subprograms:
           IsReturn: false
     - ID: 109
       Name: main.testStruct
-      OutOfLinePCRanges: [0x80a270..0x80a290]
+      OutOfLinePCRanges: [0x80a320..0x80a340]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 288 StructureType main.aStruct
           Locations:
-            - Range: 0x80a270..0x80a290
+            - Range: 0x80a320..0x80a340
               Pieces:
                 - Size: 1
                   Op: {RegNo: 0, Shift: 0}
@@ -3354,23 +3354,23 @@ Subprograms:
           IsReturn: false
     - ID: 110
       Name: main.testEmptyStruct
-      OutOfLinePCRanges: [0x80a340..0x80a350]
+      OutOfLinePCRanges: [0x80a3f0..0x80a400]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 290 StructureType main.emptyStruct
-          Locations: [{Range: 0x80a340..0x80a350, Pieces: []}]
+          Locations: [{Range: 0x80a3f0..0x80a400, Pieces: []}]
           IsParameter: true
           IsReturn: false
     - ID: 111
       Name: main.testEmptyStructPointer
-      OutOfLinePCRanges: [0x80a350..0x80a360]
+      OutOfLinePCRanges: [0x80a400..0x80a410]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 291 PointerType *main.emptyStruct
           Locations:
-            - Range: 0x80a350..0x80a360
+            - Range: 0x80a400..0x80a410
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
@@ -8784,7 +8784,7 @@ Types:
       ID: 91
       Name: '[4]uint64'
       ByteSize: 32
-      GoRuntimeType: 690816
+      GoRuntimeType: 690912
       GoKind: 17
       Count: 4
       HasCount: true
@@ -8810,7 +8810,7 @@ Types:
       ID: 58
       Name: '[6]uintptr'
       ByteSize: 48
-      GoRuntimeType: 696448
+      GoRuntimeType: 696544
       GoKind: 17
       Count: 6
       HasCount: true
@@ -9377,145 +9377,145 @@ Types:
     - __kind: GoSliceDataType
       ID: 415
       Name: '[]noalg.map.group[[4]int][4]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 520
       Element: 411 StructureType noalg.map.group[[4]int][4]int
     - __kind: GoSliceDataType
       ID: 407
       Name: '[]noalg.map.group[[4]int]uint8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 403 StructureType noalg.map.group[[4]int]uint8
     - __kind: GoSliceDataType
       ID: 356
       Name: '[]noalg.map.group[[4]string][2]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 648
       Element: 351 StructureType noalg.map.group[[4]string][2]int
     - __kind: GoSliceDataType
       ID: 374
       Name: '[]noalg.map.group[bool]main.node.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 200
       Element: 370 StructureType noalg.map.group[bool]main.node
     - __kind: GoSliceDataType
       ID: 315
       Name: '[]noalg.map.group[int]*main.deepMap2.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 309 StructureType noalg.map.group[int]*main.deepMap2
     - __kind: GoSliceDataType
       ID: 1203
       Name: '[]noalg.map.group[int]*main.deepMap3.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 1197 StructureType noalg.map.group[int]*main.deepMap3
     - __kind: GoSliceDataType
       ID: 1237
       Name: '[]noalg.map.group[int]*main.deepMap8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 1231 StructureType noalg.map.group[int]*main.deepMap8
     - __kind: GoSliceDataType
       ID: 1252
       Name: '[]noalg.map.group[int]*main.deepMap9.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 1246 StructureType noalg.map.group[int]*main.deepMap9
     - __kind: GoSliceDataType
       ID: 323
       Name: '[]noalg.map.group[int]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 319 StructureType noalg.map.group[int]int
     - __kind: GoSliceDataType
       ID: 1265
       Name: '[]noalg.map.group[int]interface {}.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 200
       Element: 1261 StructureType noalg.map.group[int]interface {}
     - __kind: GoSliceDataType
       ID: 382
       Name: '[]noalg.map.group[int]uint8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 378 StructureType noalg.map.group[int]uint8
     - __kind: GoSliceDataType
       ID: 366
       Name: '[]noalg.map.group[string][]main.structWithMap.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 360 StructureType noalg.map.group[string][]main.structWithMap
     - __kind: GoSliceDataType
       ID: 347
       Name: '[]noalg.map.group[string][]string.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 343 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
       ID: 961
       Name: '[]noalg.map.group[string]github.com/DataDog/go-tuf/data.HexBytes.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 957 StructureType noalg.map.group[string]github.com/DataDog/go-tuf/data.HexBytes
     - __kind: GoSliceDataType
       ID: 339
       Name: '[]noalg.map.group[string]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 200
       Element: 335 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
       ID: 331
       Name: '[]noalg.map.group[string]main.nestedStruct.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 327 StructureType noalg.map.group[string]main.nestedStruct
     - __kind: GoSliceDataType
       ID: 448
       Name: '[]noalg.map.group[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 392
       Element: 443 StructureType noalg.map.group[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 456
       Name: '[]noalg.map.group[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 452 StructureType noalg.map.group[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 464
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 460 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 472
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 468 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 480
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 476 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 488
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 484 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 399
       Name: '[]noalg.map.group[uint8][4]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 394 StructureType noalg.map.group[uint8][4]int
     - __kind: GoSliceDataType
       ID: 390
       Name: '[]noalg.map.group[uint8]uint8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 24
       Element: 386 StructureType noalg.map.group[uint8]uint8
     - __kind: UnresolvedPointeeType
@@ -13999,7 +13999,7 @@ Types:
       ID: 320
       Name: noalg.[8]struct { key int; elem int }
       ByteSize: 128
-      GoRuntimeType: 680160
+      GoRuntimeType: 680256
       GoKind: 17
       Count: 8
       HasCount: true

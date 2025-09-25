@@ -460,3 +460,28 @@ func TestExpectedTagsDuration(t *testing.T) {
 		assert.Equal(t, 30*time.Second, cfg.ExpectedTagsDuration)
 	})
 }
+
+func TestEnableCertCollection(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, false, cfg.EnableCertCollection)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.enable_cert_collection", true)
+		cfg := New()
+
+		assert.Equal(t, true, cfg.EnableCertCollection)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_ENABLE_CERT_COLLECTION", "true")
+		cfg := New()
+
+		assert.Equal(t, true, cfg.EnableCertCollection)
+	})
+}
