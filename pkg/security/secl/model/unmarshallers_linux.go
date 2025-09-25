@@ -226,7 +226,6 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	e.PPid = binary.NativeEndian.Uint32(data[8:12])
 
 	// padding
-
 	e.ForkTime = unmarshalTime(data[16:24])
 	e.ExitTime = unmarshalTime(data[24:32])
 	e.UserSession.ID = binary.NativeEndian.Uint64(data[32:40])

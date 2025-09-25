@@ -1749,6 +1749,5 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	case model.PrCtlEventType:
 		s.PrCtlEventSerializer = newPrCtlEventSerializer(event)
 	}
-
 	return s
 }

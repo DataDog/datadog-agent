@@ -307,6 +307,13 @@ type UserSessionContext struct {
 	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
 	K8SGroups   []string            `field:"k8s_groups,handler:ResolveK8SGroups" json:"groups,omitempty"`       // SECLDoc[k8s_groups] Definition:`Kubernetes groups of the user that executed the process`
 	K8SExtra    map[string][]string `json:"extra,omitempty"`
+	// SSH User Session context
+	SSHUsername   string `field:"ssh_username,handler:ResolveSSHUsername"`      // SECLDoc[ssh_username] Definition:`SSH username of the user that executed the process`
+	SSHPort       int    `field:"ssh_port,handler:ResolveSSHPort"`              // SECLDoc[ssh_port] Definition:`SSH port of the user that executed the process`
+	SSHClientIP   string `field:"ssh_host_ip,handler:ResolveSSHClientIP"`       // SECLDoc[ssh_host_ip] Definition:`SSH client IP of the user that executed the process`
+	SSHAuthMethod uint8  `field:"ssh_auth_method,handler:ResolveSSHAuthMethod"` // SECLDoc[ssh_auth_method] Definition:`SSH authentication method used by the user (password, publickey)`
+	SSHPublicKey  string `field:"ssh_public_key,handler:ResolveSSHPublicKey"`   // SECLDoc[ssh_public_key] Definition:`SSH public key used for authentication (if applicable)`
+	WhereIsLog    int    `field:"where_is_log,handler:ResolveWhereIsLog"`       // SECLDoc[where_is_log] Definition:`Where is the log? 0 = local, 1 = remote`
 }
 
 // MatchedRule contains the identification of one rule that has match
