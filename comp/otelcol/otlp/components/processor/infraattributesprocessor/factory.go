@@ -7,7 +7,6 @@ package infraattributesprocessor
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"go.uber.org/fx"
@@ -59,12 +58,7 @@ func (f *factory) getOrCreateData() (*data, error) {
 		logfx.Module(),
 		telemetryModule(),
 		fxutil.FxAgentBase(),
-		remoteTaggerfx.Module(tagger.RemoteParams{
-			RemoteTarget: func(c config.Component) (string, error) {
-				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-			},
-			RemoteFilter: taggerTypes.NewMatchAllFilter(),
-		}),
+		remoteTaggerfx.Module(tagger.NewRemoteParams()),
 		fx.Provide(func(t tagger.Component) taggerTypes.TaggerClient {
 			return t
 		}),
