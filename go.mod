@@ -960,6 +960,7 @@ require (
 
 require (
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
+	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/elastic/go-freelru v0.16.0 // indirect
 	github.com/elastic/go-perf v0.0.0-20241029065020-30bec95324b8 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
