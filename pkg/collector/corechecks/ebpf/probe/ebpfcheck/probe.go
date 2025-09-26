@@ -73,6 +73,8 @@ type Probe struct {
 	mphCache *mapProgHelperCache
 
 	nrcpus uint32
+
+	kernelVersion kernel.Version
 }
 
 // NewProbe creates a [Probe]
@@ -92,7 +94,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	}
 	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
-		probe, err = startEBPFCheck(buf, opts)
+		probe, err = startEBPFCheck(buf, kv, opts)
 		return err
 	})
 	if err != nil {
@@ -119,7 +121,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	return probe, nil
 }
 
-func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, error) {
+func startEBPFCheck(buf bytecode.AssetReader, kv kernel.Version, opts manager.Options) (*Probe, error) {
 	if err := rlimit.RemoveMemlock(); err != nil {
 		return nil, err
 	}
@@ -145,10 +147,6 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 
 	// `security_bpf_map_alloc` was renamed to `security_bpf_map_create`
 	// in this commit: https://github.com/torvalds/linux/commit/a2431c7eabcf9bd5a1e7a1f7ecded40fdda4a8c5
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get kernel version: %s", err)
-	}
 	if kv >= kernel.VersionCode(6, 9, 0) {
 		delete(collSpec.Programs, "k_map_alloc")
 	} else {
@@ -189,7 +187,7 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 		}
 	}
 
-	p := Probe{nrcpus: nrcpus}
+	p := Probe{nrcpus: nrcpus, kernelVersion: kv}
 	p.coll, err = ebpf.NewCollectionWithOptions(collSpec, opts.VerifierOptions)
 	if err != nil {
 		var ve *ebpf.VerifierError
@@ -601,7 +599,7 @@ func (k *Probe) readSingleMap(mapid ebpf.MapID) (*model.EBPFMapStats, error) {
 			return nil, err
 		}
 	case ebpf.Hash, ebpf.LRUHash, ebpf.PerCPUHash, ebpf.LRUCPUHash, ebpf.HashOfMaps:
-		baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(info, uint64(k.nrcpus))
+		baseMapStats.MaxSize, baseMapStats.RSS = k.hashMapMemoryUsage(info, uint64(k.nrcpus))
 		if module != "unknown" {
 			// hashMapNumberOfEntries might allocate memory, so we only do it if we have a module name, as
 			// unknown modules get discarded anyway (only RSS is used for total counts)
@@ -704,7 +702,7 @@ func isLRU(typ ebpf.MapType) bool {
 	return false
 }
 
-func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint64) {
+func (k *Probe) hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint64) {
 	valueSize := uint64(roundUpPow2(info.ValueSize, 8))
 	keySize := uint64(roundUpPow2(info.KeySize, 8))
 	perCPU := isPerCPU(info.Type)
@@ -739,7 +737,7 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 
 	// for non-preallocated maps, try reading RSS from fdinfo when precise counting is supported (kernel 6.4+)
 	if !prealloc {
-		if memlock, ok := info.Memlock(); ok && preciseMapMemUsageSupported() {
+		if memlock, ok := info.Memlock(); ok && k.preciseMapMemUsageSupported() {
 			return usage, memlock
 		}
 		return usage, 0
@@ -747,6 +745,12 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 
 	// for preallocated maps, we approximate RSS being equal to max memory usage
 	return usage, usage
+}
+
+// https://lwn.net/ml/linux-mm/20230202014158.19616-6-laoar.shao@gmail.com/
+// https://github.com/torvalds/linux/commit/304849a27b341cf22d5c15096144cc8c1b69e0c0
+func (k *Probe) preciseMapMemUsageSupported() bool {
+	return k.kernelVersion >= kernel.VersionCode(6, 4, 0)
 }
 
 const sizeofLPMTrieNode = 40          // struct lpm_trie_node
@@ -1192,15 +1196,4 @@ func hashMapNumberOfEntriesWithHelper(mp *ebpf.Map, mapid ebpf.MapID, mphCache *
 	}
 
 	return int64(res), nil
-}
-
-// https://lwn.net/ml/linux-mm/20230202014158.19616-6-laoar.shao@gmail.com/
-// https://github.com/torvalds/linux/commit/304849a27b341cf22d5c15096144cc8c1b69e0c0
-func preciseMapMemUsageSupported() bool {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		return false
-	}
-
-	return kv >= kernel.VersionCode(6, 4, 0)
 }
