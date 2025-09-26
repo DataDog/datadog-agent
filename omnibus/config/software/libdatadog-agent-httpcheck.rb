@@ -21,7 +21,7 @@ build do
     extension = "so"
   end
 
-  source_file = "#{name}.#{extension}"
+  source_file = "#{project.files_path}/#{name}/#{name}.#{extension}"
   lib_path = "#{install_dir}/embedded/lib/#{source_file}"
 
   if File.exist?(source_file)
