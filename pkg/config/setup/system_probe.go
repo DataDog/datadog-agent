@@ -31,6 +31,7 @@ const (
 	tracerouteNS                 = "traceroute"
 	discoveryNS                  = "discovery"
 	gpuNS                        = "gpu_monitoring"
+	privilegedLogsNS             = "privileged_logs"
 	swNS                         = "software_inventory"
 	defaultConnsMessageBatchSize = 600
 
@@ -84,7 +85,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
 	// those configs are used by the core agent path, but are not used by the system probe
-	cfg.SetKnown("sbom.container_image.overlayfs_direct_scan")
+	cfg.SetKnown("sbom.container_image.overlayfs_direct_scan") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -92,12 +93,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
 
 	// statsd
-	cfg.BindEnv("bind_host")
+	cfg.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault("dogstatsd_port", 8125)
 
 	// logging
-	cfg.SetKnown(join(spNS, "log_file"))
-	cfg.SetKnown(join(spNS, "log_level"))
+	cfg.SetKnown(join(spNS, "log_file"))  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetKnown(join(spNS, "log_level")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault("log_file", defaultSystemProbeLogFilePath)
 	cfg.BindEnvAndSetDefault("log_level", "info", "DD_LOG_LEVEL", "LOG_LEVEL")
 	cfg.BindEnvAndSetDefault("syslog_uri", "")
@@ -121,7 +122,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// settings for system-probe in general
 	cfg.BindEnvAndSetDefault(join(spNS, "enabled"), false, "DD_SYSTEM_PROBE_ENABLED")
 	cfg.BindEnvAndSetDefault(join(spNS, "external"), false, "DD_SYSTEM_PROBE_EXTERNAL")
-	cfg.SetKnown(join(spNS, "adjusted"))
+	cfg.SetKnown(join(spNS, "adjusted")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	cfg.BindEnvAndSetDefault(join(spNS, "sysprobe_socket"), DefaultSystemProbeAddress, "DD_SYSPROBE_SOCKET")
 	cfg.BindEnvAndSetDefault(join(spNS, "max_conns_per_message"), defaultConnsMessageBatchSize)
@@ -160,13 +161,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_co_re"), true, "DD_ENABLE_CO_RE")
 	cfg.BindEnvAndSetDefault(join(spNS, "btf_path"), "", "DD_SYSTEM_PROBE_BTF_PATH")
 	cfg.BindEnvAndSetDefault(join(spNS, "btf_output_dir"), defaultBTFOutputDir, "DD_SYSTEM_PROBE_BTF_OUTPUT_DIR")
-	cfg.BindEnv(join(spNS, "enable_runtime_compiler"), "DD_ENABLE_RUNTIME_COMPILER")
+	cfg.BindEnv(join(spNS, "enable_runtime_compiler"), "DD_ENABLE_RUNTIME_COMPILER") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	// deprecated in favor of allow_prebuilt_fallback below
-	cfg.BindEnv(join(spNS, "allow_precompiled_fallback"), "DD_ALLOW_PRECOMPILED_FALLBACK")
-	cfg.BindEnv(join(spNS, "allow_prebuilt_fallback"), "DD_ALLOW_PREBUILT_FALLBACK")
+	cfg.BindEnv(join(spNS, "allow_precompiled_fallback"), "DD_ALLOW_PRECOMPILED_FALLBACK") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(spNS, "allow_prebuilt_fallback"), "DD_ALLOW_PREBUILT_FALLBACK")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(spNS, "allow_runtime_compiled_fallback"), true, "DD_ALLOW_RUNTIME_COMPILED_FALLBACK")
 	cfg.BindEnvAndSetDefault(join(spNS, "runtime_compiler_output_dir"), defaultRuntimeCompilerOutputDir, "DD_RUNTIME_COMPILER_OUTPUT_DIR")
-	cfg.BindEnv(join(spNS, "enable_kernel_header_download"), "DD_ENABLE_KERNEL_HEADER_DOWNLOAD")
+	cfg.BindEnv(join(spNS, "enable_kernel_header_download"), "DD_ENABLE_KERNEL_HEADER_DOWNLOAD") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_dirs"), []string{}, "DD_KERNEL_HEADER_DIRS")
 	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_download_dir"), defaultKernelHeadersDownloadDir, "DD_KERNEL_HEADER_DOWNLOAD_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "apt_config_dir"), suffixHostEtc(defaultAptConfigDirSuffix), "DD_APT_CONFIG_DIR")
@@ -189,7 +190,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
-	cfg.BindEnv(join(netNS, "enabled"), "DD_SYSTEM_PROBE_NETWORK_ENABLED") //nolint:errcheck
+	cfg.BindEnv(join(netNS, "enabled"), "DD_SYSTEM_PROBE_NETWORK_ENABLED") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_tcp"), false, "DD_DISABLE_TCP_TRACING")
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_udp"), false, "DD_DISABLE_UDP_TRACING")
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_ipv6"), false, "DD_DISABLE_IPV6_TRACING")
@@ -202,12 +203,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(spNS, "offset_guess_threshold"), int64(defaultOffsetThreshold))
 
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
-	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))
-	cfg.BindEnv(join(netNS, "max_failed_connections_buffered"))
-	cfg.BindEnv(join(spNS, "closed_connection_flush_threshold"))
-	cfg.BindEnv(join(netNS, "closed_connection_flush_threshold"))
-	cfg.BindEnv(join(spNS, "closed_channel_size"))
-	cfg.BindEnv(join(netNS, "closed_channel_size"))
+	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(netNS, "max_failed_connections_buffered"))   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(spNS, "closed_connection_flush_threshold"))  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(netNS, "closed_connection_flush_threshold")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(spNS, "closed_channel_size"))                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(netNS, "closed_channel_size"))               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(netNS, "closed_buffer_wakeup_count"), 4)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
 
@@ -237,14 +238,14 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "language_detection.enabled"), false)
 
-	cfg.SetKnown(join(spNS, "process_service_inference", "use_improved_algorithm"))
+	cfg.SetKnown(join(spNS, "process_service_inference", "use_improved_algorithm")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// For backward compatibility
-	cfg.BindEnv(join(smNS, "process_service_inference", "enabled"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
+	cfg.BindEnv(join(smNS, "process_service_inference", "enabled"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(spNS, "process_service_inference", "enabled"), runtime.GOOS == "windows")
 
 	// For backward compatibility
-	cfg.BindEnv(join(smNS, "process_service_inference", "use_windows_service_name"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
+	cfg.BindEnv(join(smNS, "process_service_inference", "use_windows_service_name"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	// default on windows is now enabled; default on linux is still disabled
 	cfg.BindEnvAndSetDefault(join(spNS, "process_service_inference", "use_windows_service_name"), true)
 
@@ -263,6 +264,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpfless"), false, "DD_ENABLE_EBPFLESS", "DD_NETWORK_CONFIG_ENABLE_EBPFLESS")
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_fentry"), false)
+
+	// TLS cert collection
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_cert_collection"), false)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
@@ -319,7 +323,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_kprobe_fallback"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.buffer_size"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.kretprobe_max_active"), 512)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"})
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT"})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), true)
@@ -359,19 +363,22 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(ccmNS, "enabled"), false)
 
 	// Discovery config
-	cfg.BindEnv(join(discoveryNS, "enabled"))
+	cfg.BindEnv(join(discoveryNS, "enabled")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "cpu_usage_update_delay"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.enabled"), true)
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.period"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "service_collection_interval"), "60s")
 
+	// Privileged Logs config
+	cfg.BindEnvAndSetDefault(join(privilegedLogsNS, "enabled"), false)
+
 	// Fleet policies
-	cfg.BindEnv("fleet_policies_dir")
+	cfg.BindEnv("fleet_policies_dir") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// GPU monitoring
 	cfg.BindEnvAndSetDefault(join(gpuNS, "enabled"), false)
-	cfg.BindEnv(join(gpuNS, "nvml_lib_path"))
+	cfg.BindEnv(join(gpuNS, "nvml_lib_path")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(gpuNS, "process_scan_interval_seconds"), 5)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "initial_process_sync"), true)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "configure_cgroup_perms"), false)
@@ -423,7 +430,7 @@ func eventMonitorBindEnv(config pkgconfigmodel.Setup, key string) {
 	emConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
 	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
 
-	config.BindEnv(key, emConfigKey, runtimeSecKey)
+	config.BindEnv(key, emConfigKey, runtimeSecKey) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 // DefaultPrivateIPCIDRs is a list of private IP CIDRs that are used to determine if an IP is private or not.

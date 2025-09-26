@@ -33,39 +33,44 @@ const telemetryEventErrorUnknownType = "unknown_type"
 const telemetryEventTypeUnknown = "unknown"
 const telemetryEventHeader = "header"
 
+const processExitChannelSize = 100
+
 // cudaEventConsumer is responsible for consuming CUDA events from the eBPF probe, and delivering them
 // to the appropriate stream handler.
 type cudaEventConsumer struct {
-	eventHandler   ddebpf.EventHandler
-	once           sync.Once
-	closed         chan struct{}
-	streamHandlers *streamCollection
-	wg             sync.WaitGroup
-	running        atomic.Bool
-	sysCtx         *systemContext
-	cfg            *config.Config
-	telemetry      *cudaEventConsumerTelemetry
-	debugCollector *eventCollector
-	ringFlusher    perf.Flusher
+	eventHandler       ddebpf.EventHandler
+	once               sync.Once
+	closed             chan struct{}
+	processExitChannel chan uint32
+	streamHandlers     *streamCollection
+	wg                 sync.WaitGroup
+	running            atomic.Bool
+	sysCtx             *systemContext
+	cfg                *config.Config
+	telemetry          *cudaEventConsumerTelemetry
+	debugCollector     *eventCollector
+	ringFlusher        perf.Flusher
 }
 
 type cudaEventConsumerTelemetry struct {
-	events             telemetry.Counter
-	eventErrors        telemetry.Counter
-	eventCounterByType map[gpuebpf.CudaEventType]telemetry.SimpleCounter
+	events              telemetry.Counter
+	eventErrors         telemetry.Counter
+	eventCounterByType  map[gpuebpf.CudaEventType]telemetry.SimpleCounter
+	droppedProcessExits telemetry.Counter
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
 func newCudaEventConsumer(sysCtx *systemContext, streamHandlers *streamCollection, eventHandler ddebpf.EventHandler, ringFlusher perf.Flusher, cfg *config.Config, telemetry telemetry.Component) *cudaEventConsumer {
 	return &cudaEventConsumer{
-		eventHandler:   eventHandler,
-		closed:         make(chan struct{}),
-		cfg:            cfg,
-		sysCtx:         sysCtx,
-		streamHandlers: streamHandlers,
-		telemetry:      newCudaEventConsumerTelemetry(telemetry),
-		debugCollector: newEventCollector(),
-		ringFlusher:    ringFlusher,
+		eventHandler:       eventHandler,
+		closed:             make(chan struct{}),
+		processExitChannel: make(chan uint32, processExitChannelSize),
+		cfg:                cfg,
+		sysCtx:             sysCtx,
+		streamHandlers:     streamHandlers,
+		telemetry:          newCudaEventConsumerTelemetry(telemetry),
+		debugCollector:     newEventCollector(),
+		ringFlusher:        ringFlusher,
 	}
 }
 
@@ -81,9 +86,10 @@ func newCudaEventConsumerTelemetry(tm telemetry.Component) *cudaEventConsumerTel
 	}
 
 	return &cudaEventConsumerTelemetry{
-		events:             events,
-		eventErrors:        tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
-		eventCounterByType: eventCounterByType,
+		events:              events,
+		eventErrors:         tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
+		eventCounterByType:  eventCounterByType,
+		droppedProcessExits: tm.NewCounter(subsystem, "dropped_process_exits", nil, "Number of process exits events that were dropped"),
 	}
 }
 
@@ -105,7 +111,19 @@ func (c *cudaEventConsumer) Start() {
 	}
 	health := health.RegisterLiveness(consts.GpuConsumerHealthName)
 	processMonitor := monitor.GetProcessMonitor()
-	cleanupExit := processMonitor.SubscribeExit(c.handleProcessExit)
+
+	// Send events to the main event loop asynchronously, so that all process handling is done in the same goroutine.
+	// That way we avoid race conditions between the process monitor and the event consumer.
+	cleanupExit := processMonitor.SubscribeExit(func(pid uint32) {
+		select {
+		case c.processExitChannel <- pid:
+		default:
+			// If the channel is full, we don't want to block the main event
+			// loop, so we just drop the event. The process exit will be caught
+			// later with the full process scan. We increase a telemetry metric to track this.
+			c.telemetry.droppedProcessExits.Inc()
+		}
+	})
 
 	c.wg.Add(1)
 	go func() {
@@ -119,6 +137,7 @@ func (c *cudaEventConsumer) Start() {
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
 			}
+			close(c.processExitChannel)
 			c.wg.Done()
 			log.Trace("CUDA event consumer stopped")
 			c.running.Store(false)
@@ -136,6 +155,11 @@ func (c *cudaEventConsumer) Start() {
 				c.sysCtx.cleanOld()
 			case <-ringBufferFlush.C:
 				c.ringFlusher.Flush()
+			case pid, ok := <-c.processExitChannel:
+				if !ok {
+					return
+				}
+				c.handleProcessExit(pid)
 			case batchData, ok := <-dataChannel:
 				if !ok {
 					return
@@ -255,6 +279,8 @@ func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, d
 	}
 }
 
+// handleProcessExit is called when a process exits. It marks all streams for that process as ended. Should only be called
+// from the main event loop.
 func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 	c.streamHandlers.markProcessStreamsAsEnded(pid)
 }
