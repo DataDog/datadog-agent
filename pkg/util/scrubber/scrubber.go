@@ -14,12 +14,25 @@ package scrubber
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// IsEnc returns true is the string match the 'ENC[...]' format
+// Borrowed from comp/core/secrets/utils
+func IsEnc(str string) bool {
+	// trimming space and tabs
+	str = strings.Trim(str, " \t")
+	if strings.HasPrefix(str, "ENC[") && strings.HasSuffix(str, "]") {
+		return true
+	}
+	return false
+}
 
 // Replacer represents a replacement of sensitive information with a "clean" version.
 type Replacer struct {
@@ -213,11 +226,34 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 		}
 		if len(repl.Hints) == 0 || containsHint {
 			if repl.ReplFunc != nil {
-				data = repl.Regex.ReplaceAllFunc(data, repl.ReplFunc)
+				data = repl.Regex.ReplaceAllFunc(data, func(match []byte) []byte {
+					if containsValidENC(match) {
+						return match // Don't replace if contains valid ENC[]
+					}
+					return repl.ReplFunc(match)
+				})
 			} else {
-				data = repl.Regex.ReplaceAll(data, repl.Repl)
+				data = repl.Regex.ReplaceAllFunc(data, func(match []byte) []byte {
+					if containsValidENC(match) {
+						return match // Don't replace if contains valid ENC[]
+					}
+					return repl.Regex.ReplaceAll(match, repl.Repl)
+				})
 			}
 		}
 	}
 	return data
+}
+
+// containsValidENC checks if the match contains a valid ENC[]
+func containsValidENC(data []byte) bool {
+	fmt.Println("CONTAINS VALID ENC")
+	encPattern := regexp.MustCompile(`ENC\[[^\]]*\]`)
+	matches := encPattern.FindAll(data, -1)
+	for _, match := range matches {
+		if isEnc := IsEnc(string(match)); isEnc {
+			return true
+		}
+	}
+	return false
 }

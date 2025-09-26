@@ -80,17 +80,6 @@ func walk(data *interface{}, callback scrubCallback) {
 	}
 }
 
-// IsEnc returns true is the string match the 'ENC[...]' format
-// Borrowed from comp/core/secrets/utils
-func IsEnc(str string) bool {
-	// trimming space and tabs
-	str = strings.Trim(str, " \t")
-	if strings.HasPrefix(str, "ENC[") && strings.HasSuffix(str, "]") {
-		return true
-	}
-	return false
-}
-
 // ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
 func (c *Scrubber) ScrubDataObj(data *interface{}) {
 	walk(data, func(key string, value interface{}) (bool, interface{}) {

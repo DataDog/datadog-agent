@@ -55,3 +55,5 @@ network_devices:
 community: password
 authentication_key: password
 privacy_key: password
+
+token_secret: ENC[token_secret]

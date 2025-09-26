@@ -53,3 +53,5 @@ network_devices:
 community: "********"
 authentication_key: "********"
 privacy_key: "********"
+
+token_secret: ENC[token_secret]
