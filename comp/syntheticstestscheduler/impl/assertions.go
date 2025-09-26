@@ -47,7 +47,7 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 				Property: assertion.Property,
 				Expected: assertion.Target,
 				Failure: common.APIFailure{
-					Code:    incorrectAssertion,
+					Code:    invalidTest,
 					Message: fmt.Sprintf("unsupported field: %s.%s", assertion.Type, assertion.Property),
 				},
 			}
@@ -67,7 +67,7 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 				Property: assertion.Property,
 				Expected: assertion.Target,
 				Failure: common.APIFailure{
-					Code:    incorrectAssertion,
+					Code:    invalidTest,
 					Message: fmt.Sprintf("unsupported field: %s.%s", assertion.Type, assertion.Property),
 				},
 			}
