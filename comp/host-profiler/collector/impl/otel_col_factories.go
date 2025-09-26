@@ -36,6 +36,7 @@ type extraFactoriesWithAgentCore struct {
 
 var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
 
+// NewExtraFactoriesWithAgentCore creates a new ExtraFactories instance when the Agent Core is available.
 func NewExtraFactoriesWithAgentCore(tagger tagger.Component, hostname hostname.Component) ExtraFactories {
 	return extraFactoriesWithAgentCore{
 		tagger:   tagger,
@@ -58,14 +59,17 @@ type extraFactoriesWithoutAgentCore struct{}
 
 var _ ExtraFactories = (*extraFactoriesWithoutAgentCore)(nil)
 
+// NewExtraFactoriesWithoutAgentCore creates a new ExtraFactories instance when the Agent Core is not available.
 func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 	return extraFactoriesWithoutAgentCore{}
 }
 
+// GetProcessors returns the processors for the collector.
 func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 	return nil
 }
 
+// GetConverters returns the converters for the collector.
 func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFactory {
 	return []confmap.ConverterFactory{
 		converternoagent.NewFactory(),

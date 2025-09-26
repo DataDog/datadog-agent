@@ -23,7 +23,7 @@ func NewFactory() confmap.ConverterFactory {
 
 type converterNoAgent struct{}
 
-func newConverter(set confmap.ConverterSettings) confmap.Converter {
+func newConverter(_ confmap.ConverterSettings) confmap.Converter {
 	return &converterNoAgent{}
 }
 
