@@ -6,8 +6,8 @@
 package trace
 
 import (
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/agentless/trace/inferredspan"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -15,7 +15,7 @@ import (
 const (
 	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 	ddOriginTagName    = "_dd.origin"
-	ddOriginTagValue   = "lambda"
+	ddOriginTagValue   = "agentless"
 )
 
 type spanModifier struct {
