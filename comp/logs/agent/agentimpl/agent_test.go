@@ -41,6 +41,7 @@ import (
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
 	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	publishermetadatacachemock "github.com/DataDog/datadog-agent/comp/publishermetadatacache/mock"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -133,6 +134,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		}),
 		hostnameimpl.MockModule(),
 		inventoryagentimpl.MockModule(),
+		publishermetadatacachemock.Module(),
 		auditorfx.Module(),
 		fx.Provide(healthmock.NewProvides),
 	))
@@ -496,6 +498,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		}),
 		hostnameimpl.MockModule(),
 		inventoryagentimpl.MockModule(),
+		publishermetadatacachemock.Module(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		compressionfx.MockModule(),
 		fx.Provide(func() tagger.Component {
