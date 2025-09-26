@@ -341,6 +341,10 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 
 	ia.data["feature_gpu_monitoring_enabled"] = sysProbeConf.GetBool("gpu_monitoring.enabled")
 
+	// Synthetics Test module / system-probe
+
+	ia.data["feature_synthetics_collector_enabled"] = sysProbeConf.GetBool("synthetics.collector.enabled")
+
 	// miscellaneous / system-probe
 
 	ia.data["feature_tcp_queue_length_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_tcp_queue_length")

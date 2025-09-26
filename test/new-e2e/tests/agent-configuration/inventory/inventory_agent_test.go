@@ -33,6 +33,7 @@ func (v *inventoryAgentSuite) TestInventoryDefaultConfig() {
 	assert.Contains(v.T(), inventory, `"feature_process_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_networks_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_traceroute_enabled": false`)
+	assert.Contains(v.T(), inventory, `"feature_synthetics_collector_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": false`)
@@ -54,7 +55,10 @@ service_monitoring_config:
 network_config:
   enabled: true
 traceroute:
-  enabled: true`
+  enabled: true
+synthetics:
+  collector:
+    enabled: true`
 
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(string(agentConfig)),
@@ -69,6 +73,7 @@ traceroute:
 	assert.Contains(v.T(), inventory, `"feature_process_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_networks_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_traceroute_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_synthetics_collector_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": true`)
