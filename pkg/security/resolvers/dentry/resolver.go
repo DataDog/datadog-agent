@@ -306,7 +306,7 @@ func (dr *Resolver) ResolveFromCache(pathKey model.PathKey) (string, error) {
 
 func computeFilenameFromParts(parts []string) string {
 	if len(parts) == 0 {
-		return ""
+		return "/"
 	}
 
 	// pre-allocation
