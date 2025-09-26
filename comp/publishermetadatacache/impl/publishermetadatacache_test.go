@@ -17,17 +17,8 @@ import (
 	fakeevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/fake"
 )
 
-// newTestCache creates a new publishermetadatacache for testing purposes
-func newTestCache(api evtapi.API, maxCacheSize int) *publisherMetadataCache {
-	return &publisherMetadataCache{
-		cache:        make(map[string]cacheItem),
-		evtapi:       api,
-		maxCacheSize: maxCacheSize,
-	}
-}
-
 func TestPublisherMetadataCache_Get_CacheMiss(t *testing.T) {
-	cache := newTestCache(fakeevtapi.New(), 2)
+	cache := NewTestCache(fakeevtapi.New(), 2).(*publisherMetadataCache)
 
 	publisherName := "TestPublisher"
 	eventHandle := evtapi.EventRecordHandle(100)
@@ -42,7 +33,7 @@ func TestPublisherMetadataCache_Get_CacheMiss(t *testing.T) {
 }
 
 func TestPublisherMetadataCache_Get_CacheHit(t *testing.T) {
-	cache := newTestCache(fakeevtapi.New(), 2)
+	cache := NewTestCache(fakeevtapi.New(), 2).(*publisherMetadataCache)
 
 	publisherName := "TestPublisher"
 	eventHandle := evtapi.EventRecordHandle(100)
@@ -64,7 +55,7 @@ func TestPublisherMetadataCache_Get_CacheHit(t *testing.T) {
 
 func TestPublisherMetadataCache_isMetadataHandleValid(t *testing.T) {
 	fakeAPI := fakeevtapi.New()
-	cache := newTestCache(fakeAPI, 2)
+	cache := NewTestCache(fakeAPI, 2).(*publisherMetadataCache)
 
 	handle, err := cache.Get("TestPublisher", evtapi.EventRecordHandle(100))
 	assert.NoError(t, err)
@@ -79,7 +70,7 @@ func TestPublisherMetadataCache_isMetadataHandleValid(t *testing.T) {
 
 func TestPublisherMetadataCache_Get_InvalidHandle_RecreatesCache(t *testing.T) {
 	fakeAPI := fakeevtapi.New()
-	cache := newTestCache(fakeAPI, 2)
+	cache := NewTestCache(fakeAPI, 2).(*publisherMetadataCache)
 
 	publisherName := "TestPublisher"
 	eventHandle := evtapi.EventRecordHandle(100)
@@ -101,7 +92,7 @@ func TestPublisherMetadataCache_Get_InvalidHandle_RecreatesCache(t *testing.T) {
 }
 
 func TestPublisherMetadataCache_CacheEviction(t *testing.T) {
-	cache := newTestCache(fakeevtapi.New(), 2)
+	cache := NewTestCache(fakeevtapi.New(), 2).(*publisherMetadataCache)
 
 	// Fill cache to max capacity (2)
 	Publisher1 := "Publisher1"
@@ -128,7 +119,7 @@ func TestPublisherMetadataCache_CacheEviction(t *testing.T) {
 }
 
 func TestPublisherMetadataCache_Stop_CleansUpAllHandles(t *testing.T) {
-	cache := newTestCache(fakeevtapi.New(), 2)
+	cache := NewTestCache(fakeevtapi.New(), 2).(*publisherMetadataCache)
 
 	_, err := cache.Get("Publisher1", evtapi.EventRecordHandle(100))
 	assert.NoError(t, err)
