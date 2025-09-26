@@ -124,6 +124,8 @@ func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.Collect
 		},
 	}
 
+	nodeName, _ := c.kubeUtil.GetNodename(ctx)
+
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,
 		Source: workloadmeta.SourceNodeOrchestrator,
@@ -137,6 +139,7 @@ func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.Collect
 			},
 			ConfigDocument: wmetaConfigDocument,
 			RawConfig:      rawKubeletConfig,
+			NodeName:       nodeName,
 		},
 	}, nil
 }

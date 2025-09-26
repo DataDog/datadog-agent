@@ -1240,6 +1240,7 @@ type Kubelet struct {
 	EntityMeta
 	ConfigDocument KubeletConfigDocument
 	RawConfig      []byte
+	NodeName       string
 }
 
 // GetID implements Entity#GetID
