@@ -86,11 +86,11 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	// TODO: do not interface directly with pkg/config anywhere
 	coreConfigObject := c.Object()
 
-	cfg.ReceiverSocket = coreConfigObject.GetString("apm_config.receiver_socket")
-
 	if coreConfigObject == nil {
 		return nil, errors.New("no core config found! Bailing out")
 	}
+
+	cfg.ReceiverSocket = coreConfigObject.GetString("apm_config.receiver_socket")
 
 	if !coreConfigObject.GetBool("disable_file_logging") {
 		cfg.LogFilePath = DefaultLogFilePath
