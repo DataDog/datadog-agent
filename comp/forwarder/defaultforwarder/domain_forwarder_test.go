@@ -232,10 +232,12 @@ func TestRetryTransactions(t *testing.T) {
 	payload := transaction.NewBytesPayloadWithoutMetaData([]byte{1})
 	t1 := transaction.NewHTTPTransaction()
 	t1.Domain = "domain/"
+	t1.Endpoint.Name = "test1"
 	t1.Endpoint.Route = "test1"
 	t1.Payload = payload
 	t2 := transaction.NewHTTPTransaction()
 	t2.Domain = "domain/"
+	t2.Endpoint.Name = "test2"
 	t2.Endpoint.Route = "test2"
 	t2.Payload = payload
 
@@ -245,6 +247,7 @@ func TestRetryTransactions(t *testing.T) {
 
 	forwarder.blockedList.errorPerEndpoint[t1.GetTarget()].until = time.Now().Add(-1 * time.Hour)
 	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].until = time.Now().Add(1 * time.Hour)
+	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].state = Open
 
 	forwarder.requeueTransaction(t2)
 	forwarder.requeueTransaction(t2) // this second one should be dropped
@@ -264,6 +267,7 @@ func TestForwarderRetry(t *testing.T) {
 
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Hour)
+	forwarder.blockedList.errorPerEndpoint["blocked"].state = Open
 
 	ready := newTestTransactionDomainForwarder()
 	notReady := newTestTransactionDomainForwarder()
@@ -273,10 +277,10 @@ func TestForwarderRetry(t *testing.T) {
 	requireLenForwarderRetryQueue(t, forwarder, 2)
 
 	ready.On("Process", forwarder.workers[0].Client.GetClient()).Return(nil).Times(1)
-	ready.On("GetTarget").Return("").Times(2)
+	ready.On("GetTarget").Return("").Times(4)
 	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)
-	notReady.On("GetTarget").Return("blocked").Times(1)
+	notReady.On("GetTarget").Return("blocked").Times(3)
 
 	forwarder.retryTransactions(time.Now())
 	<-ready.processed
@@ -304,10 +308,10 @@ func TestForwarderRetryLifo(t *testing.T) {
 	forwarder.requeueTransaction(transaction2)
 
 	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
-	transaction1.On("GetTarget").Return("").Times(1)
+	transaction1.On("GetTarget").Return("").Times(3)
 
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
-	transaction2.On("GetTarget").Return("").Times(1)
+	transaction2.On("GetTarget").Return("").Times(3)
 
 	forwarder.retryTransactions(time.Now())
 

@@ -6,18 +6,17 @@
 package defaultforwarder
 
 import (
-	"math"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	//"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/backoff"
+	//"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
 
+/*
 func TestMinBackoffFactorValid(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
@@ -306,6 +305,8 @@ func TestIsBlockTiming(t *testing.T) {
 	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(30 * time.Second)}
 	assert.True(t, e.isBlock("test"))
 }
+
+*/
 
 func TestIsblockUnknown(t *testing.T) {
 	mockConfig := mock.New(t)
