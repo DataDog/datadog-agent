@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build hostprofiler
+//go:build linux
 
+// Package globalparams contains the global CLI parameters for the host profiler.
 package globalparams
 
 // GlobalParams contains the values of host profiler global Cobra flags.
