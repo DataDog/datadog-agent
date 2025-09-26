@@ -91,7 +91,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	shmemSize := uint64(10)
 	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.ended = false
-	stream.kernelLaunches = []enrichedKernelLaunch{
+	stream.kernelLaunches = []*enrichedKernelLaunch{
 		{
 			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
 				Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
@@ -192,7 +192,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	shmemSize := uint64(10)
 	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.ended = false
-	stream.kernelLaunches = []enrichedKernelLaunch{
+	stream.kernelLaunches = []*enrichedKernelLaunch{
 		{
 			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
 				Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
@@ -300,7 +300,7 @@ func TestCleanupInactiveAggregators(t *testing.T) {
 	pid := uint32(1)
 	streamID := uint64(120)
 	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
-	stream.kernelLaunches = []enrichedKernelLaunch{
+	stream.kernelLaunches = []*enrichedKernelLaunch{
 		{
 			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
 				Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(ktime), Pid_tgid: uint64(pid)<<32 + uint64(pid), Stream_id: streamID},

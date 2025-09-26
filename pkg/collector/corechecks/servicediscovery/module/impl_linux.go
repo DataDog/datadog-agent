@@ -398,7 +398,6 @@ func (s *discovery) getServiceInfo(pid int32) (*model.Service, error) {
 		GeneratedName:            nameMeta.Name,
 		GeneratedNameSource:      string(nameMeta.Source),
 		AdditionalGeneratedNames: nameMeta.AdditionalNames,
-		DDService:                nameMeta.DDService,
 		TracerMetadata:           tracerMetadataArr,
 		UST: model.UST{
 			Service: env.GetDefault("DD_SERVICE", ""),

@@ -23,7 +23,6 @@ type WindowsHost struct {
 	FakeIntake      *components.FakeIntake
 	Agent           *components.RemoteHostAgent
 	ActiveDirectory *components.RemoteActiveDirectory
-	Installer       *components.RemoteDatadogInstaller
 }
 
 var _ common.Initializable = &WindowsHost{}
