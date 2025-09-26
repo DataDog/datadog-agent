@@ -798,6 +798,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"SecurityProfileMaxImageTags":                opts.securityProfileMaxImageTags,
 		"SecurityProfileDir":                         opts.securityProfileDir,
 		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
+		"SecurityProfileNodeEvictionTimeout":         opts.securityProfileNodeEvictionTimeout,
 		"EnableAutoSuppression":                      opts.enableAutoSuppression,
 		"AutoSuppressionEventTypes":                  opts.autoSuppressionEventTypes,
 		"EnableAnomalyDetection":                     opts.enableAnomalyDetection,
