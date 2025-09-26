@@ -84,7 +84,7 @@ func walk(data *interface{}, callback scrubCallback) {
 // Borrowed from comp/core/secrets/utils
 func IsEnc(str string) bool {
 	// trimming space and tabs
-	str = strings.Trim(str, " 	")
+	str = strings.Trim(str, " \t")
 	if strings.HasPrefix(str, "ENC[") && strings.HasSuffix(str, "]") {
 		return true
 	}
