@@ -52,11 +52,14 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 			hookFunc("hook_inet_shutdown"),
 			hookFunc("hook_inet_bind"),
 			hookFunc("rethook_inet_bind"),
-			hookFunc("hook_inet6_bind"),
-			hookFunc("rethook_inet6_bind"),
 			hookFunc("hook_sk_common_release"),
 			hookFunc("hook_path_get"),
 			hookFunc("hook_proc_fd_link"),
+		}},
+
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			hookFunc("hook_inet6_bind"),
+			hookFunc("rethook_inet6_bind"),
 		}},
 
 		// network device probes
@@ -107,7 +110,7 @@ func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
 
 		// required to stat /proc/.../exe
 		hookFunc("hook_security_inode_getattr"),
-		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "newfstatat", fentry, EntryAndExit)},
+		&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "newfstatat", fentry, EntryAndExit)},
 	}
 }
 
@@ -245,6 +248,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("hook_security_sb_umount"),
 				hookFunc("hook_clone_mnt"),
 				hookFunc("rethook_clone_mnt"),
+				hookFunc("hook_mnt_change_mountpoint"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				hookFunc("rethook_alloc_vfsmnt"),
@@ -252,6 +256,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mount", hasFentry, EntryAndExit, true)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fsmount", hasFentry, EntryAndExit, false)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open_tree", hasFentry, EntryAndExit, false)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "move_mount", hasFentry, EntryAndExit, false)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "umount", hasFentry, Exit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", hasFentry, EntryAndExit)},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
@@ -306,7 +311,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 
 			// ioctl probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_do_vfs_ioctl"),
+				hookFunc("hook_security_file_ioctl"),
 			}},
 
 			// Link
@@ -592,16 +597,15 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 
 	// Add probes required to track network interfaces and map network flows to processes
 	// networkEventTypes: dns, imds, packet, network_monitor
-	// add packet_action as not exposed through SECL thus not repoted by GetEventTypePerCategory
 	networkEventTypes := model.GetEventTypePerCategory(model.NetworkCategory)[model.NetworkCategory]
-	networkEventTypes = append(networkEventTypes, model.RawPacketActionEventType.String())
-
 	for _, networkEventType := range networkEventTypes {
-		selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.AllOf{Selectors: NetworkSelectors(hasCgroupSocket)},
-				&manager.AllOf{Selectors: NetworkVethSelectors()},
-			}},
+		if model.EventTypeDependsOnInterfaceTracking(networkEventType) {
+			selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					&manager.AllOf{Selectors: NetworkSelectors(hasCgroupSocket)},
+					&manager.AllOf{Selectors: NetworkVethSelectors()},
+				}},
+			}
 		}
 	}
 
@@ -610,7 +614,9 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 	if err == nil {
 		if _, ok := loadedModules["nf_nat"]; ok {
 			for _, networkEventType := range networkEventTypes {
-				selectorsPerEventTypeStore[networkEventType] = append(selectorsPerEventTypeStore[networkEventType], NetworkNFNatSelectors()...)
+				if model.EventTypeDependsOnInterfaceTracking(networkEventType) {
+					selectorsPerEventTypeStore[networkEventType] = append(selectorsPerEventTypeStore[networkEventType], NetworkNFNatSelectors()...)
+				}
 			}
 		}
 	}

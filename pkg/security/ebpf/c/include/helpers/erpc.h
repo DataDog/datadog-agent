@@ -59,7 +59,7 @@ int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
 #endif
 
 int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
-    u32 cmd = CTX_PARM3(ctx);
+    u32 cmd = CTX_PARM2(ctx);
     if (cmd != RPC_CMD) {
         return 0;
     }
@@ -68,7 +68,7 @@ int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
-    void *req = (void *)CTX_PARM4(ctx);
+    void *req = (void *)CTX_PARM3(ctx);
 
     u8 op = 0;
     int ret = bpf_probe_read(&op, sizeof(op), req);

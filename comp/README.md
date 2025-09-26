@@ -300,6 +300,16 @@ Package orchestrator implements the orchestrator forwarder component.
 
 Package orchestratorinterface defines the interface for the orchestrator forwarder component.
 
+## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)
+
+*Datadog Team*: opentelemetry-agent profiling-full-host
+
+Package hostprofiler implements the "host-profiler" bundle,
+
+### [comp/host-profiler/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler/collector)
+
+Package collector defines the host profiler collector component.
+
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
 *Datadog Team*: agent-log-pipelines
@@ -767,3 +777,10 @@ Package metricscompression provides the component for metrics compression
 *Datadog Team*: ndm-core
 
 Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device
+
+### [comp/syntheticstestscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/syntheticstestscheduler)
+
+*Datadog Team*: synthetics-executing
+
+Package syntheticstestscheduler defines a synthetics scheduler component to run
+network tests based on remote config.
