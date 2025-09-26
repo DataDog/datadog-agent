@@ -21,7 +21,7 @@ import (
 
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditormock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
-	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/mock"
+	publishermetadatacacheimpl "github.com/DataDog/datadog-agent/comp/publishermetadatacache/impl"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -84,7 +84,7 @@ func (s *ReadEventsSuite) SetupTest() {
 func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan chan *message.Message) (*Tailer, error) {
 	source := sources.NewLogSource("", &logconfig.LogsConfig{})
 	registry := auditormock.NewMockAuditor()
-	publisherMetadataCache := publishermetadatacache.Mock()
+	publisherMetadataCache := publishermetadatacacheimpl.NewTestCache(evtapi, 50)
 
 	tailer := NewTailer(evtapi, source, tailerconfig, msgChan, registry, publisherMetadataCache)
 	tailer.Start(bookmark)
