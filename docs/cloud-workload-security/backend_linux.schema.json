@@ -543,6 +543,26 @@
           "type": "string",
           "description": "System package version"
         },
+        "package_epoch": {
+          "type": "integer",
+          "description": "System package epoch"
+        },
+        "package_release": {
+          "type": "string",
+          "description": "System package release"
+        },
+        "package_source_version": {
+          "type": "string",
+          "description": "System package source version"
+        },
+        "package_source_epoch": {
+          "type": "integer",
+          "description": "System package source epoch"
+        },
+        "package_source_release": {
+          "type": "string",
+          "description": "System package source release"
+        },
         "hashes": {
           "items": {
             "type": "string"
@@ -677,6 +697,26 @@
         "package_version": {
           "type": "string",
           "description": "System package version"
+        },
+        "package_epoch": {
+          "type": "integer",
+          "description": "System package epoch"
+        },
+        "package_release": {
+          "type": "string",
+          "description": "System package release"
+        },
+        "package_source_version": {
+          "type": "string",
+          "description": "System package source version"
+        },
+        "package_source_epoch": {
+          "type": "integer",
+          "description": "System package source epoch"
+        },
+        "package_source_release": {
+          "type": "string",
+          "description": "System package source release"
         },
         "hashes": {
           "items": {

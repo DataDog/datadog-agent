@@ -44,8 +44,10 @@ func TestEventStringer(t *testing.T) {
 		{
 			ev: eventProgramAttached{
 				program: &attachedProgram{
-					ir:     &ir.Program{ID: 1},
-					procID: ProcessID{PID: 100},
+					loadedProgram: &loadedProgram{
+						programID: ir.ProgramID(1),
+					},
+					processID: ProcessID{PID: 100},
 				},
 			},
 			wantStr: "eventProgramAttached{programID: 1, processID: {PID:100}}",

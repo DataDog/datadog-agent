@@ -699,12 +699,52 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "customresource info metric",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_customresource_metric_info": {
+					{
+						Type: "info",
+						Name: "kube_customresource_metric_info",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{
+									"namespace": "default",
+									"name":      "example1",
+									"attribute": "value",
+								},
+								Val: 1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name: "kubernetes_state_customresource.metric_info",
+					val:  1,
+					tags: []string{
+						"kube_namespace:default",
+						"name:example1",
+						"attribute:value",
+					},
+					hostname: "",
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
 		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
+
+		if _, ok := test.metricsToProcess["kube_customresource_metric_info"]; ok {
+			kubeStateMetricsCheck.metricNamesMapper["kube_customresource_metric_info"] = "customresource.metric_info"
+		}
 
 		kubeStateMetricsCheck.metricTransformers = test.metricTransformers
 		kubeStateMetricsCheck.processLabelJoins()

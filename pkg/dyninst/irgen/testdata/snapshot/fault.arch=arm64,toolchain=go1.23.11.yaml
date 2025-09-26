@@ -4,10 +4,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.callMe}
-      capture:
-        maxReferenceDepth: 1
-        maxFieldCount: 0
-        maxCollectionSize: 0
+      capture: {maxReferenceDepth: 1}
       template: ""
       segments: []
       captureSnapshot: true
@@ -252,6 +249,7 @@ Types:
       Expressions:
         - Name: s1
           Offset: 1
+          Kind: argument
           Expression:
             Type: 10 GoStringHeaderType string
             Operations:
@@ -261,6 +259,7 @@ Types:
                   ByteSize: 16
         - Name: s2
           Offset: 17
+          Kind: argument
           Expression:
             Type: 10 GoStringHeaderType string
             Operations:
@@ -270,6 +269,7 @@ Types:
                   ByteSize: 16
         - Name: i
           Offset: 33
+          Kind: argument
           Expression:
             Type: 94 PointerType *int
             Operations:
@@ -391,7 +391,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 102
       Name: '[]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
       ID: 43
@@ -413,7 +414,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 104
       Name: '[]uintptr.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: BaseType
       ID: 4
@@ -1332,7 +1334,8 @@ Types:
     - __kind: GoStringDataType
       ID: 100
       Name: string.str
-      ByteSize: 2048
+      DynamicSizeClass: string
+      ByteSize: 1
     - __kind: BaseType
       ID: 12
       Name: uint

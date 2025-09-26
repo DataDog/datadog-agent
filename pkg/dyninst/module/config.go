@@ -16,7 +16,6 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -27,11 +26,10 @@ import (
 // Config is the configuration for the dynamic instrumentation module.
 type Config struct {
 	ebpf.Config
-	DynamicInstrumentationEnabled bool
-	LogUploaderURL                string
-	DiagsUploaderURL              string
-	SymDBUploadEnabled            bool
-	SymDBUploaderURL              string
+	LogUploaderURL     string
+	DiagsUploaderURL   string
+	SymDBUploadEnabled bool
+	SymDBUploaderURL   string
 
 	// DiskCacheEnabled enables the disk cache for debug info.  If this is
 	// false, no disk cache will be used and the debug info will be stored in
@@ -40,71 +38,25 @@ type Config struct {
 	// DiskCacheConfig is the configuration for the disk cache for debug info.
 	DiskCacheConfig object.DiskCacheConfig
 
-	actuatorConstructor erasedActuatorConstructor
+	// ProcessSyncDisabled disables the process sync for the module.
+	ProcessSyncDisabled bool
 }
 
-// Option is an option that can be passed to NewConfig.
-type Option interface {
-	apply(c *Config)
+// erasedActuator is an erased type for an Actuator.
+type erasedActuator[A Actuator[AT], AT ActuatorTenant] struct {
+	a A
 }
 
-type wrappedActuator[A Actuator[T], T ActuatorTenant] struct {
-	actuator A
+func (e *erasedActuator[A, AT]) NewTenant(name string, rt actuator.Runtime) ActuatorTenant {
+	return e.a.NewTenant(name, rt)
 }
 
-func eraseActuator[A Actuator[T], T ActuatorTenant](a A) erasedActuator {
-	return wrappedActuator[A, T]{actuator: a}
-}
-
-func (a wrappedActuator[A, T]) Shutdown() error {
-	return a.actuator.Shutdown()
-}
-
-func (a wrappedActuator[A, T]) NewTenant(
-	name string,
-	reporter actuator.Reporter,
-	irGenerator actuator.IRGenerator,
-) ActuatorTenant {
-	return a.actuator.NewTenant(name, reporter, irGenerator)
-}
-
-type erasedActuator = Actuator[ActuatorTenant]
-
-type actuatorConstructor[A Actuator[T], T ActuatorTenant] func(
-	*loader.Loader,
-) A
-type erasedActuatorConstructor = actuatorConstructor[erasedActuator, ActuatorTenant]
-
-func (a actuatorConstructor[A, T]) apply(c *Config) {
-	c.actuatorConstructor = func(
-		l *loader.Loader,
-	) erasedActuator {
-		return eraseActuator(a(l))
-	}
-}
-
-// WithActuatorConstructor is an option that allows the user to provide a
-// custom actuator constructor.
-func WithActuatorConstructor[
-	A Actuator[T], T ActuatorTenant,
-](
-	f actuatorConstructor[A, T],
-) Option {
-	return actuatorConstructor[A, T](f)
-}
-
-func defaultActuatorConstructor(
-	l *loader.Loader,
-) erasedActuator {
-	return eraseActuator(actuator.NewActuator(l))
+func (e *erasedActuator[A, AT]) Shutdown() error {
+	return e.a.Shutdown()
 }
 
 // NewConfig creates a new Config object.
-func NewConfig(spConfig *sysconfigtypes.Config, opts ...Option) (*Config, error) {
-	var diEnabled bool
-	if spConfig != nil {
-		_, diEnabled = spConfig.EnabledModules[sysconfig.DynamicInstrumentationModule]
-	}
+func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 	traceAgentURL := getTraceAgentURL(os.Getenv)
 	cacheConfig, cacheEnabled, err := getDebugInfoDiskCacheConfig()
 	if err != nil {
@@ -112,18 +64,13 @@ func NewConfig(spConfig *sysconfigtypes.Config, opts ...Option) (*Config, error)
 	}
 
 	c := &Config{
-		Config:                        *ebpf.NewConfig(),
-		DynamicInstrumentationEnabled: diEnabled,
-		LogUploaderURL:                withPath(traceAgentURL, logUploaderPath),
-		DiagsUploaderURL:              withPath(traceAgentURL, diagsUploaderPath),
-		SymDBUploadEnabled:            pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
-		SymDBUploaderURL:              withPath(traceAgentURL, symdbUploaderPath),
-		DiskCacheEnabled:              cacheEnabled,
-		DiskCacheConfig:               cacheConfig,
-		actuatorConstructor:           defaultActuatorConstructor,
-	}
-	for _, opt := range opts {
-		opt.apply(c)
+		Config:             *ebpf.NewConfig(),
+		LogUploaderURL:     withPath(traceAgentURL, logUploaderPath),
+		DiagsUploaderURL:   withPath(traceAgentURL, diagsUploaderPath),
+		SymDBUploadEnabled: pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
+		SymDBUploaderURL:   withPath(traceAgentURL, symdbUploaderPath),
+		DiskCacheEnabled:   cacheEnabled,
+		DiskCacheConfig:    cacheConfig,
 	}
 	return c, nil
 }

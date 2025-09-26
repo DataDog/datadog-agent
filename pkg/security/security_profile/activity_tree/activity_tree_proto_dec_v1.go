@@ -212,13 +212,25 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 		Filesystem:    fi.Filesystem,
 		PkgName:       fi.PackageName,
 		PkgVersion:    fi.PackageVersion,
-		PkgSrcVersion: fi.PackageSrcversion,
+		PkgEpoch:      int(ptrOrZero(fi.PackageEpoch)),
+		PkgRelease:    ptrOrZero(fi.PackageRelease),
+		PkgSrcVersion: fi.PackageSrcVersion,
+		PkgSrcEpoch:   int(ptrOrZero(fi.PackageSrcEpoch)),
+		PkgSrcRelease: ptrOrZero(fi.PackageSrcRelease),
 		Hashes:        make([]string, len(fi.Hashes)),
 		HashState:     model.HashState(fi.HashState),
 	}
 	copy(fe.Hashes, fi.Hashes)
 
 	return fe
+}
+
+func ptrOrZero[T any](ptr *T) T {
+	if ptr != nil {
+		return *ptr
+	}
+	var zero T
+	return zero
 }
 
 func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileNode {

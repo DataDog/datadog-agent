@@ -272,6 +272,7 @@ message LastAnomalyTimestampMessage {
 message InstanceMessage {
     string ContainerID = 1;
     repeated string Tags = 2;
+    string CGroupID = 3;
 }
 
 message ActivityTreeStatsMessage {
