@@ -32,6 +32,7 @@ import (
 // MockRemoteClient is a "mocked" Client to help with testing
 type MockRemoteClient struct {
 	Session         *MockRemoteSession
+	Profile         *profile.NCMProfile
 	Closed          bool
 	RunningConfig   string
 	StartupConfig   string
@@ -49,8 +50,6 @@ func newMockRemoteClient() *MockRemoteClient {
 				"show version":        "Cisco Device Version 1.0",
 			},
 		},
-		RunningConfig: "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0",
-		StartupConfig: "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0",
 	}
 	return mockClient
 }
@@ -70,17 +69,28 @@ func (m *MockRemoteClient) RetrieveRunningConfig() (string, error) {
 	if m.ConfigError != nil {
 		return "", m.ConfigError
 	}
-	return m.RunningConfig, nil
+	runningCommand, err := m.Profile.GetCommandValues(profile.Running)
+	if err != nil {
+		return "", err
+	}
+	output, _ := m.Session.CombinedOutput(runningCommand[0])
+	return string(output), nil
 }
 
 func (m *MockRemoteClient) RetrieveStartupConfig() (string, error) {
 	if m.ConfigError != nil {
 		return "", m.ConfigError
 	}
-	return m.StartupConfig, nil
+	runningCommand, err := m.Profile.GetCommandValues(profile.Startup)
+	if err != nil {
+		return "", err
+	}
+	output, _ := m.Session.CombinedOutput(runningCommand[0])
+	return string(output), nil
 }
 
-func (m *MockRemoteClient) SetProfile(_ *profile.NCMProfile) {
+func (m *MockRemoteClient) SetProfile(np *profile.NCMProfile) {
+	m.Profile = np
 }
 
 func (m *MockRemoteClient) Close() error {
@@ -356,7 +366,7 @@ func TestCheck_FindMatchingProfile_Error(t *testing.T) {
 	// Set up mock remote client, remove the version command for the test to fail
 	mockClient := newMockRemoteClient()
 	check.remoteClient = mockClient
-	delete(mockClient.Session.OutputMap, "show version")
+	delete(mockClient.Session.OutputMap, "show running-config")
 
 	// Run the profile matching function
 	_, err = check.FindMatchingProfile()

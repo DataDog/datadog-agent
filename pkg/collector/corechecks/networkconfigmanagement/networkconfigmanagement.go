@@ -176,30 +176,17 @@ func (c *Check) FindMatchingProfile() (*profile.NCMProfile, error) {
 		if slices.Contains(c.checkContext.ProfileCache.GetTriedProfiles(), profName) {
 			continue
 		}
-		commands, err := prof.GetCommandValues(profile.Version)
+		c.remoteClient.SetProfile(prof)
+		runningConfig, err := c.remoteClient.RetrieveRunningConfig()
 		if err != nil {
-			log.Warnf("unable to get command values for profile %s: %s", profName, err)
+			log.Warnf("error with running config retrieval on profile %s on remote device %s: %s", profName, c.checkContext.Device.IPAddress, err)
+			c.checkContext.ProfileCache.AppendToTriedProfiles(profName)
 			continue
 		}
-		for _, cmd := range commands {
-			session, err := c.remoteClient.NewSession()
-			if err != nil {
-				log.Warnf("unable to connect to remote device %s: %s", c.checkContext.Device.IPAddress, err)
-				continue
-			}
-			output, err := session.CombinedOutput(cmd)
-			session.Close()
-			if err != nil {
-				log.Warnf("error running command %s on remote device %s: %s", cmd, c.checkContext.Device.IPAddress, err)
-				continue
-			}
-			// TODO: Validate the output
-			if len(output) > 0 {
-				return prof, nil
-			}
+		// TODO: Validate the output more than checking length (same validation for run fn)
+		if len(runningConfig) > 0 {
+			return prof, nil
 		}
-		// if iterate through all commands failed, add to tried profiles
-		c.checkContext.ProfileCache.AppendToTriedProfiles(profName)
 	}
 	return nil, fmt.Errorf("unable to find matching profile for device %s", c.checkContext.Device.IPAddress)
 }
