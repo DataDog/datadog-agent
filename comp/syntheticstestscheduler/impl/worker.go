@@ -265,9 +265,6 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	w.tracerouteResult.Origin = "synthetics"
 
 	result := common.Result{
-		Location: struct {
-			ID string `json:"id"`
-		}{ID: fmt.Sprintf("agent:%s", w.hostname)},
 		ID:              testResultID,
 		InitialID:       testResultID,
 		TestFinishedAt:  w.finishedAt.UnixMilli(),
@@ -312,6 +309,9 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	}
 
 	return &common.TestResult{
+		Location: struct {
+			ID string `json:"id"`
+		}{ID: fmt.Sprintf("agent:%s", w.hostname)},
 		DD:     make(map[string]interface{}),
 		Result: result,
 		Test:   t,

@@ -109,9 +109,6 @@ type NetStats struct {
 
 // Result represents the outcome of a test run including assertions and stats.
 type Result struct {
-	Location struct {
-		ID string `json:"id"`
-	} `json:"location"`
 	ID              string              `json:"id"`
 	InitialID       string              `json:"initialId"`
 	TestFinishedAt  int64               `json:"testFinishedAt"`
@@ -136,6 +133,9 @@ type Test struct {
 
 // TestResult represents the full test execution result including metadata.
 type TestResult struct {
+	Location struct {
+		ID string `json:"id"`
+	} `json:"location"`
 	DD     map[string]interface{} `json:"_dd"` // TestRequestInternalFields
 	Result Result                 `json:"result"`
 	Test   Test                   `json:"test"`
