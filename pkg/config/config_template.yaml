@@ -1912,12 +1912,12 @@ api_key:
 #     # @param workers - integer - optional - default: 5
 #     # The `workers` refers to the number of concurrent workers available for synthetics tests execution.
 #
-#     workers: 5
+#     workers: 4
 
-#     # @param flush_interval - integer - optional - default: 60s
+#     # @param flush_interval - integer - optional - default: 10s
 #     # The `flush_interval` refers to the synthetics run interval for tests execution.
 #
-#     flush_interval: 10m
+#     flush_interval: 10s
 
 {{ end -}}
 

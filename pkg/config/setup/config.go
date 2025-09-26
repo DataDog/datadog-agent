@@ -945,8 +945,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Synthetics configuration
 	config.BindEnvAndSetDefault("synthetics.collector.enabled", false)
-	config.BindEnvAndSetDefault("synthetics.collector.workers", 5)
-	config.BindEnvAndSetDefault("synthetics.collector.flush_interval", "60s")
+	config.BindEnvAndSetDefault("synthetics.collector.workers", 4)
+	config.BindEnvAndSetDefault("synthetics.collector.flush_interval", "10s")
 	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
