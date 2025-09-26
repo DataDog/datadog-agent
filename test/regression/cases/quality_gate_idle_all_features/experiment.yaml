@@ -3,7 +3,7 @@
 # Further documentation:
 # https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates#idle_all_features
 
-optimization_goal: memory
+optimization_goal: none
 erratic: false
 
 target:
