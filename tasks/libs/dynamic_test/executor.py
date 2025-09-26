@@ -118,6 +118,15 @@ class DynTestExecutor:
 
         return self.index().impacted_tests(changes, job_name)
 
+    def tests_to_skip(self, job_name: str, changes: list[str]) -> set[str]:
+        """Determine which tests should be skipped for a specific job and changes.
+
+        Args:
+            job_name: Name of the CI job to get tests for
+            changes: List of modified package/component names
+        """
+        return self.index().skipped_tests(changes, job_name)
+
     def tests_to_run_per_job(self, changes: list[str]) -> dict[str, set[str]]:
         """Determine which tests should be executed across all jobs for given changes.
 
