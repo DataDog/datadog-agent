@@ -11,7 +11,9 @@ package collectorimpl
 import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converternoagent"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/otelcol"
@@ -23,6 +25,7 @@ import (
 // It is used to provide extra factories for the collector when the Agent Core is available or not.
 type ExtraFactories interface {
 	GetProcessors() []processor.Factory
+	GetConverters() []confmap.ConverterFactory
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
@@ -46,6 +49,10 @@ func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 	}
 }
 
+func (e extraFactoriesWithAgentCore) GetConverters() []confmap.ConverterFactory {
+	return nil
+}
+
 // extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is NOT available.
 type extraFactoriesWithoutAgentCore struct{}
 
@@ -56,7 +63,13 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 }
 
 func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
-	return []processor.Factory{}
+	return nil
+}
+
+func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFactory {
+	return []confmap.ConverterFactory{
+		converternoagent.NewFactory(),
+	}
 }
 
 // createFactories creates a function that returns the factories for the collector.

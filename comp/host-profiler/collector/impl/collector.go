@@ -85,6 +85,7 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.Co
 					envprovider.NewFactory(),
 					fileprovider.NewFactory(),
 				},
+				ConverterFactories: extraFactories.GetConverters(),
 			},
 		},
 	}, nil
