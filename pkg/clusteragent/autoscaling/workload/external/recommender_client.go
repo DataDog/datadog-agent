@@ -123,28 +123,29 @@ func (r *recommenderClient) buildWorkloadRecommendationRequest(clusterName strin
 	targets := []*kubeAutoscaling.WorkloadRecommendationTarget{}
 	for _, objective := range objectives {
 		targetType := ""
-		target := int32(0)
+		targetValue := 0.0
 		switch objective.Type {
 		case common.DatadogPodAutoscalerPodResourceObjectiveType:
 			targetType = objective.PodResource.Name.String()
 			if u := objective.PodResource.Value.Utilization; u != nil {
-				target = *u / 100 // convert to percentage
+				targetValue = float64(*u) / 100.0
 			}
 		case common.DatadogPodAutoscalerContainerResourceObjectiveType:
 			targetType = objective.ContainerResource.Name.String()
 			if u := objective.ContainerResource.Value.Utilization; u != nil {
-				target = *u / 100 // convert to percentage
+				targetValue = float64(*u) / 100.0
 			}
 		case common.DatadogPodAutoscalerCustomQueryObjectiveType:
 			targetType = "custom-query"
 			if u := objective.CustomQueryObjective.Value.AbsoluteValue; u != nil {
-				target = int32(u.AsDec().UnscaledBig().Int64())
+				// custom query uses absolute numeric value; convert to float
+				targetValue = float64(int32(u.AsDec().UnscaledBig().Int64()))
 			}
 		}
 
 		targets = append(targets, &kubeAutoscaling.WorkloadRecommendationTarget{
 			Type:        targetType,
-			TargetValue: float64(target),
+			TargetValue: targetValue,
 		})
 	}
 
