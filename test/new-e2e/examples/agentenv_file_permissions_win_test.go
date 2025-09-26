@@ -27,12 +27,12 @@ type filePermissionsWindowsTestSuite struct {
 
 // updateEnvWithOption updates the environment with a new provisioner option
 func (v *filePermissionsWindowsTestSuite) updateEnvWithWindows(opt awshost.ProvisionerOption) {
-	var windowsOpt = []awshost.ProvisionerOption{awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))}
+	var windowsOpt = []awshost.ProvisionerOption{awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))}
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(append(windowsOpt, opt)...))
 }
 
 func TestFilePermissionsWindows(t *testing.T) {
-	e2e.Run(t, &filePermissionsWindowsTestSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &filePermissionsWindowsTestSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
 }
 
 func (v *filePermissionsWindowsTestSuite) TestDefaultPermissions() {

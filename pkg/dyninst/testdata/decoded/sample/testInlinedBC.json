@@ -52,11 +52,7 @@
             "method": "main.testInlinedBC"
           }
         },
-        "captures": {
-          "entry": {
-            "arguments": {}
-          }
-        }
+        "captures": {}
       }
     },
     "timestamp": "[ts]"

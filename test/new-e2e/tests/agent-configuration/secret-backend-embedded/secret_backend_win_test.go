@@ -29,7 +29,7 @@ type windowsRuntimeSecretSuite struct {
 func TestWindowsRuntimeSecretSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &windowsRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 	)))
 }
 
@@ -46,7 +46,7 @@ secret_backend_config:
 
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			awshost.WithAgentOptions(
 				agentparams.WithFileWithPermissions("C:/TestFolder/secrets.yaml", embeddedSecretFile, true, windowsPermission),
 				agentparams.WithAgentConfig(config),

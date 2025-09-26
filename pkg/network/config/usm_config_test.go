@@ -109,31 +109,6 @@ func TestUSMDataChannelSize(t *testing.T) {
 	})
 }
 
-func TestDisableMapPreallocation(t *testing.T) {
-	t.Run("via yaml", func(t *testing.T) {
-		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.disable_map_preallocation", false)
-		cfg := New()
-
-		assert.False(t, cfg.DisableMapPreallocation)
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DISABLE_MAP_PREALLOCATION", "false")
-		cfg := New()
-
-		assert.False(t, cfg.DisableMapPreallocation)
-	})
-
-	t.Run("default value", func(t *testing.T) {
-		mock.NewSystemProbe(t)
-		cfg := New()
-
-		assert.True(t, cfg.DisableMapPreallocation)
-	})
-}
-
 func TestMaxUSMConcurrentRequests(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
@@ -191,7 +166,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
 
-	t.Run("via YAML", func(t *testing.T) {
+	t.Run("via deprecated flat YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http_monitoring", false)
 		cfg := New()
@@ -199,13 +174,29 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
 
-	t.Run("via ENV variable", func(t *testing.T) {
+	t.Run("via deprecated flat ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "false")
 		cfg := New()
 
 		_, err := sysconfig.New("", "")
 		require.NoError(t, err)
+
+		assert.False(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("via tree structure YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.enabled", false)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("via tree structure ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_ENABLED", "false")
+		cfg := New()
 
 		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
@@ -322,7 +313,33 @@ func TestHTTPReplaceRules(t *testing.T) {
 		}
 	})
 
-	t.Run("via ENV variable", func(t *testing.T) {
+	t.Run("via deprecated flat ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("via tree structure YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.replace_rules", []map[string]string{
+			{"pattern": "/users/(.*)", "repl": "/users/?"},
+			{"pattern": "foo", "repl": "bar"},
+			{"pattern": "payment_id"},
+		})
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("via tree structure ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
 		cfg := New()
@@ -926,7 +943,7 @@ func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 func TestEnableHTTP2Monitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http2_monitoring", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.enabled", true)
 		cfg := New()
 
 		assert.True(t, cfg.EnableHTTP2Monitoring)
@@ -957,7 +974,7 @@ func TestDefaultDisabledHTTP2Support(t *testing.T) {
 func TestHTTP2DynamicTableMapCleanerInterval(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 1025)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 1025)
 		cfg := New()
 
 		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 1025*time.Second)
@@ -1509,5 +1526,161 @@ func TestEnvoyPathConfig(t *testing.T) {
 		cfg := New()
 
 		assert.EqualValues(t, "/test/envoy", cfg.EnvoyPath)
+	})
+}
+
+func TestHTTP2ConfigMigration(t *testing.T) {
+	t.Run("new tree structure config", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.enabled", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 45)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+		assert.Equal(t, 45*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval)
+	})
+
+	t.Run("backward compatibility with old flat keys", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http2_monitoring", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 60)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+		assert.Equal(t, 60*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval)
+	})
+
+	t.Run("new tree structure takes precedence", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		// Set both old and new
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http2_monitoring", false)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.enabled", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 30)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 90)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)                                // new tree structure wins
+		assert.Equal(t, 90*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval) // new tree structure wins
+	})
+
+	t.Run("environment variables work", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_ENABLED", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_DYNAMIC_TABLE_MAP_CLEANER_INTERVAL_SECONDS", "120")
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+		assert.Equal(t, 120*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval)
+	})
+
+	t.Run("defaults work correctly", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTP2Monitoring)
+		assert.Equal(t, 30*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval)
+	})
+}
+
+func TestHTTPConfigMigration(t *testing.T) {
+	t.Run("new tree structure config", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.enabled", false)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_stats_buffered", 50000)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_tracked_connections", 2048)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.notification_threshold", 256)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_request_fragment", 256)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.map_cleaner_interval_seconds", 600)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.idle_connection_ttl_seconds", 60)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTPMonitoring)
+		assert.Equal(t, 50000, cfg.MaxHTTPStatsBuffered)
+		assert.Equal(t, int64(2048), cfg.MaxTrackedHTTPConnections)
+		assert.Equal(t, int64(256), cfg.HTTPNotificationThreshold)
+		assert.Equal(t, int64(256), cfg.HTTPMaxRequestFragment)
+		assert.Equal(t, 600*time.Second, cfg.HTTPMapCleanerInterval)
+		assert.Equal(t, 60*time.Second, cfg.HTTPIdleConnectionTTL)
+	})
+
+	t.Run("backward compatibility with old flat keys", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http_monitoring", false)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_http_stats_buffered", 75000)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_tracked_http_connections", 4096)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_notification_threshold", 128)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_max_request_fragment", 128)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_map_cleaner_interval_in_s", 900)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_idle_connection_ttl_in_s", 90)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTPMonitoring)
+		assert.Equal(t, 75000, cfg.MaxHTTPStatsBuffered)
+		assert.Equal(t, int64(4096), cfg.MaxTrackedHTTPConnections)
+		assert.Equal(t, int64(128), cfg.HTTPNotificationThreshold)
+		assert.Equal(t, int64(128), cfg.HTTPMaxRequestFragment)
+		assert.Equal(t, 900*time.Second, cfg.HTTPMapCleanerInterval)
+		assert.Equal(t, 90*time.Second, cfg.HTTPIdleConnectionTTL)
+	})
+
+	t.Run("new tree structure takes precedence", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		// Set both old and new
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http_monitoring", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.enabled", false)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_http_stats_buffered", 75000)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_stats_buffered", 50000)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.max_tracked_http_connections", 4096)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_tracked_connections", 2048)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_notification_threshold", 128)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.notification_threshold", 256)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_max_request_fragment", 128)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.max_request_fragment", 256)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_map_cleaner_interval_in_s", 900)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.map_cleaner_interval_seconds", 600)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http_idle_connection_ttl_in_s", 90)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.idle_connection_ttl_seconds", 60)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTPMonitoring)                    // new tree structure wins
+		assert.Equal(t, 50000, cfg.MaxHTTPStatsBuffered)             // new tree structure wins
+		assert.Equal(t, int64(2048), cfg.MaxTrackedHTTPConnections)  // new tree structure wins
+		assert.Equal(t, int64(256), cfg.HTTPNotificationThreshold)   // new tree structure wins
+		assert.Equal(t, int64(256), cfg.HTTPMaxRequestFragment)      // new tree structure wins
+		assert.Equal(t, 600*time.Second, cfg.HTTPMapCleanerInterval) // new tree structure wins
+		assert.Equal(t, 60*time.Second, cfg.HTTPIdleConnectionTTL)   // new tree structure wins
+	})
+
+	t.Run("environment variables work", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_ENABLED", "false")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_STATS_BUFFERED", "80000")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_TRACKED_CONNECTIONS", "8192")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "512")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "384")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_SECONDS", "1200")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_IDLE_CONNECTION_TTL_SECONDS", "120")
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTPMonitoring)
+		assert.Equal(t, 80000, cfg.MaxHTTPStatsBuffered)
+		assert.Equal(t, int64(8192), cfg.MaxTrackedHTTPConnections)
+		assert.Equal(t, int64(512), cfg.HTTPNotificationThreshold)
+		assert.Equal(t, int64(384), cfg.HTTPMaxRequestFragment)
+		assert.Equal(t, 1200*time.Second, cfg.HTTPMapCleanerInterval)
+		assert.Equal(t, 120*time.Second, cfg.HTTPIdleConnectionTTL)
+	})
+
+	t.Run("defaults work correctly", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+		assert.Equal(t, 100000, cfg.MaxHTTPStatsBuffered)
+		assert.Equal(t, int64(1024), cfg.MaxTrackedHTTPConnections)
+		assert.Equal(t, int64(512), cfg.HTTPNotificationThreshold)
+		assert.Equal(t, int64(512), cfg.HTTPMaxRequestFragment)
+		assert.Equal(t, 300*time.Second, cfg.HTTPMapCleanerInterval)
+		assert.Equal(t, 30*time.Second, cfg.HTTPIdleConnectionTTL)
 	})
 }

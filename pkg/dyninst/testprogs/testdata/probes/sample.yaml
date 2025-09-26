@@ -841,3 +841,13 @@ probes:
   captureSnapshot: true
   capture:
     maxReferenceDepth: 1
+- id: testStructWithCyclicSlices
+  type: LOG_PROBE
+  where:
+    methodName: main.testStructWithCyclicSlices
+  captureSnapshot: true
+- id: testStructWithCyclicMaps
+  type: LOG_PROBE
+  where:
+    methodName: main.testStructWithCyclicMaps
+  captureSnapshot: true

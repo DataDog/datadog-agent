@@ -460,6 +460,9 @@ func wlmProcessWithServiceDiscovery(pid int32, spaceSeparatedCmdline string, cre
 		DDService:       "dd service name",
 		TCPPorts:        []uint16{6400, 5200},
 		APMInstrumentation: true,
+		UST: wmdef.UST{
+			Service: "dd service name",
+		},
 	}
 	return proc
 }

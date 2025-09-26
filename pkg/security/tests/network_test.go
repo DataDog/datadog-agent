@@ -275,7 +275,7 @@ func TestRawPacketAction(t *testing.T) {
 		time.Sleep(5 * time.Second)
 
 		cmd = cmdWrapper.Command("nslookup", []string{"microsoft.com"}, []string{})
-		if err := cmd.Run(); err == nil {
+		if err = cmd.Run(); err == nil {
 			t.Error("should return an error")
 		}
 

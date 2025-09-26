@@ -121,6 +121,65 @@ func TestRuntimeSettings(t *testing.T) {
 			},
 		},
 		{
+			"GetFullConfigWithoutDefaults",
+			func(t *testing.T, comp settings.Component) {
+				mockConfig := comp.(*settingsRegistry).config
+				mockConfig.Set("default_setting", "default_value", model.SourceDefault)
+				mockConfig.Set("custom_setting", "custom_value", model.SourceFile)
+
+				responseRecorder := httptest.NewRecorder()
+				request := httptest.NewRequest("GET", "http://agent.host/test/", nil)
+
+				comp.GetFullConfigWithoutDefaults("")(responseRecorder, request)
+				resp := responseRecorder.Result()
+				defer resp.Body.Close()
+				body, _ := io.ReadAll(resp.Body)
+
+				assert.Equal(t, 200, responseRecorder.Code)
+				assert.NotEqual(t, "", string(body))
+
+				// Ensure the default setting is not present in the response
+				assert.NotContains(t, string(body), "default_setting", "default config value should not be present")
+				// Ensure the custom setting is present in the response
+				assert.Contains(t, string(body), "custom_setting", "custom config value should be present")
+			},
+		},
+		{
+			"GetFullConfig vs GetFullConfigWithoutDefaults - Different Outputs",
+			func(t *testing.T, comp settings.Component) {
+				mockConfig := comp.(*settingsRegistry).config
+				mockConfig.Set("default_setting", "default_value", model.SourceDefault)
+				mockConfig.Set("custom_setting", "custom_value", model.SourceFile)
+
+				recorder1 := httptest.NewRecorder()
+				recorder2 := httptest.NewRecorder()
+				request := httptest.NewRequest("GET", "http://agent.host/test/", nil)
+
+				comp.GetFullConfig("")(recorder1, request)
+				comp.GetFullConfigWithoutDefaults("")(recorder2, request)
+
+				resp1 := recorder1.Result()
+				defer resp1.Body.Close()
+				body1, _ := io.ReadAll(resp1.Body)
+
+				resp2 := recorder2.Result()
+				defer resp2.Body.Close()
+				body2, _ := io.ReadAll(resp2.Body)
+
+				assert.Equal(t, 200, recorder1.Code)
+				assert.Equal(t, 200, recorder2.Code)
+				assert.NotEqual(t, string(body1), string(body2))
+
+				// default_setting should be present in GetFullConfig, absent in GetFullConfigWithoutDefaults
+				assert.Contains(t, string(body1), "default_setting", "default config value should be present in full config")
+				assert.NotContains(t, string(body2), "default_setting", "default config value should not be present without defaults")
+
+				// custom_setting should be present in both
+				assert.Contains(t, string(body1), "custom_setting", "custom config value should be present in full config")
+				assert.Contains(t, string(body2), "custom_setting", "custom config value should be present without defaults")
+			},
+		},
+		{
 			"GetFullConfigBySource",
 			func(t *testing.T, comp settings.Component) {
 				responseRecorder := httptest.NewRecorder()

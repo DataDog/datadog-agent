@@ -11,6 +11,7 @@ import (
 
 func setupPreaggregation(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("preaggregation.enabled", false)
-	config.BindEnv("preaggregation.dd_url")
-	config.BindEnv("preaggregation.api_key")
+	config.BindEnv("preaggregation.dd_url")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("preaggregation.api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("preaggregation.metric_allowlist", []string{})
 }

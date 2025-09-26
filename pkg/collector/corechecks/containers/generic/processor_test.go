@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
@@ -25,6 +26,8 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 		CreateContainerMeta("docker", "cID100"),
 		// Container with no stats (returns nil)
 		CreateContainerMeta("docker", "cID101"),
+		// Container with full stats and no tags (returns nil)
+		CreateContainerMeta("docker", "cID102"),
 	}
 
 	containersStats := map[string]mock.ContainerEntry{
@@ -32,7 +35,11 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 		"cID101": {
 			ContainerStats: nil,
 		},
+		"cID102": mock.GetFullSampleContainerEntry(),
 	}
+
+	fakeTagger.SetTags(taggertypes.NewEntityID("container_id", "cID100"), "foo", []string{"container_id:cID100"}, nil, nil, nil)
+	fakeTagger.SetTags(taggertypes.NewEntityID("container_id", "cID101"), "foo", []string{"container_id:cID101"}, nil, nil, nil)
 
 	tests := []struct {
 		name            string
@@ -73,7 +80,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 			err := processor.Run(mockSender, 0)
 			assert.NoError(t, err)
 
-			expectedTags := []string{"runtime:docker"}
+			expectedTags := []string{"runtime:docker", "container_id:cID100"}
 			mockSender.AssertNumberOfCalls(t, "Rate", 20)
 			mockSender.AssertNumberOfCalls(t, "Gauge", 17+func() int {
 				if tt.extendedMetrics {

@@ -80,7 +80,7 @@ func (c *CRICheck) Configure(senderManager sender.SenderManager, _ uint64, confi
 		return err
 	}
 
-	c.processor = generic.NewProcessor(metrics.GetProvider(option.New(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.filterStore, c.store), c.tagger, false)
+	c.processor = generic.NewProcessor(metrics.GetProvider(option.New(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.filterStore.GetContainerSharedMetricFilters(), c.store), c.tagger, false)
 	if c.instance.CollectDisk {
 		c.processor.RegisterExtension("cri-custom-metrics", &criCustomMetricsExtension{criGetter: func() (cri.CRIClient, error) {
 			return cri.GetUtil()
@@ -105,14 +105,14 @@ func (c *CRICheck) runProcessor(sender sender.Sender) error {
 	return c.processor.Run(sender, cacheValidity)
 }
 
-func getProcessorFilter(filterStore workloadfilter.Component, store workloadmeta.Component) generic.ContainerFilter {
+func getProcessorFilter(filterBundle workloadfilter.FilterBundle, store workloadmeta.Component) generic.ContainerFilter {
 	// Reject all containers that are not run by Docker
 	return generic.ANDContainerFilter{
 		Filters: []generic.ContainerFilter{
 			generic.FuncContainerFilter(func(container *workloadmeta.Container) bool {
 				return container.Labels[kubernetes.CriContainerNamespaceLabel] == ""
 			}),
-			generic.LegacyContainerFilter{FilterStore: filterStore, Store: store},
+			generic.LegacyContainerFilter{ContainerFilter: filterBundle, Store: store},
 		},
 	}
 }

@@ -234,9 +234,8 @@ func (t *SelfTester) endSelfTests() {
 }
 
 type selfTestEvent struct {
-	RuleID   eval.RuleID
-	Filepath string
-	Event    *serializers.EventSerializer
+	RuleID eval.RuleID
+	Event  *serializers.EventSerializer
 }
 
 // IsExpectedEvent sends an event to the tester

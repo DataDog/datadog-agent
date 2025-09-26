@@ -48,5 +48,5 @@ func (m *macosInstallSuite) TestInstallAgent() {
 	m.EventuallyWithT(func(c *assert.CollectT) {
 		_, err := macosTestClient.Execute("/usr/local/bin/datadog-agent status")
 		assert.NoError(c, err)
-	}, 10*time.Second, 1*time.Second)
+	}, 20*time.Second, 1*time.Second)
 }

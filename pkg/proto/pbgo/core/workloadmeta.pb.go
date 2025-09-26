@@ -1650,7 +1650,6 @@ type Service struct {
 	GeneratedNameSource      string                 `protobuf:"bytes,2,opt,name=generatedNameSource,proto3" json:"generatedNameSource,omitempty"`
 	AdditionalGeneratedNames []string               `protobuf:"bytes,4,rep,name=additionalGeneratedNames,proto3" json:"additionalGeneratedNames,omitempty"`
 	TracerMetadata           []*TracerMetadata      `protobuf:"bytes,5,rep,name=tracerMetadata,proto3" json:"tracerMetadata,omitempty"`
-	DdService                string                 `protobuf:"bytes,6,opt,name=ddService,proto3" json:"ddService,omitempty"`
 	TcpPorts                 []int32                `protobuf:"varint,7,rep,packed,name=tcpPorts,proto3" json:"tcpPorts,omitempty"`
 	UdpPorts                 []int32                `protobuf:"varint,8,rep,packed,name=udpPorts,proto3" json:"udpPorts,omitempty"`
 	ApmInstrumentation       bool                   `protobuf:"varint,9,opt,name=apmInstrumented,proto3" json:"apmInstrumented,omitempty"`
@@ -1715,13 +1714,6 @@ func (x *Service) GetTracerMetadata() []*TracerMetadata {
 		return x.TracerMetadata
 	}
 	return nil
-}
-
-func (x *Service) GetDdService() string {
-	if x != nil {
-		return x.DdService
-	}
-	return ""
 }
 
 func (x *Service) GetTcpPorts() []int32 {
@@ -2248,8 +2240,7 @@ const file_pkg_proto_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\rgeneratedName\x18\x01 \x01(\tR\rgeneratedName\x120\n" +
 	"\x13generatedNameSource\x18\x02 \x01(\tR\x13generatedNameSource\x12:\n" +
 	"\x18additionalGeneratedNames\x18\x04 \x03(\tR\x18additionalGeneratedNames\x12L\n" +
-	"\x0etracerMetadata\x18\x05 \x03(\v2$.datadog.workloadmeta.TracerMetadataR\x0etracerMetadata\x12\x1c\n" +
-	"\tddService\x18\x06 \x01(\tR\tddService\x12\x1a\n" +
+	"\x0etracerMetadata\x18\x05 \x03(\v2$.datadog.workloadmeta.TracerMetadataR\x0etracerMetadata\x12\x1a\n" +
 	"\btcpPorts\x18\a \x03(\x05R\btcpPorts\x12\x1a\n" +
 	"\budpPorts\x18\b \x03(\x05R\budpPorts\x12(\n" +
 	"\x0fapmInstrumented\x18\t \x01(\bR\x0fapmInstrumented\x12+\n" +

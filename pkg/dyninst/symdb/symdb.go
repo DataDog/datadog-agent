@@ -32,6 +32,7 @@ import (
 )
 
 var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
+var functionParseLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 5)
 
 // PackagesIterator returns an iterator over the packages in the binary.
 //
@@ -766,6 +767,18 @@ func (b *packagesIterator) close() {
 // iterator returns a Go iterator that yields packages one by one. The returned
 // iterator takes ownership of the Elf file, so it must be called (or used in a
 // range loop) in order to eventually release resources.
+//
+// Depending on the IncludeInlinedFunctions option, the yielded packages will
+// have their Types populated or not: if IncludeInlinedFunctions is true, then
+// the Types field is not filled in (since types can be discovered in different
+// compile units than the package they belong to); instead the data is
+// accumulated and addAbstractFunctions must be called later to gather the final
+// types (which will then include functions that were inlined in other compile
+// units).
+//
+// If IncludeInlinedFunctions is true, empty packages can be yielded (since they
+// may get functions and types  later when addAbstractFunctions is called).
+// Otherwise, packages with no types or functions are ignored.
 func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 	var err error
 	return func(yield func(pkg Package, err error) bool) {
@@ -798,7 +811,11 @@ func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 			// accumulated types to the output package. If we are dealing with
 			// inlined functions, then this will happen later, once we've
 			// discovered all the abstract functions and their inlined
-			// instances, both of which can be in different compile units.
+			// instances, both of which can be in different compile units. Note
+			// that, when IncludeInlinedFunctions is true, we may have
+			// discovered types belonging to different packages while exploring
+			// this compile unit; that's why we accumulate the types in b.types
+			// instead of returning them with this package.
 			if !b.options.IncludeInlinedFunctions {
 				numPkgs := len(b.types.packages)
 				if numPkgs > 1 {
@@ -837,8 +854,13 @@ func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 				clear(b.types.types)
 			}
 
-			if !yield(pkg, nil) {
-				break
+			// Yield the package. But don't yield empty packages when
+			// IncludeInlinedFunctions is not set.
+			pkgEmpty := len(pkg.Functions) == 0 && len(pkg.Types) == 0
+			if b.options.IncludeInlinedFunctions || !pkgEmpty {
+				if !yield(pkg, nil) {
+					break
+				}
 			}
 		}
 		if err != nil {
@@ -868,7 +890,7 @@ func interestingPackage(pkgName string, mainModule string, firstPartyPkgPrefix s
 }
 
 // addAbstractFunctions takes the aggregated data about inlined functions and
-// adds the functions to the corresponding packages and types.
+// adds the functions to the corresponding packages and types in `packages`.
 func (b *packagesIterator) addAbstractFunctions(packages map[string]*Package) error {
 	// Sort abstract functions so that output is stable.
 	abstractFunctions := make([]*abstractFunction, 0, len(b.abstractFunctions))
@@ -950,7 +972,10 @@ type typeInfo struct {
 type ExtractOptions struct {
 	Scope ExtractScope
 	// If set, abstract functions and their inlined instances are not explored.
-	// The produced
+	// The output will not contain functions that are ever inlined (including
+	// functions that are only sometimes inlined). The line availability for
+	// variables will not include information from inlined instances of the
+	// function.
 	IncludeInlinedFunctions bool
 }
 
@@ -1223,10 +1248,17 @@ func (b *packagesIterator) exploreSubprogram(
 		// exploreCode() call above.
 		typ := b.types.getType(typeQualifiedName)
 		if typ == nil {
-			return Function{}, fmt.Errorf(
-				"%s is a method of type %s, but that type is missing from the cache. DWARF offset: 0x%x",
-				funcQualifiedName, typeQualifiedName, entry.Offset,
-			)
+			// We think this is a method, but the type is missing from the
+			// cache. This could mean that we parsed the function wrong -- e.g.
+			// it's an anonymous function, not a method. Log and ignore skip the
+			// function.
+			if functionParseLogLimiter.Allow() {
+				log.Warnf(
+					"%s is a method of type %s, but that type is missing from the cache. DWARF offset: 0x%x",
+					funcQualifiedName, typeQualifiedName, entry.Offset,
+				)
+				return Function{}, nil
+			}
 		}
 		typ.Methods = append(typ.Methods, res)
 		// We don't return a Function for methods.

@@ -487,21 +487,26 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		if err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
 			t.log.Tracef("Failed to generate container ID from %v: %s", originInfo.ExternalData, err)
 		}
-
-		// Accumulate tags for generated container ID
 		if generatedContainerID != "" {
 			containerIDsFrom["ContainerIDFromExternalData"] = generatedContainerID
-			if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
-				t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
-			}
 		}
 
 		containerIDs := slices.Collect(maps.Values(containerIDsFrom))
 		// Check for container ID mismatch
+		// Do not use external data if there is a mismatch between the different resolutions
 		if len(containerIDs) > 1 &&
 			slices.ContainsFunc(containerIDs[1:], func(id string) bool { return id != containerIDs[0] }) {
 			t.telemetryStore.OriginInfoContainerIDMismatch.Inc()
 			t.log.Warnf("Container ID mismatch detected: %v", containerIDsFrom)
+		} else {
+			// Accumulate tags for generated container ID
+			// TODO (CONTP): investigate refactoring tag enrichment to return
+			// once higher priority containerID successfully resolves and adds tags
+			if generatedContainerID != "" {
+				if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
+					t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
+				}
+			}
 		}
 	}
 

@@ -1,0 +1,59 @@
+---
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  check_comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if there is a comment from a datadog member
+        id: datadog-comment
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          result-encoding: string
+          script: |
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            let commented = "false";
+            for (const comment of comments.data) {
+              try {
+                const membership = await github.rest.orgs.checkMembershipForUser({
+                  org: 'datadog',
+                  username: comment.user.login
+                });
+                if (membership.status === 204) {
+                  commented = "true";
+                  break;
+                }
+              } catch (error) {
+                if (error.name === 'HttpError') {
+                  // User is not a datadog member
+                  continue;
+                }
+                throw error;
+              }
+            }
+            return commented;
+      - name: Remove the pending label when issue is commented
+        if: steps.datadog-comment.outputs.result == 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const labels = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            for (const label of labels.data) {
+              if (label.name === 'pending') {
+                await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: label.name
+            });
+

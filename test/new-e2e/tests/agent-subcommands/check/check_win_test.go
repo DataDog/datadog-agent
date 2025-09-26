@@ -25,7 +25,7 @@ func TestWindowsCheckSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &windowsCheckSuite{}, e2e.WithProvisioner(
 		awshost.ProvisionerNoFakeIntake(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			awshost.WithAgentOptions(
 				agentparams.WithIntegration("hello.d", string(customCheckYaml)),
 				agentparams.WithFile("C:/ProgramData/Datadog/checks.d/hello.py", string(customCheckPython), true),

@@ -33,8 +33,6 @@ type debuggerData struct {
 }
 
 type snapshotData struct {
-	decoder *Decoder
-
 	// static fields:
 	ID        uuid.UUID `json:"id"`
 	Timestamp int       `json:"timestamp"`
@@ -59,20 +57,26 @@ type locationData struct {
 }
 
 type captureData struct {
-	Entry capturePointData `json:"entry"`
+	Entry *captureEvent `json:"entry,omitempty"`
 }
 
-type capturePointData struct {
-	Arguments argumentsData `json:"arguments"`
-}
+type captureEvent struct {
+	encodingContext
 
-type argumentsData struct {
 	rootData         []byte
 	rootType         *ir.EventRootType
-	event            Event
-	decoder          *Decoder
 	evaluationErrors *[]string
-	skipIndicies     []byte
+	skippedIndices   bitset
+}
+
+func (ce *captureEvent) clear() {
+	ce.rootData = nil
+	ce.rootType = nil
+	ce.evaluationErrors = nil
+
+	clear(ce.dataItems)
+	clear(ce.currentlyEncoding)
+	ce.skippedIndices.reset(0)
 }
 
 var ddDebuggerString = jsontext.String("dd_debugger")
@@ -83,68 +87,31 @@ func (ddDebuggerSource) MarshalJSONTo(enc *jsontext.Encoder) error {
 	return enc.WriteToken(ddDebuggerString)
 }
 
-// In the root data item, before the expressions, there is a bitset
-// which conveys if expression values are present in the data.
-// The rootType.PresenceBitsetSize conveys the size of the bitset in
-// bytes, and presence bits in the bitset correspond with index of
-// the expression in the root ir.
-func expressionIsPresent(bitset []byte, expressionIndex int) bool {
-	idx, bit := expressionIndex/8, expressionIndex%8
-	return idx < len(bitset) && bitset[idx]&(1<<byte(bit)) != 0
-}
-
-// Helper functions for skipIndicies bitset operations
-func isSkipped(bitset []byte, index int) bool {
-	idx, bit := index/8, index%8
-	return idx < len(bitset) && bitset[idx]&(1<<byte(bit)) != 0
-}
-
-func setSkipped(bitset []byte, index int) {
-	idx, bit := index/8, index%8
-	if idx < len(bitset) {
-		bitset[idx] |= 1 << byte(bit)
-	}
-}
-
-func (c *captureData) MarshalJSONTo(enc *jsontext.Encoder) error {
-	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
-		return err
-	}
-	if err := writeTokens(enc,
-		jsontext.String("entry"),
-		jsontext.BeginObject,
-		jsontext.String("arguments"),
-	); err != nil {
-		return err
-	}
-	if err := c.Entry.Arguments.MarshalJSONTo(enc); err != nil {
-		return err
-	}
-	return writeTokens(enc, jsontext.EndObject, jsontext.EndObject)
-}
-
 var errEvaluation = errors.New("evaluation error")
 
 // processExpression processes a single expression from the root type expressions
-func (ad *argumentsData) processExpression(
+func (ce *captureEvent) processExpression(
 	enc *jsontext.Encoder,
 	expr *ir.RootExpression,
-	presenceBitSet []byte,
+	presenceBitSet bitset,
 	expressionIndex int,
 ) error {
 	parameterType := expr.Expression.Type
 	parameterSize := parameterType.GetByteSize()
 	ub := expr.Offset + parameterSize
-	if int(ub) > len(ad.rootData) {
-		*ad.evaluationErrors = append(*ad.evaluationErrors, "could not read parameter data from root data, length mismatch")
+	if int(ub) > len(ce.rootData) {
+		*ce.evaluationErrors = append(
+			*ce.evaluationErrors,
+			"could not read parameter data from root data, length mismatch",
+		)
 		return errEvaluation
 	}
-	parameterData := ad.rootData[expr.Offset:ub]
+	data := ce.rootData[expr.Offset:ub]
 	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 		return err
 	}
-	if !expressionIsPresent(presenceBitSet, expressionIndex) && parameterSize != 0 {
-		// Set not capture reason
+	if !presenceBitSet.get(expressionIndex) && parameterSize != 0 {
+		// Set not capture reason.
 		if err := writeTokens(enc,
 			jsontext.BeginObject,
 			jsontext.String("type"),
@@ -157,40 +124,62 @@ func (ad *argumentsData) processExpression(
 		}
 		return nil
 	}
-	err := ad.decoder.encodeValue(enc,
-		parameterType.GetID(),
-		parameterData,
-		parameterType.GetName(),
+	err := encodeValue(
+		&ce.encodingContext, enc, parameterType.GetID(), data, parameterType.GetName(),
 	)
 	if err != nil {
-		*ad.evaluationErrors = append(*ad.evaluationErrors, ad.rootType.Name+err.Error())
+		*ce.evaluationErrors = append(*ce.evaluationErrors, ce.rootType.Name+err.Error())
 		return errEvaluation
 	}
 	return nil
 }
 
-func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
+func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if ce.rootType.PresenceBitsetSize > uint32(len(ce.rootData)) {
+		return errors.New("presence bitset is out of bounds")
+	}
+	presenceBitSet := ce.rootData[:ce.rootType.PresenceBitsetSize]
+
 	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}
-
-	if ad.rootType.PresenceBitsetSize > uint32(len(ad.rootData)) {
-		return errors.New("presence bitset is out of bounds")
-	}
-	presenceBitSet := ad.rootData[:ad.rootType.PresenceBitsetSize]
-	// We iterate over the 'Expressions' of the EventRoot which contains
-	// metadata and raw bytes of the parameters of this function.
-	for i, expr := range ad.rootType.Expressions {
-		if isSkipped(ad.skipIndicies, i) {
-			continue
+	for _, kind := range []struct {
+		kind  ir.RootExpressionKind
+		token jsontext.Token
+	}{
+		{kind: ir.RootExpressionKindArgument, token: jsontext.String("arguments")},
+		{kind: ir.RootExpressionKindLocal, token: jsontext.String("locals")},
+	} {
+		// We iterate over the 'Expressions' of the EventRoot which contains
+		// metadata and raw bytes of the parameters of this function.
+		var haveKind bool
+		for i, expr := range ce.rootType.Expressions {
+			if expr.Kind != kind.kind {
+				continue
+			}
+			if ce.skippedIndices.get(i) {
+				continue
+			}
+			if !haveKind {
+				haveKind = true
+				if err := writeTokens(enc, kind.token, jsontext.BeginObject); err != nil {
+					return err
+				}
+			}
+			err := ce.processExpression(enc, expr, presenceBitSet, i)
+			if errors.Is(err, errEvaluation) {
+				// This expression resulted in an evaluation error, we mark it to be
+				// skipped and will try again
+				ce.skippedIndices.set(i)
+			}
+			if err != nil {
+				return err
+			}
 		}
-		if err := ad.processExpression(enc, expr, presenceBitSet, i); errors.Is(err, errEvaluation) {
-			// This expression resulted in an evaluation error, we mark it to be skipped
-			// and will try again
-			setSkipped(ad.skipIndicies, i)
-			return err
-		} else if err != nil {
-			return err
+		if haveKind {
+			if err := writeTokens(enc, jsontext.EndObject); err != nil {
+				return err
+			}
 		}
 	}
 	if err := writeTokens(enc, jsontext.EndObject); err != nil {
@@ -242,13 +231,14 @@ func (sl *stackLine) MarshalJSONTo(enc *jsontext.Encoder) error {
 	return nil
 }
 
-func (d *Decoder) encodeValue(
+func encodeValue(
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	typeID ir.TypeID,
 	data []byte,
 	valueType string,
 ) error {
-	decoderType, ok := d.decoderTypes[typeID]
+	decoderType, ok := c.getType(typeID)
 	if !ok {
 		return errors.New("no decoder type found")
 	}
@@ -258,7 +248,7 @@ func (d *Decoder) encodeValue(
 	if err := writeTokens(enc, jsontext.String("type"), jsontext.String(valueType)); err != nil {
 		return err
 	}
-	if err := decoderType.encodeValueFields(d, enc, data); err != nil {
+	if err := decoderType.encodeValueFields(c, enc, data); err != nil {
 		return err
 	}
 	if err := writeTokens(enc, jsontext.EndObject); err != nil {

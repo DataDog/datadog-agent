@@ -19,6 +19,19 @@ var (
 	allowPrecompiledFallbackKey = spNS("allow_precompiled_fallback")
 )
 
+// eBPFMapPreallocationSupported return true if the kernel has the BPF memory allocator, without it, using NO_PREALLOC
+// can lead to performance implications, as the allocator takes care of caching allocations.
+func eBPFMapPreallocationSupported() bool {
+	kernelVersion, err := ebpfkernel.NewKernelVersion()
+
+	if err != nil {
+		log.Warnf("unable to detect the kernel version: %s", err)
+		return false
+	}
+
+	return kernelVersion.Code >= ebpfkernel.Kernel6_1
+}
+
 // ProcessEventDataStreamSupported returns true if process event data stream is supported
 func ProcessEventDataStreamSupported() bool {
 	kernelVersion, err := ebpfkernel.NewKernelVersion()

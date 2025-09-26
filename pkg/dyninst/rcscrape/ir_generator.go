@@ -26,7 +26,15 @@ func (irGenerator) GenerateIR(
 	programID ir.ProgramID,
 	binaryPath string,
 	probes []ir.ProbeDefinition,
-) (*ir.Program, error) {
+) (ret *ir.Program, retErr error) {
+	defer func() {
+		if retErr != nil {
+			return
+		}
+		if len(ret.Probes) == 0 {
+			retErr = &ir.NoSuccessfulProbesError{Issues: ret.Issues}
+		}
+	}()
 	var v1Def, v2Def, symdbDef ir.ProbeDefinition
 	for _, probe := range probes {
 		switch id := probe.GetID(); id {

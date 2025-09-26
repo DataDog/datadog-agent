@@ -329,6 +329,9 @@ const (
 	MetricSourceSupabase
 	MetricSourceKeda
 	MetricSourceDuckdb
+	MetricSourceBentoMl
+	MetricSourceHuggingFaceTgi
+	MetricSourceIbmSpectrumLsf
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -992,6 +995,12 @@ func (ms MetricSource) String() string {
 		return "keda"
 	case MetricSourceDuckdb:
 		return "duckdb"
+	case MetricSourceBentoMl:
+		return "bentoml"
+	case MetricSourceHuggingFaceTgi:
+		return "hugging_face_tgi"
+	case MetricSourceIbmSpectrumLsf:
+		return "ibm_spectrum_lsf"
 	case MetricSourceOpenTelemetryCollectorUnknown:
 		return "opentelemetry_collector_unknown"
 	case MetricSourceOpenTelemetryCollectorDockerstatsReceiver:
@@ -1678,6 +1687,18 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceProxmox
 	case "resilience4j":
 		return MetricSourceResilience4j
+	case "supabase":
+		return MetricSourceSupabase
+	case "keda":
+		return MetricSourceKeda
+	case "duckdb":
+		return MetricSourceDuckdb
+	case "bentoml":
+		return MetricSourceBentoMl
+	case "hugging_face_tgi":
+		return MetricSourceHuggingFaceTgi
+	case "ibm_spectrum_lsf":
+		return MetricSourceIbmSpectrumLsf
 	case "opentelemetry_collector_unknown":
 		return MetricSourceOpenTelemetryCollectorUnknown
 	case "opentelemetry_collector_dockerstatsreceiver":

@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
-// setInstallerUmask sets umask 0 to override any inherited umask
+// setInstallerUmask sets umask 022 to override any inherited umask
 func setInstallerUmask(span *telemetry.Span) {
-	oldmask := syscall.Umask(0)
+	oldmask := syscall.Umask(022)
 	span.SetTag("inherited_umask", oldmask)
 }

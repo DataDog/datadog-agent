@@ -10,7 +10,7 @@ on:
 permissions: {}
 jobs:
   save-pr:
-    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]' ||  github.event.pull_request.user.login == 'mend[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Save PR number for later execution
@@ -24,7 +24,7 @@ jobs:
           path: pr/
 
   add_reviewers:
-    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]' ||  github.event.pull_request.user.login == 'mend[bot]'
     runs-on: ubuntu-latest
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub

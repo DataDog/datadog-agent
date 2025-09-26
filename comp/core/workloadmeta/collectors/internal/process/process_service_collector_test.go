@@ -693,7 +693,6 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 				assert.Equal(collectT, expectedProcess.Service.GeneratedNameSource, entity.Service.GeneratedNameSource)
 				assert.Equal(collectT, expectedProcess.Service.AdditionalGeneratedNames, entity.Service.AdditionalGeneratedNames)
 				assert.Equal(collectT, expectedProcess.Service.TracerMetadata, entity.Service.TracerMetadata)
-				assert.Equal(collectT, expectedProcess.Service.DDService, entity.Service.DDService)
 				assert.Equal(collectT, expectedProcess.Service.TCPPorts, entity.Service.TCPPorts)
 				assert.Equal(collectT, expectedProcess.Service.UDPPorts, entity.Service.UDPPorts)
 				assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)

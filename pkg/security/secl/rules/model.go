@@ -117,7 +117,7 @@ const (
 // ActionDefinitionInterface is an interface that describes a rule action section
 type ActionDefinitionInterface interface {
 	PreCheck(opts PolicyLoaderOpts) error
-	PostCheck(rule *eval.Rule) error
+	IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error
 }
 
 // ActionDefinition describes a rule action section
@@ -187,20 +187,17 @@ func (a *ActionDefinition) PreCheck(opts PolicyLoaderOpts) error {
 	return nil
 }
 
-// PostCheck returns an error if the action is invalid after parsing
-func (a *ActionDefinition) PostCheck(rule *eval.Rule) error {
+// IsActionSupported returns true if the action is supported given a list of enabled event type
+func (a *ActionDefinition) IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error {
 	candidateActions := a.getCandidateActions()
-	actions := 0
 
 	for _, action := range candidateActions {
 		if !reflect.ValueOf(action).IsNil() {
-			if err := action.PostCheck(rule); err != nil {
+			if err := action.IsActionSupported(eventTypeEnabled); err != nil {
 				return err
 			}
-			actions++
 		}
 	}
-
 	return nil
 }
 
@@ -215,8 +212,8 @@ func (a *DefaultActionDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	return nil
 }
 
-// PostCheck returns an error if the action is invalid after parsing
-func (a *DefaultActionDefinition) PostCheck(_ *eval.Rule) error {
+// IsActionSupported returns true if the action is supported with the provided set of enabled event types
+func (a *DefaultActionDefinition) IsActionSupported(_ map[eval.EventType]bool) error {
 	return nil
 }
 
@@ -342,6 +339,18 @@ func (h *HashDefinition) PostCheck(rule *eval.Rule) error {
 		return err
 	}
 
+	// check that the field is compatible with the rule event type
+	fieldPathForMetadata := h.Field + ".path"
+	fieldEventType, _, _, err := ev.GetFieldMetadata(fieldPathForMetadata)
+	if err != nil {
+		return fmt.Errorf("failed to get event type for field '%s': %w", fieldPathForMetadata, err)
+	}
+
+	// if the field has an event type, we check it matches the rule event type
+	if fieldEventType != "" && fieldEventType != ruleEventType {
+		return fmt.Errorf("field '%s' is not compatible with '%s' rules", h.Field, ruleEventType)
+	}
+
 	return nil
 }
 
@@ -380,6 +389,14 @@ func (n *NetworkFilterDefinition) PreCheck(_ PolicyLoaderOpts) error {
 		return fmt.Errorf("invalid scope '%s'", n.Scope)
 	}
 
+	return nil
+}
+
+// IsActionSupported returns true if the action is supported with the provided set of enabled event types
+func (n *NetworkFilterDefinition) IsActionSupported(eventTypeEnabled map[eval.EventType]bool) error {
+	if !eventTypeEnabled[model.RawPacketFilterEventType.String()] {
+		return fmt.Errorf("network_filter action requires %s event type", model.RawPacketActionEventType)
+	}
 	return nil
 }
 

@@ -263,10 +263,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: nsFlowToNetworkStats,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"inet_bind_args": {
-			MaxEntries: superReducedProcPidCacheSize,
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"activity_dumps_config": {
 			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
@@ -357,19 +353,29 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			KeySize:    1,
 			ValueSize:  1,
 			MaxEntries: 1,
-			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries | manager.EditFlags,
 		}
 	}
 
-	if !kv.HasNoPreallocMapsInPerfEvent() {
+	if !kv.HasSafeBPFMemoryAllocations() {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditMaxEntries | manager.EditFlags,
+		}
+		editors["inet_bind_args"] = manager.MapSpecEditor{
+			MaxEntries: superReducedProcPidCacheSize,
 			Flags:      unix.BPF_ANY,
 			EditorFlag: manager.EditMaxEntries | manager.EditFlags,
 		}
 	} else {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["inet_bind_args"] = manager.MapSpecEditor{
+			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

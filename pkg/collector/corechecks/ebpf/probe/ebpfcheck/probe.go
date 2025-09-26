@@ -709,7 +709,7 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 	keySize := uint64(roundUpPow2(info.KeySize, 8))
 	perCPU := isPerCPU(info.Type)
 	lru := isLRU(info.Type)
-	//prealloc := (info.Flags & unix.BPF_F_NO_PREALLOC) == 0
+	prealloc := (info.Flags & unix.BPF_F_NO_PREALLOC) == 0
 	hasExtraElems := !perCPU && !lru
 
 	nBuckets := uint64(roundUpNearestPow2(info.MaxEntries))
@@ -717,9 +717,6 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 	usage += sizeOfBucket * nBuckets
 	// could we get the size of the locks more directly with BTF?
 	usage += sizeOfInt * nrCPUS * hashtabMapLockCount
-
-	// TODO proper support of non-preallocated maps, will require coordination with eBPF to read size (if possible)
-	//if prealloc {
 
 	numEntries := uint64(info.MaxEntries)
 	if hasExtraElems {
@@ -740,11 +737,15 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 		usage += sizeOfPointer * nrCPUS
 	}
 
-	//
-	//} else { // !prealloc
-	//
-	//}
+	// for non-preallocated maps, try reading RSS from fdinfo when precise counting is supported (kernel 6.4+)
+	if !prealloc {
+		if memlock, ok := info.Memlock(); ok && preciseMapMemUsageSupported() {
+			return usage, memlock
+		}
+		return usage, 0
+	}
 
+	// for preallocated maps, we approximate RSS being equal to max memory usage
 	return usage, usage
 }
 
@@ -1191,4 +1192,15 @@ func hashMapNumberOfEntriesWithHelper(mp *ebpf.Map, mapid ebpf.MapID, mphCache *
 	}
 
 	return int64(res), nil
+}
+
+// https://lwn.net/ml/linux-mm/20230202014158.19616-6-laoar.shao@gmail.com/
+// https://github.com/torvalds/linux/commit/304849a27b341cf22d5c15096144cc8c1b69e0c0
+func preciseMapMemUsageSupported() bool {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return false
+	}
+
+	return kv >= kernel.VersionCode(6, 4, 0)
 }

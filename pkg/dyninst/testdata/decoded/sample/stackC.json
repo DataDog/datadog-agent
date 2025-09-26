@@ -57,11 +57,7 @@
             "method": "main.stackC"
           }
         },
-        "captures": {
-          "entry": {
-            "arguments": {}
-          }
-        }
+        "captures": {}
       }
     },
     "timestamp": "[ts]"

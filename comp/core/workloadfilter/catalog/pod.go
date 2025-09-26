@@ -35,12 +35,12 @@ func LegacyPodProgram(config config.Component, loggger log.Component) program.Fi
 	includeProgram, includeErr := createProgramFromOldFilters(includeList, workloadfilter.PodType)
 	if includeErr != nil {
 		initErrors = append(initErrors, includeErr)
-		loggger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+		loggger.Warnf("error creating include program for %s: %v", programName, includeErr)
 	}
 	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.PodType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
-		loggger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+		loggger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
 	}
 
 	return program.CELProgram{

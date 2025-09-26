@@ -34,7 +34,7 @@ func TestPosition(t *testing.T) {
 	}
 
 	// Create a mock fingerprinter
-	mockFingerprinter := file.NewFingerprinter(true, *fingerprintConfig)
+	mockFingerprinter := file.NewFingerprinter(*fingerprintConfig)
 
 	// Set a fingerprint in the registry
 	fingerprint := &types.Fingerprint{

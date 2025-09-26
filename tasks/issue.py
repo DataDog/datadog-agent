@@ -60,6 +60,7 @@ def ask_reviews(_, pr_id):
     if any(label.name == 'ask-review' for label in pr.get_labels()):
         actor = ask_review_actor(pr)
         reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
+        print(f"Reviewers: {reviewers}")
 
         from slack_sdk import WebClient
 
@@ -72,7 +73,9 @@ def ask_reviews(_, pr_id):
                 DEFAULT_SLACK_CHANNEL,
             )
             stop_updating = ""
-            if pr.user.login == "renovate[bot]" and pr.title.startswith("chore(deps): update integrations-core"):
+            if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
+                "chore(deps): update integrations-core"
+            ):
                 stop_updating = "Add the `stop-updating` label before trying to merge this PR, to prevent it from being updated by Renovate.\n"
             message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\n{stop_updating}Thanks in advance!\n'
             if channel == DEFAULT_SLACK_CHANNEL:
