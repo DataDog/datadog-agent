@@ -1,5 +1,5 @@
 init_config:
 instances:
   - name: "My first service"
-    url: localhost:9095
+    url: http://localhost:9095
     loader: sharedlibrary
