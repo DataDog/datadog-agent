@@ -148,7 +148,7 @@ func (s *WorkloadService) FilterTemplates(configs map[string]integration.Config)
 	s.filterTemplatesEmptyOverrides(configs)
 	s.filterTemplatesOverriddenChecks(configs)
 	s.filterTemplatesContainerCollectAll(configs)
-	filterTemplatesCELSelector(s, configs)
+	filterTemplatesMatched(s, configs)
 }
 
 // GetFilterableEntity returns the filterable entity of the service

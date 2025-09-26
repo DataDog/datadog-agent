@@ -16,8 +16,8 @@ type FilterableService interface {
 	GetFilterableEntity() workloadfilter.Filterable
 }
 
-// filterTemplatesCELSelector returns true if the given service matches the CEL program of the config.
-func filterTemplatesCELSelector(svc FilterableService, configs map[string]integration.Config) {
+// filterTemplatesMatched removes any config that does not match the service's filterable entity
+func filterTemplatesMatched(svc FilterableService, configs map[string]integration.Config) {
 	filterableEntity := svc.GetFilterableEntity()
 	if filterableEntity != nil {
 		for digest, config := range configs {

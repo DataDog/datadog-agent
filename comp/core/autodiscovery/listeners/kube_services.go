@@ -386,7 +386,7 @@ func (s *KubeServiceService) GetExtraConfig(_ string) (string, error) {
 
 // FilterTemplates filters the given configs based on the service's CEL selector.
 func (s *KubeServiceService) FilterTemplates(configs map[string]integration.Config) {
-	filterTemplatesCELSelector(s, configs)
+	filterTemplatesMatched(s, configs)
 }
 
 // GetFilterableEntity returns the filterable entity of the service
