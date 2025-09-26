@@ -51,7 +51,7 @@ func newResourceRecommenderSettings(objective datadoghqcommon.DatadogPodAutoscal
 			return nil, err
 		}
 	} else if objective.Type == datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType {
-		// ControllerObjective is ignored by the local recommender
+		// CustomQueryObjective is ignored by the local recommender
 		return nil, nil
 	} else {
 		return nil, fmt.Errorf("Invalid target type: %s", objective.Type)
