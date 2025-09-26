@@ -6,8 +6,6 @@
 package packages
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -31,13 +29,3 @@ var (
 		"datadog-apm-library-dotnet": asyncPreRemoveHookAPMLibraryDotnet,
 	}
 )
-
-// InstrumentAPMInjector instruments the APM injector
-func InstrumentAPMInjector(_ context.Context, _ string) (err error) {
-	return nil
-}
-
-// UninstrumentAPMInjector uninstruments the APM injector
-func UninstrumentAPMInjector(_ context.Context, _ string) (err error) {
-	return nil
-}
