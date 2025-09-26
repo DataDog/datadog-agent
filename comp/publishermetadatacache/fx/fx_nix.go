@@ -25,5 +25,3 @@ func Module() fxutil.Module {
 
 // stubComponent implements the Component interface for non-Windows platforms
 type stubComponent struct{}
-
-// Stub implementation - not used on non-Windows platforms

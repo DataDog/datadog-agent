@@ -19,4 +19,3 @@ type PublisherMetadataCache struct{}
 func Mock() publishermetadatacache.Component {
 	return &PublisherMetadataCache{}
 }
-
