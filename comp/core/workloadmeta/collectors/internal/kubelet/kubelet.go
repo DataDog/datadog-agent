@@ -113,7 +113,7 @@ func (c *collector) Pull(ctx context.Context) error {
 }
 
 func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.CollectorEvent, error) {
-	_, config, err := c.kubeUtil.GetConfig(ctx)
+	rawKubeletConfig, config, err := c.kubeUtil.GetConfig(ctx)
 	if err != nil {
 		return workloadmeta.CollectorEvent{}, err
 	}
@@ -136,6 +136,7 @@ func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.Collect
 				Name: workloadmeta.KubeletName,
 			},
 			ConfigDocument: wmetaConfigDocument,
+			RawConfig:      rawKubeletConfig,
 		},
 	}, nil
 }
