@@ -122,6 +122,3 @@ replace github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
 replace github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
 
 replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
-
-// Pin github.com/stretchr/testify to v1.10.0 while waiting for https://github.com/DataDog/datadog-agent/pull/40182
-replace github.com/stretchr/testify => github.com/stretchr/testify v1.10.0
