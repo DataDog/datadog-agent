@@ -13,6 +13,7 @@ import (
 
 const (
 	incorrectAssertion = "INCORRECT_ASSERTION"
+	invalidTest        = "INVALID_TEST"
 )
 
 func runAssertions(cfg common.SyntheticsTestConfig, result common.NetStats) []common.AssertionResult {
@@ -78,7 +79,7 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 			Property: assertion.Property,
 			Expected: assertion.Target,
 			Failure: common.APIFailure{
-				Code:    incorrectAssertion,
+				Code:    invalidTest,
 				Message: fmt.Sprintf("unsupported field: %s", assertion.Type),
 			},
 		}

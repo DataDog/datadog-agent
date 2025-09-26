@@ -109,6 +109,9 @@ type NetStats struct {
 
 // Result represents the outcome of a test run including assertions and stats.
 type Result struct {
+	Location struct {
+		ID string `json:"id"`
+	} `json:"location"`
 	ID              string              `json:"id"`
 	InitialID       string              `json:"initialId"`
 	TestFinishedAt  int64               `json:"testFinishedAt"`
