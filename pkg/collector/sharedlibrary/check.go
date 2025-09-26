@@ -91,7 +91,7 @@ func (c *SharedLibraryCheck) Run() error {
 	cErr := C.run_shared_library(c.libHandles.run, cID, cInitConfig, cInstanceConfig, cAggregator)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return fmt.Errorf("Run function failed: %s", C.GoString(cErr))
+		return fmt.Errorf("Run failed: %s", C.GoString(cErr))
 	}
 
 	s, err := c.senderManager.GetSender(c.ID())

@@ -8,33 +8,70 @@ use std::sync::Arc;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::io::{ErrorKind, Read, Write};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use rustls::{KeyLogFile, ClientConnection, RootCertStore, Stream};
-use rustls::pki_types::CertificateDer;
+use rustls::pki_types::{CertificateDer, ServerName};
 use webpki_roots::TLS_SERVER_ROOTS;
 use x509_parser::parse_x509_certificate;
 
+/// Parsed URL
+#[derive(Debug)]
+pub struct Url {
+    pub scheme: Option<String>,
+    pub path: String,
+    pub port: Option<String>,
+}
+
+impl Url {
+    pub fn from(url: &str) -> Self {
+        let mut remaining = url;
+        
+        // Extract scheme
+        let scheme = if let Some(scheme_end) = remaining.find("://") {
+            let extracted_scheme = remaining[..scheme_end].to_string();
+            remaining = &remaining[scheme_end + 3..]; // Skip past "://"
+            Some(extracted_scheme)
+        } else {
+            None
+        };
+
+        // Extract path and port
+        let (path, port) = if let Some(port_start) = remaining.find(':') {
+            let path = &remaining[..port_start];
+            let port = &remaining[port_start + 1..];
+            (path.to_string(), Some(port.to_string()))
+        } else {
+            (remaining.to_string(), None)
+        };
+
+        Self { scheme, path, port }
+    }
+}
+
 pub trait CheckImplementation {
-    fn check(self) -> Result<(), Box<dyn Error>>;
+    fn check(&self) -> Result<(), Box<dyn Error>>;
 }
 
 impl CheckImplementation for AgentCheck {
     /// Check implementation
-    fn check(self) -> Result<(), Box<dyn Error>> {
+    fn check(&self) -> Result<(), Box<dyn Error>> {
         // references for certificate expiration
         const DEFAULT_EXPIRE_DAYS_WARNING: i32 = 14;
         const DEFAULT_EXPIRE_DAYS_CRITICAL: i32 = 7;
         const DEFAULT_EXPIRE_WARNING: i32 = DEFAULT_EXPIRE_DAYS_WARNING * 24 * 3600;
         const DEFAULT_EXPIRE_CRITICAL: i32 = DEFAULT_EXPIRE_DAYS_CRITICAL * 24 * 3600;
-                
-        // instance variables
-        let url: String = self.instance.get("url")?;
-        let mut tags: Vec<String> = vec![];
 
-        // ssl certificates are gotten during the execution of the check
+        // ssl certificates can be collected during the execution of the check
+        // if not, a service check will be sent
         let mut peer_cert: Option<CertificateDer> = None;
 
-        // list service checks and their custom tags
+        // parse the url given by the configuration
+        let full_url_str: String = self.instance.get("url")?;
+        let url = Url::from(&full_url_str);
+        
         let mut service_checks = Vec::<(String, ServiceCheckStatus, String)>::new();
+        
+        let mut tags: Vec<String> = vec![];
         let service_checks_tags = tags.clone();
 
         // connection configuration
@@ -44,47 +81,49 @@ impl CheckImplementation for AgentCheck {
             .with_root_certificates(root_store)
             .with_no_client_auth();
 
-        // Allow using SSLKEYLOGFILE.
+        // Allow using SSLKEYLOGFILE
         config.key_log = Arc::new(KeyLogFile::new());
 
-        let server_name = url.clone().try_into()?;
+        let server_name = ServerName::try_from(url.path.clone())?.to_owned();
 
         let mut conn = ClientConnection::new(Arc::new(config), server_name)?;
 
         // establish communication
         let start_time = Instant::now();
 
-        let addr = format!("{url}:443")
+        // set the port to 443 if none were given
+        let addr = format!("{}:{}", url.path.clone(), url.port.unwrap_or("443".to_string()))
             .to_socket_addrs()?
             .next().unwrap();
 
         match TcpStream::connect_timeout(&addr, Duration::from_secs(5)) {
             Ok(mut sock) => {                
                 // Create the TLS stream
-                let mut tls = Stream::new(&mut conn, &mut sock);
+                let mut stream = Stream::new(&mut conn, &mut sock);
 
                 // http request header
                 let request_header = format!(
                     "GET / HTTP/1.1\r\n\
-                    Host: {url}\r\n\
+                    Host: {}\r\n\
                     Connection: close\r\n\
                     Accept-Encoding: identity\r\n\
-                    \r\n"
+                    \r\n",
+                    url.path
                 );
 
                 // Send the HTTP request with the TLS stream
-                let response_result = tls.write_all(request_header.as_bytes());
+                let response_result = stream.write_all(request_header.as_bytes());
                 let elapsed_time = start_time.elapsed();
 
                 match response_result {
                     Ok(()) => {
                         // retrieve the first ssl certificate from the response
-                        if let Some(certs) = tls.conn.peer_certificates() {
+                        if let Some(certs) = stream.conn.peer_certificates() {
                             peer_cert = Some(certs[0].clone());
                         }
 
                         // add URL in tags list if not already present
-                        let url_tag = format!("url:{url}");
+                        let url_tag = format!("url:{}", url.path);
 
                         if !tags.contains(&url_tag) {
                             tags.push(url_tag);
@@ -98,7 +137,7 @@ impl CheckImplementation for AgentCheck {
                         // read response from the TLS stream
                         let mut response_raw = Vec::new();
 
-                        match tls.read_to_end(&mut response_raw) {
+                        match stream.read_to_end(&mut response_raw) {
                             Ok(_) => {
                                 let response = String::from_utf8(response_raw)?;
 
@@ -114,7 +153,7 @@ impl CheckImplementation for AgentCheck {
                                     service_checks.push((
                                         "http.can_connect".to_string(),
                                         ServiceCheckStatus::CRITICAL,
-                                        format!("Incorrect HTTP return code for url {url}. Expected 1xx or 2xx or 3xx, got {status_code}"),
+                                        format!("Incorrect HTTP return code for url {}. Expected 1xx or 2xx or 3xx, got {}", url.path, status_code),
                                     ));
                                 } else {
                                     // TODO: content matching
@@ -170,7 +209,7 @@ impl CheckImplementation for AgentCheck {
             Err(e) => {
                 let elapsed_time = start_time.elapsed();
 
-                // NOTE: ErrorKind::WouldBlock is often linked to a timeout
+                // NOTE: ErrorKind::WouldBlock is often associated with a timeout
                 // but not sure if we need to check for this error too
                 if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock {
                     // timeout error
@@ -289,5 +328,51 @@ impl CheckImplementation for AgentCheck {
                 },
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_url_parsing() {
+        // Test full URL with scheme, hostname, and port
+        let url1 = Url::from("https://localhost:5000");
+        assert_eq!(url1.scheme, Some("https".to_string()));
+        assert_eq!(url1.path, "localhost");
+        assert_eq!(url1.port, Some("5000".to_string()));
+
+        // Test URL without port
+        let url2 = Url::from("http://example.com");
+        assert_eq!(url2.scheme, Some("http".to_string()));
+        assert_eq!(url2.path, "example.com");
+        assert_eq!(url2.port, None);
+
+        // Test hostname with port but no scheme
+        let url3 = Url::from("localhost:8080");
+        assert_eq!(url3.scheme, None);
+        assert_eq!(url3.path, "localhost");
+        assert_eq!(url3.port, Some("8080".to_string()));
+
+        // Test just hostname
+        let url4 = Url::from("example.com");
+        assert_eq!(url4.scheme, None);
+        assert_eq!(url4.path, "example.com");
+        assert_eq!(url4.port, None);
+    }
+
+    #[test]
+    fn test_check_implementation() -> Result<(), Box<dyn Error>> {
+        // let agent_check = AgentCheck::new(
+        //     "check_id",
+        //     init_config_str,
+        //     instance_config_str,
+        //     aggregator_ptr
+        // )?;
+
+        // agent_check.check()
+
+        Ok(())
     }
 }
