@@ -1898,14 +1898,17 @@ api_key:
 ## Synthetics Configuration           ##
 ########################################
 
+## @param synthetics - custom object - optional
+## Enter specific configuration for Synthetics tests.
 # synthetics:
-#   # @param  - custom object - optional
-#   # Configuration to run Synthetics tests
+
+#   # @param collector - custom object - optional
+#   # Configuration related to run Synthetics tests.
 #
 #   collector:
 
 #     # @param enabled - bool - optional - default: false
-#     # [Beta] Enables Synthetics tests
+#     # [Preview] Enables Synthetics tests.
 #
 #     enabled: false
 
