@@ -238,7 +238,6 @@ func setupGPUIntegration(s *common.Setup) {
 	s.Out.WriteString("Setting up GPU monitoring based on env variable GPU_MONITORING_ENABLED=true\n")
 	s.Span.SetTag("host_tag_set.gpu_monitoring_enabled", "true")
 
-	s.Config.DatadogYAML.CollectGPUTags = true
 	s.Config.DatadogYAML.GPUCheck.Enabled = true
 
 	// Agent must be restarted after NVML initialization, which occurs after init script execution

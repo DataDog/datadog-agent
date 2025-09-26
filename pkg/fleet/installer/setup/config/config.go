@@ -94,7 +94,6 @@ type DatadogConfig struct {
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
-	CollectGPUTags       bool                       `yaml:"collect_gpu_tags,omitempty"`
 	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
 	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
 }

@@ -344,7 +344,6 @@ func TestSetupGPUIntegration(t *testing.T) {
 	tests := []struct {
 		name                   string
 		env                    map[string]string
-		expectedCollectGPUTags bool
 		expectedEnableGPUM     bool
 		expectedSystemProbeGPU bool
 	}{
@@ -353,7 +352,6 @@ func TestSetupGPUIntegration(t *testing.T) {
 			env: map[string]string{
 				"DD_GPU_ENABLED": "true",
 			},
-			expectedCollectGPUTags: true,
 			expectedEnableGPUM:     true,
 			expectedSystemProbeGPU: true,
 		},
@@ -362,14 +360,12 @@ func TestSetupGPUIntegration(t *testing.T) {
 			env: map[string]string{
 				"DD_GPU_ENABLED": "",
 			},
-			expectedCollectGPUTags: false,
 			expectedEnableGPUM:     false,
 			expectedSystemProbeGPU: false,
 		},
 		{
 			name:                   "GPU monitoring not set",
 			env:                    map[string]string{},
-			expectedCollectGPUTags: false,
 			expectedEnableGPUM:     false,
 			expectedSystemProbeGPU: false,
 		},
@@ -396,7 +392,6 @@ func TestSetupGPUIntegration(t *testing.T) {
 				setupGPUIntegration(s)
 			}
 
-			assert.Equal(t, tt.expectedCollectGPUTags, s.Config.DatadogYAML.CollectGPUTags)
 			assert.Equal(t, tt.expectedEnableGPUM, s.Config.DatadogYAML.GPUCheck.Enabled)
 		})
 	}
