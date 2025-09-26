@@ -25,6 +25,7 @@ const (
 	HistorateType
 	SetType
 	DistributionType
+	SketchType
 	GaugeWithTimestampType
 	CountWithTimestampType
 
@@ -60,6 +61,8 @@ func (m MetricType) String() string {
 		return "Set"
 	case DistributionType:
 		return "Distribution"
+	case SketchType:
+		return "Sketch"
 	case GaugeWithTimestampType:
 		return "GaugeWithTimestamp"
 	case CountWithTimestampType:
@@ -95,7 +98,7 @@ type MetricSampleContext interface {
 type MetricSample struct {
 	Name            string
 	Value           float64
-	RawValue        string
+	RawValue        []byte
 	Mtype           MetricType
 	Tags            []string
 	Host            string
