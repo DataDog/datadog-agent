@@ -69,6 +69,12 @@ func getLogsUseTCP() bool {
 
 // Diagnose performs connectivity diagnosis
 func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
+	diag, _ := DiagnoseWithContext(context.Background(), diagCfg, log)
+	return diag
+}
+
+// DiagnoseWithContext performs connectivity diagnosis honoring context cancellation
+func DiagnoseWithContext(ctx context.Context, diagCfg diagnose.Config, log log.Component) ([]diagnose.Diagnosis, error) {
 
 	// Create domain resolvers
 	keysPerDomain, err := utils.GetMultipleEndpoints(pkgconfigsetup.Datadog())
@@ -81,7 +87,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 				Remediation: "Please validate Agent configuration",
 				RawError:    err.Error(),
 			},
-		}
+		}, nil
 	}
 
 	var diagnoses []diagnose.Diagnosis
@@ -95,13 +101,18 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 				Remediation: "This is likely due to a bug",
 				RawError:    err.Error(),
 			},
-		}
+		}, nil
 	}
 	numberOfWorkers := 1
 	client := getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
 
 	// Create diagnosis for logs
 	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {
+		select {
+		case <-ctx.Done():
+			return diagnoses, ctx.Err()
+		default:
+		}
 		useTCP := getLogsUseTCP()
 		endpoints, err := getLogsEndpoints(useTCP)
 
@@ -138,6 +149,11 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 		// Go through all API Keys of a domain and send an HTTP request on each endpoint
 		for _, apiKey := range domainResolver.GetAPIKeys() {
 			for _, endpointInfo := range endpointsInfo {
+				select {
+				case <-ctx.Done():
+					return diagnoses, ctx.Err()
+				default:
+				}
 				// Initialize variables
 				var logURL string
 				var responseBody []byte
@@ -147,13 +163,13 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 
 				if endpointInfo.Method == "HEAD" {
 					logURL = endpointInfo.Endpoint.Route
-					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log, withOneRedirect()))
+					statusCode, err = sendHTTPHEADRequestToEndpoint(ctx, logURL, getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log, withOneRedirect()))
 				} else {
 					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
 					httpTraces = []string{}
-					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, false))
+					reqCtx := httptrace.WithClientTrace(ctx, createDiagnoseTraces(&httpTraces, false))
 
-					statusCode, responseBody, logURL, err = sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
+					statusCode, responseBody, logURL, err = sendHTTPRequestToEndpoint(reqCtx, client, domain, endpointInfo, apiKey)
 				}
 
 				// Check if there is a response and if it's valid
@@ -170,7 +186,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 			}
 		}
 	}
-	return diagnoses
+	return diagnoses, nil
 }
 
 func createDiagnosis(name string, logURL string, report string, err error) diagnose.Diagnosis {
@@ -273,8 +289,8 @@ func noResponseHints(err error) string {
 }
 
 // See if the URL is redirected to another URL, and return the status code of the redirection
-func sendHTTPHEADRequestToEndpoint(url string, client *http.Client) (int, error) {
-	statusCode, _, err := sendHead(context.Background(), client, url)
+func sendHTTPHEADRequestToEndpoint(ctx context.Context, url string, client *http.Client) (int, error) {
+	statusCode, _, err := sendHead(ctx, client, url)
 	if err != nil {
 		return -1, err
 	}
