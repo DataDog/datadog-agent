@@ -14,7 +14,7 @@ import (
 
 func FuzzNodeOps(f *testing.F) {
 
-	const MAX_KEY_LENGTH = 6
+	const MaxKeyLength = 6
 	f.Add("axbxc", "a", "val", int64(1))
 	f.Add("network|devices", "snmp_traps", "true", int64(42))
 	f.Add("alpha", "beta.gamma", "", int64(0))
@@ -24,13 +24,13 @@ func FuzzNodeOps(f *testing.F) {
 		key1 := strings.Split(path1, "x")
 		key2 := strings.Split(path2, "x")
 		for i := range key1 {
-			if i > MAX_KEY_LENGTH {
+			if i > MaxKeyLength {
 				break
 			}
 			key1[i] = strings.ToValidUTF8(key1[i], "a")
 		}
 		for i := range key2 {
-			if i > MAX_KEY_LENGTH {
+			if i > MaxKeyLength {
 				break
 			}
 			key2[i] = strings.ToValidUTF8(key2[i], "a")
@@ -63,7 +63,7 @@ func FuzzNodeOps(f *testing.F) {
 			_ = cinner.ChildrenKeys()
 		}
 
-		_ = root.DumpSettings(func(src model.Source) bool { return true })
+		_ = root.DumpSettings(func(_ model.Source) bool { return true })
 
 		// Build a secondary tree using NewNodeTree from a map and merge it
 		srcMap := map[string]interface{}{
@@ -95,7 +95,7 @@ func FuzzNodeOps(f *testing.F) {
 }
 
 // TestNodeOps is a regression test for a panic in the DumpSettings method caused by a SetAt call with a key in upper case
-func TestNodeOps(t *testing.T) {
+func TestNodeOps(_ *testing.T) {
 	root := newInnerNode(nil)
 	// Setting this to upper case will trigger a panic in the DumpSettings method
 	key1 := []string{"A"}
@@ -104,5 +104,5 @@ func TestNodeOps(t *testing.T) {
 	n := int64(42)
 	_, _ = root.SetAt(key1, value, model.SourceFile)
 	_, _ = root.SetAt(key2, n, model.SourceEnvVar)
-	_ = root.DumpSettings(func(src model.Source) bool { return true }) // panic here
+	_ = root.DumpSettings(func(_ model.Source) bool { return true }) // panic here
 }

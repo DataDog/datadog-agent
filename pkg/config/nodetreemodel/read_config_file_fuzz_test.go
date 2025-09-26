@@ -78,7 +78,7 @@ dogstatsd_entity_id_precedence: ""
 	f.Add(`dogstatsd_entity_id_precedence:
 other: value`) // Null value (YAML parses as nil)
 
-	f.Fuzz(func(t *testing.T, yamlContent string) {
+	f.Fuzz(func(_ *testing.T, yamlContent string) {
 
 		cfg := NewNodeTreeConfig("test", "TEST", nil).(*ntmConfig)
 		cfg.SetDefault("a", "default_a")
