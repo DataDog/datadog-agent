@@ -44,8 +44,8 @@ func FuzzDecoder(f *testing.F) {
 			Event:       output.Event(item),
 			ServiceName: "foo",
 		}, &noopSymbolicator{}, []byte{})
-		require.Empty(t, decoder.dataItems)
-		require.Empty(t, decoder.currentlyEncoding)
+		require.Empty(t, decoder.entry.dataItems)
+		require.Empty(t, decoder.entry.currentlyEncoding)
 	})
 }
 
@@ -72,8 +72,11 @@ func TestDecoderManually(t *testing.T) {
 			var e eventCaptures
 			require.NoError(t, json.Unmarshal(buf, &e))
 			require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
-			require.Empty(t, decoder.dataItems)
-			require.Empty(t, decoder.currentlyEncoding)
+			require.Empty(t, decoder.entry.dataItems)
+			require.Empty(t, decoder.entry.currentlyEncoding)
+			require.Nil(t, decoder.entry.rootType)
+			require.Nil(t, decoder.entry.rootData)
+			require.Zero(t, decoder.entry.evaluationErrors)
 			require.Zero(t, decoder.snapshotMessage)
 		})
 	}
@@ -742,7 +745,9 @@ type panicDecoderType struct {
 
 var _ decoderType = (*panicDecoderType)(nil)
 
-func (t *panicDecoderType) encodeValueFields(*Decoder, *jsontext.Encoder, []byte) error {
+func (t *panicDecoderType) encodeValueFields(
+	*encodingContext, *jsontext.Encoder, []byte,
+) error {
 	panic("boom")
 }
 
