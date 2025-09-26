@@ -576,64 +576,63 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time) int {
 		return totalEvicted
 		// No need to evict the activity nodes, since this process node will be removed entirely
 
-	} else {
+	}
 
-		// Evict unused syscall nodes
-		for i := len(pn.Syscalls) - 1; i >= 0; i-- {
-			syscallNode := pn.Syscalls[i]
-			if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-				if len(syscallNode.Seen) == 0 {
-					pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
-				}
+	// Evict unused syscall nodes
+	for i := len(pn.Syscalls) - 1; i >= 0; i-- {
+		syscallNode := pn.Syscalls[i]
+		if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(syscallNode.Seen) == 0 {
+				pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
 			}
 		}
+	}
 
-		// Evict unused file nodes
-		for path, fileNode := range pn.Files {
-			if fileNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-				if len(fileNode.Seen) == 0 {
-					delete(pn.Files, path)
-				}
+	// Evict unused file nodes
+	for path, fileNode := range pn.Files {
+		if fileNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(fileNode.Seen) == 0 {
+				delete(pn.Files, path)
 			}
 		}
+	}
 
-		// Evict unused DNS nodes
-		for name, dnsNode := range pn.DNSNames {
-			if dnsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-				if len(dnsNode.Seen) == 0 {
-					delete(pn.DNSNames, name)
-				}
+	// Evict unused DNS nodes
+	for name, dnsNode := range pn.DNSNames {
+		if dnsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(dnsNode.Seen) == 0 {
+				delete(pn.DNSNames, name)
 			}
 		}
+	}
 
-		// Evict unused IMDS nodes
-		for event, imdsNode := range pn.IMDSEvents {
-			if imdsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-				if len(imdsNode.Seen) == 0 {
-					delete(pn.IMDSEvents, event)
-				}
+	// Evict unused IMDS nodes
+	for event, imdsNode := range pn.IMDSEvents {
+		if imdsNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(imdsNode.Seen) == 0 {
+				delete(pn.IMDSEvents, event)
 			}
 		}
+	}
 
-		// Note: NetworkDeviceNode doesn't embed NodeBase so we skip eviction for network devices
+	// Note: NetworkDeviceNode doesn't embed NodeBase so we skip eviction for network devices
 
-		// Evict unused socket nodes
-		for i := len(pn.Sockets) - 1; i >= 0; i-- {
-			socketNode := pn.Sockets[i]
-			if socketNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-				if len(socketNode.Seen) == 0 {
-					pn.Sockets = append(pn.Sockets[:i], pn.Sockets[i+1:]...)
-				}
+	// Evict unused socket nodes
+	for i := len(pn.Sockets) - 1; i >= 0; i-- {
+		socketNode := pn.Sockets[i]
+		if socketNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(socketNode.Seen) == 0 {
+				pn.Sockets = append(pn.Sockets[:i], pn.Sockets[i+1:]...)
 			}
 		}
+	}
 
-		// Evict unused capability nodes
-		for i := len(pn.Capabilities) - 1; i >= 0; i-- {
-			capabilityNode := pn.Capabilities[i]
-			if capabilityNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-				if len(capabilityNode.Seen) == 0 {
-					pn.Capabilities = append(pn.Capabilities[:i], pn.Capabilities[i+1:]...)
-				}
+	// Evict unused capability nodes
+	for i := len(pn.Capabilities) - 1; i >= 0; i-- {
+		capabilityNode := pn.Capabilities[i]
+		if capabilityNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if len(capabilityNode.Seen) == 0 {
+				pn.Capabilities = append(pn.Capabilities[:i], pn.Capabilities[i+1:]...)
 			}
 		}
 	}
