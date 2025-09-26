@@ -61,7 +61,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 // - truncated
 func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, error) {
 	newFingerprint, err := fingerprinter.ComputeFingerprint(t.file)
-	
+
 	// Handle insufficient data cases with minimal tailer restarts
 	if t.fingerprint.IsInsufficientData() && newFingerprint.IsInsufficientData() {
 		// Both insufficient - use filesystem check to detect real rotation
@@ -79,7 +79,7 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, er
 	if t.fingerprint.IsInsufficientData() && !newFingerprint.IsInsufficientData() {
 		rotated, err := t.DidRotate()
 		if err != nil {
-			log.Debugf("Filesystem check failed for %s: %v. Transition from insufficient to valid fingerprint for %s - assuming more data added, no rotation", t.file.Path, err)
+			log.Debugf("Filesystem check failed for %s: %v. Transition from insufficient to valid fingerprint - assuming more data added, no rotation", t.file.Path, err)
 			return false, nil
 		}
 		return rotated, err
