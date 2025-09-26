@@ -8,6 +8,7 @@
 package file
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -998,6 +999,7 @@ func runLauncherScanRecentFilesWithRemovalTest(t *testing.T, testDirs []string) 
 			flarecontroller:        flareController.NewFlareController(),
 			tagger:                 fakeTagger,
 			fingerprinter:          filetailer.NewFingerprinter(defaultFingerprintConfig),
+			ctx:                    context.Background(),
 		}
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
@@ -1318,6 +1320,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
+	s.ctx = context.Background()
 	status.Clear()
 	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
 	defer status.Clear()
