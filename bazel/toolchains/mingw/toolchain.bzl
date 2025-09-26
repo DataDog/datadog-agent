@@ -77,7 +77,7 @@ def _impl(ctx):
                 # TODO: This requires further research on how to do properly, even
                 # though for now it does what we need: set g++ for appropriate c++ targets
                 action_config(
-                    action_name = ACTION_NAMES.cpp_compile + ACTION_NAMES.c_compile,
+                    action_name = ACTION_NAMES.cpp_compile,
                     enabled = True,
                     tools = [gpp_tool],
                 ),
