@@ -666,18 +666,19 @@ func (m *Manager) evictUnusedNodes() {
 		}
 		profile.Lock()
 		if profile.ActivityTree == nil {
+			profile.Unlock()
 			continue
 		}
 
 		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime)
 		if evicted > 0 {
 			totalEvicted += evicted
-			seclog.Debugf("evicted %d unused nodes from profile [%s] ", evicted, selector.String())
+			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
 		}
 		profile.Unlock()
 	}
 
 	if totalEvicted > 0 {
-		seclog.Infof("evicted %d total unused nodes across all profiles", totalEvicted)
+		seclog.Infof("evicted %d total unused process nodes across all profiles", totalEvicted)
 	}
 }
