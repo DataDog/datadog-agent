@@ -6,13 +6,17 @@
 package providers
 
 import (
+	"encoding/json"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
@@ -43,7 +47,7 @@ func (p *processLogConfigProvider) processEventsNoVerifyReadable(evBundle worklo
 }
 
 func TestProcessLogProviderEvents(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -109,7 +113,7 @@ func TestProcessLogProviderEvents(t *testing.T) {
 
 // TestProcessLogProviderNoLogFile tests that a process without a log file doesn't generate a config
 func TestProcessLogProviderNoLogFile(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -144,7 +148,7 @@ func TestProcessLogProviderNoLogFile(t *testing.T) {
 }
 
 func TestProcessLogProviderMultipleLogSources(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -194,7 +198,7 @@ func TestProcessLogProviderMultipleLogSources(t *testing.T) {
 
 // TestProcessLogProviderMultipleProcesses creates multiple processes and checks that they are all scheduled and unscheduled correctly.
 func TestProcessLogProviderMultipleProcesses(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -286,7 +290,7 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 
 // TestProcessLogProviderReferenceCounting tests the reference counting behavior for multiple processes using the same log file
 func TestProcessLogProviderReferenceCounting(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -398,7 +402,7 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 
 // TestProcessLogProviderUnscheduleNonExistent tests that unscheduling a non-existent config does not panic.
 func TestProcessLogProviderUnscheduleNonExistent(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -435,7 +439,7 @@ func TestProcessLogProviderUnscheduleNonExistent(t *testing.T) {
 
 // Test that when a process has multiple log files, we get one config for each
 func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -498,7 +502,7 @@ func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
 // TestProcessLogProviderProcessLogFilesChange tests that when a process's log files change in a Set event,
 // the old configs are unscheduled and new ones are scheduled correctly
 func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -647,7 +651,7 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 func TestProcessLogProviderFileReadabilityVerification(t *testing.T) {
 	skipOnWindows(t)
 
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -742,7 +746,7 @@ func TestProcessLogProviderFileReadabilityWithPermissionDenied(t *testing.T) {
 		t.Skip("Skipping permission test when running as root")
 	}
 
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)
@@ -998,7 +1002,7 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource("logs_config.process_exclude_agent", excludeAgent)
 
-		provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+		provider, err := NewProcessLogConfigProvider(nil, nil, nil, nil)
 		require.NoError(t, err)
 		p, ok := provider.(*processLogConfigProvider)
 		require.True(t, ok)
@@ -1120,4 +1124,123 @@ func TestProcessLogProviderIsAgentProcess(t *testing.T) {
 			assert.Equal(t, tt.expected, result, "Expected %v for comm '%s'", tt.expected, tt.comm)
 		})
 	}
+}
+
+func TestProcessLogProviderWithUSTTags(t *testing.T) {
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
+
+	provider, err := NewProcessLogConfigProvider(nil, nil, mockTagger, nil)
+	require.NoError(t, err)
+
+	p, ok := provider.(*processLogConfigProvider)
+	require.True(t, ok)
+
+	logPath := "/var/log/webapp.log"
+
+	// Test 1: Process with UST tags
+	t.Run("process with UST tags", func(t *testing.T) {
+		pid := int32(123)
+		processEntityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(pid)))
+		expectedTags := []string{"env:production", "version:1.2.3", "ust_service:webapp"}
+
+		// Set up process tags using the mock's SetTags method
+		mockTagger.SetTags(
+			processEntityID,
+			"workloadmeta",
+			expectedTags, // low cardinality
+			nil,          // orchestrator cardinality
+			nil,          // high cardinality
+			nil,          // standard tags
+		)
+
+		process := &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   "123",
+			},
+			Name: "webapp",
+			Pid:  pid,
+			Service: &workloadmeta.Service{
+				GeneratedName: "webapp",
+				LogFiles:      []string{logPath},
+			},
+		}
+
+		evBundle := workloadmeta.EventBundle{
+			Events: []workloadmeta.Event{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Entity: process,
+				},
+			},
+		}
+
+		changes := p.processEventsNoVerifyReadable(evBundle)
+		scheduled := changes.Schedule
+
+		require.Len(t, scheduled, 1, "Expected exactly 1 scheduled config")
+
+		// Verify the config contains the expected tags
+		config := scheduled[0]
+
+		var logConfigs []map[string]interface{}
+		err := json.Unmarshal(config.LogsConfig, &logConfigs)
+		require.NoError(t, err)
+		require.Len(t, logConfigs, 1)
+
+		logConfig := logConfigs[0]
+
+		// Check that tags are present and correct
+		tags, exists := logConfig["tags"]
+		require.True(t, exists, "Expected 'tags' field in log config")
+
+		tagsSlice, ok := tags.([]interface{})
+		require.True(t, ok, "Expected tags to be a slice")
+
+		actualTags := make([]string, len(tagsSlice))
+		for i, tag := range tagsSlice {
+			actualTags[i] = tag.(string)
+		}
+
+		assert.ElementsMatch(t, expectedTags, actualTags, "Tags should match expected values")
+	})
+
+	// Test 2: Tagger returns error - no tags in config
+	t.Run("tagger error no tags", func(t *testing.T) {
+		// Reset the provider state
+		p.serviceLogRefs = make(map[string]*serviceLogRef)
+		p.pidToServiceIDs = make(map[int32][]string)
+
+		pid := int32(999)
+		// Don't set up any tags for this process - tagger will return empty
+
+		process := &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "999"},
+			Name:     "webapp",
+			Pid:      pid,
+			Service:  &workloadmeta.Service{GeneratedName: "webapp", LogFiles: []string{logPath}},
+		}
+
+		evBundle := workloadmeta.EventBundle{
+			Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: process}},
+		}
+		changes := p.processEventsNoVerifyReadable(evBundle)
+		scheduled := changes.Schedule
+
+		require.Len(t, scheduled, 1, "Expected exactly 1 scheduled config")
+
+		// Verify the config does not contain tags
+		config := scheduled[0]
+
+		var logConfigs []map[string]interface{}
+		err := json.Unmarshal(config.LogsConfig, &logConfigs)
+		require.NoError(t, err)
+		require.Len(t, logConfigs, 1)
+
+		logConfig := logConfigs[0]
+
+		// Check that tags are not present
+		_, exists := logConfig["tags"]
+		assert.False(t, exists, "Expected no 'tags' field when tagger returns no tags")
+	})
 }

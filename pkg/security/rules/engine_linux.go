@@ -64,7 +64,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					Value: scopedValue,
 				}
 			})
-		} else if strings.HasPrefix(name, "cgroup.") {
+		} else if !e.probe.Opts.EBPFLessEnabled && strings.HasPrefix(name, "cgroup.") {
 			scopedVariable := value.(eval.ScopedVariable)
 
 			cgr := e.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.CGroupResolver
