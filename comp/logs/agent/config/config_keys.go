@@ -101,6 +101,10 @@ func (l *LogsConfigKeys) isForceHTTPUse() bool {
 		l.getConfig().GetBool(l.getConfigKey("force_use_http"))
 }
 
+func (l *LogsConfigKeys) isGRPCUse() bool {
+	return l.getConfig().GetBool(l.getConfigKey("use_grpc"))
+}
+
 func (l *LogsConfigKeys) logsNoSSL() bool {
 	return l.getConfig().GetBool(l.getConfigKey("logs_no_ssl"))
 }
@@ -290,6 +294,16 @@ func (l *LogsConfigKeys) senderRecoveryInterval() int {
 
 func (l *LogsConfigKeys) senderRecoveryReset() bool {
 	return l.getConfig().GetBool(l.getConfigKey("sender_recovery_reset"))
+}
+
+func (l *LogsConfigKeys) streamLifetime() time.Duration {
+	key := l.getConfigKey("stream_lifetime")
+	streamLifetime := l.getConfig().GetInt(key)
+	if streamLifetime <= 0 {
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, streamLifetime, pkgconfigsetup.DefaultLogsStreamLifetime)
+		return time.Duration(pkgconfigsetup.DefaultLogsStreamLifetime) * time.Second
+	}
+	return time.Duration(streamLifetime) * time.Second
 }
 
 // AggregationTimeout is used when performing aggregation operations
