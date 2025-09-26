@@ -77,6 +77,17 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, er
 		return rotated, err
 	} 
 
+	if !t.fingerprint.IsInsufficientData() && newFingerprint.IsInsufficientData() {
+		// Use filesystem check to confirm rotation
+		rotated, err := t.DidRotate()
+		if err != nil {
+			log.Debugf("Filesystem check failed for %s: %v. Transition from valid to insufficient fingerprint - assuming rotation occurred", t.file.Path, err)
+			return true, nil  // Assume rotation when going from valid to insufficient
+		}
+		log.Debugf("Transition from valid to insufficient fingerprint for %s, filesystem says rotated: %t", t.file.Path, rotated)
+		return rotated, err
+	}
+
 	// If computing the fingerprint led to an error there was likely an IO issue, handle this appropriately below.
 	if err != nil {
 		return false, err
