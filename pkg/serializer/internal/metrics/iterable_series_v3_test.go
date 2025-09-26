@@ -287,3 +287,19 @@ func TestPaylodsBuilderV3_ReservedSpace(t *testing.T) {
 	}
 	require.NoError(t, pb.finishPayload())
 }
+
+func TestPaylodsBuilderV3_Tags(t *testing.T) {
+	pb, err := newPayloadsBuilderV3(1000, 1000, 1000, noopimpl.New())
+	require.NoError(t, err)
+	for _, tags := range [][2][]string{{nil, nil}, {{"t1"}, nil}, {nil, {"t2"}}, {{"t3"}, {"t4"}}} {
+		ct := tagset.NewCompositeTags(tags[0], tags[1])
+		require.NoError(t, pb.writeSerie(&metrics.Serie{Name: "a", Tags: ct, Points: []metrics.Point{{1, 1}}}))
+	}
+	require.NoError(t, pb.finishPayload())
+	require.Len(t, pb.payloads, 1)
+	payload := string(pb.payloads[0].GetContent())
+	require.Contains(t, payload, "t1")
+	require.Contains(t, payload, "t2")
+	require.Contains(t, payload, "t3")
+	require.Contains(t, payload, "t4")
+}

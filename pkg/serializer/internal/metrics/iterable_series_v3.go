@@ -591,7 +591,7 @@ func (db *dictionaryBuilder) internTags1(prefixID int64, tags []string) int64 {
 func (db *dictionaryBuilder) internTags(tags tagset.CompositeTags) int64 {
 	t1, t2 := tags.UnsafeGet()
 
-	if len(t1) == 0 && len(t1) == 0 {
+	if len(t1) == 0 && len(t2) == 0 {
 		return 0
 	} else if len(t1) == 0 {
 		return db.internTags1(0, t2)
