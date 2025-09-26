@@ -168,7 +168,7 @@ func TestConsumerProcessExitChannel(t *testing.T) {
 	cfg := config.New()
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
 	// Create fake procfs with a process
 	pid := uint32(5001)
@@ -223,7 +223,7 @@ func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
 	cfg.ScanProcessesInterval = 100 * time.Millisecond // don't wait too long
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
 	// Create fake procfs with a process that will disappear
 	pid := uint32(6001)
