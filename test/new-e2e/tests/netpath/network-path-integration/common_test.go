@@ -10,7 +10,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -35,8 +34,9 @@ var testAgentRunningMetricTagsTCP = []string{"protocol:TCP"}
 var testAgentRunningMetricTagsUDP = []string{"protocol:UDP"}
 
 func isNetpathDebugMode() bool {
-	val, exist := os.LookupEnv("DD_E2E_TEST_NETPATH_DEBUG")
-	return exist && val == "true"
+	//val, exist := os.LookupEnv("DD_E2E_TEST_NETPATH_DEBUG")
+	//return exist && val == "true"
+	return true
 }
 
 type baseNetworkPathIntegrationTestSuite struct {
