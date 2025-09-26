@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"testing"
 
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -204,7 +205,8 @@ func testLoadWheelCheck(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, filterStore)
 	assert.Nil(t, err)
 
 	// testing loading dd wheels
