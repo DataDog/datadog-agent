@@ -11,10 +11,12 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
-// RegexProgram implements a regex-based filter program for processes
+// RegexProgram implements a regex-based filter program that is applied on a particular
+// field of a workloadfilter.Filterable entity.
 type RegexProgram struct {
 	Name                 string
 	ExcludeRegex         []*regexp.Regexp
+	ExtractField         func(entity workloadfilter.Filterable) string
 	InitializationErrors []error
 }
 
@@ -26,23 +28,11 @@ func (p *RegexProgram) Evaluate(entity workloadfilter.Filterable) (workloadfilte
 		return workloadfilter.Unknown, nil
 	}
 
-	switch entity.Type() {
-	case workloadfilter.ProcessType:
-		process := entity.(*workloadfilter.Process)
-		for _, r := range p.ExcludeRegex {
-			if r.MatchString(process.GetCmdline()) {
-				return workloadfilter.Excluded, nil
-			}
+	field := p.ExtractField(entity)
+	for _, r := range p.ExcludeRegex {
+		if r.MatchString(field) {
+			return workloadfilter.Excluded, nil
 		}
-	case workloadfilter.ContainerType:
-		container := entity.(*workloadfilter.Container)
-		for _, r := range p.ExcludeRegex {
-			if r.MatchString(container.GetImage()) {
-				return workloadfilter.Excluded, nil
-			}
-		}
-	default:
-		return workloadfilter.Unknown, nil
 	}
 	return workloadfilter.Unknown, nil
 }

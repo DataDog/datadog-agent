@@ -106,6 +106,17 @@ func CreateContainerImage(name string) *Container {
 	}
 }
 
+// CreateContainerNoOwner creates a Filterable Container object with no owner.
+func CreateContainerNoOwner(id, name, image string) *Container {
+	return &Container{
+		FilterContainer: &typedef.FilterContainer{
+			Id:    id,
+			Name:  name,
+			Image: image,
+		},
+	}
+}
+
 // ContainerFilter defines the type of container filter.
 type ContainerFilter int
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
@@ -20,10 +21,19 @@ func LegacyProcessExcludeProgram(config config.Component, logger log.Component) 
 	programName := "LegacyProcessExcludeProgram"
 	var initErrors []error
 
+	extractFieldFunc := func(entity workloadfilter.Filterable) string {
+		process, ok := entity.(*workloadfilter.Process)
+		if !ok {
+			return ""
+		}
+		return process.GetCmdline()
+	}
+
 	processPatterns := config.GetStringSlice("process_config.blacklist_patterns")
 	if len(processPatterns) == 0 {
 		return &program.RegexProgram{
 			Name:                 programName,
+			ExtractField:         extractFieldFunc,
 			InitializationErrors: initErrors,
 		}
 	}
@@ -36,6 +46,7 @@ func LegacyProcessExcludeProgram(config config.Component, logger log.Component) 
 		logger.Warnf("Error compiling regex pattern for %s: %v", programName, err)
 		return &program.RegexProgram{
 			Name:                 programName,
+			ExtractField:         extractFieldFunc,
 			InitializationErrors: initErrors,
 		}
 	}
@@ -43,6 +54,7 @@ func LegacyProcessExcludeProgram(config config.Component, logger log.Component) 
 	return &program.RegexProgram{
 		Name:                 programName,
 		ExcludeRegex:         []*regexp.Regexp{excludeRegex},
+		ExtractField:         extractFieldFunc,
 		InitializationErrors: initErrors,
 	}
 }
