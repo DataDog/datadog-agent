@@ -256,6 +256,9 @@ type APMConfigurationDefault struct {
 	IastEnabled                   *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
 	DataJobsEnabled               *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
 	AppsecScaEnabled              *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
+	LlmObsEnabled                 *bool   `yaml:"DD_LLM_OBS_ENABLED,omitempty"`
+	LlmObsMlAppEnabled            *bool   `yaml:"DD_LLM_OBS_ML_APP_ENABLED,omitempty"`
+	LlmObsAgentlessEnabled        *bool   `yaml:"DD_LLM_OBS_AGENTLESS_ENABLED,omitempty"`
 }
 
 // DelayedAgentRestartConfig represents the config to restart the agent with a delay at the end of the install
