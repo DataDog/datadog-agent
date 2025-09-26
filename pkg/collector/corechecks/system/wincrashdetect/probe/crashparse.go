@@ -133,6 +133,10 @@ func parseWinCrashDump(wcs *WinCrashStatus) {
 	var ctx logCallbackContext
 	var extendedError uint32
 	var crashCtx crashContext
+	var callstack string
+	var offenderCaptured bool
+
+	frames := map[string]bool{}
 
 	err := readfn(wcs.FileName, &ctx, &crashCtx, &extendedError)
 
@@ -222,13 +226,33 @@ func parseWinCrashDump(wcs *WinCrashStatus) {
 		if len(parts) != 3 {
 			continue
 		}
+
 		callsite := strings.TrimSpace(parts[2])
+
+		if _, found := frames[callsite]; found {
+			// if we see the same frame, we are getting a duplicate dump, stop now.
+			break
+		}
+
+		callstack += callsite + ","
+		frames[callsite] = true
+
 		if strings.HasPrefix(callsite, ntBangPrefix) {
 			// we're still in ntoskernel, keep looking
 			continue
 		}
-		wcs.Offender = callsite
-		break
+
+		if !offenderCaptured {
+			wcs.Offender = callsite
+			offenderCaptured = true
+		}
+
+		// continue capturing the callstack frames
 	}
+
+	callstack = strings.TrimSuffix(callstack, ",")
+
+	// keep the symbols unresolved.
+	wcs.Callstack = callstack
 	wcs.StatusCode = WinCrashStatusCodeSuccess
 }

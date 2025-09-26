@@ -36,7 +36,83 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
+type RegularTestSetupStrategy struct{}
+
+func (s *RegularTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
+	return TestSetupResult{TestDirs: []string{t.TempDir(), t.TempDir()}}
+}
+
 type LauncherTestSuite struct {
+	BaseLauncherTestSuite
+}
+
+func (suite *LauncherTestSuite) SetupSuite() {
+	suite.setupStrategy = &RegularTestSetupStrategy{}
+}
+
+func TestLauncherTestSuite(t *testing.T) {
+	suite.Run(t, new(LauncherTestSuite))
+}
+
+func TestLauncherTestSuiteWithConfigID(t *testing.T) {
+	s := new(LauncherTestSuite)
+	s.configID = "123456789"
+	suite.Run(t, s)
+}
+
+func TestLauncherScanStartNewTailer(t *testing.T) {
+	runLauncherScanStartNewTailerTest(t, []string{t.TempDir(), t.TempDir()})
+}
+
+func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
+	runLauncherWithConcurrentContainerTailerTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherTailFromTheBeginning(t *testing.T) {
+	runLauncherTailFromTheBeginningTest(t, []string{t.TempDir()}, false)
+}
+
+func TestLauncherSetTail(t *testing.T) {
+	runLauncherSetTailTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherConfigIdentifier(t *testing.T) {
+	runLauncherConfigIdentifierTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherScanWithTooManyFiles(t *testing.T) {
+	runLauncherScanWithTooManyFilesTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
+	runLauncherUpdatesSourceForExistingTailerTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
+	runLauncherScanRecentFilesWithRemovalTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
+	runLauncherScanRecentFilesWithNewFilesTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherFileRotation(t *testing.T) {
+	runLauncherFileRotationTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherFileDetectionSingleScan(t *testing.T) {
+	runLauncherFileDetectionSingleScanTest(t, []string{t.TempDir()})
+}
+
+type TestSetupStrategy interface {
+	Setup(t *testing.T) TestSetupResult
+}
+
+type TestSetupResult struct {
+	TestDirs []string
+}
+
+type BaseLauncherTestSuite struct {
 	suite.Suite
 	configID        string
 	testDir         string
@@ -51,16 +127,23 @@ type LauncherTestSuite struct {
 	openFilesLimit   int
 	s                *Launcher
 	tagger           taggermock.Mock
+
+	setupStrategy TestSetupStrategy
+	setupResult   TestSetupResult
 }
 
-func (suite *LauncherTestSuite) SetupTest() {
+func (suite *BaseLauncherTestSuite) SetupTest() {
+	if suite.setupStrategy != nil {
+		suite.setupResult = suite.setupStrategy.Setup(suite.T())
+	}
+
 	cfg := configmock.New(suite.T())
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
 	suite.tagger = taggerfxmock.SetupFakeTagger(suite.T())
 
 	var err error
-	suite.testDir = suite.T().TempDir()
+	suite.testDir = suite.setupResult.TestDirs[0]
 
 	suite.testPath = fmt.Sprintf("%s/launcher.log", suite.testDir)
 	suite.testRotatedPath = fmt.Sprintf("%s.1", suite.testPath)
@@ -93,21 +176,21 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.s.scan()
 }
 
-func (suite *LauncherTestSuite) TearDownTest() {
+func (suite *BaseLauncherTestSuite) TearDownTest() {
 	status.Clear()
 	suite.testFile.Close()
 	suite.testRotatedFile.Close()
 	suite.s.cleanup()
 }
 
-func (suite *LauncherTestSuite) TestLauncherStartsTailers() {
+func (suite *BaseLauncherTestSuite) TestLauncherStartsTailers() {
 	_, err := suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithoutLogRotation() {
 	s := suite.s
 
 	var tailer *filetailer.Tailer
@@ -132,7 +215,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
 	suite.Equal("hello again", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotation() {
 	s := suite.s
 
 	var tailer *filetailer.Tailer
@@ -159,7 +242,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 	suite.Equal("hello again", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_RotationOccurs() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_RotationOccurs() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
@@ -241,7 +324,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	suite.Equal("hello again", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRotationOccurs() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRotationOccurs() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
@@ -304,7 +387,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	suite.Equal("hello again", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	s := suite.s
 	var tailer *filetailer.Tailer
 	var newTailer *filetailer.Tailer
@@ -335,7 +418,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	suite.Equal("third", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
 	s := suite.s
 	tailerLen := s.tailers.Count()
 
@@ -354,7 +437,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
 	suite.Equal(tailerLen, s.tailers.Count())
 }
 
-func (suite *LauncherTestSuite) TestLifeCycle() {
+func (suite *BaseLauncherTestSuite) TestLauncherLifeCycle() {
 	s := suite.s
 	suite.Equal(1, s.tailers.Count())
 	s.Start(launchers.NewMockSourceProvider(), suite.pipelineProvider, auditorMock.NewMockRegistry(), tailers.NewTailerTracker())
@@ -364,17 +447,7 @@ func (suite *LauncherTestSuite) TestLifeCycle() {
 	suite.Equal(0, s.tailers.Count())
 }
 
-func TestLauncherTestSuite(t *testing.T) {
-	suite.Run(t, new(LauncherTestSuite))
-}
-
-func TestLauncherTestSuiteWithConfigID(t *testing.T) {
-	s := new(LauncherTestSuite)
-	s.configID = "123456789"
-	suite.Run(t, s)
-}
-
-func TestLauncherScanStartNewTailer(t *testing.T) {
+func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
 	var path string
 	var msg *message.Message
@@ -382,8 +455,8 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 
 	IDs := []string{"", "123456789"}
 
-	for _, configID := range IDs {
-		testDir := t.TempDir()
+	for i, configID := range IDs {
+		testDir := testDirs[i]
 
 		// create launcher
 		path = fmt.Sprintf("%s/*.log", testDir)
@@ -431,13 +504,12 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 	}
 }
 
-func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
+func runLauncherScanStartNewTailerForEmptyFileTest(t *testing.T, testDirs []string) {
 	mockConfig := configmock.New(t)
+	testDir := testDirs[0]
 
 	// Temporarily set the global config for this test
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
-	testDir := t.TempDir()
 
 	// create launcher
 	path := fmt.Sprintf("%s/*.log", testDir)
@@ -471,11 +543,15 @@ func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
 	assert.Equal(t, 1, launcher.tailers.Count())
 }
 
-func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
+func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
+	runLauncherScanStartNewTailerForEmptyFileTest(t, []string{t.TempDir()})
+}
+
+func runLauncherScanStartNewTailerWithOneLineTest(t *testing.T, testDirs []string) {
 	mockConfig := configmock.New(t)
+	testDir := testDirs[0]
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDir := t.TempDir()
 
 	// create launcher
 	path := fmt.Sprintf("%s/*.log", testDir)
@@ -515,12 +591,17 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 	assert.Equal(t, 1, launcher.tailers.Count())
 }
 
-func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
+func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
+	runLauncherScanStartNewTailerWithOneLineTest(t, []string{t.TempDir()})
+}
+
+func runLauncherScanStartNewTailerWithLongLineTest(t *testing.T, testDirs []string) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
+	testDir := testDirs[0]
+
 	// Temporarily set the global config for this test
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDir := t.TempDir()
 
 	// create launcher
 	path := fmt.Sprintf("%s/*.log", testDir)
@@ -561,8 +642,12 @@ func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
 	assert.Equal(t, 1, launcher.tailers.Count())
 }
 
-func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
-	testDir := t.TempDir()
+func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
+	runLauncherScanStartNewTailerWithLongLineTest(t, []string{t.TempDir()})
+}
+
+func runLauncherWithConcurrentContainerTailerTest(t *testing.T, testDirs []string) {
+	testDir := testDirs[0]
 	path := fmt.Sprintf("%s/container.log", testDir)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	// create launcher
@@ -619,8 +704,8 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	assert.Equal(t, 2, launcher.tailers.Count())
 }
 
-func TestLauncherTailFromTheBeginning(t *testing.T) {
-	testDir := t.TempDir()
+func runLauncherTailFromTheBeginningTest(t *testing.T, testDirs []string, chmodFileIfExists bool) {
+	testDir := testDirs[0]
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// create launcher
@@ -648,9 +733,33 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 	}
 
 	for i, source := range sources {
+		var restoreChmod bool
+		if chmodFileIfExists {
+			// If the file exists, check if it has 000 permissions and temporarily
+			// chmod it to 666 and restore the chmod after the create operation.
+			//
+			// This is needed since when the test is run as part of privileged log access
+			// tests, the file has 000 permissions to make it inaccessible to
+			// the tailer (and the test code) and only accessible via the
+			// privileged logs handler.
+			//
+			// But when we want the test to truncate the file, we need to make
+			// it accessible again.
+			if _, err := os.Stat(source.Config.Path); err == nil {
+				err = os.Chmod(source.Config.Path, 0666)
+				assert.Nil(t, err)
+				restoreChmod = true
+			}
+		}
+
 		// create/truncate file
 		file, err := os.Create(source.Config.Path)
 		assert.Nil(t, err)
+
+		if chmodFileIfExists && restoreChmod {
+			err = os.Chmod(source.Config.Path, 0000)
+			assert.Nil(t, err)
+		}
 
 		// add content before starting the tailer
 		_, err = file.WriteString("Once\n")
@@ -679,8 +788,8 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 	}
 }
 
-func TestLauncherSetTail(t *testing.T) {
-	testDir := t.TempDir()
+func runLauncherSetTailTest(t *testing.T, testDirs []string) {
+	testDir := testDirs[0]
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	path1 := fmt.Sprintf("%s/test.log", testDir)
@@ -715,8 +824,8 @@ func TestLauncherSetTail(t *testing.T) {
 	assert.Equal(t, "beginning", tailer2.Source().Config.TailingMode)
 }
 
-func TestLauncherConfigIdentifier(t *testing.T) {
-	testDir := t.TempDir()
+func runLauncherConfigIdentifierTest(t *testing.T, testDirs []string) {
+	testDir := testDirs[0]
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	path := fmt.Sprintf("%s/test.log", testDir)
@@ -743,21 +852,17 @@ func TestLauncherConfigIdentifier(t *testing.T) {
 	launcher.addSource(source)
 	tailer, _ := launcher.tailers.Get(getScanKey(path, source))
 	assert.Equal(t, "beginning", tailer.Source().Config.TailingMode)
-
 }
 
-func TestLauncherScanWithTooManyFiles(t *testing.T) {
+func runLauncherScanWithTooManyFilesTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
-
-	var err error
 	var path string
-
-	testDir := t.TempDir()
+	testDir := testDirs[0]
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// creates files
 	path = fmt.Sprintf("%s/1.log", testDir)
-	_, err = os.Create(path)
+	_, err := os.Create(path)
 	assert.Nil(t, err)
 
 	path = fmt.Sprintf("%s/2.log", testDir)
@@ -805,8 +910,8 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 	assert.Equal(t, 2, launcher.tailers.Count())
 }
 
-func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
-	testDir := t.TempDir()
+func runLauncherUpdatesSourceForExistingTailerTest(t *testing.T, testDirs []string) {
+	testDir := testDirs[0]
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	path := fmt.Sprintf("%s/*.log", testDir)
@@ -845,15 +950,13 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	assert.Equal(t, tailer.Source(), source2)
 }
 
-func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
+func runLauncherScanRecentFilesWithRemovalTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
-
-	var err error
-
-	testDir := t.TempDir()
+	testDir := testDirs[0]
 	baseTime := time.Date(2010, time.August, 10, 25, 0, 0, 0, time.UTC)
 	openFilesLimit := 2
 
+	var err error
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
 	}
@@ -927,16 +1030,14 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 	assert.True(t, launcher.tailers.Contains(path("3.log")))
 }
 
-func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
+func runLauncherScanRecentFilesWithNewFilesTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
-
-	var err error
-
-	testDir := t.TempDir()
+	testDir := testDirs[0]
 	baseTime := time.Date(2010, time.August, 10, 25, 0, 0, 0, time.UTC)
 	openFilesLimit := 2
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
+	var err error
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
 	}
@@ -1004,15 +1105,13 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 	assert.True(t, launcher.tailers.Contains(path("a.log")))
 }
 
-func TestLauncherFileRotation(t *testing.T) {
+func runLauncherFileRotationTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
-
-	var err error
-
-	testDir := t.TempDir()
+	testDir := testDirs[0]
 	openFilesLimit := 2
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
+	var err error
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
 	}
@@ -1081,15 +1180,13 @@ func TestLauncherFileRotation(t *testing.T) {
 	assert.Equal(t, len(launcher.rotatedTailers), 0)
 }
 
-func TestLauncherFileDetectionSingleScan(t *testing.T) {
+func runLauncherFileDetectionSingleScanTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
-
-	var err error
-
-	testDir := t.TempDir()
+	testDir := testDirs[0]
 	openFilesLimit := 2
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
+	var err error
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
 	}
