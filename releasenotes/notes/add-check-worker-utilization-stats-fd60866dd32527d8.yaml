@@ -9,5 +9,5 @@
 enhancements:
   - |
     Added tracking of check worker utilization.
-    Utilization stats can be seen using the ``agent status`` command.
+    Utilization stats can be seen using the `agent status` command.
     In addition, the Datadog Agent will log a warning if a worker's utilization exceeds a threshold (95% by default).
