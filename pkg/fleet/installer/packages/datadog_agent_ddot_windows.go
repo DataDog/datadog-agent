@@ -109,55 +109,8 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 }
 
 // waitForServiceRunning waits until the given Windows service reaches the Running state or times out
-func waitForServiceRunning(name string, timeout time.Duration) error {
-	m, err := mgr.Connect()
-	if err != nil {
-		return err
-	}
-	defer m.Disconnect()
-
-	s, err := m.OpenService(name)
-	if err != nil {
-		return fmt.Errorf("service %q not found: %w", name, err)
-	}
-	defer s.Close()
-
-	deadline := time.Now().Add(timeout)
-	for {
-		status, err := s.Query()
-		if err != nil {
-			return err
-		}
-		if status.State == svc.Running {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for service %q to be Running (last state=%d)", name, status.State)
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-}
-
-// isServiceRunning returns true if the Windows service is in the Running state
-func isServiceRunning(name string) bool {
-	m, err := mgr.Connect()
-	if err != nil {
-		return false
-	}
-	defer m.Disconnect()
-
-	s, err := m.OpenService(name)
-	if err != nil {
-		return false
-	}
-	defer s.Close()
-
-	st, err := s.Query()
-	if err != nil {
-		return false
-	}
-	return st.State == svc.Running
-}
+// (removed) waitForServiceRunning and isServiceRunning helpers were replaced by
+// winutil.WaitForPendingStateChange and winutil.IsServiceRunning
 
 // readAPIKeyFromDatadogYAML reads the api_key from ProgramData datadog.yaml, returns empty string if unset/unknown
 func readAPIKeyFromDatadogYAML() string {
