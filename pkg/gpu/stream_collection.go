@@ -96,6 +96,9 @@ func (sc *streamCollection) getStream(header *gpuebpf.CudaEventHeader) (*StreamH
 	return sc.getNonGlobalStream(header)
 }
 
+// getGlobalStream returns the global stream associated to the device that's currently active (influenced
+// by calls to cudaSetDevice) for the given PID and TID (extraded from header).
+// If non-existing, he stream gets created and added to collection.
 func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
 	pid, tid := getPidTidFromHeader(header)
 	cacher := sc.getHeaderContainerCache(header)
@@ -134,6 +137,8 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 	return stream, nil
 }
 
+// getNonGlobalStream returns the non-global stream associated to the given PID and and stream ID (extraded from header).
+// This does not depend on the active device on the given PID. If non-existing, he stream gets created and added to collection.
 func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
 	pid, _ := getPidTidFromHeader(header)
 
@@ -163,6 +168,43 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 	sc.telemetry.activeHandlers.Set(float64(sc.allStreamsCount()))
 
 	return stream, nil
+}
+
+// getActiveDeviceStreams returns all the streams associated to the device that's currently active (influenced
+// by calls to cudaSetDevice) for the given PID and TID (extracted from header), including the global stream.
+// Only already existing streams get collected, and none is added to the collection implicitly
+func (sc *streamCollection) getActiveDeviceStreams(header *gpuebpf.CudaEventHeader) ([]*StreamHandler, error) {
+	pid, tid := getPidTidFromHeader(header)
+	cacher := sc.getHeaderContainerCache(header)
+
+	device, err := sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), cacher.containerID)
+	if err != nil {
+		sc.telemetry.missingDevices.Inc()
+		return nil, err
+	}
+
+	res := []*StreamHandler{}
+	globalStreamKey := globalStreamKey{
+		pid:     pid,
+		gpuUUID: device.GetDeviceInfo().UUID,
+	}
+
+	if streamValue, ok := sc.globalStreams.Load(globalStreamKey); ok {
+		if stream, ok := streamValue.(*StreamHandler); ok {
+			res = append(res, stream)
+		}
+	}
+
+	sc.streams.Range(func(_ any, value any) bool {
+		if stream, ok := value.(*StreamHandler); ok &&
+			stream.metadata.pid == pid &&
+			stream.metadata.gpuUUID == device.GetDeviceInfo().UUID {
+			res = append(res, stream)
+		}
+		return true
+	})
+
+	return res, nil
 }
 
 // createStreamHandler creates a new StreamHandler for a given CUDA stream.
