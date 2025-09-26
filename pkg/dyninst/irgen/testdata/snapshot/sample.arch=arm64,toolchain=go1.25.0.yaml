@@ -6702,6 +6702,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 159 PointerType *interface {}
             Operations:
@@ -6717,6 +6718,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 153 GoEmptyInterfaceType interface {}
             Operations:
@@ -6732,6 +6734,7 @@ Types:
       Expressions:
         - Name: b
           Offset: 1
+          Kind: argument
           Expression:
             Type: 121 ArrayType [2][2][2]int
             Operations:
@@ -6747,6 +6750,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 120 ArrayType [2][2]int
             Operations:
@@ -6762,6 +6766,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 187 ArrayType [2]map[string]int
             Operations:
@@ -6777,6 +6782,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 111 ArrayType [2]string
             Operations:
@@ -6792,6 +6798,7 @@ Types:
       Expressions:
         - Name: b
           Offset: 1
+          Kind: argument
           Expression:
             Type: 124 StructureType main.bigStruct
             Operations:
@@ -6807,6 +6814,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 112 ArrayType [2]bool
             Operations:
@@ -6822,6 +6830,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 109 ArrayType [2]uint8
             Operations:
@@ -6837,6 +6846,7 @@ Types:
       Expressions:
         - Name: c
           Offset: 1
+          Kind: argument
           Expression:
             Type: 224 GoChannelType chan bool
             Operations:
@@ -6852,6 +6862,7 @@ Types:
       Expressions:
         - Name: w
           Offset: 1
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -6861,6 +6872,7 @@ Types:
                   ByteSize: 1
         - Name: x
           Offset: 2
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -6870,6 +6882,7 @@ Types:
                   ByteSize: 1
         - Name: y
           Offset: 3
+          Kind: argument
           Expression:
             Type: 18 BaseType float32
             Operations:
@@ -6885,6 +6898,7 @@ Types:
       Expressions:
         - Name: t
           Offset: 1
+          Kind: argument
           Expression:
             Type: 229 PointerType *main.t
             Operations:
@@ -6900,6 +6914,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 139 StructureType main.deepMap1
             Operations:
@@ -6915,6 +6930,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 145 PointerType *main.deepMap7
             Operations:
@@ -6930,6 +6946,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 128 StructureType main.deepPtr1
             Operations:
@@ -6945,6 +6962,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 131 PointerType *main.deepPtr7
             Operations:
@@ -6960,6 +6978,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 133 StructureType main.deepSlice1
             Operations:
@@ -6975,6 +6994,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 137 PointerType *main.deepSlice7
             Operations:
@@ -6990,6 +7010,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 234 GoSliceHeaderType []main.structWithNoStrings
             Operations:
@@ -6999,6 +7020,7 @@ Types:
                   ByteSize: 24
         - Name: a
           Offset: 25
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7014,6 +7036,7 @@ Types:
       Expressions:
         - Name: u
           Offset: 1
+          Kind: argument
           Expression:
             Type: 231 GoSliceHeaderType []uint
             Operations:
@@ -7029,6 +7052,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -7044,6 +7068,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
+          Kind: argument
           Expression:
             Type: 291 PointerType *main.emptyStruct
             Operations:
@@ -7059,6 +7084,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
+          Kind: argument
           Expression:
             Type: 290 StructureType main.emptyStruct
             Operations:
@@ -7074,6 +7100,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
+          Kind: argument
           Expression:
             Type: 14 GoInterfaceType error
             Operations:
@@ -7089,6 +7116,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
+          Kind: argument
           Expression:
             Type: 155 PointerType *main.esotericHeap
             Operations:
@@ -7104,6 +7132,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
+          Kind: argument
           Expression:
             Type: 151 StructureType main.esotericStack
             Operations:
@@ -7119,6 +7148,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 157 ArrayType [5]int
             Operations:
@@ -7134,6 +7164,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7149,6 +7180,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7164,6 +7196,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7182,6 +7215,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7191,6 +7225,7 @@ Types:
                   ByteSize: 8
         - Name: y
           Offset: 9
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7215,6 +7250,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7230,6 +7266,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7245,6 +7282,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 157 ArrayType [5]int
             Operations:
@@ -7260,6 +7298,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 115 ArrayType [2]int16
             Operations:
@@ -7275,6 +7314,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 110 ArrayType [2]int32
             Operations:
@@ -7290,6 +7330,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 116 ArrayType [2]int64
             Operations:
@@ -7305,6 +7346,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 114 ArrayType [2]int8
             Operations:
@@ -7320,6 +7362,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 113 ArrayType [2]int
             Operations:
@@ -7335,6 +7378,7 @@ Types:
       Expressions:
         - Name: b
           Offset: 1
+          Kind: argument
           Expression:
             Type: 158 GoInterfaceType main.behavior
             Operations:
@@ -7350,6 +7394,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 227 StructureType main.node
             Operations:
@@ -7365,6 +7410,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 182 GoMapType map[[4]string][2]int
             Operations:
@@ -7380,6 +7426,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 189 GoMapType map[string][]main.structWithMap
             Operations:
@@ -7395,6 +7442,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 162 GoMapType map[int]int
             Operations:
@@ -7410,6 +7458,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 219 GoMapType map[[4]int][4]int
             Operations:
@@ -7425,6 +7474,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 214 GoMapType map[[4]int]uint8
             Operations:
@@ -7440,6 +7490,7 @@ Types:
       Expressions:
         - Name: redactMyEntries
           Offset: 1
+          Kind: argument
           Expression:
             Type: 189 GoMapType map[string][]main.structWithMap
             Operations:
@@ -7455,6 +7506,7 @@ Types:
       Expressions:
         - Name: redactMyEntries
           Offset: 1
+          Kind: argument
           Expression:
             Type: 189 GoMapType map[string][]main.structWithMap
             Operations:
@@ -7470,6 +7522,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 209 GoMapType map[uint8][4]int
             Operations:
@@ -7485,6 +7538,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 204 GoMapType map[uint8]uint8
             Operations:
@@ -7500,6 +7554,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 172 GoMapType map[string]int
             Operations:
@@ -7515,6 +7570,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 177 GoMapType map[string][]string
             Operations:
@@ -7530,6 +7586,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 167 GoMapType map[string]main.nestedStruct
             Operations:
@@ -7545,6 +7602,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 194 GoMapType map[bool]main.node
             Operations:
@@ -7560,6 +7618,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 204 GoMapType map[uint8]uint8
             Operations:
@@ -7575,6 +7634,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 204 GoMapType map[uint8]uint8
             Operations:
@@ -7590,6 +7650,7 @@ Types:
       Expressions:
         - Name: redactMyEntries
           Offset: 1
+          Kind: argument
           Expression:
             Type: 199 GoMapType map[int]uint8
             Operations:
@@ -7605,6 +7666,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 199 GoMapType map[int]uint8
             Operations:
@@ -7620,6 +7682,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -7635,6 +7698,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -7650,6 +7714,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -7659,6 +7724,7 @@ Types:
                   ByteSize: 1
         - Name: b
           Offset: 2
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -7668,6 +7734,7 @@ Types:
                   ByteSize: 1
         - Name: c
           Offset: 3
+          Kind: argument
           Expression:
             Type: 12 BaseType int32
             Operations:
@@ -7677,6 +7744,7 @@ Types:
                   ByteSize: 4
         - Name: d
           Offset: 7
+          Kind: argument
           Expression:
             Type: 10 BaseType uint
             Operations:
@@ -7686,6 +7754,7 @@ Types:
                   ByteSize: 8
         - Name: e
           Offset: 15
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -7701,6 +7770,7 @@ Types:
       Expressions:
         - Name: z
           Offset: 1
+          Kind: argument
           Expression:
             Type: 11 PointerType *bool
             Operations:
@@ -7710,6 +7780,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
+          Kind: argument
           Expression:
             Type: 10 BaseType uint
             Operations:
@@ -7725,6 +7796,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 234 GoSliceHeaderType []main.structWithNoStrings
             Operations:
@@ -7734,6 +7806,7 @@ Types:
                   ByteSize: 24
         - Name: a
           Offset: 25
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7749,6 +7822,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 17 BaseType int8
             Operations:
@@ -7758,6 +7832,7 @@ Types:
                   ByteSize: 1
         - Name: s
           Offset: 2
+          Kind: argument
           Expression:
             Type: 238 GoSliceHeaderType []bool
             Operations:
@@ -7767,6 +7842,7 @@ Types:
                   ByteSize: 24
         - Name: x
           Offset: 26
+          Kind: argument
           Expression:
             Type: 10 BaseType uint
             Operations:
@@ -7782,6 +7858,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 239 GoSliceHeaderType []uint16
             Operations:
@@ -7797,6 +7874,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 242 PointerType *main.oneStringStruct
             Operations:
@@ -7812,6 +7890,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 228 PointerType *main.node
             Operations:
@@ -7827,6 +7906,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 188 PointerType *map[string]int
             Operations:
@@ -7842,6 +7922,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 225 PointerType *main.structWithTwoValues
             Operations:
@@ -7857,6 +7938,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 110 ArrayType [2]int32
             Operations:
@@ -7872,6 +7954,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -7887,6 +7970,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -7902,6 +7986,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 18 BaseType float32
             Operations:
@@ -7917,6 +8002,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 16 BaseType float64
             Operations:
@@ -7932,6 +8018,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 96 BaseType int16
             Operations:
@@ -7947,6 +8034,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 12 BaseType int32
             Operations:
@@ -7962,6 +8050,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 13 BaseType int64
             Operations:
@@ -7977,6 +8066,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 17 BaseType int8
             Operations:
@@ -7992,6 +8082,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -8007,6 +8098,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 12 BaseType int32
             Operations:
@@ -8022,6 +8114,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -8037,6 +8130,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 6 BaseType uint16
             Operations:
@@ -8052,6 +8146,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 2 BaseType uint32
             Operations:
@@ -8067,6 +8162,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 8 BaseType uint64
             Operations:
@@ -8082,6 +8178,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -8097,6 +8194,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 10 BaseType uint
             Operations:
@@ -8112,6 +8210,7 @@ Types:
       Expressions:
         - Name: u
           Offset: 1
+          Kind: argument
           Expression:
             Type: 232 GoSliceHeaderType [][]uint
             Operations:
@@ -8127,6 +8226,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 172 GoMapType map[string]int
             Operations:
@@ -8142,6 +8242,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 111 ArrayType [2]string
             Operations:
@@ -8157,6 +8258,7 @@ Types:
       Expressions:
         - Name: z
           Offset: 1
+          Kind: argument
           Expression:
             Type: 95 PointerType *string
             Operations:
@@ -8172,6 +8274,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 237 GoSliceHeaderType []string
             Operations:
@@ -8187,6 +8290,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 147 PointerType *main.stringType1
             Operations:
@@ -8202,6 +8306,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 149 PointerType **main.stringType2
             Operations:
@@ -8217,6 +8322,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 234 GoSliceHeaderType []main.structWithNoStrings
             Operations:
@@ -8226,6 +8332,7 @@ Types:
                   ByteSize: 24
         - Name: a
           Offset: 25
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -8241,6 +8348,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 160 StructureType main.structWithAny
             Operations:
@@ -8256,6 +8364,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 257 StructureType main.structWithCyclicMaps
             Operations:
@@ -8271,6 +8380,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 244 StructureType main.structWithCyclicSlices
             Operations:
@@ -8286,6 +8396,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 161 StructureType main.structWithMap
             Operations:
@@ -8301,6 +8412,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 288 StructureType main.aStruct
             Operations:
@@ -8316,6 +8428,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 241 PointerType *main.threeStringStruct
             Operations:
@@ -8331,6 +8444,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 240 StructureType main.threeStringStruct
             Operations:
@@ -8346,6 +8460,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -8355,6 +8470,7 @@ Types:
                   ByteSize: 16
         - Name: y
           Offset: 17
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -8364,6 +8480,7 @@ Types:
                   ByteSize: 16
         - Name: z
           Offset: 33
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -8379,6 +8496,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 123 BaseType main.typeAlias
             Operations:
@@ -8394,6 +8512,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 118 ArrayType [2]uint16
             Operations:
@@ -8409,6 +8528,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 119 ArrayType [2]uint32
             Operations:
@@ -8424,6 +8544,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 54 ArrayType [2]uint64
             Operations:
@@ -8439,6 +8560,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 109 ArrayType [2]uint8
             Operations:
@@ -8454,6 +8576,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 117 ArrayType [2]uint
             Operations:
@@ -8469,6 +8592,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 107 PointerType *uint
             Operations:
@@ -8484,6 +8608,7 @@ Types:
       Expressions:
         - Name: u
           Offset: 1
+          Kind: argument
           Expression:
             Type: 231 GoSliceHeaderType []uint
             Operations:
@@ -8499,6 +8624,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -8514,6 +8640,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 15 VoidPointerType unsafe.Pointer
             Operations:
@@ -8529,6 +8656,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 122 ArrayType [100]uint
             Operations:
@@ -8544,6 +8672,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 231 GoSliceHeaderType []uint
             Operations:
@@ -8559,6 +8688,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 231 GoSliceHeaderType []uint
             Operations:
