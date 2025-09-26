@@ -44,7 +44,7 @@ func skipOnWindows(t *testing.T) {
 	}
 }
 
-func TestDiscoverIntegrationSources(t *testing.T) {
+func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
 	// Create temporary directories with mock integration config files
 	tempDir := t.TempDir()
 	confdDir := filepath.Join(tempDir, "confd")
@@ -135,6 +135,9 @@ func TestDiscoverIntegrationSources(t *testing.T) {
 	// the basic functionality with the confd_path we can control
 	assert.GreaterOrEqual(t, len(sources), 3, "Should discover at least 3 sources")
 
+	// Verify agent process names are automatically added when integration sources exist
+	assert.True(t, sources["system-probe"], "Should include system-probe")
+
 	// Test edge cases
 	t.Run("empty confd_path", func(t *testing.T) {
 		emptyConfig := configmock.New(t)
@@ -153,6 +156,11 @@ func TestDiscoverIntegrationSources(t *testing.T) {
 		// Should still work with just dist path (if it exists)
 		nonExistentSources := discoverIntegrationSources()
 		assert.NotNil(t, nonExistentSources)
+	})
+
+	t.Run("no agent names when no integration sources", func(t *testing.T) {
+		sources := discoverIntegrationSources()
+		assert.False(t, sources["system-probe"], "Should NOT include agent name system-probe when no integration sources found")
 	})
 }
 
