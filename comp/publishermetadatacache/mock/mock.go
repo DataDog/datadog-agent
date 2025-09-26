@@ -9,6 +9,8 @@
 package mock
 
 import (
+	"testing"
+
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
@@ -16,8 +18,8 @@ import (
 // PublisherMetadataCache is a mock implementation of the publishermetadatacache Component
 type PublisherMetadataCache struct{}
 
-// Mock returns a mock for publishermetadatacache component.
-func Mock() publishermetadatacache.Component {
+// New returns a mock for publishermetadatacache component.
+func New(_ testing.TB) publishermetadatacache.Component {
 	return &PublisherMetadataCache{}
 }
 
