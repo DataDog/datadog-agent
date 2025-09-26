@@ -1892,6 +1892,35 @@ api_key:
 {{ end -}}
 {{ end -}}
 {{ end -}}
+
+{{ if .Synthetics -}}
+########################################
+## Synthetics Configuration           ##
+########################################
+
+# synthetics:
+#   # @param  - custom object - optional
+#   # Configuration to run Synthetics tests
+#
+#   collector:
+
+#     # @param enabled - bool - optional - default: false
+#     # [Beta] Enables Synthetics tests
+#
+#     enabled: false
+
+#     # @param workers - integer - optional - default: 5
+#     # The `workers` refers to the number of concurrent workers available for synthetics tests execution.
+#
+#     workers: 5
+
+#     # @param flush_interval - integer - optional - default: 60s
+#     # The `flush_interval` refers to the synthetics run interval for tests execution.
+#
+#     flush_interval: 10m
+
+{{ end -}}
+
 {{ if .Compliance -}}
 #############################################
 ## Security Agent Compliance Configuration ##
