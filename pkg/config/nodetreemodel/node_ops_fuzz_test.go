@@ -42,8 +42,8 @@ func FuzzNodeOps(f *testing.F) {
 			return
 		}
 		t.Logf("key1: %+v, key2: %+v, value: %+v, n: %+v", key1, key2, valueStr, valueInt64)
-		_, _ = root.SetAt(key1, valueStr, model.SourceFile)
-		_, _ = root.SetAt(key2, valueInt64, model.SourceEnvVar)
+		_ = root.SetAt(key1, valueStr, model.SourceFile)
+		_ = root.SetAt(key2, valueInt64, model.SourceEnvVar)
 
 		// Exercise the tree manipulation methods
 		insKey := strings.Join(key1, ".")
@@ -79,7 +79,7 @@ func FuzzNodeOps(f *testing.F) {
 			node, err := NewNodeTree(srcMap, source)
 			if err == nil {
 				if other, ok := node.(InnerNode); ok {
-					_ = root.Merge(other)
+					_, _ = root.Merge(other)
 				}
 			}
 			if leaf, err := NewNodeTree([]interface{}{valueStr, valueInt64}, source); err == nil {
@@ -102,7 +102,7 @@ func TestNodeOps(_ *testing.T) {
 	key2 := []string{"0"}
 	value := "0"
 	n := int64(42)
-	_, _ = root.SetAt(key1, value, model.SourceFile)
-	_, _ = root.SetAt(key2, n, model.SourceEnvVar)
+	_ = root.SetAt(key1, value, model.SourceFile)
+	_ = root.SetAt(key2, n, model.SourceEnvVar)
 	_ = root.DumpSettings(func(_ model.Source) bool { return true }) // panic here
 }
