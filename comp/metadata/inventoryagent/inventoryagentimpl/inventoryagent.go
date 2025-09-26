@@ -258,6 +258,9 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 
 	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("fleet_layers")
 
+	// Synthetics
+	ia.data["feature_synthetics_collector_enabled"] = ia.conf.GetBool("synthetics.collector.enabled")
+
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
 
@@ -340,10 +343,6 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// GPU monitoring / system-probe
 
 	ia.data["feature_gpu_monitoring_enabled"] = sysProbeConf.GetBool("gpu_monitoring.enabled")
-
-	// Synthetics Test module / system-probe
-
-	ia.data["feature_synthetics_collector_enabled"] = sysProbeConf.GetBool("synthetics.collector.enabled")
 
 	// miscellaneous / system-probe
 

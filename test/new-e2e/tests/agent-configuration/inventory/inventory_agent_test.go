@@ -46,7 +46,10 @@ process_config:
   process_collection:
     enabled: true
 compliance_config:
-  enabled: true`
+  enabled: true
+synthetics:
+  collector:
+    enabled: true`
 
 	systemProbeConfiguration := `runtime_security_config:
   enabled: true
@@ -55,10 +58,7 @@ service_monitoring_config:
 network_config:
   enabled: true
 traceroute:
-  enabled: true
-synthetics:
-  collector:
-    enabled: true`
+  enabled: true`
 
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(string(agentConfig)),
