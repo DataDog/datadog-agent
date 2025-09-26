@@ -176,6 +176,19 @@ func (p *Pod) Type() ResourceType {
 	return PodType
 }
 
+// CreatePodFromNamespace creates a Filterable Pod object just with a namespace.
+func CreatePodFromNamespace(namespace string) *Pod {
+	if namespace == "" {
+		return nil
+	}
+
+	return &Pod{
+		FilterPod: &typedef.FilterPod{
+			Namespace: namespace,
+		},
+	}
+}
+
 // PodFilter defines the type of pod filter.
 type PodFilter int
 
