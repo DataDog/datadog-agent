@@ -16,7 +16,6 @@ import (
 	"time"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
@@ -72,16 +71,7 @@ func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Messa
 		}
 	}
 
-	// Manually create filterable container because we don't have a container.Summary to use.
-	// Simpler than retrieving the raw container summary.
-	filterableContainer := &workloadfilter.Container{
-		FilterContainer: &typedef.FilterContainer{
-			Id:    msg.Actor.ID,
-			Name:  containerName,
-			Image: imageName,
-		},
-		Owner: nil,
-	}
+	filterableContainer := workloadfilter.CreateContainerNoOwner(msg.Actor.ID, containerName, imageName)
 	if filter != nil && filter.IsExcluded(filterableContainer) {
 		log.Tracef("events from %s are skipped as the image is excluded for the event collection", containerName)
 		return nil, nil

@@ -83,8 +83,15 @@ func ContainerPausedProgram(_ config.Component, logger log.Component) program.Fi
 	}
 
 	return &program.RegexProgram{
-		Name:                 programName,
-		ExcludeRegex:         excludeRegex,
+		Name:         programName,
+		ExcludeRegex: excludeRegex,
+		ExtractField: func(entity workloadfilter.Filterable) string {
+			container, ok := entity.(*workloadfilter.Container)
+			if !ok {
+				return ""
+			}
+			return container.GetImage()
+		},
 		InitializationErrors: initErrors,
 	}
 }
