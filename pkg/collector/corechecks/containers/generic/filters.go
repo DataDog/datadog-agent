@@ -54,7 +54,7 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 
 	pod, _ := f.Store.GetKubernetesPodForContainer(container.ID)
 
-	filterableContainer := workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod))
+	filterableContainer := workloadmetafilter.CreateContainerWMeta(container, workloadmetafilter.CreatePod(pod))
 	return f.ContainerFilter.IsExcluded(filterableContainer)
 }
 

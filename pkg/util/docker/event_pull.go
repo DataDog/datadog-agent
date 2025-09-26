@@ -71,7 +71,7 @@ func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Messa
 		}
 	}
 
-	filterableContainer := workloadfilter.CreateContainerNoOwner(msg.Actor.ID, containerName, imageName)
+	filterableContainer := workloadfilter.CreateContainer(msg.Actor.ID, containerName, imageName, nil)
 	if filter != nil && filter.IsExcluded(filterableContainer) {
 		log.Tracef("events from %s are skipped as the image is excluded for the event collection", containerName)
 		return nil, nil

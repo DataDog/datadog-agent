@@ -58,7 +58,7 @@ func TestNewMock_UsesMockConfig(t *testing.T) {
 	provides := NewMock(req)
 
 	// Does not exclude by default
-	container := workloadmetafilter.CreateContainer(
+	container := workloadmetafilter.CreateContainerWMeta(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "included-container",
@@ -71,7 +71,7 @@ func TestNewMock_UsesMockConfig(t *testing.T) {
 	assert.Equal(t, false, res, "Container should be included based on mock config")
 
 	// Verify that the mock config is used
-	container = workloadmetafilter.CreateContainer(
+	container = workloadmetafilter.CreateContainerWMeta(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "excluded-container",

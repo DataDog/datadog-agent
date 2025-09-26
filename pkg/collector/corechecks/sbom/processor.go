@@ -158,7 +158,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			container := event.Entity.(*workloadmeta.Container)
 			p.registerContainer(container)
 
-			filterableContainer := workloadmetafilter.CreateContainer(container, nil)
+			filterableContainer := workloadmetafilter.CreateContainerWMeta(container, nil)
 			if p.containerFilter.IsExcluded(filterableContainer) {
 				continue
 			}

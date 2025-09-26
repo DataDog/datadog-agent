@@ -433,7 +433,6 @@ func Initialize(paths ...string) error {
 	C.initAggregatorModule(rtloader)
 	C.initUtilModule(rtloader)
 	C.initTaggerModule(rtloader)
-	initContainerFilter() // special init for the container go code
 	C.initContainersModule(rtloader)
 	C.initkubeutilModule(rtloader)
 
