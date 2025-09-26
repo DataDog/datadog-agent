@@ -15,7 +15,6 @@ load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 
 def _impl(ctx):
     tools = [
-        "g++",
         "ar",
         "cpp",
         "gcc",
@@ -33,8 +32,7 @@ def _impl(ctx):
     tool_paths = []
 
     for mingw_tool in tools:
-        if mingw_tool != "g++":
-            tool_paths.append(tool_path(name = mingw_tool, path = "{}/bin/{}".format(ctx.attr.MINGW_PATH, mingw_tool)))
+        tool_paths.append(tool_path(name = mingw_tool, path = "{}/bin/{}".format(ctx.attr.MINGW_PATH, mingw_tool)))
 
     default_feature = feature(
         name = "default_env_feature",
