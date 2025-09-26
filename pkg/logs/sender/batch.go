@@ -156,7 +156,7 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 
 	if err := b.compressor.Close(); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
-		// s.utilization.Stop()
+		b.utilization.Stop()
 		return
 	}
 
@@ -173,7 +173,7 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 
 	p := message.NewPayload(messagesMetadata, b.encodedPayload.Bytes(), b.compression.ContentEncoding(), unencodedSize)
 
-	// b.utilization.Stop()
+	b.utilization.Stop()
 	outputChan <- p
 	b.pipelineMonitor.ReportComponentEgress(p, metrics.StrategyTlmName, b.instanceID)
 	b.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
