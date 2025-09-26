@@ -1909,7 +1909,7 @@ api_key:
 #
 #     enabled: false
 
-#     # @param workers - integer - optional - default: 5
+#     # @param workers - integer - optional - default: 4
 #     # The `workers` refers to the number of concurrent workers available for synthetics tests execution.
 #
 #     workers: 4
