@@ -46,7 +46,6 @@
       --env=BAZEL_REPO_CONTENTS_CACHE
       --env=CI_PROJECT_DIR
       --env=RUNNER_TEMP_PROJECT_DIR
-      --env=BAZEL_SH
       --interactive
       --rm
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
