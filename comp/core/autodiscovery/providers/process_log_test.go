@@ -80,9 +80,18 @@ func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
 #     source: apache
 #   - type: file
 #     path: /var/log/apache2/error.log
-#     source: apache
+#     source: apache2
 `
 	err = os.WriteFile(apacheConf, []byte(apacheContent), 0644)
+	require.NoError(t, err)
+
+	apacheConf2 := filepath.Join(apacheDir, "conf.yaml")
+	apacheContent2 := `# logs:
+   - type: file
+     path: /var/log/apache2/access.log
+     source: "apache3
+`
+	err = os.WriteFile(apacheConf2, []byte(apacheContent2), 0644)
 	require.NoError(t, err)
 
 	// Create postgresql integration with multi-line format
@@ -124,6 +133,8 @@ func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
 	// Verify discovered sources from confd_path
 	assert.True(t, sources["nginx"], "Should discover nginx source from confd")
 	assert.True(t, sources["apache"], "Should discover apache source from confd")
+	assert.True(t, sources["apache2"], "Should discover apache2 source from confd")
+	assert.True(t, sources["apache3"], "Should discover apache3 source from confd")
 	assert.True(t, sources["postgresql"], "Should discover postgresql source from confd")
 
 	// Verify that integrations without source comments are not discovered

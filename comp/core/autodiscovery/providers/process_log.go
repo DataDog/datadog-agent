@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -54,9 +55,35 @@ type processLogConfigProvider struct {
 var _ types.ConfigProvider = &processLogConfigProvider{}
 var _ types.StreamingConfigProvider = &processLogConfigProvider{}
 
+func addSources(sources map[string]bool, path string, sourcePattern *regexp.Regexp) {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Debugf("Could not read %s: %v", path, err)
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		if matches := sourcePattern.FindStringSubmatch(scanner.Text()); len(matches) > 1 {
+			source := matches[1]
+			if _, ok := sources[source]; ok {
+				continue
+			}
+
+			sources[source] = true
+			log.Tracef("Discovered integration source: %s from %s", source, path)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Debugf("Could not read %s: %v", path, err)
+	}
+}
+
 // discoverIntegrationSources scans configuration directories to find valid
-// integration log sources by parsing conf.yaml.example files and extracting log
-// source names. It scans the same paths as LoadComponents: confd_path and dist conf.d.
+// integration log sources by parsing conf.yaml.example files (or conf.yaml
+// files) and extracting log source names.
 func discoverIntegrationSources() map[string]bool {
 	sources := make(map[string]bool)
 
@@ -68,8 +95,8 @@ func discoverIntegrationSources() map[string]bool {
 
 	log.Tracef("Discovering integration sources from paths: %v", searchPaths)
 
-	// Pattern to match commented source lines like "# source: nginx"
-	sourcePattern := regexp.MustCompile(`^\s*#\s*source:\s*(.+?)\s*$`)
+	// Pattern to match source lines like "source: nginx" (including commented-out lines).
+	sourcePattern := regexp.MustCompile(`^#?\s*source:\s*"?(.+?)"?\s*$`)
 
 	for _, searchPath := range searchPaths {
 		if searchPath == "" {
@@ -80,13 +107,14 @@ func discoverIntegrationSources() map[string]bool {
 			if err != nil {
 				return nil // Continue walking, don't fail on individual errors
 			}
-
-			if !info.IsDir() && info.Name() == "conf.yaml.example" {
-				if source := extractSourceFromFile(path, sourcePattern); source != "" {
-					sources[source] = true
-					log.Tracef("Discovered integration source: %s from %s", source, path)
-				}
+			if info.IsDir() {
+				return nil
 			}
+			if info.Name() != "conf.yaml.example" && info.Name() != "conf.yaml" {
+				return nil
+			}
+
+			addSources(sources, path, sourcePattern)
 
 			return nil
 		})
@@ -109,26 +137,6 @@ func discoverIntegrationSources() map[string]bool {
 	}
 
 	return sources
-}
-
-// extractSourceFromFile reads a conf.yaml.example file and extracts the log source
-// from commented source lines like "# source: nginx" or "#     source: nginx"
-func extractSourceFromFile(filePath string, sourcePattern *regexp.Regexp) string {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		log.Debugf("Could not read %s: %v", filePath, err)
-		return ""
-	}
-
-	// Search for commented source lines using regex
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
-		if matches := sourcePattern.FindStringSubmatch(line); len(matches) > 1 {
-			return strings.TrimSpace(matches[1])
-		}
-	}
-
-	return ""
 }
 
 // NewProcessLogConfigProvider returns a new ConfigProvider subscribed to process events
