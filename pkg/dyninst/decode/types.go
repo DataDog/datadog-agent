@@ -31,7 +31,15 @@ import (
 // value types.
 type decoderType interface {
 	irType() ir.Type
+	// encodeValueFields is meant to encode the json fields of the type,
+	// including "value", "type", etc...
 	encodeValueFields(
+		d *Decoder,
+		enc *jsontext.Encoder,
+		data []byte,
+	) error
+	// encodeLiteralValue is meant to encode just the literal value of the type.
+	encodeLiteralValue(
 		d *Decoder,
 		enc *jsontext.Encoder,
 		data []byte,
@@ -367,7 +375,7 @@ func newDecoderType(
 
 func (b *baseType) irType() ir.Type { return (*ir.BaseType)(b) }
 func (b *baseType) encodeValueFields(
-	_ *Decoder,
+	d *Decoder,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -376,46 +384,63 @@ func (b *baseType) encodeValueFields(
 	); err != nil {
 		return err
 	}
-	kind, ok := b.GetGoKind()
+	return b.encodeLiteralValue(d, enc, data)
+}
+
+func (b *baseType) encodeLiteralValue(
+	_ *Decoder,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	kind, ok := (*ir.BaseType)(b).GetGoKind()
 	if !ok {
-		return fmt.Errorf("no go kind for type %s (ID: %d)", b.GetName(), b.GetID())
+		return fmt.Errorf("no go kind for type %s (ID: %d)", (*ir.BaseType)(b).GetName(), (*ir.BaseType)(b).GetID())
 	}
 	switch kind {
 	case reflect.Bool:
 		if len(data) < 1 {
 			return errors.New("passed data not long enough for bool")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatBool(data[0] == 1)))
+		if data[0] == 1 {
+			return writeTokens(enc, jsontext.String("true"))
+		}
+		return writeTokens(enc, jsontext.String("false"))
 	case reflect.Int:
 		if len(data) < 8 {
 			return errors.New("passed data not long enough for int")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint64(data)), 10)))
+		val := int64(binary.NativeEndian.Uint64(data))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(val, 10)))
 	case reflect.Int8:
 		if len(data) < 1 {
 			return errors.New("passed data not long enough for int8")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(int8(data[0])), 10)))
+		val := int64(int8(data[0]))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(val, 10)))
 	case reflect.Int16:
 		if len(data) < 2 {
 			return errors.New("passed data not long enough for int16")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(int16(binary.NativeEndian.Uint16(data))), 10)))
+		val := int64(int16(binary.NativeEndian.Uint16(data)))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(val, 10)))
 	case reflect.Int32:
 		if len(data) != 4 {
 			return errors.New("passed data not long enough for int32")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(int32(binary.NativeEndian.Uint32(data))), 10)))
+		val := int64(int32(binary.NativeEndian.Uint32(data)))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(val, 10)))
 	case reflect.Int64:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for int64")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint64(data)), 10)))
+		val := int64(binary.NativeEndian.Uint64(data))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(val, 10)))
 	case reflect.Uint:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for uint")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatUint(binary.NativeEndian.Uint64(data), 10)))
+		val := binary.NativeEndian.Uint64(data)
+		return writeTokens(enc, jsontext.String(strconv.FormatUint(val, 10)))
 	case reflect.Uint8:
 		if len(data) != 1 {
 			return errors.New("passed data not long enough for uint8")
@@ -425,32 +450,40 @@ func (b *baseType) encodeValueFields(
 		if len(data) != 2 {
 			return errors.New("passed data not long enough for uint16")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatUint(uint64(binary.NativeEndian.Uint16(data)), 10)))
+		val := uint64(binary.NativeEndian.Uint16(data))
+		return writeTokens(enc, jsontext.String(strconv.FormatUint(val, 10)))
 	case reflect.Uint32:
 		if len(data) != 4 {
 			return errors.New("passed data not long enough for uint32")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatUint(uint64(binary.NativeEndian.Uint32(data)), 10)))
+		val := uint64(binary.NativeEndian.Uint32(data))
+		return writeTokens(enc, jsontext.String(strconv.FormatUint(val, 10)))
 	case reflect.Uint64:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for uint64")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatUint(binary.NativeEndian.Uint64(data), 10)))
+		val := binary.NativeEndian.Uint64(data)
+		return writeTokens(enc, jsontext.String(strconv.FormatUint(val, 10)))
 	case reflect.Uintptr:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for uintptr")
 		}
-		return writeTokens(enc, jsontext.String("0x"+strconv.FormatUint(binary.NativeEndian.Uint64(data), 16)))
+		val := binary.NativeEndian.Uint64(data)
+		return writeTokens(enc, jsontext.String(strconv.FormatUint(val, 10)))
 	case reflect.Float32:
 		if len(data) != 4 {
 			return errors.New("passed data not long enough for float32")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatFloat(float64(math.Float32frombits(binary.NativeEndian.Uint32(data))), 'f', -1, 64)))
+		bits := binary.NativeEndian.Uint32(data)
+		val := math.Float32frombits(bits)
+		return writeTokens(enc, jsontext.String(strconv.FormatFloat(float64(val), 'g', -1, 32)))
 	case reflect.Float64:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for float64")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatFloat(math.Float64frombits(binary.NativeEndian.Uint64(data)), 'f', -1, 64)))
+		bits := binary.NativeEndian.Uint64(data)
+		val := math.Float64frombits(bits)
+		return writeTokens(enc, jsontext.String(strconv.FormatFloat(val, 'g', -1, 64)))
 	case reflect.Complex64:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for complex64")
@@ -482,6 +515,14 @@ func (e *eventRootType) encodeValueFields(
 	)
 }
 
+func (e *eventRootType) encodeLiteralValue(
+	_ *Decoder,
+	_ *jsontext.Encoder,
+	_ []byte,
+) error {
+	return nil
+}
+
 func (m *goMapType) irType() ir.Type { return (*ir.GoMapType)(m) }
 func (m *goMapType) encodeValueFields(
 	d *Decoder,
@@ -489,7 +530,16 @@ func (m *goMapType) encodeValueFields(
 	data []byte,
 ) error {
 	const encodeAddress = false
-	return encodePointer(data, encodeAddress, m.HeaderType.GetID(), enc, d)
+	return encodePointer(data, encodeAddress, (*ir.GoMapType)(m).HeaderType.GetID(), enc, d)
+}
+
+func (m *goMapType) encodeLiteralValue(
+	d *Decoder,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	const encodeAddress = false
+	return encodePointer(data, encodeAddress, (*ir.GoMapType)(m).HeaderType.GetID(), enc, d)
 }
 
 func (h *goHMapHeaderType) irType() ir.Type { return h.GoHMapHeaderType }
@@ -565,6 +615,20 @@ func (h *goHMapHeaderType) encodeValueFields(
 	return nil
 }
 
+func (h *goHMapHeaderType) encodeLiteralValue(
+	d *Decoder,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
+		return err
+	}
+	if err := h.encodeValueFields(d, enc, data); err != nil {
+		return err
+	}
+	return writeTokens(enc, jsontext.EndObject)
+}
+
 func encodeHMapBucket(
 	d *Decoder,
 	enc *jsontext.Encoder,
@@ -588,7 +652,7 @@ func encodeHMapBucket(
 	if upperBound > uint32(len(bucketData)) {
 		return encodedItems, fmt.Errorf(
 			"hmap bucket data for %q is too short to contain all fields: %d > %d",
-			h.Name, upperBound, len(bucketData),
+			h.GoHMapHeaderType.Name, upperBound, len(bucketData),
 		)
 	}
 	topHash := bucketData[h.tophashOfset : h.tophashOfset+topHashSize]
@@ -640,6 +704,12 @@ func encodeHMapBucket(
 
 func (b *goHMapBucketType) irType() ir.Type { return (*ir.GoHMapBucketType)(b) }
 func (*goHMapBucketType) encodeValueFields(
+	*Decoder, *jsontext.Encoder, []byte,
+) error {
+	return fmt.Errorf("hmap bucket type is never directly encoded")
+}
+
+func (b *goHMapBucketType) encodeLiteralValue(
 	*Decoder, *jsontext.Encoder, []byte,
 ) error {
 	return fmt.Errorf("hmap bucket type is never directly encoded")
@@ -703,7 +773,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 		// This is a 'large' swiss map where there are multiple groups of data/control words
 		// We need to collect the data items for the table pointers first.
 		tablePtrSliceDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(s.TablePtrSliceType.GetID()),
+			irType: uint32(s.GoSwissMapHeaderType.TablePtrSliceType.GetID()),
 			addr:   dirPtr,
 		}]
 		if !ok {
@@ -739,20 +809,57 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	return writeTokens(enc, jsontext.EndArray)
 }
 
+func (s *goSwissMapHeaderType) encodeLiteralValue(
+	d *Decoder,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
+		return err
+	}
+	if err := s.encodeValueFields(d, enc, data); err != nil {
+		return err
+	}
+	return writeTokens(enc, jsontext.EndObject)
+}
+
 func (s *goSwissMapGroupsType) irType() ir.Type { return (*ir.GoSwissMapGroupsType)(s) }
 func (s *goSwissMapGroupsType) encodeValueFields(
 	_ *Decoder,
 	enc *jsontext.Encoder,
 	_ []byte,
 ) error {
+	// Unimplemented as we encode based on the goSwissMapHeaderType
 	return writeTokens(enc,
 		tokenNotCapturedReason,
 		tokenNotCapturedReasonUnimplemented,
 	)
 }
 
+func (s *goSwissMapGroupsType) encodeLiteralValue(
+	_ *Decoder,
+	enc *jsontext.Encoder,
+	_ []byte,
+) error {
+	// Unimplemented as we encode based on the goSwissMapHeaderType
+	return writeTokens(enc, jsontext.Null)
+}
+
 func (v *voidPointerType) irType() ir.Type { return (*ir.VoidPointerType)(v) }
 func (v *voidPointerType) encodeValueFields(
+	d *Decoder,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	if err := writeTokens(enc,
+		jsontext.String("address"),
+	); err != nil {
+		return err
+	}
+	return v.encodeLiteralValue(d, enc, data)
+}
+
+func (v *voidPointerType) encodeLiteralValue(
 	_ *Decoder,
 	enc *jsontext.Encoder,
 	data []byte,
@@ -760,10 +867,7 @@ func (v *voidPointerType) encodeValueFields(
 	if len(data) != 8 {
 		return errors.New("passed data not long enough for void pointer")
 	}
-	return writeTokens(enc,
-		jsontext.String("address"),
-		jsontext.String("0x"+strconv.FormatUint(binary.NativeEndian.Uint64(data), 16)),
-	)
+	return writeTokens(enc, jsontext.String("0x"+strconv.FormatUint(binary.NativeEndian.Uint64(data), 16)))
 }
 
 func (p *pointerType) irType() ir.Type { return (*ir.PointerType)(p) }
@@ -778,9 +882,18 @@ func (p *pointerType) encodeValueFields(
 	//
 	// For things like map buckets or channel internals, which we encode as pointers, we won't
 	// find a go kind.
-	goKind, ok := p.Pointee.GetGoKind()
+	goKind, ok := (*ir.PointerType)(p).Pointee.GetGoKind()
 	writeAddress := ok && goKind != reflect.Pointer
-	return encodePointer(data, writeAddress, p.Pointee.GetID(), enc, d)
+	return encodePointer(data, writeAddress, (*ir.PointerType)(p).Pointee.GetID(), enc, d)
+}
+
+func (p *pointerType) encodeLiteralValue(
+	d *Decoder,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	// For literal value, we just want the pointed-to value without address
+	return encodePointer(data, false, (*ir.PointerType)(p).Pointee.GetID(), enc, d)
 }
 
 func encodePointer(
@@ -875,7 +988,18 @@ func (s *structureType) encodeValueFields(
 ) error {
 	if err := writeTokens(enc,
 		jsontext.String("fields"),
-		jsontext.BeginObject); err != nil {
+	); err != nil {
+		return err
+	}
+	return s.encodeLiteralValue(d, enc, data)
+}
+
+func (s *structureType) encodeLiteralValue(
+	d *Decoder,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}
 	for field := range s.irType().(*ir.StructureType).Fields() {
@@ -887,11 +1011,7 @@ func (s *structureType) encodeValueFields(
 			return fmt.Errorf("field %s extends beyond data bounds: need %d bytes, have %d", field.Name, fieldEnd, len(data))
 		}
 
-		if err := d.encodeValue(enc,
-			field.Type.GetID(),
-			data[field.Offset:field.Offset+field.Type.GetByteSize()],
-			field.Type.GetName(),
-		); err != nil {
+		if err := d.encodeValue(enc, field.Type.GetID(), data[field.Offset:field.Offset+field.Type.GetByteSize()], field.Type.GetName()); err != nil {
 			return err
 		}
 	}
@@ -905,8 +1025,8 @@ func (a *arrayType) encodeValueFields(
 	data []byte,
 ) error {
 	var err error
-	elementSize := int(a.Element.GetByteSize())
-	numElements := int(a.Count)
+	elementSize := int((*ir.ArrayType)(a).Element.GetByteSize())
+	numElements := int((*ir.ArrayType)(a).Count)
 	if err = writeTokens(enc,
 		jsontext.String("size"),
 		jsontext.String(strconv.FormatInt(int64(numElements), 10)),
@@ -925,9 +1045,9 @@ func (a *arrayType) encodeValueFields(
 		}
 		elementData := data[offset:endIdx]
 		if err := d.encodeValue(enc,
-			a.Element.GetID(),
+			(*ir.ArrayType)(a).Element.GetID(),
 			elementData,
-			a.Element.GetName(),
+			(*ir.ArrayType)(a).Element.GetName(),
 		); err != nil {
 			return err
 		}
@@ -944,13 +1064,38 @@ func (a *arrayType) encodeValueFields(
 	return nil
 }
 
+func (a *arrayType) encodeLiteralValue(
+	d *Decoder,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	elementSize := int((*ir.ArrayType)(a).Element.GetByteSize())
+	numElements := int((*ir.ArrayType)(a).Count)
+	if err := writeTokens(enc, jsontext.BeginArray); err != nil {
+		return err
+	}
+
+	for i := range numElements {
+		offset := i * elementSize
+		endIdx := offset + elementSize
+		if endIdx > len(data) {
+			break
+		}
+		elementData := data[offset:endIdx]
+		if err := d.encodeValue(enc, (*ir.ArrayType)(a).Element.GetID(), elementData, (*ir.ArrayType)(a).Element.GetName()); err != nil {
+			return err
+		}
+	}
+	return writeTokens(enc, jsontext.EndArray)
+}
+
 func (s *goSliceHeaderType) irType() ir.Type { return (*ir.GoSliceHeaderType)(s) }
 func (s *goSliceHeaderType) encodeValueFields(
 	d *Decoder,
 	enc *jsontext.Encoder,
 	data []byte) error {
 
-	if len(data) < int(s.ByteSize) {
+	if len(data) < int((*ir.GoSliceHeaderType)(s).ByteSize) {
 		return writeTokens(enc,
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonPruned,
@@ -983,10 +1128,10 @@ func (s *goSliceHeaderType) encodeValueFields(
 		return err
 	}
 
-	elementSize := int(s.Data.Element.GetByteSize())
+	elementSize := int((*ir.GoSliceHeaderType)(s).Data.Element.GetByteSize())
 	taa := typeAndAddr{
 		addr:   address,
-		irType: uint32(s.Data.GetID()),
+		irType: uint32((*ir.GoSliceHeaderType)(s).Data.GetID()),
 	}
 	sliceDataItem, ok := d.dataItems[taa]
 	if !ok {
@@ -1035,6 +1180,53 @@ func (s *goSliceHeaderType) encodeValueFields(
 	return nil
 }
 
+func (s *goSliceHeaderType) encodeLiteralValue(
+	d *Decoder,
+	enc *jsontext.Encoder,
+	data []byte) error {
+
+	if len(data) < int((*ir.GoSliceHeaderType)(s).ByteSize) {
+		return writeTokens(enc, jsontext.Null)
+	}
+	if len(data) < 16 {
+		return writeTokens(enc, jsontext.Null)
+	}
+	address := binary.NativeEndian.Uint64(data[0:8])
+	if address == 0 {
+		return writeTokens(enc, jsontext.Null)
+	}
+	length := binary.NativeEndian.Uint64(data[8:16])
+	if length == 0 {
+		return writeTokens(enc, jsontext.BeginArray, jsontext.EndArray)
+	}
+
+	elementSize := int((*ir.GoSliceHeaderType)(s).Data.Element.GetByteSize())
+	taa := typeAndAddr{
+		addr:   address,
+		irType: uint32((*ir.GoSliceHeaderType)(s).Data.GetID()),
+	}
+	sliceDataItem, ok := d.dataItems[taa]
+	if !ok {
+		return writeTokens(enc, jsontext.Null)
+	}
+	if err := writeTokens(enc, jsontext.BeginArray); err != nil {
+		return err
+	}
+	sliceData, ok := sliceDataItem.Data()
+	if !ok {
+		return writeTokens(enc, jsontext.Null)
+	}
+	sliceLength := int(len(sliceData)) / elementSize
+	elementByteSize := int((*ir.GoSliceHeaderType)(s).Data.Element.GetByteSize())
+	for i := range int(sliceLength) {
+		elementData := sliceData[i*elementByteSize : (i+1)*elementByteSize]
+		if err := d.encodeValue(enc, (*ir.GoSliceHeaderType)(s).Data.Element.GetID(), elementData, (*ir.GoSliceHeaderType)(s).Data.Element.GetName()); err != nil {
+			break
+		}
+	}
+	return writeTokens(enc, jsontext.EndArray)
+}
+
 func (s *goSliceDataType) irType() ir.Type { return (*ir.GoSliceDataType)(s) }
 func (s *goSliceDataType) encodeValueFields(
 	_ *Decoder,
@@ -1045,6 +1237,15 @@ func (s *goSliceDataType) encodeValueFields(
 		tokenNotCapturedReason,
 		tokenNotCapturedReasonUnimplemented,
 	)
+}
+
+func (s *goSliceDataType) encodeLiteralValue(
+	_ *Decoder,
+	enc *jsontext.Encoder,
+	_ []byte,
+) error {
+	// TODO: Unimplemented
+	return writeTokens(enc, jsontext.Null)
 }
 
 func (s *goStringHeaderType) irType() ir.Type { return s.GoStringHeaderType }
@@ -1069,7 +1270,7 @@ func (s *goStringHeaderType) encodeValueFields(
 		)
 	}
 	stringValue, ok := d.dataItems[typeAndAddr{
-		irType: uint32(s.Data.GetID()),
+		irType: uint32(s.GoStringHeaderType.Data.GetID()),
 		addr:   address,
 	}]
 	if !ok {
@@ -1111,6 +1312,36 @@ func (s *goStringHeaderType) encodeValueFields(
 	return writeTokens(enc, jsontext.String(str))
 }
 
+func (s *goStringHeaderType) encodeLiteralValue(
+	d *Decoder,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	fieldEnd := s.strFieldOffset + uint32(s.strFieldSize)
+	if fieldEnd >= uint32(len(data)) {
+		return writeTokens(enc, jsontext.String(""))
+	}
+	strLen := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
+	address := binary.NativeEndian.Uint64(data[s.strFieldOffset : s.strFieldOffset+uint32(s.strFieldSize)])
+	if address == 0 || strLen == 0 {
+		return writeTokens(enc, jsontext.String(""))
+	}
+	stringValue, ok := d.dataItems[typeAndAddr{
+		irType: uint32(s.GoStringHeaderType.Data.GetID()),
+		addr:   address,
+	}]
+	if !ok {
+		return writeTokens(enc, jsontext.String(""))
+	}
+	stringData, ok := stringValue.Data()
+	if !ok {
+		return writeTokens(enc, jsontext.String(""))
+	}
+	length := stringValue.Header().Length
+	str := unsafe.String(unsafe.SliceData(stringData), int(length))
+	return writeTokens(enc, jsontext.String(str))
+}
+
 func (s *goStringDataType) irType() ir.Type { return (*ir.GoStringDataType)(s) }
 func (s *goStringDataType) encodeValueFields(
 	_ *Decoder,
@@ -1121,6 +1352,15 @@ func (s *goStringDataType) encodeValueFields(
 		tokenNotCapturedReason,
 		tokenNotCapturedReasonUnimplemented,
 	)
+}
+
+func (s *goStringDataType) encodeLiteralValue(
+	_ *Decoder,
+	enc *jsontext.Encoder,
+	_ []byte,
+) error {
+	// TODO: Unimplemented
+	return writeTokens(enc, jsontext.Null)
 }
 
 func (c *goChannelType) irType() ir.Type { return (*ir.GoChannelType)(c) }
@@ -1135,6 +1375,15 @@ func (c *goChannelType) encodeValueFields(
 	)
 }
 
+func (c *goChannelType) encodeLiteralValue(
+	_ *Decoder,
+	enc *jsontext.Encoder,
+	_ []byte,
+) error {
+	// TODO: Unimplemented
+	return writeTokens(enc, jsontext.Null)
+}
+
 const goRuntimeTypeOffset = 0x00
 const goInterfaceDataOffset = 0x08
 
@@ -1147,8 +1396,24 @@ func (e *goEmptyInterfaceType) encodeValueFields(
 	return encodeInterface(d, enc, data)
 }
 
+func (e *goEmptyInterfaceType) encodeLiteralValue(
+	d *Decoder,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	return encodeInterface(d, enc, data)
+}
+
 func (i *goInterfaceType) irType() ir.Type { return (*ir.GoInterfaceType)(i) }
 func (i *goInterfaceType) encodeValueFields(
+	d *Decoder,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	return encodeInterface(d, enc, data)
+}
+
+func (i *goInterfaceType) encodeLiteralValue(
 	d *Decoder,
 	enc *jsontext.Encoder,
 	data []byte,
@@ -1242,6 +1507,15 @@ func (s *goSubroutineType) encodeValueFields(
 	)
 }
 
+func (s *goSubroutineType) encodeLiteralValue(
+	_ *Decoder,
+	enc *jsontext.Encoder,
+	_ []byte,
+) error {
+	// TODO: Unimplemented
+	return writeTokens(enc, jsontext.Null)
+}
+
 func (u *unresolvedPointeeType) irType() ir.Type { return (*ir.UnresolvedPointeeType)(u) }
 func (u *unresolvedPointeeType) encodeValueFields(
 	_ *Decoder,
@@ -1249,6 +1523,15 @@ func (u *unresolvedPointeeType) encodeValueFields(
 	_ []byte,
 ) error {
 	return writeTokens(enc, tokenNotCapturedReason, tokenNotCapturedReasonDepth)
+}
+
+func (u *unresolvedPointeeType) encodeLiteralValue(
+	_ *Decoder,
+	enc *jsontext.Encoder,
+	_ []byte,
+) error {
+	// TODO: Unimplemented
+	return writeTokens(enc, jsontext.Null)
 }
 
 func getFieldByName(fields []ir.Field, name string) (*ir.Field, error) {

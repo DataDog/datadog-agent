@@ -43,6 +43,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninstexprlang"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -1368,28 +1369,44 @@ func populateEventExpressions(
 	typeCatalog *typeCatalog,
 ) ir.Issue {
 	id := typeCatalog.idAlloc.next()
-	var expressions []*ir.RootExpression
-	for _, variable := range probe.Subprogram.Variables {
-		if !variable.IsParameter || variable.IsReturn {
+	var (
+		expressions           []*ir.RootExpression
+		variableExpressionSet = make(map[string]int) // variable name -> expression index
+	)
+
+	// Snapshot probe variables
+	if probe.ProbeDefinition.GetKind() == ir.ProbeKindSnapshot {
+		for _, variable := range probe.Subprogram.Variables {
+			if !variable.IsParameter || variable.IsReturn {
+				continue
+			}
+			expr := createVariableExpression(variable)
+			expressions = append(expressions, expr)
+			variableExpressionSet[variable.Name] = len(expressions) - 1
+		}
+	}
+
+	for i := range probe.Template.Segments {
+		segment, ok := (probe.Template.Segments[i]).(ir.JSONSegment)
+		if !ok {
 			continue
 		}
-		variableSize := variable.Type.GetByteSize()
-		expr := &ir.RootExpression{
-			Name:   variable.Name,
-			Offset: uint32(0),
-			Expression: ir.Expression{
-				Type: variable.Type,
-				Operations: []ir.ExpressionOp{
-					&ir.LocationOp{
-						Variable: variable,
-						Offset:   0,
-						ByteSize: uint32(variableSize),
-					},
-				},
-			},
+		relevantVariables := dyninstexprlang.CollectSegmentVariables(segment.JSON, probe.Subprogram)
+		for _, variable := range relevantVariables {
+			if expressionIndex, ok := variableExpressionSet[variable.Name]; ok {
+				segment.ExpressionIndex = expressionIndex
+			} else {
+				expr := createVariableExpression(&variable)
+				expressions = append(expressions, expr)
+				expressionIndex := len(expressions) - 1
+				variableExpressionSet[variable.Name] = expressionIndex
+				segment.ExpressionIndex = expressionIndex
+			}
+			probe.Template.Segments[i] = segment
+			break
 		}
-		expressions = append(expressions, expr)
 	}
+
 	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
 	byteSize := uint64(presenceBitsetSize)
 	for _, e := range expressions {
@@ -1413,6 +1430,24 @@ func populateEventExpressions(
 	}
 	typeCatalog.typesByID[event.Type.ID] = event.Type
 	return ir.Issue{}
+}
+
+func createVariableExpression(variable *ir.Variable) *ir.RootExpression {
+	variableSize := variable.Type.GetByteSize()
+	return &ir.RootExpression{
+		Name:   variable.Name,
+		Offset: uint32(0),
+		Expression: ir.Expression{
+			Type: variable.Type,
+			Operations: []ir.ExpressionOp{
+				&ir.LocationOp{
+					Variable: variable,
+					Offset:   0,
+					ByteSize: uint32(variableSize),
+				},
+			},
+		},
+	}
 }
 
 type rootVisitor struct {
@@ -1840,10 +1875,45 @@ func newProbe(
 			Type: nil,
 		},
 	}
+	// Build concrete template segments from configuration using interface
+	var segments []ir.TemplateSegment
+	var probeTemplate string
+
+	if templateDef := probeCfg.GetTemplate(); templateDef != nil {
+		probeTemplate = templateDef.GetTemplateString()
+
+		for seg := range templateDef.GetSegments() {
+			// Check content rather than just interface implementation
+			// since rcjson.TemplateSegment implements both interfaces
+
+			if exprSeg, ok := seg.(ir.TemplateSegmentExpression); ok && dyninstexprlang.ExpressionIsSupported(exprSeg.GetJSON(), subprogram) {
+				// This is an expression segment (has JSON content)
+				segments = append(segments, ir.JSONSegment{
+					JSON:            exprSeg.GetJSON(),
+					DSL:             exprSeg.GetDSL(),
+					ExpressionIndex: 0, //FIXME
+				})
+			} else if strSeg, ok := seg.(ir.TemplateSegmentString); ok && strSeg.GetString() != "" {
+				// This is a string segment (has string content)
+				segments = append(segments, ir.StringSegment{
+					Value: strSeg.GetString(),
+					Index: len(segments),
+				})
+			}
+		}
+	}
+	var template *ir.Template
+	if len(segments) > 0 {
+		template = &ir.Template{
+			TemplateString: probeTemplate,
+			Segments:       segments,
+		}
+	}
 	probe := &ir.Probe{
 		ProbeDefinition: probeCfg,
 		Subprogram:      subprogram,
 		Events:          events,
+		Template:        template,
 	}
 	return probe, ir.Issue{}, nil
 }
