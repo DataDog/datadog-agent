@@ -451,20 +451,6 @@
       ],
       "description": "ExitEventSerializer serializes an exit event to JSON"
     },
-    "FailedDNSEvent": {
-      "properties": {
-        "payload": {
-          "type": "string",
-          "description": "Payload represents the payload that failed to get decoded"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "payload"
-      ],
-      "description": "FailedDNSEventSerializer serializes an event indicating a failure decoding a DNS packet to JSON"
-    },
     "File": {
       "properties": {
         "path": {
@@ -2259,9 +2245,6 @@
     },
     "splice": {
       "$ref": "#/$defs/SpliceEvent"
-    },
-    "failed_dns": {
-      "$ref": "#/$defs/FailedDNSEvent"
     },
     "dns": {
       "$ref": "#/$defs/DNSEvent"

@@ -8,7 +8,6 @@
 package serializers
 
 import (
-	"encoding/base64"
 	"fmt"
 	"slices"
 	"strings"
@@ -211,13 +210,6 @@ type DNSEventSerializer struct {
 	Response *DNSResponseEventSerializer `json:"response"`
 }
 
-// FailedDNSEventSerializer serializes an event indicating a failure decoding a DNS packet to JSON
-// easyjson:json
-type FailedDNSEventSerializer struct {
-	// Payload represents the payload that failed to get decoded
-	Payload string `json:"payload"`
-}
-
 // DNSResponseEventSerializer serializes a DNS response event to JSON
 // easyjson:json
 type DNSResponseEventSerializer struct {
@@ -350,13 +342,6 @@ func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 	}
 
 	return mrs
-}
-
-// nolint: deadcode, unused
-func newFailedDNSEventSerializer(d *model.FailedDNSEvent) *FailedDNSEventSerializer {
-	return &FailedDNSEventSerializer{
-		Payload: base64.StdEncoding.EncodeToString(d.Payload),
-	}
 }
 
 // nolint: deadcode, unused
