@@ -3261,6 +3261,16 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 			out.PackageName = string(in.String())
 		case "package_version":
 			out.PackageVersion = string(in.String())
+		case "package_epoch":
+			out.PackageEpoch = int(in.Int())
+		case "package_release":
+			out.PackageRelease = string(in.String())
+		case "package_source_version":
+			out.PackageSrcVersion = string(in.String())
+		case "package_source_epoch":
+			out.PackageSrcEpoch = int(in.Int())
+		case "package_source_release":
+			out.PackageSrcRelease = string(in.String())
 		case "hashes":
 			if in.IsNull() {
 				in.Skip()
@@ -3495,6 +3505,31 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 		const prefix string = ",\"package_version\":"
 		out.RawString(prefix)
 		out.String(string(in.PackageVersion))
+	}
+	if in.PackageEpoch != 0 {
+		const prefix string = ",\"package_epoch\":"
+		out.RawString(prefix)
+		out.Int(int(in.PackageEpoch))
+	}
+	if in.PackageRelease != "" {
+		const prefix string = ",\"package_release\":"
+		out.RawString(prefix)
+		out.String(string(in.PackageRelease))
+	}
+	if in.PackageSrcVersion != "" {
+		const prefix string = ",\"package_source_version\":"
+		out.RawString(prefix)
+		out.String(string(in.PackageSrcVersion))
+	}
+	if in.PackageSrcEpoch != 0 {
+		const prefix string = ",\"package_source_epoch\":"
+		out.RawString(prefix)
+		out.Int(int(in.PackageSrcEpoch))
+	}
+	if in.PackageSrcRelease != "" {
+		const prefix string = ",\"package_source_release\":"
+		out.RawString(prefix)
+		out.String(string(in.PackageSrcRelease))
 	}
 	if len(in.Hashes) != 0 {
 		const prefix string = ",\"hashes\":"
@@ -3854,6 +3889,16 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers26(
 			out.PackageName = string(in.String())
 		case "package_version":
 			out.PackageVersion = string(in.String())
+		case "package_epoch":
+			out.PackageEpoch = int(in.Int())
+		case "package_release":
+			out.PackageRelease = string(in.String())
+		case "package_source_version":
+			out.PackageSrcVersion = string(in.String())
+		case "package_source_epoch":
+			out.PackageSrcEpoch = int(in.Int())
+		case "package_source_release":
+			out.PackageSrcRelease = string(in.String())
 		case "hashes":
 			if in.IsNull() {
 				in.Skip()
@@ -4128,6 +4173,31 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers26(
 		const prefix string = ",\"package_version\":"
 		out.RawString(prefix)
 		out.String(string(in.PackageVersion))
+	}
+	if in.PackageEpoch != 0 {
+		const prefix string = ",\"package_epoch\":"
+		out.RawString(prefix)
+		out.Int(int(in.PackageEpoch))
+	}
+	if in.PackageRelease != "" {
+		const prefix string = ",\"package_release\":"
+		out.RawString(prefix)
+		out.String(string(in.PackageRelease))
+	}
+	if in.PackageSrcVersion != "" {
+		const prefix string = ",\"package_source_version\":"
+		out.RawString(prefix)
+		out.String(string(in.PackageSrcVersion))
+	}
+	if in.PackageSrcEpoch != 0 {
+		const prefix string = ",\"package_source_epoch\":"
+		out.RawString(prefix)
+		out.Int(int(in.PackageSrcEpoch))
+	}
+	if in.PackageSrcRelease != "" {
+		const prefix string = ",\"package_source_release\":"
+		out.RawString(prefix)
+		out.String(string(in.PackageSrcRelease))
 	}
 	if len(in.Hashes) != 0 {
 		const prefix string = ",\"hashes\":"

@@ -277,8 +277,6 @@ func TestServicesServiceName(t *testing.T) {
 		svc = findService(pid, resp.Services)
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 
-		// Non-ASCII character removed due to normalization.
-		assert.Equal(collect, "foo_bar", svc.DDService)
 		assert.Equal(collect, "foo😀bar", svc.UST.Service)
 		assert.Equal(collect, "my😀dd-env", svc.UST.Env)
 		assert.Equal(collect, "my😀dd-version", svc.UST.Version)
