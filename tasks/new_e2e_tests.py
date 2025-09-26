@@ -24,7 +24,7 @@ from invoke.tasks import task
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.common.color import Color
-from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.git import get_commit_sha, get_modified_files
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import (
@@ -33,11 +33,16 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
+from tasks.libs.dynamic_test.backend import S3Backend
+from tasks.libs.dynamic_test.executor import DynTestExecutor
+from tasks.libs.dynamic_test.index import IndexKind
 from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stack_local
+
+DEFAULT_DYNTEST_BUCKET_URI = "s3://dd-ci-persistent-artefacts-build-stable/datadog-agent"
 
 
 class TestState:
@@ -221,6 +226,7 @@ def build_binaries(
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
         "max_retries": "Maximum number of retries for failed tests, default 3",
+        "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
     },
 )
 def run(
@@ -232,6 +238,7 @@ def run(
     verbose=True,
     run=[],  # noqa: B006
     skip=[],  # noqa: B006
+    impacted=False,
     flavor="",
     major_version="",
     cws_supported_osdescriptors="",
@@ -270,6 +277,18 @@ def run(
     if targets:
         e2e_module.test_targets = targets
 
+    if impacted and running_in_ci():
+        # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
+        old_profile = os.getenv("AWS_PROFILE", "")
+        if "AWS_PROFILE" in os.environ:
+            del(os.environ["AWS_PROFILE"])
+        backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
+        executor = DynTestExecutor(ctx, backend, IndexKind.PACKAGE, get_commit_sha(ctx, short=True))
+        changes = get_modified_files(ctx)
+        to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changes)
+        ctx.run(f"datadog-ci metric --level job --metrics 'e2e.skipped_tests:{len(to_skip)}'")
+        skip.extend(to_skip)
+        os.environ["AWS_PROFILE"] = old_profile
     env_vars = {}
     if profile:
         env_vars["E2E_PROFILE"] = profile
@@ -411,6 +430,8 @@ def run(
             result_json=partial_result_json,
             test_profiler=None,
         )
+        if test_res is None:
+            ctx.run("datadog-ci tag --level job --tags 'e2e.skipped_all_tests:true'")
 
         washer = TestWasher(test_output_json_file=partial_result_json)
 
