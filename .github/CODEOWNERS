@@ -415,6 +415,8 @@
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry-agent
+/pkg/trace/api/loader/                  @DataDog/agent-runtimes
+/pkg/trace/api/loader/listeners.go      @DataDog/agent-apm
 /pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry-agent
 /pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry-agent
 /pkg/trace/telemetry/                   @DataDog/apm-trace-storage

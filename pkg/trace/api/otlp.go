@@ -108,8 +108,10 @@ func (o *OTLPReceiver) Start() {
 	if cfg.GRPCPort != 0 {
 		var ln net.Listener
 		var err error
+		// When using the trace-loader, the OTLP listener might be provided as an already opened file descriptor
+		// so we try to get a listener from it, and fallback to listening on the given address if it fails
 		if grpcFDStr, ok := os.LookupEnv("DD_OTLP_CONFIG_GRPC_FD"); ok {
-			ln, err = getListenerFromFD(grpcFDStr, "otlp_conn")
+			ln, err = loader.GetListenerFromFD(grpcFDStr, "otlp_conn")
 			if err == nil {
 				log.Debugf("Using OTLP listener from file descriptor %s", grpcFDStr)
 			} else {

@@ -8,7 +8,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -70,6 +69,11 @@ func main() {
 		execOrExit(os.Environ())
 	}
 
+	if !utils.IsAPMEnabled(cfg) {
+		log.Infof("Trace-agent is disabled, stopping...")
+		return
+	}
+
 	if !cfg.GetBool("apm_config.socket_activation.enabled") {
 		log.Infof("Socket-activation for the trace-agent is disabled, running the trace-agent directly...")
 		execOrExit(os.Environ())
@@ -77,13 +81,14 @@ func main() {
 
 	listeners, err := getListeners(cfg)
 	if err != nil {
-		log.Warnf("Failed to perform socket-activation for the trace-agent: %v", err)
+		log.Warnf("Failed to get listeners for the trace-agent: %v", err)
+		for name, fd := range listeners {
+			err := unix.Close(int(fd))
+			if err != nil {
+				log.Warnf("Failed to close file descriptor %s: %v", name, err)
+			}
+		}
 		execOrExit(os.Environ())
-	}
-
-	if listeners == nil {
-		log.Infof("Trace-agent is disabled, stopping...")
-		return
 	}
 
 	if len(listeners) == 0 {
@@ -102,6 +107,8 @@ func main() {
 		})
 	}
 
+	// most of the work is done, we'll just poll (ie. wait) and exec, so we flush the memory
+	// so that the binary appears to use as little memory as possible
 	releaseMemory()
 
 	log.Infof("Polling... %+v", pollfds)
@@ -109,14 +116,35 @@ func main() {
 	if err != nil {
 		log.Warnf("error while polling: %v", err)
 	} else {
-		log.Debugf("Data received on %d sockets", n)
+		log.Debugf("Events received on %d sockets", n)
 		for _, pfd := range pollfds {
-			log.Infof("Socket %d has events %d", pfd.Fd, pfd.Revents)
+			log.Debugf("Socket %d has events %s", pfd.Fd, reventToString(pfd.Revents))
 		}
 	}
 
 	// start the trace-agent whether there was an error or some data on a socket
 	execOrExit(env)
+}
+
+// Returns a string representation of the events that occurred on a socket
+// Only POLLIN and error events are managed
+func reventToString(revents int16) string {
+	var ret string
+	if unix.POLLIN&revents != 0 {
+		ret += "POLLIN "
+	}
+	if unix.POLLERR&revents != 0 {
+		ret += "POLLERR "
+	}
+	if unix.POLLHUP&revents != 0 {
+		ret += "POLLHUP "
+	}
+	if unix.POLLNVAL&revents != 0 {
+		// would be a programming error (file descriptor is not valid / open)
+		ret += "POLLNVAL "
+	}
+
+	return ret
 }
 
 func execOrExit(env []string) {
@@ -129,14 +157,10 @@ func execOrExit(env []string) {
 	os.Exit(1)
 }
 
-// returns whether to start the trace-agent
+// returns a map of environment variables to file descriptors that the trace-agent will use
 func getListeners(cfg model.Reader) (map[string]uintptr, error) {
-	// from applyDatadogConfig in comp/trace/config/setup.go
-
-	traceCfgEnabled := true
-	if cfg.IsSet("apm_config.enabled") {
-		traceCfgEnabled = utils.IsAPMEnabled(cfg)
-	}
+	// logic from applyDatadogConfig in comp/trace/config/setup.go
+	// the loader needs to initialize the sockets in the same way as the trace-agent
 
 	traceCfgReceiverHost := "localhost"
 	if cfg.IsSet("bind_host") || cfg.IsSet("apm_config.apm_non_local_traffic") {
@@ -168,12 +192,9 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 
 	// end of config initialization
 
-	if !traceCfgEnabled {
-		return nil, nil
-	}
-
 	listeners := make(map[string]uintptr)
 
+	// "datadog" TCP receiver
 	if traceCfgReceiverPort > 0 {
 		log.Infof("Listening to TCP receiver at port %d...", traceCfgReceiverPort)
 		addr := net.JoinHostPort(traceCfgReceiverHost, strconv.Itoa(traceCfgReceiverPort))
@@ -183,7 +204,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 		}
 		defer ln.Close()
 
-		fd, err := fdFromListener(ln)
+		fd, err := loader.GetFDFromListener(ln)
 		if err != nil {
 			return listeners, fmt.Errorf("error getting file descriptor from tcp listener: %v", err)
 		}
@@ -193,6 +214,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 		log.Info("Trace-agent TCP receiver is disabled")
 	}
 
+	// "datadog" UDS receiver
 	if path := traceCfgReceiverSocket; path != "" {
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
 			log.Infof("Listening to unix receiver at path %s", path)
@@ -203,7 +225,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 			}
 			defer ln.Close()
 
-			fd, err := fdFromListener(ln)
+			fd, err := loader.GetFDFromListener(ln)
 			if err != nil {
 				return listeners, fmt.Errorf("error getting file descriptor from unix listener: %v", err)
 			}
@@ -216,6 +238,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 		log.Info("Trace-agent unix receiver is disabled")
 	}
 
+	// OTLP TCP receiver
 	if configcheck.IsEnabled(cfg) {
 		grpcPort := cfg.GetInt(pkgconfigsetup.OTLPTracePort)
 		log.Infof("Listening to otlp port %d", grpcPort)
@@ -225,7 +248,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 		}
 		defer ln.Close()
 
-		fd, err := fdFromListener(ln)
+		fd, err := loader.GetFDFromListener(ln)
 		if err != nil {
 			return listeners, fmt.Errorf("error getting file descriptor from otlp listener: %v", err)
 		}
@@ -236,43 +259,4 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 	}
 
 	return listeners, nil
-}
-
-func fdFromListener(ln net.Listener) (uintptr, error) {
-	lnf, ok := ln.(interface {
-		File() (*os.File, error)
-	})
-	if !ok {
-		return 0, errors.New("listener does not support File()")
-	}
-
-	f, err := lnf.File()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get file from listener: %v", err)
-	}
-	defer f.Close()
-
-	origFD := f.Fd()
-	// duplicate the file descriptor so that it's still valid when the file is
-	// closed or garbage collected
-	duppedFD, err := unix.Dup(int(origFD))
-	if err != nil {
-		return 0, fmt.Errorf("failed to duplicate file descriptor: %v", err)
-	}
-
-	fd := uintptr(duppedFD)
-	flag, err := unix.FcntlInt(fd, unix.F_GETFD, 0)
-	if err != nil {
-		return 0, fmt.Errorf("fcntl GETFD: %v", err)
-	}
-
-	if flag&unix.FD_CLOEXEC != 0 {
-		log.Debugf("Removing CLOEXEC on fd %v\n", fd)
-		_, err := unix.FcntlInt(fd, unix.F_SETFD, flag & ^unix.FD_CLOEXEC)
-		if err != nil {
-			return 0, fmt.Errorf("fcntl SETFD: %v", err)
-		}
-	}
-
-	return fd, nil
 }

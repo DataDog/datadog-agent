@@ -247,26 +247,6 @@ func getConfiguredProfilingRequestTimeoutDuration(conf *config.AgentConfig) time
 	return timeout
 }
 
-func getListenerFromFD(fdStr string, name string) (net.Listener, error) {
-	fd, err := strconv.Atoi(fdStr)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse file descriptor %v: %v", fdStr, err)
-	}
-
-	f := os.NewFile(uintptr(fd), name)
-	if f == nil {
-		return nil, fmt.Errorf("invalid file descriptor %v", fdStr)
-	}
-
-	defer f.Close()
-
-	listener, flerr := net.FileListener(f)
-	if flerr != nil {
-		return nil, fmt.Errorf("could not create file listener for %v: %v", fdStr, flerr)
-	}
-	return listener, nil
-}
-
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	r.telemetryForwarder.start()
@@ -297,8 +277,10 @@ func (r *HTTPReceiver) Start() {
 
 		var ln net.Listener
 		var err error
+		// When using the trace-loader, the TCP listener might be provided as an already opened file descriptor
+		// so we try to get a listener from it, and fallback to listening on the given address if it fails
 		if tcpFDStr, ok := os.LookupEnv("DD_APM_NET_RECEIVER_FD"); ok {
-			ln, err = getListenerFromFD(tcpFDStr, "tcp_conn")
+			ln, err = loader.GetListenerFromFD(tcpFDStr, "tcp_conn")
 			if err == nil {
 				log.Debugf("Using TCP listener from file descriptor %s", tcpFDStr)
 			} else {
@@ -331,11 +313,13 @@ func (r *HTTPReceiver) Start() {
 
 	if path := r.conf.ReceiverSocket; path != "" {
 		log.Infof("Using UDS listener at %s", path)
+		// When using the trace-loader, the UDS listener might be provided as an already opened file descriptor
+		// so we try to get a listener from it, and fallback to listening on the given path if it fails
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
 			var ln net.Listener
 			var err error
 			if unixFDStr, ok := os.LookupEnv("DD_APM_UNIX_RECEIVER_FD"); ok {
-				ln, err = getListenerFromFD(unixFDStr, "unix_conn")
+				ln, err = loader.GetListenerFromFD(unixFDStr, "unix_conn")
 				if err == nil {
 					log.Debugf("Using UDS listener from file descriptor %s", unixFDStr)
 				} else {
@@ -343,6 +327,7 @@ func (r *HTTPReceiver) Start() {
 				}
 			}
 			if ln == nil {
+				// if the fd was not provided, or we failed to get a listener from it, listen on the given path
 				ln, err = loader.GetUnixListener(path)
 			}
 

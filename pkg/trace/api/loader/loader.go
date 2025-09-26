@@ -10,36 +10,29 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 )
 
-// GetUnixListener returns a net.Listener listening on the given "unix" socket path.
-func GetUnixListener(path string) (net.Listener, error) {
-	fi, err := os.Stat(path)
-	if err == nil {
-		// already exists
-		if fi.Mode()&os.ModeSocket == 0 {
-			return nil, fmt.Errorf("cannot reuse %q; not a unix socket", path)
-		}
-		if err := os.Remove(path); err != nil {
-			return nil, fmt.Errorf("unable to remove stale socket: %v", err)
-		}
-	}
-	ln, err := net.Listen("unix", path)
+// GetListenerFromFD creates a new net.Listener from a file descriptor
+//
+// Under the hood the file descriptor will be dupped to be used by the Go runtime
+// The file descriptor from the string will be closed
+func GetListenerFromFD(fdStr string, name string) (net.Listener, error) {
+	fd, err := strconv.Atoi(fdStr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not parse file descriptor %v: %v", fdStr, err)
 	}
-	if unixLn, ok := ln.(*net.UnixListener); ok {
-		// We do not want to unlink the socket here as we can't be sure if another trace-agent has already
-		// put a new file at the same path.
-		unixLn.SetUnlinkOnClose(false)
-	}
-	if err := os.Chmod(path, 0o722); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
-	}
-	return ln, nil
-}
 
-// GetTCPListener returns a net.Listener listening on the given TCP address.
-func GetTCPListener(addr string) (net.Listener, error) {
-	return net.Listen("tcp", addr)
+	f := os.NewFile(uintptr(fd), name)
+	if f == nil {
+		return nil, fmt.Errorf("invalid file descriptor %v", fdStr)
+	}
+
+	defer f.Close()
+
+	listener, flerr := net.FileListener(f)
+	if flerr != nil {
+		return nil, fmt.Errorf("could not create file listener for %v: %v", fdStr, flerr)
+	}
+	return listener, nil
 }
