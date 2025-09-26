@@ -9,7 +9,6 @@ package python
 
 import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 )
 
 /*
@@ -37,8 +36,8 @@ func IsContainerExcluded(name, image, namespace *C.char) C.int {
 		goNs = C.GoString(namespace)
 	}
 
-	filterablePod := workloadfilter.CreatePodFromNamespace(goNs)
-	filterableContainer := workloadmetafilter.CreateContainerNameAndImage(goName, goImg, filterablePod)
+	filterablePod := workloadfilter.CreatePod("", "", goNs, nil)
+	filterableContainer := workloadfilter.CreateContainer("", goName, goImg, filterablePod)
 
 	if checkContext.filter.IsExcluded(filterableContainer) {
 		return 1

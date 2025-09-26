@@ -234,7 +234,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 			// Backup partial definition of container from the summary in case of race conditions
 			filterableContainer = dockerfilter.CreateContainer(rawContainer, resolvedImageName, filterablePod)
 		} else {
-			filterableContainer = workloadmetafilter.CreateContainer(wmetaContainer, filterablePod)
+			filterableContainer = workloadmetafilter.CreateContainerWMeta(wmetaContainer, filterablePod)
 		}
 
 		isContainerExcluded := d.containerFilter.IsExcluded(filterableContainer)

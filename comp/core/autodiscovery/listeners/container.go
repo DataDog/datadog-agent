@@ -80,7 +80,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		}
 	}
 	containerImg := container.Image
-	filterableContainer := workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod))
+	filterableContainer := workloadmetafilter.CreateContainerWMeta(container, workloadmetafilter.CreatePod(pod))
 
 	if l.globalFilter.IsExcluded(filterableContainer) {
 		log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)

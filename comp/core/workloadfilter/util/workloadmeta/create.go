@@ -14,40 +14,12 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-// CreateContainer creates a Filterable Container object from a workloadmeta.Container and an owner.
-func CreateContainer(container *workloadmeta.Container, owner workloadfilter.Filterable) *workloadfilter.Container {
+// CreateContainerWMeta creates a Filterable Container object from a workloadmeta.Container and an owner.
+func CreateContainerWMeta(container *workloadmeta.Container, owner workloadfilter.Filterable) *workloadfilter.Container {
 	if container == nil {
 		return nil
 	}
-
-	c := &typedef.FilterContainer{
-		Id:    container.ID,
-		Name:  container.Name,
-		Image: container.Image.RawName,
-	}
-
-	setContainerOwner(c, owner)
-
-	return &workloadfilter.Container{
-		FilterContainer: c,
-		Owner:           owner,
-	}
-}
-
-// CreateContainerNameAndImage creates a Filterable Container object from a name, image and an (optional) owner.
-func CreateContainerNameAndImage(name, img string, owner workloadfilter.Filterable) *workloadfilter.Container {
-	c := &typedef.FilterContainer{
-		Id:    "",
-		Name:  name,
-		Image: img,
-	}
-
-	setContainerOwner(c, owner)
-
-	return &workloadfilter.Container{
-		FilterContainer: c,
-		Owner:           owner,
-	}
+	return workloadfilter.CreateContainer(container.ID, container.Name, container.Image.RawName, owner)
 }
 
 // CreateContainerFromOrch creates a Filterable Container object from a workloadmeta.OrchestratorContainer and an owner.
@@ -55,35 +27,7 @@ func CreateContainerFromOrch(container *workloadmeta.OrchestratorContainer, owne
 	if container == nil {
 		return nil
 	}
-
-	c := &typedef.FilterContainer{
-		Id:    container.ID,
-		Name:  container.Name,
-		Image: container.Image.RawName,
-	}
-
-	setContainerOwner(c, owner)
-
-	return &workloadfilter.Container{
-		FilterContainer: c,
-		Owner:           owner,
-	}
-}
-
-// setContainerOwner sets the owner field in the FilterContainer based on the owner type.
-func setContainerOwner(c *typedef.FilterContainer, owner workloadfilter.Filterable) {
-	if owner == nil {
-		return
-	}
-
-	switch o := owner.(type) {
-	case *workloadfilter.Pod:
-		if o != nil && o.FilterPod != nil {
-			c.Owner = &typedef.FilterContainer_Pod{
-				Pod: o.FilterPod,
-			}
-		}
-	}
+	return workloadfilter.CreateContainer(container.ID, container.Name, container.Image.RawName, owner)
 }
 
 // CreatePod creates a Filterable Pod object from a workloadmeta.KubernetesPod.

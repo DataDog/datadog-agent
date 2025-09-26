@@ -49,7 +49,7 @@ func TestBasicFilter(t *testing.T) {
 	})
 
 	t.Run("single include filter", func(t *testing.T) {
-		container := workloadmetafilter.CreateContainer(
+		container := workloadmetafilter.CreateContainerWMeta(
 			&workloadmeta.Container{
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "dd-agent",
@@ -64,7 +64,7 @@ func TestBasicFilter(t *testing.T) {
 	})
 
 	t.Run("single exclude filter", func(t *testing.T) {
-		container := workloadmetafilter.CreateContainer(
+		container := workloadmetafilter.CreateContainerWMeta(
 			&workloadmeta.Container{
 				Image: workloadmeta.ContainerImage{
 					RawName: "datadog/agent:latest",
@@ -79,7 +79,7 @@ func TestBasicFilter(t *testing.T) {
 	})
 
 	t.Run("include beats exclude", func(t *testing.T) {
-		container := workloadmetafilter.CreateContainer(
+		container := workloadmetafilter.CreateContainerWMeta(
 			&workloadmeta.Container{
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "dd-agent",
@@ -112,7 +112,7 @@ func TestADAnnotationFilter(t *testing.T) {
 				},
 			},
 		)
-		container := workloadmetafilter.CreateContainer(
+		container := workloadmetafilter.CreateContainerWMeta(
 			&workloadmeta.Container{
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "dd-agent",
@@ -136,7 +136,7 @@ func TestADAnnotationFilter(t *testing.T) {
 				},
 			},
 		)
-		container := workloadmetafilter.CreateContainer(
+		container := workloadmetafilter.CreateContainerWMeta(
 			&workloadmeta.Container{
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "dd-agent",
@@ -163,7 +163,7 @@ func TestADAnnotationFilter(t *testing.T) {
 			},
 		)
 
-		container := workloadmetafilter.CreateContainer(
+		container := workloadmetafilter.CreateContainerWMeta(
 			&workloadmeta.Container{
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "some-container",
@@ -187,7 +187,7 @@ func TestCombinedFilter(t *testing.T) {
 
 	filterStore := newFilterStoreObject(t, mockConfig)
 
-	container := workloadmetafilter.CreateContainer(
+	container := workloadmetafilter.CreateContainerWMeta(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "dd-agent",
@@ -207,7 +207,7 @@ func TestCombinedFilter(t *testing.T) {
 			},
 		},
 	)
-	container = workloadmetafilter.CreateContainer(
+	container = workloadmetafilter.CreateContainerWMeta(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "dd-agent",
@@ -220,7 +220,7 @@ func TestCombinedFilter(t *testing.T) {
 	res = filterBundle.IsExcluded(container)
 	assert.Equal(t, false, res)
 
-	container = workloadmetafilter.CreateContainer(
+	container = workloadmetafilter.CreateContainerWMeta(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "nginx",
@@ -240,7 +240,7 @@ func TestCombinedFilter(t *testing.T) {
 			},
 		},
 	)
-	container = workloadmetafilter.CreateContainer(
+	container = workloadmetafilter.CreateContainerWMeta(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "nginx",
@@ -268,7 +268,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"image:dd-agent"},
 			exclude:  []string{"image:nginx"},
 			pauseCtn: false,
-			container: workloadmetafilter.CreateContainer(
+			container: workloadmetafilter.CreateContainerWMeta(
 				&workloadmeta.Container{
 					Image: workloadmeta.ContainerImage{
 						RawName: "dd-agent",
@@ -283,7 +283,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"image:dd-agent"},
 			exclude:  []string{"image:nginx"},
 			pauseCtn: false,
-			container: workloadmetafilter.CreateContainer(
+			container: workloadmetafilter.CreateContainerWMeta(
 				&workloadmeta.Container{
 					Image: workloadmeta.ContainerImage{
 						RawName: "nginx-123",
@@ -298,7 +298,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"kube_namespace:default"},
 			exclude:  []string{"name:nginx"},
 			pauseCtn: false,
-			container: workloadmetafilter.CreateContainer(
+			container: workloadmetafilter.CreateContainerWMeta(
 				&workloadmeta.Container{
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "nginx",
@@ -319,7 +319,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"name:nginx"},
 			exclude:  []string{"kube_namespace:default"},
 			pauseCtn: false,
-			container: workloadmetafilter.CreateContainer(
+			container: workloadmetafilter.CreateContainerWMeta(
 				&workloadmeta.Container{
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "nginx",
@@ -340,7 +340,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{""},
 			exclude:  []string{""},
 			pauseCtn: true,
-			container: workloadmetafilter.CreateContainer(
+			container: workloadmetafilter.CreateContainerWMeta(
 				&workloadmeta.Container{
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "nginx",
@@ -358,7 +358,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{""},
 			exclude:  []string{""},
 			pauseCtn: false,
-			container: workloadmetafilter.CreateContainer(
+			container: workloadmetafilter.CreateContainerWMeta(
 				&workloadmeta.Container{
 					Image: workloadmeta.ContainerImage{
 						RawName: "kubernetes/pause",
@@ -393,7 +393,7 @@ func TestFilterPrecedence(t *testing.T) {
 
 	filterStore := newFilterStoreObject(t, mockConfig)
 
-	container := workloadmetafilter.CreateContainer(
+	container := workloadmetafilter.CreateContainerWMeta(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "dd-agent",
@@ -454,7 +454,7 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 	mockConfig := configmock.New(t)
 	filterStore := newFilterStoreObject(t, mockConfig)
 
-	container := workloadmetafilter.CreateContainer(
+	container := workloadmetafilter.CreateContainerWMeta(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "no-filter",
@@ -531,7 +531,7 @@ func TestProgramErrorHandling(t *testing.T) {
 	mockConfig := configmock.New(t)
 	filterStore := newFilterStoreObject(t, mockConfig)
 
-	container := workloadmetafilter.CreateContainer(
+	container := workloadmetafilter.CreateContainerWMeta(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "error-case",
@@ -589,7 +589,7 @@ func TestSpecialCharacters(t *testing.T) {
 	mockConfig.SetWithoutSource("container_include", []string{`name:g'oba\\r\d-0x[0-9a-fA-F]+\\n`})
 	filterStore := newFilterStoreObject(t, mockConfig)
 
-	container := workloadmetafilter.CreateContainer(
+	container := workloadmetafilter.CreateContainerWMeta(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: `g'oba\r9-0xDEADBEEF\n`,
