@@ -126,8 +126,12 @@ func (e *blockedEndpoints) recover(endpoint string) {
 	case HalfOpen:
 		// The test worked, we can ease off
 		b.nbError = e.backoffPolicy.DecError(b.nbError)
-		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
-		b.state = Open
+		if b.nbError == 0 {
+			b.state = Closed
+		} else {
+			b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
+			b.state = Open
+		}
 	case Open:
 		// If we are open and a successful transaction came through, we
 		// can't be sure if it was sent before the errored transaction or
