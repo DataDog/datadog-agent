@@ -41,6 +41,9 @@ type FakeDCAClient struct {
 	NodeAnnotations    map[string]string
 	NodeAnnotationsErr error
 
+	NodeUID    string
+	NodeUIDErr error
+
 	NamespaceLabels    map[string]string
 	NamespaceLabelsErr error
 
@@ -80,6 +83,10 @@ func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {
 
 func (f *FakeDCAClient) GetNodeAnnotations(_ string, _ ...string) (map[string]string, error) {
 	return f.NodeAnnotations, f.NodeLabelsErr
+}
+
+func (f *FakeDCAClient) GetNodeUID(_ string) (string, error) {
+	return f.NodeUID, f.NodeUIDErr
 }
 
 func (f *FakeDCAClient) GetNamespaceLabels(_ string) (map[string]string, error) {
