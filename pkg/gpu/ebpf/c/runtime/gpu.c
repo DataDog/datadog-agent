@@ -170,6 +170,18 @@ int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
     return 0;
 }
 
+SEC("uretprobe/cudaDeviceSynchronize")
+int BPF_URETPROBE(uretprobe__cudaDeviceSynchronize) {
+    cuda_sync_device_event_t event = { 0 };
+
+    fill_header(&event.header, 0, cuda_sync_device);
+
+    log_debug("cudaDeviceSynchronize[ret]: EMIT cudaSync pid_tgid=%llu", event.header.pid_tgid);
+
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), 0);
+    return 0;
+}
+
 SEC("uprobe/cudaSetDevice")
 int BPF_UPROBE(uprobe__cudaSetDevice, int device) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();

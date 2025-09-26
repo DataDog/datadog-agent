@@ -80,6 +80,7 @@ const (
 	cudaFreeProbe                probeFuncName = "uprobe__cudaFree"
 	cudaSetDeviceProbe           probeFuncName = "uprobe__cudaSetDevice"
 	cudaSetDeviceRetProbe        probeFuncName = "uretprobe__cudaSetDevice"
+	cudaDeviceSyncRetProbe       probeFuncName = "uretprobe__cudaDeviceSynchronize"
 	cudaEventRecordProbe         probeFuncName = "uprobe__cudaEventRecord"
 	cudaEventQueryProbe          probeFuncName = "uprobe__cudaEventQuery"
 	cudaEventQueryRetProbe       probeFuncName = "uretprobe__cudaEventQuery"
@@ -381,6 +382,7 @@ func getCudaLibraryAttacherRule() *uprobes.AttachRule {
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaFreeProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaDeviceSyncRetProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventRecordProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryRetProbe}},
