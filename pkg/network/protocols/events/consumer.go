@@ -212,6 +212,11 @@ func (c *Consumer[V]) Stop() {
 func (c *Consumer[V]) process(b *Batch, syncing bool) {
 	cpu := int(b.Cpu)
 
+	if syncing && b.Len == 0 {
+		// This means that we have a batch with no events in it. This can happen
+		// when the batch is flushed before we read it.
+		return
+	}
 	// Determine the subset of data we're interested in as we might have read
 	// part of this batch before during a Sync() call
 	begin, end := c.offsets.Get(cpu, b, syncing)
@@ -227,7 +232,6 @@ func (c *Consumer[V]) process(b *Batch, syncing bool) {
 	// Sanity check. Ideally none of these conditions should evaluate to
 	// true. In case they do we bail out and increment the counter tracking
 	// invalid events
-	// TODO: investigate why we're sometimes getting invalid offsets
 	if length < 0 {
 		c.negativeLengthEventCount.Add(1)
 		return
