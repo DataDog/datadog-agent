@@ -24,16 +24,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	clientpkg "github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/kubelet-config/client"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 )
 
 // CheckName is the name of the check
@@ -60,7 +61,6 @@ type Check struct {
 	store        workloadmeta.Component
 	cfg          config.Component
 	tagger       tagger.Component
-	dca          clientpkg.DCAClientInterface
 	agentVersion *model.AgentVersion
 }
 
@@ -118,14 +118,6 @@ func (c *Check) Configure(
 		c.sender = sender
 	}
 
-	if c.dca == nil {
-		d, err := clientpkg.NewFromConfig()
-		if err != nil {
-			return err
-		}
-		c.dca = d
-	}
-
 	if c.hostName == "" {
 		hname, _ := hostname.Get(context.TODO())
 		c.hostName = hname
@@ -153,8 +145,6 @@ func (c *Check) Configure(
 
 // Run executes the check
 func (c *Check) Run() error {
-	ctx := context.TODO()
-
 	if c.clusterID == "" {
 		id, err := clustername.GetClusterID()
 		if err != nil {
@@ -163,22 +153,13 @@ func (c *Check) Run() error {
 		c.clusterID = id
 	}
 
-	ku, err := kubelet.GetKubeUtil()
-	if err != nil {
-		return err
-	}
-
-	nodeName, err := ku.GetNodename(ctx)
-	if err != nil {
-		return err
-	}
-
-	uid, err := c.dca.GetNodeUID(nodeName)
-
 	kubelet, err := c.store.GetKubelet()
 	if err != nil {
 		return err
 	}
+
+	nodeName := kubelet.NodeName
+	uid, err := getNodeUID(nodeName)
 
 	rawKubeletConfig := kubelet.RawConfig
 	if rawKubeletConfig == nil {
@@ -188,16 +169,15 @@ func (c *Check) Run() error {
 	// todo: doublecheck this is what we want
 	rv := strconv.FormatUint(murmur3.Sum64(rawKubeletConfig), 10)
 
-	// tags
-	collectorTags := []string{"kube_api_version:v1", "resource:kubelet"}
+	tags := []string{}
 
 	manifest := &model.Manifest{
-		Type:            int32(orchestrator.K8sNode),
+		Type:            int32(orchestrator.K8sKubeletConfig),
 		Uid:             uid,
 		ResourceVersion: rv,
 		ContentType:     "application/json",
 		Version:         "v1",
-		Tags:            collectorTags,
+		Tags:            tags,
 		IsTerminated:    false,
 		Kind:            kubeletVirtualKind,
 		ApiVersion:      kubeletVirtualAPIVersion,
@@ -218,4 +198,16 @@ func (c *Check) Run() error {
 
 	c.sender.OrchestratorManifest(msg, c.clusterID)
 	return nil
+}
+
+func getNodeUID(nodeName string) (string, error) {
+	if pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") {
+		cl, err := clusteragent.GetClusterAgentClient()
+		if err != nil {
+			return "", err
+		}
+		return cl.GetNodeUID(nodeName)
+	}
+
+	return "", errors.New("cluster_agent isn't enabled")
 }

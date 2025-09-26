@@ -8,14 +8,7 @@
 package kubelet_config
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"os"
-	"sort"
-	"strconv"
 	"strings"
-	"sync"
 	"testing"
 
 	jsoniter "github.com/json-iterator/go"
@@ -32,75 +25,26 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var testHostName = "test-host"
-
-// dummyKubelet allows tests to mock a kubelet's responses
-type dummyKubelet struct {
-	sync.Mutex
-	PodsBody []byte
+var testNodeName = "node"
+var staticKubeletConfig = workloadmeta.KubeletConfigDocument{
+	KubeletConfig: workloadmeta.KubeletConfigSpec{},
 }
-
-func newDummyKubelet() *dummyKubelet {
-	return &dummyKubelet{}
-}
-
-func (d *dummyKubelet) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	d.Lock()
-	defer d.Unlock()
-	switch r.URL.Path {
-	case "/pods":
-		podList, err := os.ReadFile("../testdata/pods.json")
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		s, err := w.Write(podList)
-		log.Debugf("dummyKubelet wrote %d bytes, err: %v", s, err)
-
-	default:
-		w.WriteHeader(http.StatusNotFound)
-	}
-}
-
-func (d *dummyKubelet) parsePort(ts *httptest.Server) (*httptest.Server, int, error) {
-	kubeletURL, err := url.Parse(ts.URL)
-	if err != nil {
-		return nil, 0, err
-	}
-	kubeletPort, err := strconv.Atoi(kubeletURL.Port())
-	if err != nil {
-		return nil, 0, err
-	}
-	log.Debugf("Starting on port %d", kubeletPort)
-	return ts, kubeletPort, nil
-}
-
-func (d *dummyKubelet) Start() (*httptest.Server, int, error) {
-	ts := httptest.NewServer(d)
-	return d.parsePort(ts)
-}
+var staticRawKubeletConfig = []byte(`{"sample-key":"sample-value"}`)
 
 type fakeSender struct {
 	mocksender.MockSender
-	pods      []process.MessageBody
 	manifests []process.MessageBody
-}
-
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (s *fakeSender) OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int) {
-	s.pods = append(s.pods, msgs...)
 }
 
 //nolint:revive // TODO(CAPP) Fix revive linter
@@ -108,39 +52,25 @@ func (s *fakeSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clust
 	s.manifests = append(s.manifests, msgs...)
 }
 
-type PodTestSuite struct {
+type KubeletConfigTestSuite struct {
 	suite.Suite
-	check        *Check
-	dummyKubelet *dummyKubelet
-	testServer   *httptest.Server
-	sender       *fakeSender
-	kubeUtil     kubelet.KubeUtilInterface
-	tagger       taggermock.Mock
+	check    *Check
+	sender   *fakeSender
+	kubeUtil kubelet.KubeUtilInterface
+	tagger   taggermock.Mock
 }
 
-func (suite *PodTestSuite) SetupSuite() {
+func (suite *KubeletConfigTestSuite) SetupSuite() {
 	kubelet.ResetGlobalKubeUtil()
 	kubelet.ResetCache()
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
-
-	suite.dummyKubelet = newDummyKubelet()
-	ts, kubeletPort, err := suite.dummyKubelet.Start()
-	require.NoError(suite.T(), err)
-	suite.testServer = ts
-
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
 	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
 	mockConfig.SetWithoutSource("orchestrator_explorer.enabled", true)
 	mockConfig.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
 	mockConfig.SetWithoutSource("kubernetes_pod_labels_as_tags", `{"tier":"dd_tier","component":"dd_component"}`)
 	mockConfig.SetWithoutSource("kubernetes_pod_annotations_as_tags", `{"kubernetes.io/config.source":"config_source","kubernetes.io/config.hash":"config_hash"}`)
-
-	kubeutil, _ := kubelet.GetKubeUtilWithRetrier()
-	require.NotNil(suite.T(), kubeutil)
-	suite.kubeUtil = kubeutil
 
 	sender := &fakeSender{}
 	suite.sender = sender
@@ -149,29 +79,36 @@ func (suite *PodTestSuite) SetupSuite() {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
+	mockStore.Set(&workloadmeta.Kubelet{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubelet,
+			ID:   workloadmeta.KubeletID,
+		},
+		RawConfig: staticRawKubeletConfig,
+		NodeName:  testNodeName,
+	})
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.tagger = fakeTagger
 
 	suite.check = &Check{
-		cfg:       mockConfig,
-		sender:    sender,
-		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(mockConfig, mockStore, fakeTagger)),
-		hostName:  testHostName,
-		config:    oconfig.NewDefaultOrchestratorConfig(nil),
-		tagger:    fakeTagger,
+		hostName: testHostName,
+		sender:   sender,
+		config:   oconfig.NewDefaultOrchestratorConfig(nil),
+		cfg:      mockConfig,
+		tagger:   fakeTagger,
+		store:    mockStore,
 	}
 }
 
-func (suite *PodTestSuite) TearDownSuite() {
-	suite.testServer.Close()
+func (suite *KubeletConfigTestSuite) TearDownSuite() {
 }
 
-func TestPodTestSuite(t *testing.T) {
-	suite.Run(t, new(PodTestSuite))
+func TestKubeletConfigTestSuite(t *testing.T) {
+	suite.Run(t, new(KubeletConfigTestSuite))
 }
 
-func (suite *PodTestSuite) TestPodCheck() {
+func (suite *KubeletConfigTestSuite) TestKubeletConfigCheck() {
 	cacheKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
 	cachedClusterID, found := cache.Cache.Get(cacheKey)
 	if !found {
@@ -184,35 +121,21 @@ func (suite *PodTestSuite) TestPodCheck() {
 
 	err := suite.check.Run()
 	require.NoError(suite.T(), err)
-
-	require.Len(suite.T(), suite.sender.pods, 1)
 	require.Len(suite.T(), suite.sender.manifests, 1)
+	manifestMsg, ok := suite.sender.manifests[0].(*process.CollectorManifest)
+	manifest := manifestMsg.Manifests[0]
 
-	require.Len(suite.T(), suite.sender.pods[0].(*process.CollectorPod).Pods, 10)
-	require.Len(suite.T(), suite.sender.manifests[0].(*process.CollectorManifest).Manifests, 10)
+	require.True(suite.T(), ok)
+	require.Equal(suite.T(), int32(orchestrator.K8sKubeletConfig), manifest.Type)
+	require.Equal(suite.T(), suite.check.config.KubeClusterName, manifestMsg.ClusterName)
+	require.Equal(suite.T(), suite.check.clusterID, manifestMsg.ClusterId)
+	require.Equal(suite.T(), suite.check.hostName, manifestMsg.HostName)
+	require.Len(suite.T(), manifestMsg.Manifests, 1)
 
-	require.Equal(suite.T(),
-		sorted(suite.sender.pods[0].(*process.CollectorPod).Tags...),
-		sorted("kube_api_version:v1"))
-	require.Equal(suite.T(),
-		sorted(suite.sender.pods[0].(*process.CollectorPod).Pods[0].Tags...),
-		sorted("kube_condition_podscheduled:true", "pod_status:pending",
-			"dd_component:kube-proxy", "dd_tier:node",
-			"config_hash:260c2b1d43b094af6d6b4ccba082c2db", "config_source:file"))
-
-	require.Equal(suite.T(),
-		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Tags...),
-		sorted())
-	require.Equal(suite.T(),
-		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Manifests[0].Tags...),
-		sorted("kube_api_version:v1", "kube_condition_podscheduled:true", "pod_status:pending",
-			"dd_component:kube-proxy", "dd_tier:node",
-			"config_hash:260c2b1d43b094af6d6b4ccba082c2db", "config_source:file"))
-}
-
-func sorted(l ...string) []string {
-	var s []string
-	s = append(s, l...)
-	sort.Strings(s)
-	return s
+	require.Equal(suite.T(), "application/json", manifest.ContentType)
+	require.Equal(suite.T(), "v1", manifest.Version)
+	require.False(suite.T(), manifest.IsTerminated)
+	require.Equal(suite.T(), "KubeletConfiguration", manifest.Kind)
+	require.Equal(suite.T(), "virtual.datadoghq.com/v1", manifest.ApiVersion)
+	require.Equal(suite.T(), testNodeName, manifest.NodeName)
 }
