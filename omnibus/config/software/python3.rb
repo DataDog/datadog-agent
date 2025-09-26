@@ -72,6 +72,8 @@ build do
 
     # Apply CVE-2025-6965 patch to upgrade SQLite to 3.50.4
     patch source: "CVE-2025-6965-sqlite-3.50.4.patch"
+    # Apply CVE-2025-8194 patch to fix tarfile module vulnerability
+    patch source: "CVE-2025-8194-tarfile.patch"
 
     ###############################
     # Setup openssl dependency... #
