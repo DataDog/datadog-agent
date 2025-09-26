@@ -74,10 +74,16 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 		log.Warnf("DDOT: skipping service start due to skipDDOTServiceStart=%t", skipDDOTServiceStart)
 		return nil
 	}
-	// Start DDOT only when core Agent is running and credentials exist
-	if !isServiceRunning(coreAgentService) {
-		log.Warnf("DDOT: skipping service start (core Agent not running)")
-		return nil
+	// Start DDOT only when core Agent is running (handle StartPending) and credentials exist
+	running, _ := winutil.IsServiceRunning(coreAgentService)
+	if !running {
+		// If core Agent is still starting, wait briefly for it to leave StartPending
+		ctxCA, cancelCA := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancelCA()
+		if st, err := winutil.WaitForPendingStateChange(ctxCA, coreAgentService, svc.StartPending); err != nil || st != svc.Running {
+			log.Warnf("DDOT: skipping service start (core Agent not running; state=%d, err=%v)", st, err)
+			return nil
+		}
 	}
 	if ak := readAPIKeyFromDatadogYAML(); ak == "" {
 		log.Warnf("DDOT: skipping service start (no API key configured)")
@@ -87,8 +93,16 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 		log.Warnf("DDOT: failed to start service: %v", err)
 		return nil
 	}
-	if err = waitForServiceRunning(otelServiceName, 30*time.Second); err != nil {
+	// Fail fast if the service exits or transitions away from StartPending
+	ctxWait, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	state, err := winutil.WaitForPendingStateChange(ctxWait, otelServiceName, svc.StartPending)
+	if err != nil {
 		log.Warnf("DDOT: service %q did not reach Running state: %s", otelServiceName, err)
+		return nil
+	}
+	if state != svc.Running {
+		log.Warnf("DDOT: service %q transitioned to state %d instead of Running", otelServiceName, state)
 		return nil
 	}
 	return nil
