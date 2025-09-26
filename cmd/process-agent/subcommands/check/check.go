@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -162,12 +161,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				}),
 
 				// Tagger must be initialized after agent config has been setup
-				remoteTaggerfx.Module(tagger.RemoteParams{
-					RemoteTarget: func(c config.Component) (string, error) {
-						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-					},
-					RemoteFilter: taggerTypes.NewMatchAllFilter(),
-				}),
+				remoteTaggerfx.Module(tagger.NewRemoteParams()),
 				processComponent.Bundle(),
 				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
