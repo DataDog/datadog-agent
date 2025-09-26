@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"strings"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
@@ -335,4 +336,19 @@ func (s *packageAgentSuite) TestInstallWithFapolicyd() {
 	s.host.Run("sudo yum install -y fapolicyd")
 
 	s.TestInstall()
+}
+
+func (s *packageAgentSuite) TestNoWorldWritableFiles() {
+	s.RunInstallScript()
+	defer s.Purge()
+
+	state := s.host.State()
+	for path, file := range state.FS {
+		if !strings.HasPrefix(path, "/opt/datadog") || file.IsSymlink {
+			continue
+		}
+		if file.Perms&002 != 0 {
+			s.T().Fatalf("file %v is world writable", path)
+		}
+	}
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/DataDog/datadog-agent/pkg/status/jmx"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
@@ -47,6 +48,15 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 				ic.log.Warnf("could not marshal JMX init_config for %s: %v", jmxName, err)
 				continue
 			}
+
+			// Scrub the init_config YAML
+			scrubbedInitConfigYaml, err := scrubber.ScrubYaml(initConfigYaml)
+			if err != nil {
+				ic.log.Warnf("could not scrub JMX init_config for %s: %v", jmxName, err)
+				// Return early if scrubbing fails to avoid sending unscrubbed data
+				continue
+			}
+
 			instances := jmxIntegration["instances"].([]integration.JSONMap)
 			for _, instance := range instances {
 				configHash := jmxName
@@ -56,6 +66,15 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 					ic.log.Warnf("could not marshal JMX instance config for %s: %v", jmxName, err)
 					continue
 				}
+
+				// Scrub the instance YAML
+				scrubbedInstanceYaml, err := scrubber.ScrubYaml(instanceYaml)
+				if err != nil {
+					ic.log.Warnf("could not scrub JMX instance config for %s: %v", jmxName, err)
+					// Continue to next instance if scrubbing fails in order to avoid sending unscrubbed data
+					continue
+				}
+
 				if instance["name"] != nil {
 					configHash = fmt.Sprintf("%s:%s", jmxName, fmt.Sprint(instance["name"]))
 				}
@@ -71,8 +90,8 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 				}
 
 				metadataEntry := metadata{
-					"init_config":     string(initConfigYaml),
-					"instance":        string(instanceYaml),
+					"init_config":     string(scrubbedInitConfigYaml),
+					"instance":        string(scrubbedInstanceYaml),
 					"config.provider": provider,
 					"config.hash":     configHash,
 					"config.source":   source,
