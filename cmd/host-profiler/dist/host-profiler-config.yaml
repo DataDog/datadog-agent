@@ -1,7 +1,8 @@
 receivers:
   profiling:
 processors:
-  infraattributes/default: {}
+  infraattributes/default:
+    cardinality: 2 #HighCardinality
 exporters:
   debug: {}
   otlphttp:
