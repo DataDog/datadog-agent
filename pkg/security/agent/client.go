@@ -10,7 +10,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"runtime"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -18,8 +20,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/security/common"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/mdlayher/vsock"
 )
 
 // RuntimeSecurityClient is used to send request to security module
@@ -42,8 +45,6 @@ type SecurityModuleClientWrapper interface {
 	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
 	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
 	GetRuleSetReport() (*api.GetRuleSetReportMessage, error)
-	GetEvents() (api.SecurityModule_GetEventsClient, error)
-	GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error)
 	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
 	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
 	Close()
@@ -140,24 +141,6 @@ func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportMessage
 	return response, nil
 }
 
-// GetEvents returns a stream of events
-func (c *RuntimeSecurityClient) GetEvents() (api.SecurityModule_GetEventsClient, error) {
-	stream, err := c.apiClient.GetEvents(context.Background(), &api.GetEventParams{})
-	if err != nil {
-		return nil, err
-	}
-	return stream, nil
-}
-
-// GetActivityDumpStream returns a stream of activity dumps
-func (c *RuntimeSecurityClient) GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error) {
-	stream, err := c.apiClient.GetActivityDumpStream(context.Background(), &api.ActivityDumpStreamParams{})
-	if err != nil {
-		return nil, err
-	}
-	return stream, nil
-}
-
 // ListSecurityProfiles lists the profiles held in memory by the Security Profile manager
 func (c *RuntimeSecurityClient) ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error) {
 	return c.apiClient.ListSecurityProfiles(context.Background(), &api.SecurityProfileListParams{
@@ -182,12 +165,11 @@ func (c *RuntimeSecurityClient) Close() {
 
 // NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
 func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
-	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
+	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.cmd_socket")
 	if socketPath == "" {
-		return nil, errors.New("runtime_security_config.socket must be set")
+		return nil, errors.New("runtime_security_config.cmd_socket must be set")
 	}
-
-	family := common.GetFamilyAddress(socketPath)
+	family, socketPath := config.GetSocketAddress(socketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("unix sockets are not supported on Windows")
@@ -196,8 +178,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		socketPath = fmt.Sprintf("unix://%s", socketPath)
 	}
 
-	conn, err := grpc.NewClient(
-		socketPath,
+	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithConnectParams(grpc.ConnectParams{
@@ -205,7 +186,28 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 				BaseDelay: time.Second,
 				MaxDelay:  time.Second,
 			},
+		}),
+	}
+
+	if family == "vsock" {
+		cmdPort, parseErr := strconv.Atoi(socketPath)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid vsock socket path '%s'")
+		}
+
+		if cmdPort <= 0 {
+			return nil, fmt.Errorf("invalid port '%s' for vsock", socketPath)
+		}
+
+		opts = append(opts, grpc.WithContextDialer(func(ctx context.Context, path string) (net.Conn, error) {
+			return vsock.Dial(vsock.Host, uint32(cmdPort), &vsock.Config{})
 		}))
+	}
+
+	conn, err := grpc.NewClient(
+		socketPath,
+		opts...,
+	)
 	if err != nil {
 		return nil, err
 	}
