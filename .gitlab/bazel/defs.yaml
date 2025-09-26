@@ -30,7 +30,6 @@
   retry: 0
   variables:
     GIT_DEPTH: 2
-    BAZEL_SH: "C:/tools/msys64/usr/bin/bash.exe"
   script:
     - |-
       $FailFast = @'
