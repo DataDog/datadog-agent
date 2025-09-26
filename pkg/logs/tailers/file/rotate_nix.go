@@ -61,6 +61,29 @@ func (t *Tailer) DidRotate() (bool, error) {
 // - truncated
 func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, error) {
 	newFingerprint, err := fingerprinter.ComputeFingerprint(t.file)
+	
+	// Handle insufficient data cases with minimal tailer restarts
+	if t.fingerprint.IsInsufficientData() && newFingerprint.IsInsufficientData() {
+		// Both insufficient - use filesystem check to detect real rotation
+		rotated, err := t.DidRotate()
+		if err != nil {
+			log.Debugf("Filesystem check failed for %s, assuming no rotation: %v", t.file.Path, err)
+			return false, nil
+		}
+		return rotated, err
+	}
+
+	// Transition from insufficient to valid fingerprint - likely just more data added
+	// but check the filesystem to be sure it wasn't rotation
+	// Avoid unnecessary tailer restart to prevent log loss
+	if t.fingerprint.IsInsufficientData() && !newFingerprint.IsInsufficientData() {
+		rotated, err := t.DidRotate()
+		if err != nil {
+			log.Debugf("Filesystem check failed for %s: %v. Transition from insufficient to valid fingerprint for %s - assuming more data added, no rotation", t.file.Path, err)
+			return false, nil
+		}
+		return rotated, err
+	}
 
 	// If computing the fingerprint led to an error there was likely an IO issue, handle this appropriately below.
 	if err != nil {
@@ -74,13 +97,6 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, er
 	// If fingerprints are different, it means the file was rotated.
 	// This is also true if the new fingerprint is invalid (Value=0), which means the file was truncated.
 	rotated := !t.fingerprint.Equals(newFingerprint)
-
-	// Special case: When dealing with insufficient data fingerprints, trust the fingerprint-based
-	// rotation detection rather than relying on filesystem validation, which can be unreliable
-	// for rapid file recreation scenarios (like move + touch + write).
-	if rotated && (t.fingerprint.IsInsufficientData() || newFingerprint.IsInsufficientData()) {
-		log.Debugf("File rotation detected with insufficient data fingerprints for %s - trusting fingerprint logic", t.file.Path)
-	}
 
 	if rotated {
 		log.Debugf("File rotation detected via fingerprint mismatch for %s (old: 0x%x, new: 0x%x)",
