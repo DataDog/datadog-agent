@@ -36,6 +36,10 @@ type Config struct {
 	KernelCacheQueueSize int
 	// RingBufferSizePagesPerDevice is the number of pages to use for the ring buffer per device.
 	RingBufferSizePagesPerDevice int
+	// RingBufferWakeupSize is the number of bytes that need to be available in the ring buffer before waking up userspace.
+	RingBufferWakeupSize int
+	// RingBufferFlushInterval is the interval at which the ring buffer should be flushed
+	RingBufferFlushInterval time.Duration
 	// StreamConfig is the configuration for the streams.
 	StreamConfig StreamConfig
 	// AttacherDetailedLogs indicates whether the probe should enable detailed logs for the uprobe attacher.
@@ -70,6 +74,8 @@ func New() *Config {
 		EnableFatbinParsing:          spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
 		KernelCacheQueueSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),
 		RingBufferSizePagesPerDevice: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_pages_per_device")),
+		RingBufferWakeupSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ringbuffer_wakeup_size")),
+		RingBufferFlushInterval:      spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "ringbuffer_flush_interval")),
 		StreamConfig: StreamConfig{
 			MaxActiveStreams:      spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_active")),
 			Timeout:               time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "timeout_seconds"))) * time.Second,
