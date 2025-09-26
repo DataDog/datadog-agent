@@ -55,6 +55,7 @@ nav:
 - How-to:
   - Build:
     - Standalone agents: how-to/build/standalone.md
+    - Distribution packages: how-to/build/distributions.md
   - Test:
     - Unit tests: how-to/test/unit.md
     - Static analysis: how-to/test/static-analysis.md
@@ -95,6 +96,7 @@ nav:
   #     - TODO workloadmeta: components/shared_features/workloadmeta.md
   #     - TODO more ?: TMP
   # - Fx overview: components/fx.md
+  # - JMXFetch overview: components/jmxfetch.md
   # - FAQ: components/faq.md
 - Architecture:
   - DogStatsD:
@@ -103,6 +105,8 @@ nav:
   - Images:
     - Developer environment: reference/images/dev.md
     - Builders: reference/images/builders.md
+  - Agent buildables:
+    - Agent components: reference/builds/components.md
 
 watch:
 - .go-version

@@ -36,7 +36,8 @@ const (
 // Provider provides the data collected from the `/stats/summary` Kubelet endpoint
 type Provider struct {
 	config                *common.KubeletConfig
-	filterStore           workloadfilter.Component
+	podFilter             workloadfilter.FilterBundle
+	containerFilter       workloadfilter.FilterBundle
 	store                 workloadmeta.Component
 	tagger                tagger.Component
 	defaultRateFilterList []*regexp.Regexp
@@ -57,7 +58,8 @@ func NewProvider(
 
 	return &Provider{
 		config:                config,
-		filterStore:           filterStore,
+		podFilter:             filterStore.GetPodSharedMetricFilters(),
+		containerFilter:       filterStore.GetContainerSharedMetricFilters(),
 		store:                 store,
 		tagger:                tagger,
 		defaultRateFilterList: defaultRateFilterList,
@@ -115,8 +117,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			continue
 		}
 
-		selectedFilters := p.filterStore.GetPodSharedMetricFilters()
-		if p.filterStore.IsPodExcluded(workloadmetafilter.CreatePod(podData), selectedFilters) {
+		if p.podFilter.IsExcluded(workloadmetafilter.CreatePod(podData)) {
 			continue
 		}
 
@@ -229,8 +230,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 		ctr.Name = containerName
 
 		filterableContainer := workloadmetafilter.CreateContainerFromOrch(ctr, workloadmetafilter.CreatePod(podData))
-		selectedFilters := p.filterStore.GetContainerSharedMetricFilters()
-		if p.filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
+		if p.containerFilter.IsExcluded(filterableContainer) {
 			continue
 		}
 		tags, err := p.tagger.Tag(types.NewEntityID(types.ContainerID, ctr.ID), types.HighCardinality)

@@ -61,9 +61,14 @@ var (
 
 // AgentBSOD for Agent Telemetry reporting
 type AgentBSOD struct {
-	Date     string `json:"date"`
-	Offender string `json:"offender"`
-	BugCheck string `json:"bugcheck"`
+	Date         string `json:"date"`
+	Offender     string `json:"offender"`
+	BugCheck     string `json:"bugcheck"`
+	BugCheckArg1 string `json:"bugcheckarg1"`
+	BugCheckArg2 string `json:"bugcheckarg2"`
+	BugCheckArg3 string `json:"bugcheckarg3"`
+	BugCheckArg4 string `json:"bugcheckarg4"`
+	Callstack    string `json:"callstack"`
 }
 
 // Module defines the fx options for this component.
@@ -165,20 +170,40 @@ func (wcd *AgentCrashDetect) Run() error {
 		return nil
 	}
 
-	// check to see if the crash is one of ours
-	offender := strings.Split(crash.Offender, "+")[0]
-	if _, ok := ddDrivers[offender]; !ok {
-		log.Infof("non-dd crash detected %s", offender)
+	// check if the crash is related to one of our drivers
+	ddFrameFound := false
+	callstack := strings.Split(crash.Callstack, ",")
+	for _, frame := range callstack {
+		// the dd driver frames should not have resolved symbols
+		frameParts := strings.Split(frame, "+")
+		if len(frameParts) == 0 {
+			continue
+		}
+
+		moduleName := strings.ToLower(frameParts[0])
+		if _, ok := ddDrivers[moduleName]; ok {
+			ddFrameFound = true
+			break
+		}
+	}
+
+	if !ddFrameFound {
 		// there was a crash, but not one of our drivers.  don't need to report
+		log.Infof("non-dd crash detected %s", crash.Offender)
 		return nil
 	}
 
 	log.Infof("Sending crash: %v", formatText(crash))
 
+	// TODO: Possibly report the callstack.
 	bsod := AgentBSOD{
-		Date:     crash.DateString,
-		Offender: crash.Offender,
-		BugCheck: crash.BugCheck,
+		Date:         crash.DateString,
+		Offender:     crash.Offender,
+		BugCheck:     crash.BugCheck,
+		BugCheckArg1: crash.BugCheckArg1,
+		BugCheckArg2: crash.BugCheckArg2,
+		BugCheckArg3: crash.BugCheckArg3,
+		BugCheckArg4: crash.BugCheckArg4,
 	}
 	var bsodPayload []byte
 	bsodPayload, err = json.Marshal(bsod)
@@ -215,9 +240,19 @@ func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 }
 
 func formatText(c *probe.WinCrashStatus) string {
+	// TODO: Possibly report the callstack.
 	baseString := `A system crash was detected.
 	The crash occurred at %s.
 	The offending moudule is %s.
-	The bugcheck code is %s`
-	return fmt.Sprintf(baseString, c.DateString, c.Offender, c.BugCheck)
+	The bugcheck code is %s.
+	The bugcheck arguments are (%s, %s, %s, %s).`
+	return fmt.Sprintf(
+		baseString,
+		c.DateString,
+		c.Offender,
+		c.BugCheck,
+		c.BugCheckArg1,
+		c.BugCheckArg2,
+		c.BugCheckArg3,
+		c.BugCheckArg4)
 }
