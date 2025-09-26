@@ -17,6 +17,6 @@ import (
 )
 
 func TestShouldSanitizeConfig(t *testing.T) {
-	launcher := NewLauncher(publishermetadatacache.Mock())
+	launcher := NewLauncher(publishermetadatacache.New(t))
 	assert.Equal(t, "*", launcher.sanitizedConfig(&config.LogsConfig{ChannelPath: "System", Query: ""}).Query)
 }

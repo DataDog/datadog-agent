@@ -42,7 +42,7 @@ type publisherMetadataCache struct {
 }
 
 // NewComponent creates a new publishermetadatacache component
-func NewComponent(reqs Requires) (Provides, error) {
+func NewComponent(reqs Requires) Provides {
 	cache := &publisherMetadataCache{
 		cache:        make(map[string]cacheItem),
 		evtapi:       winevtapi.New(),
@@ -58,7 +58,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	return Provides{
 		Comp: cache,
-	}, nil
+	}
 }
 
 func (c *publisherMetadataCache) addCacheEntry(publisherName string, handle evtapi.EventPublisherMetadataHandle) {
