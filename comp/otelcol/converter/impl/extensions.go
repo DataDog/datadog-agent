@@ -76,17 +76,19 @@ func createExtensions(enabledFeatures []string) []component {
 		healthCheckComponent,
 	}
 
-	var result []int
+	result := make([]component, 0, 2)
 	for _, feature := range enabledFeatures {
-		if feature == "ddflare" || feature == "datadog" {
-			result = append(result, 1)
+		if feature == "ddflare" {
+			result = append(result, ddflareComponent)
+		} else if feature == "datadog" {
+			result = append(result, datadogComponent)
 		}
 	}
 
 	if len(result) == 2 {
 		components = append(components, ddflareComponent)
-	} else {
-		components = append(components, ddflareComponent, datadogComponent)
+	} else if len(result) > 0 {
+		components = append(components, result[0])
 	}
 
 	return components
