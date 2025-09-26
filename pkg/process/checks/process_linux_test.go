@@ -19,7 +19,6 @@ import (
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -365,8 +364,8 @@ func TestFormatServiceDiscovery(t *testing.T) {
 						ServiceName: "service_name2",
 					},
 				},
-				DDService:          "dd_service_name",
-				APMInstrumentation: "provided",
+				DDService:       "dd_service_name",
+				APMInstrumentation: true,
 			},
 			expectedService: &model.ServiceDiscovery{
 				GeneratedServiceName: &model.ServiceName{
@@ -407,7 +406,7 @@ func TestFormatServiceDiscovery(t *testing.T) {
 				GeneratedNameSource:      "",
 				AdditionalGeneratedNames: []string{"", ""},
 				DDService:                "",
-				APMInstrumentation:       "none",
+				APMInstrumentation:          false,
 			},
 			expectedService: &model.ServiceDiscovery{
 				GeneratedServiceName:     nil,
@@ -458,9 +457,9 @@ func wlmProcessWithServiceDiscovery(pid int32, spaceSeparatedCmdline string, cre
 				ServiceName: "some-tracer-service",
 			},
 		},
-		DDService:          "dd service name",
-		TCPPorts:           []uint16{6400, 5200},
-		APMInstrumentation: string(apm.Provided),
+		DDService:       "dd service name",
+		TCPPorts:        []uint16{6400, 5200},
+		APMInstrumentation: true,
 	}
 	return proc
 }

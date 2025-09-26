@@ -607,7 +607,7 @@ func TestConversions(t *testing.T) {
 						DDService:          "dd_test_service",
 						TCPPorts:           []uint16{8080, 9090},
 						UDPPorts:           []uint16{53},
-						APMInstrumentation: "enabled",
+						APMInstrumentation: true,
 						UST: workloadmeta.UST{
 							Service: "test_service",
 							Env:     "test_env",
@@ -656,7 +656,7 @@ func TestConversions(t *testing.T) {
 						DdService:          "dd_test_service",
 						TcpPorts:           []int32{8080, 9090},
 						UdpPorts:           []int32{53},
-						ApmInstrumentation: "enabled",
+						ApmInstrumentation: true,
 						Ust: &pb.UST{
 							Service: "test_service",
 							Env:     "test_env",

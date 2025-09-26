@@ -141,7 +141,7 @@ func file_datadog_api_v1_api_proto_init() {
 	file_datadog_model_v1_model_proto_init()
 	file_datadog_remoteagent_remoteagent_proto_init()
 	file_datadog_remoteconfig_remoteconfig_proto_init()
-	file_datadog_workloadmeta_workloadmeta_proto_init()
+	file_pkg_proto_datadog_workloadmeta_workloadmeta_proto_init()
 	file_datadog_autodiscovery_autodiscovery_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
