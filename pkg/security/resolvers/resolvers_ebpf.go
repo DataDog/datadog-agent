@@ -11,9 +11,10 @@ package resolvers
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"os"
 	"sort"
+
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 
@@ -215,10 +216,10 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		SyscallCtxResolver:     syscallctx.NewResolver(),
 		DNSResolver:            dnsResolver,
 		FileMetadataResolver:   fileMetadataResolver,
-		SnapshotUsingListmount: true,
+		SnapshotUsingListmount: config.Probe.SnapshotUsingListmount,
 	}
 
-	if !mountResolver.HasListMount() {
+	if resolvers.SnapshotUsingListmount && !mountResolver.HasListMount() {
 		seclog.Warnf("listmount not found in this system, will default to procfs")
 		resolvers.SnapshotUsingListmount = false
 	}
