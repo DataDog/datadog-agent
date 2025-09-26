@@ -34,6 +34,22 @@ func CreateContainer(container *workloadmeta.Container, owner workloadfilter.Fil
 	}
 }
 
+// CreateContainerNameAndImage creates a Filterable Container object from a name, image and an (optional) owner.
+func CreateContainerNameAndImage(name, img string, owner workloadfilter.Filterable) *workloadfilter.Container {
+	c := &typedef.FilterContainer{
+		Id:    "",
+		Name:  name,
+		Image: img,
+	}
+
+	setContainerOwner(c, owner)
+
+	return &workloadfilter.Container{
+		FilterContainer: c,
+		Owner:           owner,
+	}
+}
+
 // CreateContainerFromOrch creates a Filterable Container object from a workloadmeta.OrchestratorContainer and an owner.
 func CreateContainerFromOrch(container *workloadmeta.OrchestratorContainer, owner workloadfilter.Filterable) *workloadfilter.Container {
 	if container == nil {
