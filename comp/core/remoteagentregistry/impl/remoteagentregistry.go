@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 
 	"google.golang.org/grpc/codes"
 	grpcStatus "google.golang.org/grpc/status"
@@ -378,7 +379,7 @@ collect:
 
 // Retrieve the telemetry data in exposition format from the remote agent
 func collectFromPromText(ch chan<- prometheus.Metric, promText string) {
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.LegacyValidation)
 	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(promText))
 	if err != nil {
 		log.Warnf("Failed to parse prometheus text: %v", err)
