@@ -12,7 +12,7 @@ import (
 	"context"
 	"time"
 
-	"go.uber.org/fx"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -21,9 +21,7 @@ import (
 
 // Requires defines the dependencies for the publishermetadatacache component
 type Requires struct {
-	fx.In
-
-	Lc fx.Lifecycle
+	Lifecycle compdef.Lifecycle
 }
 
 // Provides defines the output of the publishermetadatacache component
@@ -52,7 +50,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	// Register cleanup hook to close all handles when component shuts down
-	reqs.Lc.Append(fx.Hook{
+	reqs.Lifecycle.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
 			return cache.stop()
 		},
