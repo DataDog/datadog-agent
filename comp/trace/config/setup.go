@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -88,11 +87,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 
 	coreConfigObject := c.Object()
 
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		cfg.ReceiverSocket = ""
-	} else {
-		cfg.ReceiverSocket = coreConfigObject.GetString("apm_config.receiver_socket")
-	}
+	cfg.ReceiverSocket = coreConfigObject.GetString("apm_config.receiver_socket")
 
 	if coreConfigObject == nil {
 		return nil, errors.New("no core config found! Bailing out")
