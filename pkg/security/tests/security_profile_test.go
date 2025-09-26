@@ -3204,7 +3204,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 		    touch /tmp/child1_file &
 		    child1_pid=$!
 		    # Spawn child 2 in background - does operation, sleeps, then does it again
-		    (for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do ls /tmp; sleep 1; done) &
+		    (for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do ls /tmp; sleep 1; done) &
 		    child2_pid=$!
 		    wait $child1_pid
 		    wait $child2_pid

@@ -569,10 +569,11 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time) int {
 		}
 	}
 
+	_ = pn.NodeBase.EvictBeforeTimestamp(before)
+
 	// If the process node itself can be evicted
-	if pn.canEvictNode(before) {
-		_ = pn.NodeBase.EvictBeforeTimestamp(before)
-		totalEvicted++
+	if len(pn.Children) == 0 && len(pn.Seen) == 0 {
+		return totalEvicted
 		// No need to evict the activity nodes, since this process node will be removed entirely
 
 	} else {
@@ -638,24 +639,4 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time) int {
 	}
 
 	return totalEvicted
-}
-
-// canEvictNode determines if this node can be evicted based on whether all its children
-// are evictable (have no recent activity)
-func (pn *ProcessNode) canEvictNode(before time.Time) bool {
-	// If this node has any children that are not evictable, then this node cannot be evicted
-	for _, child := range pn.Children {
-		if !child.canEvictNode(before) {
-			return false
-		}
-	}
-
-	// Check if any of this node's image tags have recent activity
-	for _, times := range pn.Seen {
-		if !times.LastSeen.Before(before) {
-			return false // This node has recent activity, cannot evict
-		}
-	}
-
-	return true
 }
