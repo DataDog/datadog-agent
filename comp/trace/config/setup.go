@@ -84,7 +84,6 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	// the core config can be assumed to already be set-up as it has been
 	// injected as a component dependency
 	// TODO: do not interface directly with pkg/config anywhere
-
 	coreConfigObject := c.Object()
 
 	cfg.ReceiverSocket = coreConfigObject.GetString("apm_config.receiver_socket")
