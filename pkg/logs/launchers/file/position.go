@@ -33,24 +33,30 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 	if filePath != "" {
 		prevFingerprint := registry.GetFingerprint(identifier)
 		if prevFingerprint != nil {
+			log.Infof("POSITION DEBUG: Found previous fingerprint for %s (value: 0x%x), computing new fingerprint", identifier, prevFingerprint.Value)
 			newFingerprint, err := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
 			if err != nil {
 				log.Warnf("Failed to compute fingerprint for file %s: %v", filePath, err)
-				// If fingerprint computation fails, assume fingerprints don't align to be safe
+				// More likely to have the agent come back up pointed to the same file compared to a rotated file
 				fingerprintsAlign = true
 			} else {
-				fingerprintsAlign = prevFingerprint.Value == newFingerprint.Value
+				fingerprintsAlign = prevFingerprint.Equals(newFingerprint)
 			}
 		}
 	}
 
+	log.Debugf("Position() called for identifier: %s, mode: %d, value: %s, fingerprintsAlign: %t", identifier, mode, value, fingerprintsAlign)
+	log.Debugf("config.Beginning: %d, mode == config.Beginning: %t", config.Beginning, mode == config.Beginning)
 	switch {
 	case mode == config.ForceBeginning:
+		log.Debugf("HIT: ForceBeginning case")
 		offset, whence = 0, io.SeekStart
 	case mode == config.ForceEnd:
+		log.Debugf("HIT: ForceEnd case")
 		offset, whence = 0, io.SeekEnd
 	case value != "" && fingerprintsAlign:
-		// an offset was registered, tailing mode is not forced, fingerprints are disabled or equivalent
+		log.Debugf("HIT: Saved offset case - value: %s, fingerprintsAlign: %t", value, fingerprintsAlign)
+		// an offset was registered, tailing mode is not forced, fingerprints align, so we start from the offset
 		whence = io.SeekStart
 		offset, err = strconv.ParseInt(value, 10, 64)
 		if err != nil {
@@ -62,10 +68,13 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 			}
 		}
 	case mode == config.Beginning:
+		log.Debugf("HIT: Beginning case")
 		offset, whence = 0, io.SeekStart
 	case mode == config.End:
+		log.Debugf("HIT: End case")
 		fallthrough
 	default:
+		log.Debugf("HIT: Default case")
 		offset, whence = 0, io.SeekEnd
 	}
 	return offset, whence, err

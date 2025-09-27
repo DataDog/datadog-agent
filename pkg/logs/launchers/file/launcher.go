@@ -259,14 +259,22 @@ func (s *Launcher) scan() {
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			// Skip files with invalid fingerprints (Value == 0)
-			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
-				// If fingerprint is invalid, persist the old info back into the map for future attempts
+			// Skip files on error
+			if err != nil {
 				if hasOldInfo {
 					s.oldInfoMap[scanKey] = oldInfo
 				}
 				continue
 			}
+			// Only skip files with true invalid fingerprints (errors), but allow tailing with insufficient data
+			if fingerprint != nil && !fingerprint.IsValidFingerprint() && !fingerprint.IsInsufficientData() {
+				log.Debugf("Skipping file %s due to invalid fingerprint (error case)", file.Path)
+				if hasOldInfo {
+					s.oldInfoMap[scanKey] = oldInfo
+				}
+				continue
+			}
+
 		}
 
 		if hasOldInfo {
@@ -345,14 +353,20 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			tailer.ReplaceSource(source)
 			continue
 		}
-
 		var fingerprint *types.Fingerprint
 		// Check if this specific file should be fingerprinted
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			if err != nil || !fingerprint.ValidFingerprint() {
+			if err != nil {
+				// Skip on errors
 				continue
 			}
+			// Only skip files with true invalid fingerprints (errors), but allow tailing with insufficient data
+			if fingerprint != nil && !fingerprint.IsValidFingerprint() && !fingerprint.IsInsufficientData() {
+				log.Debugf("Skipping file %s due to invalid fingerprint (error case)", file.Path)
+				continue
+			}
+			// Allow tailing with invalid fingerprints of type: insufficient data
 		}
 
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
@@ -498,7 +512,7 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 			InfoRegistry: oldInfoRegistry,
 			Pattern:      oldRegexPattern,
 		}
-		s.oldInfoMap[file.Path] = regexAndRegistry
+		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
 	}
 
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)

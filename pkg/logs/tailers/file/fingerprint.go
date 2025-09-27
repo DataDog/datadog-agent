@@ -24,14 +24,6 @@ var defaultBytesConfig = &types.FingerprintConfig{
 	CountToSkip:         0,
 }
 
-// DefaultLinesConfig provides a sensible default configuration for line-based fingerprinting
-var defaultLinesConfig = &types.FingerprintConfig{
-	FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-	Count:               1,
-	CountToSkip:         0,
-	MaxBytes:            10000,
-}
-
 // Fingerprinter is a struct that contains the fingerprinting configuration
 type Fingerprinter struct {
 	FingerprintConfig types.FingerprintConfig
@@ -47,6 +39,11 @@ func NewFingerprinter(fingerprintConfig types.FingerprintConfig) *Fingerprinter 
 // newInvalidFingerprint returns a fingerprint with Value=0 to represent an invalid/empty fingerprint
 func newInvalidFingerprint(config *types.FingerprintConfig) *types.Fingerprint {
 	return &types.Fingerprint{Value: types.InvalidFingerprintValue, Config: config}
+}
+
+// newInsufficientDataFingerprint returns a fingerprint with Value=^uint64(0) to represent an insufficient data fingerprint
+func newInsufficientDataFingerprint(config *types.FingerprintConfig) *types.Fingerprint {
+	return &types.Fingerprint{Value: types.InsufficientDataFingerprintValue, Config: config}
 }
 
 // crc64Table is a package-level variable for the CRC64 ISO table
@@ -146,9 +143,9 @@ func computeFingerprint(filePath string, fingerprintConfig *types.FingerprintCon
 	case types.FingerprintStrategyByteChecksum:
 		return computeFingerPrintByBytes(fpFile, filePath, fingerprintConfig)
 	default:
-		log.Warnf("invalid fingerprint strategy %q for file %q, using default lines strategy", strategy, filePath)
-		// Default to line_checksum if no strategy is specified
-		return computeFingerPrintByLines(fpFile, filePath, defaultLinesConfig)
+		log.Warnf("invalid fingerprint strategy %q for file %q, using default bytes strategy: %v", strategy, filePath, err)
+		// Default to byte_checksum if no strategy is specified
+		return computeFingerPrintByBytes(fpFile, filePath, defaultBytesConfig)
 	}
 }
 
@@ -176,7 +173,8 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 
 	// Check if we have enough bytes to create a meaningful fingerprint
 	if bytesRead == 0 || bytesRead < maxBytes {
-		return newInvalidFingerprint(fingerprintConfig), nil
+		// Return insufficient data fingerprint for partial files (allows continued tailing)
+		return newInsufficientDataFingerprint(fingerprintConfig), nil
 	}
 
 	// Compute fingerprint
@@ -226,8 +224,8 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 			}
 			// Check if we have enough data for fingerprinting
 			// We need either enough lines OR enough bytes to create a meaningful fingerprint
-			return newInvalidFingerprint(fingerprintConfig), nil
-
+			log.Debugf("Not enough data for fingerprinting file %q", filePath)
+			return newInsufficientDataFingerprint(fingerprintConfig), nil
 		}
 	}
 

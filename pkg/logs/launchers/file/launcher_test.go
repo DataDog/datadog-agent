@@ -539,7 +539,8 @@ func runLauncherScanStartNewTailerForEmptyFileTest(t *testing.T, testDirs []stri
 	assert.Nil(t, err)
 
 	launcher.scan()
-	assert.Equal(t, 0, launcher.tailers.Count())
+	// With new insufficient data fingerprint behavior, empty files should create tailers to allow for future content
+	assert.Equal(t, 1, launcher.tailers.Count())
 }
 
 func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
@@ -1236,7 +1237,7 @@ func runLauncherFileDetectionSingleScanTest(t *testing.T, testDirs []string) {
 	assert.True(t, launcher.tailers.Contains(path("b.log")))
 }
 
-func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUndersizedFile() {
+func (suite *LauncherTestSuite) TestLauncherCreatesTailerForTruncatedUndersizedFile() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 
@@ -1286,16 +1287,17 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedU
 	suite.Nil(err)
 	suite.True(didRotate, "Should detect rotation when file becomes empty (fingerprint = 0)")
 
-	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
+	// Now test the launcher's behavior: it should create a new tailer for the undersized file
+	// because insufficient data fingerprints allow tailing (preventing log loss)
 	s.scan()
 
-	// Verify no new tailer was created for the undersized file
-	// The old tailer should be removed but no new one should be created
+	// Verify a new tailer was created for the undersized file
+	// The old tailer should be removed and a new one should be created
 	afterScanCount := s.tailers.Count()
-	suite.Equal(initialTailerCount-1, afterScanCount, "No new tailer should be created for undersized file after rotation")
+	suite.Equal(initialTailerCount, afterScanCount, "New tailer should be created for undersized file after rotation (allows future content)")
 }
 
-func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersizedFile() {
+func (suite *LauncherTestSuite) TestLauncherCreatesTailerForRotatedUndersizedFile() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 
@@ -1349,13 +1351,14 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 	suite.Nil(err)
 	suite.True(didRotate, "Should detect rotation when original file is moved and new file is created")
 
-	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
+	// Now test the launcher's behavior: it should create a new tailer for the undersized file
+	// because insufficient data fingerprints allow tailing (preventing log loss)
 	s.scan()
 
-	// Verify no new tailer was created for the undersized file
-	// The old tailer should be removed but no new one should be created
+	// Verify a new tailer was created for the undersized file
+	// The old tailer should become a rotated tailer and a new one should be created
 	afterScanCount := s.tailers.Count() + len(s.rotatedTailers)
-	suite.Equal(initialTailerCount, afterScanCount, "No new tailer should be created for undersized file after rotation")
+	suite.Equal(initialTailerCount+1, afterScanCount, "New tailer should be created for undersized file after rotation (allows future content)")
 
 	// Clean up the rotated file
 	os.Remove(rotatedPath)
