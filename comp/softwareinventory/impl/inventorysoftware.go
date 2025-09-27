@@ -11,14 +11,15 @@ package softwareinventoryimpl
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"net/http"
+	"time"
+
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	softwareinventory "github.com/DataDog/datadog-agent/comp/softwareinventory/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	"math/rand"
-	"net/http"
-	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -233,10 +234,17 @@ func (is *softwareInventory) sendPayload() error {
 		return fmt.Errorf("event platform forwarder not available")
 	}
 
-	jsonPayload, err := is.getPayload().MarshalJSON()
+	payload := is.getPayload()
+	if payload == nil {
+		// No cached inventory available, skip sending payload
+		return nil
+	}
+
+	jsonPayload, err := payload.MarshalJSON()
 	if err != nil {
 		return err
 	}
+
 	msg := message.NewMessage(jsonPayload, nil, "", 0)
 
 	// Send the message through the event platform
