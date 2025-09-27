@@ -221,6 +221,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
+	if val, ok := os.LookupEnv("DD_INSTALL_ONLY"); ok && strings.ToLower(val) == "true" {
+		return nil
+	}
 	if err := agentService.EnableStable(ctx); err != nil {
 		return fmt.Errorf("failed to install stable unit: %s", err)
 	}
@@ -656,7 +659,14 @@ func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
 			return err
 		}
 	}
-	return systemd.Reload(ctx)
+	err := systemd.Reload(ctx)
+	if err != nil {
+		if val, ok := os.LookupEnv("DD_INSTALL_ONLY"); ok && strings.ToLower(val) == "true" {
+			return nil // Might be expected if the agent is installed only
+		}
+		return fmt.Errorf("failed to reload systemd: %v", err)
+	}
+	return nil
 }
 
 func writeEmbeddedUnit(dir string, unit string, content []byte) error {

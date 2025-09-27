@@ -94,6 +94,7 @@ func SetupDatabricks(s *common.Setup) error {
 	if err != nil {
 		return fmt.Errorf("failed to get hostname: %w", err)
 	}
+	s.Env.InstallOnly = true
 	s.Config.DatadogYAML.Hostname = hostname
 	s.Config.DatadogYAML.DJM.Enabled = true
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
