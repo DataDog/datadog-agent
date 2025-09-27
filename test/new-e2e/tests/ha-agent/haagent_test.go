@@ -71,7 +71,7 @@ func (s *haAgentTestSuite) TestHaAgentAddedToRCListeners() {
 		output, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
 		require.NoError(c, err)
 
-		assert.Contains(c, output, []byte("Add HA Agent RCListener"))
+		assert.Contains(c, string(output), "Add HA Agent RCListener")
 	}, 5*time.Minute, 3*time.Second)
 }
 
