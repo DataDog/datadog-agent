@@ -14,7 +14,6 @@ package scrubber
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"regexp"
@@ -247,7 +246,6 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 
 // containsValidENC checks if the match contains a valid ENC[]
 func containsValidENC(data []byte) bool {
-	fmt.Println("CONTAINS VALID ENC")
 	encPattern := regexp.MustCompile(`ENC\[[^\]]*\]`)
 	matches := encPattern.FindAll(data, -1)
 	for _, match := range matches {
