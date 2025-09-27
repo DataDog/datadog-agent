@@ -26,6 +26,9 @@ dependency "systemd" if linux_target?
 
 dependency 'libpcap' if linux_target? and !heroku_target? # system-probe dependency
 
+# shared library version of `http_check`
+dependency 'libdatadog-agent-httpcheck'
+
 # Include traps db file in snmp.d/traps_db/
 dependency 'snmp-traps'
 
