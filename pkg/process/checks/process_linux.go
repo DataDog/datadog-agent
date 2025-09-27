@@ -129,6 +129,7 @@ func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) 
 		UDPPorts:       udpPorts,
 		Language:       wlmProc.Language,
 		Service:        service,
+		IsInjected:     wlmProc.IsInjected,
 	}
 }
 

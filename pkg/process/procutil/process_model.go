@@ -35,8 +35,9 @@ type Process struct {
 	TCPPorts       []uint16
 	UDPPorts       []uint16
 
-	Stats   *Stats
-	Service *Service
+	Stats      *Stats
+	Service    *Service
+	IsInjected bool // APM auto-injector detected
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

@@ -154,6 +154,7 @@ Cmdline: /usr/bin/test-process --flag
 Namespace PID: 12345
 Container ID: container-123
 Creation time: 2023-01-01 12:00:00 +0000 UTC
+APM Injected: false
 `,
 		},
 		{
@@ -185,6 +186,7 @@ Cmdline: /usr/bin/test-process --flag
 Namespace PID: 12345
 Container ID: container-123
 Creation time: 2023-01-01 12:00:00 +0000 UTC
+APM Injected: false
 Comm: test-process
 Cwd: /tmp
 Uids: [1000 1001]
@@ -239,6 +241,7 @@ Namespace PID: 12345
 Container ID: container-999
 Creation time: 2023-01-01 12:00:00 +0000 UTC
 Language: java
+APM Injected: false
 ----------- Service Discovery -----------
 Service Generated Name: java-app
 `,
@@ -296,6 +299,7 @@ Namespace PID: 12345
 Container ID: container-999
 Creation time: 2023-01-01 12:00:00 +0000 UTC
 Language: java
+APM Injected: false
 Comm: java
 Cwd: /app
 Uids: [1000 2 3]
