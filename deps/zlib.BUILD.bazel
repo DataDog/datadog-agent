@@ -107,6 +107,7 @@ cc_library(
             "-fpermissive",
         ],
         "@platforms//os:windows": [
+            "-fpermissive",
             "/O2",
             "/wd4127",  # conditional expression is constant
             "/wd4242",  # possible loss of data

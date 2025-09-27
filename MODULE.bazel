@@ -21,7 +21,7 @@ multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
 
 #########################
-## Compiliers          ##
+## Compilers          ##
 #########################
 
 bazel_dep(name = "rules_cc", version = "0.2.8")
