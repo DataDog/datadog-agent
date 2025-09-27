@@ -16,10 +16,21 @@ import (
 )
 
 // TestFxRun tests that fx can build dependencies for the run command.
-func TestFxRun(t *testing.T) {
+func TestFxRunWithoutAgentCore(t *testing.T) {
 	fxutil.TestRun(t, func() error {
 		params := &cliParams{
 			GlobalParams: &globalparams.GlobalParams{},
+		}
+		return runHostProfilerCommand(context.Background(), params)
+	})
+}
+
+func TestFxRunWithAgentCore(t *testing.T) {
+	fxutil.TestRun(t, func() error {
+		params := &cliParams{
+			GlobalParams: &globalparams.GlobalParams{
+				CoreConfPath: "testdata/datadog.yaml",
+			},
 		}
 		return runHostProfilerCommand(context.Background(), params)
 	})
