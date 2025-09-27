@@ -18,7 +18,7 @@ pub extern "C" fn Run(check_id_str: *const c_char, init_config_str: *const c_cha
 /// Build the check structure and execute its custom implementation
 fn create_and_run_check(check_id_str: *const c_char, init_config_str: *const c_char, instance_config_str: *const c_char, aggregator_ptr: *const Aggregator) -> Result<(), Box<dyn Error>> {
     // create the check instance
-    let check = AgentCheck::new(check_id_str, init_config_str, instance_config_str, aggregator_ptr)?;
+    let check = AgentCheck::from(check_id_str, init_config_str, instance_config_str, aggregator_ptr)?;
 
     // run the custom implementation
     check.check()

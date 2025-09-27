@@ -104,6 +104,8 @@ impl Aggregator {
     }
 
     // TODO: optional arguements should use Option
+    // TODO: raise errors in the submit functions
+
     pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
         // create the C strings
         let cstr_check_id = to_cstring(check_id);
@@ -214,5 +216,70 @@ impl Aggregator {
         free_cstring(cstr_check_id);
         free_cstring(cstr_raw_event_pointer);
         free_cstring(cstr_event_type);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    
+    impl Aggregator {    
+        /// Mock implementation of SubmitMetric
+        extern "C" fn mock_submit_metric(
+            _check_id: *mut c_char,
+            _metric_type: MetricType,
+            _name: *mut c_char,
+            _value: c_double,
+            _tags: *mut *mut c_char,
+            _hostname: *mut c_char,
+            _flush_first_value: bool,
+        ) {}
+        
+        /// Mock implementation of SubmitServiceCheck
+        extern "C" fn mock_submit_service_check(
+            _check_id: *mut c_char,
+            _name: *mut c_char,
+            _status: c_int,
+            _tags: *mut *mut c_char,
+            _hostname: *mut c_char,
+            _message: *mut c_char,
+        ) {}
+        
+        /// Mock implementation of SubmitEvent
+        extern "C" fn mock_submit_event(
+            _check_id: *mut c_char,
+            _event: *const Event,
+        ) {}
+        
+        /// Mock implementation of SubmitHistogramBucket
+        extern "C" fn mock_submit_histogram_bucket(
+            _check_id: *mut c_char,
+            _metric_name: *mut c_char,
+            _value: c_longlong,
+            _lower_bound: c_float,
+            _upper_bound: c_float,
+            _monotonic: c_int,
+            _hostname: *mut c_char,
+            _tags: *mut *mut c_char,
+            _flush_first_value: bool,
+        ) {}
+        
+        /// Mock implementation of SubmitEventPlatformEvent
+        extern "C" fn mock_submit_event_platform_event(
+            _check_id: *mut c_char,
+            _raw_event_pointer: *mut c_char,
+            _raw_event_size: c_int,
+            _event_type: *mut c_char,
+        ) {}
+        
+        pub fn mock() -> Self {
+            Self {
+                cb_submit_metric: Self::mock_submit_metric,
+                cb_submit_service_check: Self::mock_submit_service_check,
+                cb_submit_event: Self::mock_submit_event,
+                cb_submit_histogram_bucket: Self::mock_submit_histogram_bucket,
+                cb_submit_event_platform_event: Self::mock_submit_event_platform_event,
+            }
+        }
     }
 }

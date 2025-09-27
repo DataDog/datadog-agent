@@ -1,71 +1,35 @@
 use crate::aggregator::{Aggregator, MetricType, ServiceCheckStatus, Event};
+use crate::config::Config;
 
-use serde_yaml::Value;
-use serde::de::DeserializeOwned;
-
-use std::collections::HashMap;
 use std::ffi::{c_char, CStr};
 use std::error::Error;
-
-/// Represents the parameters passed by the Agent to the check
-/// 
-/// It stores every parameter in a map using `Serde` and provide a method for retrieving the values
-#[repr(C)]
-pub struct Config {
-    map: HashMap<String, Value>,
-}
-
-impl Config {
-    pub fn from_str(cstr: *const c_char) -> Result<Self, Box<dyn Error>> {
-        // read string
-        let str = unsafe { CStr::from_ptr(cstr) }.to_str().unwrap_or("");
-
-        // create map of parameters from the string
-        let map: HashMap<String, Value> = match serde_yaml::from_str(str) {
-            Ok(map) => map,
-            Err(_) => HashMap::new(),
-        };
-
-        Ok(Self { map })
-    }
-
-    pub fn get<T>(&self, key: &str) -> Result<T, Box<dyn Error>>
-    where 
-        T: DeserializeOwned,
-    {
-        match self.map.get(key) {
-            Some(serde_value) => {
-                let value = serde_yaml::from_value(serde_value.clone())?;
-                Ok(value)
-            },
-            None => Err(format!("key '{key}' not found in the instance").into()),
-        }
-    }
-}
 
 pub struct AgentCheck {
     check_id: String,           // corresponding id in the Agent
     aggregator: Aggregator,     // submit callbacks
+    
     // these fields are made public to mimic the way configurations are used in Python checks
     pub init_config: Config,    // common check configuration
     pub instance: Config,       // instance specific configuration
 }
 
 impl AgentCheck {
-    pub fn new(check_id_str: *const c_char, init_config_str: *const c_char, instance_config_str: *const c_char, aggregator_ptr: *const Aggregator) -> Result<Self, Box<dyn Error>> {
+    pub fn from(check_id_str: *const c_char, init_config_str: *const c_char, instance_config_str: *const c_char, aggregator_ptr: *const Aggregator) -> Result<Self, Box<dyn Error>> {
         let check_id = unsafe { CStr::from_ptr(check_id_str) }
             .to_str()?
             .to_string();
-        
+
         // parse configuration strings
-        let init_config = Config::from_str(init_config_str)?;
-        let instance = Config::from_str(instance_config_str)?;
+        let init_config = Config::from_yaml_str(init_config_str)?;
+        let instance = Config::from_yaml_str(instance_config_str)?;
         
         // gather callbacks in a struct
         let aggregator = Aggregator::from_raw(aggregator_ptr);
 
         Ok(Self { check_id, aggregator, init_config, instance })
     }
+
+    // TODO: raise errors in the submit functions
 
     /// Send Gauge metric
     pub fn gauge(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
@@ -122,3 +86,26 @@ impl AgentCheck {
         self.aggregator.submit_event_platform_event(&self.check_id, raw_event_pointer, raw_event_size, event_type);
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    /// Mock AgentCheck for testing other checks
+    impl AgentCheck {
+        pub fn mock() -> Self {
+            // mock string for check id
+            let check_id = String::from("mock_check_id");
+    
+            // Create empty configs for testing
+            let init_config = Config::new();
+            let instance = Config::new();
+            
+            // mock aggregator with noop functions
+            let aggregator = Aggregator::mock();
+            
+            Self { check_id, aggregator, init_config, instance }
+        }
+    }
+}
+

@@ -1,5 +1,7 @@
 use std::ffi::{c_char, CString};
 
+// TODO: raise errors in the conversion functions
+
 pub fn to_cstring(string: &str) -> *mut c_char {
     CString::new(string).unwrap().into_raw()
 }
@@ -9,7 +11,7 @@ pub fn to_cstring_array(vec: &[String]) -> *mut *mut c_char {
     c_vec.push(std::ptr::null_mut()); // null-terminate the array
 
     let vec_ptr = c_vec.as_mut_ptr();
-    std::mem::forget(c_vec); // prevent Rust from freeing the vector
+    std::mem::forget(c_vec); // prevent Rust runtime from freeing the vector
     vec_ptr
 }
 
