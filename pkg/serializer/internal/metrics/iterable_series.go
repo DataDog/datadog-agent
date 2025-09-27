@@ -110,6 +110,14 @@ func describeItem(serie *metrics.Serie) string {
 type Pipeline struct {
 	FilterFunc  func(s *metrics.Serie) bool
 	Destination transaction.Destination
+	UseV3       bool
+}
+
+type serieWriter interface {
+	writeSerie(serie *metrics.Serie) error
+	startPayload() error
+	finishPayload() error
+	transactionPayloads() []*transaction.BytesPayload
 }
 
 // MarshalSplitCompressPipelines uses the stream compressor to marshal and
@@ -118,16 +126,24 @@ type Pipeline struct {
 // max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
 func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines []Pipeline) (transaction.BytesPayloads, error) {
-	pbs := make([]*PayloadsBuilder, len(pipelines))
+	pbs := make([]serieWriter, len(pipelines))
 	for i := range pbs {
-		bufferContext := marshaler.NewBufferContext()
-		pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
-		if err != nil {
-			return nil, err
+		if !pipelines[i].UseV3 {
+			bufferContext := marshaler.NewBufferContext()
+			pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
+			if err != nil {
+				return nil, err
+			}
+			pbs[i] = &pb
+		} else {
+			pb, err := newPayloadsBuilderV3WithConfig(config, strategy)
+			if err != nil {
+				return nil, err
+			}
+			pbs[i] = pb
 		}
-		pbs[i] = &pb
 
-		err = pbs[i].startPayload()
+		err := pbs[i].startPayload()
 		if err != nil {
 			return nil, err
 		}
@@ -154,20 +170,18 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 		}
 	}
 
-	// assign destinations to payloads per strategy
-	for i, pipeline := range pipelines {
-		for _, payload := range pbs[i].payloads {
-			payload.Destination = pipeline.Destination
-		}
-	}
-
 	totalPayloads := 0
 	for _, pb := range pbs {
-		totalPayloads += len(pb.payloads)
+		totalPayloads += len(pb.transactionPayloads())
 	}
+
 	payloads := make([]*transaction.BytesPayload, 0, totalPayloads)
-	for _, pb := range pbs {
-		payloads = append(payloads, pb.payloads...)
+	for i, pipeline := range pipelines {
+		for _, payload := range pbs[i].transactionPayloads() {
+			// assign destinations to payloads per strategy
+			payload.Destination = pipeline.Destination
+			payloads = append(payloads, payload)
+		}
 	}
 
 	return payloads, nil
@@ -298,20 +312,6 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 		})
 		if err != nil {
 			return err
-		}
-
-		if serie.Device != "" {
-			err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
-				err = ps.String(resourceType, "device")
-				if err != nil {
-					return err
-				}
-
-				return ps.String(resourceName, serie.Device)
-			})
-			if err != nil {
-				return err
-			}
 		}
 
 		if len(serie.Resources) > 0 {
@@ -477,6 +477,10 @@ func (pb *PayloadsBuilder) finishPayload() error {
 	return nil
 }
 
+func (pb *PayloadsBuilder) transactionPayloads() []*transaction.BytesPayload {
+	return pb.payloads
+}
+
 func encodeSerie(serie *metrics.Serie, stream *jsoniter.Stream) {
 	stream.WriteObjectStart()
 
@@ -505,10 +509,13 @@ func encodeSerie(serie *metrics.Serie, stream *jsoniter.Stream) {
 	stream.WriteString(serie.Host)
 	stream.WriteMore()
 
-	if serie.Device != "" {
-		stream.WriteObjectField("device")
-		stream.WriteString(serie.Device)
-		stream.WriteMore()
+	for _, res := range serie.Resources {
+		if res.Type == "device" {
+			stream.WriteObjectField("device")
+			stream.WriteString(res.Name)
+			stream.WriteMore()
+			break
+		}
 	}
 
 	stream.WriteObjectField("type")

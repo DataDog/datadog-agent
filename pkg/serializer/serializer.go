@@ -239,6 +239,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	}
 
 	pipelines := s.buildPipelines()
+
 	seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
 	extraHeaders = s.protobufExtraHeadersWithCompression
 
@@ -335,6 +336,7 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 		{
 			FilterFunc:  func(series *metrics.Serie) bool { return true },
 			Destination: transaction.AllRegions,
+			UseV3:       s.config.GetBool("use_v3_api.series"),
 		},
 	}
 }
