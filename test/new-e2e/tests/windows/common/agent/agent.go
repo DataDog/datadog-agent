@@ -195,7 +195,9 @@ func GetConfigRootFromRegistry(host *components.RemoteHost) (string, error) {
 
 // TestHasNoWorldWritablePaths tests that the given paths do not contain world-writable paths
 func TestHasNoWorldWritablePaths(t *testing.T, host *components.RemoteHost, paths []string) bool {
+	t.Helper()
 	return t.Run("no world writable paths", func(t *testing.T) {
+		t.Helper()
 		if testing.Short() {
 			// test takes ~90 seconds to run on Agent paths
 			t.Skip("skipping world writable files check in short mode")
