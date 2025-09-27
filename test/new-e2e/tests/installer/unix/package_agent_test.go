@@ -54,7 +54,11 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install_info", 0644)
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 
+	agentVersion := s.host.AgentStableVersion()
 	agentDir := "/opt/datadog-agent"
+	agentRunSymlink := fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", agentVersion)
+	installerSymlink := path.Join(agentDir, "embedded/bin/installer")
+	agentSymlink := path.Join(agentDir, "bin/agent/agent")
 
 	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
 
@@ -62,10 +66,9 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/security-agent"), 0755, "root", "root")
 	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
-
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentDir, "root", "root")
-	state.AssertSymlinkExists("/usr/bin/datadog-agent", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", "root", "root")
-	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentRunSymlink, "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-agent", agentSymlink, "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-installer", installerSymlink, "root", "root")
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
 
@@ -76,7 +79,7 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsDead(probeUnit, securityUnit)
 
 	systemdPath := "/etc/systemd/system"
-	if oldUnits {
+	if oldUnits || s.installMethod == InstallMethodAnsible {
 		pkgManager := s.host.GetPkgManager()
 		switch pkgManager {
 		case "apt":
