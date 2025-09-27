@@ -22,17 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// IsEnc returns true is the string match the 'ENC[...]' format
-// Borrowed from comp/core/secrets/utils
-func IsEnc(str string) bool {
-	// trimming space and tabs
-	str = strings.Trim(str, " \t")
-	if strings.HasPrefix(str, "ENC[") && strings.HasSuffix(str, "]") {
-		return true
-	}
-	return false
-}
-
 // Replacer represents a replacement of sensitive information with a "clean" version.
 type Replacer struct {
 	// Regex must match the sensitive information
@@ -242,6 +231,17 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 		}
 	}
 	return data
+}
+
+// IsEnc returns true is the string match the 'ENC[...]' format
+// Borrowed from comp/core/secrets/utils
+func IsEnc(str string) bool {
+	// trimming space and tabs
+	str = strings.Trim(str, " \t")
+	if strings.HasPrefix(str, "ENC[") && strings.HasSuffix(str, "]") {
+		return true
+	}
+	return false
 }
 
 // containsValidENC checks if the match contains a valid ENC[]
