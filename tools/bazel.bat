@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
 rem Check `bazelisk` properly bootstraps `bazel` or fail with instructions
