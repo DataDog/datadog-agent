@@ -341,6 +341,78 @@ func TestNewAPIKeyAndAuthPatterns(t *testing.T) {
 	}
 }
 
+func TestScrubbingENC(t *testing.T) {
+	t.Run("basic ENC handler preserved", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: ENC[my_secret]`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: ENC[my_secret]`, result)
+	})
+
+	t.Run("ENC with whitespace preserved", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: "  ENC[key]	"`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: "  ENC[key]	"`, result)
+	})
+
+	t.Run("empty ENC handler preserved", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: ENC[]`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: ENC[]`, result)
+	})
+
+	t.Run("invalid ENC formats scrubbed", func(t *testing.T) {
+		result, err := ScrubYamlString(`api_key: ENC[incomplete
+password: ENC
+token: [not_enc]`)
+		require.NoError(t, err)
+		require.YAMLEq(t, `api_key: "********"
+password: "********"
+token: "********"`, result)
+	})
+
+	t.Run("ENC in nested structure", func(t *testing.T) {
+		input := interface{}(map[string]interface{}{
+			"database": map[string]interface{}{
+				"password": "ENC[db_pass]",
+				"token":    "plain_token",
+			},
+		})
+		expected := interface{}(map[string]interface{}{
+			"database": map[string]interface{}{
+				"password": "ENC[db_pass]",
+				"token":    "********",
+			},
+		})
+		ScrubDataObj(&input)
+		assert.Equal(t, expected, input)
+	})
+
+	t.Run("ENC in array", func(t *testing.T) {
+		input := interface{}(map[string]interface{}{
+			"secrets": []interface{}{
+				map[string]interface{}{
+					"password": "ENC[secret1]",
+				},
+				map[string]interface{}{
+					"password": "plain_secret",
+				},
+			},
+		})
+		expected := interface{}(map[string]interface{}{
+			"secrets": []interface{}{
+				map[string]interface{}{
+					"password": "ENC[secret1]",
+				},
+				map[string]interface{}{
+					"password": "********",
+				},
+			},
+		})
+		ScrubDataObj(&input)
+		assert.Equal(t, expected, input)
+	})
+}
+
 func TestComplexYAMLWithNewKeys(t *testing.T) {
 	testCases := []struct {
 		name     string
