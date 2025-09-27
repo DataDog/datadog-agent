@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os/exec"
 	"os/user"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -65,7 +66,25 @@ func ensureUser(ctx context.Context, userName string, installPath string) error 
 }
 
 func ensureUserInGroup(ctx context.Context, userName string, groupName string) error {
-	err := exec.CommandContext(ctx, "usermod", "-g", groupName, userName).Run()
+	// Check if user is already in group and abort if it is -- this allows us
+	// to skip where the user / group are set in LDAP / AD
+	group, err := user.LookupGroup(groupName)
+	if err != nil {
+		return fmt.Errorf("error looking up %s group: %w", groupName, err)
+	}
+	user, err := user.Lookup(userName)
+	if err != nil {
+		return fmt.Errorf("error looking up %s user: %w", userName, err)
+	}
+	userGroups, err := user.GroupIds()
+	if err != nil {
+		return fmt.Errorf("error getting groups for user %s: %w", userName, err)
+	}
+	if slices.Contains(userGroups, group.Gid) {
+		// User is already in the group, nothing to do
+		return nil
+	}
+	err = exec.CommandContext(ctx, "usermod", "-g", groupName, userName).Run()
 	if err != nil {
 		return fmt.Errorf("error adding %s user to %s group: %w", userName, groupName, err)
 	}

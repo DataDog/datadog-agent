@@ -275,6 +275,8 @@ func (a *Agent) loop() {
 	if err := a.Receiver.Stop(); err != nil {
 		log.Error(err)
 	}
+	// All receivers have stopped, now safe to close the In channel
+	close(a.In)
 
 	//Wait to process any leftover payloads in flight before closing components that might be needed
 	a.processWg.Wait()

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -57,6 +58,7 @@ var (
 )
 
 const latestPython2AnsibleVersion = "5.10.0"
+const latestAnsibleVersionWithInstallerPackage = "6.1.1"
 
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
@@ -104,6 +106,9 @@ func TestPackages(t *testing.T) {
 			// TODO: remove once ansible+suse is fully supported
 			if flavor.Flavor == e2eos.Suse && method == InstallMethodAnsible {
 				continue
+			}
+			if flavor.Flavor == e2eos.Suse {
+				flake.Mark(t) // #incident-43183
 			}
 
 			suite := test.t(flavor, flavor.Architecture, method)
@@ -228,7 +233,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 				(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
 				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:==%s", ansiblePrefix, latestPython2AnsibleVersion))
 			} else {
-				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:==%s", ansiblePrefix, latestAnsibleVersionWithInstallerPackage))
 			}
 			if err == nil {
 				break

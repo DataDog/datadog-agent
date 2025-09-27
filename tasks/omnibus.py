@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import warnings
@@ -118,12 +119,30 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
-    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION']
-    for key in env_override:
+    external_repos = {
+        "INTEGRATIONS_CORE_VERSION": "https://github.com/DataDog/integrations-core.git",
+        "OMNIBUS_RUBY_VERSION": "https://github.com/DataDog/omnibus-ruby.git",
+    }
+    for key, url in external_repos.items():
         value = os.environ.get(key)
         # Only overrides the env var if the value is a non-empty string.
         if value:
             env[key] = value
+        ref = env[key]
+        if not re.fullmatch(r"[0-9a-f]{4,40}", ref):  # resolve only "moving" refs, such as `own/branch`
+            candidates = [
+                line.split()
+                for line in subprocess.check_output(["git", "ls-remote", "--refs", url, ref], text=True).splitlines()
+            ]
+            if not candidates:
+                raise Exit(f"{key!r}: no candidate for {ref!r} @ {url}!")
+            if len(candidates) > 1:  # happens when a branch name mimics its base or target, such as `my/own/branch`
+                warnings.warn(
+                    f"{key!r}: multiple candidates for {ref!r} @ {url} {[c[1] for c in candidates]}", stacklevel=1
+                )
+            sha1, shortest_ref = min(candidates, key=lambda c: len(c[1]))
+            print(f"{key!r}: {ref!r} @ {url} resolves to {shortest_ref!r} -> {sha1}")
+            env[key] = sha1
 
     if sys.platform == 'darwin':
         env['MACOSX_DEPLOYMENT_TARGET'] = '11.0' if os.uname().machine == "arm64" else '10.12'

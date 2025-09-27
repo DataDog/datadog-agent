@@ -349,16 +349,16 @@ func TestRuleMatches(t *testing.T) {
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
 			Targets:          AttachToSharedLibraries,
 		}
-		require.True(tt, rule.matchesLibrary("pkg/network/usm/testdata/site-packages/dd-trace/libssl.so.arm64"))
-		require.False(tt, rule.matchesExecutable("pkg/network/usm/testdata/site-packages/dd-trace/libssl.so.arm64", nil))
+		require.True(tt, rule.MatchesLibrary("pkg/network/usm/testdata/site-packages/dd-trace/libssl.so.arm64"))
+		require.False(tt, rule.MatchesExecutable("pkg/network/usm/testdata/site-packages/dd-trace/libssl.so.arm64", nil))
 	})
 
 	t.Run("Executable", func(tt *testing.T) {
 		rule := AttachRule{
 			Targets: AttachToExecutable,
 		}
-		require.False(tt, rule.matchesLibrary("/bin/bash"))
-		require.True(tt, rule.matchesExecutable("/bin/bash", nil))
+		require.False(tt, rule.MatchesLibrary("/bin/bash"))
+		require.True(tt, rule.MatchesExecutable("/bin/bash", nil))
 	})
 
 	t.Run("ExecutableWithFuncFilter", func(tt *testing.T) {
@@ -368,9 +368,9 @@ func TestRuleMatches(t *testing.T) {
 				return strings.Contains(path, "bash")
 			},
 		}
-		require.False(tt, rule.matchesLibrary("/bin/bash"))
-		require.True(tt, rule.matchesExecutable("/bin/bash", nil))
-		require.False(tt, rule.matchesExecutable("/bin/thing", nil))
+		require.False(tt, rule.MatchesLibrary("/bin/bash"))
+		require.True(tt, rule.MatchesExecutable("/bin/bash", nil))
+		require.False(tt, rule.MatchesExecutable("/bin/thing", nil))
 	})
 }
 

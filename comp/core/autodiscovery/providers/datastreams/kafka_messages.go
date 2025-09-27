@@ -91,7 +91,7 @@ func (c *controller) manageSubscriptionToRC() {
 }
 
 func isConnectedToKafka(ac autodiscovery.Component) bool {
-	for _, config := range ac.GetAllConfigs() {
+	for _, config := range ac.GetUnresolvedConfigs() {
 		if config.Name == kafkaConsumerIntegrationName {
 			return true
 		}
@@ -134,7 +134,7 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		return
 	}
 	configChange := integration.ConfigChanges{}
-	cfgs := c.ac.GetAllConfigs()
+	cfgs := c.ac.GetUnresolvedConfigs()
 	for _, integrationConfig := range cfgs {
 		if integrationConfig.Name != kafkaConsumerIntegrationName {
 			continue

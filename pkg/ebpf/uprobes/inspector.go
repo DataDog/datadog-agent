@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -106,11 +107,12 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requestSets map[in
 	symbolMap, _ := bininspect.GetAllSymbolsInSetByName(elfFile, symbols)
 
 	for setID, requests := range requestSets {
+		var missingSymbols []string
 		for _, req := range requests {
 			symbol, found := symbolMap[req.Name]
 			if !found {
 				if !req.BestEffort {
-					result[setID].Error = errors.Join(result[setID].Error, fmt.Errorf("symbol %s not found in %s", req.Name, fpath.HostPath))
+					missingSymbols = append(missingSymbols, req.Name)
 				}
 
 				continue
@@ -121,6 +123,11 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requestSets map[in
 				continue
 			}
 			result[setID].SymbolMap[req.Name] = *m
+		}
+
+		// Create a single error for all missing symbols here for better readability
+		if len(missingSymbols) > 0 {
+			result[setID].Error = errors.Join(result[setID].Error, fmt.Errorf("symbols %s not found", strings.Join(missingSymbols, ", ")))
 		}
 	}
 

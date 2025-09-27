@@ -1,0 +1,32 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add new scrubbers for API keys and auth tokens in HTTP headers and YAML files.
+    keys added:
+      - authority
+      - cms-svc-api-key
+      - sec-websocket-key
+      - x-api-key
+      - x-auth
+      - x-auth-token
+      - x-dreamfactory-api-key
+      - x-lz-api-key
+      - x-rundeck-auth-token
+      - x-stratum-auth
+      - x-sungard-idp-api-key
+      - auth-tenantid
+      - x-vtex-api-appkey
+      - x-octopus-apikey
+      - cainzapp-api-key
+      - x-pm-partner-key
+      - x-rapidapi-key
+      - lodauth
+      - statuskey
+      - x-functions-key

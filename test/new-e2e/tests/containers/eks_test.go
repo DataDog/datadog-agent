@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	tifeks "github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
@@ -22,6 +23,7 @@ type eksSuite struct {
 }
 
 func TestEKSSuite(t *testing.T) {
+	flake.MarkOnLog(t, "cgroup config for procHooks process: unable to freeze: unknown")
 	e2e.Run(t, &eksSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(
 		awskubernetes.WithEKSOptions(
 			tifeks.WithLinuxNodeGroup(),

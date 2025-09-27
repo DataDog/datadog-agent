@@ -113,7 +113,7 @@
 # This job runs early in the pipeline and creates artifacts that can be reused by test jobs
 go_e2e_test_binaries:
   stage: binary_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
+  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     - go_e2e_deps
@@ -1022,6 +1022,8 @@ generate-fips-e2e-pipeline:
     - qa_dogstatsd
     - qa_agent
     - qa_agent_full
+    - qa_agent_fips
+    - qa_agent_fips_jmx
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:

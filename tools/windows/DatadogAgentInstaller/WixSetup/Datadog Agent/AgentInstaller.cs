@@ -634,6 +634,11 @@ namespace WixSetup.Datadog_Agent
                 ),
                 scriptsBinDir
             );
+            // TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
+            if (_agentFlavor.FlavorName != Constants.FipsFlavor)
+            {
+                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.SecretGenericConnector));
+            }
 
             return targetBinFolder;
         }

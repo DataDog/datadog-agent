@@ -527,6 +527,47 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 		WithIdentity(identity)
 }
 
+// TestUpgradeWithLocalSystemUser tests that the agent user is preserved across remote upgrades.
+// Also serves as a regression test for WINA-1742, since it will upgrade with DDAGENTUSER_NAME="NT AUTHORITY\SYSTEM"
+// which contains a space.
+func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
+	// Arrange
+	s.setAgentConfig()
+	agentUserInput := "LocalSystem"
+	agentDomainExpected := "NT AUTHORITY"
+	agentUserExpected := "SYSTEM"
+	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUserInput, "the custom user should be different from the default user")
+	s.installPreviousAgentVersion(
+		installerwindows.WithOption(installerwindows.WithAgentUser(agentUserInput)),
+	)
+	// sanity check that the agent is running as the custom user
+	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUserInput)
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedDomain", agentDomainExpected).
+		WithValueEqual("installedUser", agentUserExpected).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err = s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedDomain", agentDomainExpected).
+		WithValueEqual("installedUser", agentUserExpected).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+}
+
 func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 	// Set HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout to timeout
 	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", timeout)
