@@ -180,6 +180,9 @@ func formatObjective(objective *datadoghqcommon.DatadogPodAutoscalerObjective) s
 		if value.Utilization != nil {
 			_, _ = fmt.Fprintln(sb, "Utilization:", *value.Utilization)
 		}
+		if value.AbsoluteValue != nil {
+			_, _ = fmt.Fprintln(sb, "Average Value:", value.AbsoluteValue.String())
+		}
 	}
 
 	var sb strings.Builder
@@ -192,6 +195,9 @@ func formatObjective(objective *datadoghqcommon.DatadogPodAutoscalerObjective) s
 		_, _ = fmt.Fprintln(&sb, "Resource Name:", objective.ContainerResource.Name)
 		_, _ = fmt.Fprintln(&sb, "Container Name:", objective.ContainerResource.Container)
 		formatObjectiveValue(&sb, &objective.ContainerResource.Value)
+	}
+	if objective.CustomQueryObjective != nil {
+		formatObjectiveValue(&sb, &objective.CustomQueryObjective.Value)
 	}
 	return sb.String()
 }
