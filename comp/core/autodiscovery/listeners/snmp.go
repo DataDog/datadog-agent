@@ -709,6 +709,11 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 func (s *SNMPService) FilterTemplates(_ map[string]integration.Config) {
 }
 
+// GetImageName does nothing
+func (s *SNMPService) GetImageName() string {
+	return ""
+}
+
 func convertToCommaSepTags(tags []string) string {
 	normalizedTags := make([]string, 0, len(tags))
 	for _, tag := range tags {

@@ -24,10 +24,6 @@ type mockSecretResolver struct {
 	permissionError       error
 }
 
-func (r *mockSecretResolver) getDebugInfo(b *bytes.Buffer) {
-	b.WriteString("Mock debug info")
-}
-
 func TestSecretStatusOutput(t *testing.T) {
 	require := require.New(t)
 
@@ -270,12 +266,12 @@ func (s *testSecretsStatus) JSON(_ bool, stats map[string]interface{}) error {
 }
 
 func (s *testSecretsStatus) Text(_ bool, buffer io.Writer) error {
-	s.resolver.getDebugInfo(buffer.(*bytes.Buffer))
+	buffer.Write([]byte("Mock debug info"))
 	return nil
 }
 
 func (s *testSecretsStatus) HTML(_ bool, buffer io.Writer) error {
-	s.resolver.getDebugInfo(buffer.(*bytes.Buffer))
+	buffer.Write([]byte("Mock debug info"))
 	return nil
 }
 
