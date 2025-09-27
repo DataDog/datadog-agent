@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
@@ -55,10 +54,7 @@ var (
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
 func Detect(lang language.Language, ctx usm.DetectionContext, tracerMetadata *tracermetadata.TracerMetadata) Instrumentation {
-	// first check to see if the DD_INJECTION_ENABLED is set to tracer
-	if isInjected(ctx.Envs) {
-		return Injected
-	}
+	// NOTE: Removed DD_INJECTION_ENABLED check since is not visible via /proc/$PID/environ with auto-injector
 
 	// if the process has valid tracer's metadata, then the
 	// instrumentation is provided
@@ -72,18 +68,6 @@ func Detect(lang language.Language, ctx usm.DetectionContext, tracerMetadata *tr
 	}
 
 	return None
-}
-
-func isInjected(envs envs.Variables) bool {
-	if val, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
-		parts := strings.Split(val, ",")
-		for _, v := range parts {
-			if v == "tracer" {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 const (
