@@ -362,7 +362,7 @@ if windows_target?
       "#{python_3_embedded}\\python.exe",
       "#{python_3_embedded}\\pythonw.exe",
       "#{python_3_embedded}\\python3.dll",
-      "#{python_3_embedded}\\python312.dll",
+      "#{python_3_embedded}\\python313.dll",
     ]
     OPENSSL_BINARIES = [
       "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
