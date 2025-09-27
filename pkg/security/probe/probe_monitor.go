@@ -191,6 +191,12 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event) {
 		return
 	}
 
+	if errors.Is(event.Error, model.ErrFailedDNSPacketDecoding) {
+		m.ebpfProbe.probe.DispatchCustomEvent(
+			NewFailedDNSEvent(m.ebpfProbe.GetAgentContainerContext(), events.FailedDNSRuleID, events.AbnormalPathRuleDesc, event),
+		)
+	}
+
 	var pathErr *path.ErrPathResolution
 	if errors.As(event.Error, &pathErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(

@@ -11,6 +11,7 @@
 package probe
 
 import (
+	"encoding/base64"
 	coretags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -37,12 +38,40 @@ func (a AbnormalEvent) ToJSON() ([]byte, error) {
 	return utils.MarshalEasyJSON(a)
 }
 
-// NewAbnormalEvent returns the rule and a populated custom event for a abnormal event
+// FailedDNSEvent is used to signal that a DNS packet failed to be decoded
+// easyjson:json
+type FailedDNSEvent struct {
+	events.CustomEventCommonFields
+	Payload string `json:"payload"`
+}
+
+// ToJSON marshal using json format
+func (e FailedDNSEvent) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
+// NewAbnormalEvent returns the rule and a populated custom event for an abnormal event
 func NewAbnormalEvent(acc *events.AgentContainerContext, id string, description string, event *model.Event, err error) (*rules.Rule, *events.CustomEvent) {
 	marshalerCtor := func() events.EventMarshaler {
 		evt := AbnormalEvent{
 			Event: serializers.NewEventSerializer(event, nil),
 			Error: err.Error(),
+		}
+		evt.FillCustomEventCommonFields(acc)
+		// Overwrite common timestamp with event timestamp
+		evt.Timestamp = event.ResolveEventTime()
+
+		return evt
+	}
+
+	return events.NewCustomRule(id, description), events.NewCustomEventLazy(model.CustomEventType, marshalerCtor)
+}
+
+// NewFailedDNSEvent returns the rule and a populated custom event for a failed dns packet decoding
+func NewFailedDNSEvent(acc *events.AgentContainerContext, id string, description string, event *model.Event) (*rules.Rule, *events.CustomEvent) {
+	marshalerCtor := func() events.EventMarshaler {
+		evt := FailedDNSEvent{
+			Payload: base64.StdEncoding.EncodeToString(event.FailedDNS.Payload),
 		}
 		evt.FillCustomEventCommonFields(acc)
 		// Overwrite common timestamp with event timestamp
