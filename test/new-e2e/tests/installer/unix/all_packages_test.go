@@ -37,17 +37,17 @@ type packageTestsWithSkippedFlavors struct {
 var (
 	amd64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404,
-		// e2eos.AmazonLinux2,
-		// e2eos.Debian12,
-		// e2eos.RedHat9,
-		// // e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
-		// e2eos.CentOS7,
-		// e2eos.Suse15,
+		e2eos.AmazonLinux2,
+		e2eos.Debian12,
+		e2eos.RedHat9,
+		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
+		e2eos.CentOS7,
+		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		// e2eos.Ubuntu2404,
-		// e2eos.AmazonLinux2,
-		// e2eos.Suse15,
+		e2eos.Ubuntu2404,
+		e2eos.AmazonLinux2,
+		e2eos.Suse15,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
@@ -56,9 +56,6 @@ var (
 		{t: testUpgradeScenario, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 	}
 )
-
-const latestPython2AnsibleVersion = "5.10.0"
-const latestAnsibleVersionWithInstallerPackage = "6.1.1"
 
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
@@ -231,9 +228,9 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 			ansiblePrefix = s.installAnsible(s.os)
 			if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
 				(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
-				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:==%s", ansiblePrefix, latestPython2AnsibleVersion))
+				s.T().Skip("Ansible doesn't install support Python2 anymore")
 			} else {
-				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:==%s", ansiblePrefix, latestAnsibleVersionWithInstallerPackage))
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
 			}
 			if err == nil {
 				break
