@@ -57,3 +57,33 @@ authentication_key: password
 privacy_key: password
 
 token_secret: ENC[token_secret]
+
+mixed_config:
+  api_key: ENC[mixed_api_key]
+  password: should_be_scrubbed
+  database:
+    host: localhost
+    password: ENC[db_password]
+    backup_password: plain_backup_pass
+
+secret_endpoints:
+  - name: prod
+    auth_token: ENC[prod_token]
+  - name: staging
+    auth_token: plain_staging_token
+
+services:
+  auth_service:
+    credentials:
+      primary:
+        x-api-key: ENC[primary_api_key]
+        x-auth-token: ENC[primary_auth_token]
+      backup:
+        x-api-key: backup_plain_key
+        x-auth-token: backup_plain_token
+
+edge_cases:
+  empty_enc: ENC[]
+  whitespace_enc: "  ENC[whitespace_key]  "
+  nested_brackets: ENC[key_with_]_brackets]
+  invalid_password: ENC[incomplete
