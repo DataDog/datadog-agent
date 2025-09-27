@@ -112,6 +112,7 @@ use (
 	pkg/logs/types
 	pkg/logs/util/testutils
 	pkg/metrics
+	pkg/network/driver
 	pkg/network/payload
 	pkg/networkdevice/profile
 	pkg/networkpath/payload
