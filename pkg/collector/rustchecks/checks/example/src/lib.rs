@@ -10,7 +10,7 @@ pub trait CheckImplementation {
 impl CheckImplementation for AgentCheck {
     /// Check implementation
     fn check(&self) -> Result<(), Box<dyn Error>> {
-        self.gauge("hello.world", 1.0, &vec![], "", false);
+        self.gauge("hello.world", 1.0, &vec![], "", false)?;
 
         Ok(())
     }

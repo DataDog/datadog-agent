@@ -32,58 +32,58 @@ impl AgentCheck {
     // TODO: raise errors in the submit functions
 
     /// Send Gauge metric
-    pub fn gauge(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
-        self.aggregator.submit_metric(&self.check_id, MetricType::Gauge, name, value, tags, hostname, flush_first_value);
+    pub fn gauge(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_metric(&self.check_id, MetricType::Gauge, name, value, tags, hostname, flush_first_value)
     }
 
     /// Send Rate metric
-    pub fn rate(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
-        self.aggregator.submit_metric(&self.check_id, MetricType::Rate, name, value, tags, hostname, flush_first_value);
+    pub fn rate(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_metric(&self.check_id, MetricType::Rate, name, value, tags, hostname, flush_first_value)
     }
 
     /// Send Count metric
-    pub fn count(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
-        self.aggregator.submit_metric(&self.check_id, MetricType::Count, name, value, tags, hostname, flush_first_value);
+    pub fn count(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_metric(&self.check_id, MetricType::Count, name, value, tags, hostname, flush_first_value)
     }
 
     /// Send Monotonic Count metric
-    pub fn monotonic_count(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
-        self.aggregator.submit_metric(&self.check_id, MetricType::MonotonicCount, name, value, tags, hostname, flush_first_value);
+    pub fn monotonic_count(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_metric(&self.check_id, MetricType::MonotonicCount, name, value, tags, hostname, flush_first_value)
     }
 
     /// Send Decrement metric
-    pub fn decrement(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
-        self.aggregator.submit_metric(&self.check_id, MetricType::Counter, name, value, tags, hostname, flush_first_value);
+    pub fn decrement(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_metric(&self.check_id, MetricType::Counter, name, value, tags, hostname, flush_first_value)
     }
 
     /// Send Histogram metric
-    pub fn histogram(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
-        self.aggregator.submit_metric(&self.check_id, MetricType::Histogram, name, value, tags, hostname, flush_first_value);
+    pub fn histogram(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_metric(&self.check_id, MetricType::Histogram, name, value, tags, hostname, flush_first_value)
     }
 
     /// Send Historate metric
-    pub fn historate(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
-        self.aggregator.submit_metric(&self.check_id, MetricType::Historate, name, value, tags, hostname, flush_first_value);
+    pub fn historate(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_metric(&self.check_id, MetricType::Historate, name, value, tags, hostname, flush_first_value)
     }
 
     /// Send Servive Check
-    pub fn service_check(&self, name: &str, status: ServiceCheckStatus, tags: &[String], hostname: &str, message: &str) {
-        self.aggregator.submit_service_check(&self.check_id, name, status as i32, tags, hostname, message);
+    pub fn service_check(&self, name: &str, status: ServiceCheckStatus, tags: &[String], hostname: &str, message: &str) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_service_check(&self.check_id, name, status as i32, tags, hostname, message)
     }
 
     /// Send Event
-    pub fn event(&self, event: &Event) {
-        self.aggregator.submit_event(&self.check_id, event);
+    pub fn event(&self, event: &Event) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_event(&self.check_id, event)
     }
 
     /// Send Histogram Bucket
-    pub fn submit_histogram_bucket(&self, metric_name: &str, value: i64, lower_bound: f32, upper_bound: f32, monotonic: i32, hostname: &str, tags: &[String], flush_first_value: bool) {
-        self.aggregator.submit_histogram_bucket(&self.check_id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
+    pub fn submit_histogram_bucket(&self, metric_name: &str, value: i64, lower_bound: f32, upper_bound: f32, monotonic: i32, hostname: &str, tags: &[String], flush_first_value: bool) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_histogram_bucket(&self.check_id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value)
     }
 
     /// Send Event Platform Evemt
-    pub fn submit_event_platform_event(&self, raw_event_pointer: &str, raw_event_size: i32, event_type: &str) {
-        self.aggregator.submit_event_platform_event(&self.check_id, raw_event_pointer, raw_event_size, event_type);
+    pub fn submit_event_platform_event(&self, raw_event_pointer: &str, raw_event_size: i32, event_type: &str) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_event_platform_event(&self.check_id, raw_event_pointer, raw_event_size, event_type)
     }
 }
 

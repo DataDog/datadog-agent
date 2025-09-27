@@ -6,6 +6,8 @@ use crate::CheckImplementation;
 use std::error::Error;
 use std::ffi::{c_char, CString};
 
+// TODO: replace fii.rs files with macro rules defined in core crate to prevent code duplicates
+
 /// Entrypoint of the check
 #[unsafe(no_mangle)]
 pub extern "C" fn Run(check_id_str: *const c_char, init_config_str: *const c_char, instance_config_str: *const c_char, aggregator_ptr: *const Aggregator) -> *mut c_char {

@@ -131,7 +131,7 @@ impl CheckImplementation for AgentCheck {
 
                         // submit response time metric
                         if service_checks.is_empty() {
-                            self.gauge("network.http.response_time", elapsed_time.as_secs_f64(), &tags, "", false);
+                            self.gauge("network.http.response_time", elapsed_time.as_secs_f64(), &tags, "", false)?;
                         }
 
                         // read response from the TLS stream
@@ -238,8 +238,8 @@ impl CheckImplementation for AgentCheck {
                 _ => (0.0, 1.0),
             };
 
-            self.gauge("network.http.can_connect", can_connect, &tags, "", false);
-            self.gauge("network.http.cant_connect", cant_connect, &tags, "", true);
+            self.gauge("network.http.can_connect", can_connect, &tags, "", false)?;
+            self.gauge("network.http.cant_connect", cant_connect, &tags, "", true)?;
         }
 
         // get certificate expiration info
@@ -255,11 +255,11 @@ impl CheckImplementation for AgentCheck {
 
         // submit ssl metrics if an expiration date was found
         if let Some(days_left) = days_left {
-            self.gauge("http.ssl.days_left", days_left as f64, &tags, "", false);
+            self.gauge("http.ssl.days_left", days_left as f64, &tags, "", false)?;
         }
 
         if let Some(seconds_left) = seconds_left {
-            self.gauge("http.ssl.seconds_left", seconds_left as f64, &tags, "", true);
+            self.gauge("http.ssl.seconds_left", seconds_left as f64, &tags, "", true)?;
         }
 
         // add ssl service check for certificate expiration
@@ -271,7 +271,7 @@ impl CheckImplementation for AgentCheck {
 
         // submit every service check collected throughout the check
         for (sc_name, status, message) in service_checks {
-            self.service_check(&sc_name, status, &service_checks_tags, "", &message);
+            self.service_check(&sc_name, status, &service_checks_tags, "", &message)?;
         }
 
         return Ok(());

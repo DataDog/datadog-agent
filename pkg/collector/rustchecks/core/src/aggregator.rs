@@ -1,6 +1,7 @@
 use crate::cstring::*;
 
 use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong};
+use std::error::Error;
 
 /// Replica of the Agent metric type enum
 #[repr(C)]
@@ -106,12 +107,12 @@ impl Aggregator {
     // TODO: optional arguements should use Option
     // TODO: raise errors in the submit functions
 
-    pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
+    pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<(), Box<dyn Error>> {
         // create the C strings
-        let cstr_check_id = to_cstring(check_id);
-        let cstr_name = to_cstring(name);
-        let cstr_tags = to_cstring_array(tags);
-        let cstr_hostname = to_cstring(hostname);
+        let cstr_check_id = to_cstring(check_id)?;
+        let cstr_name = to_cstring(name)?;
+        let cstr_tags = to_cstring_array(tags)?;
+        let cstr_hostname = to_cstring(hostname)?;
 
         // submit the metric
         (self.cb_submit_metric)(
@@ -129,15 +130,17 @@ impl Aggregator {
         free_cstring(cstr_name);
         free_cstring_array(cstr_tags);
         free_cstring(cstr_hostname);
+
+        Ok(())
     }
 
-    pub fn submit_service_check(&self, check_id: &str, name: &str, status: i32, tags: &[String], hostname: &str, message: &str) {
+    pub fn submit_service_check(&self, check_id: &str, name: &str, status: i32, tags: &[String], hostname: &str, message: &str) -> Result<(), Box<dyn Error>> {
         // create the C strings
-        let cstr_check_id = to_cstring(check_id);
-        let cstr_name = to_cstring(name);
-        let cstr_tags = to_cstring_array(tags);
-        let cstr_hostname = to_cstring(hostname);
-        let cstr_message = to_cstring(message);
+        let cstr_check_id = to_cstring(check_id)?;
+        let cstr_name = to_cstring(name)?;
+        let cstr_tags = to_cstring_array(tags)?;
+        let cstr_hostname = to_cstring(hostname)?;
+        let cstr_message = to_cstring(message)?;
 
         // submit the service check
         (self.cb_submit_service_check)(
@@ -156,11 +159,13 @@ impl Aggregator {
         free_cstring(cstr_hostname);
         free_cstring(cstr_message);
 
+        Ok(())
+
     }
 
-    pub fn submit_event(&self, check_id: &str, event: &Event) {
+    pub fn submit_event(&self, check_id: &str, event: &Event) -> Result<(), Box<dyn Error>> {
         // create the C strings
-        let cstr_check_id = to_cstring(check_id);
+        let cstr_check_id = to_cstring(check_id)?;
 
         // submit the service check
         (self.cb_submit_event)(
@@ -170,13 +175,15 @@ impl Aggregator {
 
         // free every allocated C string
         free_cstring(cstr_check_id);
+
+        Ok(())
     }
-    pub fn submit_histogram_bucket(&self, check_id: &str, metric_name: &str, value: c_longlong, lower_bound: f32, upper_bound: f32, monotonic: c_int, hostname: &str, tags: &[String], flush_first_value: bool) {
+    pub fn submit_histogram_bucket(&self, check_id: &str, metric_name: &str, value: c_longlong, lower_bound: f32, upper_bound: f32, monotonic: c_int, hostname: &str, tags: &[String], flush_first_value: bool) -> Result<(), Box<dyn Error>> {
         // create the C strings
-        let cstr_check_id = to_cstring(check_id);
-        let cstr_metric_name = to_cstring(metric_name);
-        let cstr_hostname = to_cstring(hostname);
-        let cstr_tags = to_cstring_array(tags);
+        let cstr_check_id = to_cstring(check_id)?;
+        let cstr_metric_name = to_cstring(metric_name)?;
+        let cstr_hostname = to_cstring(hostname)?;
+        let cstr_tags = to_cstring_array(tags)?;
 
         // submit the histogram bucket
         (self.cb_submit_histogram_bucket)(
@@ -196,13 +203,15 @@ impl Aggregator {
         free_cstring(cstr_metric_name);
         free_cstring(cstr_hostname);
         free_cstring_array(cstr_tags);
+
+        Ok(())
     }
 
-    pub fn submit_event_platform_event(&self, check_id: &str, raw_event_pointer: &str, raw_event_size: c_int, event_type: &str) {
+    pub fn submit_event_platform_event(&self, check_id: &str, raw_event_pointer: &str, raw_event_size: c_int, event_type: &str) -> Result<(), Box<dyn Error>> {
         // create the C strings
-        let cstr_check_id = to_cstring(check_id);
-        let cstr_raw_event_pointer = to_cstring(raw_event_pointer);
-        let cstr_event_type = to_cstring(event_type);
+        let cstr_check_id = to_cstring(check_id)?;
+        let cstr_raw_event_pointer = to_cstring(raw_event_pointer)?;
+        let cstr_event_type = to_cstring(event_type)?;
 
         // submit the event platform event
         (self.cb_submit_event_platform_event)(
@@ -216,6 +225,8 @@ impl Aggregator {
         free_cstring(cstr_check_id);
         free_cstring(cstr_raw_event_pointer);
         free_cstring(cstr_event_type);
+
+        Ok(())
     }
 }
 

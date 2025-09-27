@@ -30,8 +30,6 @@ impl Config {
         }
     }
 
-    // TODO: insert function for empty configs (may be moved to the test module?)
-
     pub fn get<T>(&self, key: &str) -> Result<T, Box<dyn Error>>
     where 
         T: DeserializeOwned,
