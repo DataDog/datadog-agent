@@ -192,3 +192,26 @@ func GetInstallPathFromRegistry(host *components.RemoteHost) (string, error) {
 func GetConfigRootFromRegistry(host *components.RemoteHost) (string, error) {
 	return windowsCommon.GetRegistryValue(host, RegistryKeyPath, "ConfigRoot")
 }
+
+// TestHasNoWorldWritablePaths tests that the given paths do not contain world-writable paths
+func TestHasNoWorldWritablePaths(t *testing.T, host *components.RemoteHost, paths []string) bool {
+	return t.Run("no world writable paths", func(t *testing.T) {
+		if testing.Short() {
+			// test takes ~90 seconds to run on Agent paths
+			t.Skip("skipping world writable files check in short mode")
+		}
+		worldWritableFiles, err := windowsCommon.FindWorldWritablePaths(host, paths)
+		require.NoError(t, err, "should check for world-writable files")
+		assert.Empty(t, worldWritableFiles, "paths %v should not contain world-writable files", paths)
+	})
+}
+
+// TestAgentHasNoWorldWritablePaths tests that the Agent install and config paths do not contain world-writable paths
+func TestAgentHasNoWorldWritablePaths(t *testing.T, host *components.RemoteHost) bool {
+	installPath, err := GetInstallPathFromRegistry(host)
+	require.NoError(t, err, "should get install path")
+	configRoot, err := GetConfigRootFromRegistry(host)
+	require.NoError(t, err, "should get config root")
+
+	return TestHasNoWorldWritablePaths(t, host, []string{installPath, configRoot})
+}

@@ -70,6 +70,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestUpgradeAgentPackageWithAltDir tests that an Agent installed with the MSI
@@ -102,6 +103,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 		HasRegistryKey(consts.RegistryKeyPath).
 		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
 		WithValueEqual("InstallPath", altInstallPath+`\`)
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestUpgradeAgentPackageAfterRollback tests that upgrade works after an initial upgrade failed.
@@ -133,6 +135,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestRunAgentMSIAfterExperiment tests that the Agent can be upgraded after
@@ -197,6 +200,7 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestExperimentForNonExistingPackageFails tests that starting an experiment
