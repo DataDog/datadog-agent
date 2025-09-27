@@ -14,6 +14,7 @@ import (
 	"github.com/google/cel-go/cel"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/celprogram"
 	legacyFilter "github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -25,34 +26,12 @@ func createProgramFromOldFilters(oldFilters []string, objectType workloadfilter.
 		return nil, err
 	}
 
-	program, err := createCELProgram(filterString, objectType)
+	program, err := celprogram.CreateCELProgram(filterString, objectType)
 	if err != nil {
 		return nil, err
 	}
 
 	return program, nil
-}
-
-func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel.Program, error) {
-	if rules == "" {
-		return nil, nil
-	}
-	env, err := cel.NewEnv(
-		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}, &workloadfilter.Process{}),
-		cel.Variable(string(objectType), cel.ObjectType(convertTypeToProtoType(objectType))),
-	)
-	if err != nil {
-		return nil, err
-	}
-	abstractSyntaxTree, issues := env.Compile(rules)
-	if issues != nil && issues.Err() != nil {
-		return nil, issues.Err()
-	}
-	prg, err := env.Program(abstractSyntaxTree, cel.EvalOptions(cel.OptOptimize))
-	if err != nil {
-		return nil, err
-	}
-	return prg, nil
 }
 
 // getFieldMapping creates a map to associate old filter prefixes with new filter fields
@@ -123,24 +102,4 @@ func convertOldToNewFilter(oldFilters []string, objectType workloadfilter.Resour
 		}
 	}
 	return strings.Join(newFilters, " || "), nil
-}
-
-// convertTypeToProtoType converts a filter.ResourceType to its corresponding proto type string.
-func convertTypeToProtoType(key workloadfilter.ResourceType) string {
-	switch key {
-	case workloadfilter.ContainerType:
-		return "datadog.filter.FilterContainer"
-	case workloadfilter.PodType:
-		return "datadog.filter.FilterPod"
-	case workloadfilter.ServiceType:
-		return "datadog.filter.FilterKubeService"
-	case workloadfilter.EndpointType:
-		return "datadog.filter.FilterKubeEndpoint"
-	case workloadfilter.ImageType:
-		return "datadog.filter.FilterImage"
-	case workloadfilter.ProcessType:
-		return "datadog.filter.FilterProcess"
-	default:
-		return ""
-	}
 }

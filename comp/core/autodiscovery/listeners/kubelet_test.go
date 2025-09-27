@@ -73,7 +73,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 			},
 			expectedServices: map[string]wlmListenerSvc{
 				"kubernetes_pod://foobar": {
-					service: &service{
+					service: &WorkloadService{
 						entity:        pod,
 						adIdentifiers: []string{"kubernetes_pod://foobar"},
 						ports: []ContainerPort{
@@ -252,7 +252,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					parent: "kubernetes_pod://foobar",
-					service: &service{
+					service: &WorkloadService{
 						entity: basicContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -285,7 +285,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					parent: "kubernetes_pod://foobar",
-					service: &service{
+					service: &WorkloadService{
 						entity: recentlyStoppedContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -341,7 +341,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					parent: "kubernetes_pod://foobar",
-					service: &service{
+					service: &WorkloadService{
 						entity: runningContainerWithFinishedAtTime,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -373,7 +373,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					parent: "kubernetes_pod://foobar",
-					service: &service{
+					service: &WorkloadService{
 						entity: multiplePortsContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -414,7 +414,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					parent: "kubernetes_pod://foobar",
-					service: &service{
+					service: &WorkloadService{
 						entity: customIDsContainer,
 						adIdentifiers: []string{
 							"customid",
@@ -459,7 +459,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					parent: "kubernetes_pod://foobar",
-					service: &service{
+					service: &WorkloadService{
 						entity: customIDsContainer,
 						adIdentifiers: []string{
 							"customid",
@@ -494,7 +494,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					parent: "kubernetes_pod://foobar",
-					service: &service{
+					service: &WorkloadService{
 						entity: customIDsContainer,
 						adIdentifiers: []string{
 							"customid",
@@ -529,7 +529,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
 					parent: "kubernetes_pod://foobar",
-					service: &service{
+					service: &WorkloadService{
 						entity: customIDsContainer,
 						adIdentifiers: []string{
 							"customid",
@@ -619,7 +619,7 @@ func TestProcessPodWithEphemeralContainer(t *testing.T) {
 	expectedServices := map[string]wlmListenerSvc{
 		"container://ephemeral-container-id": {
 			parent: "kubernetes_pod://foobar",
-			service: &service{
+			service: &WorkloadService{
 				entity: container,
 				adIdentifiers: []string{
 					"docker://ephemeral-container-id",
@@ -638,7 +638,7 @@ func TestProcessPodWithEphemeralContainer(t *testing.T) {
 			},
 		},
 		"kubernetes_pod://foobar": {
-			service: &service{
+			service: &WorkloadService{
 				entity:        pod,
 				adIdentifiers: []string{"kubernetes_pod://foobar"},
 				hosts: map[string]string{

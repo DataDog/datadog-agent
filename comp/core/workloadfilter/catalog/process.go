@@ -15,6 +15,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/celprogram"
 )
 
 // LegacyProcessExcludeProgram creates a program for filtering processes based on legacy disallowlist patterns
@@ -25,7 +26,7 @@ func LegacyProcessExcludeProgram(config config.Component, logger log.Component) 
 	processPatterns := config.GetStringSlice("process_config.blacklist_patterns")
 	combinedPattern := strings.Join(processPatterns, "|")
 	celRules := fmt.Sprintf("process.cmdline.matches(%s)", strconv.Quote(combinedPattern))
-	excludeProgram, excludeErr := createCELProgram(celRules, workloadfilter.ProcessType)
+	excludeProgram, excludeErr := celprogram.CreateCELProgram(celRules, workloadfilter.ProcessType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
 		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)

@@ -446,6 +446,14 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 		}
 	}
 
+	// add cel identifiers if no ad identifiers present
+	if len(config.ADIdentifiers) == 0 {
+		_, _, celADID := extractRuleMetadata(config.CELSelector)
+		if celADID != "" {
+			config.ADIdentifiers = []string{string(celADID)}
+		}
+	}
+
 	changes, changedIDsOfSecretsWithConfigs := ac.cfgMgr.processNewConfig(config)
 	ac.store.setIDsOfChecksWithSecrets(changedIDsOfSecretsWithConfigs)
 	return changes

@@ -8,4 +8,20 @@ package types
 const (
 	// CheckCmdName is the check name for autodiscovery component, used by cli mode.
 	CheckCmdName = "check-cmd"
+	// CelIdentifierPrefix is the prefix used to identify CEL-based AD identifiers.
+	CelIdentifierPrefix = "cel://"
+)
+
+// CelIdentifier represents a CEL-based AD identifier.
+type CelIdentifier string
+
+const (
+	// CelContainerIdentifier is the CEL identifier for container resources.
+	CelContainerIdentifier CelIdentifier = CelIdentifierPrefix + "container"
+	// CelPodIdentifier is the CEL identifier for pod resources.
+	CelPodIdentifier CelIdentifier = CelIdentifierPrefix + "pod"
+	// CelServiceIdentifier is the CEL identifier for service resources.
+	CelServiceIdentifier CelIdentifier = CelIdentifierPrefix + "kube_service"
+	// CelEndpointIdentifier is the CEL identifier for endpoint resources.
+	CelEndpointIdentifier CelIdentifier = CelIdentifierPrefix + "kube_endpoint"
 )

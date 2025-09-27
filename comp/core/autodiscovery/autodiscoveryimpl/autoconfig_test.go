@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build clusterchecks && kubeapiserver && test
+
 package autodiscoveryimpl
 
 import (
@@ -31,10 +33,11 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -190,7 +193,7 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 	suite.deps = createDeps(suite.T())
 }
 
-func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component, filterComp filter.Component) *AutoConfig {
+func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component, filterComp workloadfilter.Component) *AutoConfig {
 	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logsComp, telemetryComp, filterComp)
 	go ac.serviceListening()
 	return ac
@@ -361,11 +364,7 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
-func TestAutoConfigTestSuite(t *testing.T) {
-	suite.Run(t, new(AutoConfigTestSuite))
-}
-
-func TestResolveTemplate(t *testing.T) {
+func getResolveTestConfig(t *testing.T) (*MockScheduler, *AutoConfig) {
 	deps := createDeps(t)
 
 	msch := scheduler.NewControllerAndStart()
@@ -374,26 +373,194 @@ func TestResolveTemplate(t *testing.T) {
 
 	mockResolver := MockSecretResolver{t, nil}
 	ac := getAutoConfig(msch, &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
-	tpl := integration.Config{
-		Name:          "cpu",
-		ADIdentifiers: []string{"redis"},
-	}
 
-	// no services
-	changes := ac.processNewConfig(tpl)
-	ac.applyChanges(changes) // processNewConfigs does not apply changes
+	return sch, ac
+}
 
-	assert.Equal(t, sch.scheduledSize(), 0)
+func TestResolveTemplate(t *testing.T) {
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
 
-	service := dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-	}
-	// there are no template vars but it's ok
-	ac.processNewService(&service) // processNewService applies changes
-	assert.Eventually(t, func() bool {
-		return sch.scheduledSize() == 1
-	}, 5*time.Second, 10*time.Millisecond)
+	t.Run("AD Identifier", func(t *testing.T) {
+		sch, ac := getResolveTestConfig(t)
+
+		tpl := integration.Config{
+			Name:          "cpu",
+			ADIdentifiers: []string{"redis"},
+		}
+
+		// no services
+		changes := ac.processNewConfig(tpl)
+		ac.applyChanges(changes) // processNewConfigs does not apply changes
+
+		assert.Equal(t, sch.scheduledSize(), 0)
+
+		service := dummyService{
+			ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
+			ADIdentifiers: []string{"redis"},
+		}
+		// there are no template vars but it's ok
+		ac.processNewService(&service) // processNewService applies changes
+		assert.Eventually(t, func() bool {
+			return sch.scheduledSize() == 1
+		}, 5*time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("CEL Identifier on Kubernetes Service", func(t *testing.T) {
+		_, ac := getResolveTestConfig(t)
+
+		tpl := integration.Config{
+			Name:        "service-check",
+			CELSelector: workloadfilter.Rules{KubeServices: []string{`service.name.matches("redis")`}},
+		}
+		changes := ac.processNewConfig(tpl)
+		ac.applyChanges(changes)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
+
+		// Test matching services
+		matchingService := listeners.CreateDummyKubeService("redis-service", "default", map[string]string{})
+		ac.processNewService(matchingService)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		// Test non-matching services
+		service := listeners.CreateDummyKubeService("other-service", "default", map[string]string{})
+		ac.processNewService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		// Test service deletion
+		ac.processDelService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		ac.processDelService(matchingService)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
+	})
+
+	t.Run("CEL Identifier on Kubernetes Endpoint", func(t *testing.T) {
+		_, ac := getResolveTestConfig(t)
+
+		tpl := integration.Config{
+			Name:        "endpoint-check",
+			CELSelector: workloadfilter.Rules{KubeEndpoints: []string{`endpoint.namespace.matches("include-ns") && !endpoint.name.matches("exclude-name") && !("team" in endpoint.annotations && endpoint.annotations["team"].matches("exclude"))`}},
+		}
+		changes := ac.processNewConfig(tpl)
+		ac.applyChanges(changes)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
+
+		// Test matching endpoints
+		matchingService := listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{})
+		ac.processNewService(matchingService)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		// Test non-matching endpoints
+		service := listeners.CreateDummyKubeEndpoint("name", "default", map[string]string{})
+		ac.processNewService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		service = listeners.CreateDummyKubeEndpoint("exclude-name", "include-ns", map[string]string{})
+		ac.processNewService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		service = listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{"team": "exclude"})
+		ac.processNewService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		// Test endpoint deletion
+		ac.processDelService(matchingService)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
+	})
+
+	t.Run("CEL Identifier on Kubernetes Pod", func(t *testing.T) {
+		_, ac := getResolveTestConfig(t)
+
+		tpl := integration.Config{
+			Name:        "pod-check",
+			CELSelector: workloadfilter.Rules{Pods: []string{`pod.namespace.matches("include-ns") && !pod.name.matches("excluded-name") && !("team" in pod.annotations && pod.annotations["team"].matches("exclude"))`}},
+		}
+		changes := ac.processNewConfig(tpl)
+		ac.applyChanges(changes)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
+
+		// Test matching pod
+		wmetaPod := listeners.CreateDummyPod("name", "include-ns", nil)
+		svc1 := listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
+		ac.processNewService(svc1)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		// Test non-matching pods
+		wmetaPod = listeners.CreateDummyPod("excluded-name", "include-ns", map[string]string{})
+		svc2 := listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
+		ac.processNewService(svc2)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		wmetaPod = listeners.CreateDummyPod("name", "include-ns", map[string]string{"team": "exclude"})
+		svc3 := listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
+		ac.processNewService(svc3)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		// Test pod deletion
+		ac.processDelService(svc1)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
+	})
+
+	t.Run("CEL Identifier on Container", func(t *testing.T) {
+		// Setup container tied to a pod
+		wmetaPod := listeners.CreateDummyPod("pod-name", "pod-ns", nil)
+		wmetaCtn := listeners.CreateDummyContainer("container-name", "container-image")
+		wmetaCtn.Owner = &wmetaPod.EntityID
+		mockStore.Set(wmetaPod)
+		mockStore.Set(wmetaCtn)
+
+		_, ac := getResolveTestConfig(t)
+
+		service := listeners.CreateDummyContainerService(wmetaCtn, mockTagger, mockStore)
+		ac.processNewService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
+
+		// Container name and image matching
+		tpl := integration.Config{
+			Name:        "container-check-1",
+			CELSelector: workloadfilter.Rules{Containers: []string{`container.name.matches("container-name") && container.image.matches("container-image")`}},
+		}
+		changes := ac.processNewConfig(tpl)
+		ac.applyChanges(changes)
+		assert.Equal(t, countLoadedConfigs(ac), 1)
+
+		// Pod name and namespace matching
+		tpl = integration.Config{
+			Name:        "container-check-2",
+			CELSelector: workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name") && container.pod.namespace.matches("pod-ns")`}},
+		}
+		ac.applyChanges(ac.processNewConfig(tpl))
+		assert.Equal(t, countLoadedConfigs(ac), 2)
+
+		// AD Identifier + CEL matching
+		tpl = integration.Config{
+			Name:          "container-check-3",
+			ADIdentifiers: []string{"container-image"},
+			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name")`}},
+		}
+		ac.applyChanges(ac.processNewConfig(tpl))
+		assert.Equal(t, countLoadedConfigs(ac), 3)
+
+		// Bad AD Identifier + CEL matching
+		tpl = integration.Config{
+			Name:          "container-check-4",
+			ADIdentifiers: []string{"not-container-image"},
+			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name")`}},
+		}
+		ac.applyChanges(ac.processNewConfig(tpl))
+		assert.Equal(t, countLoadedConfigs(ac), 3)
+
+		// Test service deletion
+		ac.processRemovedConfigs(changes.Schedule)
+		assert.Equal(t, countLoadedConfigs(ac), 2)
+
+		ac.processDelService(service)
+		assert.Equal(t, countLoadedConfigs(ac), 0)
+	})
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
@@ -633,7 +800,7 @@ type Deps struct {
 	WMeta      option.Option[workloadmeta.Component]
 	TaggerComp tagger.Component
 	LogsComp   log.Component
-	FilterComp filter.Component
+	FilterComp workloadfilter.Component
 	Telemetry  telemetry.Component
 }
 
@@ -644,4 +811,8 @@ func createDeps(t *testing.T) Deps {
 		workloadfilterfxmock.MockModule(),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 	)
+}
+
+func TestAutoConfigTestSuite(t *testing.T) {
+	suite.Run(t, new(AutoConfigTestSuite))
 }
