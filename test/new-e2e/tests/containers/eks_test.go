@@ -262,3 +262,22 @@ func (suite *eksSuite) TestNginxFargate() {
 		},
 	})
 }
+
+func (suite *eksSuite) TestHostTags() {
+	// tag keys that are expected to be found on any k8s env
+	args := &testHostTags{
+		ExpectedTags: &[]string{
+			"^stackid:" + suite.clusterName + "$",
+			"^kube_node:ip-([0-9]{1,3}-){3}[0-9]{1,3}\\.ec2\\.internal$",
+			"^cluster_name:" + suite.clusterName + "$",
+			"^kube_cluster_name:" + suite.clusterName + "$",
+			"^orch_cluster_id:[0-9a-f-]{36}$",
+		},
+		OptionalTags: &[]string{
+			"^os:linux$",
+			"^arch:amd64$",
+		},
+	}
+
+	suite.testHostTags(args)
+}
