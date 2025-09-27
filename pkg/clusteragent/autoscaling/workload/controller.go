@@ -221,10 +221,17 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 
 		// Object is not flagged for deletion and owned by remote config, we need to create it in Kubernetes
 		log.Infof("Object %s has remote owner and not present in Kubernetes, creating it", key)
-		err := c.createPodAutoscaler(ctx, podAutoscalerInternal)
+		createdGeneration, creationTimestamp, err := c.createPodAutoscaler(ctx, podAutoscalerInternal)
+		if err != nil {
+			c.store.Unlock(key)
+			return autoscaling.Requeue, err
+		}
 
-		c.store.Unlock(key)
-		return autoscaling.Requeue, err
+		podAutoscalerInternal.SetGeneration(createdGeneration)
+		podAutoscalerInternal.UpdateCreationTimestamp(creationTimestamp)
+
+		c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
+		return autoscaling.NoRequeue, nil
 	}
 
 	// Object is present in both our store and Kubernetes, we need to sync depending on ownership.
@@ -252,17 +259,29 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		if podAutoscalerInternal.Spec().RemoteVersion != nil &&
 			podAutoscaler.Spec.RemoteVersion != nil &&
 			*podAutoscalerInternal.Spec().RemoteVersion > *podAutoscaler.Spec.RemoteVersion {
-			err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
+			updatedGeneration, err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
+			if err != nil {
+				c.store.Unlock(key)
+				return autoscaling.Requeue, err
+			}
 
-			// When doing an external update, we stop and requeue the object to not have multiple changes at once.
-			c.store.Unlock(key)
-			return autoscaling.Requeue, err
+			// Update generation to avoid infinite loop with different hashes
+			podAutoscalerInternal.SetGeneration(updatedGeneration)
+
+			// When doing an external update, we stop and wait for requeue to come from informer
+			c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
+			return autoscaling.NoRequeue, err
 		}
 
 		// If Generation != podAutoscaler.Generation, we should compute `.Spec` hash
 		// and compare it with the one in the PodAutoscaler. If they differ, we should update the PodAutoscaler
 		// otherwise store the Generation
+		// TODO: Currently, due to CRD defaulting, the Hash may never match. We'll need to revisit this logic.
 		if podAutoscalerInternal.Generation() != podAutoscaler.Generation {
+			if podAutoscalerInternal.CreationTimestamp().IsZero() {
+				podAutoscalerInternal.UpdateCreationTimestamp(podAutoscaler.CreationTimestamp.Time)
+			}
+
 			localHash, err := autoscaling.ObjectHash(podAutoscalerInternal.Spec())
 			if err != nil {
 				c.store.Unlock(key)
@@ -276,17 +295,21 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			}
 
 			if localHash != remoteHash {
-				err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
+				updatedGeneration, err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
+				if err != nil {
+					c.store.Unlock(key)
+					return autoscaling.Requeue, err
+				}
 
-				// When doing an external update, we stop and requeue the object to not have multiple changes at once.
-				c.store.Unlock(key)
-				return autoscaling.Requeue, err
+				// Update generation to avoid infinite loop with different hashes
+				podAutoscalerInternal.SetGeneration(updatedGeneration)
+
+				// When doing an external update, we stop and wait for requeue to come from informer
+				c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
+				return autoscaling.NoRequeue, nil
 			}
 
 			podAutoscalerInternal.SetGeneration(podAutoscaler.Generation)
-			if podAutoscalerInternal.CreationTimestamp().IsZero() {
-				podAutoscalerInternal.UpdateCreationTimestamp(podAutoscaler.CreationTimestamp.Time)
-			}
 		}
 	}
 
@@ -354,7 +377,7 @@ func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq
 	return horizontalRes.Merge(verticalRes), nil
 }
 
-func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal) error {
+func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal) (int64, time.Time, error) {
 	log.Infof("Creating PodAutoscaler Spec: %s/%s", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name())
 	autoscalerObj := &datadoghq.DatadogPodAutoscaler{
 		TypeMeta: podAutoscalerMeta,
@@ -369,18 +392,18 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
 	if err != nil {
-		return err
+		return 0, time.Time{}, err
 	}
 
-	_, err = c.Client.Resource(podAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).Create(ctx, obj, metav1.CreateOptions{})
+	createdObj, err := c.Client.Resource(podAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).Create(ctx, obj, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("Unable to create PodAutoscaler: %s/%s, err: %v", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
+		return 0, time.Time{}, fmt.Errorf("Unable to create PodAutoscaler: %s/%s, err: %v", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
 	}
 
-	return nil
+	return createdObj.GetGeneration(), createdObj.GetCreationTimestamp().Time, nil
 }
 
-func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
+func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) (int64, error) {
 	log.Infof("Updating PodAutoscaler Spec: %s/%s", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name())
 	autoscalerObj := &datadoghq.DatadogPodAutoscaler{
 		TypeMeta:   podAutoscalerMeta,
@@ -390,15 +413,15 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	_, err = c.Client.Resource(podAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).Update(ctx, obj, metav1.UpdateOptions{})
+	updatedObj, err := c.Client.Resource(podAutoscalerGVR).Namespace(podAutoscalerInternal.Namespace()).Update(ctx, obj, metav1.UpdateOptions{})
 	if err != nil {
-		return fmt.Errorf("Unable to update PodAutoscaler Spec: %s/%s, err: %w", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
+		return 0, fmt.Errorf("Unable to update PodAutoscaler Spec: %s/%s, err: %w", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), err)
 	}
 
-	return nil
+	return updatedObj.GetGeneration(), nil
 }
 
 func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
