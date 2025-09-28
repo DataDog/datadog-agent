@@ -848,6 +848,37 @@ int socket__http2_filter(struct __sk_buff *skb) {
     return 0;
 }
 
+static __always_inline void push_dynamic_values(pktbuf_t pkt, conn_tuple_t *tup, http2_header_t *headers_to_process, __u8 headers_count) {
+    const u32 zero = 0;
+    dynamic_table_value_t *elem = bpf_map_lookup_elem(&dynamic_table_scratch_buffer, &zero);
+    if (elem == NULL) {
+        return;
+    }
+
+    http2_header_t *current_header;
+
+#pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
+    for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
+        if (iteration >= headers_count) {
+            break;
+        }
+
+        current_header = &headers_to_process[iteration];
+
+        if (current_header->type == kNewDynamicHeader) {
+            elem->key.tup = *tup;
+            elem->key.index = current_header->index;
+
+            // create the new dynamic value which will be added to the internal table.
+            pktbuf_read_into_buffer_path(elem->value.buffer, pkt, current_header->new_dynamic_value_offset);
+            elem->value.string_len = current_header->new_dynamic_value_size;
+            elem->value.is_huffman_encoded = current_header->is_huffman_encoded;
+            elem->value.value_type = current_header->value_type;
+            dynamic_table_batch_enqueue(elem);
+        }
+    }
+}
+
 static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tuple_t *tup, __u8 tags) {
     // Some functions might change and override data_off field in the packet. Since it is used as a key
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
@@ -935,7 +966,10 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         pktbuf_set_offset(pkt, current_frame.offset);
 
         interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
-        pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
+        push_dynamic_values(pkt, tup, headers_to_process, interesting_headers);
+        // Temporarily disabling this method, as it is going to be completely changed, and currently the pressure
+        // on the stack is high.
+        // pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&

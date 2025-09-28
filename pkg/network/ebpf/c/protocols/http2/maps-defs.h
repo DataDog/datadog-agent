@@ -40,6 +40,10 @@ BPF_PERCPU_ARRAY_MAP(http2_stream_heap, http2_stream_t, 1)
    enqueued. The primary motivation here is to save eBPF stack memory. */
 BPF_PERCPU_ARRAY_MAP(http2_scratch_buffer, http2_event_t, 1)
 
+/* This map acts as a scratch buffer for "preparing" http2_event_t objects before they're
+   enqueued. The primary motivation here is to save eBPF stack memory. */
+BPF_PERCPU_ARRAY_MAP(dynamic_table_scratch_buffer, dynamic_table_value_t, 1)
+
 /* Allocating a ctx on the heap, in order to save the ctx between the current stream. */
 BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, http2_ctx_t, 1)
 
