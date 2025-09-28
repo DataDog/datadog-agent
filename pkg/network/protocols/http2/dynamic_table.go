@@ -22,11 +22,14 @@ import (
 
 const (
 	terminatedConnectionsEventStream = "terminated_http2"
+	dynamicTableEventStream          = "dynamic_table"
 )
 
 // DynamicTable encapsulates the management of the dynamic table in the user mode.
 type DynamicTable struct {
 	cfg *config.Config
+
+	dynamicTableEventsConsumer *events.Consumer[DynamicTableValue]
 
 	// terminatedConnectionsEventsConsumer is the consumer used to receive terminated connections events from the kernel.
 	terminatedConnectionsEventsConsumer *events.Consumer[netebpf.ConnTuple]
@@ -48,6 +51,7 @@ func NewDynamicTable(cfg *config.Config) *DynamicTable {
 // configureOptions configures the perf handler options for the map cleaner.
 func (dt *DynamicTable) configureOptions(mgr *manager.Manager, opts *manager.Options) {
 	events.Configure(dt.cfg, terminatedConnectionsEventStream, mgr, opts)
+	events.Configure(dt.cfg, dynamicTableEventStream, mgr, opts)
 }
 
 // preStart sets up the terminated connections events consumer.
@@ -63,7 +67,13 @@ func (dt *DynamicTable) preStart(mgr *manager.Manager) (err error) {
 
 	dt.terminatedConnectionsEventsConsumer.Start()
 
-	return nil
+	dt.dynamicTableEventsConsumer, err = events.NewConsumer(
+		dynamicTableEventStream,
+		mgr,
+		dt.processDynamicTable,
+	)
+
+	return err
 }
 
 // postStart sets up the dynamic table map cleaner.
@@ -76,6 +86,11 @@ func (dt *DynamicTable) processTerminatedConnections(events []netebpf.ConnTuple)
 	dt.terminatedConnectionMux.Lock()
 	defer dt.terminatedConnectionMux.Unlock()
 	dt.terminatedConnections = append(dt.terminatedConnections, events...)
+}
+
+// processDynamicTable processes the dynamic table values sent from the kernel.
+func (dt *DynamicTable) processDynamicTable([]DynamicTableValue) {
+	// Currently no-p[
 }
 
 // setupDynamicTableMapCleaner sets up the map cleaner used to clear entries of terminated connections from the kernel map.
@@ -136,4 +151,10 @@ func (dt *DynamicTable) stop() {
 	if dt.terminatedConnectionsEventsConsumer != nil {
 		dt.terminatedConnectionsEventsConsumer.Stop()
 	}
+}
+
+// sync is pulling all intermediate events from the kernel to the user mode.
+func (dt *DynamicTable) sync() {
+	dt.terminatedConnectionsEventsConsumer.Sync()
+	dt.dynamicTableEventsConsumer.Sync()
 }

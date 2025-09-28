@@ -94,6 +94,10 @@ type HTTP2IncompleteFrameEntry struct {
 	Buf       [9]byte
 	Pad_cgo_0 [3]byte
 }
+type DynamicTableValue = struct {
+	Key   HTTP2DynamicTableIndex
+	Value HTTP2DynamicTableEntry
+}
 
 type StaticTableEnumValue = uint8
 
