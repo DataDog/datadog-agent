@@ -73,7 +73,12 @@ func (dt *DynamicTable) preStart(mgr *manager.Manager) (err error) {
 		dt.processDynamicTable,
 	)
 
-	return err
+	if err != nil {
+		return
+	}
+
+	dt.dynamicTableEventsConsumer.Start()
+	return nil
 }
 
 // postStart sets up the dynamic table map cleaner.
@@ -90,7 +95,7 @@ func (dt *DynamicTable) processTerminatedConnections(events []netebpf.ConnTuple)
 
 // processDynamicTable processes the dynamic table values sent from the kernel.
 func (dt *DynamicTable) processDynamicTable([]DynamicTableValue) {
-	// Currently no-p[
+	// Currently no-p
 }
 
 // setupDynamicTableMapCleaner sets up the map cleaner used to clear entries of terminated connections from the kernel map.
