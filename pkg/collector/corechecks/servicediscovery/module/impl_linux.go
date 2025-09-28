@@ -581,7 +581,7 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 	service.TCPPorts = tcpPorts
 	service.UDPPorts = udpPorts
 	service.LogFiles = getLogFiles(pid, openFileInfo.logs)
-	service.Type = string(servicetype.Detect(tcpPorts, udpPorts))
+	service.Type = servicetype.Detect(tcpPorts, udpPorts)
 
 	return service
 }
