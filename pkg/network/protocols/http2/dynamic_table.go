@@ -8,16 +8,22 @@
 package http2
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"sync"
 
+	lru "github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/net/http2/hpack"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -30,6 +36,8 @@ type DynamicTable struct {
 	cfg *config.Config
 
 	dynamicTableEventsConsumer *events.Consumer[DynamicTableValue]
+	dynamicTable               *lru.LRU[HTTP2DynamicTableIndex, *intern.StringValue]
+	interner                   *intern.StringInterner
 
 	// terminatedConnectionsEventsConsumer is the consumer used to receive terminated connections events from the kernel.
 	terminatedConnectionsEventsConsumer *events.Consumer[netebpf.ConnTuple]
@@ -44,7 +52,8 @@ type DynamicTable struct {
 // NewDynamicTable creates a new dynamic table.
 func NewDynamicTable(cfg *config.Config) *DynamicTable {
 	return &DynamicTable{
-		cfg: cfg,
+		cfg:      cfg,
+		interner: intern.NewStringInterner(),
 	}
 }
 
@@ -77,6 +86,10 @@ func (dt *DynamicTable) preStart(mgr *manager.Manager) (err error) {
 		return
 	}
 
+	dt.dynamicTable, err = lru.NewLRU[HTTP2DynamicTableIndex, *intern.StringValue](int(dt.cfg.MaxTrackedConnections), nil)
+	if err != nil {
+		return
+	}
 	dt.dynamicTableEventsConsumer.Start()
 	return nil
 }
@@ -94,8 +107,15 @@ func (dt *DynamicTable) processTerminatedConnections(events []netebpf.ConnTuple)
 }
 
 // processDynamicTable processes the dynamic table values sent from the kernel.
-func (dt *DynamicTable) processDynamicTable([]DynamicTableValue) {
-	// Currently no-p
+func (dt *DynamicTable) processDynamicTable(events []DynamicTableValue) {
+	for _, event := range events {
+		if err := dt.addDynamicTableToCache(event); err != nil {
+			// TODO: Add metrics
+			if oversizedLogLimit.ShouldLog() {
+				log.Error(err)
+			}
+		}
+	}
 }
 
 // setupDynamicTableMapCleaner sets up the map cleaner used to clear entries of terminated connections from the kernel map.
@@ -162,4 +182,45 @@ func (dt *DynamicTable) stop() {
 func (dt *DynamicTable) sync() {
 	dt.terminatedConnectionsEventsConsumer.Sync()
 	dt.dynamicTableEventsConsumer.Sync()
+}
+
+// addDynamicTableToCache inserts a new value to the LRU.
+func (dt *DynamicTable) addDynamicTableToCache(v DynamicTableValue) error {
+	if v.Value.Is_huffman_encoded {
+		if err := validatePathSize(v.Value.String_len); err != nil {
+			return err
+		}
+
+		tmpBuffer := bufPool.Get().(*bytes.Buffer)
+		tmpBuffer.Reset()
+		defer bufPool.Put(tmpBuffer)
+
+		n, err := hpack.HuffmanDecode(tmpBuffer, v.Value.Buffer[:v.Value.String_len])
+		if err != nil {
+			return err
+		}
+
+		if err := validatePath(tmpBuffer.Bytes()); err != nil {
+			return err
+		}
+
+		dt.dynamicTable.Add(v.Key, dt.interner.Get(tmpBuffer.Bytes()[:n]))
+		return nil
+	}
+
+	// Literal value
+
+	if v.Value.String_len == 0 {
+		return errors.New("path size: 0 is invalid")
+	} else if int(v.Value.String_len) > len(v.Value.Buffer) {
+		if oversizedLogLimit.ShouldLog() {
+			log.Warnf("Truncating as path size: %d is greater than the buffer size: %d", v.Value.String_len, len(v.Value.Buffer))
+		}
+		v.Value.String_len = uint8(len(v.Value.Buffer))
+	}
+	if err := validatePath(v.Value.Buffer[:v.Value.String_len]); err != nil {
+		return err
+	}
+	dt.dynamicTable.Add(v.Key, dt.interner.Get(v.Value.Buffer[:v.Value.String_len]))
+	return nil
 }
