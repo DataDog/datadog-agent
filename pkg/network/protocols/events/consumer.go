@@ -115,16 +115,27 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 		consumer.callback(event)
 	}
 
+	// Get CPU count for scaling buffer sizes
+	numCPUs, err := kernel.PossibleCPUs()
+	if err != nil {
+		numCPUs = 96
+		log.Errorf("DirectConsumer %s: unable to detect number of CPUs, assuming 96: %s", proto, err)
+	}
+
 	// Set up perf mode and channel size similar to initClosedConnEventHandler
 	// For DirectConsumer, we want kernel-level batching for performance
 	// but individual event processing in userspace (unlike BatchConsumer)
 	perfMode := perf.WakeupEvents(config.USMDirectBufferWakeupCount) // Wait for N events before wakeup
 	chanSize := config.USMDirectChannelSize * config.USMDirectBufferWakeupCount
 
-	mode := perf.UsePerfBuffers(config.USMDirectPerfBufferSize, chanSize, perfMode)
+	// Calculate total buffer sizes from per-CPU values
+	totalPerfBufferSize := config.USMDirectPerfBufferSizePerCPU * numCPUs
+	totalRingBufferSize := config.USMDirectRingBufferSizePerCPU * numCPUs
+
+	mode := perf.UsePerfBuffers(totalPerfBufferSize, chanSize, perfMode)
 	// Always try to upgrade to ring buffers for direct events if supported
 	if config.RingBufferSupportedUSM() {
-		mode = perf.UpgradePerfBuffers(config.USMDirectPerfBufferSize, chanSize, perfMode, config.USMDirectRingBufferSize)
+		mode = perf.UpgradePerfBuffers(totalPerfBufferSize, chanSize, perfMode, totalRingBufferSize)
 	}
 
 	// Calculate the size of the single event that will be written via bpf_ringbuf_output
