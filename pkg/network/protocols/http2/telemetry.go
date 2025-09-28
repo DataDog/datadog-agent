@@ -36,6 +36,8 @@ type kernelTelemetry struct {
 	exceedingMaxFramesToFilter *libtelemetry.TLSAwareCounter
 	// continuationFramesCount Count of occurrences where a frame of type CONTINUATION was found.
 	continuationFramesCount *libtelemetry.TLSAwareCounter
+	// priorityFlagsSeen Count of HTTP/2 priority flags seen in HEADERS frames.
+	priorityFlagsSeen *libtelemetry.TLSAwareCounter
 	// fragmentedFrameCountRST Count of times we have seen a fragmented RST frame.
 	fragmentedFrameCountRST *libtelemetry.TLSAwareCounter
 	// fragmentedHeadersFrameEOSCount Count of times we have seen a fragmented headers frame with EOS.
@@ -61,6 +63,7 @@ func newHTTP2KernelTelemetry() *kernelTelemetry {
 		exceedingMaxInterestingFrames:  libtelemetry.NewTLSAwareCounter(metricGroup, "exceeding_max_interesting_frames"),
 		exceedingMaxFramesToFilter:     libtelemetry.NewTLSAwareCounter(metricGroup, "exceeding_max_frames_to_filter"),
 		continuationFramesCount:        libtelemetry.NewTLSAwareCounter(metricGroup, "continuation_frames"),
+		priorityFlagsSeen:              libtelemetry.NewTLSAwareCounter(metricGroup, "priority_flags_seen"),
 		fragmentedDataFrameEOSCount:    libtelemetry.NewTLSAwareCounter(metricGroup, "exceeding_data_end_data_eos"),
 		fragmentedHeadersFrameCount:    libtelemetry.NewTLSAwareCounter(metricGroup, "exceeding_data_end_headers"),
 		fragmentedHeadersFrameEOSCount: libtelemetry.NewTLSAwareCounter(metricGroup, "exceeding_data_end_headers_eos"),
@@ -85,6 +88,7 @@ func (t *kernelTelemetry) update(tel *HTTP2Telemetry, isTLS bool) {
 	t.exceedingMaxInterestingFrames.Add(int64(telemetryDelta.Exceeding_max_interesting_frames), isTLS)
 	t.exceedingMaxFramesToFilter.Add(int64(telemetryDelta.Exceeding_max_frames_to_filter), isTLS)
 	t.continuationFramesCount.Add(int64(telemetryDelta.Continuation_frames), isTLS)
+	t.priorityFlagsSeen.Add(int64(telemetryDelta.Priority_flags_seen), isTLS)
 	for bucketIndex := range t.pathSizeBucket {
 		t.pathSizeBucket[bucketIndex].Add(int64(telemetryDelta.Path_size_bucket[bucketIndex]), isTLS)
 	}
@@ -109,6 +113,7 @@ func (t *HTTP2Telemetry) Sub(other HTTP2Telemetry) *HTTP2Telemetry {
 		Exceeding_max_interesting_frames: t.Exceeding_max_interesting_frames - other.Exceeding_max_interesting_frames,
 		Exceeding_max_frames_to_filter:   t.Exceeding_max_frames_to_filter - other.Exceeding_max_frames_to_filter,
 		Continuation_frames:              t.Continuation_frames - other.Continuation_frames,
+		Priority_flags_seen:              t.Priority_flags_seen - other.Priority_flags_seen,
 		Path_size_bucket:                 computePathSizeBucketDifferences(t.Path_size_bucket, other.Path_size_bucket),
 	}
 }

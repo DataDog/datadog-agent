@@ -15,7 +15,7 @@
 // Represents the maximum number of frames we'll process in a single tail call in `handle_headers_frames` program.
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 16
 // Represents the maximum number of tail calls to process headers frames.
-// Currently we have up to 240 frames in a packet, thus 15 (15*16 = 240) tail calls is enough.
+// Currently we have up to 240 frames in a packet, thus 16 (15*16 = 240) tail calls is enough.
 #define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 15
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 // Maximum number of frames to be processed in a single tail call.
@@ -27,6 +27,12 @@
 // HTTP2_MAX_FRAMES_ITERATIONS = HTTP2_MAX_FRAMES_TO_FILTER * HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER
 #define HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER 1
 #define HTTP2_MAX_FRAMES_TO_FILTER 240
+
+// The flag which will be sent in the PRIORITY field.
+#define HTTP2_PRIORITY_FLAG 0x20
+
+// 5-byte priority section at the start of a HEADERS frame when the PRIORITY flag is set.
+#define HTTP2_PRIORITY_BUFFER_LEN 5
 
 // Represents the maximum number octets we will process in the dynamic table update size.
 #define HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS 5
@@ -69,6 +75,9 @@
 
 // The flag which will be sent in the data/header frame that indicates end of stream.
 #define HTTP2_END_OF_STREAM 0x1
+
+// The flag which indicates that the HEADERS frame has priority information.
+#define HTTP2_PRIORITY_FLAG 0x20
 
 // Http2 max batch size.
 #define HTTP2_BATCH_SIZE (MAX_BATCH_SIZE(http2_event_t))
@@ -227,6 +236,7 @@ typedef struct {
 // exceeding_max_interesting_frames		Count of times we reached the max number of frames per iteration.
 // exceeding_max_frames_to_filter		Count of times we have left with more frames to filter than the max number of frames to filter.
 // continuation_frames                  Count of occurrences where a frame of type CONTINUATION was found.
+// priority_flags_seen                  Count of HTTP/2 priority flags seen in HEADERS frames.
 // path_size_bucket                     Count of path sizes and divided into buckets.
 typedef struct {
     __u64 request_seen;
@@ -237,6 +247,7 @@ typedef struct {
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
     __u64 continuation_frames;
+    __u64 priority_flags_seen;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
 } http2_telemetry_t;
 
