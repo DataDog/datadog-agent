@@ -77,12 +77,10 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 	invalidEventCount := metricGroup.NewCounter("invalid_event_count")
 
 	consumer := &DirectConsumer[V]{
-		proto:            proto,
-		callback:         callback,
-		originalCallback: callback,
-		// lifecycle management
-		closed: make(chan struct{}),
-		// flush coordination
+		proto:             proto,
+		callback:          callback,
+		originalCallback:  callback,
+		closed:            make(chan struct{}),
 		flushRequests:     make(chan chan struct{}),
 		flushChannel:      make(chan chan struct{}, 1),
 		metricGroup:       metricGroup,
@@ -121,13 +119,8 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 	// For DirectConsumer, we want kernel-level batching for performance
 	// but individual event processing in userspace (unlike BatchConsumer)
 	perfMode := perf.WakeupEvents(config.USMDirectBufferWakeupCount) // Wait for N events before wakeup
-	// For direct events, we still want sufficient channel buffering for batched events
 	chanSize := config.USMDirectChannelSize * config.USMDirectBufferWakeupCount
 
-	// Note: Unlike NPM's CustomBatchingEnabled, DirectConsumer doesn't switch to Watermark(1)
-	// because we want kernel-level batching but individual event processing in userspace
-
-	// Set up mode selection similar to initClosedConnEventHandler
 	mode := perf.UsePerfBuffers(config.USMDirectPerfBufferSize, chanSize, perfMode)
 	// Always try to upgrade to ring buffers for direct events if supported
 	if config.RingBufferSupportedUSM() {
@@ -137,7 +130,6 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 	// Calculate the size of the single event that will be written via bpf_ringbuf_output
 	eventSize := int(unsafe.Sizeof(*new(V)))
 
-	// Create EventHandler following the same pattern as initClosedConnEventHandler
 	mapName := proto + eventsMapSuffix
 	eventHandler, err := perf.NewEventHandler(
 		mapName,
