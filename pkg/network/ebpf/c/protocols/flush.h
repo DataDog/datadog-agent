@@ -41,6 +41,7 @@ SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb_http2(void *ctx) {
     http2_batch_flush_with_telemetry(ctx);
     terminated_http2_batch_flush_with_telemetry(ctx);
+    dynamic_table_batch_flush_with_telemetry(ctx);
     return 0;
 }
 

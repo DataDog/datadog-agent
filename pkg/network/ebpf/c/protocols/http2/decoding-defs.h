@@ -77,6 +77,10 @@
 // See more details in the comments of the USM_EVENTS_INIT.
 #define HTTP2_TERMINATED_BATCH_SIZE (MAX_BATCH_SIZE(conn_tuple_t))
 
+// The max number of events we can have in a single page in the dynamic_table_batch_events array.
+// See more details in the comments of the USM_EVENTS_INIT.
+#define DYNAMIC_TABLE_BATCH_SIZE (MAX_BATCH_SIZE(dynamic_table_value_t))
+
 // MAX_4_BITS represents the maximum number that can be represented with 4 bits or less.
 // 1 << 4 - 1
 #define MAX_4_BITS 15
@@ -129,6 +133,11 @@ typedef struct {
     __u64 index;
     conn_tuple_t tup;
 } dynamic_table_index_t;
+
+typedef struct {
+    dynamic_table_index_t key;
+    dynamic_table_entry_t value;
+} dynamic_table_value_t;
 
 typedef struct {
     conn_tuple_t tup;

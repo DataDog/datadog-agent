@@ -448,6 +448,7 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner() {
 // The format of HTTP2 stats:
 // [source, dest tuple, request path] -> RequestStats object
 func (p *Protocol) GetStats() (*protocols.ProtocolStats, func()) {
+	p.dynamicTable.sync()
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
 	stats := p.statkeeper.GetAndResetAllStats()
