@@ -39,7 +39,7 @@ var validProducts = map[string]struct{}{
 	ProductDataStreamsLiveMessages:      {},
 	ProductLiveDebuggingSymbolDB:        {},
 	ProductGradualRollout:               {},
-	ProductWorkloadSelection:            {},
+	ProductApmPolicies:                  {},
 }
 
 const (
@@ -112,6 +112,6 @@ const (
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 	// ProductGradualRollout tracks the latest stable release versions for K8s gradual rollout.
 	ProductGradualRollout = "K8S_INJECTION_DD"
-	// ProductWorkloadSelection is the workload selection product
-	ProductWorkloadSelection = "DEBUG" // TODO: use the right product name when the ceremony has been run
+	// ProductApmPolicies is the workload selection product
+	ProductApmPolicies = "APM_POLICIES"
 )

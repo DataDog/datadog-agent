@@ -44,7 +44,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if reqs.Config.GetBool("apm_config.instrumentation.workload_selection") {
 		reqs.Log.Debug("Add Workload Selection RCListener")
 		rcListener.ListenerProvider = rctypes.RCListener{
-			state.ProductWorkloadSelection: wls.onConfigUpdate,
+			state.ProductApmPolicies: wls.onConfigUpdate,
 		}
 	}
 
