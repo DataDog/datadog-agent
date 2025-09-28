@@ -170,14 +170,14 @@ func TestUSMDirectPerfBufferSize(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
-		assert.Equal(t, 4194304, cfg.USMDirectPerfBufferSize)
+		assert.Equal(t, 65536, cfg.USMDirectPerfBufferSizePerCPU)
 	})
 
 	t.Run("env override", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_USM_DIRECT_PERF_BUFFER_SIZE", "8388608")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_USM_DIRECT_PERF_BUFFER_SIZE_PER_CPU", "131072")
 		cfg := New()
-		assert.Equal(t, 8388608, cfg.USMDirectPerfBufferSize)
+		assert.Equal(t, 131072, cfg.USMDirectPerfBufferSizePerCPU)
 	})
 }
 
@@ -185,14 +185,14 @@ func TestUSMDirectRingBufferSize(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
-		assert.Equal(t, 4194304, cfg.USMDirectRingBufferSize)
+		assert.Equal(t, 65536, cfg.USMDirectRingBufferSizePerCPU)
 	})
 
 	t.Run("env override", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_USM_DIRECT_RING_BUFFER_SIZE", "8388608")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_USM_DIRECT_RING_BUFFER_SIZE_PER_CPU", "131072")
 		cfg := New()
-		assert.Equal(t, 8388608, cfg.USMDirectRingBufferSize)
+		assert.Equal(t, 131072, cfg.USMDirectRingBufferSizePerCPU)
 	})
 }
 
