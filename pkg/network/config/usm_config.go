@@ -49,7 +49,7 @@ type USMConfig struct {
 	// USMDataChannelSize specifies the size of the data channel for USM
 	USMDataChannelSize int
 
-	// USMDirectBufferWakeupCount specifies the number of events that will buffer in a perf buffer before userspace is woken up for USM direct consumer.
+	// USMDirectBufferWakeupCount specifies the number of events that will buffer in a perf/ring buffer before userspace is woken up for USM direct consumer.
 	USMDirectBufferWakeupCount int
 
 	// USMDirectChannelSize specifies the channel buffer size multiplier for USM direct consumer.
