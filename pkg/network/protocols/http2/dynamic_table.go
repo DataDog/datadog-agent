@@ -18,12 +18,21 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
 const (
 	terminatedConnectionsEventStream = "terminated_http2"
 	dynamicTableEventStream          = "dynamic_table"
 )
+
+var (
+	interner *intern.StringInterner
+)
+
+func init() {
+	interner = intern.NewStringInterner()
+}
 
 // DynamicTable encapsulates the management of the dynamic table in the user mode.
 type DynamicTable struct {

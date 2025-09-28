@@ -92,14 +92,11 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8, output []byte) ([]b
 // Path returns the URL from the request fragment captured in eBPF.
 func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 	if tx.Stream.Path.Static_table_entry != 0 {
-		switch tx.Stream.Path.Static_table_entry {
-		case EmptyPathValue:
-			return []byte("/"), true
-		case IndexPathValue:
-			return []byte("/index.html"), true
-		default:
+		value, ok := pathStaticTable[tx.Stream.Path.Static_table_entry]
+		if !ok {
 			return nil, false
 		}
+		return []byte(value.Get()), true
 	}
 
 	var err error
@@ -206,14 +203,11 @@ func (tx *EbpfTx) Method() http.Method {
 
 	// Case which the method is indexed.
 	if tx.Stream.Request_method.Static_table_entry != 0 {
-		switch tx.Stream.Request_method.Static_table_entry {
-		case GetValue:
-			return http.MethodGet
-		case PostValue:
-			return http.MethodPost
-		default:
-			return http.MethodUnknown
+		value, ok := methodStaticTable[tx.Stream.Request_method.Static_table_entry]
+		if ok {
+			return value
 		}
+		return http.MethodUnknown
 	}
 
 	// if the length of the method is greater than the buffer, then we return 0.
@@ -247,24 +241,11 @@ func (tx *EbpfTx) Method() http.Method {
 // Otherwise, we convert the status code from byte array to int.
 func (tx *EbpfTx) StatusCode() uint16 {
 	if tx.Stream.Status_code.Static_table_entry != 0 {
-		switch tx.Stream.Status_code.Static_table_entry {
-		case K200Value:
-			return 200
-		case K204Value:
-			return 204
-		case K206Value:
-			return 206
-		case K304Value:
-			return 304
-		case K400Value:
-			return 400
-		case K404Value:
-			return 404
-		case K500Value:
-			return 500
-		default:
-			return 0
+		value, ok := statusStaticTable[tx.Stream.Status_code.Static_table_entry]
+		if ok {
+			return value
 		}
+		return 0
 	}
 
 	if tx.Stream.Status_code.Is_huffman_encoded {
