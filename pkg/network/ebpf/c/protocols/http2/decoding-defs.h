@@ -114,7 +114,7 @@ typedef enum {
 } __attribute__((packed)) static_table_value_t;
 
 typedef struct {
-    char buffer[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
+    __u8 buffer[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
     __u32 original_index;
     __u8 string_len;
     bool is_huffman_encoded;
