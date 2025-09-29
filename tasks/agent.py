@@ -168,7 +168,8 @@ def build(
         python_home_3=python_home_3,
         major_version=major_version,
     )
-
+    if flavor.is_iot():
+        ldflags += " -s -w"
     bundled_agents = ["agent"]
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
         # Important for x-compiling
