@@ -1,0 +1,119 @@
+diff --git a/buildifier/BUILD.bazel b/buildifier/BUILD.bazel
+index 1f1cd67..58b0ab4 100644
+--- a/buildifier/BUILD.bazel
++++ b/buildifier/BUILD.bazel
+@@ -1,114 +1,3 @@
+-load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+-load("@rules_shell//shell:sh_test.bzl", "sh_test")
+-
+-go_binary(
+-    name = "buildifier",
+-    embed = [":buildifier_lib"],
+-    visibility = ["//visibility:public"],
+-)
+-
+-go_binary(
+-    name = "buildifier-darwin",
+-    out = "buildifier-darwin_amd64",
+-    embed = [":buildifier_lib"],
+-    goarch = "amd64",
+-    goos = "darwin",
+-    pure = "on",
+-    visibility = ["//visibility:public"],
+-)
+-
+-go_binary(
+-    name = "buildifier-linux",
+-    out = "buildifier-linux_amd64",
+-    embed = [":buildifier_lib"],
+-    goarch = "amd64",
+-    goos = "linux",
+-    pure = "on",
+-    visibility = ["//visibility:public"],
+-)
+-
+-go_binary(
+-    name = "buildifier-windows",
+-    out = "buildifier-windows_amd64.exe",
+-    embed = [":buildifier_lib"],
+-    goarch = "amd64",
+-    goos = "windows",
+-    pure = "on",
+-    visibility = ["//visibility:public"],
+-)
+-
+-go_binary(
+-    name = "buildifier-darwin-arm64",
+-    out = "buildifier-darwin_arm64",
+-    embed = [":buildifier_lib"],
+-    goarch = "arm64",
+-    goos = "darwin",
+-    pure = "on",
+-    visibility = ["//visibility:public"],
+-)
+-
+-go_binary(
+-    name = "buildifier-linux-arm64",
+-    out = "buildifier-linux_arm64",
+-    embed = [":buildifier_lib"],
+-    goarch = "arm64",
+-    goos = "linux",
+-    pure = "on",
+-    visibility = ["//visibility:public"],
+-)
+-
+-go_binary(
+-    name = "buildifier-linux-riscv64",
+-    out = "buildifier-linux_riscv64",
+-    embed = [":buildifier_lib"],
+-    goarch = "riscv64",
+-    goos = "linux",
+-    pure = "on",
+-    visibility = ["//visibility:public"],
+-)
+-
+-go_binary(
+-    name = "buildifier-linux-s390x",
+-    out = "buildifier-linux_s390x",
+-    embed = [":buildifier_lib"],
+-    goarch = "s390x",
+-    goos = "linux",
+-    pure = "on",
+-    visibility = ["//visibility:public"],
+-)
+-
+-# Test that the buildifier binary works
+-sh_test(
+-    name = "buildifier_integration_test",
+-    size = "small",
+-    srcs = ["integration_test.sh"],
+-    args = [
+-        "$(location :buildifier)",
+-    ],
+-    data = [
+-        ":buildifier",
+-    ],
+-    deps = ["@bazel_tools//tools/bash/runfiles"],
+-)
+-
+-go_library(
+-    name = "buildifier_lib",
+-    srcs = ["buildifier.go"],
+-    importpath = "github.com/bazelbuild/buildtools/buildifier",
+-    visibility = ["//visibility:private"],
+-    x_defs = {
+-        "main.buildVersion": "{STABLE_buildVersion}",
+-        "main.buildScmRevision": "{STABLE_buildScmRevision}",
+-    },
+-    deps = [
+-        "//build",
+-        "//buildifier/config",
+-        "//buildifier/utils",
+-        "//differ",
+-        "//wspace",
+-    ],
+-)
+-
+ exports_files(
+     [
+         "runner.bash.template",
