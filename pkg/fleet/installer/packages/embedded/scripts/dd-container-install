@@ -47,7 +47,7 @@ done
 if [ -x /opt/datadog-packages/run/datadog-installer-ssi ]; then
     installerPath="/opt/datadog-packages/run/datadog-installer-ssi"
 else
-    installerPath="/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer"
+    installerPath="/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
 fi
 
 if [ -z "$uninstall_flag" ]; then

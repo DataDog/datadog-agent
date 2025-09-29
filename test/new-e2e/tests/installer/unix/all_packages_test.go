@@ -36,17 +36,17 @@ type packageTestsWithSkippedFlavors struct {
 var (
 	amd64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404,
-		// e2eos.AmazonLinux2,
-		// e2eos.Debian12,
-		// e2eos.RedHat9,
-		// // e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
-		// e2eos.CentOS7,
-		// e2eos.Suse15,
+		e2eos.AmazonLinux2,
+		e2eos.Debian12,
+		e2eos.RedHat9,
+		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
+		e2eos.CentOS7,
+		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		// e2eos.Ubuntu2404,
-		// e2eos.AmazonLinux2,
-		// e2eos.Suse15,
+		e2eos.Ubuntu2404,
+		e2eos.AmazonLinux2,
+		e2eos.Suse15,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
@@ -198,12 +198,33 @@ func (s *packageBaseSuite) updateCurlOnUbuntu() {
 func (s *packageBaseSuite) RunInstallScriptProdOci(params ...string) error {
 	env := map[string]string{}
 	installScriptPackageManagerEnv(env, s.arch)
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7_test_ci.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(env))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(env))
 	return err
 }
 
 func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7_test_ci.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
+	hasRemoteUpdates := false
+	for _, param := range params {
+		if param == "DD_REMOTE_UPDATES=true" {
+			hasRemoteUpdates = true
+			break
+		}
+	}
+	if hasRemoteUpdates {
+		// This is temporary until the install script is updated to support calling the installer script
+		var scriptURLPrefix string
+		if pipelineID, ok := os.LookupEnv("E2E_PIPELINE_ID"); ok {
+			scriptURLPrefix = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/pipeline-%s/scripts/", pipelineID)
+		} else if commitHash, ok := os.LookupEnv("CI_COMMIT_SHA"); ok {
+			scriptURLPrefix = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/%s/scripts/", commitHash)
+		} else {
+			require.FailNowf(nil, "missing script identifier", "CI_COMMIT_SHA or CI_PIPELINE_ID must be set")
+		}
+		_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L %sinstall.sh)" > /tmp/datadog-installer-stdout.log 2> /tmp/datadog-installer-stderr.log`, strings.Join(params, " "), scriptURLPrefix), client.WithEnvVariables(InstallInstallerScriptEnvWithPackages()))
+		return err
+	}
+
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
 	return err
 }
 
@@ -254,6 +275,10 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 
 func envForceInstall(pkg string) string {
 	return "DD_INSTALLER_DEFAULT_PKG_INSTALL_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=true"
+}
+
+func envForceNoInstall(pkg string) string {
+	return "DD_INSTALLER_DEFAULT_PKG_INSTALL_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=false"
 }
 
 func envForceVersion(pkg, version string) string {

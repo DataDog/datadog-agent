@@ -89,7 +89,6 @@ func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architectu
 	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("stable-%s 7", arch)
 	env["TESTING_YUM_URL"] = "s3.amazonaws.com/yumtesting.datad0g.com"
 	env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
-	env["DD_APM_INSTRUMENTATION_PIPELINE_ID"] = os.Getenv("E2E_PIPELINE_ID")
 }
 
 func installScriptInstallerEnv(env map[string]string, packagesConfig []TestPackageConfig) {

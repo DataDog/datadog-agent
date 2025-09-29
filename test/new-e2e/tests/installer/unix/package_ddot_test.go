@@ -9,14 +9,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-
-	"github.com/stretchr/testify/require"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
@@ -27,46 +23,6 @@ type packageDDOTSuite struct {
 func testDDOT(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
 	return &packageDDOTSuite{
 		packageBaseSuite: newPackageSuite("ddot", os, arch, method, awshost.WithoutFakeIntake()),
-	}
-}
-
-func (s *packageDDOTSuite) RunInstallScriptWithError(params ...string) error {
-	hasOTelCollector := false
-	for _, param := range params {
-		if param == "DD_OTELCOLLECTOR_ENABLED=true" {
-			hasOTelCollector = true
-			break
-		}
-	}
-	if hasOTelCollector {
-		// This is temporary until the install script is updated to support calling the installer script
-		var scriptURLPrefix string
-		if pipelineID, ok := os.LookupEnv("E2E_PIPELINE_ID"); ok {
-			scriptURLPrefix = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/pipeline-%s/scripts/", pipelineID)
-		} else if commitHash, ok := os.LookupEnv("CI_COMMIT_SHA"); ok {
-			scriptURLPrefix = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/%s/scripts/", commitHash)
-		} else {
-			require.FailNowf(nil, "missing script identifier", "CI_COMMIT_SHA or CI_PIPELINE_ID must be set")
-		}
-		_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L %sinstall.sh)" > /tmp/datadog-installer-stdout.log 2> /tmp/datadog-installer-stderr.log`, strings.Join(params, " "), scriptURLPrefix), client.WithEnvVariables(InstallInstallerScriptEnvWithPackages()))
-		return err
-	}
-
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7_test_ci.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
-	return err
-}
-
-func (s *packageDDOTSuite) RunInstallScript(params ...string) {
-	switch s.installMethod {
-	case InstallMethodInstallScript:
-		// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
-		if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
-			s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
-		}
-		err := s.RunInstallScriptWithError(params...)
-		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"))
-	default:
-		s.T().Fatal("unsupported install method")
 	}
 }
 
@@ -115,7 +71,7 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 
 	state := s.host.State()
 	// Verify running
-	s.assertCoreUnits(state, true)
+	s.assertCoreUnits(state, false)
 	s.assertDDOTUnits(state, false)
 
 	// Verify files exist
