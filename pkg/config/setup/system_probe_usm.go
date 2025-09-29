@@ -30,10 +30,10 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// By setting this value to 100, the channel will buffer up to ~400KB of data in the Go heap memory.
 	cfg.BindEnvAndSetDefault(join(smNS, "data_channel_size"), 100)
 	cfg.BindEnvAndSetDefault(join(smNS, "disable_map_preallocation"), true)
-	cfg.BindEnvAndSetDefault(join(smNS, "usm_direct_buffer_wakeup_count"), 32)
-	cfg.BindEnvAndSetDefault(join(smNS, "usm_direct_channel_size"), 1000)
-	cfg.BindEnvAndSetDefault(join(smNS, "usm_direct_perf_buffer_size_per_cpu"), 65536) // 64KB per CPU
-	cfg.BindEnvAndSetDefault(join(smNS, "usm_direct_ring_buffer_size_per_cpu"), 65536) // 64KB per CPU
+	cfg.BindEnvAndSetDefault(join(smNS, "direct_consumer_buffer_wakeup_count"), 32)
+	cfg.BindEnvAndSetDefault(join(smNS, "direct_consumer_channel_size"), 1000)
+	cfg.BindEnvAndSetDefault(join(smNS, "direct_consumer_perf_buffer_size_per_cpu"), 65536) // 64KB per CPU
+	cfg.BindEnvAndSetDefault(join(smNS, "direct_consumer_ring_buffer_size_per_cpu"), 65536) // 64KB per CPU
 
 	// ========================================
 	// HTTP Protocol Configuration
