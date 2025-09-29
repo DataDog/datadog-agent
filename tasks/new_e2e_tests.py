@@ -983,3 +983,34 @@ def _is_local_state(pulumi_about: dict) -> bool:
     if url is None or not isinstance(url, str):
         return False
     return url.startswith("file://")
+
+
+@task()
+def onboard_aws_ssh_repo(ctx, repo_name: str):
+    """
+    Onboard a repository to e2e tests.
+    Should be run by someone with account-admin access on agent-qa
+    """
+    # print(f"Onboarding repository to e2e tests: {repo_name}")
+    # print("Generating a ssh key pair")
+    # ssh_file_path = f"~/.ssh/id_rsa_{repo_name.replace("-", "_")}"
+    # ctx.run(f"ssh-keygen -t rsa -b 4096 -f {ssh_file_path}")
+    # print("Adding the key SSM")
+    # ctx.run(f"cat {ssh_file_path}.pub | aws-vault exec sso-agent-qa-account-admin -- ci-secrets set ci.{repo_name}.ssh_public_key")
+    # ctx.run(f"cat {ssh_file_path} | aws-vault exec sso-agent-qa-account-admin -- ci-secrets set ci.{repo_name}.ssh_private_key")
+    # print("Adding the key to AWS EC2 Keypair")
+    # ctx.run(f"aws-vault exec sso-agent-qa-account-admin -- aws ec2 import-key-pair --key-name ci.{repo_name} --public-key-material file://{ssh_file_path}.pub")
+    profile = f"""
+[profile agent-qa-ci]
+role_arn=arn:aws:iam::669783387624:role/ddbuild-datadog-operator-ci
+region=us-east-1
+credential_source=Ec2InstanceMetadata
+external_id=ddbuild-{repo_name}-ci
+"""
+    ctx.run(
+        f"echo '{profile}' | aws-vault exec sso-agent-qa-account-admin -- ci-secrets set ci.{repo_name}.agent-qa-profile"
+    )
+    print(f"Successfully onboarded {repo_name} to e2e tests")
+    print(
+        "Please add the SSH key created in 1Password in the Shared-Agent Vault. To make sure we can find it again if needed"
+    )
