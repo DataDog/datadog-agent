@@ -49,17 +49,17 @@ type USMConfig struct {
 	// USMDataChannelSize specifies the size of the data channel for USM
 	USMDataChannelSize int
 
-	// USMDirectBufferWakeupCount specifies the number of events that will buffer in a perf/ring buffer before userspace is woken up for USM direct consumer.
-	USMDirectBufferWakeupCount int
+	// USMDirectConsumerBufferWakeupCount specifies the number of events that will buffer in a perf/ring buffer before userspace is woken up for USM direct consumer.
+	USMDirectConsumerBufferWakeupCount int
 
-	// USMDirectChannelSize specifies the channel buffer size multiplier for USM direct consumer.
-	USMDirectChannelSize int
+	// USMDirectConsumerChannelSize specifies the channel buffer size multiplier for USM direct consumer.
+	USMDirectConsumerChannelSize int
 
-	// USMDirectPerfBufferSizePerCPU specifies the per-CPU perf buffer size for USM direct consumer.
-	USMDirectPerfBufferSizePerCPU int
+	// USMDirectConsumerPerfBufferSizePerCPU specifies the per-CPU perf buffer size for USM direct consumer.
+	USMDirectConsumerPerfBufferSizePerCPU int
 
-	// USMDirectRingBufferSizePerCPU specifies the per-CPU ring buffer size for USM direct consumer.
-	USMDirectRingBufferSizePerCPU int
+	// USMDirectConsumerRingBufferSizePerCPU specifies the per-CPU ring buffer size for USM direct consumer.
+	USMDirectConsumerRingBufferSizePerCPU int
 
 	// DisableMapPreallocation controls whether eBPF maps should disable preallocation (BPF_F_NO_PREALLOC flag).
 	// When true, maps allocate entries on-demand instead of preallocating the full map size, improving memory efficiency.
@@ -185,19 +185,19 @@ type USMConfig struct {
 func NewUSMConfig(cfg model.Config) *USMConfig {
 	usmConfig := &USMConfig{
 		// Global USM Configuration
-		ServiceMonitoringEnabled:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enabled")),
-		MaxUSMConcurrentRequests:      uint32(cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_concurrent_requests"))),
-		EnableUSMQuantization:         cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
-		EnableUSMConnectionRollup:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
-		EnableUSMRingBuffers:          cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
-		EnableUSMEventStream:          cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
-		USMKernelBufferPages:          cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
-		USMDataChannelSize:            cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
-		DisableMapPreallocation:       cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
-		USMDirectBufferWakeupCount:    cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_buffer_wakeup_count")),
-		USMDirectChannelSize:          cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_channel_size")),
-		USMDirectPerfBufferSizePerCPU: cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_perf_buffer_size_per_cpu")),
-		USMDirectRingBufferSizePerCPU: cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_ring_buffer_size_per_cpu")),
+		ServiceMonitoringEnabled:              cfg.GetBool(sysconfig.FullKeyPath(smNS, "enabled")),
+		MaxUSMConcurrentRequests:              uint32(cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_concurrent_requests"))),
+		EnableUSMQuantization:                 cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup:             cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:                  cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
+		EnableUSMEventStream:                  cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
+		USMKernelBufferPages:                  cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
+		USMDataChannelSize:                    cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
+		DisableMapPreallocation:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
+		USMDirectConsumerBufferWakeupCount:    cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_buffer_wakeup_count")),
+		USMDirectConsumerChannelSize:          cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_channel_size")),
+		USMDirectConsumerPerfBufferSizePerCPU: cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_perf_buffer_size_per_cpu")),
+		USMDirectConsumerRingBufferSizePerCPU: cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_ring_buffer_size_per_cpu")),
 
 		// HTTP Protocol Configuration
 		EnableHTTPMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "http", "enabled")),
