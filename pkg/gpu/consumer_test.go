@@ -165,16 +165,10 @@ func BenchmarkConsumer(b *testing.B) {
 func TestConsumerProcessExitChannel(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
-	cfg := config.New()
-	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
-	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
-	// Create fake procfs with a process
+	// Create fake procfs
 	pid := uint32(5001)
 	streamID := uint64(1)
-
-	// Create fake procfs entry for the process
 	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
 		{
 			Pid:     pid,
@@ -183,12 +177,18 @@ func TestConsumerProcessExitChannel(t *testing.T) {
 			Exe:     "/usr/bin/test-process",
 			Maps:    "00400000-00401000 r-xp 00000000 08:01 123456 /usr/bin/test-process",
 			Env:     map[string]string{"PATH": "/usr/bin", "HOME": "/home/test"},
-		},
-	})
+		}},
+		kernel.WithRealUptime(), // Required for the ktime resolver to work
+		kernel.WithRealStat(),
+	)
 
 	// Set up the fake procfs
 	kernel.WithFakeProcFS(t, fakeProcFS)
-	ctx.procRoot = fakeProcFS
+
+	cfg := config.New()
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
 	// Start the consumer
 	consumer.Start()
@@ -219,17 +219,10 @@ func TestConsumerProcessExitChannel(t *testing.T) {
 func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
-	cfg := config.New()
-	cfg.ScanProcessesInterval = 100 * time.Millisecond // don't wait too long
-	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
-	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
-	// Create fake procfs with a process that will disappear
+	// Create fake procfs with a process that we will remove later
 	pid := uint32(6001)
 	streamID := uint64(1)
-
-	// Create fake procfs entry for the process
 	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
 		{
 			Pid:     pid,
@@ -238,12 +231,19 @@ func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
 			Exe:     "/usr/bin/test-process",
 			Maps:    "00400000-00401000 r-xp 00000000 08:01 123456 /usr/bin/test-process",
 			Env:     map[string]string{"PATH": "/usr/bin", "HOME": "/home/test"},
-		},
-	})
+		}},
+		kernel.WithRealUptime(), // Required for the ktime resolver to work
+		kernel.WithRealStat(),
+	)
 
 	// Set up the fake procfs
 	kernel.WithFakeProcFS(t, fakeProcFS)
-	ctx.procRoot = fakeProcFS
+
+	cfg := config.New()
+	cfg.ScanProcessesInterval = 100 * time.Millisecond // don't wait too long
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
 	// Start the consumer
 	consumer.Start()
