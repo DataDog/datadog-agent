@@ -31,6 +31,7 @@ const (
 	tracerouteNS                 = "traceroute"
 	discoveryNS                  = "discovery"
 	gpuNS                        = "gpu_monitoring"
+	privilegedLogsNS             = "privileged_logs"
 	swNS                         = "software_inventory"
 	defaultConnsMessageBatchSize = 600
 
@@ -180,7 +181,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(diNS, "probes_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_PROBES_FILE_PATH")
 	cfg.BindEnvAndSetDefault(join(diNS, "snapshot_output_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_SNAPSHOT_FILE_PATH")
 	cfg.BindEnvAndSetDefault(join(diNS, "diagnostics_output_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_FILE_PATH")
-	cfg.BindEnvAndSetDefault(join(diNS, "symdb_upload_enabled"), false, "DD_SYMBOL_DATABASE_UPLOAD_ENABLED")
+	cfg.BindEnvAndSetDefault(join(diNS, "symdb_upload_enabled"), true, "DD_SYMBOL_DATABASE_UPLOAD_ENABLED")
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "enabled"), true)
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "dir"), defaultDynamicInstrumentationDebugInfoDir)
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "max_total_bytes"), int64(2<<30 /* 2GiB */))
@@ -368,6 +369,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.period"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "service_collection_interval"), "60s")
+
+	// Privileged Logs config
+	cfg.BindEnvAndSetDefault(join(privilegedLogsNS, "enabled"), false)
 
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
