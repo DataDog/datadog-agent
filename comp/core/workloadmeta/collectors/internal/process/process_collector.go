@@ -73,6 +73,7 @@ type collector struct {
 	serviceRetries           map[int32]uint
 	ignoredPids              core.PidSet
 	pidHeartbeats            map[int32]time.Time
+	injectedOnlyPids         core.PidSet // Track injected-only processes for cleanup
 	metricDiscoveredServices telemetry.Gauge
 }
 
@@ -105,12 +106,13 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
 
 		// Initialize service discovery fields
-		sysProbeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-		startTime:      clock.Now().UTC(),
-		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
-		serviceRetries: make(map[int32]uint),
-		ignoredPids:    make(core.PidSet),
-		pidHeartbeats:  make(map[int32]time.Time),
+		sysProbeClient:   sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		startTime:        clock.Now().UTC(),
+		startupTimeout:   pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
+		serviceRetries:   make(map[int32]uint),
+		ignoredPids:      make(core.PidSet),
+		pidHeartbeats:    make(map[int32]time.Time),
+		injectedOnlyPids: make(core.PidSet),
 	}
 }
 
@@ -416,12 +418,14 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 	entities := make([]*workloadmeta.Process, 0, len(pidsToService))
 	now := c.clock.Now().UTC()
 
+
 	// Process new PIDs - create complete entities
 	for _, pid := range newPids {
 		service := pidsToService[pid]
 		if service == nil {
 			// Handle injected processes that are not services
 			if injectedPids.Has(pid) {
+				c.injectedOnlyPids.Add(pid) // Track for cleanup
 				entity := &workloadmeta.Process{
 					EntityID: workloadmeta.EntityID{
 						Kind: workloadmeta.KindProcess,
@@ -436,6 +440,8 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			continue
 		}
 
+		// When process gets a service, remove from injected-only tracking
+		c.injectedOnlyPids.Remove(pid)
 		// Update the heartbeat cache for this PID
 		c.pidHeartbeats[int32(service.PID)] = now
 
@@ -610,12 +616,14 @@ func (c *collector) findDeletedProcesses(currentProcs map[int32]*procutil.Proces
 	return deletedProcessesToWorkloadmetaProcesses(deletedProcs)
 }
 
+
 // cleanDiscoveryMaps cleans up stale PID mappings for service discovery.
 // Used by both service collection methods to maintain clean state.
 func (c *collector) cleanDiscoveryMaps(alivePids core.PidSet) {
 	cleanPidMaps(alivePids, c.ignoredPids)
 	cleanPidMaps(alivePids, c.serviceRetries)
 	cleanPidMaps(alivePids, c.pidHeartbeats)
+	cleanPidMaps(alivePids, c.injectedOnlyPids)
 }
 
 // updateDiscoveredServicesMetric updates the metric with the count of discovered services
@@ -741,6 +749,20 @@ func (c *collector) collectServicesCached(ctx context.Context, collectionTicker 
 
 			var wlmDeletedProcs []*workloadmeta.Process
 			for pid := range c.pidHeartbeats {
+				if alivePids.Has(pid) {
+					continue
+				}
+
+				wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   strconv.Itoa(int(pid)),
+					},
+				})
+			}
+
+			// Check for deleted injected-only processes
+			for pid := range c.injectedOnlyPids {
 				if alivePids.Has(pid) {
 					continue
 				}

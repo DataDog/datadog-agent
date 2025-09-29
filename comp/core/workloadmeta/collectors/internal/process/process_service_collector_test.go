@@ -39,6 +39,7 @@ const (
 	pidStaleService   = 789 // Stale service; need a refresh
 	pidIgnoredService = 555 // Ignored service; ignored pid
 	pidRecentService  = 999 // Recent service; new process, start time < 1 minute
+	pidInjectedOnly   = 111 // Process with injection but no service data
 )
 
 var baseTime = time.Date(2025, 1, 12, 1, 0, 0, 0, time.UTC) // 12th of January 2025, 1am UTC
@@ -217,6 +218,20 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			},
 			expectStored: []*workloadmeta.Process{makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), nil, true)}, // Process with injection status but no service
 		},
+		{
+			name: "injected_death_cleanup",
+			existingProcesses: []*workloadmeta.Process{
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, true), // Pre-existing injected-only process
+			},
+			processesToCollect: map[int32]*procutil.Process{
+				// Process is no longer alive
+			},
+			httpResponse: &model.ServicesResponse{
+				Services:     []model.Service{},
+				InjectedPIDs: []int{},
+			},
+			expectStored: []*workloadmeta.Process{},
+		},
 	}
 
 	for _, tc := range tests {
@@ -237,6 +252,8 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				c.collector.ignoredPids.Add(pid)
 			}
 
+			c.collector.lastCollectedProcesses = make(map[int32]*procutil.Process)
+
 			for _, process := range tc.existingProcesses {
 				// we use notify instead of set here because we want to control the source as it impacts how data is merged/stored in wlm
 				c.mockStore.Notify([]workloadmeta.CollectorEvent{
@@ -246,6 +263,11 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 						Entity: process,
 					},
 				})
+
+				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
+					Pid:   process.Pid,
+					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
+				}
 			}
 
 			c.mockClock.Set(baseTime)
@@ -368,6 +390,23 @@ func TestServiceStoreLifetime(t *testing.T) {
 			// Process should exist but have no service data
 			expectStored: []*workloadmeta.Process{makeProcessEntity(pidRecentService, baseTime.Add(time.Minute+30*time.Second), languagePython, false)},
 		},
+		{
+			name: "injected_death_cleanup",
+			existingServiceData: []*workloadmeta.Process{
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, true), // Pre-existing injected-only process
+			},
+			processesToCollect: map[int32]*procutil.Process{
+				// Process is NOT in processesToCollect = it's dead/no longer alive
+			},
+			httpResponse: &model.ServicesResponse{
+				Services:     []model.Service{}, // No services
+				InjectedPIDs: []int{},           // No longer injected (process is dead)
+			},
+			expectStored: []*workloadmeta.Process{
+				// Should be empty - the injected-only process should be deleted
+			},
+			// Note: injected-only processes are NOT in pidHeartbeats (no service data)
+		},
 	}
 
 	for _, tc := range tests {
@@ -405,6 +444,8 @@ func TestServiceStoreLifetime(t *testing.T) {
 					},
 				})
 			}
+			c.collector.lastCollectedProcesses = make(map[int32]*procutil.Process)
+
 			for _, process := range tc.existingServiceData {
 				// we use notify instead of set here because we want to control the source as it impacts how data is merged/stored in wlm
 				c.mockStore.Notify([]workloadmeta.CollectorEvent{
@@ -414,6 +455,16 @@ func TestServiceStoreLifetime(t *testing.T) {
 						Entity: process,
 					},
 				})
+
+				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
+					Pid:   process.Pid,
+					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
+				}
+
+				// If this is an injected-only process (has injection but no service), add to tracking
+				if process.IsInjected && process.Service == nil {
+					c.collector.injectedOnlyPids.Add(process.Pid)
+				}
 			}
 
 			// Set mock clock to baseTime to control LastHeartbeat in tests
