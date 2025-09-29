@@ -26,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	eventsMapSuffix = "_batch_events"
+)
+
 // Configure a given `*manager.Manager` for event processing
 // This essentially instantiates the perf map/ring buffers and configure the
 // eBPF maps where events are enqueued.

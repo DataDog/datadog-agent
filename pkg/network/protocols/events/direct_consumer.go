@@ -126,7 +126,7 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 	// Calculate the size of the single event that will be written via bpf_ringbuf_output
 	eventSize := int(unsafe.Sizeof(*new(V)))
 
-	mapName := proto + eventsMapSuffix
+	mapName := eventMapName(proto)
 	eventHandler, err := perf.NewEventHandler(
 		mapName,
 		handler,

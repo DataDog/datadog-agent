@@ -14,11 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-const (
-	batchMapSuffix  = "_batches"
-	eventsMapSuffix = "_batch_events"
-)
-
 var errInvalidPerfEvent = errors.New("invalid perf event")
 
 // SupportsDirectConsumer returns true if the kernel version supports direct consumer (>= 5.8.0)

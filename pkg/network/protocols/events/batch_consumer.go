@@ -21,6 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	batchMapSuffix = "_batches"
+)
+
 var sizeOfBatch = int(unsafe.Sizeof(Batch{}))
 
 // BatchConsumer processes batches of events from the USM kernel batching mechanism.
