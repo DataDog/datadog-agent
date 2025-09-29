@@ -8,7 +8,7 @@ package workloadselectionimpl
 
 import (
 	"os"
-	// "path/filepath"
+	"path/filepath"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -41,11 +41,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	var rcListener rctypes.ListenerProvider
-	if reqs.Config.GetBool("apm_config.instrumentation.workload_selection") {
-		reqs.Log.Debug("Add Workload Selection RCListener")
+	if reqs.Config.GetBool("apm_config.instrumentation.workload_selection") || !isCompilePolicyBinaryAvailable() {
+		reqs.Log.Debug("Enabling APM SSI Workload Selection listener")
 		rcListener.ListenerProvider = rctypes.RCListener{
 			state.ProductApmPolicies: wls.onConfigUpdate,
 		}
+	} else {
+		reqs.Log.Debug("Disabling APM SSI Workload Selection listener as the compile policy binary is not available or workload selection is disabled")
 	}
 
 	provides := Provides{
@@ -58,6 +60,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 type workloadselectionComponent struct {
 	log    log.Component
 	config config.Component
+}
+
+func isCompilePolicyBinaryAvailable() bool {
+	compilePath := filepath.Join(config.InstallPath, "embedded", "bin", "dd-policy-compile")
+	_, err := os.Stat(compilePath)
+	return err == nil
 }
 
 func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
