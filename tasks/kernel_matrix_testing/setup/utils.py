@@ -360,6 +360,5 @@ def check_user_in_group(ctx: Context, group: str, fix=False) -> RequirementState
 
     sudo = "sudo " if not is_root() else ""
     ctx.run(f"{sudo}usermod -aG {group} {getpass.getuser()}")
-    ctx.run(f"{sudo}newgrp {group}")  # Ensure the user is in the group immediately
 
-    return RequirementState(Status.OK, f"User added to group {group}.")
+    return RequirementState(Status.WARN, f"User added to group {group}, you will need to log out and back in to use it. Subsequent requirements might not work correctly.")
