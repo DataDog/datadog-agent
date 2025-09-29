@@ -244,15 +244,6 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 				}
 				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 			}
-			files, err := p.CollectFiles(source)
-			if err != nil {
-				source.Status.Error(err)
-				if shouldLogErrors {
-					log.Warnf("Could not collect files: %v", err)
-				}
-				continue
-			}
-			filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 		}
 	} else {
 		log.Errorf("Invalid file selection mode '%v', no files selected.", p.selectionMode)
