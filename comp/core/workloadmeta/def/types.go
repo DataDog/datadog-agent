@@ -481,6 +481,7 @@ type ContainerResizePolicy struct {
 	MemoryRestartPolicy string
 
 	// Currently, the only supported resourceName values are "cpu" and "memory"
+	// Additionally, these strings are always either "Never" or "OnFailure" (k8s docs) 
 }
 
 func (crp ContainerResizePolicy) String() string {
