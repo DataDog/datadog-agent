@@ -989,22 +989,21 @@ func parseProcessTags(tags *taglist.TagList, processTags string) {
 		return
 	}
 
-	tagList := strings.Split(processTags, ",")
-	for _, tag := range tagList {
+	for tag := range strings.SplitSeq(processTags, ",") {
 		tag = strings.TrimSpace(tag)
 		if tag == "" {
 			continue
 		}
 
 		// Split each tag into key:value format
-		tagParts := strings.SplitN(tag, ":", 2)
-		if len(tagParts) != 2 {
+		key, value, ok := strings.Cut(tag, ":")
+		if !ok {
 			log.Debugf("Process tag %q is not in k:v format, skipping", tag)
 			continue
 		}
 
-		key := strings.TrimSpace(tagParts[0])
-		value := strings.TrimSpace(tagParts[1])
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
 
 		if key == "" || value == "" {
 			log.Debugf("Process tag %q has empty key or value, skipping", tag)
