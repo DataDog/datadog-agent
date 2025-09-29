@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -70,6 +71,9 @@ const dnsAddressMetaKey = "dns.address"
 
 // lambdaRuntimeUrlPrefix is the first part of a URL for a call to the Lambda runtime API. The value may be replaced if `AWS_LAMBDA_RUNTIME_API` is set.
 var lambdaRuntimeURLPrefix = "http://127.0.0.1:9001"
+
+// disableTraceStatsEnvVar is the environment variable to disable trace stats computation in serverless-init
+const disableTraceStatsEnvVar = "DD_SERVERLESS_INIT_DISABLE_TRACE_STATS"
 
 // lambdaExtensionURLPrefix is the first part of a URL for a call from the Datadog Lambda Library to the Lambda Extension
 const lambdaExtensionURLPrefix = "http://127.0.0.1:8124"
@@ -131,6 +135,13 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			tc.SynchronousFlushing = true
 			tc.AzureServerlessTags = args.AzureServerlessTags
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
+
+			// Check if trace stats should be disabled for serverless
+			if os.Getenv(disableTraceStatsEnvVar) == "true" {
+				log.Debug("Trace stats computation disabled for serverless via DD_SERVERLESS_INIT_DISABLE_TRACE_STATS")
+				ta.Concentrator = &noopConcentrator{}
+			}
+
 			ta.SpanModifier = &spanModifier{
 				coldStartSpanId: args.ColdStartSpanID,
 				lambdaSpanChan:  args.LambdaSpanChan,
@@ -281,6 +292,13 @@ func getDDOrigin() string {
 	}
 	return origin
 }
+
+// noopConcentrator is a no-op implementation of agent.Concentrator interface
+type noopConcentrator struct{}
+
+func (c noopConcentrator) Start()          {}
+func (c noopConcentrator) Stop()           {}
+func (c noopConcentrator) Add(stats.Input) {}
 
 type noopTraceAgent struct{}
 
