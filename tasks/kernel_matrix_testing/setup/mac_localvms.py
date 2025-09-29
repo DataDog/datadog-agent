@@ -29,7 +29,7 @@ def get_requirements() -> list[Requirement]:
 
 class MacPackages(Requirement):
     def check(self, ctx: Context, fix: bool) -> RequirementState:
-        packages = ["aria2", "fio", "socat", "libvirt", "gnu-sed", "qemu", "libvirt", "wget"]
+        packages = ["aria2", "fio", "socat", "libvirt", "gnu-sed", "qemu", "libvirt", "wget", "pkg-config"]
 
         return MacosPackageManager(ctx).check(packages, fix)
 
@@ -170,8 +170,8 @@ class BootPService(Requirement):
 
 class MacNFSService(Requirement):
     def check(self, ctx: Context, fix: bool) -> list[RequirementState]:
-        res = ctx.run("sudo nfsd status", warn=True)
-        if res is None or not res.ok:
+        res = ctx.run("sudo nfsd status", warn=True)  # This command can return a non-zero exit code if the service is not enabled/running
+        if res is None:
             return [RequirementState(Status.FAIL, f"Failed to check NFS service: {res}")]
 
         states: list[RequirementState] = []
