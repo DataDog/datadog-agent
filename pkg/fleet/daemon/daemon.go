@@ -568,11 +568,11 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 
 		// Handle install args
 		newEnv := *d.env
-		if params.ApmInstrumentation != "" {
-			if err := env.ValidateAPMInstrumentationEnabled(params.ApmInstrumentation); err != nil {
+		if params.ApmInstrumentation {
+			if err := env.ValidateAPMInstrumentationEnabled("true"); err != nil {
 				return fmt.Errorf("invalid APM instrumentation value: %w", err)
 			}
-			newEnv.InstallScript.APMInstrumentationEnabled = params.ApmInstrumentation
+			newEnv.InstallScript.APMInstrumentationEnabled = "true"
 		}
 
 		pkg, err := d.getPackage(request.Package, params.Version)

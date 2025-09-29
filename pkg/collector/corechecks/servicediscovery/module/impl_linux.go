@@ -405,7 +405,7 @@ func (s *discovery) getServiceInfo(pid int32) (*model.Service, error) {
 			Version: env.GetDefault("DD_VERSION", ""),
 		},
 		Language:           string(lang),
-		APMInstrumentation: string(apmInstrumentation),
+		APMInstrumentation: apmInstrumentation == apm.Provided,
 		CommandLine:        truncateCmdline(lang, cmdline),
 	}, nil
 }

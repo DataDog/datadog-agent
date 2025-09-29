@@ -38,7 +38,7 @@ type ServiceDiscoveryPayload struct {
 		ServiceType          string           `json:"service_type"`
 		StartTime            int64            `json:"start_time"`
 		LastSeen             int64            `json:"last_seen"`
-		APMInstrumentation   string           `json:"apm_instrumentation"`
+		APMInstrumentation   bool             `json:"apm_instrumentation"`
 		ServiceNameSource    string           `json:"service_name_source,omitempty"`
 		RSSMemory            uint64           `json:"rss_memory"`
 		CPUCores             float64          `json:"cpu_cores"`

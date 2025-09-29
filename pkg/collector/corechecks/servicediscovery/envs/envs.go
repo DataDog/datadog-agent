@@ -8,9 +8,8 @@ package envs
 
 // targets is a collection of environment variables of interest.
 var targets = map[string]struct{}{
-	"PWD":                      {},
-	"DD_INJECTION_ENABLED":     {},
-	"DD_SERVICE":               {},
+	"PWD":        {},
+	"DD_SERVICE": {},
 	"DD_ENV":                   {},
 	"DD_VERSION":               {},
 	"DD_TAGS":                  {},

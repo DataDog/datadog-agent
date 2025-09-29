@@ -1610,7 +1610,7 @@ type Service struct {
 	UDPPorts []uint16
 
 	// APMInstrumentation indicates the APM instrumentation status
-	APMInstrumentation string
+	APMInstrumentation bool
 
 	// Type is the service type (e.g., "web_service")
 	Type string
