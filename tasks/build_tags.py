@@ -58,6 +58,7 @@ ALL_TAGS = {
     "serverless",
     "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
     "systemd",
+    "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
     "trivy_no_javadb",
@@ -96,6 +97,7 @@ AGENT_TAGS = {
     "podman",
     "python",
     "systemd",
+    "systemprobechecks",
     "trivy",
     "trivy_no_javadb",
     "zk",

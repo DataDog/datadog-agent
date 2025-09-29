@@ -92,7 +92,11 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 			default:
 				return fmt.Errorf("unknown dynamic size class: %d", v)
 			}
-		}))
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.RootExpressionKind) error {
+			return enc.WriteToken(jsontext.String(v.String()))
+		}),
+	)
 	probeMarshalers := json.JoinMarshalers(
 		basicMarshalers,
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v *ir.Subprogram) error {

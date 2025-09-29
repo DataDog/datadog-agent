@@ -700,6 +700,7 @@ Types:
       Expressions:
         - Name: ptr
           Offset: 1
+          Kind: argument
           Expression:
             Type: 123 PointerType *****int
             Operations:
@@ -715,6 +716,7 @@ Types:
       Expressions:
         - Name: ptr
           Offset: 1
+          Kind: argument
           Expression:
             Type: 125 PointerType **int
             Operations:
@@ -730,6 +732,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 113 GoMapType map[string]main.bigStruct
             Operations:
@@ -745,6 +748,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -760,6 +764,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -775,6 +780,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 105 ArrayType [3]int
             Operations:
@@ -790,6 +796,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 104 GoSliceHeaderType []int
             Operations:
@@ -805,6 +812,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 108 GoMapType map[string]int
             Operations:
@@ -823,6 +831,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -838,6 +847,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 107 ArrayType [3]string
             Operations:
@@ -853,6 +863,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 107 ArrayType [3]string
             Operations:
@@ -868,6 +879,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 106 GoSliceHeaderType []string
             Operations:

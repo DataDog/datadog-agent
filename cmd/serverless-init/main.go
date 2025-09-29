@@ -9,14 +9,13 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -98,7 +97,8 @@ func main() {
 
 	if err != nil {
 		log.Error(err)
-		exitCode := errorExitCode(err)
+		exitCode := exitcode.From(err)
+		log.Debugf("propagating exit code %v", exitCode)
 		log.Flush()
 		os.Exit(exitCode)
 	}
@@ -110,11 +110,9 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 
 	err := modeConf.Runner(logConfig)
 
-	metric.Add(cloudService.GetShutdownMetricName(), 1.0, cloudService.GetSource(), *metricAgent)
-
 	// Defers are LIFO
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent)
+	defer cloudService.Shutdown(*metricAgent, err)
 
 	return err
 }
@@ -286,18 +284,4 @@ func setEnvWithoutOverride(envToSet map[string]string) {
 			log.Debugf("%s already set with %s, skipping setting it", envName, val)
 		}
 	}
-}
-
-func errorExitCode(err error) int {
-	// if error is of type exec.ExitError then propagate the exit code
-	var exitError *exec.ExitError
-	if errors.As(err, &exitError) {
-		exitCode := exitError.ExitCode()
-		log.Debugf("propagating exit code %v", exitCode)
-		return exitCode
-	}
-
-	// use exit code 1 if there is no exit code in the error to propagate
-	log.Debug("using default exit code 1")
-	return 1
 }

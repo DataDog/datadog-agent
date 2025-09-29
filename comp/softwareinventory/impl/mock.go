@@ -29,7 +29,11 @@ type mockSysProbeClient struct {
 // of the inventory software component.
 func (m *mockSysProbeClient) GetCheck(module types.ModuleName) ([]software.Entry, error) {
 	args := m.Called(module)
-	return args.Get(0).([]software.Entry), args.Error(1)
+	argValue := args.Get(0)
+	if argValue == nil {
+		return nil, args.Error(1)
+	}
+	return argValue.([]software.Entry), args.Error(1)
 }
 
 // mockHostname implements hostnameinterface.Component for testing.

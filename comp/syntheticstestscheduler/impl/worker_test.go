@@ -45,7 +45,7 @@ func TestToNetpathConfig(t *testing.T) {
 			name: "UDP request",
 			input: common.SyntheticsTestConfig{
 				Config: struct {
-					Assertions []interface{}        `json:"assertions"`
+					Assertions []common.Assertion   `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
 				}{
 					Request: common.UDPConfigRequest{
@@ -75,7 +75,7 @@ func TestToNetpathConfig(t *testing.T) {
 			name: "TCP request",
 			input: common.SyntheticsTestConfig{
 				Config: struct {
-					Assertions []interface{}        `json:"assertions"`
+					Assertions []common.Assertion   `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
 				}{
 					Request: common.TCPConfigRequest{
@@ -107,7 +107,7 @@ func TestToNetpathConfig(t *testing.T) {
 			name: "ICMP request",
 			input: common.SyntheticsTestConfig{
 				Config: struct {
-					Assertions []interface{}        `json:"assertions"`
+					Assertions []common.Assertion   `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
 				}{
 					Request: common.ICMPConfigRequest{
@@ -135,7 +135,7 @@ func TestToNetpathConfig(t *testing.T) {
 			name: "Unsupported subtype",
 			input: common.SyntheticsTestConfig{
 				Config: struct {
-					Assertions []interface{}        `json:"assertions"`
+					Assertions []common.Assertion   `json:"assertions"`
 					Request    common.ConfigRequest `json:"request"`
 				}{},
 			},
@@ -174,13 +174,13 @@ func TestNetworkPathToTestResult(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		worker      WorkerResult
+		worker      workerResult
 		expectFail  bool
 		expectError bool
 	}{
 		{
 			name: "success case",
-			worker: WorkerResult{
+			worker: workerResult{
 				tracerouteResult: payload.NetworkPath{
 					E2eProbe: payload.E2eProbe{
 						PacketsSent:          10,
@@ -202,7 +202,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 						Type:     "network",
 						Version:  1,
 						Config: struct {
-							Assertions []interface{}        `json:"assertions"`
+							Assertions []common.Assertion   `json:"assertions"`
 							Request    common.ConfigRequest `json:"request"`
 						}{
 							Request: common.ICMPConfigRequest{
@@ -228,7 +228,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 		},
 		{
 			name: "failure case",
-			worker: WorkerResult{
+			worker: workerResult{
 				tracerouteResult: payload.NetworkPath{},
 				tracerouteError:  fmt.Errorf("connection timeout"),
 				tracerouteCfg:    trCfg,
@@ -238,7 +238,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 						Type:     "network",
 						Version:  1,
 						Config: struct {
-							Assertions []interface{}        `json:"assertions"`
+							Assertions []common.Assertion   `json:"assertions"`
 							Request    common.ConfigRequest `json:"request"`
 						}{
 							Request: common.ICMPConfigRequest{
