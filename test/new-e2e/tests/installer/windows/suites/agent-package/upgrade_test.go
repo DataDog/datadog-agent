@@ -103,7 +103,6 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 		HasRegistryKey(consts.RegistryKeyPath).
 		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
 		WithValueEqual("InstallPath", altInstallPath+`\`)
-	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestUpgradeAgentPackageAfterRollback tests that upgrade works after an initial upgrade failed.

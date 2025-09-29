@@ -205,6 +205,9 @@ func (s *testInstallAltDirSuite) TestInstallAltDir() {
 
 	installPath := `C:\altdir`
 	configRoot := `C:\altconfroot`
+	// Remove users write permission from drive root, so install dir does not inherit writable permissions
+	_, err := vm.Execute(`icacls.exe C:/ /remove Users ; icacls.exe C:/ /grant Users:"(OI)(CI)(RX)"`)
+	s.Require().NoError(err)
 
 	// initialize test helper
 	t := s.newTester(vm,
