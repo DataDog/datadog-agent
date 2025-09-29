@@ -42,7 +42,7 @@ func (n LegacyFilterProgram) Evaluate(entity workloadfilter.Filterable) (workloa
 		}
 	case workloadfilter.PodType:
 		pod := entity.(*workloadfilter.Pod)
-		isExcluded := n.Filter.IsExcluded(pod.GetAnnotations(), pod.GetName(), "", pod.Namespace)
+		isExcluded := n.Filter.IsExcluded(pod.GetAnnotations(), "", "", pod.Namespace)
 		if isExcluded {
 			return workloadfilter.Excluded, nil
 		}
