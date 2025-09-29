@@ -430,7 +430,7 @@ func (suite *ProviderTestSuite) waitForPodsInWorkloadMeta(testDataFile string) {
 	// store should only be the ones in the test data file
 	suite.provider.store.Reset([]workloadmeta.Entity{}, workloadmeta.SourceNodeOrchestrator)
 
-	podCount, err := getPodCountFromTestData(testDataFile)
+	podCount, containerCount, err := getEntitiesCountFromTestData(testDataFile)
 	require.NoError(suite.T(), err)
 
 	// Wait until the kubelet collector runs and the data is processed in
@@ -438,23 +438,30 @@ func (suite *ProviderTestSuite) waitForPodsInWorkloadMeta(testDataFile string) {
 	require.Eventually(
 		suite.T(),
 		func() bool {
-			return len(suite.provider.store.ListKubernetesPods()) == podCount
+			return len(suite.provider.store.ListKubernetesPods()) == podCount &&
+				len(suite.provider.store.ListContainers()) == containerCount
 		},
 		30*time.Second, // Workloadmeta collectors run every 5s, so this should be enough
 		50*time.Millisecond,
 	)
 }
 
-func getPodCountFromTestData(jsonFilePath string) (int, error) {
+func getEntitiesCountFromTestData(jsonFilePath string) (podCount int, containerCount int, err error) {
 	data, err := os.ReadFile(jsonFilePath)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	var podList kubelet.PodList
-	if err := jsoniter.Unmarshal(data, &podList); err != nil {
-		return 0, err
+	if err = jsoniter.Unmarshal(data, &podList); err != nil {
+		return 0, 0, err
 	}
 
-	return len(podList.Items), nil
+	podCount = len(podList.Items)
+
+	for _, pod := range podList.Items {
+		containerCount += len(pod.Status.InitContainers) + len(pod.Status.Containers) + len(pod.Status.EphemeralContainers)
+	}
+
+	return podCount, containerCount, nil
 }
