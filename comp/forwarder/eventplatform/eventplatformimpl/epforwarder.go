@@ -225,6 +225,18 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultInputChanSize: 1000,
 	},
 	{
+		eventType:                     eventplatform.EventTypeSoftwareInventory,
+		category:                      "EUDM",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "software_inventory.forwarder.",
+		hostnameEndpointPrefix:        "event-platform-intake.",
+		intakeTrackType:               "softinv",
+		defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+	},
+	{
 		eventType:                     eventplatform.EventTypeSynthetics,
 		category:                      "Synthetics",
 		contentType:                   logshttp.JSONContentType,

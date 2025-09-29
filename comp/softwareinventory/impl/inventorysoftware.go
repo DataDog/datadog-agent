@@ -10,22 +10,25 @@ package softwareinventoryimpl
 
 import (
 	"context"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"fmt"
+	"math/rand"
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/softwareinventory/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	softwareinventory "github.com/DataDog/datadog-agent/comp/softwareinventory/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -70,8 +73,8 @@ func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]software.En
 // This struct holds the state and dependencies needed to collect and manage
 // software inventory data from the Windows system.
 type softwareInventory struct {
-	util.InventoryPayload
-
+	// true if the component was enabled in the configuration
+	enabled bool
 	// log provides logging capabilities for the component
 	log log.Component
 	// sysProbeClient is used to communicate with the System Probe for data collection
@@ -80,6 +83,12 @@ type softwareInventory struct {
 	cachedInventory []software.Entry
 	// hostname identifies the system where the inventory was collected
 	hostname string
+	// eventPlatform provides access to the event platform forwarder
+	eventPlatform eventplatform.Component
+	// jitter is the time to wait before sending the first payload, in seconds
+	jitter time.Duration
+	// interval is the time to wait between payloads, in minutes
+	interval time.Duration
 }
 
 // Requires defines the dependencies required by the inventory software component.
@@ -96,6 +105,10 @@ type Requires struct {
 	Serializer serializer.MetricSerializer
 	// Hostname provides the hostname of the current system
 	Hostname hostnameinterface.Component
+	// EventPlatform provides access to the event platform forwarder
+	EventPlatform eventplatform.Component
+	// Provides lifecycle hooks for the component
+	Lc compdef.Lifecycle
 }
 
 // Provides defines the output of the inventory software component.
@@ -104,8 +117,6 @@ type Requires struct {
 type Provides struct {
 	// Comp is the main component interface for software inventory
 	Comp softwareinventory.Component
-	// Provider is the metadata provider for software inventory data
-	Provider runnerimpl.Provider
 	// FlareProvider provides software inventory data for flare collection
 	FlareProvider flaretypes.Provider
 	// StatusHeaderProvider provides status information for the agent status page
@@ -131,43 +142,115 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 	}
 
 	is := &softwareInventory{
+		enabled:        reqs.Config.GetBool("software_inventory.enabled"),
 		log:            reqs.Log,
 		sysProbeClient: client,
 		hostname:       hname,
+		eventPlatform:  reqs.EventPlatform,
 	}
 
-	// Note that there is a second way to disable this feature, through InventoryPayload.Enabled.
-	// 'enable_metadata_collection' and 'inventories_enabled' both need to be set to true.
-	if !reqs.Config.GetBool("software_inventory.enabled") {
+	if !is.enabled {
 		return Provides{
 			Comp: is,
 		}, nil
 	}
 
+	localSource := rand.NewSource(time.Now().UnixNano())
+	localRand := rand.New(localSource)
+
+	is.jitter = time.Duration(localRand.Intn(max(reqs.Config.GetInt("software_inventory.jitter"), 60))) * time.Second
+	is.interval = time.Duration(max(reqs.Config.GetInt("software_inventory.interval"), 10)) * time.Minute
+
 	is.log.Infof("Starting the inventory software component")
-	is.InventoryPayload = util.CreateInventoryPayload(reqs.Config, reqs.Log, reqs.Serializer, is.getPayload, flareFileName)
+
+	// Perform initial collection
+	installedSoftware, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
+	if err != nil {
+		_ = is.log.Errorf("Initial software inventory collection failed: %v", err)
+	} else {
+		is.log.Debug("Initial software inventory collection completed")
+		is.cachedInventory = installedSoftware
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	reqs.Lc.Append(compdef.Hook{
+		OnStop: func(context.Context) error {
+			cancel()
+			return nil
+		},
+	})
+	go is.startSoftwareInventoryCollection(ctx)
+
 	return Provides{
 		Comp:                 is,
-		Provider:             is.InventoryPayload.MetadataProvider(),
 		FlareProvider:        is.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(is),
 		Endpoint:             api.NewAgentEndpointProvider(is.writePayloadAsJSON, "/metadata/software", "GET"),
 	}, nil
 }
 
-// refreshCachedValues updates the cached software inventory data by collecting
-// fresh data from the System Probe. This method respects the enabled flag
-// and will skip collection if the feature is disabled in the configuration.
-func (is *softwareInventory) refreshCachedValues() error {
-	is.log.Debugf("Collecting Software Inventory")
+func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Context) {
+	is.log.Debugf("Initial software inventory collection with %v jitter", is.jitter)
+	time.Sleep(is.jitter)
 
-	installedSoftware, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
+	// Always send the initial payload on start-up.
+	// We'll send the follow-up payloads only on change.
+	err := is.sendPayload()
 	if err != nil {
-		return is.log.Errorf("error getting software inventory: %v", err)
+		_ = is.log.Errorf("Failed to send software inventory: %v", err)
 	}
 
-	is.cachedInventory = installedSoftware
+	ticker := time.NewTicker(is.interval)
+	defer ticker.Stop()
 
+	for {
+		select {
+		case <-ticker.C:
+			newInventory, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
+			if err != nil {
+				_ = is.log.Warnf("Failed to get software inventory: %v", err)
+				continue
+			}
+
+			// TODO: Compare old and new inventory
+
+			is.cachedInventory = newInventory
+
+			err = is.sendPayload()
+			if err != nil {
+				_ = is.log.Errorf("Failed to send software inventory: %v", err)
+				continue
+			}
+
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (is *softwareInventory) sendPayload() error {
+	forwarder, ok := is.eventPlatform.Get()
+	if !ok {
+		return fmt.Errorf("event platform forwarder not available")
+	}
+
+	payload := is.getPayload()
+	if payload == nil {
+		// No cached inventory available, skip sending payload
+		return nil
+	}
+
+	jsonPayload, err := payload.MarshalJSON()
+	if err != nil {
+		return err
+	}
+
+	msg := message.NewMessage(jsonPayload, nil, "", 0)
+
+	// Send the message through the event platform
+	if err = forwarder.SendEventPlatformEvent(msg, eventplatform.EventTypeSoftwareInventory); err != nil {
+		return fmt.Errorf("error sending payload to event platform: %v", err)
+	}
 	return nil
 }
 
@@ -175,13 +258,12 @@ func (is *softwareInventory) refreshCachedValues() error {
 // This method triggers a refresh of the cached data and returns a properly
 // formatted payload for transmission to the backend.
 func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
-	if err := is.refreshCachedValues(); err != nil {
+	if is.cachedInventory == nil {
 		return nil
 	}
 
 	return &Payload{
-		Hostname:  is.hostname,           // Set from the component's hostname field
-		Timestamp: time.Now().UnixNano(), // Set to current time (nanoseconds)
+		Hostname: is.hostname, // Set from the component's hostname field
 		Metadata: HostSoftware{
 			Software: is.cachedInventory,
 		},
@@ -192,10 +274,26 @@ func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
 // This method is used by the HTTP endpoint to serve software inventory data
 // in JSON format for external consumption.
 func (is *softwareInventory) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	json, err := is.GetAsJSON()
+	json, err := is.getPayload().MarshalJSON()
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	_, _ = w.Write(json)
+}
+
+// FlareProvider returns a flare provider for the software inventory component
+func (is *softwareInventory) FlareProvider() flaretypes.Provider {
+	return flaretypes.NewProvider(
+		func(fb flaretypes.FlareBuilder) error {
+			payload := is.getPayload()
+			if payload == nil {
+				msg := "Software inventory data collection failed or returned no results"
+				if !is.enabled {
+					msg = "Software Inventory component is not enabled"
+				}
+				return fb.AddFile(flareFileName, []byte(msg))
+			}
+			return fb.AddFileFromFunc(flareFileName, payload.MarshalJSON)
+		})
 }

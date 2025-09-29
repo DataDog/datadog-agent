@@ -77,13 +77,8 @@ type Decoder struct {
 	approximateBootTime  time.Time
 
 	// These fields are initialized and reset for each message.
-	snapshotMessage   snapshotMessage
-	dataItems         map[typeAndAddr]output.DataItem
-	currentlyEncoding map[typeAndAddr]struct{}
-	// skippedArgumentExpressions is a bitset of the indices of the arguments
-	// that should be skipped during encoding because they encountered an
-	// evaluation during a previous attempt.
-	skippedArgumentExpressions bitset
+	snapshotMessage snapshotMessage
+	entry           captureEvent
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -101,10 +96,7 @@ func NewDecoder(
 		typeNameResolver:     typeNameResolver,
 		approximateBootTime:  approximateBootTime,
 
-		snapshotMessage:            snapshotMessage{},
-		dataItems:                  make(map[typeAndAddr]output.DataItem),
-		currentlyEncoding:          make(map[typeAndAddr]struct{}),
-		skippedArgumentExpressions: nil,
+		snapshotMessage: snapshotMessage{},
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -124,6 +116,13 @@ func NewDecoder(
 		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
 			decoder.typesByGoRuntimeType[goRuntimeType] = id
 		}
+	}
+	decoder.entry.encodingContext = encodingContext{
+		typesByID:            decoder.decoderTypes,
+		typesByGoRuntimeType: decoder.typesByGoRuntimeType,
+		typeResolver:         typeNameResolver,
+		dataItems:            make(map[typeAndAddr]output.DataItem),
+		currentlyEncoding:    make(map[typeAndAddr]struct{}),
 	}
 	return decoder, nil
 }
@@ -160,7 +159,7 @@ func (d *Decoder) Decode(
 	}
 	b := bytes.NewBuffer(buf)
 	enc := jsontext.NewEncoder(b)
-	numExpressions := len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.Arguments.rootType.Expressions)
+	numExpressions := len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.rootType.Expressions)
 	// We loop here because when evaluation errors occur, we reduce the amount of data we attempt
 	// to encode and then try again after resetting the buffer.
 	for range numExpressions + 1 { // +1 for the initial attempt
@@ -178,7 +177,8 @@ func (d *Decoder) Decode(
 }
 
 func (d *Decoder) resetForNextMessage() {
-	clear(d.dataItems)
+	clear(d.entry.dataItems)
+	d.entry.clear()
 	d.snapshotMessage = snapshotMessage{}
 }
 
@@ -195,8 +195,6 @@ type snapshotMessage struct {
 	Logger    logger           `json:"logger"`
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
-
-	rootData []byte
 }
 
 func (s *snapshotMessage) init(
@@ -214,14 +212,14 @@ func (s *snapshotMessage) init(
 	}
 	var rootType *ir.EventRootType
 	var probe ir.ProbeDefinition
-
+	var rootData []byte
 	for item, err := range event.Event.DataItems() {
 		if err != nil {
 			return probe, fmt.Errorf("error getting data items: %w", err)
 		}
 		if rootType == nil {
 			var ok bool
-			s.rootData, ok = item.Data()
+			rootData, ok = item.Data()
 			if !ok {
 				// This should never happen.
 				return probe, errors.New("root data item marked as a failed read")
@@ -245,7 +243,7 @@ func (s *snapshotMessage) init(
 		// The value is a data item with a counter of how many times it has been referenced.
 		// If the counter is greater than 1, we know that the data item is a pointer to another data item.
 		// We can then encode the pointer as a string and not as an object.
-		decoder.dataItems[typeAndAddr{
+		decoder.entry.dataItems[typeAndAddr{
 			irType: uint32(item.Type()),
 			addr:   item.Header().Address,
 		}] = item
@@ -253,6 +251,10 @@ func (s *snapshotMessage) init(
 	if rootType == nil {
 		return probe, errors.New("no root type found")
 	}
+	decoder.entry.rootType = rootType
+	decoder.entry.rootData = rootData
+	decoder.entry.skippedIndices.reset(len(rootType.Expressions))
+	decoder.entry.evaluationErrors = &s.Debugger.EvaluationErrors
 	header, err := event.Event.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
@@ -291,16 +293,7 @@ func (s *snapshotMessage) init(
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
-
-	decoder.skippedArgumentExpressions.reset(len(rootType.Expressions))
-	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
-		event:            event,
-		rootType:         rootType,
-		rootData:         s.rootData,
-		decoder:          decoder,
-		evaluationErrors: &s.Debugger.EvaluationErrors,
-		skippedIndices:   &decoder.skippedArgumentExpressions,
-	}
+	s.Debugger.Snapshot.Captures.Entry = &decoder.entry
 	return probe, nil
 }
 
