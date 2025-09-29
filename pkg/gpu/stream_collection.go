@@ -137,7 +137,7 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 	return stream, nil
 }
 
-// getNonGlobalStream returns the non-global stream associated to the given PID and and stream ID (extraded from header).
+// getNonGlobalStream returns the non-global stream associated to the given PID and and stream ID (extracted from header).
 // This does not depend on the active device on the given PID. If non-existing, he stream gets created and added to collection.
 func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
 	pid, _ := getPidTidFromHeader(header)
