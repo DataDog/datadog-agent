@@ -32,8 +32,9 @@ func (m *memoryPools) reset() {
 }
 
 func withTelemetryEnabledPools(t *testing.T, tm telemetry.Component) {
-	// reset the sync.Once for the pools
+	// reset the pools and the telemetry for them
 	memPools.reset()
+	ddsync.ResetGlobalPoolTelemetry()
 
 	// so that now we can call ensureInit with the telemetry component
 	memPools.ensureInit(tm)
@@ -41,6 +42,7 @@ func withTelemetryEnabledPools(t *testing.T, tm telemetry.Component) {
 	// after the current test is finished, reset the sync.Once and restore to non-telemetry enabled pools
 	t.Cleanup(func() {
 		memPools.reset()
+		ddsync.ResetGlobalPoolTelemetry()
 		memPools.ensureInitNoTelemetry()
 	})
 }

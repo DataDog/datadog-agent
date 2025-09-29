@@ -47,7 +47,11 @@ func (tc *trivyCollector) ScanInstalledPackages(ctx context.Context, root string
 				Package: types.Package{
 					Name:       resultPkg.Name,
 					Version:    resultPkg.Version,
+					Epoch:      resultPkg.Epoch,
+					Release:    resultPkg.Release,
 					SrcVersion: resultPkg.SrcVersion,
+					SrcEpoch:   resultPkg.SrcEpoch,
+					SrcRelease: resultPkg.SrcRelease,
 				},
 				InstalledFiles: resultPkg.InstalledFiles,
 			}

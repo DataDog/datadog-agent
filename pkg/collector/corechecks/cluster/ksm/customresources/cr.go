@@ -25,7 +25,6 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/discovery"
-	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 )
 
@@ -77,13 +76,10 @@ func GetCustomMetricNamesMapper(resources []customresourcestate.Resource) (mappe
 
 	for _, customResource := range resources {
 		for _, generator := range customResource.Metrics {
-			if generator.Each.Type == metric.Gauge ||
-				generator.Each.Type == metric.StateSet {
-				if customResource.GetMetricNamePrefix() == "kube_customresource" {
-					mapper[customResource.GetMetricNamePrefix()+"_"+generator.Name] = "customresource." + generator.Name
-				} else {
-					mapper[customResource.GetMetricNamePrefix()+"_"+generator.Name] = "customresource." + customResource.GetMetricNamePrefix() + "_" + generator.Name
-				}
+			if customResource.GetMetricNamePrefix() == "kube_customresource" {
+				mapper[customResource.GetMetricNamePrefix()+"_"+generator.Name] = "customresource." + generator.Name
+			} else {
+				mapper[customResource.GetMetricNamePrefix()+"_"+generator.Name] = "customresource." + customResource.GetMetricNamePrefix() + "_" + generator.Name
 			}
 		}
 	}

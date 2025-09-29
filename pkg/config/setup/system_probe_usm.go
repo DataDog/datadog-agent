@@ -17,9 +17,9 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// General USM Configuration
 	// ========================================
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
-	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
-	cfg.BindEnv(join(smNS, "enable_quantization"))
-	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
+	cfg.BindEnv(join(smNS, "max_concurrent_requests"))  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(smNS, "enable_quantization"))      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnv(join(smNS, "enable_connection_rollup")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_ring_buffers"), true)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
 	// kernel_buffer_pages determines the number of pages allocated *per CPU*
@@ -135,14 +135,14 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "native", "enabled"), true)
 	// For backward compatibility
-	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
+	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// ========================================
 	// Go TLS Configuration
 	// ========================================
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "enabled"), true)
 	// For backward compatibility
-	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
+	cfg.BindEnv(join(smNS, "enable_go_tls_support")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "exclude_self"), true)
 
 	// ========================================
@@ -154,5 +154,5 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ========================================
 	// Node.js TLS Configuration
 	// ========================================
-	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
+	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }

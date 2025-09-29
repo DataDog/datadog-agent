@@ -1024,10 +1024,12 @@ def build_run_config(run: str | None, packages: list[str]):
 
     for p in packages:
         p = p.removeprefix("./")
+        if "filters" not in c:
+            c["filters"] = {}
         if run is not None:
-            c["filters"] = {p: {"run-only": [run]}}
+            c["filters"][p] = {"run-only": [run]}
         else:
-            c["filters"] = {p: {"exclude": False}}
+            c["filters"][p] = {"exclude": False}
 
     return c
 
