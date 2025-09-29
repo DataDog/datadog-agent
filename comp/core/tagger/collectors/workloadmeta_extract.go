@@ -999,7 +999,7 @@ func parseProcessTags(tags *taglist.TagList, processTags string) {
 		// Split each tag into key:value format
 		tagParts := strings.SplitN(tag, ":", 2)
 		if len(tagParts) != 2 {
-			log.Debugf("Process tag '%s' is not in k:v format, skipping", tag)
+			log.Debugf("Process tag %q is not in k:v format, skipping", tag)
 			continue
 		}
 
@@ -1007,7 +1007,7 @@ func parseProcessTags(tags *taglist.TagList, processTags string) {
 		value := strings.TrimSpace(tagParts[1])
 
 		if key == "" || value == "" {
-			log.Debugf("Process tag '%s' has empty key or value, skipping", tag)
+			log.Debugf("Process tag %q has empty key or value, skipping", tag)
 			continue
 		}
 
