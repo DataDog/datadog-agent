@@ -205,6 +205,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			}),
 			getSharedFxOption(),
 			getPlatformModules(),
+			publishermetadatacachefx.Module(),
 		)
 		// notify caller that fx.OneShot is done
 		errChan <- err
@@ -252,7 +253,6 @@ func getPlatformModules() fx.Option {
 		etwimpl.Module,
 		comptraceconfig.Module(),
 		softwareinventoryfx.Module(),
-		publishermetadatacachefx.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),
