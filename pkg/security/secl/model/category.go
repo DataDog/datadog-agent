@@ -147,6 +147,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		MountReleasedEventType.String(),
 		StatEventType.String(),
 		FileFsmountEventType.String(),
+		FileMoveMountEventType.String(),
 		FileOpenTreeEventType.String():
 		return FIMCategory
 	}
