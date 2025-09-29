@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -194,25 +193,24 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 				SSHVersion:             sshWords[8],
 				Remaining:              strings.Join(sshWords[9:], " "),
 			}
-			ctx.SSHUsername = sshParsedLine.User
-			ctx.SSHClientIP = sshParsedLine.IP
-			if port, err := strconv.Atoi(sshParsedLine.Port); err == nil {
-				ctx.SSHPort = port
-			}
-			switch sshParsedLine.AuthentificationMethod {
-			case "publickey":
-				ctx.SSHAuthMethod = 1
-				// Here Parse the Public Key which can be ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU
-				sshParsedLine.Remaining = strings.Split(sshParsedLine.Remaining, ":")[1]
-				ctx.SSHPublicKey = sshParsedLine.Remaining
-				return
-			case "password":
-				ctx.SSHAuthMethod = 2
-				return
-			// Other types not implemented yet
-			default:
-				ctx.SSHAuthMethod = 0
-				return
+			// We compare port and IP to ensure that the line is the one we want
+			if sshParsedLine.IP == ctx.SSHClientIP && sshParsedLine.Port == fmt.Sprintf("%d", ctx.SSHPort) {
+				ctx.SSHUsername = sshParsedLine.User
+				switch sshParsedLine.AuthentificationMethod {
+				case "publickey":
+					ctx.SSHAuthMethod = 1
+					// Here Parse the Public Key which can be ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU
+					sshParsedLine.Remaining = strings.Split(sshParsedLine.Remaining, ":")[1]
+					ctx.SSHPublicKey = sshParsedLine.Remaining
+					return
+				case "password":
+					ctx.SSHAuthMethod = 2
+					return
+				// Other types not implemented yet
+				default:
+					ctx.SSHAuthMethod = 0
+					return
+				}
 			}
 		}
 	}
