@@ -81,7 +81,6 @@ func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 		assert.Equal(c, targetIP.String(), np.Destination.Hostname)
 
 		require.Len(c, np.Traceroute.Runs, 3) // runs 3 traceroute by default
-		require.Len(c, np.E2eProbe.RTTs, 50)  // runs 50 e2e probes by default
 
 		// Validate all 3 traceroute runs
 		for i, run := range np.Traceroute.Runs {
@@ -103,6 +102,12 @@ func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 			assert.Equal(c, targetIP, run.Hops[1].IPAddress, "Run %d hop 2 should be target IP", i+1)
 			assert.True(c, run.Hops[1].Reachable, "Run %d hop 2 should be reachable", i+1)
 		}
+
+		// Validate e2e probe statistics
+		require.Len(c, np.E2eProbe.RTTs, 50) // runs 50 e2e probes by default
+		assert.Equal(c, 50, np.E2eProbe.PacketsSent, "Should send exactly 50 packets")
+		assert.Equal(c, 50, np.E2eProbe.PacketsReceived, "Should receive exactly 50 packets")
+		assert.Equal(c, float32(0), np.E2eProbe.PacketLossPercentage, "Should have 0% packet loss")
 	}
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
