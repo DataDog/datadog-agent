@@ -52,4 +52,3 @@ func (t *Tailer) DidRotate() (bool, error) {
 
 	return recreated || truncated, nil
 }
-

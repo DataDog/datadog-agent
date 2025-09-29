@@ -539,7 +539,7 @@ func runLauncherScanStartNewTailerForEmptyFileTest(t *testing.T, testDirs []stri
 	assert.Nil(t, err)
 
 	launcher.scan()
-	// TODO: empty files should not create tailers ? 
+	// TODO: empty files should not create tailers ?
 	assert.Equal(t, 0, launcher.tailers.Count())
 }
 

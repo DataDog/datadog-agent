@@ -41,7 +41,6 @@ func newInvalidFingerprint(config *types.FingerprintConfig) *types.Fingerprint {
 	return &types.Fingerprint{Value: types.InvalidFingerprintValue, Config: config}
 }
 
-
 // crc64Table is a package-level variable for the CRC64 ISO table
 // to avoid recreating it on every fingerprint computation
 var crc64Table = crc64.MakeTable(crc64.ISO)
@@ -177,6 +176,8 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 	// Compute fingerprint using the bytes read (partial or full)
 	actualData := buffer[:bytesRead]
 	checksum := crc64.Checksum(actualData, crc64Table)
+	log.Debugf("Actual data: %s", string(actualData))
+	log.Debugf("Computed fingerprint for %q: %x [%d bytes]", filePath, checksum, bytesRead)
 
 	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig, BytesUsed: bytesRead}, nil
 }

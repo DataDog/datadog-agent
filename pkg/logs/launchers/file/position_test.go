@@ -6,11 +6,11 @@
 package file
 
 import (
+	"github.com/stretchr/testify/assert"
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
-	"os"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
