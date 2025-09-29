@@ -1697,6 +1697,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if event.PrCtl.IsNameTruncated {
 			p.MetricNameTruncated.Add(1)
 		}
+	// Second handle for exec event because the context is required to detect a ssh session
+	case model.ExecEventType:
+		p.HandleSSHUserSession(event)
 	}
 
 	// send related events
