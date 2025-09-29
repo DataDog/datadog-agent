@@ -78,13 +78,19 @@
 .package_oci_win:
   extends: .package_oci
   script:
-    - set -u pipefail
-    - PIPE_DIR="$OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID"
-    - ARTIFACTS=$(ls -1 "${PIPE_DIR}"/${WIN_ARTIFACT_PATTERN} 2>/dev/null)
-    - '[ -n "$ARTIFACTS" ] || { echo "No suitable input artifact found"; exit 1; }'
-    - '[ "$(printf ''%s\n'' "$ARTIFACTS" | wc -l)" = 1 ] || { echo "Expected exactly one candidate input artifact"; exit 1; }'
-    - 'ARTIFACT=$(printf ''%s'' "$ARTIFACTS")'
-    - '[ -n "${PACKAGE_VERSION:-}" ] || { echo "PACKAGE_VERSION is not set"; exit 1; }'
+    - |
+      set -u pipefail
+      PIPE_DIR="$OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID"
+      ARTIFACT=$(ls -1 "${PIPE_DIR}"/${WIN_ARTIFACT_PATTERN} 2>/dev/null)
+      if [ -z "$ARTIFACT" ]; then
+        echo "No suitable input artifact found"; exit 1
+      fi
+      if [ "$(printf '%s\n' "$ARTIFACT" | wc -l)" != 1 ]; then
+        echo "Expected exactly one candidate input artifact"; exit 1
+      fi
+      if [ -z "${PACKAGE_VERSION:-}" ]; then
+        echo "PACKAGE_VERSION is not set"; exit 1
+      fi
     - |
       SRC_DIR="$(mktemp -d)"
       EXTRA_FLAGS=""

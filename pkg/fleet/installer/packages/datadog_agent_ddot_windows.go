@@ -135,10 +135,6 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 	_ = stopServiceIfExists(otelServiceName)
 	_ = deleteServiceIfExists(otelServiceName)
 
-	// Best effort remove otel-agent.exe from the package’s stable path
-	bin := filepath.Join(paths.PackagesPath, agentDDOTPackage, "stable", "embedded", "bin", "otel-agent.exe")
-	_ = os.Remove(bin)
-
 	if !ctx.Upgrade {
 		// Preserve otel-config.yaml; only disable the feature in datadog.yaml
 		if err := disableOtelCollectorConfigWindows(); err != nil {
