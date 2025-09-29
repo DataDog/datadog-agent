@@ -163,6 +163,8 @@ func sendManifestPayload(ctx context.Context, config OrchestratorConfig, payload
 			logger.Error("Failed to send request", zap.String("endpoint", endpoint), zap.Error(err))
 			continue
 		}
+		fmt.Println("cluster ID: ", clusterID)
+		fmt.Println("resp ID: ", resp.StatusCode)
 
 		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 			logger.Error("Orchestrator endpoint returned non-200 status", zap.String("endpoint", endpoint), zap.Int("status", resp.StatusCode))

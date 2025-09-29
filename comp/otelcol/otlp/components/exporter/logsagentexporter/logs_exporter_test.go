@@ -13,15 +13,16 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
+
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 )
 
 func TestLogsExporter(t *testing.T) {
@@ -353,4 +354,8 @@ func traceIDToHexOrEmptyString(id pcommon.TraceID) string {
 		return ""
 	}
 	return hex.EncodeToString(id[:])
+}
+
+func TestTgs(t *testing.T) {
+	fmt.Println(buildClusterID("kangyi-otel-cluster"))
 }
