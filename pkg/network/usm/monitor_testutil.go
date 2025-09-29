@@ -83,15 +83,13 @@ func (*protocolMock) IsBuildModeSupported(buildmode.Type) bool { return true }
 func patchProtocolMock(t *testing.T, spec protocolMockSpec) {
 	t.Helper()
 
-	// Using http2 instead of http, because http is using the direct consumer.
-	// Direct consumer is only supported if the pre-start function is called, which isn't guaranteed for this scenario
-	p := knownProtocols[1]
+	p := knownProtocols[0]
 	innerFactory := p.Factory
 
 	// Restore the old protocol factory at end of test
 	t.Cleanup(func() {
 		p.Factory = innerFactory
-		knownProtocols[1] = p
+		knownProtocols[0] = p
 	})
 
 	p.Factory = func(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
@@ -106,7 +104,7 @@ func patchProtocolMock(t *testing.T, spec protocolMockSpec) {
 		}, nil
 	}
 
-	knownProtocols[1] = p
+	knownProtocols[0] = p
 }
 
 // SetConnectionProtocol sets the connection protocol for the given connection tuple.

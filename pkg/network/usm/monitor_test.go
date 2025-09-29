@@ -83,11 +83,11 @@ func TestMonitorProtocolFail(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			// Replace the HTTP2 protocol with a Mock
+			// Replace the HTTP protocol with a Mock
 			patchProtocolMock(t, tt.spec)
 
 			cfg := utils.NewUSMEmptyConfig()
-			cfg.EnableHTTP2Monitoring = true
+			cfg.EnableHTTPMonitoring = true
 
 			monitor, err := NewMonitor(cfg, nil, nil)
 			skipIfNotSupported(t, err)
@@ -645,7 +645,6 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 func getHTTPCfg() *networkConfig.Config {
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
-	cfg.BPFDebug = true
 	return cfg
 }
 
