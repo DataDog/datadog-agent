@@ -573,3 +573,47 @@ my_feature:
 		assert.Equal(t, []string{"enabled", "name", "targets", "version"}, fields)
 	})
 }
+
+func TestInvalidFileData(t *testing.T) {
+	configData := `
+fruit:
+  apple:
+  banana:
+  cherry:
+  donut:
+    dozen: 12
+`
+
+	t.Setenv("DD_FRUIT_CHERRY_SEED_NUM", "5")
+	viperConf, ntmConf := constructBothConfigs(configData, false, func(cfg model.Setup) {
+		// default wins over invalid file
+		cfg.BindEnvAndSetDefault("fruit.apple.core.seeds", 2)
+
+		// file only (missing default)
+		cfg.BindEnv("fruit.banana.peel.color") //nolint:forbidigo // legit usage, testing compatibility with viper
+
+		// env wins over file
+		cfg.BindEnv("fruit.cherry.seed.num") //nolint:forbidigo // legit usage, testing compatibility with viper
+	})
+
+	expectAppleMap := map[string]interface{}{
+		"core": map[string]interface{}{
+			"seeds": 2,
+		},
+	}
+
+	assert.Equal(t, expectAppleMap, viperConf.Get("fruit.apple"))
+	assert.Equal(t, nil, viperConf.Get("fruit.banana"))
+	assert.Equal(t, 2, viperConf.GetInt("fruit.apple.core.seeds"))
+	assert.Equal(t, "", viperConf.GetString("fruit.banana.peel.color"))
+	assert.Equal(t, 5, viperConf.GetInt("fruit.cherry.seed.num"))
+	assert.Equal(t, 12, viperConf.GetInt("fruit.donut.dozen"))
+
+	assert.Equal(t, expectAppleMap, ntmConf.Get("fruit.apple"))
+	assert.Equal(t, nil, ntmConf.Get("fruit.banana"))
+	assert.Equal(t, 2, ntmConf.GetInt("fruit.apple.core.seeds"))
+	assert.Equal(t, "", ntmConf.GetString("fruit.banana.peel.color"))
+	assert.Equal(t, 5, ntmConf.GetInt("fruit.cherry.seed.num"))
+	// TODO: difference, unknown key doesn't get stored
+	assert.Equal(t, 0, ntmConf.GetInt("fruit.donut.dozen"))
+}
