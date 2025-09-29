@@ -1287,14 +1287,14 @@ func (suite *LauncherTestSuite) TestLauncherCreatesTailerForTruncatedUndersizedF
 	suite.Nil(err)
 	suite.True(didRotate, "Should detect rotation when file becomes empty (fingerprint = 0)")
 
-	// Now test the launcher's behavior: it should create a new tailer for the undersized file
-	// because insufficient data fingerprints allow tailing (preventing log loss)
+	// Now test the launcher's behavior: it should not create a new tailer for the empty file
+	// because empty files cannot be fingerprinted and should not be tailed
 	s.scan()
 
-	// Verify a new tailer was created for the undersized file
-	// The old tailer should be removed and a new one should be created
+	// Verify no new tailer was created for the empty file
+	// The old tailer should be removed and no new one should be created
 	afterScanCount := s.tailers.Count()
-	suite.Equal(initialTailerCount, afterScanCount, "New tailer should be created for undersized file after rotation (allows future content)")
+	suite.Equal(initialTailerCount-1, afterScanCount, "No tailer should be created for empty file after rotation")
 }
 
 func (suite *LauncherTestSuite) TestLauncherCreatesTailerForRotatedUndersizedFile() {
@@ -1351,14 +1351,14 @@ func (suite *LauncherTestSuite) TestLauncherCreatesTailerForRotatedUndersizedFil
 	suite.Nil(err)
 	suite.True(didRotate, "Should detect rotation when original file is moved and new file is created")
 
-	// Now test the launcher's behavior: it should create a new tailer for the undersized file
-	// because insufficient data fingerprints allow tailing (preventing log loss)
+	// Now test the launcher's behavior: it should not create a new tailer for the empty file
+	// because empty files cannot be fingerprinted and should not be tailed
 	s.scan()
 
-	// Verify a new tailer was created for the undersized file
-	// The old tailer should become a rotated tailer and a new one should be created
+	// Verify no new tailer was created for the empty file
+	// The old tailer should become a rotated tailer but no new one should be created
 	afterScanCount := s.tailers.Count() + len(s.rotatedTailers)
-	suite.Equal(initialTailerCount+1, afterScanCount, "New tailer should be created for undersized file after rotation (allows future content)")
+	suite.Equal(initialTailerCount, afterScanCount, "No tailer should be created for empty file after rotation")
 
 	// Clean up the rotated file
 	os.Remove(rotatedPath)

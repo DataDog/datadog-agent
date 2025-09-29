@@ -43,7 +43,7 @@ func (f *Fingerprint) IsPartialFingerprint() bool {
 		return false
 	}
 
-	// Only byte-based fingerprinting uses BytesUsed to track partial fingerprints; 
+	// Only byte-based fingerprinting uses BytesUsed to track partial fingerprints;
 	// cannot track partial line-based fingerprints by bytes alone
 	if f.Config.FingerprintStrategy == FingerprintStrategyByteChecksum {
 		expectedBytes := f.Config.Count
