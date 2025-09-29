@@ -41,10 +41,6 @@ func newInvalidFingerprint(config *types.FingerprintConfig) *types.Fingerprint {
 	return &types.Fingerprint{Value: types.InvalidFingerprintValue, Config: config}
 }
 
-// newInsufficientDataFingerprint returns a fingerprint with Value=^uint64(0) to represent an insufficient data fingerprint
-func newInsufficientDataFingerprint(config *types.FingerprintConfig) *types.Fingerprint {
-	return &types.Fingerprint{Value: types.InsufficientDataFingerprintValue, Config: config}
-}
 
 // crc64Table is a package-level variable for the CRC64 ISO table
 // to avoid recreating it on every fingerprint computation
@@ -171,16 +167,17 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 		return newInvalidFingerprint(fingerprintConfig), err
 	}
 
-	// Check if we have enough bytes to create a meaningful fingerprint
-	if bytesRead == 0 || bytesRead < maxBytes {
-		// Return insufficient data fingerprint for partial files (allows continued tailing)
-		return newInsufficientDataFingerprint(fingerprintConfig), nil
+	// Generate partial fingerprint from whatever data we have
+	if bytesRead == 0 {
+		// return invalid fingerprint if we have no data to compute a fingerprint from
+		return newInvalidFingerprint(fingerprintConfig), nil
 	}
 
-	// Compute fingerprint
-	checksum := crc64.Checksum(buffer, crc64Table)
+	// Compute fingerprint using the bytes read (partial or full)
+	actualData := buffer[:bytesRead]
+	checksum := crc64.Checksum(actualData, crc64Table)
 
-	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}, nil
+	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig, BytesUsed: bytesRead}, nil
 }
 
 // computeFingerPrintByLines computes fingerprint using line-based approach for a given file path
@@ -224,14 +221,13 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 			}
 			// Check if we have enough data for fingerprinting
 			// We need either enough lines OR enough bytes to create a meaningful fingerprint
-			log.Debugf("Not enough data for fingerprinting file %q", filePath)
-			return newInsufficientDataFingerprint(fingerprintConfig), nil
+			return newInvalidFingerprint(fingerprintConfig), nil
 		}
 	}
 
 	// Compute fingerprint
 	checksum := crc64.Checksum(buffer, crc64Table)
-	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}, nil
+	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig, BytesUsed: len(buffer)}, nil
 }
 
 // GetFingerprintConfig returns the fingerprint configuration
