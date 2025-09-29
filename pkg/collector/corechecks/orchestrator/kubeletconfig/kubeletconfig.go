@@ -66,6 +66,7 @@ type Check struct {
 
 // Factory creates a new check factory
 func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	log.Error("kubeletconfig check factory called")
 	return option.New(
 		func() check.Check {
 			return newCheck(store, cfg, tagger)

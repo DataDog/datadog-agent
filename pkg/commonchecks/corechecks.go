@@ -45,6 +45,7 @@ import (
 	nvidia "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
 	oracle "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/kubeletconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
@@ -90,6 +91,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, store))
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
+	corecheckLoader.RegisterCheck(kubeletconfig.CheckName, kubeletconfig.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger, telemetry, store))
 	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
