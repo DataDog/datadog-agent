@@ -190,6 +190,7 @@ class MacNFSService(Requirement):
             if not fix:
                 states.append(RequirementState(Status.FAIL, "NFS service is not running.", fixable=True))
             else:
+                ctx.run("sudo touch /etc/exports")  # File must exist for nfsd to start
                 ctx.run("sudo nfsd start")
                 states.append(RequirementState(Status.OK, "NFS service updated."))
 
