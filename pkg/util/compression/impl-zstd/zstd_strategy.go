@@ -17,15 +17,43 @@ import (
 // Requires contains the compression level for zstd compression
 type Requires struct {
 	Level compression.ZstdCompressionLevel
+
+	Strategy   int
+	Chain      int
+	Window     int
+	Hash       int
+	Searchlog  int
+	Minmatch   int
+	NumWorkers int
 }
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
 	level int
+
+	strategy   int
+	chain      int
+	window     int
+	hash       int
+	searchlog  int
+	minmatch   int
+	numworkers int
 }
 
 // New returns a new ZstdStrategy
 func New(reqs Requires) compression.Compressor {
+	if reqs.Strategy > 0 {
+		return &ZstdStrategy{
+			strategy:   reqs.Strategy,
+			chain:      reqs.Chain,
+			window:     reqs.Window,
+			hash:       reqs.Hash,
+			searchlog:  reqs.Searchlog,
+			minmatch:   reqs.Minmatch,
+			numworkers: reqs.NumWorkers,
+		}
+	}
+
 	return &ZstdStrategy{
 		level: int(reqs.Level),
 	}
@@ -33,7 +61,39 @@ func New(reqs Requires) compression.Compressor {
 
 // Compress will compress the data with zstd
 func (s *ZstdStrategy) Compress(src []byte) ([]byte, error) {
-	return zstd.CompressLevel(nil, src, s.level)
+	if s.level > 0 {
+		return zstd.CompressLevel(nil, src, s.level)
+	}
+
+	var err error
+	ctx := zstd.NewCtx()
+	err = ctx.SetParameter(zstd.CParamStrategy, s.strategy)
+	if err != nil {
+		return nil, err
+	}
+	err = ctx.SetParameter(zstd.CParamChainLog, s.chain)
+	if err != nil {
+		return nil, err
+	}
+	err = ctx.SetParameter(zstd.CParamWindowLog, s.window)
+	if err != nil {
+		return nil, err
+	}
+	err = ctx.SetParameter(zstd.CParamHashLog, s.hash)
+	if err != nil {
+		return nil, err
+	}
+	err = ctx.SetParameter(zstd.CParamSearchLog, s.searchlog)
+	if err != nil {
+		return nil, err
+	}
+	err = ctx.SetParameter(zstd.CParamMinMatch, s.minmatch)
+	if err != nil {
+		return nil, err
+	}
+
+	return ctx.Compress2(nil, src)
+
 }
 
 // Decompress will decompress the data with zstd
@@ -53,5 +113,17 @@ func (s *ZstdStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	return zstd.NewWriterLevel(output, s.level)
+	if s.level > 0 {
+		return zstd.NewWriterLevel(output, s.level)
+	}
+
+	return zstd.NewWriterParamsDict(output, nil, func(set func(zstd.CParameter, int)) {
+		set(zstd.CParamStrategy, s.strategy)
+		set(zstd.CParamChainLog, s.chain)
+		set(zstd.CParamWindowLog, s.window)
+		set(zstd.CParamHashLog, s.hash)
+		set(zstd.CParamSearchLog, s.searchlog)
+		set(zstd.CParamMinMatch, s.minmatch)
+		set(zstd.CParamNbWorkers, s.numworkers)
+	})
 }

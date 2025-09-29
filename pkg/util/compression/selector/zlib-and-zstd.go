@@ -39,6 +39,44 @@ func NewCompressor(kind string, level int) common.Compressor {
 	}
 }
 
+// NewTunedCompressor creates a new Compressor that can be tuned
+func NewTunedCompressor(
+	kind string,
+	level int,
+	strategy int,
+	chain int,
+	window int,
+	hash int,
+	searchlog int,
+	minmatch int,
+	numworkers int,
+) common.Compressor {
+	switch kind {
+	case common.ZlibKind:
+		return implzlib.New()
+	case common.ZstdKind:
+		return implzstd.New(implzstd.Requires{
+			Level:      common.ZstdCompressionLevel(level),
+			Strategy:   strategy,
+			Chain:      chain,
+			Window:     window,
+			Hash:       hash,
+			Searchlog:  searchlog,
+			Minmatch:   minmatch,
+			NumWorkers: numworkers,
+		})
+	case common.GzipKind:
+		return implgzip.New(implgzip.Requires{
+			Level: level,
+		})
+	case common.NoneKind:
+		return implnoop.New()
+	default:
+		log.Error("invalid compression set")
+		return implnoop.New()
+	}
+}
+
 // NewNoopCompressor returns a new Noop Compressor. It does not do any
 // compression, but can be used to create a compressor that does at a later
 // point.
