@@ -11,7 +11,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.8
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/sys v0.35.0
+	golang.org/x/sys v0.36.0
 )
 
 require (

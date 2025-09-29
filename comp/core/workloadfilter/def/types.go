@@ -19,6 +19,16 @@ const (
 	LogsFilter    Scope = "LogsFilter"
 )
 
+// FilterBundle represents a bundle of filters for a given resource type.
+type FilterBundle interface {
+	// IsExcluded checks if the given object is excluded by the filter bundle.
+	IsExcluded(obj Filterable) bool
+	// GetResult returns the result of the filter evaluation.
+	GetResult(obj Filterable) Result
+	// GetErrors returns any errors during initialization of the filters.
+	GetErrors() []error
+}
+
 // Result is an enumeration that represents the possible results of a filter evaluation.
 type Result int
 
@@ -51,6 +61,7 @@ const (
 	ServiceType   ResourceType = "service"
 	EndpointType  ResourceType = "endpoint"
 	ImageType     ResourceType = "image"
+	ProcessType   ResourceType = "process"
 )
 
 //
@@ -217,6 +228,40 @@ func (e *Endpoint) Serialize() any {
 func (e *Endpoint) Type() ResourceType {
 	return EndpointType
 }
+
+//
+// Process Definition
+//
+
+// Process represents a filterable process object.
+type Process struct {
+	*typedef.FilterProcess
+}
+
+var _ Filterable = &Process{}
+
+// GetAnnotations returns the annotations of the process.
+func (p *Process) GetAnnotations() map[string]string {
+	return nil
+}
+
+// Serialize converts the Process object to a filterable object.
+func (p *Process) Serialize() any {
+	return p.FilterProcess
+}
+
+// Type returns the resource type of the process.
+func (p *Process) Type() ResourceType {
+	return ProcessType
+}
+
+// ProcessFilter defines the type of process filter.
+type ProcessFilter int
+
+// Defined Process filter kinds.
+const (
+	LegacyProcessExcludeList ProcessFilter = iota
+)
 
 // EndpointFilter defines the type of endpoint filter.
 type EndpointFilter int

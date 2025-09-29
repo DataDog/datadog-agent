@@ -26,9 +26,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
@@ -40,7 +42,7 @@ import (
 
 func TestMain(m *testing.M) {
 	dyninsttest.SetupLogging()
-	os.Exit(m.Run())
+	goleak.VerifyTestMain(m, goleak.IgnoreCurrent())
 }
 
 // TestScrapeRemoteConfig tests that the scraper can scrape remote config
@@ -126,12 +128,18 @@ func runScrapeRemoteConfigTest(
 		_ = child.Process.Kill()
 		_ = child.Wait()
 	}()
+	a := actuator.NewActuator()
+	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)
-	a := actuator.NewActuator(loader)
-	rcScraper := rcscrape.NewScraper(a)
+	t.Cleanup(func() { require.NoError(t, loader.Close()) })
+	dispatcher := dispatcher.NewDispatcher(loader.OutputReader())
+	t.Cleanup(func() { require.NoError(t, dispatcher.Shutdown()) })
+
+	rcScraper := rcscrape.NewScraper(a, dispatcher, loader)
 
 	procMon := procmon.NewProcessMonitor(rcScraper.AsProcMonHandler())
+	t.Cleanup(func() { procMon.Close() })
 	procMon.NotifyExec(uint32(child.Process.Pid))
 	rcsFiles := make(map[string][]byte)
 	for _, probe := range probes {
@@ -277,14 +285,29 @@ func testNoDdTraceGo(t *testing.T, cfg testprogs.Config) {
 	tmpDir, cleanupTmpDir := dyninsttest.PrepTmpDir(t, strings.ReplaceAll(t.Name(), "/", "_"))
 	defer cleanupTmpDir()
 
-	loader, err := loader.NewLoader()
-	require.NoError(t, err)
-	a := actuator.NewActuator(loader)
+	a := actuator.NewActuator()
+	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
+	type irGenFailedMessage struct {
+		executablePath string
+		err            error
+	}
 	irGenFailureCh := make(chan irGenFailedMessage)
-	rcScraper := rcscrape.NewScraper(&wrappedActuator{
-		inner:          a,
-		irGenFailureCh: irGenFailureCh,
+	irGenerator := irGenFunc(func(
+		programID ir.ProgramID, executablePath string, probes []ir.ProbeDefinition,
+	) (*ir.Program, error) {
+		p, err := (rcscrape.IRGeneratorImpl{}).GenerateIR(programID, executablePath, probes)
+		if err != nil {
+			irGenFailureCh <- irGenFailedMessage{executablePath: executablePath, err: err}
+		}
+		return p, err
 	})
+	l, err := loader.NewLoader()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, l.Close()) })
+	d := dispatcher.NewDispatcher(l.OutputReader())
+	t.Cleanup(func() { require.NoError(t, d.Shutdown()) })
+
+	rcScraper := rcscrape.NewScraperWithIRGenerator(a, d, l, irGenerator)
 
 	stdout, err := os.Create(path.Join(tmpDir, "child.stdout"))
 	require.NoError(t, err)
@@ -321,7 +344,7 @@ func testNoDdTraceGo(t *testing.T, cfg testprogs.Config) {
 		return len(processes) > 0
 	}, 1*time.Second, 10*time.Millisecond)
 	msg := <-irGenFailureCh
-	require.Equal(t, int(msg.processID.PID), child.Process.Pid)
+	require.Equal(t, prog, msg.executablePath)
 	require.Eventually(t, func() bool {
 		processes := rcScraper.GetTrackedProcesses()
 		return len(processes) == 0
@@ -331,42 +354,14 @@ func testNoDdTraceGo(t *testing.T, cfg testprogs.Config) {
 	require.NoError(t, child.Wait())
 }
 
-type wrappedActuator struct {
-	inner          *actuator.Actuator
-	irGenFailureCh chan irGenFailedMessage
-}
-
-type irGenFailedMessage struct {
-	processID actuator.ProcessID
-	err       error
-	probes    []ir.ProbeDefinition
-}
-
-type noDdTraceGoReporter struct {
-	actuator.Reporter
-	irGenFailureCh chan irGenFailedMessage
-}
-
-func (wa *wrappedActuator) NewTenant(
-	name string,
-	reporter actuator.Reporter,
-	irGenerator actuator.IRGenerator,
-) *actuator.Tenant {
-	return wa.inner.NewTenant(name, &noDdTraceGoReporter{
-		Reporter:       reporter,
-		irGenFailureCh: wa.irGenFailureCh,
-	}, irGenerator)
-}
-
-func (r *noDdTraceGoReporter) ReportIRGenFailed(
-	processID actuator.ProcessID,
-	err error,
+type irGenFunc func(
+	programID ir.ProgramID,
+	executablePath string,
 	probes []ir.ProbeDefinition,
-) {
-	r.irGenFailureCh <- irGenFailedMessage{
-		processID: processID,
-		err:       err,
-		probes:    probes,
-	}
-	r.Reporter.ReportIRGenFailed(processID, err, probes)
+) (*ir.Program, error)
+
+func (f irGenFunc) GenerateIR(
+	programID ir.ProgramID, executablePath string, probes []ir.ProbeDefinition,
+) (*ir.Program, error) {
+	return f(programID, executablePath, probes)
 }
