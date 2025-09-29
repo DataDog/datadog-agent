@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/exp/maps"
@@ -248,24 +249,35 @@ func (s *probeTestSuite) TestDetectsContainer() {
 
 	probe := s.getProbe()
 
+	// note: after starting, the program will wait ~5s before making any CUDA call
 	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 
 	// Check that the stream handlers have the correct container ID assigned
-	for _, handler := range probe.streamHandlers.allStreams() {
-		if handler.metadata.pid == uint32(pid) {
-			require.Equal(t, cid, handler.metadata.containerID)
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		nStreamsFound := 0
+		for _, handler := range probe.streamHandlers.allStreams() {
+			if handler.metadata.pid == uint32(pid) {
+				nStreamsFound++
+				require.Equal(c, cid, handler.metadata.containerID)
+			}
 		}
-	}
+		require.NotZero(c, nStreamsFound)
+	}, 6*time.Second, 100*time.Millisecond)
 
-	stats, err := probe.GetAndFlush()
-	key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
-	require.NoError(t, err)
-	require.NotNil(t, stats)
-	pidStats := getMetricsEntry(key, stats)
-	require.NotNil(t, pidStats)
+	// Check that stats are properly collected
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := probe.GetAndFlush()
+		require.NoError(c, err)
+		require.NotNil(c, stats)
 
-	require.Greater(t, pidStats.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
+		key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
+		pidStats := getMetricsEntry(key, stats)
+		require.NotNil(c, pidStats)
+
+		// core usage depends on the time this took to run, so it's not deterministic
+		require.Greater(c, pidStats.UsedCores, 0.0)
+		require.Equal(c, pidStats.Memory.MaxBytes, uint64(110))
+	}, 3*time.Second, 100*time.Millisecond)
 }
 
 func TestCudaLibraryAttacherRule(t *testing.T) {
