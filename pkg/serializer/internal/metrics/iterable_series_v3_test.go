@@ -293,7 +293,17 @@ func TestPaylodsBuilderV3_Tags(t *testing.T) {
 	require.NoError(t, err)
 	for _, tags := range [][2][]string{{nil, nil}, {{"t1"}, nil}, {nil, {"t2"}}, {{"t3"}, {"t4"}}} {
 		ct := tagset.NewCompositeTags(tags[0], tags[1])
-		require.NoError(t, pb.writeSerie(&metrics.Serie{Name: "a", Tags: ct, Points: []metrics.Point{{1, 1}}}))
+		serie := &metrics.Serie{
+			Name: "a",
+			Tags: ct,
+			Points: []metrics.Point{
+				{
+					Ts:    1,
+					Value: 1,
+				},
+			},
+		}
+		require.NoError(t, pb.writeSerie(serie))
 	}
 	require.NoError(t, pb.finishPayload())
 	require.Len(t, pb.payloads, 1)
