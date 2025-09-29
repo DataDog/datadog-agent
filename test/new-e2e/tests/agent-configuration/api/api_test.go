@@ -688,11 +688,11 @@ func (v *apiSuite) TestMetadataV5CanonicalCloudResourceID_IMDSVariants() {
 			expectedARN := fmt.Sprintf("arn:aws:ec2:%s:%s:instance/%s", region, info.AccountID, instanceID)
 
 			require.EventuallyWithT(t, func(ct *assert.CollectT) {
-				type HostMetadata struct {
-					CanonicalCloudResourceID string `json:"canonical_cloud_resource_id"`
+				type Meta struct {
+					CCRID string `json:"ccrid"`
 				}
 				type Metadata struct {
-					Host HostMetadata `json:"host"`
+					Meta Meta `json:"meta"`
 				}
 
 				var have Metadata
@@ -706,8 +706,8 @@ func (v *apiSuite) TestMetadataV5CanonicalCloudResourceID_IMDSVariants() {
 				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
 
-				assert.Equal(ct, expectedARN, have.Host.CanonicalCloudResourceID,
-					"%s %s returned: %s, expected CanonicalCloudResourceID=%s",
+				assert.Equal(ct, expectedARN, have.Meta.CCRID,
+					"%s %s returned: %s, expected ccrid=%s",
 					e.method, e.endpoint, string(body), expectedARN)
 			}, 2*time.Minute, 10*time.Second)
 		})
