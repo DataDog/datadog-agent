@@ -52,7 +52,7 @@ build do
     move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
     move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
     command 'curl -L https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-amd64_linux.tar.xz | tar xJ'
-    command 'upx-5.0.2-amd64_linux/upx --best bin/agent/agent'
+    command 'upx-5.0.2-amd64_linux/upx -5 bin/agent/agent'
     copy 'bin/agent', "#{install_dir}/bin/"
   end
   block do
