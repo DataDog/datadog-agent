@@ -145,7 +145,7 @@ CLUSTER_AGENT_TAGS = {
 }
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
-CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "grpcnotrace"}
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "grpcnotrace", "cel"}
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
 DOGSTATSD_TAGS = {"containerd", "grpcnotrace", "no_dynamic_plugins", "docker", "kubelet", "podman", "zlib", "zstd"}
