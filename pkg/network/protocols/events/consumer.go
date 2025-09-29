@@ -35,7 +35,6 @@ type Consumer[V any] interface {
 	Stop()
 }
 
-
 // KernelAdaptiveConsumer wraps either DirectConsumer or BatchConsumer based on kernel version
 // and provides both Consumer interface and Modifier interface in a single struct
 type KernelAdaptiveConsumer[V any] struct {
