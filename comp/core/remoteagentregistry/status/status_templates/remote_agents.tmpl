@@ -13,9 +13,9 @@ No remote agents registered
 {{- with .registeredAgentStatuses }}
 {{- range $agentStatus := . }}
 {{- with $agentStatus }}
-{{ printDashes .DisplayName "=" }}
-{{ .DisplayName }}
-{{ printDashes .DisplayName "=" }}
+{{ printDashes .AgentDisplayName "=" }}
+{{ .AgentDisplayName }}
+{{ printDashes .AgentDisplayName "=" }}
 {{ if .FailureReason }}
 {{ .FailureReason }}
 {{ end }}

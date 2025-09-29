@@ -7,7 +7,7 @@
         {{ len .registeredAgents }} remote agent(s) registered:
         {{- range $agent := .registeredAgents }}
             <span class="stat_subtitle">
-                {{ $agent.DisplayName }} <br>
+                {{ $agent.AgentDisplayName }} <br>
             </span>
             <span class="stat_subdata">
                 Last seen: {{ formatUnixTime $agent.LastSeenUnix }} ({{ formatUnixTimeSince $agent.LastSeenUnix }}) <br>
@@ -19,7 +19,7 @@
         {{- range $agentStatus := . }}
             {{- with $agentStatus }}
                 <span class="stat_title">
-                    {{ .DisplayName }}
+                    {{ .AgentDisplayName }}
                 </span>
             <span class="stat_subdata">
                 {{ if .FailureReason }}
