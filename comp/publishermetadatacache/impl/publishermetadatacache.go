@@ -12,12 +12,17 @@ import (
 	"context"
 	"time"
 
+	"github.com/patrickmn/go-cache"
+
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 )
+
+// InvalidHandle represents an invalid EventPublisherMetadataHandle
+const InvalidHandle = evtapi.EventPublisherMetadataHandle(0)
 
 // Requires defines the dependencies for the publishermetadatacache component
 type Requires struct {
@@ -29,35 +34,41 @@ type Provides struct {
 	Comp publishermetadatacache.Component
 }
 
-type cacheItem struct {
-	handle    evtapi.EventPublisherMetadataHandle
-	timestamp time.Time
-}
-
 // publisherMetadataCache implements the Component interface
 type publisherMetadataCache struct {
-	cache        map[string]cacheItem
-	evtapi       evtapi.API
-	maxCacheSize int
+	cache  *cache.Cache
+	evtapi evtapi.API
 }
 
-// New creates a new publishermetadatacache without fx dependencies
-func New() publishermetadatacache.Component {
+// New creates a new publishermetadatacache
+func New(api evtapi.API) publishermetadatacache.Component {
+	// Create cache with 5 minute expiration and handle our own cleanup.
+	// Only using expiration for invalid handles to retry creating the handle once it expires.
+	// Ignore expiration for valid handles.
+	c := cache.New(5*time.Minute, 0)
+	
+	c.OnEvicted(func(_ string, value interface{}) {
+		if handle, ok := value.(evtapi.EventPublisherMetadataHandle); ok {
+			evtapi.EvtClosePublisherMetadata(api, handle)
+		}
+	})
+	
 	return &publisherMetadataCache{
-		cache:        make(map[string]cacheItem),
-		evtapi:       winevtapi.New(),
-		maxCacheSize: 50,
+		cache:  c,
+		evtapi: api,
 	}
 }
 
+
 // NewComponent creates a new publishermetadatacache component
 func NewComponent(reqs Requires) Provides {
-	cache := New()
+	cache := New(winevtapi.New())
 
 	// Register cleanup hook to close all handles when component shuts down
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
-			return cache.Close()
+			cache.Close()
+			return nil
 		},
 	})
 
@@ -66,84 +77,52 @@ func NewComponent(reqs Requires) Provides {
 	}
 }
 
-func (c *publisherMetadataCache) addCacheEntry(publisherName string, handle evtapi.EventPublisherMetadataHandle) {
-	if c.isCacheFull() {
-		c.flushOldestEntry()
-	}
-	c.cache[publisherName] = cacheItem{
-		handle:    handle,
-		timestamp: time.Now(),
-	}
-}
-
-func (c *publisherMetadataCache) isCacheFull() bool {
-	return len(c.cache) >= c.maxCacheSize
-}
-
-func (c *publisherMetadataCache) flushOldestEntry() {
-	currentTime := time.Now()
-	keyToDelete := ""
-	maxTimeDiff := time.Duration(0)
-	for publisherName, cacheItem := range c.cache {
-		timeDiff := currentTime.Sub(cacheItem.timestamp)
-		if timeDiff > maxTimeDiff {
-			maxTimeDiff = timeDiff
-			keyToDelete = publisherName
-		}
-	}
-	if keyToDelete != "" {
-		oldestItem := c.cache[keyToDelete]
-		evtapi.EvtClosePublisherMetadata(c.evtapi, oldestItem.handle)
-		delete(c.cache, keyToDelete)
-	}
-}
-
-func (c *publisherMetadataCache) isMetadataHandleValid(handle evtapi.EventPublisherMetadataHandle) bool {
-	// Guid should be a simple scalar property to check
-	_, err := c.evtapi.EvtGetPublisherMetadataProperty(handle, evtapi.EvtPublisherMetadataPublisherGuid)
-	return err == nil
-}
 
 // Get retrieves a cached EventPublisherMetadataHandle for the given publisher name.
 // If not found in cache, it calls EvtOpenPublisherMetadata and caches the result.
-func (c *publisherMetadataCache) Get(publisherName string, event evtapi.EventRecordHandle) (evtapi.EventPublisherMetadataHandle, error) {
-	cacheItem, exists := c.cache[publisherName]
-
-	if !exists {
-		handle, err := c.evtapi.EvtOpenPublisherMetadata(publisherName, "")
-		if err != nil {
-			return evtapi.EventPublisherMetadataHandle(0), err
+func (c *publisherMetadataCache) Get(publisherName string) evtapi.EventPublisherMetadataHandle {
+	if cachedValue, expiration, found := c.cache.GetWithExpiration(publisherName); found {
+		if handle, ok := cachedValue.(evtapi.EventPublisherMetadataHandle); ok {
+			// If the handle is invalid and expired, delete the cache entry
+			// so the next Get call will try creating a new handle.
+			// No need to delete an expired valid handle.
+			if handle == InvalidHandle && expiration.Before(time.Now()) {
+				c.cache.Delete(publisherName)
+				return InvalidHandle
+			}
+			return handle
 		}
-		c.addCacheEntry(publisherName, handle)
-		return handle, nil
 	}
 
-	// Check if the handle is valid, provider metadata could be uninstalled
-	if !c.isMetadataHandleValid(cacheItem.handle) {
-		evtapi.EvtClosePublisherMetadata(c.evtapi, cacheItem.handle)
-		delete(c.cache, publisherName)
-		return c.Get(publisherName, event)
+	handle, err := c.evtapi.EvtOpenPublisherMetadata(publisherName, "")
+	if err != nil {
+		// Cache the invalid handle and retry creating the handle once it expires from the cache.
+		handle = InvalidHandle
 	}
+	
+	c.cache.SetDefault(publisherName, handle)
+	return handle
+}
 
-	cacheItem.timestamp = time.Now()
-	c.cache[publisherName] = cacheItem
-	return cacheItem.handle, nil
+func (c *publisherMetadataCache) FormatMessage(publisherName string, event evtapi.EventRecordHandle, flags uint) string {
+	handle := c.Get(publisherName)
+	if handle == InvalidHandle {
+		// Continue without formatting the message.
+		return ""
+	}
+	message, err := c.evtapi.EvtFormatMessage(handle, event, 0, nil, flags)
+	if err != nil {
+		// FormatMessage failed with an old valid handle, so delete the cache entry
+		// and retry creating the handle on the next Get call.
+		c.cache.Delete(publisherName)
+		return ""
+	}
+	return message
 }
 
 // Close cleans up all cached handles when the component shuts down
-func (c *publisherMetadataCache) Close() error {
-	for publisherName, cacheItem := range c.cache {
-		evtapi.EvtClosePublisherMetadata(c.evtapi, cacheItem.handle)
-		delete(c.cache, publisherName)
-	}
-	return nil
+func (c *publisherMetadataCache) Close() {
+	c.cache.Flush()
 }
 
-// NewTestCache creates a new publishermetadatacache for testing purposes
-func NewTestCache(api evtapi.API, maxCacheSize int) publishermetadatacache.Component {
-	return &publisherMetadataCache{
-		cache:        make(map[string]cacheItem),
-		evtapi:       api,
-		maxCacheSize: maxCacheSize,
-	}
-}
+// New creates a new publishermetadatacache for testing purposes

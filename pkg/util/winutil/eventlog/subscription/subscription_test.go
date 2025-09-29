@@ -178,16 +178,7 @@ func formatEventMessage(api evtapi.API, cache publishermetadatacache.Component, 
 	}
 
 	// Format Message
-	pm, err := cache.Get(provider, event.EventRecordHandle)
-
-	if err != nil {
-		return "", fmt.Errorf("failed to get provider metadata from cache: %w", err)
-	}
-
-	message, err := api.EvtFormatMessage(pm, event.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
-	if err != nil {
-		return "", fmt.Errorf("failed to format event message: %w", err)
-	}
+	message := cache.FormatMessage(provider, event.EventRecordHandle, evtapi.EvtFormatMessageEvent)
 
 	return message, nil
 }
@@ -253,7 +244,7 @@ func BenchmarkTestFormatEventMessage(b *testing.B) {
 				err := ti.GenerateEvents(eventSource, v)
 				require.NoError(b, err)
 				b.ResetTimer()
-				cache := publishermetadatacacheimpl.NewTestCache(ti.API(), 50)
+				cache := publishermetadatacacheimpl.New(ti.API())
 
 				for i := 0; i < b.N; i++ {
 					sub, err := startSubscription(b, ti, channel,

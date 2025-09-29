@@ -18,10 +18,11 @@ import (
 // It caches handles obtained from EvtOpenPublisherMetadata calls to avoid expensive repeated calls.
 type Component interface {
 	// Get retrieves a cached EventPublisherMetadataHandle for the given publisher name.
-	// If not found in cache, it calls EvtOpenPublisherMetadata and caches the result.
-	// Returns the handle and any error encountered.
-	Get(publisherName string, event evtapi.EventRecordHandle) (evtapi.EventPublisherMetadataHandle, error)
+	Get(publisherName string) evtapi.EventPublisherMetadataHandle
+
+	// FormatMessage formats an event message using the cached EventPublisherMetadataHandle.
+	FormatMessage(publisherName string, event evtapi.EventRecordHandle, flags uint) string
 
 	// Close cleans up all cached handles when the component is no longer needed.
-	Close() error
+	Close()
 }
