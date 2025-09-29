@@ -637,6 +637,12 @@ func (fh *EBPFFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Pr
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (fh *EBPFFieldHandlers) ResolveUserSessionContext(evtCtx *model.UserSessionContext) {
 	if !evtCtx.Resolved {
+		if evtCtx.SessionType == 2 {
+			ctx := fh.resolvers.UserSessionsResolver.ResolveSSHUserSession(evtCtx)
+			if ctx != nil {
+				*evtCtx = *ctx
+			}
+		}
 		ctx := fh.resolvers.UserSessionsResolver.ResolveUserSession(evtCtx.ID)
 		if ctx != nil {
 			*evtCtx = *ctx
@@ -1033,4 +1039,34 @@ func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model
 		usedCapabilities |= int(pce.CapsUsed)
 	}
 	return usedCapabilities
+}
+
+// ResolveSSHUsername resolves the ssh username of the event
+func (fh *EBPFFieldHandlers) ResolveSSHUsername(event *model.Event, evtCtx *model.UserSessionContext) string {
+	fh.ResolveUserSessionContext(evtCtx)
+	return evtCtx.SSHUsername
+}
+
+// ResolveSSHClientIP resolves the ssh username of the event
+func (fh *EBPFFieldHandlers) ResolveSSHClientIP(event *model.Event, evtCtx *model.UserSessionContext) string {
+	fh.ResolveUserSessionContext(evtCtx)
+	return evtCtx.SSHClientIP
+}
+
+// ResolveSSHAuthMethod resolves the ssh auth method of the event
+func (fh *EBPFFieldHandlers) ResolveSSHAuthMethod(event *model.Event, evtCtx *model.UserSessionContext) int {
+	fh.ResolveUserSessionContext(evtCtx)
+	return int(evtCtx.SSHAuthMethod)
+}
+
+// ResolveSSHPublicKey resolves the public key of the event
+func (fh *EBPFFieldHandlers) ResolveSSHPublicKey(event *model.Event, evtCtx *model.UserSessionContext) string {
+	fh.ResolveUserSessionContext(evtCtx)
+	return evtCtx.SSHPublicKey
+}
+
+// ResolveSSHPort resolves the public key of the event
+func (fh *EBPFFieldHandlers) ResolveSSHPort(event *model.Event, evtCtx *model.UserSessionContext) int {
+	fh.ResolveUserSessionContext(evtCtx)
+	return evtCtx.SSHPort
 }
