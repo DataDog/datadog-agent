@@ -84,6 +84,11 @@ type USMConfig struct {
 	// HTTPReplaceRules are rules for replacing HTTP path patterns
 	HTTPReplaceRules []*ReplaceRule
 
+	// HTTPUseDirectConsumer forces the use of direct consumer for HTTP monitoring instead of batch consumer
+	// When true, direct consumer is used if kernel supports it (>=5.8.0), otherwise falls back to batch consumer
+	// When false (default), batch consumer is always used regardless of kernel version
+	HTTPUseDirectConsumer bool
+
 	// HTTP Windows-specific Configuration
 	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked (Windows only)
 	MaxTrackedHTTPConnections int64
@@ -199,6 +204,7 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		MaxHTTPStatsBuffered:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "http", "max_stats_buffered")),
 		HTTPMapCleanerInterval:    time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http", "map_cleaner_interval_seconds"))) * time.Second,
 		HTTPIdleConnectionTTL:     time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http", "idle_connection_ttl_seconds"))) * time.Second,
+		HTTPUseDirectConsumer:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "http", "use_direct_consumer")),
 		MaxTrackedHTTPConnections: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "max_tracked_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "notification_threshold")),
 		HTTPMaxRequestFragment:    cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "max_request_fragment")),

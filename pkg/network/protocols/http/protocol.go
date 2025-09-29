@@ -308,7 +308,8 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
 
-// createAdaptiveConsumer creates the appropriate consumer based on kernel version
+
+// createAdaptiveConsumer creates the appropriate consumer based on configuration and kernel version
 // and determines which callback method to use internally
 func (p *protocol) createAdaptiveConsumer() error {
 	kernelVersion, err := kernel.HostVersion()
@@ -316,20 +317,28 @@ func (p *protocol) createAdaptiveConsumer() error {
 		return err
 	}
 
-	if kernelVersion >= kernel.VersionCode(5, 8, 0) {
-		// Use DirectConsumer for kernel ≥5.8 (supports bpf_perf_event_output in socket filters)
-		directConsumer, err := events.NewDirectConsumer("http", p.processHTTPDirect, p.cfg)
-		if err != nil {
-			return err
+	// Check if direct consumer is explicitly requested via configuration
+	if p.cfg.HTTPUseDirectConsumer {
+		if events.SupportsDirectConsumer() {
+			// Use DirectConsumer for kernel ≥5.8 (supports bpf_perf_event_output in socket filters)
+			directConsumer, err := events.NewDirectConsumer("http", p.processHTTPDirect, p.cfg)
+			if err != nil {
+				return err
+			}
+			p.consumer = events.NewKernelAdaptiveConsumer[EbpfEvent](
+				directConsumer,
+				[]ddebpf.Modifier{&directConsumer.EventHandler},
+			)
+			p.useDirectConsumer = true
+			log.Debugf("HTTP monitoring: using direct consumer (requested via configuration)")
+		} else {
+			// Fall back to BatchConsumer on unsupported kernels
+			log.Warnf("HTTP monitoring: direct consumer requested but kernel version %v < 5.8.0, falling back to batch consumer", kernelVersion)
+			p.useDirectConsumer = false
 		}
-		p.consumer = events.NewKernelAdaptiveConsumer[EbpfEvent](
-			directConsumer,
-			[]ddebpf.Modifier{&directConsumer.EventHandler},
-		)
-		p.useDirectConsumer = true
 	} else {
-		// BatchConsumer will be created in PreStart() after manager initialization
-		// to avoid "manager must be initialized first" error
+		// Default behavior: use BatchConsumer regardless of kernel version
+		log.Debugf("HTTP monitoring: using batch consumer (default behavior)")
 		p.useDirectConsumer = false
 	}
 

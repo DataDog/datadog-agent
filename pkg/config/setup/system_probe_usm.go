@@ -74,6 +74,8 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(smNS, "http_idle_connection_ttl_in_s"), 30)
 	cfg.BindEnvAndSetDefault(join(spNS, "http_idle_connection_ttl_in_s"), 30)
 
+	cfg.BindEnvAndSetDefault(join(smNS, "http", "use_direct_consumer"), false)
+
 	// HTTP replace rules configuration
 	cfg.BindEnvAndSetDefault(join(smNS, "http", "replace_rules"), nil)
 	// Deprecated flat keys for backward compatibility
