@@ -14,7 +14,7 @@ require (
 	go.opentelemetry.io/collector/component/componenttest v0.136.0
 	go.opentelemetry.io/collector/pdata v1.42.0
 	go.opentelemetry.io/otel/metric v1.38.0
-	google.golang.org/protobuf v1.36.9
+	google.golang.org/protobuf v1.36.10
 )
 
 require go.opentelemetry.io/collector/component v1.42.0 // indirect
