@@ -1172,7 +1172,8 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
-	config.BindEnv("site")                          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("site") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("convert_dd_site_fqdn.enabled", true)
 	config.BindEnv("dd_url", "DD_DD_URL", "DD_URL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("app_key", "")
 	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"})
@@ -1273,6 +1274,9 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Software Inventory
 	config.BindEnvAndSetDefault("software_inventory.enabled", false)
+	config.BindEnvAndSetDefault("software_inventory.jitter", 60)
+	config.BindEnvAndSetDefault("software_inventory.interval", 10)
+	bindEnvAndSetLogsConfigKeys(config, "software_inventory.forwarder.")
 
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }

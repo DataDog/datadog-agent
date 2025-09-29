@@ -1377,6 +1377,7 @@ func populateEventExpressions(
 		expr := &ir.RootExpression{
 			Name:   variable.Name,
 			Offset: uint32(0),
+			Kind:   ir.RootExpressionKindArgument,
 			Expression: ir.Expression{
 				Type: variable.Type,
 				Operations: []ir.ExpressionOp{

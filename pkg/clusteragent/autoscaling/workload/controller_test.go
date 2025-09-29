@@ -18,18 +18,23 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
 	clock "k8s.io/utils/clock/testing"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 type fixture struct {
@@ -39,6 +44,8 @@ type fixture struct {
 	recorder        *record.FakeRecorder
 	store           *store
 	autoscalingHeap *autoscaling.HashHeap
+	scaler          *fakeScaler
+	podWatcher      *fakePodWatcher
 }
 
 const testMaxAutoscalerObjects int = 2
@@ -49,6 +56,8 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 	clock := clock.NewFakeClock(testTime)
 	recorder := record.NewFakeRecorder(100)
 	hashHeap := autoscaling.NewHashHeap(testMaxAutoscalerObjects, store)
+	scaler := newFakeScaler()
+	podWatcher := newFakePodWatcher()
 	return &fixture{
 		ControllerFixture: autoscaling.NewFixture(
 			t, podAutoscalerGVR,
@@ -60,8 +69,9 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 
 				c.clock = clock
 				c.horizontalController = &horizontalController{
-					scaler: newFakeScaler(),
+					scaler: scaler,
 				}
+				c.podWatcher = podWatcher
 				return c.Controller, err
 			},
 		),
@@ -69,6 +79,8 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 		recorder:        recorder,
 		store:           store,
 		autoscalingHeap: hashHeap,
+		scaler:          scaler,
+		podWatcher:      podWatcher,
 	}
 }
 
@@ -244,6 +256,151 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 	f.Actions = nil
 	f.RunControllerSync(true, "default/dpa-0")
 	assert.Len(t, f.store.GetAll(), 0)
+}
+
+func TestLeaderCreateDeleteRemoteDefaultedSpec(t *testing.T) {
+	testTime := time.Now()
+	f := newFixture(t, testTime)
+
+	dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: autoscalingv2.CrossVersionObjectReference{
+			Kind:       "Deployment",
+			Name:       "app-0",
+			APIVersion: "apps/v1",
+		},
+		// Remote owner means .Spec source of truth is Datadog App
+		Owner:         datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+		RemoteVersion: pointer.Ptr[uint64](1000),
+	}
+
+	dpaInternal := model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "dpa-0",
+		Spec:      &dpaSpec,
+	}
+	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+
+	// Should create object in Kubernetes
+	expectedDPA := &datadoghq.DatadogPodAutoscaler{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DatadogPodAutoscaler",
+			APIVersion: "datadoghq.com/v1alpha2",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "dpa-0",
+			Namespace: "default",
+		},
+		Spec: dpaSpec,
+		Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+			Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
+				{
+					Type:               datadoghqcommon.DatadogPodAutoscalerErrorCondition,
+					Status:             corev1.ConditionFalse,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
+					Type:               datadoghqcommon.DatadogPodAutoscalerActiveCondition,
+					Status:             corev1.ConditionTrue,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
+					Type:               datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition,
+					Status:             corev1.ConditionUnknown,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
+					Type:               datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition,
+					Status:             corev1.ConditionUnknown,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
+					Type:               datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition,
+					Status:             corev1.ConditionFalse,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
+					Type:               datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition,
+					Status:             corev1.ConditionUnknown,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
+					Type:               datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply,
+					Status:             corev1.ConditionUnknown,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+			},
+		},
+	}
+	expectedUnstructured, err := autoscaling.ToUnstructured(expectedDPA)
+	assert.NoError(t, err)
+
+	// We need to add a reactor to create the object with the correct generation and creation timestamp
+	f.FakeClientCustomHook = func(client *fake.FakeDynamicClient) {
+		client.PrependReactor("create", "datadogpodautoscalers", func(k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			returnedObj := expectedUnstructured.DeepCopy()
+			returnedObj.SetGeneration(1)
+			returnedObj.SetCreationTimestamp(metav1.NewTime(testTime))
+			return true, returnedObj, nil
+		})
+	}
+	f.ExpectCreateAction(expectedUnstructured)
+	f.RunControllerSync(true, "default/dpa-0")
+
+	// Now next sync we actually get the object with defaulted spec, so hashes won't match remote version
+	fallbackDefaulted := &datadoghq.DatadogFallbackPolicy{
+		Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+			Enabled:   true,
+			Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
+			Triggers: datadoghq.HorizontalFallbackTriggers{
+				StaleRecommendationThresholdSeconds: 600,
+			},
+		},
+	}
+	defaultedDPA := expectedDPA.DeepCopy()
+	defaultedDPA.Generation = 1
+	defaultedDPA.CreationTimestamp = metav1.NewTime(testTime)
+	defaultedDPA.Spec.Fallback = fallbackDefaulted
+	defaultedUnstructured, err := autoscaling.ToUnstructured(defaultedDPA)
+	assert.NoError(t, err)
+
+	f.InformerObjects = append(f.InformerObjects, defaultedUnstructured)
+	f.Objects = append(f.Objects, defaultedDPA)
+	f.Actions = nil
+	f.FakeClientCustomHook = nil
+
+	// The controller is going to try to reconcile now
+	f.scaler.mockGet(model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "dpa-0",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind:       "Deployment",
+				Name:       "app-0",
+				APIVersion: "apps/v1",
+			},
+		},
+		TargetGVK: schema.GroupVersionKind{
+			Group:   "apps",
+			Version: "v1",
+			Kind:    "Deployment",
+		},
+	}, 1, 1, nil)
+	f.podWatcher.mockGetPodsForOwner(NamespacedPodOwner{
+		Namespace: "default",
+		Kind:      "Deployment",
+		Name:      "app-0",
+	}, []*workloadmeta.KubernetesPod{{}})
+
+	expectedDPA.Generation = 1
+	expectedDPA.CreationTimestamp = metav1.NewTime(testTime)
+	expectedDPA.Spec = datadoghq.DatadogPodAutoscalerSpec{}
+	expectedDPA.Status.CurrentReplicas = pointer.Ptr[int32](1)
+	expectedUnstructured, err = autoscaling.ToUnstructured(expectedDPA)
+	assert.NoError(t, err)
+	f.ExpectUpdateStatusAction(expectedUnstructured)
+
+	// The controller should do nothing (no update calls)
+	f.RunControllerSync(true, "default/dpa-0")
 }
 
 func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {

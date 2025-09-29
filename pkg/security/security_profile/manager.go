@@ -363,6 +363,7 @@ func (m *Manager) Start(ctx context.Context) {
 	var adTagsTickerChan <-chan time.Time
 	var adLoadControlTickerChan <-chan time.Time
 	var silentWorkloadsTickerChan <-chan time.Time
+	var nodeEvictionTickerChan <-chan time.Time
 
 	if m.config.RuntimeSecurity.ActivityDumpEnabled {
 		adCleanupTicker := time.NewTicker(m.config.RuntimeSecurity.ActivityDumpCleanupPeriod)
@@ -388,6 +389,14 @@ func (m *Manager) Start(ctx context.Context) {
 		silentWorkloadsTickerChan = silentWorkloadsTicker.C
 	} else {
 		silentWorkloadsTickerChan = make(chan time.Time)
+	}
+
+	if m.config.RuntimeSecurity.SecurityProfileEnabled && m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
+		nodeEvictionTicker := time.NewTicker(m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
+		defer nodeEvictionTicker.Stop()
+		nodeEvictionTickerChan = nodeEvictionTicker.C
+	} else {
+		nodeEvictionTickerChan = make(chan time.Time)
 	}
 
 	if m.config.RuntimeSecurity.SecurityProfileEnabled {
@@ -426,6 +435,8 @@ func (m *Manager) Start(ctx context.Context) {
 			}
 		case <-silentWorkloadsTickerChan:
 			m.handleSilentWorkloads()
+		case <-nodeEvictionTickerChan:
+			m.evictUnusedNodes()
 		case newProfile := <-m.newProfiles:
 			m.onNewProfile(newProfile)
 		case workloadEvent := <-m.workloadEvents:
@@ -635,4 +646,39 @@ func perFormatStorageRequests(requests []config.StorageRequest) map[config.Stora
 		perFormatRequests[request.Format] = append(perFormatRequests[request.Format], request)
 	}
 	return perFormatRequests
+}
+
+// evictUnusedNodes performs periodic eviction of non-touched nodes from all active profiles
+func (m *Manager) evictUnusedNodes() {
+	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout <= 0 {
+		return
+	}
+
+	evictionTime := time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
+	totalEvicted := 0
+
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	for selector, profile := range m.profiles {
+		if profile == nil {
+			continue
+		}
+		profile.Lock()
+		if profile.ActivityTree == nil {
+			profile.Unlock()
+			continue
+		}
+
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime)
+		if evicted > 0 {
+			totalEvicted += evicted
+			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
+		}
+		profile.Unlock()
+	}
+
+	if totalEvicted > 0 {
+		seclog.Infof("evicted %d total unused process nodes across all profiles", totalEvicted)
+	}
 }

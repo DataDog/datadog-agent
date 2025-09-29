@@ -57,11 +57,7 @@
             "method": "main.testInlinedBCB"
           }
         },
-        "captures": {
-          "entry": {
-            "arguments": {}
-          }
-        }
+        "captures": {}
       }
     },
     "timestamp": "[ts]"

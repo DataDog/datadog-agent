@@ -7,8 +7,8 @@
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/metadata/softwareinventory/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/softwareinventory/impl"
+	"github.com/DataDog/datadog-agent/comp/softwareinventory/def"
+	"github.com/DataDog/datadog-agent/comp/softwareinventory/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )

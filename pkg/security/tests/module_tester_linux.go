@@ -169,6 +169,7 @@ runtime_security_config:
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
+    node_eviction_timeout: {{ .SecurityProfileNodeEvictionTimeout }}
     auto_suppression:
       enabled: {{ .EnableAutoSuppression }}
       event_types: {{range .AutoSuppressionEventTypes}}
