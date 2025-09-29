@@ -308,7 +308,6 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
 
-
 // createAdaptiveConsumer creates the appropriate consumer based on configuration and kernel version
 // and determines which callback method to use internally
 func (p *protocol) createAdaptiveConsumer() error {
