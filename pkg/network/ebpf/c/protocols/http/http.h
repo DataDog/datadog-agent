@@ -13,16 +13,6 @@
 #include "protocols/http/usm-events.h"
 #include "protocols/tls/https.h"
 
-__maybe_unused static __always_inline __u64 get_ringbuf_flags(size_t data_size) {
-    __u64 ringbuffer_wakeup_size = 0;
-    LOAD_CONSTANT("ringbuffer_wakeup_size", ringbuffer_wakeup_size);
-    if (ringbuffer_wakeup_size == 0) {
-        return 0;
-    }
-    __u64 sz = bpf_ringbuf_query(&http_batch_events, DD_BPF_RB_AVAIL_DATA);
-    return (sz + data_size) >= ringbuffer_wakeup_size ? DD_BPF_RB_FORCE_WAKEUP : DD_BPF_RB_NO_WAKEUP;
-}
-
 static __always_inline int http_responding(http_transaction_t *http) {
     return (http != NULL && http->response_status_code != 0);
 }
@@ -43,6 +33,16 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
     status_code += (buffer[HTTP_STATUS_OFFSET+2]-'0') * 1;
     http->response_status_code = status_code;
     log_debug("http_begin_response: htx=%p status=%d", http, status_code);
+}
+
+static __always_inline __u64 get_ringbuf_flags(size_t data_size) {
+    __u64 ringbuffer_wakeup_size = 0;
+    LOAD_CONSTANT("ringbuffer_wakeup_size", ringbuffer_wakeup_size);
+    if (ringbuffer_wakeup_size == 0) {
+        return 0;
+    }
+    __u64 sz = bpf_ringbuf_query(&http_batch_events, DD_BPF_RB_AVAIL_DATA);
+    return (sz + data_size) >= ringbuffer_wakeup_size ? DD_BPF_RB_FORCE_WAKEUP : DD_BPF_RB_NO_WAKEUP;
 }
 
 static __always_inline void http_batch_enqueue_wrapper(void *ctx, conn_tuple_t *tuple, http_transaction_t *http) {
