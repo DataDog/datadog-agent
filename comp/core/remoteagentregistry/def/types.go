@@ -8,7 +8,7 @@ package remoteagentregistry
 // RegisteredAgent contains the information about a registered remote agent
 type RegisteredAgent struct {
 	DisplayName          string
-	SanatizedDisplayName string
+	SanitizedDisplayName string
 	LastSeenUnix         int64
 }
 
@@ -17,8 +17,7 @@ type StatusSection map[string]string
 
 // StatusData contains the status data for a remote agent
 type StatusData struct {
-	AgentID       string
-	DisplayName   string
+	RegistrationData
 	FailureReason string
 	MainSection   StatusSection
 	NamedSections map[string]StatusSection
@@ -26,14 +25,21 @@ type StatusData struct {
 
 // FlareData contains the flare data for a remote agent
 type FlareData struct {
-	AgentID string
-	Files   map[string][]byte
+	RegistrationData
+	Files map[string][]byte
 }
 
 // RegistrationData contains the registration information for a remote agent
 type RegistrationData struct {
-	AgentID     string
-	DisplayName string
-	APIEndpoint string
-	AuthToken   string
+	AgentFlavor      string
+	AgentDisplayName string
+	AgentPID         string
+	APIEndpointURI   string
+
+	// This field is filled by the remoteAgentRegistry
+	SessionID string
+}
+
+func (a *RegistrationData) String() string {
+	return a.AgentDisplayName + "-" + a.AgentFlavor + "-" + a.SessionID
 }

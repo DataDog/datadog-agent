@@ -7,40 +7,36 @@ package remoteagentregistryimpl
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
-	"errors"
 	"fmt"
 	"net"
-	"strconv"
 	"testing"
+	"time"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/reflection"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 func TestRemoteAgentCreation(t *testing.T) {
-	provides, lc, _, _ := buildComponent(t)
+	provides, lc, _, _, _ := buildComponent(t)
 
 	assert.NotNil(t, provides.Comp)
 	assert.NotNil(t, provides.FlareProvider)
@@ -53,332 +49,271 @@ func TestRemoteAgentCreation(t *testing.T) {
 	assert.NoError(t, lc.Stop(ctx))
 }
 
-func TestRecommendedRefreshInterval(t *testing.T) {
+func TestRegistration(t *testing.T) {
 	expectedRefreshIntervalSecs := uint32(27)
 
-	provides, _, config, _ := buildComponent(t)
+	provides, _, config, _, ipcComp := buildComponent(t)
 	config.SetWithoutSource("remote_agent_registry.recommended_refresh_interval", fmt.Sprintf("%ds", expectedRefreshIntervalSecs))
 
-	component := provides.Comp
+	component := provides.Comp.(*remoteAgentRegistry)
 
-	registrationData := &remoteagent.RegistrationData{
-		AgentID:     "test-agent",
-		DisplayName: "Test Agent",
-		APIEndpoint: "localhost:1234",
-	}
-
-	actualRefreshIntervalSecs, err := component.RegisterRemoteAgent(registrationData)
+	remoteAgent := buildRemoteAgent(t, ipcComp, "test-agent", "Test Agent", "1234")
+	_, actualRefreshIntervalSecs, err := component.RegisterRemoteAgent(&remoteAgent.RegistrationData)
 	require.NoError(t, err)
+
 	require.Equal(t, expectedRefreshIntervalSecs, actualRefreshIntervalSecs)
 
 	agents := component.GetRegisteredAgents()
 	require.Len(t, agents, 1)
 	require.Equal(t, "Test Agent", agents[0].DisplayName)
+	require.Equal(t, "test-agent", agents[0].SanitizedDisplayName)
 }
 
-func TestGetRegisteredAgents(t *testing.T) {
-	provides, _, _, _ := buildComponent(t)
-	component := provides.Comp
+func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {
+	provides, lc, config, _, ipcComp := buildComponent(t)
+	component := provides.Comp.(*remoteAgentRegistry)
 
-	registrationData := &remoteagent.RegistrationData{
-		AgentID:     "test-agent",
-		DisplayName: "Test Agent",
-		APIEndpoint: "localhost:1234",
-	}
+	// Overriding default config values to have a faster test
+	config.SetWithoutSource("remote_agent_registry.idle_timeout", time.Duration(time.Second*5))
+	config.SetWithoutSource("remote_agent_registry.recommended_refresh_interval", time.Duration(time.Second*5))
 
-	_, err := component.RegisterRemoteAgent(registrationData)
-	require.NoError(t, err)
+	lc.Start(context.Background())
+	defer lc.Stop(context.Background())
+
+	remoteAgent := buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "123",
+		withStatusProvider(map[string]string{
+			"test_key": "test_value",
+		}, nil),
+	)
 
 	agents := component.GetRegisteredAgents()
 	require.Len(t, agents, 1)
 	require.Equal(t, "Test Agent", agents[0].DisplayName)
-	require.Equal(t, "test-agent", agents[0].SanatizedDisplayName)
-}
+	require.Equal(t, "test-agent", agents[0].SanitizedDisplayName)
 
-func TestGetRegisteredAgentStatuses(t *testing.T) {
-	provides, _, _, _ := buildComponent(t)
-	component := provides.Comp
+	// Stopping the remote agent should remove it from the registry
+	remoteAgent.Stop()
+	time.Sleep(10 * time.Second)
 
-	remoteAgentServer := &testRemoteAgentServer{
-		StatusMain: map[string]string{
-			"test_key": "test_value",
-		},
-	}
-
-	server, port := buildRemoteAgentServer(t, remoteAgentServer)
-	defer server.Stop()
-
-	registrationData := &remoteagent.RegistrationData{
-		AgentID:     "test-agent",
-		DisplayName: "Test Agent",
-		APIEndpoint: fmt.Sprintf("localhost:%d", port),
-		AuthToken:   "testing",
-	}
-
-	_, err := component.RegisterRemoteAgent(registrationData)
-	require.NoError(t, err)
-
-	statuses := component.GetRegisteredAgentStatuses()
-	require.Len(t, statuses, 1)
-	require.Equal(t, "test-agent", statuses[0].AgentID)
-	require.Equal(t, "Test Agent", statuses[0].DisplayName)
-	require.Equal(t, "test_value", statuses[0].MainSection["test_key"])
-}
-
-func TestFlareProvider(t *testing.T) {
-	provides, _, _, _ := buildComponent(t)
-	component := provides.Comp
-	flareProvider := provides.FlareProvider
-
-	remoteAgentServer := &testRemoteAgentServer{
-		FlareFiles: map[string][]byte{
-			"test_file.yaml": []byte("test_content"),
-		},
-	}
-
-	server, port := buildRemoteAgentServer(t, remoteAgentServer)
-	defer server.Stop()
-
-	registrationData := &remoteagent.RegistrationData{
-		AgentID:     "test-agent",
-		DisplayName: "Test Agent",
-		APIEndpoint: fmt.Sprintf("localhost:%d", port),
-		AuthToken:   "testing",
-	}
-
-	_, err := component.RegisterRemoteAgent(registrationData)
-	require.NoError(t, err)
-
-	fb := helpers.NewFlareBuilderMock(t, false)
-	fb.AssertNoFileExists("test-agent/test_file.yaml")
-
-	err = flareProvider.FlareFiller.Callback(fb)
-	require.NoError(t, err)
-	fb.AssertFileExists("test-agent/test_file.yaml")
-	fb.AssertFileContent("test_content", "test-agent/test_file.yaml")
-}
-
-func TestGetTelemetry(t *testing.T) {
-	provides, lc, _, telemetry := buildComponent(t)
-	lc.Start(context.Background())
-	component := provides.Comp
-
-	remoteAgentServer := &testRemoteAgentServer{
-		PromText: `
-		# HELP foobar foobarhelp
-		# TYPE foobar counter
-		foobar 1
-		# HELP baz bazhelp
-		# TYPE baz gauge
-		baz{tag_one="1",tag_two="two"} 3
-		`,
-	}
-
-	server, port := buildRemoteAgentServer(t, remoteAgentServer)
-	defer server.Stop()
-
-	registrationData := &remoteagent.RegistrationData{
-		AgentID:     "test-agent",
-		DisplayName: "Test Agent",
-		APIEndpoint: fmt.Sprintf("localhost:%d", port),
-		AuthToken:   "testing",
-	}
-
-	_, err := component.RegisterRemoteAgent(registrationData)
-	require.NoError(t, err)
-
-	metrics, err := telemetry.Gather(false)
-	require.NoError(t, err)
-	assert.Contains(t, metrics, &io_prometheus_client.MetricFamily{
-		Name: proto.String("foobar"),
-		Type: io_prometheus_client.MetricType_COUNTER.Enum(),
-		Help: proto.String("foobarhelp"),
-		Metric: []*io_prometheus_client.Metric{
-			{
-				Counter: &io_prometheus_client.Counter{
-					Value: proto.Float64(1),
-				},
-			},
-		},
-	})
-
-	// assert.Contains does not work here because of the labels
-	bazMetric := func() *io_prometheus_client.MetricFamily {
-		for _, m := range metrics {
-			if m.GetName() == "baz" {
-				return m
-			}
-		}
-		return nil
-	}()
-	assert.NotNil(t, bazMetric)
-	assert.Equal(t, bazMetric.GetType(), io_prometheus_client.MetricType_GAUGE)
-	assert.Equal(t, bazMetric.GetMetric()[0].GetGauge().GetValue(), 3.0)
-	assert.Equal(t, bazMetric.GetMetric()[0].GetLabel()[0].GetValue(), "1")
-	assert.Equal(t, bazMetric.GetMetric()[0].GetLabel()[1].GetValue(), "two")
-}
-
-func TestStatusProvider(t *testing.T) {
-	provides, _, _, _ := buildComponent(t)
-	component := provides.Comp
-	statusProvider := provides.Status
-
-	remoteAgentServer := &testRemoteAgentServer{
-		StatusMain: map[string]string{
-			"test_key": "test_value",
-		},
-	}
-
-	server, port := buildRemoteAgentServer(t, remoteAgentServer)
-	defer server.Stop()
-
-	registrationData := &remoteagent.RegistrationData{
-		AgentID:     "test-agent",
-		DisplayName: "Test Agent",
-		APIEndpoint: fmt.Sprintf("localhost:%d", port),
-		AuthToken:   "testing",
-	}
-
-	_, err := component.RegisterRemoteAgent(registrationData)
-	require.NoError(t, err)
-
-	statusData := make(map[string]interface{})
-	err = statusProvider.Provider.JSON(false, statusData)
-	require.NoError(t, err)
-
-	require.Len(t, statusData, 2)
-
-	registeredAgents, ok := statusData["registeredAgents"].([]*remoteagent.RegisteredAgent)
-	if !ok {
-		t.Fatalf("registeredAgents is not a slice of RegisteredAgent")
-	}
-	require.Len(t, registeredAgents, 1)
-	require.Equal(t, "Test Agent", registeredAgents[0].DisplayName)
-
-	registeredAgentStatuses, ok := statusData["registeredAgentStatuses"].([]*remoteagent.StatusData)
-	if !ok {
-		t.Fatalf("registeredAgentStatuses is not a slice of StatusData")
-	}
-	require.Len(t, registeredAgentStatuses, 1)
-	require.Equal(t, "test-agent", registeredAgentStatuses[0].AgentID)
-	require.Equal(t, "Test Agent", registeredAgentStatuses[0].DisplayName)
-	require.Equal(t, "test_value", registeredAgentStatuses[0].MainSection["test_key"])
+	agents = component.GetRegisteredAgents()
+	require.Len(t, agents, 0)
 }
 
 func TestDisabled(t *testing.T) {
 	config := configmock.New(t)
 
-	provides, _, _ := buildComponentWithConfig(t, config)
+	provides, _, _, _ := buildComponentWithConfig(t, config)
 
 	require.Nil(t, provides.Comp)
 	require.Nil(t, provides.FlareProvider.FlareFiller)
 	require.Nil(t, provides.Status.Provider)
 }
 
-func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component, telemetry.Component) {
+func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component, telemetry.Component, ipc.Component) {
 	config := configmock.New(t)
 	config.SetWithoutSource("remote_agent_registry.enabled", true)
 
-	provides, lc, telemetry := buildComponentWithConfig(t, config)
-	return provides, lc, config, telemetry
+	provides, lc, telemetry, ipc := buildComponentWithConfig(t, config)
+	return provides, lc, config, telemetry, ipc
 }
 
-func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle, telemetry.Component) {
+func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle, telemetry.Component, ipc.Component) {
 	lc := compdef.NewTestLifecycle(t)
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	ipc := ipcmock.New(t)
 	reqs := Requires{
 		Config:    config,
+		Ipc:       ipc,
 		Lifecycle: lc,
 		Telemetry: telemetry,
 	}
 
-	return NewComponent(reqs), lc, telemetry
+	return NewComponent(reqs), lc, telemetry, ipc
 }
+
+//
+// testRemoteAgentServer is a mock implementation of the remote agent server.
+//
 
 type testRemoteAgentServer struct {
-	StatusMain   map[string]string
-	StatusNamed  map[string]map[string]string
-	FlareFiles   map[string][]byte
-	PromText     string
-	ConfigEvents chan *pbgo.ConfigEvent
-	pbgo.UnimplementedRemoteAgentServer
+	// registration values
+	remoteagent.RegistrationData
+
+	// Mock values
+	statusMain    map[string]string
+	statusNamed   map[string]map[string]string
+	flareFiles    map[string][]byte
+	promText      string
+	responseDelay time.Duration
+	ConfigEvents  chan *pb.ConfigEvent
+
+	// session ID behavior
+	registeredSessionID string // session ID received during registration
+	overrideSessionID   bool   // if true, send the overrideSessionID instead of the correct session ID
+	fakeSessionID       string // if overrideSessionID is true, send this instead of the correct session ID
+
+	// gRPC embedded
+	server                          *grpc.Server
+	shouldRegisterReflectionService bool // if false, don't register reflection service
+	pb.UnimplementedStatusProviderServer
+	pb.UnimplementedFlareProviderServer
+	pb.UnimplementedTelemetryProviderServer
 }
 
-func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pbgo.GetStatusDetailsRequest) (*pbgo.GetStatusDetailsResponse, error) {
-	namedSections := make(map[string]*pbgo.StatusSection)
-	for name, fields := range t.StatusNamed {
-		namedSections[name] = &pbgo.StatusSection{
+func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pb.GetStatusDetailsRequest) (*pb.GetStatusDetailsResponse, error) {
+	namedSections := make(map[string]*pb.StatusSection)
+	for name, fields := range t.statusNamed {
+		namedSections[name] = &pb.StatusSection{
 			Fields: fields,
 		}
 	}
 
-	return &pbgo.GetStatusDetailsResponse{
-		MainSection: &pbgo.StatusSection{
-			Fields: t.StatusMain,
+	return &pb.GetStatusDetailsResponse{
+		MainSection: &pb.StatusSection{
+			Fields: t.statusMain,
 		},
 		NamedSections: namedSections,
 	}, nil
 }
 
-func (t *testRemoteAgentServer) GetFlareFiles(context.Context, *pbgo.GetFlareFilesRequest) (*pbgo.GetFlareFilesResponse, error) {
-	return &pbgo.GetFlareFilesResponse{
-		Files: t.FlareFiles,
+func (t *testRemoteAgentServer) GetFlareFiles(context.Context, *pb.GetFlareFilesRequest) (*pb.GetFlareFilesResponse, error) {
+	return &pb.GetFlareFilesResponse{
+		Files: t.flareFiles,
 	}, nil
 }
 
-func (t *testRemoteAgentServer) GetTelemetry(context.Context, *pbgo.GetTelemetryRequest) (*pbgo.GetTelemetryResponse, error) {
-	return &pbgo.GetTelemetryResponse{
-		Payload: &pbgo.GetTelemetryResponse_PromText{
-			PromText: t.PromText,
+func (t *testRemoteAgentServer) GetTelemetry(context.Context, *pb.GetTelemetryRequest) (*pb.GetTelemetryResponse, error) {
+	return &pb.GetTelemetryResponse{
+		Payload: &pb.GetTelemetryResponse_PromText{
+			PromText: t.promText,
 		},
 	}, nil
 }
 
-func buildRemoteAgentServer(t *testing.T, remoteAgentServer *testRemoteAgentServer) (*grpc.Server, uint16) {
-	tlsKeyPair, err := buildSelfSignedTLSCertificate()
-	require.NoError(t, err)
+func (t *testRemoteAgentServer) Stop() {
+	t.server.Stop()
+}
+
+type mockProvider func(*grpc.Server, *testRemoteAgentServer)
+
+func WithFlareProvider(flareFiles map[string][]byte) func(*grpc.Server, *testRemoteAgentServer) {
+	return func(s *grpc.Server, tras *testRemoteAgentServer) {
+		tras.flareFiles = flareFiles
+		pb.RegisterFlareProviderServer(s, tras)
+	}
+}
+func withStatusProvider(statusMain map[string]string, statusNamed map[string]map[string]string) func(*grpc.Server, *testRemoteAgentServer) {
+	return func(s *grpc.Server, tras *testRemoteAgentServer) {
+		tras.statusMain = statusMain
+		tras.statusNamed = statusNamed
+		pb.RegisterStatusProviderServer(s, tras)
+	}
+}
+func withTelemetryProvider(promText string) func(*grpc.Server, *testRemoteAgentServer) {
+	return func(s *grpc.Server, tras *testRemoteAgentServer) {
+		tras.promText = promText
+		pb.RegisterTelemetryProviderServer(s, tras)
+	}
+}
+
+func withDelay(delay time.Duration) func(*grpc.Server, *testRemoteAgentServer) {
+	return func(_ *grpc.Server, tras *testRemoteAgentServer) {
+		tras.responseDelay = delay
+	}
+}
+
+func withFakeSessionID(fakeSessionID string) func(*grpc.Server, *testRemoteAgentServer) {
+	return func(_ *grpc.Server, tras *testRemoteAgentServer) {
+		tras.fakeSessionID = fakeSessionID
+		tras.overrideSessionID = true
+	}
+}
+
+func withoutReflectionService() func(*grpc.Server, *testRemoteAgentServer) {
+	return func(_ *grpc.Server, tras *testRemoteAgentServer) {
+		tras.shouldRegisterReflectionService = false
+	}
+}
+
+func buildRemoteAgent(t *testing.T, ipcComp ipc.Component, agentFlavor string, agentName string, agentPID string, mockProviders ...mockProvider) *testRemoteAgentServer {
+	testServer := &testRemoteAgentServer{
+		RegistrationData: remoteagent.RegistrationData{
+			AgentFlavor:      agentFlavor,
+			AgentPID:         agentPID,
+			AgentDisplayName: agentName,
+		},
+		// By default, register reflection service
+		shouldRegisterReflectionService: true,
+	}
 
 	// Make sure we can listen on the intended address.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
+	// Create delay interceptor that uses testServer.responseDelay
+	delayInterceptor := func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if testServer.responseDelay > 0 {
+			time.Sleep(testServer.responseDelay)
+		}
+		return handler(ctx, req)
+	}
+
+	// Create session ID interceptor that adds session_id to response metadata
+	sessionIDInterceptor := func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		sessionID := testServer.registeredSessionID
+		if testServer.overrideSessionID {
+			sessionID = testServer.fakeSessionID
+		}
+		grpc.SetHeader(ctx, metadata.New(map[string]string{"session_id": sessionID}))
+		return handler(ctx, req)
+	}
+
+	// Chain interceptors: auth first, then session ID, then delay
+	chainedInterceptor := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		// First apply auth interceptor
+		authHandler := grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(ipcComp.GetAuthToken()))
+		return authHandler(ctx, req, info, func(ctx context.Context, req any) (any, error) {
+			// Then apply session ID interceptor
+			return sessionIDInterceptor(ctx, req, info, func(ctx context.Context, req any) (any, error) {
+				// Then apply delay interceptor
+				return delayInterceptor(ctx, req, info, handler)
+			})
+		})
+	}
+
 	serverOpts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewServerTLSFromCert(tlsKeyPair)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor("testing"))),
+		grpc.Creds(credentials.NewTLS(ipcComp.GetTLSServerConfig())),
+		grpc.UnaryInterceptor(chainedInterceptor),
 	}
 
 	server := grpc.NewServer(serverOpts...)
-	pbgo.RegisterRemoteAgentServer(server, remoteAgentServer)
+	for _, provider := range mockProviders {
+		provider(server, testServer)
+	}
+
+	// Register reflection service on gRPC server.
+	if testServer.shouldRegisterReflectionService {
+		reflection.RegisterV1(server)
+	}
 
 	go func() {
 		err := server.Serve(listener)
 		require.NoError(t, err)
 	}()
 
-	_, portStr, err := net.SplitHostPort(listener.Addr().String())
-	require.NoError(t, err)
-	port, err := strconv.Atoi(portStr)
-	require.NoError(t, err)
+	t.Cleanup(server.Stop)
 
-	return server, uint16(port)
+	testServer.RegistrationData.APIEndpointURI = listener.Addr().String()
+	testServer.server = server
+
+	return testServer
 }
 
-func buildSelfSignedTLSCertificate() (*tls.Certificate, error) {
-	hosts := []string{"localhost"}
-	_, certPEM, key, err := security.GenerateRootCert(hosts, 2048)
-	if err != nil {
-		return nil, errors.New("unable to generate certificate")
-	}
+func buildAndRegisterRemoteAgent(t *testing.T, ipcComp ipc.Component, registryComp remoteagent.Component, agentFlavor string, agentName string, agentPID string, mockProviders ...mockProvider) *testRemoteAgentServer {
+	testServer := buildRemoteAgent(t, ipcComp, agentFlavor, agentName, agentPID, mockProviders...)
+	sessionID, _, err := registryComp.RegisterRemoteAgent(&testServer.RegistrationData)
+	require.NoError(t, err)
 
-	// PEM encode the private key
-	keyPEM := pem.EncodeToMemory(&pem.Block{
-		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key),
-	})
-
-	pair, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, fmt.Errorf("unable to generate TLS key pair: %v", err)
-	}
-
-	return &pair, nil
+	testServer.registeredSessionID = sessionID
+	return testServer
 }
