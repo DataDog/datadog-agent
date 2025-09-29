@@ -1,7 +1,6 @@
 use crate::aggregator::{Aggregator, MetricType, ServiceCheckStatus, Event};
 use crate::config::Config;
 
-use std::ffi::{c_char, CStr};
 use std::error::Error;
 
 pub struct AgentCheck {
@@ -14,17 +13,10 @@ pub struct AgentCheck {
 }
 
 impl AgentCheck {
-    pub fn from(check_id_str: *const c_char, init_config_str: *const c_char, instance_config_str: *const c_char, aggregator_ptr: *const Aggregator) -> Result<Self, Box<dyn Error>> {
-        let check_id = unsafe { CStr::from_ptr(check_id_str) }
-            .to_str()?
-            .to_string();
+    pub fn new(check_id: String, init_config_str: String, instance_config_str: String, aggregator: Aggregator) -> Result<Self, Box<dyn Error>> {
+        let init_config = Config::new(&init_config_str)?;
+        let instance = Config::new(&instance_config_str)?;
 
-        // parse configuration strings
-        let init_config = Config::from_yaml_str(init_config_str)?;
-        let instance = Config::from_yaml_str(instance_config_str)?;
-        
-        // gather callbacks in a struct
-        let aggregator = Aggregator::from_raw(aggregator_ptr);
 
         Ok(Self { check_id, aggregator, init_config, instance })
     }
@@ -86,26 +78,3 @@ impl AgentCheck {
         self.aggregator.submit_event_platform_event(&self.check_id, raw_event_pointer, raw_event_size, event_type)
     }
 }
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    /// Mock AgentCheck for testing other checks
-    impl AgentCheck {
-        pub fn mock() -> Self {
-            // mock string for check id
-            let check_id = String::from("mock_check_id");
-    
-            // Create empty configs for testing
-            let init_config = Config::new();
-            let instance = Config::new();
-            
-            // mock aggregator with noop functions
-            let aggregator = Aggregator::mock();
-            
-            Self { check_id, aggregator, init_config, instance }
-        }
-    }
-}
-

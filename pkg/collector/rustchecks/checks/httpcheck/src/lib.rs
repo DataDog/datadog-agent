@@ -334,6 +334,7 @@ impl CheckImplementation for AgentCheck {
 #[cfg(test)]
 mod test {
     use super::*;
+    use rust_check_core::test_utils::*;
 
     #[test]
     fn test_url_parsing() {
@@ -364,15 +365,7 @@ mod test {
 
     #[test]
     fn test_check_implementation() -> Result<(), Box<dyn Error>> {
-        // let agent_check = AgentCheck::new(
-        //     "check_id",
-        //     init_config_str,
-        //     instance_config_str,
-        //     aggregator_ptr
-        // )?;
-
-        // agent_check.check()
-
-        Ok(())
+        let agent_check = mock_agent_check();
+        agent_check.check()
     }
 }

@@ -2,7 +2,6 @@ use serde_yaml::Value;
 use serde::de::DeserializeOwned;
 
 use std::collections::HashMap;
-use std::ffi::{c_char, CStr};
 use std::error::Error;
 
 /// Represents the parameters passed by the Agent to the check
@@ -14,17 +13,10 @@ pub struct Config {
 }
 
 impl Config {
-    // NOTE: should it be moved to the test module?
-    pub fn new() -> Self {
-        Self { map: HashMap::new() }
-    }
-
-    pub fn from_yaml_str(cstr: *const c_char) -> Result<Self, Box<dyn Error>> {
-        // read string
-        let str = unsafe { CStr::from_ptr(cstr) }.to_str()?;
-
-        // create map of parameters from the string
-        match serde_yaml::from_str(str) {
+    /// Create a configuration map base on a YAML string
+    pub fn new(yaml_str: &str) -> Result<Self, Box<dyn Error>> {
+        // try to convert the YAML string
+        match serde_yaml::from_str(yaml_str) {
             Ok(map) => Ok(Self { map }),
             Err(e) => Err(e.to_string().into()),
         }
@@ -41,5 +33,57 @@ impl Config {
             },
             None => Err(format!("key '{key}' not found in the instance").into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+
+    use crate::config::Config;
+    
+    fn common_config() -> Config {
+        let yaml_str = "string: \"string value\"
+integer: 123456";
+
+        Config::new(yaml_str).unwrap()
+    }
+
+    #[test]
+    fn test_empty_yaml_str() {
+        // should create a config even with an empty string
+        let empty_config = Config::new("").unwrap();
+
+        // the map of the config should have no keys
+        assert_eq!(empty_config.map, HashMap::new());
+    }
+
+    #[test]
+    fn test_exisintg_key() {
+        let config = common_config();
+        
+        // extract config values
+        let str_field: String = config.get("string").unwrap();
+        let int_field: i32 = config.get("integer").unwrap();
+
+        // verify their content
+        assert_eq!(str_field, "string value");
+        assert_eq!(int_field, 123456);
+    }
+
+    #[test]
+    fn test_non_existing_key() {
+        let config = common_config();
+
+        // try to get a non existing key
+        config.get::<i32>("non exisiting key").unwrap_err();
+    }
+
+    #[test]
+    fn test_incorrect_value_type() {
+        let config = common_config();
+
+        // try to get a non existing key
+        config.get::<i32>("string").unwrap_err();
     }
 }

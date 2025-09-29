@@ -1,14 +1,20 @@
-use std::ffi::{c_char, CString};
+use std::ffi::{c_char, CStr, CString};
 use std::error::Error;
 
-// TODO: raise errors in the conversion functions
+/// Convert C-String pointer to Rust String
+pub fn to_rust_string(ptr: *mut c_char) -> Result<String, Box<dyn Error>> {
+    let rust_str = unsafe { CStr::from_ptr(ptr) }.to_str()?;
+    Ok(rust_str.to_string())
+}
 
+/// Convert Rust str to C-String pointer
 pub fn to_cstring(string: &str) -> Result<*mut c_char, Box<dyn Error>> {
     let cstr = CString::new(string)?;
 
     Ok(cstr.into_raw())
 }
 
+/// Convert Rust vector of Strings to an array of C-String pointers
 pub fn to_cstring_array(vec: &[String]) -> Result<*mut *mut c_char, Box<dyn Error>> {
     let mut c_vec: Vec<*mut c_char> = vec.iter()
         .map(|s| to_cstring(s))
@@ -22,6 +28,7 @@ pub fn to_cstring_array(vec: &[String]) -> Result<*mut *mut c_char, Box<dyn Erro
     Ok(vec_ptr)
 }
 
+/// Free a C-String
 pub fn free_cstring(ptr: *mut c_char) {
     if ptr.is_null() {
         return;
@@ -30,6 +37,7 @@ pub fn free_cstring(ptr: *mut c_char) {
     unsafe { drop(CString::from_raw(ptr)) };
 }
 
+/// Free an array of C-Strings
 pub fn free_cstring_array(ptr: *mut *mut c_char) {
     if ptr.is_null() {
         return;
