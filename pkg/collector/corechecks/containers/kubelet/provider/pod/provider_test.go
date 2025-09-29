@@ -49,7 +49,8 @@ import (
 // dummyKubelet allows tests to mock a kubelet's responses
 type dummyKubelet struct {
 	sync.Mutex
-	PodsBody []byte
+	PodsBody         []byte
+	latestUpdateRead bool
 }
 
 func newDummyKubelet() *dummyKubelet {
@@ -64,6 +65,7 @@ func (d *dummyKubelet) loadPodList(podListJSONPath string) error {
 		return err
 	}
 	d.PodsBody = podList
+	d.latestUpdateRead = false
 	return nil
 }
 
@@ -78,10 +80,17 @@ func (d *dummyKubelet) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s, err := w.Write(d.PodsBody)
 		log.Debugf("dummyKubelet wrote %d bytes, err: %v", s, err)
+		d.latestUpdateRead = true
 
 	default:
 		w.WriteHeader(http.StatusNotFound)
 	}
+}
+
+func (d *dummyKubelet) LatestUpdateHasBeenRead() bool {
+	d.Lock()
+	defer d.Unlock()
+	return d.latestUpdateRead
 }
 
 func (d *dummyKubelet) parsePort(ts *httptest.Server) (*httptest.Server, int, error) {
@@ -112,7 +121,7 @@ type ProviderTestSuite struct {
 	tagger       tagger.Component
 }
 
-func (suite *ProviderTestSuite) SetupTest() {
+func (suite *ProviderTestSuite) SetupSuite() {
 	kubelet.ResetGlobalKubeUtil()
 	kubelet.ResetCache()
 
@@ -177,7 +186,13 @@ func (suite *ProviderTestSuite) SetupTest() {
 	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger)
 }
 
-func (suite *ProviderTestSuite) TearDownTest() {
+func (suite *ProviderTestSuite) SetupTest() {
+	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
+	mockSender.SetupAcceptAll()
+	suite.mockSender = mockSender
+}
+
+func (suite *ProviderTestSuite) TearDownSuite() {
 	suite.testServer.Close()
 }
 
@@ -399,16 +414,34 @@ func (suite *ProviderTestSuite) TestPodResizeMetrics() {
 }
 
 func (suite *ProviderTestSuite) waitForPodsInWorkloadMeta(testDataFile string) {
+	// Make sure the kubelet collector fetches from the endpoint instead of the
+	// cache
+	kubelet.ResetCache()
+
+	// Wait until the kubelet collector gets the new pod list
+	require.Eventually(suite.T(), func() bool {
+		return suite.dummyKubelet.LatestUpdateHasBeenRead()
+	}, 30*time.Second, 10*time.Millisecond)
+
+	// Manually reset workloadmeta. This is because the kubelet collector
+	// doesn't delete pods until they've been missing from the kubelet response
+	// for 15 seconds.
+	// With this, the next time the kubelet collector runs, the pods in the
+	// store should only be the ones in the test data file
+	suite.provider.store.Reset([]workloadmeta.Entity{}, workloadmeta.SourceNodeOrchestrator)
+
 	podCount, err := getPodCountFromTestData(testDataFile)
 	require.NoError(suite.T(), err)
 
+	// Wait until the kubelet collector runs and the data is processed in
+	// workloadmeta
 	require.Eventually(
 		suite.T(),
 		func() bool {
 			return len(suite.provider.store.ListKubernetesPods()) == podCount
 		},
-		10*time.Second,
-		10*time.Millisecond,
+		30*time.Second, // Workloadmeta collectors run every 5s, so this should be enough
+		50*time.Millisecond,
 	)
 }
 
