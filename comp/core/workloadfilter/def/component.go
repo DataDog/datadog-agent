@@ -22,6 +22,8 @@ type Component interface {
 	GetServiceFilters(serviceFilters [][]ServiceFilter) FilterBundle
 	// GetEndpointFilters retrieves the selected endpoint FilterBundle
 	GetEndpointFilters(endpointFilters [][]EndpointFilter) FilterBundle
+	// GetProcessFilters retrieves the selected process FilterBundle
+	GetProcessFilters(processFilters [][]ProcessFilter) FilterBundle
 
 	// GetContainerAutodiscoveryFilters retrieves the container AD FilterBundle
 	GetContainerAutodiscoveryFilters(filterScope Scope) FilterBundle

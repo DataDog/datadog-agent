@@ -12,7 +12,7 @@ Probes:
       events:
         - ID: 100
           Type: 1346 EventRootType Probe[main.stackC]
-          InjectionPoints: [{PC: "0xcd906a", Frameless: false}]
+          InjectionPoints: [{PC: "0xcd912a", Frameless: false}]
           Condition: null
     - id: testAny
       version: 0
@@ -278,7 +278,7 @@ Probes:
       events:
         - ID: 90
           Type: 1336 EventRootType Probe[main.testEmptySlice]
-          InjectionPoints: [{PC: "0xcd8c20", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd8ce0", Frameless: true}]
           Condition: null
     - id: testEmptySliceOfStructs
       version: 0
@@ -292,7 +292,7 @@ Probes:
       events:
         - ID: 93
           Type: 1339 EventRootType Probe[main.testEmptySliceOfStructs]
-          InjectionPoints: [{PC: "0xcd8c80", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd8d40", Frameless: true}]
           Condition: null
     - id: testEmptyString
       version: 0
@@ -307,7 +307,7 @@ Probes:
       events:
         - ID: 109
           Type: 1355 EventRootType Probe[main.testEmptyString]
-          InjectionPoints: [{PC: "0xcd91a0", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd9260", Frameless: true}]
           Condition: null
     - id: testEmptyStruct
       version: 0
@@ -321,7 +321,7 @@ Probes:
       events:
         - ID: 113
           Type: 1359 EventRootType Probe[main.testEmptyStruct]
-          InjectionPoints: [{PC: "0xcd95e0", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd96a0", Frameless: true}]
           Condition: null
     - id: testEmptyStructPointer
       version: 0
@@ -334,7 +334,7 @@ Probes:
       events:
         - ID: 114
           Type: 1360 EventRootType Probe[main.testEmptyStructPointer]
-          InjectionPoints: [{PC: "0xcd9600", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd96c0", Frameless: true}]
           Condition: null
     - id: testError
       version: 0
@@ -910,7 +910,7 @@ Probes:
       events:
         - ID: 106
           Type: 1352 EventRootType Probe[main.testMassiveString]
-          InjectionPoints: [{PC: "0xcd9160", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd9220", Frameless: true}]
           Condition: null
     - id: testMassiveStringWithSizeLimit
       version: 0
@@ -925,7 +925,7 @@ Probes:
       events:
         - ID: 107
           Type: 1353 EventRootType Probe[main.testMassiveString]
-          InjectionPoints: [{PC: "0xcd9160", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd9220", Frameless: true}]
           Condition: null
     - id: testMultipleSimpleParams
       version: 0
@@ -967,7 +967,7 @@ Probes:
       events:
         - ID: 97
           Type: 1343 EventRootType Probe[main.testNilSlice]
-          InjectionPoints: [{PC: "0xcd8d00", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd8dc0", Frameless: true}]
           Condition: null
     - id: testNilSliceOfStructs
       version: 0
@@ -981,7 +981,7 @@ Probes:
       events:
         - ID: 94
           Type: 1340 EventRootType Probe[main.testNilSliceOfStructs]
-          InjectionPoints: [{PC: "0xcd8ca0", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd8d60", Frameless: true}]
           Condition: null
     - id: testNilSliceWithOtherParams
       version: 0
@@ -995,7 +995,7 @@ Probes:
       events:
         - ID: 96
           Type: 1342 EventRootType Probe[main.testNilSliceWithOtherParams]
-          InjectionPoints: [{PC: "0xcd8ce0", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd8da0", Frameless: true}]
           Condition: null
     - id: testOneStringInStructPointer
       version: 0
@@ -1009,7 +1009,7 @@ Probes:
       events:
         - ID: 105
           Type: 1351 EventRootType Probe[main.testOneStringInStructPointer]
-          InjectionPoints: [{PC: "0xcd9140", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd9200", Frameless: true}]
           Condition: null
     - id: testPointerLoop
       version: 0
@@ -1219,7 +1219,7 @@ Probes:
       events:
         - ID: 101
           Type: 1347 EventRootType Probe[main.testSingleString]
-          InjectionPoints: [{PC: "0xcd90c0", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd9180", Frameless: true}]
           Condition: null
     - id: testSingleUint
       version: 0
@@ -1303,7 +1303,7 @@ Probes:
       events:
         - ID: 91
           Type: 1337 EventRootType Probe[main.testSliceOfSlices]
-          InjectionPoints: [{PC: "0xcd8c40", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd8d00", Frameless: true}]
           Condition: null
     - id: testSmallMap
       version: 0
@@ -1359,7 +1359,7 @@ Probes:
       events:
         - ID: 95
           Type: 1341 EventRootType Probe[main.testStringSlice]
-          InjectionPoints: [{PC: "0xcd8cc0", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd8d80", Frameless: true}]
           Condition: null
     - id: testStringType1
       version: 0
@@ -1401,7 +1401,7 @@ Probes:
       events:
         - ID: 112
           Type: 1358 EventRootType Probe[main.testStruct]
-          InjectionPoints: [{PC: "0xcd9460", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd9520", Frameless: true}]
           Condition: null
     - id: testStructSlice
       version: 0
@@ -1415,7 +1415,7 @@ Probes:
       events:
         - ID: 92
           Type: 1338 EventRootType Probe[main.testStructSlice]
-          InjectionPoints: [{PC: "0xcd8c60", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd8d20", Frameless: true}]
           Condition: null
     - id: testStructWithAny
       version: 0
@@ -1442,7 +1442,7 @@ Probes:
       events:
         - ID: 111
           Type: 1357 EventRootType Probe[main.testStructWithCyclicMaps]
-          InjectionPoints: [{PC: "0xcd9320", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd93e0", Frameless: true}]
           Condition: null
     - id: testStructWithCyclicSlices
       version: 0
@@ -1455,7 +1455,7 @@ Probes:
       events:
         - ID: 110
           Type: 1356 EventRootType Probe[main.testStructWithCyclicSlices]
-          InjectionPoints: [{PC: "0xcd9300", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd93c0", Frameless: true}]
           Condition: null
     - id: testStructWithMap
       version: 0
@@ -1483,7 +1483,7 @@ Probes:
       events:
         - ID: 102
           Type: 1348 EventRootType Probe[main.testThreeStrings]
-          InjectionPoints: [{PC: "0xcd90e0", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd91a0", Frameless: true}]
           Condition: null
     - id: testThreeStringsInStruct
       version: 0
@@ -1497,7 +1497,7 @@ Probes:
       events:
         - ID: 103
           Type: 1349 EventRootType Probe[main.testThreeStringsInStruct]
-          InjectionPoints: [{PC: "0xcd9100", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd91c0", Frameless: true}]
           Condition: null
     - id: testThreeStringsInStructPointer
       version: 0
@@ -1511,7 +1511,7 @@ Probes:
       events:
         - ID: 104
           Type: 1350 EventRootType Probe[main.testThreeStringsInStructPointer]
-          InjectionPoints: [{PC: "0xcd9120", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd91e0", Frameless: true}]
           Condition: null
     - id: testTypeAlias
       version: 0
@@ -1623,7 +1623,7 @@ Probes:
       events:
         - ID: 89
           Type: 1335 EventRootType Probe[main.testUintSlice]
-          InjectionPoints: [{PC: "0xcd8c00", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd8cc0", Frameless: true}]
           Condition: null
     - id: testUnitializedString
       version: 0
@@ -1637,7 +1637,7 @@ Probes:
       events:
         - ID: 108
           Type: 1354 EventRootType Probe[main.testUnitializedString]
-          InjectionPoints: [{PC: "0xcd9180", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd9240", Frameless: true}]
           Condition: null
     - id: testUnsafePointer
       version: 0
@@ -1679,7 +1679,7 @@ Probes:
       events:
         - ID: 98
           Type: 1344 EventRootType Probe[main.testVeryLargeSlice]
-          InjectionPoints: [{PC: "0xcd8d20", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd8de0", Frameless: true}]
           Condition: null
     - id: testVeryLargeSliceWithSizeLimit
       version: 0
@@ -1693,7 +1693,7 @@ Probes:
       events:
         - ID: 99
           Type: 1345 EventRootType Probe[main.testVeryLargeSlice]
-          InjectionPoints: [{PC: "0xcd8d20", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd8de0", Frameless: true}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -2917,140 +2917,11 @@ Subprograms:
           IsReturn: false
     - ID: 88
       Name: main.testUintSlice
-      OutOfLinePCRanges: [0xcd8c00..0xcd8c01]
-      InlinePCRanges: []
-      Variables:
-        - Name: u
-          Type: 229 GoSliceHeaderType []uint
-          Locations:
-            - Range: 0xcd8c00..0xcd8c01
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
-    - ID: 89
-      Name: main.testEmptySlice
-      OutOfLinePCRanges: [0xcd8c20..0xcd8c21]
-      InlinePCRanges: []
-      Variables:
-        - Name: u
-          Type: 229 GoSliceHeaderType []uint
-          Locations:
-            - Range: 0xcd8c20..0xcd8c21
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
-    - ID: 90
-      Name: main.testSliceOfSlices
-      OutOfLinePCRanges: [0xcd8c40..0xcd8c41]
-      InlinePCRanges: []
-      Variables:
-        - Name: u
-          Type: 230 GoSliceHeaderType [][]uint
-          Locations:
-            - Range: 0xcd8c40..0xcd8c41
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
-    - ID: 91
-      Name: main.testStructSlice
-      OutOfLinePCRanges: [0xcd8c60..0xcd8c61]
-      InlinePCRanges: []
-      Variables:
-        - Name: xs
-          Type: 232 GoSliceHeaderType []main.structWithNoStrings
-          Locations:
-            - Range: 0xcd8c60..0xcd8c61
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
-        - Name: a
-          Type: 7 BaseType int
-          Locations:
-            - Range: 0xcd8c60..0xcd8c61
-              Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
-    - ID: 92
-      Name: main.testEmptySliceOfStructs
-      OutOfLinePCRanges: [0xcd8c80..0xcd8c81]
-      InlinePCRanges: []
-      Variables:
-        - Name: xs
-          Type: 232 GoSliceHeaderType []main.structWithNoStrings
-          Locations:
-            - Range: 0xcd8c80..0xcd8c81
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
-        - Name: a
-          Type: 7 BaseType int
-          Locations:
-            - Range: 0xcd8c80..0xcd8c81
-              Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
-    - ID: 93
-      Name: main.testNilSliceOfStructs
-      OutOfLinePCRanges: [0xcd8ca0..0xcd8ca1]
-      InlinePCRanges: []
-      Variables:
-        - Name: xs
-          Type: 232 GoSliceHeaderType []main.structWithNoStrings
-          Locations:
-            - Range: 0xcd8ca0..0xcd8ca1
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-          IsParameter: true
-          IsReturn: false
-        - Name: a
-          Type: 7 BaseType int
-          Locations:
-            - Range: 0xcd8ca0..0xcd8ca1
-              Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
-          IsParameter: true
-          IsReturn: false
-    - ID: 94
-      Name: main.testStringSlice
       OutOfLinePCRanges: [0xcd8cc0..0xcd8cc1]
       InlinePCRanges: []
       Variables:
-        - Name: s
-          Type: 235 GoSliceHeaderType []string
+        - Name: u
+          Type: 229 GoSliceHeaderType []uint
           Locations:
             - Range: 0xcd8cc0..0xcd8cc1
               Pieces:
@@ -3062,22 +2933,151 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           IsParameter: true
           IsReturn: false
+    - ID: 89
+      Name: main.testEmptySlice
+      OutOfLinePCRanges: [0xcd8ce0..0xcd8ce1]
+      InlinePCRanges: []
+      Variables:
+        - Name: u
+          Type: 229 GoSliceHeaderType []uint
+          Locations:
+            - Range: 0xcd8ce0..0xcd8ce1
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+          IsParameter: true
+          IsReturn: false
+    - ID: 90
+      Name: main.testSliceOfSlices
+      OutOfLinePCRanges: [0xcd8d00..0xcd8d01]
+      InlinePCRanges: []
+      Variables:
+        - Name: u
+          Type: 230 GoSliceHeaderType [][]uint
+          Locations:
+            - Range: 0xcd8d00..0xcd8d01
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+          IsParameter: true
+          IsReturn: false
+    - ID: 91
+      Name: main.testStructSlice
+      OutOfLinePCRanges: [0xcd8d20..0xcd8d21]
+      InlinePCRanges: []
+      Variables:
+        - Name: xs
+          Type: 232 GoSliceHeaderType []main.structWithNoStrings
+          Locations:
+            - Range: 0xcd8d20..0xcd8d21
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+          IsParameter: true
+          IsReturn: false
+        - Name: a
+          Type: 7 BaseType int
+          Locations:
+            - Range: 0xcd8d20..0xcd8d21
+              Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
+          IsParameter: true
+          IsReturn: false
+    - ID: 92
+      Name: main.testEmptySliceOfStructs
+      OutOfLinePCRanges: [0xcd8d40..0xcd8d41]
+      InlinePCRanges: []
+      Variables:
+        - Name: xs
+          Type: 232 GoSliceHeaderType []main.structWithNoStrings
+          Locations:
+            - Range: 0xcd8d40..0xcd8d41
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+          IsParameter: true
+          IsReturn: false
+        - Name: a
+          Type: 7 BaseType int
+          Locations:
+            - Range: 0xcd8d40..0xcd8d41
+              Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
+          IsParameter: true
+          IsReturn: false
+    - ID: 93
+      Name: main.testNilSliceOfStructs
+      OutOfLinePCRanges: [0xcd8d60..0xcd8d61]
+      InlinePCRanges: []
+      Variables:
+        - Name: xs
+          Type: 232 GoSliceHeaderType []main.structWithNoStrings
+          Locations:
+            - Range: 0xcd8d60..0xcd8d61
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+          IsParameter: true
+          IsReturn: false
+        - Name: a
+          Type: 7 BaseType int
+          Locations:
+            - Range: 0xcd8d60..0xcd8d61
+              Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
+          IsParameter: true
+          IsReturn: false
+    - ID: 94
+      Name: main.testStringSlice
+      OutOfLinePCRanges: [0xcd8d80..0xcd8d81]
+      InlinePCRanges: []
+      Variables:
+        - Name: s
+          Type: 235 GoSliceHeaderType []string
+          Locations:
+            - Range: 0xcd8d80..0xcd8d81
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+          IsParameter: true
+          IsReturn: false
     - ID: 95
       Name: main.testNilSliceWithOtherParams
-      OutOfLinePCRanges: [0xcd8ce0..0xcd8ce1]
+      OutOfLinePCRanges: [0xcd8da0..0xcd8da1]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 15 BaseType int8
           Locations:
-            - Range: 0xcd8ce0..0xcd8ce1
+            - Range: 0xcd8da0..0xcd8da1
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
         - Name: s
           Type: 236 GoSliceHeaderType []bool
           Locations:
-            - Range: 0xcd8ce0..0xcd8ce1
+            - Range: 0xcd8da0..0xcd8da1
               Pieces:
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
@@ -3090,19 +3090,19 @@ Subprograms:
         - Name: x
           Type: 16 BaseType uint
           Locations:
-            - Range: 0xcd8ce0..0xcd8ce1
+            - Range: 0xcd8da0..0xcd8da1
               Pieces: [{Size: 8, Op: {RegNo: 4, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 96
       Name: main.testNilSlice
-      OutOfLinePCRanges: [0xcd8d00..0xcd8d01]
+      OutOfLinePCRanges: [0xcd8dc0..0xcd8dc1]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 237 GoSliceHeaderType []uint16
           Locations:
-            - Range: 0xcd8d00..0xcd8d01
+            - Range: 0xcd8dc0..0xcd8dc1
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3114,13 +3114,13 @@ Subprograms:
           IsReturn: false
     - ID: 97
       Name: main.testVeryLargeSlice
-      OutOfLinePCRanges: [0xcd8d20..0xcd8d21]
+      OutOfLinePCRanges: [0xcd8de0..0xcd8de1]
       InlinePCRanges: []
       Variables:
         - Name: xs
           Type: 229 GoSliceHeaderType []uint
           Locations:
-            - Range: 0xcd8d20..0xcd8d21
+            - Range: 0xcd8de0..0xcd8de1
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3132,23 +3132,23 @@ Subprograms:
           IsReturn: false
     - ID: 98
       Name: main.stackC
-      OutOfLinePCRanges: [0xcd9060..0xcd90b2]
+      OutOfLinePCRanges: [0xcd9120..0xcd9172]
       InlinePCRanges: []
       Variables:
         - Name: ~r0
           Type: 9 GoStringHeaderType string
-          Locations: [{Range: 0xcd9060..0xcd90b2, Pieces: []}]
+          Locations: [{Range: 0xcd9120..0xcd9172, Pieces: []}]
           IsParameter: true
           IsReturn: true
     - ID: 99
       Name: main.testSingleString
-      OutOfLinePCRanges: [0xcd90c0..0xcd90c1]
+      OutOfLinePCRanges: [0xcd9180..0xcd9181]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0xcd90c0..0xcd90c1
+            - Range: 0xcd9180..0xcd9181
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3158,13 +3158,13 @@ Subprograms:
           IsReturn: false
     - ID: 100
       Name: main.testThreeStrings
-      OutOfLinePCRanges: [0xcd90e0..0xcd90e1]
+      OutOfLinePCRanges: [0xcd91a0..0xcd91a1]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0xcd90e0..0xcd90e1
+            - Range: 0xcd91a0..0xcd91a1
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3175,7 +3175,7 @@ Subprograms:
         - Name: y
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0xcd90e0..0xcd90e1
+            - Range: 0xcd91a0..0xcd91a1
               Pieces:
                 - Size: 8
                   Op: {RegNo: 2, Shift: 0}
@@ -3186,7 +3186,7 @@ Subprograms:
         - Name: z
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0xcd90e0..0xcd90e1
+            - Range: 0xcd91a0..0xcd91a1
               Pieces:
                 - Size: 8
                   Op: {RegNo: 4, Shift: 0}
@@ -3196,13 +3196,13 @@ Subprograms:
           IsReturn: false
     - ID: 101
       Name: main.testThreeStringsInStruct
-      OutOfLinePCRanges: [0xcd9100..0xcd911f]
+      OutOfLinePCRanges: [0xcd91c0..0xcd91df]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 238 StructureType main.threeStringStruct
           Locations:
-            - Range: 0xcd9100..0xcd911f
+            - Range: 0xcd91c0..0xcd91df
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3220,37 +3220,37 @@ Subprograms:
           IsReturn: false
     - ID: 102
       Name: main.testThreeStringsInStructPointer
-      OutOfLinePCRanges: [0xcd9120..0xcd9121]
+      OutOfLinePCRanges: [0xcd91e0..0xcd91e1]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 239 PointerType *main.threeStringStruct
           Locations:
-            - Range: 0xcd9120..0xcd9121
+            - Range: 0xcd91e0..0xcd91e1
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 103
       Name: main.testOneStringInStructPointer
-      OutOfLinePCRanges: [0xcd9140..0xcd9141]
+      OutOfLinePCRanges: [0xcd9200..0xcd9201]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 240 PointerType *main.oneStringStruct
           Locations:
-            - Range: 0xcd9140..0xcd9141
+            - Range: 0xcd9200..0xcd9201
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 104
       Name: main.testMassiveString
-      OutOfLinePCRanges: [0xcd9160..0xcd9161]
+      OutOfLinePCRanges: [0xcd9220..0xcd9221]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0xcd9160..0xcd9161
+            - Range: 0xcd9220..0xcd9221
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3260,13 +3260,13 @@ Subprograms:
           IsReturn: false
     - ID: 105
       Name: main.testUnitializedString
-      OutOfLinePCRanges: [0xcd9180..0xcd9181]
+      OutOfLinePCRanges: [0xcd9240..0xcd9241]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0xcd9180..0xcd9181
+            - Range: 0xcd9240..0xcd9241
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3276,13 +3276,13 @@ Subprograms:
           IsReturn: false
     - ID: 106
       Name: main.testEmptyString
-      OutOfLinePCRanges: [0xcd91a0..0xcd91a1]
+      OutOfLinePCRanges: [0xcd9260..0xcd9261]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0xcd91a0..0xcd91a1
+            - Range: 0xcd9260..0xcd9261
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3292,25 +3292,25 @@ Subprograms:
           IsReturn: false
     - ID: 107
       Name: main.testStructWithCyclicSlices
-      OutOfLinePCRanges: [0xcd9300..0xcd9301]
+      OutOfLinePCRanges: [0xcd93c0..0xcd93c1]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 242 StructureType main.structWithCyclicSlices
           Locations:
-            - Range: 0xcd9300..0xcd9301
+            - Range: 0xcd93c0..0xcd93c1
               Pieces: [{Size: 144, Op: {CfaOffset: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 108
       Name: main.testStructWithCyclicMaps
-      OutOfLinePCRanges: [0xcd9320..0xcd933f]
+      OutOfLinePCRanges: [0xcd93e0..0xcd93ff]
       InlinePCRanges: []
       Variables:
         - Name: a
           Type: 255 StructureType main.structWithCyclicMaps
           Locations:
-            - Range: 0xcd9320..0xcd933f
+            - Range: 0xcd93e0..0xcd93ff
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -3328,13 +3328,13 @@ Subprograms:
           IsReturn: false
     - ID: 109
       Name: main.testStruct
-      OutOfLinePCRanges: [0xcd9460..0xcd9483]
+      OutOfLinePCRanges: [0xcd9520..0xcd9543]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 286 StructureType main.aStruct
           Locations:
-            - Range: 0xcd9460..0xcd9483
+            - Range: 0xcd9520..0xcd9543
               Pieces:
                 - Size: 1
                   Op: {RegNo: 0, Shift: 0}
@@ -3354,23 +3354,23 @@ Subprograms:
           IsReturn: false
     - ID: 110
       Name: main.testEmptyStruct
-      OutOfLinePCRanges: [0xcd95e0..0xcd95e1]
+      OutOfLinePCRanges: [0xcd96a0..0xcd96a1]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 288 StructureType main.emptyStruct
-          Locations: [{Range: 0xcd95e0..0xcd95e1, Pieces: []}]
+          Locations: [{Range: 0xcd96a0..0xcd96a1, Pieces: []}]
           IsParameter: true
           IsReturn: false
     - ID: 111
       Name: main.testEmptyStructPointer
-      OutOfLinePCRanges: [0xcd9600..0xcd9601]
+      OutOfLinePCRanges: [0xcd96c0..0xcd96c1]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 289 PointerType *main.emptyStruct
           Locations:
-            - Range: 0xcd9600..0xcd9601
+            - Range: 0xcd96c0..0xcd96c1
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
@@ -6637,6 +6637,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 157 PointerType *interface {}
             Operations:
@@ -6652,6 +6653,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 151 GoEmptyInterfaceType interface {}
             Operations:
@@ -6667,6 +6669,7 @@ Types:
       Expressions:
         - Name: b
           Offset: 1
+          Kind: argument
           Expression:
             Type: 119 ArrayType [2][2][2]int
             Operations:
@@ -6682,6 +6685,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 118 ArrayType [2][2]int
             Operations:
@@ -6697,6 +6701,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 185 ArrayType [2]map[string]int
             Operations:
@@ -6712,6 +6717,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 109 ArrayType [2]string
             Operations:
@@ -6727,6 +6733,7 @@ Types:
       Expressions:
         - Name: b
           Offset: 1
+          Kind: argument
           Expression:
             Type: 122 StructureType main.bigStruct
             Operations:
@@ -6742,6 +6749,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 110 ArrayType [2]bool
             Operations:
@@ -6757,6 +6765,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 107 ArrayType [2]uint8
             Operations:
@@ -6772,6 +6781,7 @@ Types:
       Expressions:
         - Name: c
           Offset: 1
+          Kind: argument
           Expression:
             Type: 222 GoChannelType chan bool
             Operations:
@@ -6787,6 +6797,7 @@ Types:
       Expressions:
         - Name: w
           Offset: 1
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -6796,6 +6807,7 @@ Types:
                   ByteSize: 1
         - Name: x
           Offset: 2
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -6805,6 +6817,7 @@ Types:
                   ByteSize: 1
         - Name: y
           Offset: 3
+          Kind: argument
           Expression:
             Type: 17 BaseType float32
             Operations:
@@ -6820,6 +6833,7 @@ Types:
       Expressions:
         - Name: t
           Offset: 1
+          Kind: argument
           Expression:
             Type: 227 PointerType *main.t
             Operations:
@@ -6835,6 +6849,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 137 StructureType main.deepMap1
             Operations:
@@ -6850,6 +6865,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 143 PointerType *main.deepMap7
             Operations:
@@ -6865,6 +6881,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 126 StructureType main.deepPtr1
             Operations:
@@ -6880,6 +6897,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 129 PointerType *main.deepPtr7
             Operations:
@@ -6895,6 +6913,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 131 StructureType main.deepSlice1
             Operations:
@@ -6910,6 +6929,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 135 PointerType *main.deepSlice7
             Operations:
@@ -6925,6 +6945,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 232 GoSliceHeaderType []main.structWithNoStrings
             Operations:
@@ -6934,6 +6955,7 @@ Types:
                   ByteSize: 24
         - Name: a
           Offset: 25
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -6949,6 +6971,7 @@ Types:
       Expressions:
         - Name: u
           Offset: 1
+          Kind: argument
           Expression:
             Type: 229 GoSliceHeaderType []uint
             Operations:
@@ -6964,6 +6987,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -6979,6 +7003,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
+          Kind: argument
           Expression:
             Type: 289 PointerType *main.emptyStruct
             Operations:
@@ -6994,6 +7019,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
+          Kind: argument
           Expression:
             Type: 288 StructureType main.emptyStruct
             Operations:
@@ -7009,6 +7035,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
+          Kind: argument
           Expression:
             Type: 13 GoInterfaceType error
             Operations:
@@ -7024,6 +7051,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
+          Kind: argument
           Expression:
             Type: 153 PointerType *main.esotericHeap
             Operations:
@@ -7039,6 +7067,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
+          Kind: argument
           Expression:
             Type: 149 StructureType main.esotericStack
             Operations:
@@ -7054,6 +7083,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 155 ArrayType [5]int
             Operations:
@@ -7069,6 +7099,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7084,6 +7115,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7099,6 +7131,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7117,6 +7150,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7126,6 +7160,7 @@ Types:
                   ByteSize: 8
         - Name: y
           Offset: 9
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7150,6 +7185,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7165,6 +7201,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7180,6 +7217,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 155 ArrayType [5]int
             Operations:
@@ -7195,6 +7233,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 113 ArrayType [2]int16
             Operations:
@@ -7210,6 +7249,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 108 ArrayType [2]int32
             Operations:
@@ -7225,6 +7265,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 114 ArrayType [2]int64
             Operations:
@@ -7240,6 +7281,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 112 ArrayType [2]int8
             Operations:
@@ -7255,6 +7297,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 111 ArrayType [2]int
             Operations:
@@ -7270,6 +7313,7 @@ Types:
       Expressions:
         - Name: b
           Offset: 1
+          Kind: argument
           Expression:
             Type: 156 GoInterfaceType main.behavior
             Operations:
@@ -7285,6 +7329,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 225 StructureType main.node
             Operations:
@@ -7300,6 +7345,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 180 GoMapType map[[4]string][2]int
             Operations:
@@ -7315,6 +7361,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 187 GoMapType map[string][]main.structWithMap
             Operations:
@@ -7330,6 +7377,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 160 GoMapType map[int]int
             Operations:
@@ -7345,6 +7393,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 217 GoMapType map[[4]int][4]int
             Operations:
@@ -7360,6 +7409,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 212 GoMapType map[[4]int]uint8
             Operations:
@@ -7375,6 +7425,7 @@ Types:
       Expressions:
         - Name: redactMyEntries
           Offset: 1
+          Kind: argument
           Expression:
             Type: 187 GoMapType map[string][]main.structWithMap
             Operations:
@@ -7390,6 +7441,7 @@ Types:
       Expressions:
         - Name: redactMyEntries
           Offset: 1
+          Kind: argument
           Expression:
             Type: 187 GoMapType map[string][]main.structWithMap
             Operations:
@@ -7405,6 +7457,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 207 GoMapType map[uint8][4]int
             Operations:
@@ -7420,6 +7473,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 202 GoMapType map[uint8]uint8
             Operations:
@@ -7435,6 +7489,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 170 GoMapType map[string]int
             Operations:
@@ -7450,6 +7505,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 175 GoMapType map[string][]string
             Operations:
@@ -7465,6 +7521,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 165 GoMapType map[string]main.nestedStruct
             Operations:
@@ -7480,6 +7537,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 192 GoMapType map[bool]main.node
             Operations:
@@ -7495,6 +7553,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 202 GoMapType map[uint8]uint8
             Operations:
@@ -7510,6 +7569,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 202 GoMapType map[uint8]uint8
             Operations:
@@ -7525,6 +7585,7 @@ Types:
       Expressions:
         - Name: redactMyEntries
           Offset: 1
+          Kind: argument
           Expression:
             Type: 197 GoMapType map[int]uint8
             Operations:
@@ -7540,6 +7601,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 197 GoMapType map[int]uint8
             Operations:
@@ -7555,6 +7617,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -7570,6 +7633,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -7585,6 +7649,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -7594,6 +7659,7 @@ Types:
                   ByteSize: 1
         - Name: b
           Offset: 2
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -7603,6 +7669,7 @@ Types:
                   ByteSize: 1
         - Name: c
           Offset: 3
+          Kind: argument
           Expression:
             Type: 10 BaseType int32
             Operations:
@@ -7612,6 +7679,7 @@ Types:
                   ByteSize: 4
         - Name: d
           Offset: 7
+          Kind: argument
           Expression:
             Type: 16 BaseType uint
             Operations:
@@ -7621,6 +7689,7 @@ Types:
                   ByteSize: 8
         - Name: e
           Offset: 15
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -7636,6 +7705,7 @@ Types:
       Expressions:
         - Name: z
           Offset: 1
+          Kind: argument
           Expression:
             Type: 11 PointerType *bool
             Operations:
@@ -7645,6 +7715,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
+          Kind: argument
           Expression:
             Type: 16 BaseType uint
             Operations:
@@ -7660,6 +7731,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 232 GoSliceHeaderType []main.structWithNoStrings
             Operations:
@@ -7669,6 +7741,7 @@ Types:
                   ByteSize: 24
         - Name: a
           Offset: 25
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7684,6 +7757,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 15 BaseType int8
             Operations:
@@ -7693,6 +7767,7 @@ Types:
                   ByteSize: 1
         - Name: s
           Offset: 2
+          Kind: argument
           Expression:
             Type: 236 GoSliceHeaderType []bool
             Operations:
@@ -7702,6 +7777,7 @@ Types:
                   ByteSize: 24
         - Name: x
           Offset: 26
+          Kind: argument
           Expression:
             Type: 16 BaseType uint
             Operations:
@@ -7717,6 +7793,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 237 GoSliceHeaderType []uint16
             Operations:
@@ -7732,6 +7809,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 240 PointerType *main.oneStringStruct
             Operations:
@@ -7747,6 +7825,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 226 PointerType *main.node
             Operations:
@@ -7762,6 +7841,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 186 PointerType *map[string]int
             Operations:
@@ -7777,6 +7857,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 223 PointerType *main.structWithTwoValues
             Operations:
@@ -7792,6 +7873,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 108 ArrayType [2]int32
             Operations:
@@ -7807,6 +7889,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -7822,6 +7905,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -7837,6 +7921,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 17 BaseType float32
             Operations:
@@ -7852,6 +7937,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 18 BaseType float64
             Operations:
@@ -7867,6 +7953,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 102 BaseType int16
             Operations:
@@ -7882,6 +7969,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 10 BaseType int32
             Operations:
@@ -7897,6 +7985,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 12 BaseType int64
             Operations:
@@ -7912,6 +8001,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 15 BaseType int8
             Operations:
@@ -7927,6 +8017,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7942,6 +8033,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 10 BaseType int32
             Operations:
@@ -7957,6 +8049,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -7972,6 +8065,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 6 BaseType uint16
             Operations:
@@ -7987,6 +8081,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 2 BaseType uint32
             Operations:
@@ -8002,6 +8097,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 8 BaseType uint64
             Operations:
@@ -8017,6 +8113,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -8032,6 +8129,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 16 BaseType uint
             Operations:
@@ -8047,6 +8145,7 @@ Types:
       Expressions:
         - Name: u
           Offset: 1
+          Kind: argument
           Expression:
             Type: 230 GoSliceHeaderType [][]uint
             Operations:
@@ -8062,6 +8161,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
+          Kind: argument
           Expression:
             Type: 170 GoMapType map[string]int
             Operations:
@@ -8077,6 +8177,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 109 ArrayType [2]string
             Operations:
@@ -8092,6 +8193,7 @@ Types:
       Expressions:
         - Name: z
           Offset: 1
+          Kind: argument
           Expression:
             Type: 93 PointerType *string
             Operations:
@@ -8107,6 +8209,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 235 GoSliceHeaderType []string
             Operations:
@@ -8122,6 +8225,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 145 PointerType *main.stringType1
             Operations:
@@ -8137,6 +8241,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 147 PointerType **main.stringType2
             Operations:
@@ -8152,6 +8257,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 232 GoSliceHeaderType []main.structWithNoStrings
             Operations:
@@ -8161,6 +8267,7 @@ Types:
                   ByteSize: 24
         - Name: a
           Offset: 25
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -8176,6 +8283,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 158 StructureType main.structWithAny
             Operations:
@@ -8191,6 +8299,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 255 StructureType main.structWithCyclicMaps
             Operations:
@@ -8206,6 +8315,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 242 StructureType main.structWithCyclicSlices
             Operations:
@@ -8221,6 +8331,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
+          Kind: argument
           Expression:
             Type: 159 StructureType main.structWithMap
             Operations:
@@ -8236,6 +8347,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 286 StructureType main.aStruct
             Operations:
@@ -8251,6 +8363,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 239 PointerType *main.threeStringStruct
             Operations:
@@ -8266,6 +8379,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 238 StructureType main.threeStringStruct
             Operations:
@@ -8281,6 +8395,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -8290,6 +8405,7 @@ Types:
                   ByteSize: 16
         - Name: y
           Offset: 17
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -8299,6 +8415,7 @@ Types:
                   ByteSize: 16
         - Name: z
           Offset: 33
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -8314,6 +8431,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 121 BaseType main.typeAlias
             Operations:
@@ -8329,6 +8447,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 116 ArrayType [2]uint16
             Operations:
@@ -8344,6 +8463,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 117 ArrayType [2]uint32
             Operations:
@@ -8359,6 +8479,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 54 ArrayType [2]uint64
             Operations:
@@ -8374,6 +8495,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 107 ArrayType [2]uint8
             Operations:
@@ -8389,6 +8511,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 115 ArrayType [2]uint
             Operations:
@@ -8404,6 +8527,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 105 PointerType *uint
             Operations:
@@ -8419,6 +8543,7 @@ Types:
       Expressions:
         - Name: u
           Offset: 1
+          Kind: argument
           Expression:
             Type: 229 GoSliceHeaderType []uint
             Operations:
@@ -8434,6 +8559,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -8449,6 +8575,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
+          Kind: argument
           Expression:
             Type: 14 VoidPointerType unsafe.Pointer
             Operations:
@@ -8464,6 +8591,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
+          Kind: argument
           Expression:
             Type: 120 ArrayType [100]uint
             Operations:
@@ -8479,6 +8607,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 229 GoSliceHeaderType []uint
             Operations:
@@ -8494,6 +8623,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
+          Kind: argument
           Expression:
             Type: 229 GoSliceHeaderType []uint
             Operations:
@@ -8504,7 +8634,7 @@ Types:
     - __kind: ArrayType
       ID: 92
       Name: '[0]uint8'
-      GoRuntimeType: 681920
+      GoRuntimeType: 682016
       GoKind: 17
       HasCount: true
       Element: 3 BaseType uint8
@@ -8726,7 +8856,7 @@ Types:
       ID: 88
       Name: '[4]uint64'
       ByteSize: 32
-      GoRuntimeType: 687296
+      GoRuntimeType: 687392
       GoKind: 17
       Count: 4
       HasCount: true
@@ -8752,7 +8882,7 @@ Types:
       ID: 58
       Name: '[6]uintptr'
       ByteSize: 48
-      GoRuntimeType: 693024
+      GoRuntimeType: 693120
       GoKind: 17
       Count: 6
       HasCount: true
@@ -9296,145 +9426,145 @@ Types:
     - __kind: GoSliceDataType
       ID: 410
       Name: '[]noalg.map.group[[4]int][4]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 520
       Element: 406 StructureType noalg.map.group[[4]int][4]int
     - __kind: GoSliceDataType
       ID: 402
       Name: '[]noalg.map.group[[4]int]uint8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 398 StructureType noalg.map.group[[4]int]uint8
     - __kind: GoSliceDataType
       ID: 351
       Name: '[]noalg.map.group[[4]string][2]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 648
       Element: 346 StructureType noalg.map.group[[4]string][2]int
     - __kind: GoSliceDataType
       ID: 369
       Name: '[]noalg.map.group[bool]main.node.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 200
       Element: 365 StructureType noalg.map.group[bool]main.node
     - __kind: GoSliceDataType
       ID: 310
       Name: '[]noalg.map.group[int]*main.deepMap2.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 304 StructureType noalg.map.group[int]*main.deepMap2
     - __kind: GoSliceDataType
       ID: 1184
       Name: '[]noalg.map.group[int]*main.deepMap3.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 1178 StructureType noalg.map.group[int]*main.deepMap3
     - __kind: GoSliceDataType
       ID: 1218
       Name: '[]noalg.map.group[int]*main.deepMap8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 1212 StructureType noalg.map.group[int]*main.deepMap8
     - __kind: GoSliceDataType
       ID: 1233
       Name: '[]noalg.map.group[int]*main.deepMap9.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 1227 StructureType noalg.map.group[int]*main.deepMap9
     - __kind: GoSliceDataType
       ID: 318
       Name: '[]noalg.map.group[int]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 314 StructureType noalg.map.group[int]int
     - __kind: GoSliceDataType
       ID: 1246
       Name: '[]noalg.map.group[int]interface {}.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 200
       Element: 1242 StructureType noalg.map.group[int]interface {}
     - __kind: GoSliceDataType
       ID: 377
       Name: '[]noalg.map.group[int]uint8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 136
       Element: 373 StructureType noalg.map.group[int]uint8
     - __kind: GoSliceDataType
       ID: 361
       Name: '[]noalg.map.group[string][]main.structWithMap.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 355 StructureType noalg.map.group[string][]main.structWithMap
     - __kind: GoSliceDataType
       ID: 342
       Name: '[]noalg.map.group[string][]string.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 338 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
       ID: 942
       Name: '[]noalg.map.group[string]github.com/DataDog/go-tuf/data.HexBytes.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 938 StructureType noalg.map.group[string]github.com/DataDog/go-tuf/data.HexBytes
     - __kind: GoSliceDataType
       ID: 334
       Name: '[]noalg.map.group[string]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 200
       Element: 330 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
       ID: 326
       Name: '[]noalg.map.group[string]main.nestedStruct.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 322 StructureType noalg.map.group[string]main.nestedStruct
     - __kind: GoSliceDataType
       ID: 443
       Name: '[]noalg.map.group[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 392
       Element: 438 StructureType noalg.map.group[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 451
       Name: '[]noalg.map.group[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 447 StructureType noalg.map.group[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 459
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 455 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 467
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 463 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 475
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 471 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 483
       Name: '[]noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 72
       Element: 479 StructureType noalg.map.group[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
     - __kind: GoSliceDataType
       ID: 394
       Name: '[]noalg.map.group[uint8][4]int.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 389 StructureType noalg.map.group[uint8][4]int
     - __kind: GoSliceDataType
       ID: 385
       Name: '[]noalg.map.group[uint8]uint8.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 24
       Element: 381 StructureType noalg.map.group[uint8]uint8
     - __kind: UnresolvedPointeeType
@@ -13803,7 +13933,7 @@ Types:
       ID: 315
       Name: noalg.[8]struct { key int; elem int }
       ByteSize: 128
-      GoRuntimeType: 676640
+      GoRuntimeType: 676736
       GoKind: 17
       Count: 8
       HasCount: true
