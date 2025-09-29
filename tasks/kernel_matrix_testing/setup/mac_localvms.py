@@ -217,7 +217,7 @@ class MacNFSExport(Requirement):
         except Exception as e:
             return RequirementState(Status.FAIL, f"Failed to add NFS export: {e}")
 
-        return RequirementState(Status.OK, "NFS export added.", fixable=True)
+        return RequirementState(Status.OK, "NFS export added.")
 
 
 class MacIPForwarding(Requirement):
