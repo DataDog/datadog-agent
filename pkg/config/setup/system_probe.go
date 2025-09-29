@@ -181,7 +181,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(diNS, "probes_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_PROBES_FILE_PATH")
 	cfg.BindEnvAndSetDefault(join(diNS, "snapshot_output_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_SNAPSHOT_FILE_PATH")
 	cfg.BindEnvAndSetDefault(join(diNS, "diagnostics_output_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_FILE_PATH")
-	cfg.BindEnvAndSetDefault(join(diNS, "symdb_upload_enabled"), false, "DD_SYMBOL_DATABASE_UPLOAD_ENABLED")
+	cfg.BindEnvAndSetDefault(join(diNS, "symdb_upload_enabled"), true, "DD_SYMBOL_DATABASE_UPLOAD_ENABLED")
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "enabled"), true)
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "dir"), defaultDynamicInstrumentationDebugInfoDir)
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "max_total_bytes"), int64(2<<30 /* 2GiB */))
