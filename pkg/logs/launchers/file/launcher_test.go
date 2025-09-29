@@ -539,8 +539,8 @@ func runLauncherScanStartNewTailerForEmptyFileTest(t *testing.T, testDirs []stri
 	assert.Nil(t, err)
 
 	launcher.scan()
-	// With new insufficient data fingerprint behavior, empty files should create tailers to allow for future content
-	assert.Equal(t, 1, launcher.tailers.Count())
+	// TODO: empty files should not create tailers ? 
+	assert.Equal(t, 0, launcher.tailers.Count())
 }
 
 func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {

@@ -259,16 +259,9 @@ func (s *Launcher) scan() {
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			// Skip files on error
-			if err != nil {
-				if hasOldInfo {
-					s.oldInfoMap[scanKey] = oldInfo
-				}
-				continue
-			}
-			// Only skip files with true invalid fingerprints (errors), but allow tailing with insufficient data
-			if fingerprint != nil && !fingerprint.IsValidFingerprint() && !fingerprint.IsInsufficientData() {
-				log.Debugf("Skipping file %s due to invalid fingerprint (error case)", file.Path)
+			// Skip files with invalid fingerprints (Value == 0)
+			if (fingerprint != nil && !fingerprint.IsValidFingerprint()) || err != nil {
+				// If fingerprint is invalid, persist the old info back into the map for future attempts
 				if hasOldInfo {
 					s.oldInfoMap[scanKey] = oldInfo
 				}
@@ -361,12 +354,12 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 				// Skip on errors
 				continue
 			}
-			// Only skip files with true invalid fingerprints (errors), but allow tailing with insufficient data
-			if fingerprint != nil && !fingerprint.IsValidFingerprint() && !fingerprint.IsInsufficientData() {
+			// Skip files with invalid fingerprints (errors like empty files), but allow tailing with partial fingerprints
+			if fingerprint != nil && !fingerprint.IsValidFingerprint() {
 				log.Debugf("Skipping file %s due to invalid fingerprint (error case)", file.Path)
 				continue
 			}
-			// Allow tailing with invalid fingerprints of type: insufficient data
+			// Continue with tailing - either valid full fingerprint or valid partial fingerprint
 		}
 
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)

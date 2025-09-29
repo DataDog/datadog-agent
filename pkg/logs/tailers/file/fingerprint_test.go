@@ -253,7 +253,7 @@ func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
 
 	fingerprinter := NewFingerprinter(*config)
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
-	suite.True(receivedChecksum.IsInsufficientData(), "Empty file should return insufficient data fingerprint")
+	suite.False(receivedChecksum.IsValidFingerprint(), "Empty file should return invalid fingerprint")
 }
 
 // We don't have enough data to hash with the maxLines we configured we have neither the appropriate number of lines or bytes
@@ -285,7 +285,7 @@ func (suite *FingerprintTestSuite) TestLineBased_InsufficientData() {
 
 	fingerprinter := NewFingerprinter(*config)
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
-	suite.True(receivedChecksum.IsInsufficientData(), "Should return insufficient data fingerprint when insufficient lines")
+	suite.False(receivedChecksum.IsValidFingerprint(), "Should return invalid fingerprint when insufficient lines")
 }
 
 // Skip x bytes and hash the next y bytes
@@ -346,13 +346,14 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip_InvalidNotEnoughData()
 		FingerprintStrategy: fingerprintStrategy,
 	}
 
-	// Expected: skip first 34 bytes, but unable to fingerprint since less than 1000 we configured
+	// Expected: skip first 34 bytes, then create partial fingerprint from remaining data
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
 	fingerprinter := NewFingerprinter(*config)
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
-	suite.True(receivedChecksum.IsInsufficientData(), "Insufficient data after skip should return insufficient data fingerprint")
+	suite.True(receivedChecksum.IsValidFingerprint(), "Should return a valid partial fingerprint")
+	suite.True(receivedChecksum.IsPartialFingerprint(), "Should be marked as partial since we have less data than requested")
 }
 
 // Test byte-based fingerprinting functionality with no skip
@@ -391,7 +392,7 @@ func (suite *FingerprintTestSuite) TestByteBased_NoSkip() {
 	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
 
-// We don't have enough data to hash with the maxBytes we configured
+// We don't have enough data to hash with the maxBytes we configured, so we should return a partial fingerprint
 func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
 	data := "short data"
 
@@ -414,13 +415,14 @@ func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
 		FingerprintStrategy: fingerprintStrategy,
 	}
 
-	// Expected: should return nil because we have less data than maxBytes
+	// Expected: should return a partial fingerprint with the available data
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
 	fingerprinter := NewFingerprinter(*config)
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
-	suite.True(receivedChecksum.IsInsufficientData(), "Insufficient data should return insufficient data fingerprint")
+	suite.True(receivedChecksum.IsValidFingerprint(), "Should return a valid partial fingerprint")
+	suite.True(receivedChecksum.IsPartialFingerprint(), "Should be marked as partial fingerprint")
 }
 
 // Given our current config, we should skip the first line and hash the remaining lines
@@ -636,7 +638,7 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 	fingerprinter := NewFingerprinter(*config)
 	fingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
-	suite.True(fingerprint.IsInsufficientData(), "Empty file should return insufficient data fingerprint")
+	suite.False(fingerprint.IsValidFingerprint(), "Empty file should return invalid fingerprint")
 	osFile.Close()
 
 	// Test 2: Insufficient data after skipping
@@ -657,7 +659,7 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 	fingerprinter = NewFingerprinter(*config)
 	fingerprint, _ = fingerprinter.ComputeFingerprint(tailer.file)
 
-	suite.True(fingerprint.IsInsufficientData(), "Insufficient data should return insufficient data fingerprint")
+	suite.False(fingerprint.IsValidFingerprint(), "Insufficient data should return invalid fingerprint")
 }
 
 func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine2() {
@@ -834,14 +836,14 @@ func (suite *FingerprintTestSuite) TestLineBased_SkipAndMaxMidLine() {
 		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
 	}
 
-	// Expected: the new implementation returns nil when there's insufficient data after skipping
+	// Expected: the new implementation should process the second line and create a partial fingerprint
 
 	tailer := suite.createTailer()
 
 	fingerprinter := NewFingerprinter(*config)
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 
-	suite.True(receivedChecksum.IsInsufficientData(), "Should return insufficient data fingerprint when there's insufficient data after skipping")
+	suite.True(receivedChecksum.IsValidFingerprint(), "Should return valid fingerprint from the second line after skipping")
 }
 
 // Tests whether or not rotation was accurately detected
@@ -945,7 +947,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	tailer = suite.createTailer()
 	fingerprinter = NewFingerprinter(*config)
 	emptyFingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
-	suite.True(emptyFingerprint.IsInsufficientData(), "Fingerprint of an empty file should indicate insufficient data")
+	suite.False(emptyFingerprint.IsValidFingerprint(), "Fingerprint of an empty file should be invalid")
 
 	// Set the fingerprint on the tailer (even though it's nil)
 	tailer.fingerprint = emptyFingerprint
@@ -984,8 +986,8 @@ func (suite *FingerprintTestSuite) TestLineBased_FallbackToByteBased() {
 	// this should trigger the fallback to byte-based fingerprinting
 	// The fallback should read from the beginning of the file (after any byte skip)
 
-	// Expected: the new implementation returns fingerprint with insufficient data flag when there's insufficient data
-	suite.True(fingerprint.IsInsufficientData(), "Should return insufficient data fingerprint when there's insufficient data for fingerprinting")
+	// Expected: the new implementation falls back to byte-based fingerprinting and returns a valid partial fingerprint
+	suite.True(fingerprint.IsValidFingerprint(), "Should return valid fingerprint after fallback to byte-based")
 }
 
 // TestErrorVsInsufficientDataBehavior validates that the fingerprint system correctly distinguishes
@@ -1008,9 +1010,7 @@ func (suite *FingerprintTestSuite) TestErrorVsInsufficientDataBehavior() {
 
 	suite.Nil(err, "Empty file should not return an error")
 	suite.NotNil(emptyFileFingerprint, "Empty file should return a fingerprint object")
-	suite.True(emptyFileFingerprint.IsInsufficientData(), "Empty file should indicate insufficient data")
-	suite.True(emptyFileFingerprint.IsValidFingerprint(), "Insufficient data fingerprint should be considered valid")
-	suite.Equal(types.InsufficientDataFingerprintValue, emptyFileFingerprint.Value, "Should use insufficient data value")
+	suite.False(emptyFileFingerprint.IsValidFingerprint(), "Empty file should be invalid")
 
 	// file with partial data (less than required bytes) should return insufficient data
 	_, err = suite.testFile.WriteString("partial") // 7 bytes; less than required 100
@@ -1019,8 +1019,8 @@ func (suite *FingerprintTestSuite) TestErrorVsInsufficientDataBehavior() {
 
 	partialFingerprint, err := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Nil(err, "Partial file should not return an error")
-	suite.True(partialFingerprint.IsInsufficientData(), "Partial file should indicate insufficient data")
-	suite.True(partialFingerprint.IsValidFingerprint(), "Partial file should be a valid fingerprint (insufficient data is valid)")
+	suite.True(partialFingerprint.IsValidFingerprint(), "Partial file should return a valid fingerprint")
+	suite.True(partialFingerprint.IsPartialFingerprint(), "Partial file should be marked as partial")
 
 	// File with sufficient data should return valid fingerprint
 	suite.testFile.Truncate(0)
@@ -1036,9 +1036,8 @@ func (suite *FingerprintTestSuite) TestErrorVsInsufficientDataBehavior() {
 	validFingerprint, err := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Nil(err, "Sufficient data should not return an error")
 	suite.True(validFingerprint.IsValidFingerprint(), "Sufficient data should return a valid fingerprint")
-	suite.False(validFingerprint.IsInsufficientData(), "Sufficient data should not indicate insufficient data")
+	suite.False(validFingerprint.IsPartialFingerprint(), "Sufficient data should not be partial")
 	suite.NotEqual(types.InvalidFingerprintValue, validFingerprint.Value, "Should not use invalid value")
-	suite.NotEqual(types.InsufficientDataFingerprintValue, validFingerprint.Value, "Should not use insufficient data value")
 
 	suite.T().Logf("Verified error (InvalidFingerprintvalue) vs insufficient data fingerprint")
 }
@@ -1074,7 +1073,7 @@ func (suite *FingerprintTestSuite) TestLineBasedInsufficientVsError() {
 	completeLineFingerprint, err := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Nil(err, "Complete line should not return an error")
 	suite.True(completeLineFingerprint.IsValidFingerprint(), "Complete line should return a valid fingerprint")
-	suite.False(completeLineFingerprint.IsInsufficientData(), "Complete line should not indicate insufficient data")
+	suite.False(completeLineFingerprint.IsPartialFingerprint(), "Complete line should not be partial")
 
 	// Empty file with line-based fingerprinting should return insufficient data
 	suite.testFile.Truncate(0)
@@ -1086,8 +1085,7 @@ func (suite *FingerprintTestSuite) TestLineBasedInsufficientVsError() {
 	emptyLineFingerprint, err := fingerprinter.ComputeFingerprint(tailer.file)
 
 	suite.Nil(err, "Empty file should not return an error")
-	suite.True(emptyLineFingerprint.IsInsufficientData(), "Empty file should indicate insufficient data when using line-based fingerprinting")
-	suite.True(emptyLineFingerprint.IsValidFingerprint(), "Should be a valid fingerprint even when insufficient lines (allows tailing)")
+	suite.False(emptyLineFingerprint.IsValidFingerprint(), "Empty file should return invalid fingerprint when using line-based fingerprinting")
 }
 
 func (suite *FingerprintTestSuite) TestFingerprintConfigFallback() {
