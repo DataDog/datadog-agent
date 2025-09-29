@@ -20,7 +20,6 @@ import (
 	"time"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	dockerfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/docker"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -154,11 +153,12 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dco
 	isExcluded := func(container dcontainer.Summary) bool {
 		pod, _ := wmeta.GetKubernetesPodForContainer(container.ID)
 		filterablePod := workloadmetafilter.CreatePod(pod)
-		filterableContainer := dockerfilter.CreateContainer(container, container.Image, filterablePod)
-
-		if filter.IsExcluded(filterableContainer) {
-			log.Tracef("Container with ID %q and image %q is filtered-out", container.ID, container.Image)
-			return true
+		for _, name := range container.Names {
+			filterableContainer := workloadfilter.CreateContainer(container.ID, name, container.Image, filterablePod)
+			if filter.IsExcluded(filterableContainer) {
+				log.Tracef("Container with ID %q and image %q is filtered-out", container.ID, container.Image)
+				return true
+			}
 		}
 
 		return false

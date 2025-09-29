@@ -106,14 +106,35 @@ func CreateContainerImage(name string) *Container {
 	}
 }
 
-// CreateContainerNoOwner creates a Filterable Container object with no owner.
-func CreateContainerNoOwner(id, name, image string) *Container {
+// CreateContainer creates a Filterable Container object from a name, image and an (optional) owner.
+func CreateContainer(id, name, img string, owner Filterable) *Container {
+	c := &typedef.FilterContainer{
+		Id:    id,
+		Name:  name,
+		Image: img,
+	}
+
+	setContainerOwner(c, owner)
+
 	return &Container{
-		FilterContainer: &typedef.FilterContainer{
-			Id:    id,
-			Name:  name,
-			Image: image,
-		},
+		FilterContainer: c,
+		Owner:           owner,
+	}
+}
+
+// setContainerOwner sets the owner field in the FilterContainer based on the owner type.
+func setContainerOwner(c *typedef.FilterContainer, owner Filterable) {
+	if owner == nil {
+		return
+	}
+
+	switch o := owner.(type) {
+	case *Pod:
+		if o != nil && o.FilterPod != nil {
+			c.Owner = &typedef.FilterContainer_Pod{
+				Pod: o.FilterPod,
+			}
+		}
 	}
 }
 
