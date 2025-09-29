@@ -45,11 +45,9 @@ type UnassignedPodCollector struct {
 // resource that is not assigned to any node.
 func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) *UnassignedPodCollector {
 	resourceType := utilTypes.GetResourceType(utilTypes.PodName, utilTypes.PodVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
 	return &UnassignedPodCollector{
-		metadata: &collectors.CollectorMetadata{
+		metadata: (&collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
 			IsStable:                             true,
 			IsMetadataProducer:                   true,
@@ -59,10 +57,8 @@ func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Componen
 			Kind:                                 kubernetes.PodKind,
 			NodeType:                             orchestrator.K8sPod,
 			Version:                              utilTypes.PodVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: false,
-		},
+		}).WithMetadataAsTags(metadataAsTags, resourceType),
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(cfg, store, tagger)),
 	}
 }
