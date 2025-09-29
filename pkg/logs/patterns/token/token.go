@@ -36,11 +36,34 @@ const (
 	TokenDate
 )
 
+// MergeabilityLevel represents how two tokens can be merged
+type MergeabilityLevel int
+
+const (
+	Unmergeable MergeabilityLevel = iota
+	MergeableAsNewType
+	MergeableAsWildcard
+	MergeableWithWiderRange
+	Fits
+	FitsAsItIs
+)
+
+// IsMergeable returns true if the mergeability level allows merging
+func (m MergeabilityLevel) IsMergeable() bool {
+	return m > Unmergeable
+}
+
+// Compare returns the comparison result with another mergeability level
+func (m1 MergeabilityLevel) Compare(m2 MergeabilityLevel) int {
+	return int(m1) - int(m2)
+}
+
 // Token represents a single token in a log message
 type Token struct {
-	Type       TokenType
-	Value      string
-	IsWildcard bool
+	Type             TokenType
+	Value            string
+	IsWildcard       bool
+	PossiblyWildcard bool // Indicates if this token can merge into a wildcard during batch consolidation
 }
 
 // IsHTTP returns true if the token is HTTP-related
@@ -93,4 +116,45 @@ func (t *Token) String() string {
 		return fmt.Sprintf("%s(*)", t.Type)
 	}
 	return fmt.Sprintf("%s(%s)", t.Type, t.Value)
+}
+
+// GetMergeabilityLevel determines how this token can merge with another token
+func (t1 *Token) GetMergeabilityLevel(t2 *Token) MergeabilityLevel {
+	// Same token type and value
+	if t1.Type == t2.Type && t1.Value == t2.Value {
+		return FitsAsItIs
+	}
+
+	// Same token type but different values
+	if t1.Type == t2.Type {
+		// Check if both can be wildcards
+		if t1.PossiblyWildcard && t2.PossiblyWildcard {
+			return MergeableAsWildcard
+		}
+		// Generic words don't merge
+		return Unmergeable
+	}
+
+	// Different token types
+	return Unmergeable
+}
+
+// MergeWith creates a merged token from this token and another
+func (t1 *Token) MergeWith(other *Token) *Token {
+	level := t1.GetMergeabilityLevel(other)
+
+	switch level {
+	case FitsAsItIs:
+		return t1 // Return this token unchanged
+	case MergeableAsWildcard:
+		// Create a wildcard token
+		return &Token{
+			Type:             t1.Type,
+			Value:            "*",
+			IsWildcard:       true,
+			PossiblyWildcard: true,
+		}
+	default:
+		return t1 // Return this token unchanged
+	}
 }

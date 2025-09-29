@@ -7,8 +7,6 @@
 package token
 
 import (
-	"fmt"
-	"sort"
 	"strings"
 )
 
@@ -17,20 +15,19 @@ type TokenList struct {
 	Tokens []Token
 }
 
-// NewTokenList creates a new TokenList
-func NewTokenList(tokens ...[]Token) *TokenList {
-	tl := &TokenList{
-		Tokens: make([]Token, 0),
-	}
-	if len(tokens) > 0 {
-		tl.Tokens = tokens[0]
-	}
-	return tl
+// NewTokenList creates a new empty TokenList
+func NewTokenList() *TokenList {
+	return &TokenList{Tokens: make([]Token, 0)}
 }
 
-// Add appends a token to the list
-func (tl *TokenList) Add(token Token) {
-	tl.Tokens = append(tl.Tokens, token)
+// NewTokenListWithTokens creates a new TokenList with the provided tokens
+func NewTokenListWithTokens(tokens []Token) *TokenList {
+	return &TokenList{Tokens: tokens}
+}
+
+// Add appends one or more tokens to the list
+func (tl *TokenList) Add(tokens ...Token) {
+	tl.Tokens = append(tl.Tokens, tokens...)
 }
 
 // Length returns the number of tokens
@@ -41,11 +38,6 @@ func (tl *TokenList) Length() int {
 // IsEmpty returns true if the list is empty
 func (tl *TokenList) IsEmpty() bool {
 	return len(tl.Tokens) == 0
-}
-
-// Signature generates a signature for this TokenList
-func (tl *TokenList) Signature() Signature {
-	return NewSignature(tl)
 }
 
 // String returns a string representation
@@ -59,38 +51,4 @@ func (tl *TokenList) String() string {
 		parts = append(parts, token.String())
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
-}
-
-// PositionSignature generates position-based signature (sequence of types)
-func (tl *TokenList) PositionSignature() string {
-	if tl.IsEmpty() {
-		return ""
-	}
-
-	var positionParts []string
-	for _, token := range tl.Tokens {
-		positionParts = append(positionParts, token.Type.String())
-	}
-	return strings.Join(positionParts, "|")
-}
-
-// CountSignature generates count-based signature (type frequencies)
-func (tl *TokenList) CountSignature() string {
-	if tl.IsEmpty() {
-		return ""
-	}
-
-	typeCounts := make(map[TokenType]int)
-	for _, token := range tl.Tokens {
-		typeCounts[token.Type]++
-	}
-
-	var countParts []string
-	for tokenType, count := range typeCounts {
-		countParts = append(countParts, fmt.Sprintf("%s:%d", tokenType.String(), count))
-	}
-
-	// Sort to ensure deterministic signature
-	sort.Strings(countParts)
-	return strings.Join(countParts, ";")
 }

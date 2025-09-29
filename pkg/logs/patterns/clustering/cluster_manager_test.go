@@ -33,7 +33,7 @@ func TestClusterManager_Add_NewCluster(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
-	tokenList := token.NewTokenList(tokens)
+	tokenList := token.NewTokenListWithTokens(tokens)
 
 	cluster := cm.Add(tokenList)
 
@@ -67,8 +67,8 @@ func TestClusterManager_Add_ExistingCluster(t *testing.T) {
 		{Value: "/users", Type: token.TokenAbsolutePath}, // Different value, same type
 	}
 
-	tokenList1 := token.NewTokenList(tokens1)
-	tokenList2 := token.NewTokenList(tokens2)
+	tokenList1 := token.NewTokenListWithTokens(tokens1)
+	tokenList2 := token.NewTokenListWithTokens(tokens2)
 
 	cluster1 := cm.Add(tokenList1)
 	cluster2 := cm.Add(tokenList2)
@@ -104,8 +104,8 @@ func TestClusterManager_Add_DifferentSignatures(t *testing.T) {
 		{Value: "failed", Type: token.TokenWord}, // Different type
 	}
 
-	tokenList1 := token.NewTokenList(tokens1)
-	tokenList2 := token.NewTokenList(tokens2)
+	tokenList1 := token.NewTokenListWithTokens(tokens1)
+	tokenList2 := token.NewTokenListWithTokens(tokens2)
 
 	cluster1 := cm.Add(tokenList1)
 	cluster2 := cm.Add(tokenList2)
@@ -131,8 +131,8 @@ func TestClusterManager_GetCluster(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
-	tokenList := token.NewTokenList(tokens)
-	signature := tokenList.Signature()
+	tokenList := token.NewTokenListWithTokens(tokens)
+	signature := token.NewSignature(tokenList)
 
 	addedCluster := cm.Add(tokenList)
 
@@ -149,8 +149,8 @@ func TestClusterManager_GetCluster(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "failed", Type: token.TokenWord},
 	}
-	differentTokenList := token.NewTokenList(differentTokens)
-	differentSignature := differentTokenList.Signature()
+	differentTokenList := token.NewTokenListWithTokens(differentTokens)
+	differentSignature := token.NewSignature(differentTokenList)
 
 	nonExistentCluster := cm.GetCluster(differentSignature)
 	if nonExistentCluster != nil {
@@ -178,9 +178,9 @@ func TestClusterManager_GetAllClusters(t *testing.T) {
 		{Value: "connected", Type: token.TokenWord},
 	}
 
-	tokenList1 := token.NewTokenList(tokens1)
-	tokenList2 := token.NewTokenList(tokens2)
-	tokenList3 := token.NewTokenList(tokens3)
+	tokenList1 := token.NewTokenListWithTokens(tokens1)
+	tokenList2 := token.NewTokenListWithTokens(tokens2)
+	tokenList3 := token.NewTokenListWithTokens(tokens3)
 
 	cm.Add(tokenList1)
 	cm.Add(tokenList2)
@@ -213,9 +213,9 @@ func TestClusterManager_GetClustersByLength(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 	} // Length 2 (different signature than tokens1)
 
-	tokenList1 := token.NewTokenList(tokens1)
-	tokenList2 := token.NewTokenList(tokens2)
-	tokenList3 := token.NewTokenList(tokens3)
+	tokenList1 := token.NewTokenListWithTokens(tokens1)
+	tokenList2 := token.NewTokenListWithTokens(tokens2)
+	tokenList3 := token.NewTokenListWithTokens(tokens3)
 
 	cm.Add(tokenList1)
 	cm.Add(tokenList2)
@@ -250,13 +250,13 @@ func TestClusterManager_GetLargestClusters(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
-	tokenList1a := token.NewTokenList(tokens1)
-	tokenList1b := token.NewTokenList([]token.Token{
+	tokenList1a := token.NewTokenListWithTokens(tokens1)
+	tokenList1b := token.NewTokenListWithTokens([]token.Token{
 		{Value: "POST", Type: token.TokenHttpMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/users", Type: token.TokenAbsolutePath},
 	})
-	tokenList1c := token.NewTokenList([]token.Token{
+	tokenList1c := token.NewTokenListWithTokens([]token.Token{
 		{Value: "PUT", Type: token.TokenHttpMethod},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/items", Type: token.TokenAbsolutePath},
@@ -268,7 +268,7 @@ func TestClusterManager_GetLargestClusters(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "failed", Type: token.TokenWord},
 	}
-	tokenList2 := token.NewTokenList(tokens2)
+	tokenList2 := token.NewTokenListWithTokens(tokens2)
 
 	// Cluster 3: size 2
 	tokens3 := []token.Token{
@@ -276,8 +276,8 @@ func TestClusterManager_GetLargestClusters(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "connected", Type: token.TokenWord},
 	}
-	tokenList3a := token.NewTokenList(tokens3)
-	tokenList3b := token.NewTokenList([]token.Token{
+	tokenList3a := token.NewTokenListWithTokens(tokens3)
+	tokenList3b := token.NewTokenListWithTokens([]token.Token{
 		{Value: "10.0.0.1", Type: token.TokenIPv4},
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "disconnected", Type: token.TokenWord},
@@ -316,7 +316,7 @@ func TestClusterManager_Clear(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
-	tokenList := token.NewTokenList(tokens)
+	tokenList := token.NewTokenListWithTokens(tokens)
 	cm.Add(tokenList)
 
 	// Verify data exists
@@ -360,9 +360,9 @@ func TestClusterManager_Stats(t *testing.T) {
 		{Value: "failed", Type: token.TokenWord},
 	}
 
-	tokenList1 := token.NewTokenList(tokens1)
-	tokenList2 := token.NewTokenList(tokens2)
-	tokenList3 := token.NewTokenList(tokens3)
+	tokenList1 := token.NewTokenListWithTokens(tokens1)
+	tokenList2 := token.NewTokenListWithTokens(tokens2)
+	tokenList3 := token.NewTokenListWithTokens(tokens3)
 
 	cm.Add(tokenList1)
 	cm.Add(tokenList2) // Same cluster as tokenList1

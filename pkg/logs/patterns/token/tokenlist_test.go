@@ -28,7 +28,7 @@ func TestTokenList_NewTokenList(t *testing.T) {
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenWord, Value: "world"},
 	}
-	tl2 := NewTokenList(tokens)
+	tl2 := NewTokenListWithTokens(tokens)
 	if tl2.Length() != 3 {
 		t.Errorf("Expected length 3, got %d", tl2.Length())
 	}
@@ -75,7 +75,7 @@ func TestTokenList_String(t *testing.T) {
 func TestTokenList_PositionSignature(t *testing.T) {
 	// Empty token list
 	emptyTL := NewTokenList()
-	if emptyTL.PositionSignature() != "" {
+	if positionSignature(emptyTL) != "" {
 		t.Error("Empty TokenList should have empty position signature")
 	}
 
@@ -85,18 +85,18 @@ func TestTokenList_PositionSignature(t *testing.T) {
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenAbsolutePath, Value: "/api"},
 	}
-	tl := NewTokenList(tokens)
+	tl := NewTokenListWithTokens(tokens)
 
 	expectedPosition := "HttpMethod|Whitespace|AbsolutePath"
-	if tl.PositionSignature() != expectedPosition {
-		t.Errorf("Expected position signature '%s', got '%s'", expectedPosition, tl.PositionSignature())
+	if positionSignature(tl) != expectedPosition {
+		t.Errorf("Expected position signature '%s', got '%s'", expectedPosition, positionSignature(tl))
 	}
 }
 
 func TestTokenList_CountSignature(t *testing.T) {
 	// Empty token list
 	emptyTL := NewTokenList()
-	if emptyTL.CountSignature() != "" {
+	if countSignature(emptyTL) != "" {
 		t.Error("Empty TokenList should have empty count signature")
 	}
 
@@ -108,9 +108,9 @@ func TestTokenList_CountSignature(t *testing.T) {
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenNumeric, Value: "123"},
 	}
-	tl := NewTokenList(tokens)
+	tl := NewTokenListWithTokens(tokens)
 
-	countSig := tl.CountSignature()
+	countSig := countSignature(tl)
 	// Should contain counts for each type
 	if !containsSubstring(countSig, "Word:2") {
 		t.Errorf("Count signature should contain 'Word:2', got '%s'", countSig)
@@ -130,8 +130,8 @@ func TestTokenList_Signature(t *testing.T) {
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenAbsolutePath, Value: "/api"},
 	}
-	tl := NewTokenList(tokens)
-	sig := tl.Signature()
+	tl := NewTokenListWithTokens(tokens)
+	sig := NewSignature(tl)
 
 	if sig.Length != 3 {
 		t.Errorf("Expected signature length 3, got %d", sig.Length)

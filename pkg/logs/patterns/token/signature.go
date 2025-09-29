@@ -9,6 +9,8 @@ package token
 import (
 	"fmt"
 	"hash/fnv"
+	"sort"
+	"strings"
 )
 
 // Signature represents a structural signature of a TokenList
@@ -30,8 +32,8 @@ func NewSignature(tl *TokenList) Signature {
 		}
 	}
 
-	position := tl.PositionSignature()
-	count := tl.CountSignature()
+	position := positionSignature(tl)
+	count := countSignature(tl)
 
 	combined := fmt.Sprintf("%s|%s", position, count)
 	hash := computeHash(combined)
@@ -77,4 +79,38 @@ func (s *Signature) HasSameStructure(other Signature) bool {
 // GetHashBucket returns the hash bucket for efficient clustering
 func (s *Signature) GetHashBucket() uint64 {
 	return s.Hash
+}
+
+// positionSignature generates position-based signature
+func positionSignature(tl *TokenList) string {
+	if tl.IsEmpty() {
+		return ""
+	}
+
+	var positionParts []string
+	for _, token := range tl.Tokens {
+		positionParts = append(positionParts, token.Type.String())
+	}
+	return strings.Join(positionParts, "|")
+}
+
+// countSignature generates count-based signature
+func countSignature(tl *TokenList) string {
+	if tl.IsEmpty() {
+		return ""
+	}
+
+	typeCounts := make(map[TokenType]int)
+	for _, token := range tl.Tokens {
+		typeCounts[token.Type]++
+	}
+
+	var countParts []string
+	for tokenType, count := range typeCounts {
+		countParts = append(countParts, fmt.Sprintf("%s:%d", tokenType.String(), count))
+	}
+
+	// Sort to ensure deterministic signature
+	sort.Strings(countParts)
+	return strings.Join(countParts, ";")
 }

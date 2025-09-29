@@ -302,7 +302,7 @@ func TestArchitectureCompliance(t *testing.T) {
 	}
 
 	// Step 3: Verify signature generation works
-	signature := tokenList.Signature()
+	signature := token.NewSignature(tokenList)
 	if signature.IsEmpty() {
 		t.Error("Signature generation failed")
 	}

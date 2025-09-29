@@ -25,7 +25,7 @@ func TestNewSignature(t *testing.T) {
 		{Type: TokenWhitespace, Value: " "},
 		{Type: TokenHttpStatus, Value: "200"},
 	}
-	tl := NewTokenList(tokens)
+	tl := NewTokenListWithTokens(tokens)
 	sig := NewSignature(tl)
 
 	expectedPosition := "HttpMethod|Whitespace|AbsolutePath|Whitespace|HttpStatus"
@@ -58,9 +58,9 @@ func TestSignature_Equals(t *testing.T) {
 		{Type: TokenNumeric, Value: "123"}, // Different type
 	}
 
-	tl1 := NewTokenList(tokens1)
-	tl2 := NewTokenList(tokens2)
-	tl3 := NewTokenList(tokens3)
+	tl1 := NewTokenListWithTokens(tokens1)
+	tl2 := NewTokenListWithTokens(tokens2)
+	tl3 := NewTokenListWithTokens(tokens3)
 
 	sig1 := NewSignature(tl1)
 	sig2 := NewSignature(tl2)
@@ -86,7 +86,7 @@ func TestSignature_String(t *testing.T) {
 	tokens := []Token{
 		{Type: TokenWord, Value: "test"},
 	}
-	tl := NewTokenList(tokens)
+	tl := NewTokenListWithTokens(tokens)
 	sig := NewSignature(tl)
 
 	str := sig.String()
@@ -110,7 +110,7 @@ func TestSignature_IsEmpty(t *testing.T) {
 
 	// Non-empty signature
 	tokens := []Token{{Type: TokenWord, Value: "test"}}
-	tl := NewTokenList(tokens)
+	tl := NewTokenListWithTokens(tokens)
 	sig := NewSignature(tl)
 	if sig.IsEmpty() {
 		t.Error("Non-empty signature should return false for IsEmpty()")
@@ -130,8 +130,8 @@ func TestSignature_HasSameStructure(t *testing.T) {
 		{Type: TokenAbsolutePath, Value: "/users"},
 	}
 
-	tl1 := NewTokenList(tokens1)
-	tl2 := NewTokenList(tokens2)
+	tl1 := NewTokenListWithTokens(tokens1)
+	tl2 := NewTokenListWithTokens(tokens2)
 	sig1 := NewSignature(tl1)
 	sig2 := NewSignature(tl2)
 
@@ -144,7 +144,7 @@ func TestSignature_HasSameStructure(t *testing.T) {
 		{Type: TokenWord, Value: "different"},
 		{Type: TokenNumeric, Value: "123"},
 	}
-	tl3 := NewTokenList(tokens3)
+	tl3 := NewTokenListWithTokens(tokens3)
 	sig3 := NewSignature(tl3)
 
 	if sig1.HasSameStructure(sig3) {
@@ -156,7 +156,7 @@ func TestSignature_GetHashBucket(t *testing.T) {
 	tokens := []Token{
 		{Type: TokenWord, Value: "test"},
 	}
-	tl := NewTokenList(tokens)
+	tl := NewTokenListWithTokens(tokens)
 	sig := NewSignature(tl)
 
 	hashBucket := sig.GetHashBucket()
@@ -197,8 +197,8 @@ func TestSignature_ConsistentHashing(t *testing.T) {
 		{Type: TokenAbsolutePath, Value: "/api"},
 	}
 
-	tl1 := NewTokenList(tokens)
-	tl2 := NewTokenList(tokens)
+	tl1 := NewTokenListWithTokens(tokens)
+	tl2 := NewTokenListWithTokens(tokens)
 
 	sig1 := NewSignature(tl1)
 	sig2 := NewSignature(tl2)

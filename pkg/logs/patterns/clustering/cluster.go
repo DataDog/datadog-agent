@@ -19,6 +19,7 @@ type Cluster struct {
 	TokenLists  []*token.TokenList
 	Pattern     *token.TokenList
 	WildcardMap map[int]bool
+	PatternID   uint64
 }
 
 // NewCluster creates a new cluster.
@@ -28,12 +29,13 @@ func NewCluster(signature token.Signature, tokenList *token.TokenList) *Cluster 
 		TokenLists:  []*token.TokenList{tokenList},
 		Pattern:     nil,
 		WildcardMap: make(map[int]bool),
+		PatternID:   0, // Will be assigned when pattern is generated
 	}
 }
 
 // Add adds a TokenList to this cluster if it has a matching signature.
 func (c *Cluster) Add(tokenList *token.TokenList) bool {
-	signature := tokenList.Signature()
+	signature := token.NewSignature(tokenList)
 
 	if !c.Signature.Equals(signature) {
 		return false
@@ -109,7 +111,7 @@ func (c *Cluster) GeneratePattern() *token.TokenList {
 		}
 	}
 
-	c.Pattern = token.NewTokenList(patternTokens)
+	c.Pattern = token.NewTokenListWithTokens(patternTokens)
 	return c.Pattern
 }
 
@@ -154,6 +156,71 @@ func (c *Cluster) ExtractWildcardValues(tokenList *token.TokenList) []string {
 	}
 
 	return wildcardValues
+}
+
+// GetPatternString returns a string representation of the pattern
+func (c *Cluster) GetPatternString() string {
+	if c.Pattern == nil {
+		c.GeneratePattern()
+	}
+
+	if c.Pattern == nil {
+		return ""
+	}
+
+	var parts []string
+	for _, tok := range c.Pattern.Tokens {
+		parts = append(parts, tok.Value)
+	}
+	return strings.Join(parts, "")
+}
+
+// GetPatternID returns the pattern ID for this cluster
+func (c *Cluster) GetPatternID() uint64 {
+	return c.PatternID
+}
+
+// SetPatternID sets the pattern ID for this cluster
+func (c *Cluster) SetPatternID(id uint64) {
+	c.PatternID = id
+}
+
+// MergeTokensIfFits attempts to merge this cluster with another cluster
+func (c *Cluster) MergeTokensIfFits(other *Cluster) bool {
+	// Check if clusters have the same structure
+	if c.Signature.Position != other.Signature.Position || c.Signature.Length != other.Signature.Length {
+		return false
+	}
+
+	// Check if tokens can be merged at each position
+	if len(c.TokenLists) == 0 || len(other.TokenLists) == 0 {
+		return false
+	}
+
+	// Use the first TokenList from each cluster for comparison
+	tokenList1 := c.TokenLists[0]
+	tokenList2 := other.TokenLists[0]
+
+	if tokenList1.Length() != tokenList2.Length() {
+		return false
+	}
+
+	// Check mergeability at each token position
+	for i := 0; i < tokenList1.Length(); i++ {
+		level := tokenList1.Tokens[i].GetMergeabilityLevel(&tokenList2.Tokens[i])
+		if !level.IsMergeable() {
+			return false
+		}
+	}
+
+	// Merge is possible - add other cluster's TokenLists to this cluster
+	c.TokenLists = append(c.TokenLists, other.TokenLists...)
+
+	// Invalidate pattern cache since cluster has changed
+	c.Pattern = nil
+	c.WildcardMap = make(map[int]bool)
+
+	return true
 }
 
 // getPathPattern converts a path to hierarchical wildcard pattern

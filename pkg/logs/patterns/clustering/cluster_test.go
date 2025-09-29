@@ -18,8 +18,8 @@ func TestCluster_NewCluster(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
-	tokenList := token.NewTokenList(tokens)
-	signature := tokenList.Signature()
+	tokenList := token.NewTokenListWithTokens(tokens)
+	signature := token.NewSignature(tokenList)
 
 	cluster := NewCluster(signature, tokenList)
 
@@ -43,8 +43,8 @@ func TestCluster_Add(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
-	tokenList1 := token.NewTokenList(tokens1)
-	signature1 := tokenList1.Signature()
+	tokenList1 := token.NewTokenListWithTokens(tokens1)
+	signature1 := token.NewSignature(tokenList1)
 
 	cluster := NewCluster(signature1, tokenList1)
 
@@ -54,7 +54,7 @@ func TestCluster_Add(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/users", Type: token.TokenAbsolutePath},
 	}
-	tokenList2 := token.NewTokenList(tokens2)
+	tokenList2 := token.NewTokenListWithTokens(tokens2)
 
 	// Should add successfully (same signature)
 	if !cluster.Add(tokenList2) {
@@ -71,7 +71,7 @@ func TestCluster_Add(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "failed", Type: token.TokenWord},
 	}
-	tokenList3 := token.NewTokenList(tokens3)
+	tokenList3 := token.NewTokenListWithTokens(tokens3)
 
 	// Should fail to add (different signature)
 	if cluster.Add(tokenList3) {
@@ -90,10 +90,10 @@ func TestCluster_GeneratePattern_NoWildcards(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/api", Type: token.TokenAbsolutePath},
 	}
-	tokenList1 := token.NewTokenList(tokens)
-	tokenList2 := token.NewTokenList(tokens) // Identical
+	tokenList1 := token.NewTokenListWithTokens(tokens)
+	tokenList2 := token.NewTokenListWithTokens(tokens) // Identical
 
-	cluster := NewCluster(tokenList1.Signature(), tokenList1)
+	cluster := NewCluster(token.NewSignature(tokenList1), tokenList1)
 	cluster.Add(tokenList2)
 
 	pattern := cluster.GeneratePattern()
@@ -130,10 +130,10 @@ func TestCluster_GeneratePattern_WithWildcards(t *testing.T) {
 		{Value: "/users", Type: token.TokenAbsolutePath}, // Different value
 	}
 
-	tokenList1 := token.NewTokenList(tokens1)
-	tokenList2 := token.NewTokenList(tokens2)
+	tokenList1 := token.NewTokenListWithTokens(tokens1)
+	tokenList2 := token.NewTokenListWithTokens(tokens2)
 
-	cluster := NewCluster(tokenList1.Signature(), tokenList1)
+	cluster := NewCluster(token.NewSignature(tokenList1), tokenList1)
 	cluster.Add(tokenList2)
 
 	pattern := cluster.GeneratePattern()
@@ -181,9 +181,9 @@ func TestCluster_GeneratePattern_SingleTokenList(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "failed", Type: token.TokenWord},
 	}
-	tokenList := token.NewTokenList(tokens)
+	tokenList := token.NewTokenListWithTokens(tokens)
 
-	cluster := NewCluster(tokenList.Signature(), tokenList)
+	cluster := NewCluster(token.NewSignature(tokenList), tokenList)
 	pattern := cluster.GeneratePattern()
 
 	if pattern == nil {
@@ -221,10 +221,10 @@ func TestCluster_GeneratePattern_Caching(t *testing.T) {
 		{Value: "/users", Type: token.TokenAbsolutePath},
 	}
 
-	tokenList1 := token.NewTokenList(tokens1)
-	tokenList2 := token.NewTokenList(tokens2)
+	tokenList1 := token.NewTokenListWithTokens(tokens1)
+	tokenList2 := token.NewTokenListWithTokens(tokens2)
 
-	cluster := NewCluster(tokenList1.Signature(), tokenList1)
+	cluster := NewCluster(token.NewSignature(tokenList1), tokenList1)
 	cluster.Add(tokenList2)
 
 	// Generate pattern twice
@@ -242,7 +242,7 @@ func TestCluster_GeneratePattern_Caching(t *testing.T) {
 		{Value: " ", Type: token.TokenWhitespace},
 		{Value: "/items", Type: token.TokenAbsolutePath},
 	}
-	tokenList3 := token.NewTokenList(tokens3)
+	tokenList3 := token.NewTokenListWithTokens(tokens3)
 	cluster.Add(tokenList3)
 
 	pattern3 := cluster.GeneratePattern()

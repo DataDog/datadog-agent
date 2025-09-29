@@ -8,6 +8,7 @@
 package automaton
 
 import (
+	"regexp"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
@@ -57,7 +58,7 @@ func (t *Tokenizer) Tokenize() *token.TokenList {
 	t.flushBuffer()
 	t.classifyTokens()
 
-	return token.NewTokenList(t.tokens)
+	return token.NewTokenListWithTokens(t.tokens)
 }
 
 // classifyTokens applies terminal rules for token classification
@@ -181,6 +182,11 @@ func (t *Tokenizer) classifyToken(value string) token.TokenType {
 	return globalTrie.Match(value)
 }
 
+// hasNumericPattern checks if a word contains numbers
+func hasNumericPattern(word string) bool {
+	return regexp.MustCompile(`\d`).MatchString(word)
+}
+
 // Helper functions
 
 // isURLScheme checks if current buffer looks like a URL scheme
@@ -220,9 +226,16 @@ func (t *Tokenizer) createWordToken() {
 	value := t.bufferToString()
 	tokenType := t.classifyToken(value)
 
+	// Set possiblyWildcard flag based on numeric pattern
+	possiblyWildcard := false
+	if tokenType == token.TokenWord && hasNumericPattern(value) {
+		possiblyWildcard = true
+	}
+
 	t.tokens = append(t.tokens, token.Token{
-		Type:  tokenType,
-		Value: value,
+		Type:             tokenType,
+		Value:            value,
+		PossiblyWildcard: possiblyWildcard,
 	})
 	t.clearBuffer()
 }
@@ -230,8 +243,9 @@ func (t *Tokenizer) createWordToken() {
 func (t *Tokenizer) createNumericToken() {
 	value := t.bufferToString()
 	t.tokens = append(t.tokens, token.Token{
-		Type:  token.TokenNumeric,
-		Value: value,
+		Type:             token.TokenNumeric,
+		Value:            value,
+		PossiblyWildcard: true, // Numeric tokens can be merged (25 vs 62 → *)
 	})
 	t.clearBuffer()
 }
@@ -239,8 +253,9 @@ func (t *Tokenizer) createNumericToken() {
 func (t *Tokenizer) createWhitespaceToken() {
 	value := t.bufferToString()
 	t.tokens = append(t.tokens, token.Token{
-		Type:  token.TokenWhitespace,
-		Value: value,
+		Type:             token.TokenWhitespace,
+		Value:            value,
+		PossiblyWildcard: false, // Whitespace tokens are not mergeable
 	})
 	t.clearBuffer()
 }
@@ -249,9 +264,16 @@ func (t *Tokenizer) createSpecialToken() {
 	value := t.bufferToString()
 	tokenType := t.classifyToken(value)
 
+	// Set possiblyWildcard flag for special tokens
+	possiblyWildcard := false
+	if tokenType == token.TokenWord && hasNumericPattern(value) {
+		possiblyWildcard = true
+	}
+
 	t.tokens = append(t.tokens, token.Token{
-		Type:  tokenType,
-		Value: value,
+		Type:             tokenType,
+		Value:            value,
+		PossiblyWildcard: possiblyWildcard,
 	})
 	t.clearBuffer()
 }

@@ -8,6 +8,10 @@
 package clustering
 
 import (
+	"crypto/rand"
+	"encoding/binary"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 )
 
@@ -33,7 +37,7 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) *Cluster {
 		return nil
 	}
 
-	signature := tokenList.Signature()
+	signature := token.NewSignature(tokenList)
 	hash := signature.Hash
 
 	clusters := cm.hashBuckets[hash]
@@ -47,6 +51,7 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) *Cluster {
 	}
 
 	newCluster := NewCluster(signature, tokenList)
+	newCluster.SetPatternID(generatePatternID())
 	cm.hashBuckets[hash] = append(clusters, newCluster)
 
 	cm.totalTokenLists++
@@ -158,4 +163,14 @@ func (cm *ClusterManager) GetLargestClusters(n int) []*Cluster {
 	}
 
 	return allClusters[:n]
+}
+
+// generatePatternID generates a unique pattern ID 
+func generatePatternID() uint64 {
+	var buf [8]byte
+	_, err := rand.Read(buf[:])
+	if err != nil {
+		return uint64(time.Now().UnixNano())
+	}
+	return binary.BigEndian.Uint64(buf[:])
 }
