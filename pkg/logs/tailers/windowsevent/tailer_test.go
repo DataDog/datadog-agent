@@ -84,7 +84,7 @@ func (s *ReadEventsSuite) SetupTest() {
 func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan chan *message.Message) (*Tailer, error) {
 	source := sources.NewLogSource("", &logconfig.LogsConfig{})
 	registry := auditormock.NewMockAuditor()
-	publisherMetadataCache := publishermetadatacacheimpl.NewTestCache(evtapi, 50)
+	publisherMetadataCache := publishermetadatacacheimpl.New(evtapi)
 
 	tailer := NewTailer(evtapi, source, tailerconfig, msgChan, registry, publisherMetadataCache)
 	tailer.Start(bookmark)

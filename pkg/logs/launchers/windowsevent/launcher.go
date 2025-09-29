@@ -10,6 +10,7 @@ package windowsevent
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -41,7 +42,7 @@ type Launcher struct {
 
 // NewLauncher returns a new Launcher.
 func NewLauncher() *Launcher {
-	cache := publishermetadatacacheimpl.New()
+	cache := publishermetadatacacheimpl.New(winevtapi.New())
 	return &Launcher{
 		tailers:                make(map[string]tailer),
 		stop:                   make(chan struct{}),

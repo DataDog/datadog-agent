@@ -339,12 +339,7 @@ func (t *Tailer) enrichEvent(m *windowsevent.Map, event evtapi.EventRecordHandle
 		return fmt.Errorf("failed to get provider name: %v", err)
 	}
 
-	pm, err := t.publisherMetadataCache.Get(providerName, event)
-	if err != nil {
-		return fmt.Errorf("failed to get publisher metadata for provider '%s': %v", providerName, err)
-	}
-
-	windowsevent.AddRenderedInfoToMap(m, t.evtapi, pm, event)
+	windowsevent.AddRenderedInfoToMap(m, t.evtapi, t.publisherMetadataCache, providerName, event)
 
 	return nil
 }
