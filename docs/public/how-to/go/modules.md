@@ -40,7 +40,7 @@ package mymodule
 
 1. Update the `modules.yml` file at the root of the repository, adding a section for your new module.
 
-    See the GoModule documentation [here](/tasks/libs/common/gomodules.py) for the list of possible attributes. The dependencies are computed automatically.
+    See [`modules.yml`](#the-modulesyml-file) for more details. Here are a couple of example configurations:
 
     /// details
         type: example
@@ -104,3 +104,65 @@ package mymodule
     dda inv modules.go-work
     go mod tidy
     ```
+
+## Nested go module tagging and versioning
+
+A few invoke tasks are available that help with automatically updating module versions and tags:
+
+* `dda inv release.tag-modules`
+> Creates tags for Go nested modules for a given Datadog Agent version.
+/// info
+For Agent version `7.X.Y` the module will have version `v0.X.Y`.
+///
+* `dda inv release.update-modules`
+> Updates the internal dependencies between the different Agent nested go modules.
+
+
+/// info
+The `release.update-modules` task is also called automatically by the invoke tasks used as part of the release process:
+
+* `dda inv release.create-rc`
+* `dda inv release.finish`
+
+The `release.tag-modules` task is also called by the `release.tag-version` invoke task, using the same commit as the main module, with a tag of the form `path/to/module/v0.X.Y`.
+///
+
+## The `modules.yml` file
+
+The `modules.yml` file gathers all go module configurations.
+Each module is listed even if this module has default attributes or is ignored.
+
+For each module, you can specify:
+
+* `default` - for modules with default attribute values
+* `ignored` - for ignored modules.
+
+To create a special configuration, the attributes of the `GoModule` class can be overriden - see the definition [here](/tasks/libs/common/gomodules.py) for the list of attributes and their details.
+
+/// tip
+This file can be linted and checked by using `dda inv modules.validate [--fix-format]`.
+///
+
+/// example
+```yaml
+modules:
+  .:
+    independent: false
+    lint_targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+    test_targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+  comp/api/api/def:
+    used_by_otel: true
+  comp/api/authtoken: default
+  test/integration/serverless/src: ignored
+  tools/retry_file_dump:
+    should_test_condition: never
+    independent: false
+    should_tag: false
+```
+///
