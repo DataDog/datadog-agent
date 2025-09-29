@@ -18,7 +18,6 @@
   script:
     - !reference [.setup_dd_pkg]
     - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $PARENT_PIPELINE_ID)-1" || exit $?; export RELEASE_VERSION
-    - GITLAB_TOKEN="$(dda inv -- auth.gitlab)" || exit $?; export GITLAB_TOKEN
     - |-
       dd-pkg promote \
         --build-pipeline-id $PARENT_PIPELINE_ID \
