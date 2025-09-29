@@ -10,7 +10,6 @@ package windowsevent
 
 import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
@@ -27,6 +26,6 @@ func (l *Launcher) Start(_ launchers.SourceProvider, _ pipeline.Provider, _ audi
 func (l *Launcher) Stop() {}
 
 // NewLauncher is a stub for non-windows platforms
-func NewLauncher(_ publishermetadatacache.Component) *Launcher {
+func NewLauncher() *Launcher {
 	return &Launcher{}
 }

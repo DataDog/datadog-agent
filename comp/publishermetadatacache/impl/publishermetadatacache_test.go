@@ -128,7 +128,7 @@ func TestPublisherMetadataCache_Stop_CleansUpAllHandles(t *testing.T) {
 
 	assert.Len(t, cache.cache, 2)
 
-	err = cache.stop()
+	err = cache.Close()
 	assert.NoError(t, err)
 	assert.Empty(t, cache.cache)
 }

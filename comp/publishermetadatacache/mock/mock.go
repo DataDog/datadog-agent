@@ -14,8 +14,8 @@ import (
 	"go.uber.org/fx"
 
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
-	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
 // PublisherMetadataCache is a mock implementation of the publishermetadatacache Component
@@ -37,4 +37,9 @@ func New(_ testing.TB) publishermetadatacache.Component {
 // Get implements the Component interface
 func (m *PublisherMetadataCache) Get(_ string, _ evtapi.EventRecordHandle) (evtapi.EventPublisherMetadataHandle, error) {
 	return evtapi.EventPublisherMetadataHandle(12345), nil
+}
+
+// Close implements the Component interface
+func (m *PublisherMetadataCache) Close() error {
+	return nil
 }

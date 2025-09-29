@@ -21,4 +21,7 @@ type Component interface {
 	// If not found in cache, it calls EvtOpenPublisherMetadata and caches the result.
 	// Returns the handle and any error encountered.
 	Get(publisherName string, event evtapi.EventRecordHandle) (evtapi.EventPublisherMetadataHandle, error)
+
+	// Close cleans up all cached handles when the component is no longer needed.
+	Close() error
 }
