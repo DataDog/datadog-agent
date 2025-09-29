@@ -214,3 +214,12 @@ func (c *DirectConsumer[V]) flushCoordinator() {
 		}
 	}
 }
+
+// SupportsDirectConsumer returns true if the kernel version supports direct consumer (>= 5.8.0)
+func SupportsDirectConsumer() bool {
+	kernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		return false
+	}
+	return kernelVersion >= kernel.VersionCode(5, 8, 0)
+}

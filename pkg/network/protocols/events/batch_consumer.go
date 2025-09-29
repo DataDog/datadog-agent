@@ -8,6 +8,7 @@
 package events
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"unsafe"
@@ -25,7 +26,10 @@ const (
 	batchMapSuffix = "_batches"
 )
 
-var sizeOfBatch = int(unsafe.Sizeof(Batch{}))
+var (
+	sizeOfBatch         = int(unsafe.Sizeof(Batch{}))
+	errInvalidPerfEvent = errors.New("invalid perf event")
+)
 
 // BatchConsumer processes batches of events from the USM kernel batching mechanism.
 // Currently the default consumer, it will transition to a fallback role once DirectConsumer
