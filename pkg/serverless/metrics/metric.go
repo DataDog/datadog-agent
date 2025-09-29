@@ -101,14 +101,18 @@ func (c *ServerlessMetricAgent) IsReady() bool {
 
 // Flush triggers a DogStatsD flush
 func (c *ServerlessMetricAgent) Flush() {
+	log.Infof("ServerlessMetricAgent.Flush")
 	if c.IsReady() {
+		log.Infof("ServerlessMetricAgent.Flush, IsReady true")
 		c.dogStatsDServer.ServerlessFlush(c.SketchesBucketOffset)
 	}
 }
 
 // Stop stops the DogStatsD server
 func (c *ServerlessMetricAgent) Stop() {
+	log.Infof("ServerlessMetricAgent.Stop")
 	if c.IsReady() {
+		log.Infof("ServerlessMetricAgent.Stop, IsReady true")
 		c.dogStatsDServer.Stop()
 	}
 }

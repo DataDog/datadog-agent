@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // interface requiring all functions expected by the dogstatsd server
@@ -221,6 +222,7 @@ func (b *batcher) appendLateSample(sample metrics.MetricSample) {
 // --------
 
 func (b *batcher) flushSamples(shard uint32) {
+	log.Infof("there are %d b.samplesCount[shard]\n", b.samplesCount[shard])
 	if b.samplesCount[shard] > 0 {
 		t1 := time.Now()
 		b.demux.AggregateSamples(aggregator.TimeSamplerID(shard), b.samples[shard][:b.samplesCount[shard]])
@@ -233,6 +235,7 @@ func (b *batcher) flushSamples(shard uint32) {
 }
 
 func (b *batcher) flushSamplesWithTs() {
+	log.Infof("there are %d samplesWithTsCount\n", b.samplesWithTsCount)
 	if b.samplesWithTsCount > 0 {
 		t1 := time.Now()
 		b.demux.SendSamplesWithoutAggregation(b.samplesWithTs[:b.samplesWithTsCount])
@@ -248,6 +251,7 @@ func (b *batcher) flushSamplesWithTs() {
 func (b *batcher) flush() {
 	// flush all on-time samples on their respective time sampler
 	for i := 0; i < b.pipelineCount; i++ {
+		log.Infof("flushing sample %d\n", i)
 		b.flushSamples(uint32(i))
 	}
 
@@ -255,7 +259,9 @@ func (b *batcher) flush() {
 	b.flushSamplesWithTs()
 
 	// flush events
+	log.Infof("there are %d events\n", len(b.events))
 	if len(b.events) > 0 {
+		log.Infof("flushing %d events\n", len(b.events))
 		t1 := time.Now()
 		b.choutEvents <- b.events
 		t2 := time.Now()
@@ -265,7 +271,9 @@ func (b *batcher) flush() {
 	}
 
 	// flush service checks
+	log.Infof("there are %d service checks\n", len(b.serviceChecks))
 	if len(b.serviceChecks) > 0 {
+		log.Infof("flushing %d service checks\n", len(b.serviceChecks))
 		t1 := time.Now()
 		b.choutServiceChecks <- b.serviceChecks
 		t2 := time.Now()
