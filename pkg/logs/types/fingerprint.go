@@ -42,8 +42,15 @@ func (f *Fingerprint) IsPartialFingerprint() bool {
 	if f.Config == nil {
 		return false
 	}
-	expectedBytes := f.Config.Count
-	return f.BytesUsed > 0 && f.BytesUsed < expectedBytes
+
+	// Only byte-based fingerprinting uses BytesUsed to track partial fingerprints; 
+	// cannot track partial line-based fingerprints by bytes alone
+	if f.Config.FingerprintStrategy == FingerprintStrategyByteChecksum {
+		expectedBytes := f.Config.Count
+		return f.BytesUsed > 0 && f.BytesUsed < expectedBytes
+	}
+
+	return false
 }
 
 // FingerprintConfig defines the options for the fingerprint configuration.

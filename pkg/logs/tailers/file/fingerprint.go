@@ -38,7 +38,7 @@ func NewFingerprinter(fingerprintConfig types.FingerprintConfig) *Fingerprinter 
 
 // newInvalidFingerprint returns a fingerprint with Value=0 to represent an invalid/empty fingerprint
 func newInvalidFingerprint(config *types.FingerprintConfig) *types.Fingerprint {
-	return &types.Fingerprint{Value: types.InvalidFingerprintValue, Config: config}
+	return &types.Fingerprint{Value: types.InvalidFingerprintValue, Config: config, BytesUsed: 0}
 }
 
 // crc64Table is a package-level variable for the CRC64 ISO table
