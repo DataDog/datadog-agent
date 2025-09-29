@@ -13,10 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/mock"
 )
 
 func TestShouldSanitizeConfig(t *testing.T) {
-	launcher := NewLauncher(publishermetadatacache.New(t))
+	launcher := NewLauncher()
 	assert.Equal(t, "*", launcher.sanitizedConfig(&config.LogsConfig{ChannelPath: "System", Query: ""}).Query)
 }

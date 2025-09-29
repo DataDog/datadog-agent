@@ -41,18 +41,23 @@ type publisherMetadataCache struct {
 	maxCacheSize int
 }
 
-// NewComponent creates a new publishermetadatacache component
-func NewComponent(reqs Requires) Provides {
-	cache := &publisherMetadataCache{
+// New creates a new publishermetadatacache without fx dependencies
+func New() publishermetadatacache.Component {
+	return &publisherMetadataCache{
 		cache:        make(map[string]cacheItem),
 		evtapi:       winevtapi.New(),
 		maxCacheSize: 50,
 	}
+}
+
+// NewComponent creates a new publishermetadatacache component
+func NewComponent(reqs Requires) Provides {
+	cache := New()
 
 	// Register cleanup hook to close all handles when component shuts down
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
-			return cache.stop()
+			return cache.Close()
 		},
 	})
 
@@ -125,8 +130,8 @@ func (c *publisherMetadataCache) Get(publisherName string, event evtapi.EventRec
 	return cacheItem.handle, nil
 }
 
-// stop cleans up all cached handles when the component shuts down
-func (c *publisherMetadataCache) stop() error {
+// Close cleans up all cached handles when the component shuts down
+func (c *publisherMetadataCache) Close() error {
 	for publisherName, cacheItem := range c.cache {
 		evtapi.EvtClosePublisherMetadata(c.evtapi, cacheItem.handle)
 		delete(c.cache, publisherName)

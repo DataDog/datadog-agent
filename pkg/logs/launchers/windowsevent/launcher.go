@@ -13,7 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
+	publishermetadatacachedef "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
+	publishermetadatacacheimpl "github.com/DataDog/datadog-agent/comp/publishermetadatacache/impl"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -35,15 +36,16 @@ type Launcher struct {
 	registry               auditor.Registry
 	tailers                map[string]tailer
 	stop                   chan struct{}
-	publisherMetadataCache publishermetadatacache.Component
+	publisherMetadataCache publishermetadatacachedef.Component
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher(publisherMetadataCache publishermetadatacache.Component) *Launcher {
+func NewLauncher() *Launcher {
+	cache := publishermetadatacacheimpl.New()
 	return &Launcher{
 		tailers:                make(map[string]tailer),
 		stop:                   make(chan struct{}),
-		publisherMetadataCache: publisherMetadataCache,
+		publisherMetadataCache: cache,
 	}
 }
 
@@ -92,6 +94,7 @@ func (l *Launcher) Stop() {
 		delete(l.tailers, tailer.Identifier())
 	}
 	stopper.Stop()
+	l.publisherMetadataCache.Close()
 }
 
 // sanitizedConfig sets default values for the config
