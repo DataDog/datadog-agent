@@ -39,7 +39,7 @@ func DCAGetName(ctx context.Context) string {
 	return providerName
 }
 
-// getNodeLabels retrieves the labels of the node with the given name for cluster agent.
+// getNodeLabels retrieves node labels for provided nodeName in cluster agent.
 func getNodeLabels(ctx context.Context, nodeName string) map[string]string {
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {

@@ -21,7 +21,6 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
@@ -110,17 +109,11 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 		if cluster := clustername.GetClusterNameTagValue(ctx, ""); cluster != "" {
 			c.staticTags[clusterTagNamePrefix] = []string{cluster}
 		}
-
-		// determine for kube_cloud_provider global tag
-		cloudProvider := cloudprovider.DCAGetName(ctx)
-		if cloudProvider != "" {
-			c.staticTags[tags.KubeCloudProvider] = []string{cloudProvider}
-		}
 	}
 
 	// These are the global tags that should only be applied to the internal global entity on DCA.
 	// Whereas the static tags are applied to containers and pods directly as well.
-	globalEnvTags := tagutil.GetClusterAgentStaticTags(datadogConfig)
+	globalEnvTags := tagutil.GetClusterAgentStaticTags(ctx, datadogConfig)
 
 	tagList := taglist.NewTagList()
 

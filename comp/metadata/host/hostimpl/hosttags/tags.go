@@ -149,7 +149,7 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 		hostTags = appendToHostTags(hostTags, []string{tags.OrchClusterID + ":" + clusterID})
 	}
 
-	if providerName, err := cloudprovider.GetName(); err == nil && providerName != "" {
+	if providerName, err := cloudprovider.GetName(ctx); err == nil && providerName != "" {
 		hostTags = appendToHostTags(hostTags, []string{tags.KubeCloudProvider + ":" + providerName})
 	}
 

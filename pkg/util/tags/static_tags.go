@@ -61,7 +61,7 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 			tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
 		}
 
-		if providerName, err := cloudprovider.GetName(); err != nil && providerName != "" {
+		if providerName, err := cloudprovider.GetName(ctx); err != nil && providerName != "" {
 			tags = append(tags, taggertags.KubeCloudProvider+":"+providerName)
 		}
 	}
@@ -102,7 +102,7 @@ func GetStaticTags(ctx context.Context, datadogConfig config.Component) map[stri
 // GetClusterAgentStaticTags is similar to GetStaticTags, but returning a map[string][]string containing
 // <key>:<value> pairs for all global environment tags on the cluster agent. This includes:
 // DD_TAGS, DD_EXTRA_TAGS, DD_CLUSTER_CHECKS_EXTRA_TAGS, DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
-func GetClusterAgentStaticTags(config config.Reader) map[string][]string {
+func GetClusterAgentStaticTags(ctx context.Context, config config.Reader) map[string][]string {
 	if flavor.GetFlavor() != flavor.ClusterAgent {
 		return nil
 	}
@@ -112,6 +112,12 @@ func GetClusterAgentStaticTags(config config.Reader) map[string][]string {
 
 	// DD_CLUSTER_CHECKS_EXTRA_TAGS / DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
 	tags = append(tags, configUtils.GetConfiguredDCATags(config)...)
+
+	// determine for kube_cloud_provider global tag
+	cloudProvider := cloudprovider.DCAGetName(ctx)
+	if cloudProvider != "" {
+		tags = append(tags, taggertags.KubeCloudProvider+":"+cloudProvider)
+	}
 
 	if tags == nil {
 		return nil

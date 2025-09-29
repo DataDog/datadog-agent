@@ -26,6 +26,6 @@ func (n *NodeInfo) GetNodeLabels(_ context.Context) (map[string]string, error) {
 }
 
 // GetNodeName returns the node name for this host
-func (n *NodeInfo) GetNodeName(ctx context.Context) (string, error) {
+func (n *NodeInfo) GetNodeName(_ context.Context) (string, error) {
 	return "", nil
 }

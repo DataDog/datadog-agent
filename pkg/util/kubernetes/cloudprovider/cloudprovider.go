@@ -7,8 +7,6 @@ package cloudprovider
 
 import (
 	"context"
-	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -18,7 +16,7 @@ import (
 
 // GetName returns the name of the cloud provider for the current node.
 // GetName shouldn't be used on DCA. For DCA please refer to DCAGetName.
-func GetName() (string, error) {
+func GetName(ctx context.Context) (string, error) {
 	cacheKey := cache.BuildAgentKey(constants.NodeCloudProviderKey)
 	if cloudProvider, found := cache.Cache.Get(cacheKey); found {
 		return cloudProvider.(string), nil
@@ -28,8 +26,6 @@ func GetName() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(2*time.Second))
-	defer cancel()
 
 	nodeName, err := ni.GetNodeName(ctx)
 	if err != nil {
@@ -55,30 +51,19 @@ func GetName() (string, error) {
 // getProvideNameFromNodeLabels checks certain node labels to determine the kube cloud provider.
 // Returns an empty string if no provider is determined.
 func getProvideNameFromNodeLabels(nl map[string]string) string {
-	cloudProvider := ""
-out:
-	for labelName, labelValue := range nl {
+	for labelName := range nl {
 		switch labelName {
-		case "topology.k8s.aws/zone-id",
-			"eks.amazonaws.com/nodegroup",
+		case "eks.amazonaws.com/nodegroup",
 			"eks.amazonaws.com/compute-type",
 			"alpha.eksctl.io/cluster-name":
-			cloudProvider = "aws"
-			break out
-		case "topology.gke.io/zone",
-			"cloud.google.com/gke-boot-disk":
-			cloudProvider = "gcp"
-			break out
+			return "aws"
+		case "cloud.google.com/gke-boot-disk":
+			return "gcp"
 		case "kubernetes.azure.com/nodepool-type",
-			"kubernetes.azure.com/mode":
-			cloudProvider = "azure"
-			break out
-		case "kubernetes.io/hostname":
-			if strings.HasPrefix(labelValue, "aks") {
-				cloudProvider = "azure"
-				break out
-			}
+			"kubernetes.azure.com/mode",
+			"kubernetes.azure.com/cluster":
+			return "azure"
 		}
 	}
-	return cloudProvider
+	return ""
 }
