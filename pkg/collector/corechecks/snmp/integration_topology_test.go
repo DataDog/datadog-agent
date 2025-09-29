@@ -652,6 +652,10 @@ profiles:
 {
   "namespace":"profile-metadata",
   "integration": "snmp",
+  "collector_metadata": {
+    "agent_version": "%[1]s",
+    "agent_hostname": "my-hostname"
+  },
   "devices": [
     {
       "id": "profile-metadata:1.2.3.4",
@@ -661,7 +665,7 @@ profiles:
       ],
       "tags": [
 	    "agent_host:my-hostname",
-        "agent_version:%s",
+        "agent_version:%[1]s",
 		"device_id:profile-metadata:1.2.3.4",
 		"device_ip:1.2.3.4",
         "device_namespace:profile-metadata",
@@ -1423,6 +1427,10 @@ profiles:
 {
   "namespace":"profile-metadata",
   "integration": "snmp",
+  "collector_metadata": {
+      "agent_version": "%[1]s",
+	  "agent_hostname": "my-hostname"
+  },
   "devices": [
     {
       "id": "profile-metadata:1.2.3.4",
@@ -1432,7 +1440,7 @@ profiles:
       ],
       "tags": [
 		"agent_host:my-hostname",
-        "agent_version:%s",
+        "agent_version:%[1]s",
 		"device_id:profile-metadata:1.2.3.4",
 		"device_ip:1.2.3.4",
         "device_namespace:profile-metadata",
@@ -2184,6 +2192,10 @@ profiles:
 {
   "namespace":"profile-metadata",
   "integration": "snmp",
+  "collector_metadata": {
+      "agent_version": "%[1]s",
+	  "agent_hostname": "my-hostname"
+  },
   "devices": [
     {
       "id": "profile-metadata:1.2.3.4",
@@ -2193,7 +2205,7 @@ profiles:
       ],
       "tags": [
 		"agent_host:my-hostname",
-        "agent_version:%s",
+        "agent_version:%[1]s",
 		"device_id:profile-metadata:1.2.3.4",
 		"device_ip:1.2.3.4",
         "device_namespace:profile-metadata",
@@ -2946,6 +2958,10 @@ profiles:
 {
   "namespace":"profile-metadata",
   "integration": "snmp",
+  "collector_metadata": {
+      "agent_version": "%[1]s",
+	  "agent_hostname": "my-hostname"
+  },
   "devices": [
     {
       "id": "profile-metadata:1.2.3.4",
@@ -2955,7 +2971,7 @@ profiles:
       ],
       "tags": [
 		"agent_host:my-hostname",
-        "agent_version:%s",
+        "agent_version:%[1]s",
 		"device_id:profile-metadata:1.2.3.4",
 		"device_ip:1.2.3.4",
         "device_namespace:profile-metadata",
