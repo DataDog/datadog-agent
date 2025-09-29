@@ -22,7 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// DirectConsumer processes individual events directly from eBPF programs.
+// DirectConsumer processes events directly from perf/ring buffers using the in-map batching mechanism
+// provided by perf.EventHandler. This is the preferred approach for modern kernels, offering:
+// - Watermark-based batching that eliminates custom per-CPU batch pages and race conditions
+// - Simplified code by removing batch maps, flush kprobes, and offsetManager complexity
+// - Built-in telemetry for lost events, channel lengths, and ring-buffer statistics
 type DirectConsumer[V any] struct {
 	perf.EventHandler
 	proto    string

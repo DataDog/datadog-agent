@@ -143,11 +143,6 @@ func newHTTPProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protoc
 // Modifiers implements the ModifierProvider interface
 func (p *protocol) Modifiers() []ddebpf.Modifier {
 	if p.consumer == nil {
-		// BatchConsumer case: consumer created in PreStart(), return empty modifiers for now
-		if !p.useDirectConsumer {
-			return []ddebpf.Modifier{}
-		}
-		// This shouldn't happen for DirectConsumer, but return empty as fallback
 		return []ddebpf.Modifier{}
 	}
 	return p.consumer.Modifiers()

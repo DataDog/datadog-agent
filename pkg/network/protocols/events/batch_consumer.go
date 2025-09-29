@@ -23,7 +23,9 @@ import (
 
 var sizeOfBatch = int(unsafe.Sizeof(Batch{}))
 
-// BatchConsumer processes batches of events from eBPF maps.
+// BatchConsumer processes batches of events from the USM kernel batching mechanism.
+// Currently the default consumer, it will transition to a fallback role once DirectConsumer
+// is proven reliable, remaining necessary for kernels < 5.8 where DirectConsumer is unsupported.
 type BatchConsumer[V any] struct {
 	mux         sync.Mutex
 	proto       string
