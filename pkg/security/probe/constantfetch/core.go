@@ -106,7 +106,7 @@ func (f *BTFConstantFetcher) runOffsetofRequest(pairs ...TypeFieldPair) (uint64,
 	for _, pair := range pairs {
 		types, err := f.getTypesForName(pair.TypeName)
 		if err != nil || len(types) == 0 {
-			return ErrorSentinel, err
+			continue
 		}
 
 		for _, ty := range types {
