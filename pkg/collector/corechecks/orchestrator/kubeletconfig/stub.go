@@ -5,8 +5,8 @@
 
 //go:build !kubelet || !orchestrator
 
-// Package kubelet_config is used `for the orchestrator kubelet_config check
-package kubelet_config
+// Package kubeletconfig is used `for the orchestrator kubelet_config check
+package kubeletconfig
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"

@@ -5,7 +5,7 @@
 
 //go:build kubelet && orchestrator && test
 
-package kubelet_config
+package kubeletconfig
 
 import (
 	"strings"
@@ -37,9 +37,6 @@ import (
 
 var testHostName = "test-host"
 var testNodeName = "node"
-var staticKubeletConfig = workloadmeta.KubeletConfigDocument{
-	KubeletConfig: workloadmeta.KubeletConfigSpec{},
-}
 var staticRawKubeletConfig = []byte(`{"sample-key":"sample-value"}`)
 
 type fakeSender struct {
@@ -54,10 +51,9 @@ func (s *fakeSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clust
 
 type KubeletConfigTestSuite struct {
 	suite.Suite
-	check    *Check
-	sender   *fakeSender
-	kubeUtil kubelet.KubeUtilInterface
-	tagger   taggermock.Mock
+	check  *Check
+	sender *fakeSender
+	tagger taggermock.Mock
 }
 
 func (suite *KubeletConfigTestSuite) SetupSuite() {
@@ -65,6 +61,7 @@ func (suite *KubeletConfigTestSuite) SetupSuite() {
 	kubelet.ResetCache()
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("cluster_agent.enabled", true)
 	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
 	mockConfig.SetWithoutSource("orchestrator_explorer.enabled", true)

@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build kubelet && orchestrator
 
-// Package kubelet_config is used `for the orchestrator kubelet_config check
-package kubelet_config
+// Package kubeletconfig is used `for the orchestrator kubelet_config check
+package kubeletconfig
 
 import (
 	"context"
@@ -84,6 +84,7 @@ func newCheck(store workloadmeta.Component, cfg config.Component, tagger tagger.
 	}
 }
 
+// Configure the kubelet_config check
 func (c *Check) Configure(
 	senderManager sender.SenderManager,
 	integrationConfigDigest uint64,
@@ -160,6 +161,9 @@ func (c *Check) Run() error {
 
 	nodeName := kubelet.NodeName
 	uid, err := getNodeUID(nodeName)
+	if err != nil {
+		return err
+	}
 
 	rawKubeletConfig := kubelet.RawConfig
 	if rawKubeletConfig == nil {
