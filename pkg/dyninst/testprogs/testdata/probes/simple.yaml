@@ -72,3 +72,8 @@ probes:
   captureSnapshot: true
   where:
     methodName: main.noArgs
+- id: usesMapsOfMapsThatDoNotAppearAsArguments
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.usesMapsOfMapsThatDoNotAppearAsArguments

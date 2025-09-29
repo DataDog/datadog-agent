@@ -203,8 +203,9 @@ Package: main
 			Var: structWithAny2: main.structWithAny (declared at line 118, available: )
 			Var: structWithAny3: main.structWithAny (declared at line 119, available: )
 			Var: structWithAny4: main.structWithAny (declared at line 120, available: )
-	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [19:48]
-		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 39, available: [19-48])
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [19:50]
+		Var: it: main.iterExample (declared at line 41, available: [19-50])
+		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 39, available: [19-50])
 	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [986:989]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
 		Var: name: string (declared at line 987, available: [987-989])
@@ -637,6 +638,9 @@ Package: main
 	Type: main.behavior
 	Type: main.structWithAny
 		Field: a: interface {}
+	Type: main.iterExample
+		Function: rangeOverIterator (main.iterExample.rangeOverIterator) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/ranges.go [15:19]
+			Arg: ~p0: main.iterExample (declared at line 15, available: )
 	Type: main.structWithMap
 		Field: m: map[int]int
 	Type: main.node

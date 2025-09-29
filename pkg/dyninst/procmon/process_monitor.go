@@ -261,6 +261,9 @@ const queueBackpressureLimit = 64 // arbitrary limit
 func handleEvent[Ev any](pm *ProcessMonitor, f func(*state, Ev), ev Ev) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
+	if pm.mu.isClosed {
+		return
+	}
 	f(&pm.mu.state, ev)
 	pm.mu.state.analyzeOrReport((*lockedProcessMonitor)(pm))
 	if pm.mu.syncing && len(pm.mu.state.queued) == 0 {

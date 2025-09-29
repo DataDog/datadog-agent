@@ -8,6 +8,9 @@
 package gpu
 
 import (
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -151,4 +154,113 @@ func BenchmarkConsumer(b *testing.B) {
 			injectEventsToConsumer(b, consumer, events, b.N)
 		})
 	}
+}
+
+func TestConsumerProcessExitChannel(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
+
+	// Create fake procfs
+	pid := uint32(5001)
+	streamID := uint64(1)
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{
+			Pid:     pid,
+			Cmdline: "test-process",
+			Command: "test-process",
+			Exe:     "/usr/bin/test-process",
+			Maps:    "00400000-00401000 r-xp 00000000 08:01 123456 /usr/bin/test-process",
+			Env:     map[string]string{"PATH": "/usr/bin", "HOME": "/home/test"},
+		}},
+		kernel.WithRealUptime(), // Required for the ktime resolver to work
+		kernel.WithRealStat(),
+	)
+
+	// Set up the fake procfs
+	kernel.WithFakeProcFS(t, fakeProcFS)
+
+	cfg := config.New()
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
+
+	// Start the consumer
+	consumer.Start()
+	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
+
+	// Create a test stream
+	header := &gpuebpf.CudaEventHeader{
+		Pid_tgid:  uint64(pid)<<32 + uint64(pid),
+		Stream_id: streamID,
+	}
+
+	stream, err := streamHandlers.getStream(header)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+	require.False(t, stream.ended)
+
+	// Send process exit event through the channel
+	consumer.processExitChannel <- pid
+
+	// Wait for the stream to be marked as ended
+	require.Eventually(t, func() bool { return stream.ended }, 100*time.Millisecond, 10*time.Millisecond)
+
+	// Stop the consumer
+	consumer.Stop()
+	require.Eventually(t, func() bool { return !consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
+}
+
+func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
+
+	// Create fake procfs with a process that we will remove later
+	pid := uint32(6001)
+	streamID := uint64(1)
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{
+			Pid:     pid,
+			Cmdline: "test-process",
+			Command: "test-process",
+			Exe:     "/usr/bin/test-process",
+			Maps:    "00400000-00401000 r-xp 00000000 08:01 123456 /usr/bin/test-process",
+			Env:     map[string]string{"PATH": "/usr/bin", "HOME": "/home/test"},
+		}},
+		kernel.WithRealUptime(), // Required for the ktime resolver to work
+		kernel.WithRealStat(),
+	)
+
+	// Set up the fake procfs
+	kernel.WithFakeProcFS(t, fakeProcFS)
+
+	cfg := config.New()
+	cfg.ScanProcessesInterval = 100 * time.Millisecond // don't wait too long
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
+
+	// Start the consumer
+	consumer.Start()
+	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
+
+	// Create a stream for the process
+	header := &gpuebpf.CudaEventHeader{
+		Pid_tgid:  uint64(pid)<<32 + uint64(pid),
+		Stream_id: streamID,
+	}
+
+	stream, err := streamHandlers.getStream(header)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+	require.False(t, stream.ended)
+
+	// Remove the process from fake procfs (simulate process exit) by just deleting its folder
+	os.RemoveAll(filepath.Join(fakeProcFS, strconv.Itoa(int(pid))))
+
+	// Wait for the process sync ticker to trigger checkClosedProcesses and mark the stream as ended
+	require.Eventually(t, func() bool { return stream.ended }, 5*cfg.ScanProcessesInterval, 50*time.Millisecond)
+
+	// Stop the consumer
+	consumer.Stop()
+	require.Eventually(t, func() bool { return !consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
 }
