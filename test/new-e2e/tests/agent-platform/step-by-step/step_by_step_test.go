@@ -54,6 +54,8 @@ func ExecuteWithoutError(_ *testing.T, client *common.TestClient, cmd string, ar
 }
 
 func TestStepByStepScript(t *testing.T) {
+	t.Logf("CELIAN: osdescriptors: %s", *osDescriptors)
+	t.Logf("CELIAN: cws-supported-osdescriptors: %s", *cwsSupportedOsDescriptors)
 	osDescriptors, err := platforms.ParseOSDescriptors(*osDescriptors)
 	if err != nil {
 		t.Fatalf("failed to parse os descriptors: %v", err)
@@ -71,6 +73,8 @@ func TestStepByStepScript(t *testing.T) {
 
 	for _, osDesc := range osDescriptors {
 		osDesc := osDesc
+
+		t.Logf("CELIAN: osDesc: %s", osDesc.String())
 
 		cwsSupported := false
 		for _, cwsSupportedOs := range cwsSupportedOsDescriptorsList {
