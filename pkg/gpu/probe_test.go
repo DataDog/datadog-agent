@@ -108,16 +108,6 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
 	require.True(t, ok)
 
-	eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
-	require.NoError(t, err)
-
-	actualEvents := make(map[string]int)
-	for _, m := range eventMetrics {
-		if evType, ok := m.Tags()["event_type"]; ok {
-			actualEvents[evType] = int(m.Value())
-		}
-	}
-
 	expectedEvents := map[string]int{
 		ebpf.CudaEventTypeKernelLaunch.String():      2,
 		ebpf.CudaEventTypeSetDevice.String():         1,
@@ -127,12 +117,24 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 		ebpf.CudaEventTypeSyncDevice.String():        1,
 	}
 
-	for evName, value := range expectedEvents {
-		require.Equal(t, value, actualEvents[evName], "event %s count mismatch", evName)
-		delete(actualEvents, evName)
-	}
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
+		assert.NoError(c, err)
 
-	require.Empty(t, actualEvents, "unexpected events: %v", actualEvents)
+		actualEvents := make(map[string]int)
+		for _, m := range eventMetrics {
+			if evType, ok := m.Tags()["event_type"]; ok {
+				actualEvents[evType] = int(m.Value())
+			}
+		}
+
+		for evName, value := range expectedEvents {
+			assert.Equal(c, value, actualEvents[evName], "event %s count mismatch", evName)
+			delete(actualEvents, evName)
+		}
+
+		assert.Empty(c, actualEvents, "unexpected events: %v", actualEvents)
+	}, 3*time.Second, 100*time.Millisecond, "events not found")
 
 	// Check device assignments
 	require.Contains(t, probe.consumer.sysCtx.selectedDeviceByPIDAndTID, cmd.Process.Pid)
