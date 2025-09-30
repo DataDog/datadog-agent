@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/exp/maps"
@@ -125,11 +126,12 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	}
 
 	expectedEvents := map[string]int{
-		ebpf.CudaEventTypeKernelLaunch.String():      1,
+		ebpf.CudaEventTypeKernelLaunch.String():      2,
 		ebpf.CudaEventTypeSetDevice.String():         1,
 		ebpf.CudaEventTypeMemory.String():            2,
 		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
 		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
+		ebpf.CudaEventTypeSyncDevice.String():        1,
 	}
 
 	for evName, value := range expectedEvents {
@@ -147,11 +149,13 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 
 	streamPastData := handlerStream.getPastData()
 	require.NotNil(t, streamPastData)
-	require.Equal(t, 1, len(streamPastData.kernels))
-	span := streamPastData.kernels[0]
-	require.Equal(t, uint64(1), span.numKernels)
-	require.Equal(t, uint64(1*2*3*4*5*6), span.avgThreadCount)
-	require.Greater(t, span.endKtime, span.startKtime)
+	require.Equal(t, 2, len(streamPastData.kernels))
+	for i := range 2 {
+		span := streamPastData.kernels[i]
+		require.Equal(t, uint64(1), span.numKernels)
+		require.Equal(t, uint64(1*2*3*4*5*6), span.avgThreadCount)
+		require.Greater(t, span.endKtime, span.startKtime)
+	}
 
 	globalPastData := handlerGlobal.getPastData()
 	require.NotNil(t, globalPastData)
@@ -187,11 +191,12 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.NoError(t, err)
 
 	expectedEvents := map[string]int{
-		ebpf.CudaEventTypeKernelLaunch.String():      1,
+		ebpf.CudaEventTypeKernelLaunch.String():      2,
 		ebpf.CudaEventTypeSetDevice.String():         1,
 		ebpf.CudaEventTypeMemory.String():            2,
 		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
 		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
+		ebpf.CudaEventTypeSyncDevice.String():        1,
 	}
 
 	actualEvents := make(map[string]int)
@@ -255,6 +260,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 
 	probe := s.getProbe()
 
+	// note: after starting, the program will wait ~5s before making any CUDA call
 	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 
 	require.Eventually(t, func() bool {
@@ -262,21 +268,31 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 1, got: %d", probe.streamHandlers.allStreamsCount())
 
 	// Check that the stream handlers have the correct container ID assigned
-	for _, handler := range probe.streamHandlers.allStreams() {
-		if handler.metadata.pid == uint32(pid) {
-			require.Equal(t, cid, handler.metadata.containerID)
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		nStreamsFound := 0
+		for _, handler := range probe.streamHandlers.allStreams() {
+			if handler.metadata.pid == uint32(pid) {
+				nStreamsFound++
+				require.Equal(c, cid, handler.metadata.containerID)
+			}
 		}
-	}
+		require.NotZero(c, nStreamsFound)
+	}, 6*time.Second, 100*time.Millisecond)
 
-	stats, err := probe.GetAndFlush()
-	key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
-	require.NoError(t, err)
-	require.NotNil(t, stats)
-	pidStats := getMetricsEntry(key, stats)
-	require.NotNil(t, pidStats)
+	// Check that stats are properly collected
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := probe.GetAndFlush()
+		require.NoError(c, err)
+		require.NotNil(c, stats)
 
-	require.Greater(t, pidStats.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
+		key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
+		pidStats := getMetricsEntry(key, stats)
+		require.NotNil(c, pidStats)
+
+		// core usage depends on the time this took to run, so it's not deterministic
+		require.Greater(c, pidStats.UsedCores, 0.0)
+		require.Equal(c, pidStats.Memory.MaxBytes, uint64(110))
+	}, 3*time.Second, 100*time.Millisecond)
 }
 
 // cpuUsage represents CPU usage metrics

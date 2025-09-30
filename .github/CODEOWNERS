@@ -350,6 +350,7 @@
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/container-app
 /comp/metadata/clusteragent @DataDog/container-platform
+/comp/metadata/clusterchecks @DataDog/container-platform
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery

@@ -9,6 +9,10 @@
 #include <unistd.h>
 #include "common_functions.h"
 
+cudaError_t cudaDeviceSynchronize() {
+    return 0;
+}
+
 int main(int argc, char **argv) {
     cudaStream_t stream = 30;
     cudaEvent_t event = 42;
@@ -45,12 +49,15 @@ int main(int argc, char **argv) {
 
     cudaEventDestroy(event);
 
+    cudaLaunchKernel((void *)0x1234, (dim3){ 1, 2, 3 }, (dim3){ 4, 5, 6 }, NULL, 10, stream);
+    cudaDeviceSynchronize();
+
     setenv("CUDA_VISIBLE_DEVICES", "42", 1);
 
     // we don't exit to avoid flakiness when the process is terminated before it was hooked for gpu monitoring
     // the expected usage is to send a kill signal to the process (or stop the container that is running it)
 
-    //this line is used as a market by patternScanner to indicate the end of the program
+    //this line is used as a marker by patternScanner to indicate the end of the program
     fprintf(stderr, "CUDA calls made.\n");
     pause(); // Wait for signal to finish the process
 

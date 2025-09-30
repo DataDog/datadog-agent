@@ -12,10 +12,11 @@ import (
 )
 
 func setupMultiRegionFailover(config pkgconfigmodel.Setup) {
-	config.BindEnv("multi_region_failover.api_key")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("multi_region_failover.site")             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("multi_region_failover.dd_url")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("multi_region_failover.metric_allowlist") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("multi_region_failover.api_key")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("multi_region_failover.site")                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("multi_region_failover.dd_url")                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("multi_region_failover.metric_allowlist")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("multi_region_failover.logs_service_allowlist") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("multi_region_failover.enabled", false)
 	config.BindEnvAndSetDefault("multi_region_failover.failover_metrics", false)
 	config.BindEnvAndSetDefault("multi_region_failover.failover_logs", false)
