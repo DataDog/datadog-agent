@@ -7,6 +7,7 @@
 package autodiscoveryimpl
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/google/cel-go/cel"
@@ -17,14 +18,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/celprogram"
 )
 
+const (
+	containerImageField    = string(workloadfilter.ContainerType) + ".image"
+	serviceNameField       = string(workloadfilter.ServiceType) + ".name"
+	serviceNamespaceField  = string(workloadfilter.ServiceType) + ".namespace"
+	endpointNameField      = string(workloadfilter.EndpointType) + ".name"
+	endpointNamespaceField = string(workloadfilter.EndpointType) + ".namespace"
+)
+
 type matchingProgram struct {
 	program cel.Program
 	target  workloadfilter.ResourceType
-	err     error
 }
 
 func (m *matchingProgram) IsMatched(obj workloadfilter.Filterable) bool {
-	if m.program == nil || m.err != nil {
+	if m == nil || m.program == nil {
 		return false
 	}
 	out, _, err := m.program.Eval(map[string]any{
@@ -40,23 +48,17 @@ func (m *matchingProgram) IsMatched(obj workloadfilter.Filterable) bool {
 	return result
 }
 
-func (m *matchingProgram) GetError() error {
-	return m.err
-}
-
 func (m *matchingProgram) GetTargetType() workloadfilter.ResourceType {
 	return m.target
 }
 
 // extractRuleMetadata extracts the rule list, resource type and CEL identifier from the given workloadfilter.Rules.
 // This method is responsible for the priority order of the rules:
-// Containers > Pods > Services > Endpoints.
+// Containers > Services > Endpoints.
 func extractRuleMetadata(rules workloadfilter.Rules) (ruleList []string, objectType workloadfilter.ResourceType, celADID adtypes.CelIdentifier) {
 	switch {
 	case len(rules.Containers) > 0:
 		return rules.Containers, workloadfilter.ContainerType, adtypes.CelContainerIdentifier
-	case len(rules.Pods) > 0:
-		return rules.Pods, workloadfilter.PodType, adtypes.CelPodIdentifier
 	case len(rules.KubeServices) > 0:
 		return rules.KubeServices, workloadfilter.ServiceType, adtypes.CelServiceIdentifier
 	case len(rules.KubeEndpoints) > 0:
@@ -66,22 +68,50 @@ func extractRuleMetadata(rules workloadfilter.Rules) (ruleList []string, objectT
 	}
 }
 
+// checkRuleRecommendations checks if the given rules contain the recommended fields for the given CEL identifier.
+func checkRuleRecommendations(rules string, celADID adtypes.CelIdentifier) error {
+	switch celADID {
+	case adtypes.CelContainerIdentifier:
+		if !strings.Contains(rules, containerImageField) {
+			return errors.New("missing recommended field: " + containerImageField)
+		}
+	case adtypes.CelServiceIdentifier:
+		if !strings.Contains(rules, serviceNamespaceField) {
+			return errors.New("missing recommended field: " + serviceNamespaceField)
+		}
+		rules := strings.ReplaceAll(rules, serviceNamespaceField, "")
+		if !strings.Contains(rules, serviceNameField) {
+			return errors.New("missing recommended field: " + serviceNameField)
+		}
+	case adtypes.CelEndpointIdentifier:
+		if !strings.Contains(rules, endpointNamespaceField) {
+			return errors.New("missing recommended field: " + endpointNamespaceField)
+		}
+		rules := strings.ReplaceAll(rules, endpointNamespaceField, "")
+		if !strings.Contains(rules, endpointNameField) {
+			return errors.New("missing recommended field: " + endpointNameField)
+		}
+	}
+	return nil
+}
+
 // createMatchingProgram creates a MatchingProgram from the given workloadfilter.Rules.
 // It returns nil if no rules are defined.
-func createMatchingProgram(rules workloadfilter.Rules) (program integration.MatchingProgram, err error) {
-	ruleList, objectType, _ := extractRuleMetadata(rules)
+func createMatchingProgram(rules workloadfilter.Rules) (program integration.MatchingProgram, compileError error, recError error) {
+	ruleList, objectType, celADID := extractRuleMetadata(rules)
 	if len(ruleList) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	celprg, err := celprogram.CreateCELProgram(strings.Join(ruleList, " || "), objectType)
-	if err != nil {
-		return nil, err
+	combinedRule := strings.Join(ruleList, " || ")
+	recError = checkRuleRecommendations(combinedRule, celADID)
+	celprg, compileError := celprogram.CreateCELProgram(combinedRule, objectType)
+	if compileError != nil {
+		return nil, compileError, recError
 	}
 
 	return &matchingProgram{
 		program: celprg,
 		target:  objectType,
-		err:     nil,
-	}, nil
+	}, nil, recError
 }
