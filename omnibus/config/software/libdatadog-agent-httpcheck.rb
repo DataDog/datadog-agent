@@ -8,8 +8,6 @@ source path: "#{project.files_path}/#{name}"
 always_build true
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-  
   # specific library extension for each platform
   if linux?
     extension = "so"
@@ -21,20 +19,18 @@ build do
     extension = "so"
   end
 
-  source_file = "#{project.files_path}/#{name}/#{name}.#{extension}"
-  lib_path = "#{install_dir}/embedded/lib/#{name}.#{extension}"
-
-  if File.exist?(source_file)
-    copy source_file, "#{install_dir}/embedded/lib/"
-    command "chmod 755 #{lib_path}"
+  # copy the lib corresponding to the platform
+  if File.exist?("#{project_dir}/#{name}.#{extension}")
+    copy "#{project_dir}/#{name}.#{extension}", "#{install_dir}/embedded/lib/"
+    command "chmod +x #{install_dir}/embedded/lib/#{name}.#{extension}"
   else
-    raise "#{source_file} not found in #{project.files_path}/#{name}"
+    raise "#{name}.#{extension} not found in #{project_dir}"
   end
 
   # verify the library was copied correctly
   block do
-    if not File.exist?(lib_path)
-      raise "Failed to install library: #{lib_path} not found after build"
+    if not File.exist?("#{install_dir}/embedded/lib/#{name}.#{extension}")
+      raise "#{install_dir}/embedded/lib/#{name}.#{extension} not found after build"
     end
   end
 end
