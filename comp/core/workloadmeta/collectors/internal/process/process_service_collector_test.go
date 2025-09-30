@@ -150,7 +150,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				Services:     []model.Service{makeModelService(pidNewService, "new-service")},
 				InjectedPIDs: []int{pidNewService},
 			},
-			expectStored: []*workloadmeta.Process{makeProcessEntityWithService(pidNewService, baseTime.Add(-2*time.Minute), languagePython, "new-service", true)},
+			expectStored: []*workloadmeta.Process{makeProcessEntityWithService(pidNewService, baseTime.Add(-2*time.Minute), languagePython, "new-service", workloadmeta.InjectionInjected)},
 		},
 		{
 			name: "http error handled",
@@ -172,8 +172,8 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 		{
 			name: "fresh vs stale services",
 			existingProcesses: []*workloadmeta.Process{
-				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, "fresh-existing", true), // Previously injected
-				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-existing", false),
+				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, "fresh-existing", workloadmeta.InjectionInjected), // Previously injected
+				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-existing", workloadmeta.InjectionNotInjected),
 			},
 			processesToCollect: map[int32]*procutil.Process{
 				pidFreshService: makeProcess(pidFreshService, baseTime.Add(-5*time.Minute).UnixMilli(), nil),
@@ -186,8 +186,8 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				// Note: No InjectedPIDs here - simulates that injection status is not re-detected on heartbeats
 			},
 			expectStored: []*workloadmeta.Process{
-				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, "fresh-existing", true), // Should preserve injection status
-				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-existing", false),
+				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, "fresh-existing", workloadmeta.InjectionInjected), // Should preserve injection status
+				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-existing", workloadmeta.InjectionNotInjected),
 			},
 			pidHeartbeats: map[int32]time.Time{
 				pidFreshService: baseTime.Add(-5 * time.Minute),
@@ -216,12 +216,23 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				Services:     []model.Service{},    // No services detected
 				InjectedPIDs: []int{pidNewService}, // But process is injected
 			},
-			expectStored: []*workloadmeta.Process{makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), nil, true)}, // Process with injection status but no service
+			expectStored: []*workloadmeta.Process{makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected)}, // Process with injection status but no service
+		},
+		{
+			name: "not_injected_no_service",
+			processesToCollect: map[int32]*procutil.Process{
+				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
+			},
+			httpResponse: &model.ServicesResponse{
+				Services:     []model.Service{}, // No service detected
+				InjectedPIDs: []int{},           // Not injected
+			},
+			expectStored: []*workloadmeta.Process{makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionNotInjected)},
 		},
 		{
 			name: "injected_death_cleanup",
 			existingProcesses: []*workloadmeta.Process{
-				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, true), // Pre-existing injected-only process
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Pre-existing injected-only process
 			},
 			processesToCollect: map[int32]*procutil.Process{
 				// Process is no longer alive
@@ -326,7 +337,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidNewService, "new-service")},
 			},
-			expectStored: []*workloadmeta.Process{makeProcessEntityWithService(pidNewService, baseTime.Add(-2*time.Minute), languagePython, "new-service", false)},
+			expectStored: []*workloadmeta.Process{makeProcessEntityWithService(pidNewService, baseTime.Add(-2*time.Minute), languagePython, "new-service", workloadmeta.InjectionNotInjected)},
 		},
 		{
 			name: "http error handled gracefully",
@@ -335,7 +346,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 			},
 			shouldError: true,
 			// expectStored should have no service data should be stored when HTTP error occurs
-			expectStored: []*workloadmeta.Process{makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), languagePython, false)},
+			expectStored: []*workloadmeta.Process{makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), languagePython, workloadmeta.InjectionUnknown)},
 		},
 		{
 			name: "ignored pid is skipped",
@@ -347,17 +358,17 @@ func TestServiceStoreLifetime(t *testing.T) {
 				Services: []model.Service{makeModelService(pidIgnoredService, "ignored-service")},
 			},
 			// Process should exist but have no service data
-			expectStored: []*workloadmeta.Process{makeProcessEntity(pidIgnoredService, baseTime.Add(-2*time.Minute), languagePython, false)},
+			expectStored: []*workloadmeta.Process{makeProcessEntity(pidIgnoredService, baseTime.Add(-2*time.Minute), languagePython, workloadmeta.InjectionUnknown)},
 		},
 		{
 			name: "fresh service not updated, stale service updated",
 			existingProcessData: []*workloadmeta.Process{
-				makeProcessEntity(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, false),  // Recent
-				makeProcessEntity(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, false), // Stale (> 15min)
+				makeProcessEntity(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, workloadmeta.InjectionNotInjected),  // Recent
+				makeProcessEntity(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, workloadmeta.InjectionNotInjected), // Stale (> 15min)
 			},
 			existingServiceData: []*workloadmeta.Process{
-				makeProcessEntityService(pidFreshService, "fresh-existing"), // Recent
-				makeProcessEntityService(pidStaleService, "stale-existing"), // Stale (> 15min)
+				makeProcessEntityService(pidFreshService, "fresh-existing", workloadmeta.InjectionNotInjected), // Recent
+				makeProcessEntityService(pidStaleService, "stale-existing", workloadmeta.InjectionNotInjected), // Stale (> 15min)
 			},
 			processesToCollect: map[int32]*procutil.Process{
 				pidFreshService: makeProcess(pidFreshService, baseTime.Add(-5*time.Minute).UnixMilli(), languagePython),
@@ -369,8 +380,8 @@ func TestServiceStoreLifetime(t *testing.T) {
 				},
 			},
 			expectStored: []*workloadmeta.Process{
-				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, "fresh-existing", false),
-				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-existing", false),
+				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, "fresh-existing", workloadmeta.InjectionNotInjected),
+				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-existing", workloadmeta.InjectionNotInjected),
 			},
 			pidHeartbeats: map[int32]time.Time{
 				pidFreshService: baseTime.Add(-5 * time.Minute),  // Fresh (5 minutes ago)
@@ -388,12 +399,12 @@ func TestServiceStoreLifetime(t *testing.T) {
 				Services: []model.Service{makeModelService(pidRecentService, "recent-service")},
 			},
 			// Process should exist but have no service data
-			expectStored: []*workloadmeta.Process{makeProcessEntity(pidRecentService, baseTime.Add(time.Minute+30*time.Second), languagePython, false)},
+			expectStored: []*workloadmeta.Process{makeProcessEntity(pidRecentService, baseTime.Add(time.Minute+30*time.Second), languagePython, workloadmeta.InjectionUnknown)},
 		},
 		{
 			name: "injected_death_cleanup",
 			existingServiceData: []*workloadmeta.Process{
-				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, true), // Pre-existing injected-only process
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Pre-existing injected-only process
 			},
 			processesToCollect: map[int32]*procutil.Process{
 				// Process is NOT in processesToCollect = it's dead/no longer alive
@@ -462,7 +473,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 				}
 
 				// If this is an injected-only process (has injection but no service), add to tracking
-				if process.IsInjected && process.Service == nil {
+				if process.InjectionState == workloadmeta.InjectionInjected && process.Service == nil {
 					c.collector.injectedOnlyPids.Add(process.Pid)
 				}
 			}
@@ -529,7 +540,7 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 
 	// Set initial state: process entity in the store, SD was tracking a service,
 	// the process collector reported no live processes.
-	existingProcess := makeProcessEntityService(pidFreshService, "existing-service")
+	existingProcess := makeProcessEntityService(pidFreshService, "existing-service", workloadmeta.InjectionNotInjected)
 	c.mockStore.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
@@ -659,13 +670,14 @@ func makeModelService(pid int32, name string) model.Service {
 	}
 }
 
-func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
+func makeProcessEntityService(pid int32, name string, injectionState workloadmeta.InjectionState) *workloadmeta.Process {
 	return &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
 			ID:   strconv.Itoa(int(pid)),
 		},
-		Pid: pid,
+		Pid:            pid,
+		InjectionState: injectionState,
 		Service: &workloadmeta.Service{
 			GeneratedName:            name + "-model",
 			GeneratedNameSource:      "process",
@@ -690,32 +702,32 @@ func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
 	}
 }
 
-func makeProcessEntity(pid int32, createTime time.Time, language *languagemodels.Language, isInjected bool) *workloadmeta.Process {
+func makeProcessEntity(pid int32, createTime time.Time, language *languagemodels.Language, injectionState workloadmeta.InjectionState) *workloadmeta.Process {
 	proc := makeProcess(pid, createTime.UnixMilli(), language)
 	return &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
 			ID:   strconv.Itoa(int(pid)),
 		},
-		CreationTime: time.UnixMilli(proc.Stats.CreateTime).UTC(),
-		Pid:          proc.Pid,
-		Ppid:         proc.Ppid,
-		NsPid:        proc.NsPid,
-		Name:         proc.Name,
-		Cwd:          proc.Cwd,
-		Exe:          proc.Exe,
-		Comm:         proc.Comm,
-		Cmdline:      proc.Cmdline,
-		Language:     proc.Language,
-		Uids:         proc.Uids,
-		Gids:         proc.Gids,
-		IsInjected:   isInjected,
+		CreationTime:   time.UnixMilli(proc.Stats.CreateTime).UTC(),
+		Pid:            proc.Pid,
+		Ppid:           proc.Ppid,
+		NsPid:          proc.NsPid,
+		Name:           proc.Name,
+		Cwd:            proc.Cwd,
+		Exe:            proc.Exe,
+		Comm:           proc.Comm,
+		Cmdline:        proc.Cmdline,
+		Language:       proc.Language,
+		Uids:           proc.Uids,
+		Gids:           proc.Gids,
+		InjectionState: injectionState,
 	}
 }
 
-func makeProcessEntityWithService(pid int32, createTime time.Time, language *languagemodels.Language, name string, isInjected bool) *workloadmeta.Process {
-	process := makeProcessEntity(pid, createTime, language, isInjected)
-	process.Service = makeProcessEntityService(pid, name).Service
+func makeProcessEntityWithService(pid int32, createTime time.Time, language *languagemodels.Language, name string, injectionState workloadmeta.InjectionState) *workloadmeta.Process {
+	process := makeProcessEntity(pid, createTime, language, injectionState)
+	process.Service = makeProcessEntityService(pid, name, injectionState).Service
 	return process
 }
 
@@ -826,7 +838,7 @@ func assertProcessData(t *testing.T, store workloadmetamock.Mock, expectedProces
 			assert.Equal(collectT, expectedProcess.CreationTime, entity.CreationTime)
 			assert.Equal(collectT, expectedProcess.Language, entity.Language)
 			assert.Equal(collectT, expectedProcess.Owner, entity.Owner)
-			assert.Equal(collectT, expectedProcess.IsInjected, entity.IsInjected)
+			assert.Equal(collectT, expectedProcess.InjectionState, entity.InjectionState)
 		}
 	}, 1*time.Second, 100*time.Millisecond)
 }

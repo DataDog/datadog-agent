@@ -14,6 +14,18 @@ import (
 	"github.com/DataDog/gopsutil/process"
 )
 
+// InjectionState represents the APM injection state of a process
+type InjectionState uint
+
+const (
+	// InjectionUnknown means we haven't determined the injection status yet
+	InjectionUnknown InjectionState = 0
+	// InjectionInjected means the process has APM auto-injection enabled
+	InjectionInjected InjectionState = 1
+	// InjectionNotInjected means the process does not have APM auto-injection
+	InjectionNotInjected InjectionState = 2
+)
+
 // Process holds all relevant metadata and metrics for a process
 type Process struct {
 	Pid      int32
@@ -35,9 +47,9 @@ type Process struct {
 	TCPPorts       []uint16
 	UDPPorts       []uint16
 
-	Stats      *Stats
-	Service    *Service
-	IsInjected bool // APM auto-injector detected
+	Stats          *Stats
+	Service        *Service
+	InjectionState InjectionState // APM auto-injector detection status
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

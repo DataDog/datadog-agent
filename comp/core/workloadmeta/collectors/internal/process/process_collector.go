@@ -418,45 +418,39 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 	entities := make([]*workloadmeta.Process, 0, len(pidsToService))
 	now := c.clock.Now().UTC()
 
-
 	// Process new PIDs - create complete entities
 	for _, pid := range newPids {
 		service := pidsToService[pid]
-		if service == nil {
-			// Handle injected processes that are not services
-			if injectedPids.Has(pid) {
-				c.injectedOnlyPids.Add(pid) // Track for cleanup
-				entity := &workloadmeta.Process{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindProcess,
-						ID:   strconv.Itoa(int(pid)),
-					},
-					Pid:        pid,
-					IsInjected: true,
-				}
-				entities = append(entities, entity)
-			}
-			c.handleServiceRetries(pid)
-			continue
+		injectionState := workloadmeta.InjectionNotInjected
+		if injectedPids.Has(pid) {
+			injectionState = workloadmeta.InjectionInjected
 		}
-
-		// When process gets a service, remove from injected-only tracking
-		c.injectedOnlyPids.Remove(pid)
-		// Update the heartbeat cache for this PID
-		c.pidHeartbeats[int32(service.PID)] = now
 
 		entity := &workloadmeta.Process{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindProcess,
-				ID:   strconv.Itoa(service.PID),
+				ID:   strconv.Itoa(int(pid)),
 			},
-			Pid:        int32(service.PID),
-			Service:    convertModelServiceToService(service),
-			IsInjected: injectedPids.Has(int32(service.PID)),
-			// language is captured here since language+process collection can be disabled
-			Language: convertServiceLanguageToWLMLanguage(service.Language),
+			Pid:            pid,
+			InjectionState: injectionState,
 		}
 
+		if service == nil {
+			// Handle injected processes that are not services
+			c.injectedOnlyPids.Add(pid) // Track for cleanup
+			c.handleServiceRetries(pid)
+		} else {
+			// When process gets a service, remove from injected-only tracking
+			c.injectedOnlyPids.Remove(pid)
+			// Update the heartbeat cache for this PID
+			c.pidHeartbeats[int32(service.PID)] = now
+
+			entity.Service = convertModelServiceToService(service)
+			// language is captured here since language+process collection can be disabled
+			entity.Language = convertServiceLanguageToWLMLanguage(service.Language)
+		}
+
+		// Always append entity, even if service is nil, to track injection state
 		entities = append(entities, entity)
 	}
 
@@ -493,9 +487,9 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 				Kind: workloadmeta.KindProcess,
 				ID:   strconv.Itoa(service.PID),
 			},
-			Pid:        int32(service.PID),
-			Service:    &preservedService,
-			IsInjected: existingProcess.IsInjected, // Preserve injection status from existing process
+			Pid:            int32(service.PID),
+			Service:        &preservedService,
+			InjectionState: existingProcess.InjectionState, // Preserve injection status from existing process
 			// Preserve language from existing process
 			Language: existingProcess.Language,
 		}
@@ -615,7 +609,6 @@ func (c *collector) findDeletedProcesses(currentProcs map[int32]*procutil.Proces
 	deletedProcs := processCacheDifference(lastProcs, currentProcs)
 	return deletedProcessesToWorkloadmetaProcesses(deletedProcs)
 }
-
 
 // cleanDiscoveryMaps cleans up stale PID mappings for service discovery.
 // Used by both service collection methods to maintain clean state.

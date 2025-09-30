@@ -52,7 +52,7 @@ require (
 require go.yaml.in/yaml/v2 v2.4.2 // indirect
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.166-0.20250925150443-2e4c1db489a2 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.166-0.20250930093144-9b34f292df2f // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1 // indirect
