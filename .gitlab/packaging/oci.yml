@@ -131,7 +131,6 @@ agent_oci:
     [
       "datadog-agent-oci-x64-a7",
       "datadog-agent-oci-arm64-a7",
-      "windows_msi_and_bosh_zip_x64-a7",
       "go_tools_deps",
       "installer-arm64-oci",
       "installer-amd64-oci",
