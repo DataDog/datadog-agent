@@ -10,6 +10,7 @@ package publishermetadatacacheimpl
 import (
 	"testing"
 
+	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 	"github.com/stretchr/testify/assert"
 
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestPublisherMetadataCache_Get(t *testing.T) {
-	cache := New(fakeevtapi.New()).(*publisherMetadataCache)
+	cache := publishermetadatacache.New(fakeevtapi.New())
 
 	publisherName1 := "Publisher1"
 	publisherName2 := "Publisher2"
@@ -25,29 +26,29 @@ func TestPublisherMetadataCache_Get(t *testing.T) {
 	handle1 := cache.Get(publisherName1)
 	handle2 := cache.Get(publisherName2)
 
-	assert.NotEqual(t, InvalidHandle, handle1)
-	assert.NotEqual(t, InvalidHandle, handle2)
+	assert.NotEqual(t, publishermetadatacache.InvalidHandle, handle1)
+	assert.NotEqual(t, publishermetadatacache.InvalidHandle, handle2)
 
 	// Verify item is in cache
-	cachedValue, found := cache.cache.Get(publisherName1)
+	cachedValue, found := cache.GetCache().Get(publisherName1)
 	assert.True(t, found)
 	assert.Equal(t, handle1, cachedValue.(evtapi.EventPublisherMetadataHandle))
 
 	// Verify item is in cache
-	cachedValue, found = cache.cache.Get(publisherName2)
+	cachedValue, found = cache.GetCache().Get(publisherName2)
 	assert.True(t, found)
 	assert.Equal(t, handle2, cachedValue.(evtapi.EventPublisherMetadataHandle))
 }
 
 func TestPublisherMetadataCache_FormatMessage_InvalidHandle_RecreatesCache(t *testing.T) {
 	fakeAPI := fakeevtapi.New()
-	cache := New(fakeAPI).(*publisherMetadataCache)
+	cache := publishermetadatacache.New(fakeAPI)
 
 	publisherName := "TestPublisher"
 	eventHandle := evtapi.EventRecordHandle(100)
 
 	originalHandle := cache.Get(publisherName)
-	assert.NotEqual(t, InvalidHandle, originalHandle)
+	assert.NotEqual(t, publishermetadatacache.InvalidHandle, originalHandle)
 
 	// Invalidate the handle to simulate provider being uninstalled
 	err := fakeAPI.InvalidatePublisherHandle(originalHandle)
@@ -58,49 +59,49 @@ func TestPublisherMetadataCache_FormatMessage_InvalidHandle_RecreatesCache(t *te
 	assert.Empty(t, message) // Should return empty string when handle is invalid
 
 	// Verify cache entry was removed
-	_, found := cache.cache.Get(publisherName)
+	_, found := cache.GetCache().Get(publisherName)
 	assert.False(t, found)
 
 	// Next Get call should create a new handle
 	newHandle := cache.Get(publisherName)
 	assert.NotEqual(t, originalHandle, newHandle)
-	assert.NotEqual(t, InvalidHandle, newHandle)
+	assert.NotEqual(t, publishermetadatacache.InvalidHandle, newHandle)
 }
 
 func TestPublisherMetadataCache_Close_CleansUpAllHandles(t *testing.T) {
-	cache := New(fakeevtapi.New()).(*publisherMetadataCache)
+	cache := publishermetadatacache.New(fakeevtapi.New())
 
 	cache.Get("Publisher1")
 	cache.Get("Publisher2")
 
 	// Verify items are in cache before closing
-	_, found1 := cache.cache.Get("Publisher1")
+	_, found1 := cache.GetCache().Get("Publisher1")
 	assert.True(t, found1)
-	_, found2 := cache.cache.Get("Publisher2")
+	_, found2 := cache.GetCache().Get("Publisher2")
 	assert.True(t, found2)
 
 	cache.Flush()
 
 	// Verify cache is empty after close
-	_, found1 = cache.cache.Get("Publisher1")
+	_, found1 = cache.GetCache().Get("Publisher1")
 	assert.False(t, found1)
-	_, found2 = cache.cache.Get("Publisher2")
+	_, found2 = cache.GetCache().Get("Publisher2")
 	assert.False(t, found2)
-	assert.Equal(t, 0, cache.cache.ItemCount())
+	assert.Equal(t, 0, cache.GetCache().ItemCount())
 }
 
 func TestPublisherMetadataCache_FormatMessage_FakeImplementation(t *testing.T) {
-	cache := New(fakeevtapi.New()).(*publisherMetadataCache)
+	cache := publishermetadatacache.New(fakeevtapi.New())
 
 	publisherName := "TestPublisher"
 	eventHandle := evtapi.EventRecordHandle(100)
 
 	// First Get to ensure handle is cached
 	handle := cache.Get(publisherName)
-	assert.NotEqual(t, InvalidHandle, handle)
+	assert.NotEqual(t, publishermetadatacache.InvalidHandle, handle)
 
 	// Verify handle was cached
-	cachedValue, found := cache.cache.Get(publisherName)
+	cachedValue, found := cache.GetCache().Get(publisherName)
 	assert.True(t, found)
 	assert.Equal(t, handle, cachedValue.(evtapi.EventPublisherMetadataHandle))
 
@@ -109,27 +110,6 @@ func TestPublisherMetadataCache_FormatMessage_FakeImplementation(t *testing.T) {
 	assert.Empty(t, message) // Fake API returns empty string on error
 
 	// Verify cache entry was removed due to FormatMessage error
-	_, found = cache.cache.Get(publisherName)
+	_, found = cache.GetCache().Get(publisherName)
 	assert.False(t, found)
-}
-
-func TestPublisherMetadataCache_CacheExpiredEviction(t *testing.T) {
-	cache := New(fakeevtapi.New()).(*publisherMetadataCache)
-
-	// Fill cache beyond capacity to trigger DeleteExpired call
-	handle1 := cache.Get("Publisher1")
-	handle2 := cache.Get("Publisher2")
-
-	// Both should be valid handles
-	assert.NotEqual(t, InvalidHandle, handle1)
-	assert.NotEqual(t, InvalidHandle, handle2)
-
-	// Verify both are cached
-	cachedValue1, found1 := cache.cache.Get("Publisher1")
-	assert.True(t, found1)
-	assert.Equal(t, handle1, cachedValue1.(evtapi.EventPublisherMetadataHandle))
-
-	cachedValue2, found2 := cache.cache.Get("Publisher2")
-	assert.True(t, found2)
-	assert.Equal(t, handle2, cachedValue2.(evtapi.EventPublisherMetadataHandle))
 }

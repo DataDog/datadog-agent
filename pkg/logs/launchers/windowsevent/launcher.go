@@ -15,13 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	publishermetadatacachedef "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
-	publishermetadatacacheimpl "github.com/DataDog/datadog-agent/comp/publishermetadatacache/impl"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 )
 
 type tailer interface {
@@ -42,7 +42,7 @@ type Launcher struct {
 
 // NewLauncher returns a new Launcher.
 func NewLauncher() *Launcher {
-	cache := publishermetadatacacheimpl.New(winevtapi.New())
+	cache := publishermetadatacache.New(winevtapi.New())
 	return &Launcher{
 		tailers:                make(map[string]tailer),
 		stop:                   make(chan struct{}),

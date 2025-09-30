@@ -12,8 +12,7 @@ import (
 	"fmt"
 	"testing"
 
-	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
-	publishermetadatacacheimpl "github.com/DataDog/datadog-agent/comp/publishermetadatacache/impl"
+	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -156,7 +155,7 @@ func BenchmarkTestGetEventHandles(b *testing.B) {
 	}
 }
 
-func formatEventMessage(api evtapi.API, cache publishermetadatacache.Component, event *evtapi.EventRecord) (string, error) {
+func formatEventMessage(api evtapi.API, cache *publishermetadatacache.PublisherMetadataCache, event *evtapi.EventRecord) (string, error) {
 	// Create render context for the System values
 	c, err := api.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
 	if err != nil {
@@ -244,7 +243,7 @@ func BenchmarkTestFormatEventMessage(b *testing.B) {
 				err := ti.GenerateEvents(eventSource, v)
 				require.NoError(b, err)
 				b.ResetTimer()
-				cache := publishermetadatacacheimpl.New(ti.API())
+				cache := publishermetadatacache.New(ti.API())
 
 				for i := 0; i < b.N; i++ {
 					sub, err := startSubscription(b, ti, channel,
