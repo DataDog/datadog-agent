@@ -110,12 +110,12 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 	// Set up perf mode and channel size similar to initClosedConnEventHandler
 	// For DirectConsumer, we want kernel-level batching for performance
 	// but individual event processing in userspace (unlike BatchConsumer)
-	perfMode := perf.WakeupEvents(config.USMDirectConsumerBufferWakeupCount) // Wait for N events before wakeup
-	chanSize := config.USMDirectConsumerChannelSize * config.USMDirectConsumerBufferWakeupCount
+	perfMode := perf.WakeupEvents(config.DirectConsumerBufferWakeupCount) // Wait for N events before wakeup
+	chanSize := config.DirectConsumerChannelSize * config.DirectConsumerBufferWakeupCount
 
 	// Calculate total buffer sizes from per-CPU values
-	totalPerfBufferSize := config.USMDirectConsumerPerfBufferSizePerCPU * numCPUs
-	totalRingBufferSize := config.USMDirectConsumerRingBufferSizePerCPU * numCPUs
+	totalPerfBufferSize := config.DirectConsumerPerfBufferSizePerCPU * numCPUs
+	totalRingBufferSize := config.DirectConsumerRingBufferSizePerCPU * numCPUs
 
 	mode := perf.UsePerfBuffers(totalPerfBufferSize, chanSize, perfMode)
 	// Always try to upgrade to ring buffers for direct events if supported
@@ -134,7 +134,7 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 		perf.SendTelemetry(config.InternalTelemetryEnabled),
 		perf.RingBufferEnabledConstantName("ringbuffers_enabled"),
 		perf.RingBufferWakeupSize("ringbuffer_wakeup_size",
-			uint64(config.USMDirectConsumerBufferWakeupCount*(eventSize+unix.BPF_RINGBUF_HDR_SZ))),
+			uint64(config.DirectConsumerBufferWakeupCount*(eventSize+unix.BPF_RINGBUF_HDR_SZ))),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event handler for protocol %s: %w", proto, err)

@@ -140,21 +140,21 @@ func TestUSMDirectBufferWakeupCount(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
-		assert.Equal(t, 32, cfg.USMDirectConsumerBufferWakeupCount)
+		assert.Equal(t, 32, cfg.DirectConsumerBufferWakeupCount)
 	})
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.buffer_wakeup_count", 64)
 		cfg := New()
-		assert.Equal(t, 64, cfg.USMDirectConsumerBufferWakeupCount)
+		assert.Equal(t, 64, cfg.DirectConsumerBufferWakeupCount)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_BUFFER_WAKEUP_COUNT", "128")
 		cfg := New()
-		assert.Equal(t, 128, cfg.USMDirectConsumerBufferWakeupCount)
+		assert.Equal(t, 128, cfg.DirectConsumerBufferWakeupCount)
 	})
 }
 
@@ -162,21 +162,21 @@ func TestUSMDirectChannelSize(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
-		assert.Equal(t, 1000, cfg.USMDirectConsumerChannelSize)
+		assert.Equal(t, 1000, cfg.DirectConsumerChannelSize)
 	})
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.channel_size", 2000)
 		cfg := New()
-		assert.Equal(t, 2000, cfg.USMDirectConsumerChannelSize)
+		assert.Equal(t, 2000, cfg.DirectConsumerChannelSize)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_CHANNEL_SIZE", "3000")
 		cfg := New()
-		assert.Equal(t, 3000, cfg.USMDirectConsumerChannelSize)
+		assert.Equal(t, 3000, cfg.DirectConsumerChannelSize)
 	})
 }
 
@@ -184,21 +184,21 @@ func TestUSMDirectPerfBufferSize(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
-		assert.Equal(t, 65536, cfg.USMDirectConsumerPerfBufferSizePerCPU)
+		assert.Equal(t, 65536, cfg.DirectConsumerPerfBufferSizePerCPU)
 	})
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.perf_buffer_size_per_cpu", 131072)
 		cfg := New()
-		assert.Equal(t, 131072, cfg.USMDirectConsumerPerfBufferSizePerCPU)
+		assert.Equal(t, 131072, cfg.DirectConsumerPerfBufferSizePerCPU)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_PERF_BUFFER_SIZE_PER_CPU", "262144")
 		cfg := New()
-		assert.Equal(t, 262144, cfg.USMDirectConsumerPerfBufferSizePerCPU)
+		assert.Equal(t, 262144, cfg.DirectConsumerPerfBufferSizePerCPU)
 	})
 }
 
@@ -206,21 +206,21 @@ func TestUSMDirectRingBufferSize(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
-		assert.Equal(t, 65536, cfg.USMDirectConsumerRingBufferSizePerCPU)
+		assert.Equal(t, 65536, cfg.DirectConsumerRingBufferSizePerCPU)
 	})
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.ring_buffer_size_per_cpu", 131072)
 		cfg := New()
-		assert.Equal(t, 131072, cfg.USMDirectConsumerRingBufferSizePerCPU)
+		assert.Equal(t, 131072, cfg.DirectConsumerRingBufferSizePerCPU)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_RING_BUFFER_SIZE_PER_CPU", "262144")
 		cfg := New()
-		assert.Equal(t, 262144, cfg.USMDirectConsumerRingBufferSizePerCPU)
+		assert.Equal(t, 262144, cfg.DirectConsumerRingBufferSizePerCPU)
 	})
 }
 
