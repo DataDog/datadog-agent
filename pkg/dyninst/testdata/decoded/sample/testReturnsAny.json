@@ -64,7 +64,11 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
               }
             }
           }
@@ -140,7 +144,12 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "int",
+                    "value": "42"
+                  }
+                }
               }
             }
           }
@@ -217,7 +226,13 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "*int",
+                    "address": "[addr]",
+                    "value": "42"
+                  }
+                }
               }
             }
           }

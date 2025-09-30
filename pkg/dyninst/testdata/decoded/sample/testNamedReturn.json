@@ -60,7 +60,7 @@
             "locals": {
               "result": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "value": "40"
               }
             }
           }

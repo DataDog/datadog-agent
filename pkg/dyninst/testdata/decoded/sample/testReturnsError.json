@@ -60,7 +60,18 @@
             "locals": {
               "~r0": {
                 "type": "error",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "error"
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -131,7 +142,11 @@
             "locals": {
               "~r0": {
                 "type": "error",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
               }
             }
           }

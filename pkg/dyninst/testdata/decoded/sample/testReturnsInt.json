@@ -60,7 +60,7 @@
             "locals": {
               "~r0": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "value": "42"
               }
             }
           }

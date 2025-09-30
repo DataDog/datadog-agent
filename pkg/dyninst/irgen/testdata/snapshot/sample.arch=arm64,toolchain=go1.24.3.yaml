@@ -3128,7 +3128,13 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 7 BaseType int
-          Locations: [{Range: 0x84b190..0x84b1a0, Pieces: []}]
+          Locations:
+            - Range: 0x84b190..0x84b198
+              Pieces: []
+            - Range: 0x84b198..0x84b199
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x84b199..0x84b1a0
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 54
@@ -3145,7 +3151,13 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 7 BaseType int
-          Locations: [{Range: 0x84b1a0..0x84b200, Pieces: []}]
+          Locations:
+            - Range: 0x84b1a0..0x84b1e8
+              Pieces: []
+            - Range: 0x84b1e8..0x84b1e9
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x84b1e9..0x84b200
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 55
@@ -3188,7 +3200,17 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 9 GoStringHeaderType string
-          Locations: [{Range: 0x84b440..0x84b4b0, Pieces: []}]
+          Locations:
+            - Range: 0x84b440..0x84b484
+              Pieces: []
+            - Range: 0x84b484..0x84b485
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+            - Range: 0x84b485..0x84b4b0
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 57
@@ -3221,7 +3243,17 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 9 GoStringHeaderType string
-          Locations: [{Range: 0x84b4c0..0x84b530, Pieces: []}]
+          Locations:
+            - Range: 0x84b4c0..0x84b504
+              Pieces: []
+            - Range: 0x84b504..0x84b505
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+            - Range: 0x84b505..0x84b530
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 59
@@ -3721,7 +3753,13 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 7 BaseType int
-          Locations: [{Range: 0x84d8c0..0x84d940, Pieces: []}]
+          Locations:
+            - Range: 0x84d8c0..0x84d918
+              Pieces: []
+            - Range: 0x84d918..0x84d919
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x84d919..0x84d940
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 95
@@ -3738,7 +3776,13 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 99 PointerType *int
-          Locations: [{Range: 0x84d940..0x84d9e0, Pieces: []}]
+          Locations:
+            - Range: 0x84d940..0x84d9b4
+              Pieces: []
+            - Range: 0x84d9b4..0x84d9b5
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x84d9b5..0x84d9e0
+              Pieces: []
           IsParameter: true
           IsReturn: true
         - Name: '&i'
@@ -3766,7 +3810,13 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 7 BaseType int
-          Locations: [{Range: 0x84d9e0..0x84daa0, Pieces: []}]
+          Locations:
+            - Range: 0x84d9e0..0x84da80
+              Pieces: []
+            - Range: 0x84da80..0x84da81
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x84da81..0x84daa0
+              Pieces: []
           IsParameter: true
           IsReturn: true
         - Name: ~r1
@@ -3797,7 +3847,25 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 14 GoInterfaceType error
-          Locations: [{Range: 0x84daa0..0x84db20, Pieces: []}]
+          Locations:
+            - Range: 0x84daa0..0x84dae8
+              Pieces: []
+            - Range: 0x84dae8..0x84dae9
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+            - Range: 0x84dae9..0x84dafc
+              Pieces: []
+            - Range: 0x84dafc..0x84dafd
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+            - Range: 0x84dafd..0x84db20
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 98
@@ -3831,12 +3899,48 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 155 GoEmptyInterfaceType interface {}
-          Locations: [{Range: 0x84db20..0x84dbc0, Pieces: []}]
+          Locations:
+            - Range: 0x84db20..0x84db78
+              Pieces: []
+            - Range: 0x84db78..0x84db79
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+            - Range: 0x84db79..0x84db8c
+              Pieces: []
+            - Range: 0x84db8c..0x84db8d
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+            - Range: 0x84db8d..0x84dbc0
+              Pieces: []
           IsParameter: true
           IsReturn: true
         - Name: ~r1
           Type: 14 GoInterfaceType error
-          Locations: [{Range: 0x84db20..0x84dbc0, Pieces: []}]
+          Locations:
+            - Range: 0x84db20..0x84db78
+              Pieces: []
+            - Range: 0x84db78..0x84db79
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+            - Range: 0x84db79..0x84db8c
+              Pieces: []
+            - Range: 0x84db8c..0x84db8d
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+            - Range: 0x84db8d..0x84dbc0
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 99
@@ -3869,7 +3973,17 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 155 GoEmptyInterfaceType interface {}
-          Locations: [{Range: 0x84dbc0..0x84dc50, Pieces: []}]
+          Locations:
+            - Range: 0x84dbc0..0x84dc28
+              Pieces: []
+            - Range: 0x84dc28..0x84dc29
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+            - Range: 0x84dc29..0x84dc50
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 100
@@ -3908,7 +4022,25 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 160 GoInterfaceType main.behavior
-          Locations: [{Range: 0x84dc50..0x84dd70, Pieces: []}]
+          Locations:
+            - Range: 0x84dc50..0x84dcf4
+              Pieces: []
+            - Range: 0x84dcf4..0x84dcf5
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+            - Range: 0x84dcf5..0x84dd08
+              Pieces: []
+            - Range: 0x84dd08..0x84dd09
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+            - Range: 0x84dd09..0x84dd70
+              Pieces: []
           IsParameter: true
           IsReturn: true
         - Name: b
@@ -3966,7 +4098,13 @@ Subprograms:
           IsReturn: false
         - Name: result
           Type: 7 BaseType int
-          Locations: [{Range: 0x84dd70..0x84de10, Pieces: []}]
+          Locations:
+            - Range: 0x84dd70..0x84dde4
+              Pieces: []
+            - Range: 0x84dde4..0x84dde5
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x84dde5..0x84de10
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 102
@@ -3985,12 +4123,24 @@ Subprograms:
           IsReturn: false
         - Name: result
           Type: 7 BaseType int
-          Locations: [{Range: 0x84de10..0x84ded0, Pieces: []}]
+          Locations:
+            - Range: 0x84de10..0x84dea4
+              Pieces: []
+            - Range: 0x84dea4..0x84dea5
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x84dea5..0x84ded0
+              Pieces: []
           IsParameter: true
           IsReturn: true
         - Name: result2
           Type: 7 BaseType int
-          Locations: [{Range: 0x84de10..0x84ded0, Pieces: []}]
+          Locations:
+            - Range: 0x84de10..0x84dea4
+              Pieces: []
+            - Range: 0x84dea4..0x84dea5
+              Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
+            - Range: 0x84dea5..0x84ded0
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 103
@@ -4009,17 +4159,35 @@ Subprograms:
           IsReturn: false
         - Name: ~r0
           Type: 7 BaseType int
-          Locations: [{Range: 0x84ded0..0x84df80, Pieces: []}]
+          Locations:
+            - Range: 0x84ded0..0x84df60
+              Pieces: []
+            - Range: 0x84df60..0x84df61
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0x84df61..0x84df80
+              Pieces: []
           IsParameter: true
           IsReturn: true
         - Name: result2
           Type: 7 BaseType int
-          Locations: [{Range: 0x84ded0..0x84df80, Pieces: []}]
+          Locations:
+            - Range: 0x84ded0..0x84df60
+              Pieces: []
+            - Range: 0x84df60..0x84df61
+              Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
+            - Range: 0x84df61..0x84df80
+              Pieces: []
           IsParameter: true
           IsReturn: true
         - Name: ~r2
           Type: 7 BaseType int
-          Locations: [{Range: 0x84ded0..0x84df80, Pieces: []}]
+          Locations:
+            - Range: 0x84ded0..0x84df60
+              Pieces: []
+            - Range: 0x84df60..0x84df61
+              Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
+            - Range: 0x84df61..0x84df80
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 104
@@ -4262,7 +4430,17 @@ Subprograms:
       Variables:
         - Name: ~r0
           Type: 9 GoStringHeaderType string
-          Locations: [{Range: 0x84e5b0..0x84e620, Pieces: []}]
+          Locations:
+            - Range: 0x84e5b0..0x84e5fc
+              Pieces: []
+            - Range: 0x84e5fc..0x84e5fd
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+            - Range: 0x84e5fd..0x84e620
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 116
