@@ -1461,8 +1461,6 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
 	config.BindEnvAndSetDefault("serializer_use_events_marshaler_v2", true)
-	config.BindEnvAndSetDefault("serializer_split_tagsets", true)
-	config.BindEnvAndSetDefault("serializer_borrow_keys", true)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	config.BindEnvAndSetDefault("use_v3_api.series", false)
