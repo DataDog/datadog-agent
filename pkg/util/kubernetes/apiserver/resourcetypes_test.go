@@ -168,76 +168,6 @@ func TestGetResourceType(t *testing.T) {
 		})
 	}
 }
-
-func TestDiscoverResourceType(t *testing.T) {
-	resetCache()
-
-	client := fakeclientset.NewClientset()
-	fakeDiscoveryClient := client.Discovery().(*fakediscovery.FakeDiscovery)
-	fakeDiscoveryClient.Resources = []*v1.APIResourceList{
-		{
-			GroupVersion: "apps/v1",
-			APIResources: []v1.APIResource{
-				{Kind: "Deployment", Name: "deployments"},
-				{Kind: "StatefulSet", Name: "statefulsets/status"},
-				{Kind: "DaemonSet", Name: "daemonsets/proxy"},
-			},
-		},
-	}
-
-	err := InitializeGlobalResourceTypeCache(fakeDiscoveryClient)
-	assert.NoError(t, err)
-
-	tests := []struct {
-		name    string
-		kind    string
-		group   string
-		want    string
-		wantErr bool
-	}{
-		{
-			name:    "Find Deployment in apps/v1",
-			kind:    "Deployment",
-			group:   "apps",
-			want:    "deployments",
-			wantErr: false,
-		},
-		{
-			name:    "Find StatefulSet with subresource (should trim /status)",
-			kind:    "StatefulSet",
-			group:   "apps",
-			want:    "statefulsets",
-			wantErr: false,
-		},
-		{
-			name:    "Invalid subresource (should not be found)",
-			kind:    "DaemonSet",
-			group:   "apps",
-			want:    "",
-			wantErr: true,
-		},
-		{
-			name:    "Resource not found",
-			kind:    "UnknownKind",
-			group:   "unknownGroup",
-			want:    "",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := resourceCache.discoverResourceType(tt.kind, tt.group)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.want, got)
-			}
-		})
-	}
-}
-
 func TestPrepopulateCache(t *testing.T) {
 	resetCache()
 
@@ -295,6 +225,7 @@ func TestCacheRefreshOnMiss(t *testing.T) {
 
 	// Simulate a cache miss
 	_, err = resourceCache.getResourceType("Pod", "")
+
 	assert.Error(t, err, "Cache miss should return an error before refresh")
 
 	// Update the discovery client with new API resources
@@ -309,6 +240,7 @@ func TestCacheRefreshOnMiss(t *testing.T) {
 
 	// The next call should trigger a refresh and succeed
 	got, err := resourceCache.getResourceType("Pod", "")
+
 	assert.NoError(t, err, "After cache refresh, resource should be found")
 	assert.Equal(t, "pods", got, "Returned resource type should match")
 }
