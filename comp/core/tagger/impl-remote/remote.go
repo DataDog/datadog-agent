@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"sync"
@@ -43,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -75,6 +77,12 @@ type Provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
+// taggerStream abstracts the gRPC stream so we can test cleanly.
+type taggerStream interface {
+	Recv() (*pb.StreamTagsResponse, error)
+	CloseSend() error
+}
+
 type remoteTagger struct {
 	store   *tagStore
 	ready   bool
@@ -87,7 +95,7 @@ type remoteTagger struct {
 	tlsConfig *tls.Config
 	authToken string
 	client    pb.AgentSecureClient
-	stream    pb.AgentSecure_TaggerStreamEntitiesClient
+	stream    taggerStream
 
 	streamCtx    context.Context
 	streamCancel context.CancelFunc
@@ -444,6 +452,51 @@ func (t *remoteTagger) Subscribe(string, *types.Filter) (types.Subscription, err
 }
 
 func (t *remoteTagger) run() {
+
+	var consumeStreamRetrier retry.Retrier
+	var response *pb.StreamTagsResponse
+
+	// attempt method is initialized here to avoid reallocating memory on every event received
+	// from the grpc stream.
+	attemptMethod := func() error {
+		err := grpcutil.DoWithTimeout(func() error {
+			var err error
+			response, err = t.stream.Recv()
+			return err
+		}, streamRecvTimeout)
+
+		if err == nil {
+			t.telemetryStore.Receives.Inc()
+
+			processingError := t.processResponse(response)
+			if processingError != nil {
+				t.log.Warnf("error processing event received from remote tagger: %s", processingError)
+			}
+
+			return nil
+		}
+
+		if err == io.EOF {
+			t.log.Warnf("remote tagger stream closed")
+			return nil
+		}
+
+		return err
+	}
+
+	// retrier is setup only once to avoid setting up again repeatedly in the hot path.
+	if err := consumeStreamRetrier.SetupRetrier(&retry.Config{
+		Name:              "Tagger Stream Processing",
+		AttemptMethod:     attemptMethod,
+		Strategy:          retry.Backoff,
+		InitialRetryDelay: 300 * time.Millisecond,
+		MaxRetryDelay:     3 * time.Minute,
+	}); err != nil {
+		// This should never happen.
+		// If it occurs, it means there is bug in the configuration of the retrier, which is static.
+		panic(fmt.Sprintf("Failed to setup remote tagger grpc consumer retrier: %v", err))
+	}
+
 	for {
 		select {
 		case <-t.telemetryTicker.C:
@@ -459,6 +512,7 @@ func (t *remoteTagger) run() {
 		}
 
 		taggerStreamInitialized := false
+
 		if t.stream == nil {
 			if err := t.startTaggerStream(noTimeout); err != nil {
 				t.log.Warnf("error received trying to start stream with target %q: %s", t.options.Target, err)
@@ -467,40 +521,41 @@ func (t *remoteTagger) run() {
 			taggerStreamInitialized = true
 		}
 
-		var response *pb.StreamTagsResponse
-		err := grpcutil.DoWithTimeout(func() error {
-			var err error
-			response, err = t.stream.Recv()
-			return err
-		}, streamRecvTimeout)
-		if err != nil {
-			t.streamCancel()
-
-			t.telemetryStore.ClientStreamErrors.Inc()
-
-			// when Recv() returns an error, the stream is aborted
-			// and the contents of our store are considered out of
-			// sync and therefore no longer valid, so the tagger
-			// can no longer be considered ready, and the stream
-			// must be re-established.
-			t.ready = false
-			t.stream = nil
-
-			t.log.Warnf("error received from remote tagger: %s", err)
-
-			continue
-		}
-
 		if taggerStreamInitialized {
 			t.log.Info("tagger stream successfully initialized")
 		}
 
-		t.telemetryStore.Receives.Inc()
+		response = nil
+		consumeStreamRetrier.Reset()
+	outer:
+		for {
+			_ = consumeStreamRetrier.TriggerRetry()
+			switch consumeStreamRetrier.RetryStatus() {
+			case retry.OK:
+				break outer
+			case retry.PermaFail:
+				t.streamCancel()
+				t.telemetryStore.ClientStreamErrors.Inc()
 
-		err = t.processResponse(response)
-		if err != nil {
-			t.log.Warnf("error processing event received from remote tagger: %s", err)
-			continue
+				// when Recv() returns an error, the stream is aborted
+				// and the contents of our store are considered out of
+				// sync and therefore no longer valid, so the tagger
+				// can no longer be considered ready, and the stream
+				// must be re-established.
+				t.ready = false
+				t.stream = nil
+
+				t.log.Warnf("error received from remote tagger: %s", consumeStreamRetrier.LastError().Unwrap())
+				break outer
+			default:
+				sleepFor := consumeStreamRetrier.NextRetry().UTC().Sub(time.Now().UTC()) + time.Second
+				t.log.Debugf("Failed to process remote tagger stream, next retry: %v", sleepFor)
+				select {
+				case <-t.ctx.Done():
+					break outer
+				case <-time.After(sleepFor):
+				}
+			}
 		}
 	}
 }
