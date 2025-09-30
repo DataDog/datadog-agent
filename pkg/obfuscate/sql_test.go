@@ -2146,6 +2146,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 		keepTrailingSemicolon         bool
 		keepIdentifierQuotation       bool
 		KeepJSONPath                  bool
+		replaceBindParameter          bool
 		metadata                      SQLMetadata
 	}{
 		{
@@ -2400,6 +2401,21 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 			},
 		},
 		{
+			name:                 "obfuscation with replace bind parameter",
+			query:                `SELECT * FROM users WHERE id = @P1 AND name = @P2`,
+			expected:             `SELECT * FROM users WHERE id = ? AND name = ?`,
+			replaceBindParameter: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
 			name:     "PostgreSQL Select Only",
 			query:    `SELECT * FROM ONLY users WHERE id = 1`,
 			expected: `SELECT * FROM ONLY users WHERE id = ?`,
@@ -2492,6 +2508,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 					KeepTrailingSemicolon:         tt.keepTrailingSemicolon,
 					KeepIdentifierQuotation:       tt.keepIdentifierQuotation,
 					KeepJSONPath:                  tt.KeepJSONPath,
+					ReplaceBindParameter:          tt.replaceBindParameter,
 				},
 			}).ObfuscateSQLString(tt.query)
 			require.NoError(t, err)
@@ -2512,6 +2529,7 @@ func TestSQLLexerNormalization(t *testing.T) {
 		keepTrailingSemicolon         bool
 		keepIdentifierQuotation       bool
 		keepSQLAlias                  bool
+		replaceBindParameter          bool
 		metadata                      SQLMetadata
 	}{
 		{
@@ -2687,6 +2705,7 @@ func TestSQLLexerNormalization(t *testing.T) {
 					RemoveSpaceBetweenParentheses: tt.removeSpaceBetweenParentheses,
 					KeepTrailingSemicolon:         tt.keepTrailingSemicolon,
 					KeepIdentifierQuotation:       tt.keepIdentifierQuotation,
+					ReplaceBindParameter:          tt.replaceBindParameter,
 				},
 			}).ObfuscateSQLString(tt.query)
 			require.NoError(t, err)
