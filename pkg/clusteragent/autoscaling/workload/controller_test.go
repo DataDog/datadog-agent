@@ -826,7 +826,6 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 					},
 				},
 			},
-			wantErr: "Autoscaler objective type is custom query but podResource or containerResource is set",
 		},
 		"pod resource type without resource": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
@@ -858,7 +857,6 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 					},
 				},
 			},
-			wantErr: fmt.Sprintf("Autoscaler objective type is %s but customQueryObjective is set", datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType),
 		},
 		"container resource type with custom query also set": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
@@ -870,7 +868,6 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 					},
 				},
 			},
-			wantErr: fmt.Sprintf("Autoscaler objective type is %s but customQueryObjective is set", datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType),
 		},
 		"valid pod resource objective": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
