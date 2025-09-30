@@ -200,14 +200,20 @@ type testInstallAltDirSuite struct {
 	baseAgentMSISuite
 }
 
+func (s *testInstallAltDirSuite) BeforeTest(suiteName, testName string) {
+	// Remove users write permission from drive root, so install dir does not inherit writable permissions
+	// Must be run before BaseSuite.BeforeTest takes the permission snapshot
+	_, err := s.Env().RemoteHost.Execute(`icacls.exe C:/ /remove Users ; icacls.exe C:/ /grant Users:"(OI)(CI)(RX)"`)
+	s.Require().NoError(err)
+
+	s.baseAgentMSISuite.BeforeTest(suiteName, testName)
+}
+
 func (s *testInstallAltDirSuite) TestInstallAltDir() {
 	vm := s.Env().RemoteHost
 
 	installPath := `C:\altdir`
 	configRoot := `C:\altconfroot`
-	// Remove users write permission from drive root, so install dir does not inherit writable permissions
-	_, err := vm.Execute(`icacls.exe C:/ /remove Users ; icacls.exe C:/ /grant Users:"(OI)(CI)(RX)"`)
-	s.Require().NoError(err)
 
 	// initialize test helper
 	t := s.newTester(vm,
