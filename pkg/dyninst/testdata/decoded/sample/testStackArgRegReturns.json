@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testNamedReturn",
+      "method": "main.testStackArgRegReturns",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testNamedReturn",
+            "function": "main.testStackArgRegReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 91
+            "lineNumber": 341
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 393
+            "lineNumber": 426
           },
           {
             "function": "main.main",
@@ -42,25 +42,55 @@
           }
         ],
         "probe": {
-          "id": "testNamedReturn",
+          "id": "testStackArgRegReturns",
           "location": {
-            "method": "main.testNamedReturn"
+            "method": "main.testStackArgRegReturns"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "i": {
-                "type": "int",
-                "value": "40"
+              "arg": {
+                "type": "[5]int",
+                "size": "5",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "41"
+                  },
+                  {
+                    "type": "int",
+                    "value": "42"
+                  },
+                  {
+                    "type": "int",
+                    "value": "43"
+                  },
+                  {
+                    "type": "int",
+                    "value": "44"
+                  },
+                  {
+                    "type": "int",
+                    "value": "45"
+                  }
+                ]
               }
             }
           },
           "return": {
             "locals": {
-              "result": {
+              "~r0": {
                 "type": "int",
-                "value": "80"
+                "value": "45"
+              },
+              "~r1": {
+                "type": "int",
+                "value": "42"
+              },
+              "~r2": {
+                "type": "int",
+                "value": "43"
               }
             }
           }

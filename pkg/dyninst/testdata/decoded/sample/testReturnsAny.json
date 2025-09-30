@@ -18,12 +18,12 @@
           {
             "function": "main.testReturnsAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 51
+            "lineNumber": 70
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 95
+            "lineNumber": 384
           },
           {
             "function": "main.main",
@@ -97,12 +97,12 @@
           {
             "function": "main.testReturnsAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 51
+            "lineNumber": 65
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 96
+            "lineNumber": 385
           },
           {
             "function": "main.main",
@@ -147,7 +147,7 @@
                 "fields": {
                   "data": {
                     "type": "int",
-                    "value": "42"
+                    "value": "1042"
                   }
                 }
               }
@@ -178,12 +178,12 @@
           {
             "function": "main.testReturnsAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 51
+            "lineNumber": 68
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 98
+            "lineNumber": 387
           },
           {
             "function": "main.main",
@@ -230,7 +230,7 @@
                   "data": {
                     "type": "*int",
                     "address": "[addr]",
-                    "value": "42"
+                    "value": "1042"
                   }
                 }
               }

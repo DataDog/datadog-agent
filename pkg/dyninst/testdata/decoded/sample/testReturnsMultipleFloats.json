@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testNamedReturn",
+      "method": "main.testReturnsMultipleFloats",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testNamedReturn",
+            "function": "main.testReturnsMultipleFloats",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 91
+            "lineNumber": 247
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 393
+            "lineNumber": 411
           },
           {
             "function": "main.main",
@@ -42,25 +42,21 @@
           }
         ],
         "probe": {
-          "id": "testNamedReturn",
+          "id": "testReturnsMultipleFloats",
           "location": {
-            "method": "main.testNamedReturn"
+            "method": "main.testReturnsMultipleFloats"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "i": {
-                "type": "int",
-                "value": "40"
-              }
-            }
-          },
           "return": {
             "locals": {
-              "result": {
-                "type": "int",
-                "value": "80"
+              "~r0": {
+                "type": "float32",
+                "notCapturedReason": "unavailable"
+              },
+              "~r1": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
               }
             }
           }

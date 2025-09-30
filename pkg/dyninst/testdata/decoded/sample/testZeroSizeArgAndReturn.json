@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testNamedReturn",
+      "method": "main.testZeroSizeArgAndReturn",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testNamedReturn",
+            "function": "main.testZeroSizeArgAndReturn",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 91
+            "lineNumber": 371
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 393
+            "lineNumber": 429
           },
           {
             "function": "main.main",
@@ -42,25 +42,35 @@
           }
         ],
         "probe": {
-          "id": "testNamedReturn",
+          "id": "testZeroSizeArgAndReturn",
           "location": {
-            "method": "main.testNamedReturn"
+            "method": "main.testZeroSizeArgAndReturn"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "i": {
+              "a": {
+                "type": "[0]int",
+                "size": "0",
+                "elements": []
+              },
+              "b": {
                 "type": "int",
-                "value": "40"
+                "value": "82"
               }
             }
           },
           "return": {
             "locals": {
-              "result": {
+              "~r0": {
                 "type": "int",
-                "value": "80"
+                "value": "982"
+              },
+              "~r1": {
+                "type": "[0]int",
+                "size": "0",
+                "elements": []
               }
             }
           }
