@@ -163,14 +163,20 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	netifProbeID := manager.ProbeIdentificationPair{
-		EBPFFuncName: netifProbe,
-		UID:          eventStream,
+
+	// Only activate tracepoint when using BatchConsumer
+	// DirectConsumer doesn't need the flush tracepoint since it uses direct event output
+	if !p.useDirectConsumer {
+		netifProbeID := manager.ProbeIdentificationPair{
+			EBPFFuncName: netifProbe,
+			UID:          eventStream,
+		}
+		if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+			netifProbeID.EBPFFuncName = netifProbe414
+		}
+		opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	}
-	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
-		netifProbeID.EBPFFuncName = netifProbe414
-	}
-	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
+
 	utils.EnableOption(opts, "http_monitoring_enabled")
 
 	// Set eBPF constant based on consumer type
