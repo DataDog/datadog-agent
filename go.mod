@@ -176,7 +176,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c
-	github.com/DataDog/datadog-traceroute v0.1.21
+	github.com/DataDog/datadog-traceroute v0.1.25
 	github.com/DataDog/dd-trace-go/v2 v2.0.0
 	github.com/DataDog/ebpf-manager v0.7.14
 	github.com/DataDog/go-libddwaf/v4 v4.3.0
