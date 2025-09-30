@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
@@ -44,7 +45,8 @@ type eventMessageFilter struct {
 	interpretMessages bool
 
 	// contexts
-	userRenderContext evtapi.EventRenderContextHandle
+	userRenderContext      evtapi.EventRenderContextHandle
+	publisherMetadataCache publishermetadatacache.Component
 }
 
 func (f *eventMessageFilter) run(w *sync.WaitGroup) {
@@ -98,22 +100,9 @@ func (f *eventMessageFilter) renderEvent(e *eventWithMessage) error {
 }
 
 func (f *eventMessageFilter) getEventMessage(api evtapi.API, providerName string, winevent *evtapi.EventRecord) (string, error) {
-	var message string
+	var err error
 
-	// Try to render the message via the event log API
-	pm, err := api.EvtOpenPublisherMetadata(providerName, "")
-	if err == nil {
-		defer evtapi.EvtClosePublisherMetadata(api, pm)
-
-		message, err = api.EvtFormatMessage(pm, winevent.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
-		if err == nil {
-			return message, nil
-		}
-		err = fmt.Errorf("failed to render message: %w", err)
-	} else {
-		err = fmt.Errorf("failed to open event publisher: %w", err)
-	}
-	renderErr := err
+	message := f.publisherMetadataCache.FormatMessage(providerName, winevent.EventRecordHandle, evtapi.EvtFormatMessageEvent)
 
 	// rendering failed, which may happen if
 	// * the event source/provider cannot be found/loaded
@@ -137,10 +126,10 @@ func (f *eventMessageFilter) getEventMessage(api evtapi.API, providerName string
 			if len(msgstrings) > 0 {
 				message = strings.Join(msgstrings, "\n")
 			} else {
-				err = fmt.Errorf("no strings in EventData, and %w", renderErr)
+				err = fmt.Errorf("no strings in EventData")
 			}
 		} else {
-			err = fmt.Errorf("failed to render EventData, and %w", renderErr)
+			err = fmt.Errorf("failed to render EventData")
 		}
 	}
 
