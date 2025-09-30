@@ -35,7 +35,7 @@ var _ secrets.Component = (*MockSecretResolver)(nil)
 
 func (m *MockSecretResolver) Configure(_ secrets.ConfigParams) {}
 
-func (m *MockSecretResolver) Resolve(data []byte, origin string) ([]byte, error) {
+func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ string) ([]byte, error) {
 	if m.scenarios == nil {
 		return data, nil
 	}

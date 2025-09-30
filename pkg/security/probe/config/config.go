@@ -178,6 +178,9 @@ type Config struct {
 	CapabilitiesMonitoringEnabled bool
 	// CapabilitiesMonitoringPeriod defines the period at which process capabilities usage events should be reported back to userspace
 	CapabilitiesMonitoringPeriod time.Duration
+
+	// SnapshotUsingListmount enables the use of listmount to take filesystem mount snapshots
+	SnapshotUsingListmount bool
 }
 
 // NewConfig returns a new Config object
@@ -240,6 +243,9 @@ func NewConfig() (*Config, error) {
 		// Process capabilities monitoring
 		CapabilitiesMonitoringEnabled: getBool("capabilities_monitoring.enabled"),
 		CapabilitiesMonitoringPeriod:  getDuration("capabilities_monitoring.period"),
+
+		// Mount resolver
+		SnapshotUsingListmount: getBool("snapshot_using_listmount"),
 	}
 
 	if err := c.sanitize(); err != nil {

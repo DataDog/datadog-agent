@@ -6,8 +6,9 @@
 package syntheticstestschedulerimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 type schedulerConfigs struct {
@@ -18,7 +19,7 @@ type schedulerConfigs struct {
 
 func newSchedulerConfigs(agentConfig config.Component) *schedulerConfigs {
 	return &schedulerConfigs{
-		syntheticsSchedulerEnabled: agentConfig.GetBool("synthetics.scheduler.enabled"),
+		syntheticsSchedulerEnabled: agentConfig.GetBool("synthetics.collector.enabled"),
 		workers:                    agentConfig.GetInt("synthetics.collector.workers"),
 		flushInterval:              agentConfig.GetDuration("synthetics.collector.flush_interval"),
 	}

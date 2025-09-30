@@ -89,3 +89,8 @@ func (s *dummyService) FilterTemplates(configs map[string]integration.Config) {
 		(s.filterTemplates)(configs)
 	}
 }
+
+// GetImageName does nothing
+func (s *dummyService) GetImageName() string {
+	return ""
+}

@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func preRegister(cfg *sysconfigtypes.Config, _ []*Factory) error {
-	if err := driver.Init(cfg); err != nil {
+func preRegister(_ *sysconfigtypes.Config, _ []*Factory) error {
+	if err := driver.Init(); err != nil {
 		return fmt.Errorf("failed to load driver subsystem: %v", err)
 	}
 	return nil
