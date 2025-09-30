@@ -101,6 +101,8 @@ nav:
 - Architecture:
   - DogStatsD:
     - Internals: architecture/dogstatsd/internals.md
+  - Communication:
+    - Agent API: architecture/communication/agent-api.md
 - Reference:
   - Images:
     - Developer environment: reference/images/dev.md
