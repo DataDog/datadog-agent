@@ -62,6 +62,10 @@ type Serie struct {
 	Source         MetricSource         `json:"-"` // This is only used by api V2
 }
 
+func (s *Serie) GetName() string {
+	return s.Name
+}
+
 // Metadata holds metadata about the metric
 type Metadata struct {
 	Origin Origin `json:"origin,omitempty"`

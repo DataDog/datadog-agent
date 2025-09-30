@@ -26,6 +26,10 @@ type SketchSeries struct {
 	Source     MetricSource         `json:"-"` // This is only used by api V2
 }
 
+func (ss *SketchSeries) GetName() string {
+	return ss.Name
+}
+
 // String returns the JSON representation of a SketchSeries as a string
 // or an empty string in case of an error
 func (sl SketchSeries) String() string {
