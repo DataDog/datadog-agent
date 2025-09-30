@@ -10,20 +10,32 @@ package run
 
 import (
 	"context"
-
-	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	hostprofiler "github.com/DataDog/datadog-agent/comp/host-profiler"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type cliParams struct {
 	*globalparams.GlobalParams
+	SyncTimeout       time.Duration
+	SyncOnInitTimeout time.Duration
 }
 
 // MakeCommand creates the `run` command
@@ -39,14 +51,37 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 			return runHostProfilerCommand(context.Background(), params)
 		},
 	}
+	cmd.Flags().DurationVar(&params.SyncTimeout, "sync-timeout", 3*time.Second, "Timeout for config sync requests.")
+	cmd.Flags().DurationVar(&params.SyncOnInitTimeout, "sync-on-init-timeout", 0, "How long should config sync retry at initialization before failing.")
+
 	return []*cobra.Command{cmd}
 }
 
 func runHostProfilerCommand(_ context.Context, cliParams *cliParams) error {
-	return fxutil.Run(
+	var opts []fx.Option = []fx.Option{
 		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath)),
-		fx.Invoke(func(collector collector.Component) error {
-			return collector.Run()
-		}),
-	)
+	}
+
+	if cliParams.GlobalParams.CoreConfPath != "" {
+		opts = append(opts,
+			core.Bundle(),
+			fx.Supply(core.BundleParams{
+				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
+				SecretParams: secrets.NewEnabledParams(),
+				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),
+			}),
+
+			ipcfx.ModuleReadOnly(),
+			remoteTaggerFx.Module(tagger.NewRemoteParams()),
+			configsyncimpl.Module(configsyncimpl.NewParams(cliParams.SyncTimeout, true, cliParams.SyncOnInitTimeout)),
+			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore))
+	} else {
+		opts = append(opts, fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore))
+	}
+
+	return fxutil.OneShot(run, opts...)
+}
+
+func run(collector collector.Component) error {
+	return collector.Run()
 }
