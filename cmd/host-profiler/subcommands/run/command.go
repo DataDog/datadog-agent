@@ -12,26 +12,23 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
-
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
-	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	hostprofiler "github.com/DataDog/datadog-agent/comp/host-profiler"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 )
 
 type cliParams struct {
