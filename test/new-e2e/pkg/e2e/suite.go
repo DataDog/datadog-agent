@@ -221,13 +221,6 @@ func (bs *BaseSuite[Env]) Env() *Env {
 	return bs.env
 }
 
-// Require returns a require context for suite.
-func (bs *BaseSuite[Env]) Require() *RequireAssertions {
-	return &RequireAssertions{
-		bs.Suite.Require(),
-	}
-}
-
 // EventuallyWithT is a wrapper around testify.Suite.EventuallyWithT that catches panics to fail test without skipping TeardownSuite
 func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), timeout time.Duration, interval time.Duration, msgAndArgs ...interface{}) bool {
 	return bs.Suite.EventuallyWithT(func(c *assert.CollectT) {

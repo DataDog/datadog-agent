@@ -230,7 +230,7 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 		s.Require().NoError(err, "should kill the process with PID %d", pid)
 
 		// service should stop
-		s.Require().EventuallyWithExponentialBackoff(func() error {
+		s.Require().True(s.EventuallyWithExponentialBackoff(func() error {
 			status, err := windowsCommon.GetServiceStatus(host, serviceName)
 			if err != nil {
 				return fmt.Errorf("should get the status for %s: %v", serviceName, err)
@@ -239,7 +239,7 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 				return fmt.Errorf("waiting for %s to stop", serviceName)
 			}
 			return nil
-		}, (2*s.timeoutScale)*time.Minute, 10*time.Second, "%s should be stopped", serviceName)
+		}, (2*s.timeoutScale)*time.Minute, 10*time.Second, "%s should be stopped", serviceName))
 	}
 
 	// collect display names for services
