@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
+	"golang.org/x/sys/windows"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
@@ -112,6 +113,10 @@ func (c *publisherMetadataCache) FormatMessage(publisherName string, event evtap
 	}
 	message, err := c.evtapi.EvtFormatMessage(handle, event, 0, nil, flags)
 	if err != nil {
+		// Ignore this error
+		if err == windows.ERROR_EVT_MESSAGE_NOT_FOUND {
+			return ""
+		}
 		// FormatMessage failed with an old valid handle, so delete the cache entry
 		// and retry creating the handle on the next Get call.
 		c.cache.Delete(publisherName)
@@ -124,5 +129,3 @@ func (c *publisherMetadataCache) FormatMessage(publisherName string, event evtap
 func (c *publisherMetadataCache) Close() {
 	c.cache.Flush()
 }
-
-// New creates a new publishermetadatacache for testing purposes
