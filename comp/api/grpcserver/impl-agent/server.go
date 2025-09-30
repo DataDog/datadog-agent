@@ -16,7 +16,6 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -235,16 +234,10 @@ func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRem
 	}, nil
 }
 
-func (s *serverSecure) RefreshRemoteAgent(ctx context.Context, _ *pb.RefreshRemoteAgentRequest) (*pb.RefreshRemoteAgentResponse, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "session_id not found in metadata")
-	}
-	sessionID := md.Get("session_id")[0]
-
-	found := s.remoteAgentRegistry.RefreshRemoteAgent(sessionID)
+func (s *serverSecure) RefreshRemoteAgent(_ context.Context, in *pb.RefreshRemoteAgentRequest) (*pb.RefreshRemoteAgentResponse, error) {
+	found := s.remoteAgentRegistry.RefreshRemoteAgent(in.SessionId)
 	if !found {
-		return nil, status.Error(codes.NotFound, "remoteAgent unknown")
+		return nil, status.Error(codes.NotFound, "no remote agent found with session ID")
 	}
 	return &pb.RefreshRemoteAgentResponse{}, nil
 }

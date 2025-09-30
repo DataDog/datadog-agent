@@ -41,5 +41,8 @@ message RegisterRemoteAgentResponse {
   uint32 recommended_refresh_interval_secs = 2;
 }
 
-message RefreshRemoteAgentRequest {}
+message RefreshRemoteAgentRequest {
+  // UUID representing the current connection between the remoteAgentRegistry and the remoteAgent.
+  string session_id = 1;
+}
 message RefreshRemoteAgentResponse {}

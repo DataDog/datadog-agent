@@ -169,7 +169,9 @@ func (x *RegisterRemoteAgentResponse) GetRecommendedRefreshIntervalSecs() uint32
 }
 
 type RefreshRemoteAgentRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// UUID representing the current connection between the remoteAgentRegistry and the remoteAgent.
+	SessionId     string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -202,6 +204,13 @@ func (x *RefreshRemoteAgentRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RefreshRemoteAgentRequest.ProtoReflect.Descriptor instead.
 func (*RefreshRemoteAgentRequest) Descriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *RefreshRemoteAgentRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
 }
 
 type RefreshRemoteAgentResponse struct {
@@ -253,8 +262,10 @@ const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\x1bRegisterRemoteAgentResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12I\n" +
-	"!recommended_refresh_interval_secs\x18\x02 \x01(\rR\x1erecommendedRefreshIntervalSecs\"\x1b\n" +
-	"\x19RefreshRemoteAgentRequest\"\x1c\n" +
+	"!recommended_refresh_interval_secs\x18\x02 \x01(\rR\x1erecommendedRefreshIntervalSecs\":\n" +
+	"\x19RefreshRemoteAgentRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"\x1c\n" +
 	"\x1aRefreshRemoteAgentResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var (

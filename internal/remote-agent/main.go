@@ -119,12 +119,8 @@ func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName
 
 // refreshRegistration handles the refresh logic with the Core Agent
 func refreshRegistration(agentClient pbcore.AgentSecureClient, sessionID string) error {
-	md := metadata.Pairs("session_id", sessionID)
-	ctx := metadata.NewOutgoingContext(context.Background(), md)
-
-	_, err := agentClient.RefreshRemoteAgent(ctx, &pbcore.RefreshRemoteAgentRequest{})
+	_, err := agentClient.RefreshRemoteAgent(context.Background(), &pbcore.RefreshRemoteAgentRequest{SessionId: sessionID})
 	if err != nil {
-		log.Printf("failed to refresh to the remote agent registry: %v, entering registration loop", err)
 		return err
 	}
 
@@ -190,6 +186,7 @@ func main() {
 		} else {
 			err := refreshRegistration(agentClient, sessionID)
 			if err != nil {
+				log.Printf("failed to refresh registration with Core Agent: %v, entering registration loop", err)
 				sessionID = ""
 				continue
 			}
