@@ -22,6 +22,9 @@ build do
   # 2.0 is the license version here, not the python version
   license "Python-2.0"
 
+  # Apply CVE-2025-8194 patch to fix tarfile module vulnerability
+  patch source: "CVE-2025-8194-tarfile.patch"
+
   unless windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
     python_configure_options = [
@@ -56,11 +59,11 @@ build do
     # Don't forward CC and CXX to python extensions Makefile, it's quite unlikely that any non default
     # compiler we use would end up being available in the system/docker image used by customers
     if linux_target? && env["CC"]
-      command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
+      command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-#{major}.#{minor}-*-linux-gnu/Makefile", :env => env
       command "sed -i \"s/${CC}/gcc/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
     end
     if linux_target? && env["CXX"]
-      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
+      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-#{major}.#{minor}-*-linux-gnu/Makefile", :env => env
       command "sed -i \"s/${CXX}/g++/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
     end
     delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"

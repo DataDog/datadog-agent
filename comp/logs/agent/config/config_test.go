@@ -173,7 +173,6 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 }
 
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
-	suite.config.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
 		"fingerprint_strategy": "line_checksum",
 		"count":                10,
@@ -190,8 +189,20 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithV
 	suite.Equal(1024, config.MaxBytes)
 }
 
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnStrategyDisabled() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
+		"fingerprint_strategy": "disabled",
+		"count":                10,
+		"count_to_skip":        5,
+		"max_bytes":            1024,
+	})
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.Equal(types.FingerprintStrategyDisabled, config.FingerprintStrategy)
+}
+
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidConfig() {
-	suite.config.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
 		"fingerprint_strategy": "invalid_strategy", // Invalid: unknown strategy
 		"count":                -1,                 // Invalid: negative value
@@ -691,8 +702,8 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionKind:        GzipCompressionKind,
-		CompressionLevel:       GzipCompressionLevel,
+		CompressionKind:        ZstdCompressionKind,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,

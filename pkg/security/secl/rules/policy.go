@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v3"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 )
 
@@ -56,6 +57,16 @@ type PolicyRule struct {
 	Policy     PolicyInfo
 	ModifiedBy []PolicyInfo
 	UsedBy     []PolicyInfo
+}
+
+// AreActionsSupported returns true if the actions defined on the rule are supported given a list of enabled event types
+func (r *PolicyRule) AreActionsSupported(eventTypeEnabled map[eval.EventType]bool) error {
+	for _, action := range r.Def.Actions {
+		if err := action.IsActionSupported(eventTypeEnabled); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Policies returns an iterator over the policies that this rule is part of.

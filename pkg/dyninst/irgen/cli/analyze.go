@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -78,6 +79,7 @@ func analyze(path string) error {
 }
 
 func main() {
+	dyninsttest.SetupLogging()
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "Usage: analyze <binary>")
 		os.Exit(1)

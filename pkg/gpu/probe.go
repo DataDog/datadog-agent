@@ -80,6 +80,7 @@ const (
 	cudaFreeProbe                probeFuncName = "uprobe__cudaFree"
 	cudaSetDeviceProbe           probeFuncName = "uprobe__cudaSetDevice"
 	cudaSetDeviceRetProbe        probeFuncName = "uretprobe__cudaSetDevice"
+	cudaDeviceSyncRetProbe       probeFuncName = "uretprobe__cudaDeviceSynchronize"
 	cudaEventRecordProbe         probeFuncName = "uprobe__cudaEventRecord"
 	cudaEventQueryProbe          probeFuncName = "uprobe__cudaEventQuery"
 	cudaEventQueryRetProbe       probeFuncName = "uretprobe__cudaEventQuery"
@@ -193,6 +194,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
+	memPools.ensureInit(deps.Telemetry)
 	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry, cfg)
 	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.cfg, deps.Telemetry)
 	p.statsGenerator = newStatsGenerator(sysCtx, p.streamHandlers, deps.Telemetry)
@@ -380,6 +382,7 @@ func getCudaLibraryAttacherRule() *uprobes.AttachRule {
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaFreeProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaDeviceSyncRetProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventRecordProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryRetProbe}},

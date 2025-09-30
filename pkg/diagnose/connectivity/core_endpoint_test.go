@@ -170,6 +170,7 @@ func TestSendHTTPRequestHeaders(t *testing.T) {
 		assert.Equal(t, "application/x-protobuf", r.Header.Get("Content-Type"))
 		assert.Equal(t, version.AgentVersion, r.Header.Get("DD-Agent-Version"))
 		assert.Equal(t, fmt.Sprintf("datadog-agent/%s", version.AgentVersion), r.Header.Get("User-Agent"))
+		assert.Equal(t, requestWithHeader, r.Header.Get("X-Requested-With"))
 		w.Write([]byte("Received Protobuf"))
 	}))
 	defer ts.Close()
