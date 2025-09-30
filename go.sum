@@ -1064,8 +1064,8 @@ github.com/knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23 h1:dWzdsqj
 github.com/knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23/go.mod h1:lUaIXCWzf7BRKTY5iEcrYy1TfgbYLYVIS/B2vPkJzOc=
 github.com/knqyf263/go-rpm-version v0.0.0-20220614171824-631e686d1075 h1:aC6MEAs3PE3lWD7lqrJfDxHd6hcced9R4JTZu85cJwU=
 github.com/knqyf263/go-rpm-version v0.0.0-20220614171824-631e686d1075/go.mod h1:i4sF0l1fFnY1aiw08QQSwVAFxHEm311Me3WsU/X7nL0=
-github.com/knqyf263/go-rpmdb v0.1.2-0.20241125135340-7670f0f23c16 h1:a0SnL7L4aPQ/6/MiQmlp6LeiF6moPWD2FvGx/KaDpbs=
-github.com/knqyf263/go-rpmdb v0.1.2-0.20241125135340-7670f0f23c16/go.mod h1:9LQcoMCMQ9vrF7HcDtXfvqGO4+ddxFQ8+YF/0CVGDww=
+github.com/knqyf263/go-rpmdb v0.1.2-0.20250519070707-7e39c901d1c4 h1:2beHCVNGsPFVrTMNu+N+7S7GRI/GdIa67Gk0BOkyNwg=
+github.com/knqyf263/go-rpmdb v0.1.2-0.20250519070707-7e39c901d1c4/go.mod h1:0A7fN6+ED0l7YrO4GNEz6kgDmkKUwzK2bDl2v0E2Hog=
 github.com/knqyf263/nested v0.0.1 h1:Sv26CegUMhjt19zqbBKntjwESdxe5hxVPSk0+AKjdUc=
 github.com/knqyf263/nested v0.0.1/go.mod h1:zwhsIhMkBg90DTOJQvxPkKIypEHPYkgWHs4gybdlUmk=
 github.com/kolo/xmlrpc v0.0.0-20220921171641-a4b6fa1dd06b h1:udzkj9S/zlT5X367kqJis0QP7YMxobob6zhzq6Yre00=

@@ -284,7 +284,7 @@ require (
 	github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993
 	github.com/klauspost/compress v1.18.0
 	github.com/knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23
-	github.com/knqyf263/go-rpmdb v0.1.2-0.20241125135340-7670f0f23c16
+	github.com/knqyf263/go-rpmdb v0.1.2-0.20250519070707-7e39c901d1c4
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/kr/pretty v0.3.1
 	github.com/kraken-hpc/go-fork v0.1.1
