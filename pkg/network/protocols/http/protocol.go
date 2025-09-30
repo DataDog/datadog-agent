@@ -312,11 +312,6 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 // createAdaptiveConsumer creates the appropriate consumer based on configuration and kernel version
 // and determines which callback method to use internally
 func (p *protocol) createAdaptiveConsumer() error {
-	kernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		return err
-	}
-
 	// Check if direct consumer is explicitly requested via configuration
 	if p.cfg.HTTPUseDirectConsumer {
 		if events.SupportsDirectConsumer() {
@@ -333,6 +328,10 @@ func (p *protocol) createAdaptiveConsumer() error {
 			log.Debugf("HTTP monitoring: using direct consumer (requested via configuration)")
 		} else {
 			// Fall back to BatchConsumer on unsupported kernels
+			kernelVersion, err := kernel.HostVersion()
+			if err != nil {
+				return err
+			}
 			log.Warnf("HTTP monitoring: direct consumer requested but kernel version %v < 5.8.0, falling back to batch consumer", kernelVersion)
 			p.useDirectConsumer = false
 		}
