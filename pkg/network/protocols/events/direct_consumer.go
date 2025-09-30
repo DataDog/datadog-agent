@@ -113,14 +113,15 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 	perfMode := perf.WakeupEvents(config.DirectConsumerBufferWakeupCount) // Wait for N events before wakeup
 	chanSize := config.DirectConsumerChannelSize * config.DirectConsumerBufferWakeupCount
 
-	// Calculate total buffer sizes from per-CPU values
-	totalPerfBufferSize := config.DirectConsumerPerfBufferSizePerCPU * numCPUs
+	// perf.UsePerfBuffers expects per-CPU buffer size (the underlying loader allocates numCPU buffers)
+	// Ring buffers need total size (single shared buffer across all CPUs)
+	perfBufferSize := config.DirectConsumerPerfBufferSizePerCPU
 	totalRingBufferSize := config.DirectConsumerRingBufferSizePerCPU * numCPUs
 
-	mode := perf.UsePerfBuffers(totalPerfBufferSize, chanSize, perfMode)
+	mode := perf.UsePerfBuffers(perfBufferSize, chanSize, perfMode)
 	// Always try to upgrade to ring buffers for direct events if supported
 	if config.RingBufferSupportedUSM() {
-		mode = perf.UpgradePerfBuffers(totalPerfBufferSize, chanSize, perfMode, totalRingBufferSize)
+		mode = perf.UpgradePerfBuffers(perfBufferSize, chanSize, perfMode, totalRingBufferSize)
 	}
 
 	// Calculate the size of the single event that will be written via bpf_ringbuf_output
