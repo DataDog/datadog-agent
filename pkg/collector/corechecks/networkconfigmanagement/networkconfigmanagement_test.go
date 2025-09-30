@@ -338,7 +338,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 
 	expected := &profile.NCMProfile{
 		BaseProfile: profile.BaseProfile{
-			Name: "p2",
+			Name: "p1",
 		},
 		Commands: map[profile.CommandType][]string{
 			profile.Running: {"show running-config"},

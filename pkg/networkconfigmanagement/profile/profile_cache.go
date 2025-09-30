@@ -7,6 +7,8 @@
 
 package profile
 
+import "slices"
+
 // Cache holds the profile from previous successful runs of the device
 type Cache struct {
 	ProfileName   string
@@ -22,4 +24,14 @@ func (c *Cache) GetTriedProfiles() []string {
 // AppendToTriedProfiles allows to easily add profiles when iterating through profile options for a device
 func (c *Cache) AppendToTriedProfiles(profile string) {
 	c.triedProfiles = append(c.triedProfiles, profile)
+}
+
+// HasTried returns if the profile has already been tried since the last run
+func (c *Cache) HasTried(profile string) bool {
+	return slices.Contains(c.triedProfiles, profile)
+}
+
+// HasSetProfile returns if the profile has been specified or matched yet
+func (c *Cache) HasSetProfile() bool {
+	return c.ProfileName != ""
 }

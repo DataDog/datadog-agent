@@ -129,8 +129,8 @@ func GetProfileMap(profilesFolder string) (Map, error) {
 	profiles := make(Map)
 	for _, file := range files {
 		filename := file.Name()
-		// Skip non yaml profiles
-		if !strings.HasSuffix(filename, ".yaml") {
+		// Skip non yaml/json profiles
+		if !strings.HasSuffix(filename, ".yaml") && !strings.HasSuffix(filename, ".json") {
 			continue
 		}
 		profileName := filename[:len(filename)-len(".yaml")]

@@ -36,6 +36,16 @@ func Test_GetProfileMap(t *testing.T) {
 					},
 					Commands: map[CommandType][]string{},
 				},
+				"p1": &NCMProfile{
+					BaseProfile: BaseProfile{
+						Name: "p1",
+					},
+					Commands: map[CommandType][]string{
+						Running: {"show running-config"},
+						Startup: {"show startup-config"},
+						Version: {"show version"},
+					},
+				},
 				"p2": &NCMProfile{
 					BaseProfile: BaseProfile{
 						Name: "p2",

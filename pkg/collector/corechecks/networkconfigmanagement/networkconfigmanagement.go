@@ -10,7 +10,6 @@ package networkconfigmanagement
 
 import (
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
@@ -61,7 +60,7 @@ func (c *Check) Run() error {
 	}()
 
 	// If the check did not have inline profile explicitly defined/from cache, find the profile that works
-	if c.checkContext.ProfileCache.ProfileName == "" {
+	if !c.checkContext.ProfileCache.HasSetProfile() {
 		prof, err := c.FindMatchingProfile()
 		if err != nil {
 			return err
@@ -173,7 +172,7 @@ func newCheck(agentConfig config.Component) check.Check {
 // FindMatchingProfile supports testing profiles until one is found with a successful command for the device
 func (c *Check) FindMatchingProfile() (*profile.NCMProfile, error) {
 	for profName, prof := range c.checkContext.ProfileMap {
-		if slices.Contains(c.checkContext.ProfileCache.GetTriedProfiles(), profName) {
+		if c.checkContext.ProfileCache.HasTried(profName) {
 			continue
 		}
 		c.remoteClient.SetProfile(prof)
