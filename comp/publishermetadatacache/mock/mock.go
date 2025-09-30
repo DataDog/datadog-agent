@@ -11,35 +11,29 @@ package mock
 import (
 	"testing"
 
-	"go.uber.org/fx"
-
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
 // PublisherMetadataCache is a mock implementation of the publishermetadatacache Component
-type PublisherMetadataCache struct{}
-
-// Module defines the fx options for the mock component
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(func() publishermetadatacache.Component {
-			return &PublisherMetadataCache{}
-		}))
+type publisherMetadataCache struct {
 }
 
 // New returns a mock for publishermetadatacache component.
 func New(_ testing.TB) publishermetadatacache.Component {
-	return &PublisherMetadataCache{}
+	return &publisherMetadataCache{}
 }
 
 // Get implements the Component interface
-func (m *PublisherMetadataCache) Get(_ string, _ evtapi.EventRecordHandle) (evtapi.EventPublisherMetadataHandle, error) {
-	return evtapi.EventPublisherMetadataHandle(12345), nil
+func (m *publisherMetadataCache) Get(_ string) evtapi.EventPublisherMetadataHandle {
+	return evtapi.EventPublisherMetadataHandle(0)
 }
 
-// Close implements the Component interface
-func (m *PublisherMetadataCache) Close() error {
-	return nil
+// FormatMessage implements the Component interface
+func (m *publisherMetadataCache) FormatMessage(_ string, _ evtapi.EventRecordHandle, _ uint) string {
+	return ""
+}
+
+// Flush implements the Component interface
+func (m *publisherMetadataCache) Flush() {
 }
