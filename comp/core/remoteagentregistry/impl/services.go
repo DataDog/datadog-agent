@@ -25,13 +25,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregistry.StatusData {
+func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData {
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetStatusDetailsResponse, error) {
 		return remoteAgent.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, opts...)
 	}
-	processor := func(details *remoteAgentClient, in *pb.GetStatusDetailsResponse, err error) *remoteagentregistry.StatusData {
-		out := &remoteagentregistry.StatusData{
-			RegistrationData: details.RegistrationData,
+	processor := func(details remoteagentregistry.RegisteredAgent, in *pb.GetStatusDetailsResponse, err error) remoteagentregistry.StatusData {
+		out := remoteagentregistry.StatusData{
+			RegisteredAgent: details,
 		}
 
 		if err != nil {
@@ -63,13 +63,13 @@ func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) erro
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetFlareFilesResponse, error) {
 		return remoteAgent.GetFlareFiles(ctx, &pb.GetFlareFilesRequest{}, opts...)
 	}
-	processor := func(details *remoteAgentClient, resp *pb.GetFlareFilesResponse, err error) *remoteagentregistry.FlareData {
+	processor := func(details remoteagentregistry.RegisteredAgent, resp *pb.GetFlareFilesResponse, err error) *remoteagentregistry.FlareData {
 		if err != nil {
 			return nil
 		}
 		return &remoteagentregistry.FlareData{
-			RegistrationData: details.RegistrationData,
-			Files:            resp.Files,
+			RegisteredAgent: details,
+			Files:           resp.Files,
 		}
 	}
 
@@ -80,9 +80,9 @@ func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) erro
 		}
 
 		for fileName, fileData := range flareData.Files {
-			err := builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegistrationData.String(), registryutil.SanitizeFileName(fileName)), fileData)
+			err := builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegisteredAgent.String(), registryutil.SanitizeFileName(fileName)), fileData)
 			if err != nil {
-				return fmt.Errorf("failed to add file '%s' from remote agent '%s' to flare: %w", fileName, flareData.RegistrationData.String(), err)
+				return fmt.Errorf("failed to add file '%s' from remote agent '%s' to flare: %w", fileName, flareData.RegisteredAgent.String(), err)
 			}
 		}
 	}
@@ -117,7 +117,7 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetTelemetryResponse, error) {
 		return remoteAgent.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, opts...)
 	}
-	processor := func(_ *remoteAgentClient, resp *pb.GetTelemetryResponse, err error) struct{} {
+	processor := func(_ remoteagentregistry.RegisteredAgent, resp *pb.GetTelemetryResponse, err error) struct{} {
 		if err != nil {
 			return struct{}{}
 		}

@@ -182,18 +182,18 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	defer ra.agentMapMu.Unlock()
 
 	// create the new remote Agent instance abnd fetch availale services
-	details, err := ra.newRemoteAgentClient(registration)
+	remoteAgentClient, err := ra.newRemoteAgentClient(registration)
 	if err != nil {
 		ra.telemetryStore.remoteAgentRegisteredError.Inc(sanitizeString(registration.AgentDisplayName))
 		return "", 0, err
 	}
 
-	log.Infof("Remote agent '%s' (flavor: %s, session_id: %s) registered. (exposed services: %v)", details.RegistrationData.AgentDisplayName, details.RegistrationData.AgentFlavor, details.RegistrationData.SessionID, details.services)
+	log.Infof("Remote agent '%s' (flavor: %s, session_id: %s) registered. (exposed services: %v)", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.Flavor, remoteAgentClient.RegisteredAgent.SessionID, remoteAgentClient.services)
 	// indexing remoteAgent client by its sessionID
-	ra.agentMap[details.RegistrationData.SessionID] = details
-	ra.telemetryStore.remoteAgentRegistered.Inc(details.agentSanitizedDisplayName)
+	ra.agentMap[remoteAgentClient.RegisteredAgent.SessionID] = remoteAgentClient
+	ra.telemetryStore.remoteAgentRegistered.Inc(remoteAgentClient.RegisteredAgent.SanitizedDisplayName)
 
-	return details.RegistrationData.SessionID, recommendedRefreshInterval, nil
+	return remoteAgentClient.RegisteredAgent.SessionID, recommendedRefreshInterval, nil
 }
 
 // RefreshRemoteAgent refreshes the last seen time of a remote agent.
@@ -207,7 +207,7 @@ func (ra *remoteAgentRegistry) RefreshRemoteAgent(sessionID string) bool {
 	if !ok {
 		return false
 	}
-	agentClient.lastSeen = time.Now()
+	agentClient.RegisteredAgent.LastSeen = time.Now()
 	return ok
 }
 
@@ -232,7 +232,7 @@ func (ra *remoteAgentRegistry) start() {
 
 				agentsToRemove := make([]string, 0)
 				for sessionID, details := range ra.agentMap {
-					if time.Since(details.lastSeen) > remoteAgentIdleTimeout || details.unhealthy {
+					if time.Since(details.RegisteredAgent.LastSeen) > remoteAgentIdleTimeout || details.unhealthy {
 						agentsToRemove = append(agentsToRemove, sessionID)
 					}
 				}
@@ -241,11 +241,11 @@ func (ra *remoteAgentRegistry) start() {
 					details, ok := ra.agentMap[sessionID]
 					if ok {
 						if details.unhealthy {
-							log.Warnf("Remote agent '%s' deregistered due to session ID validation failure (expected: %s, got: %s)", details.RegistrationData.AgentDisplayName, details.RegistrationData.SessionID, sessionID)
+							log.Warnf("Remote agent '%s' deregistered due to session ID validation failure (expected: %s, got: %s)", details.RegisteredAgent.DisplayName, details.RegisteredAgent.SessionID, sessionID)
 						} else {
-							log.Infof("Remote agent '%s' deregistered after being idle for %s.", details.RegistrationData.AgentDisplayName, remoteAgentIdleTimeout)
+							log.Infof("Remote agent '%s' deregistered after being idle for %s.", details.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)
 						}
-						ra.telemetryStore.remoteAgentRegistered.Dec(details.agentSanitizedDisplayName)
+						ra.telemetryStore.remoteAgentRegistered.Dec(details.RegisteredAgent.SanitizedDisplayName)
 						delete(ra.agentMap, sessionID)
 					}
 				}
@@ -256,17 +256,13 @@ func (ra *remoteAgentRegistry) start() {
 	}()
 }
 
-func (ra *remoteAgentRegistry) GetRegisteredAgents() []*remoteagentregistry.RegisteredAgent {
+func (ra *remoteAgentRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAgent {
 	ra.agentMapMu.Lock()
 	defer ra.agentMapMu.Unlock()
 
-	agents := make([]*remoteagentregistry.RegisteredAgent, 0, len(ra.agentMap))
+	agents := make([]remoteagentregistry.RegisteredAgent, 0, len(ra.agentMap))
 	for _, details := range ra.agentMap {
-		agents = append(agents, &remoteagentregistry.RegisteredAgent{
-			DisplayName:          details.RegistrationData.AgentDisplayName,
-			SanitizedDisplayName: details.agentSanitizedDisplayName,
-			LastSeenUnix:         details.lastSeen.Unix(),
-		})
+		agents = append(agents, details.RegisteredAgent)
 	}
 
 	return agents

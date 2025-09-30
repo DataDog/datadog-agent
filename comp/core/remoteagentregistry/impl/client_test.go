@@ -17,6 +17,7 @@ import (
 	grpcStatus "google.golang.org/grpc/status"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
@@ -62,11 +63,11 @@ func TestCallAgentsForService(t *testing.T) {
 		return remoteAgent.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, opts...)
 	}
 
-	processor := func(details *remoteAgentClient, _ *pb.GetStatusDetailsResponse, err error) outStruct {
+	processor := func(details remoteagentregistry.RegisteredAgent, _ *pb.GetStatusDetailsResponse, err error) outStruct {
 		// In order to simplify the test, we return a specific error for session_id mismatch
 		if err != nil && strings.Contains(err.Error(), "session_id mismatch") {
 			return outStruct{
-				flavor:  details.RegistrationData.AgentFlavor,
+				flavor:  details.Flavor,
 				errCode: codes.InvalidArgument,
 			}
 		}
@@ -75,7 +76,7 @@ func TestCallAgentsForService(t *testing.T) {
 		require.True(t, ok)
 
 		return outStruct{
-			flavor:  details.RegistrationData.AgentFlavor,
+			flavor:  details.Flavor,
 			errCode: e.Code(),
 		}
 	}

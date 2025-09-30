@@ -32,8 +32,8 @@ func TestGetRegisteredAgentStatuses(t *testing.T) {
 	statuses := component.GetRegisteredAgentStatuses()
 	t.Logf("statuses: %v\n", statuses[0])
 	require.Len(t, statuses, 1)
-	require.Equal(t, "test-agent", statuses[0].AgentFlavor)
-	require.Equal(t, "Test Agent", statuses[0].AgentDisplayName)
+	require.Equal(t, "test-agent", statuses[0].Flavor)
+	require.Equal(t, "Test Agent", statuses[0].DisplayName)
 	require.Equal(t, "test_value", statuses[0].MainSection["test_key"])
 }
 
@@ -125,20 +125,20 @@ func TestStatusProvider(t *testing.T) {
 
 	require.Len(t, statusData, 2)
 
-	registeredAgents, ok := statusData["registeredAgents"].([]*remoteagent.RegisteredAgent)
+	registeredAgents, ok := statusData["registeredAgents"].([]remoteagent.RegisteredAgent)
 	if !ok {
 		t.Fatalf("registeredAgents is not a slice of RegisteredAgent")
 	}
 	require.Len(t, registeredAgents, 1)
 	require.Equal(t, "Test Agent", registeredAgents[0].DisplayName)
 
-	registeredAgentStatuses, ok := statusData["registeredAgentStatuses"].([]*remoteagent.StatusData)
+	registeredAgentStatuses, ok := statusData["registeredAgentStatuses"].([]remoteagent.StatusData)
 	if !ok {
 		t.Fatalf("registeredAgentStatuses is not a slice of StatusData")
 	}
 	require.Len(t, registeredAgentStatuses, 1)
-	require.Equal(t, "test-agent", registeredAgentStatuses[0].AgentFlavor)
-	require.Equal(t, "1234", registeredAgentStatuses[0].AgentPID)
-	require.Equal(t, "Test Agent", registeredAgentStatuses[0].AgentDisplayName)
+	require.Equal(t, "test-agent", registeredAgentStatuses[0].Flavor)
+	require.Equal(t, "1234", registeredAgentStatuses[0].PID)
+	require.Equal(t, "Test Agent", registeredAgentStatuses[0].DisplayName)
 	require.Equal(t, "test_value", registeredAgentStatuses[0].MainSection["test_key"])
 }

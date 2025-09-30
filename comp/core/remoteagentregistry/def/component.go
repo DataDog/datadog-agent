@@ -13,6 +13,6 @@ package remoteagentregistry
 type Component interface {
 	RegisterRemoteAgent(req *RegistrationData) (sessionID string, recommendedRefreshIntervalSecs uint32, err error)
 	RefreshRemoteAgent(sessionID string) bool
-	GetRegisteredAgents() []*RegisteredAgent
-	GetRegisteredAgentStatuses() []*StatusData
+	GetRegisteredAgents() []RegisteredAgent
+	GetRegisteredAgentStatuses() []StatusData
 }

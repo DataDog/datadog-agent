@@ -7,6 +7,7 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -44,12 +45,8 @@ var remoteAgentServices = map[remoteAgentServiceName]struct{}{
 }
 
 type remoteAgentClient struct {
-	// session variables
-	lastSeen time.Time
-
 	// agent variables
-	remoteagentregistry.RegistrationData
-	agentSanitizedDisplayName string
+	remoteagentregistry.RegisteredAgent
 
 	// health tracking
 	unhealthy bool // marks agent for removal during next cleanup cycle
@@ -75,9 +72,14 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 	}
 
 	client := &remoteAgentClient{
-		RegistrationData:          *registration,
-		agentSanitizedDisplayName: sanitizeString(registration.AgentDisplayName),
-		lastSeen:                  time.Now(),
+		RegisteredAgent: remoteagentregistry.RegisteredAgent{
+			Flavor:               registration.AgentFlavor,
+			DisplayName:          registration.AgentDisplayName,
+			SanitizedDisplayName: sanitizeString(registration.AgentDisplayName),
+			PID:                  registration.AgentPID,
+			LastSeen:             time.Now(),
+			SessionID:            uuid.New().String(),
+		},
 		// gRPC relative
 		ServerReflectionClient:  grpc_reflection_v1.NewServerReflectionClient(conn),
 		conn:                    conn,
@@ -85,9 +87,6 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 		FlareProviderClient:     pb.NewFlareProviderClient(conn),
 		TelemetryProviderClient: pb.NewTelemetryProviderClient(conn),
 	}
-
-	// Generate a unique sessionID
-	client.RegistrationData.SessionID = uuid.New().String()
 
 	// retrieve remote Agent exposed services via gRPC reflection
 	services, err := client.fetchSupportedServices()
@@ -141,16 +140,16 @@ func (rac *remoteAgentClient) fetchSupportedServices() ([]remoteAgentServiceName
 func (rac *remoteAgentClient) validateSessionID(responseMetadata metadata.MD) error {
 	sessionIDs := responseMetadata.Get("session_id")
 	if len(sessionIDs) == 0 {
-		return fmt.Errorf("missing session_id in response metadata")
+		return errors.New("missing session_id in response metadata")
 	}
 
 	if len(sessionIDs) > 1 {
-		return fmt.Errorf("multiple session_id values in response metadata")
+		return errors.New("multiple session_id values in response metadata")
 	}
 
 	receivedSessionID := sessionIDs[0]
-	if receivedSessionID != rac.SessionID {
-		return fmt.Errorf("session_id mismatch: expected %s, got %s", rac.SessionID, receivedSessionID)
+	if receivedSessionID != rac.RegisteredAgent.SessionID {
+		return fmt.Errorf("session_id mismatch: expected %s, got %s", rac.RegisteredAgent.SessionID, receivedSessionID)
 	}
 
 	return nil
@@ -176,7 +175,7 @@ func callAgentsForService[PbType any, StructuredType any](
 	registry *remoteAgentRegistry,
 	service remoteAgentServiceName,
 	grpcCall func(context.Context, *remoteAgentClient, ...grpc.CallOption) (PbType, error),
-	resultProcessor func(*remoteAgentClient, PbType, error) StructuredType,
+	resultProcessor func(remoteagentregistry.RegisteredAgent, PbType, error) StructuredType,
 ) []StructuredType {
 	queryTimeout := registry.conf.GetDuration("remote_agent_registry.query_timeout")
 
@@ -216,7 +215,7 @@ func callAgentsForService[PbType any, StructuredType any](
 				wg.Done()
 				registry.telemetryStore.remoteAgentActionDuration.Observe(
 					time.Since(start).Seconds(),
-					remoteAgent.agentSanitizedDisplayName,
+					remoteAgent.RegisteredAgent.SanitizedDisplayName,
 					service,
 				)
 			}()
@@ -226,13 +225,13 @@ func callAgentsForService[PbType any, StructuredType any](
 			resp, err := grpcCall(ctx, remoteAgent, grpc.WaitForReady(true), grpc.Header(&responseHeader))
 
 			if err != nil {
-				registry.telemetryStore.remoteAgentActionError.Inc(remoteAgent.agentSanitizedDisplayName, service, grpcErrorMessage(err))
+				registry.telemetryStore.remoteAgentActionError.Inc(remoteAgent.RegisteredAgent.SanitizedDisplayName, service, grpcErrorMessage(err))
 			} else {
 				// Validate session ID if no error occurred
 				if validationErr := remoteAgent.validateSessionID(responseHeader); validationErr != nil {
 					// wrap error in gRPC status
 					err = validationErr
-					registry.telemetryStore.remoteAgentActionError.Inc(remoteAgent.agentSanitizedDisplayName, service, sessionIDMismatch)
+					registry.telemetryStore.remoteAgentActionError.Inc(remoteAgent.RegisteredAgent.SanitizedDisplayName, service, sessionIDMismatch)
 
 					// Mark agent as unhealthy for removal during next cleanup cycle
 					remoteAgent.unhealthy = true
@@ -241,7 +240,7 @@ func callAgentsForService[PbType any, StructuredType any](
 
 			// Append the result to the result slice
 			resultLock.Lock()
-			resultSlice = append(resultSlice, resultProcessor(remoteAgent, resp, err))
+			resultSlice = append(resultSlice, resultProcessor(remoteAgent.RegisteredAgent, resp, err))
 			resultLock.Unlock()
 		}()
 	}

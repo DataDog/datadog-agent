@@ -4,18 +4,20 @@ No remote agents registered
 {{ len .registeredAgents }} remote agent(s) registered:
 {{- range $agent := .registeredAgents }}
 
-  {{ $agent.DisplayName }}
+  Name: {{ $agent.DisplayName }}
+  Flavor: {{ $agent.Flavor }}
+  Session ID: {{ $agent.SessionID }}
   {{ printDashes $agent.DisplayName "-" }}
-  Last seen: {{ formatUnixTime $agent.LastSeenUnix }} ({{ formatUnixTimeSince $agent.LastSeenUnix }})
+  Last seen: {{ formatUnixTimeSince $agent.LastSeen }}
 {{- end }}
 {{ end }}
 
 {{- with .registeredAgentStatuses }}
 {{- range $agentStatus := . }}
 {{- with $agentStatus }}
-{{ printDashes .AgentDisplayName "=" }}
-{{ .AgentDisplayName }}
-{{ printDashes .AgentDisplayName "=" }}
+{{ printDashes .DisplayName "=" }}
+{{ .DisplayName }}
+{{ printDashes .DisplayName "=" }}
 {{ if .FailureReason }}
 {{ .FailureReason }}
 {{ end }}
