@@ -14,6 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
 
+const (
+	// enableBackendTraceStatsEnvVar is the environment variable to enable backend trace stats computation
+	// This computation is known to be incorrect since it does not account for traces that get
+	// sampled out in the agent and don't get sent to the backend.
+	enableBackendTraceStatsEnvVar = "DD_SERVERLESS_INIT_ENABLE_BACKEND_TRACE_STATS"
+)
+
 // TagPair contains a pair of tag key and value
 //
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -56,7 +63,12 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 	maps.Copy(tagsMap, metadata)
 
 	tagsMap[versionMode] = tags.GetExtensionVersion()
-	tagsMap[tags.ComputeStatsKey] = tags.ComputeStatsValue
+	// Only set compute_stats tag if explicitly enabled. This is known to be
+	// incorrect since it does not include traces that get sampled out in the
+	// agent and don't get sent to the backend.
+	if os.Getenv(enableBackendTraceStatsEnvVar) == "true" {
+		tagsMap[tags.ComputeStatsKey] = tags.ComputeStatsValue
+	}
 
 	return tagsMap
 }

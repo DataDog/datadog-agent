@@ -404,3 +404,4 @@ func TestCleanRuntimeInvalid(t *testing.T) {
 	}
 	assert.Equal(t, "", cleanRuntimes(runtimes))
 }
+
