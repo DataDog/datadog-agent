@@ -851,3 +851,61 @@ probes:
   where:
     methodName: main.testStructWithCyclicMaps
   captureSnapshot: true
+- id: testReturnsInt
+  type: LOG_PROBE
+  where:
+    methodName: main.testReturnsInt
+  captureSnapshot: true
+- id: testReturnsIntPointer
+  type: LOG_PROBE
+  where:
+    methodName: main.testReturnsIntPointer
+  captureSnapshot: true
+- id: testReturnsIntAndFloat
+  type: LOG_PROBE
+  where:
+    methodName: main.testReturnsIntAndFloat
+  captureSnapshot: true
+- id: testReturnsError
+  type: LOG_PROBE
+  where:
+    methodName: main.testReturnsError
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
+- id: testReturnsAnyAndError
+  type: LOG_PROBE
+  where:
+    methodName: main.testReturnsAnyAndError
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
+- id: testReturnsAny
+  type: LOG_PROBE
+  where:
+    methodName: main.testReturnsAny
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
+- id: testReturnsInterface
+  type: LOG_PROBE
+  where:
+    methodName: main.testReturnsInterface
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
+- id: testNamedReturn
+  type: LOG_PROBE
+  where:
+    methodName: main.testNamedReturn
+  captureSnapshot: true
+- id: testMultipleNamedReturn
+  type: LOG_PROBE
+  where:
+    methodName: main.testMultipleNamedReturn
+  captureSnapshot: true
+- id: testSomeNamedReturn
+  type: LOG_PROBE
+  where:
+    methodName: main.testSomeNamedReturn
+  captureSnapshot: true
