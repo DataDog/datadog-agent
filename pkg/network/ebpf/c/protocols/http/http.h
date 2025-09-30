@@ -12,6 +12,10 @@
 #include "protocols/http/maps.h"
 #include "protocols/http/usm-events.h"
 #include "protocols/tls/https.h"
+#include "protocols/direct_consumer.h"
+
+// Initialize DirectConsumer utilities for HTTP protocol
+USM_DIRECT_CONSUMER_INIT(http, http_event_t, http_batch_events)
 
 static __always_inline int http_responding(http_transaction_t *http) {
     return (http != NULL && http->response_status_code != 0);
@@ -33,35 +37,6 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
     status_code += (buffer[HTTP_STATUS_OFFSET+2]-'0') * 1;
     http->response_status_code = status_code;
     log_debug("http_begin_response: htx=%p status=%d", http, status_code);
-}
-
-static __always_inline __u64 get_ringbuf_flags(size_t data_size) {
-    __u64 ringbuffer_wakeup_size = 0;
-    LOAD_CONSTANT("ringbuffer_wakeup_size", ringbuffer_wakeup_size);
-    if (ringbuffer_wakeup_size == 0) {
-        return 0;
-    }
-    // Query the amount of data waiting to be consumed in the ring buffer
-    __u64 pending_data = bpf_ringbuf_query(&http_batch_events, DD_BPF_RB_AVAIL_DATA);
-    return (pending_data + data_size) >= ringbuffer_wakeup_size ? DD_BPF_RB_FORCE_WAKEUP : DD_BPF_RB_NO_WAKEUP;
-}
-
-static __always_inline void http_output_event(void *ctx, http_event_t *event) {
-    __u64 ringbuffers_enabled = 0;
-    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
-
-    long perf_ret;
-    if (ringbuffers_enabled) {
-        perf_ret = bpf_ringbuf_output_with_telemetry(&http_batch_events, event, sizeof(http_event_t), get_ringbuf_flags(sizeof(http_event_t)));
-    } else {
-        u32 cpu = bpf_get_smp_processor_id();
-        perf_ret = bpf_perf_event_output_with_telemetry(ctx, &http_batch_events, cpu, event, sizeof(http_event_t));
-    }
-
-    if (perf_ret < 0) {
-        log_debug("http flush error: %ld", perf_ret);
-        return;
-    }
 }
 
 static __always_inline void http_batch_enqueue_wrapper(void *ctx, conn_tuple_t *tuple, http_transaction_t *http) {
