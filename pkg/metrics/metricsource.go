@@ -332,6 +332,7 @@ const (
 	MetricSourceBentoMl
 	MetricSourceHuggingFaceTgi
 	MetricSourceIbmSpectrumLsf
+	MetricSourceDatadogOperator
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -1001,6 +1002,8 @@ func (ms MetricSource) String() string {
 		return "hugging_face_tgi"
 	case MetricSourceIbmSpectrumLsf:
 		return "ibm_spectrum_lsf"
+	case MetricSourceDatadogOperator:
+		return "datadog_operator"
 	case MetricSourceOpenTelemetryCollectorUnknown:
 		return "opentelemetry_collector_unknown"
 	case MetricSourceOpenTelemetryCollectorDockerstatsReceiver:
@@ -1699,6 +1702,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceHuggingFaceTgi
 	case "ibm_spectrum_lsf":
 		return MetricSourceIbmSpectrumLsf
+	case "datadog_operator":
+		return MetricSourceDatadogOperator
 	case "opentelemetry_collector_unknown":
 		return MetricSourceOpenTelemetryCollectorUnknown
 	case "opentelemetry_collector_dockerstatsreceiver":
