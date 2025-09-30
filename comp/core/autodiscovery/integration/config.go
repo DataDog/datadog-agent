@@ -107,6 +107,9 @@ type Config struct {
 	// LogsExcluded is whether logs collection is disabled (set by container
 	// listeners only)
 	LogsExcluded bool `json:"logs_excluded"` // (include in digest: false)
+
+	// ConfigFormat is the raw config format detected when parsing the config file
+	ConfigFormat []byte `json:"-"` // (include in digest: false)
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data

@@ -15,6 +15,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -131,6 +132,13 @@ func TestReadConfigFiles(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 18, len(configs))
 
+	file, err := os.ReadFile("tests/advanced_ad.yaml")
+	require.Nil(t, err)
+	cfgFormat := configFormat{}
+	require.Nil(t, yaml.Unmarshal(file, &cfgFormat))
+	yamlFile, err := yaml.Marshal(cfgFormat)
+	require.Nil(t, err)
+
 	expectedConfig1 := integration.Config{
 		Name: "advanced_ad",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
@@ -144,8 +152,16 @@ func TestReadConfigFiles(t *testing.T) {
 		Instances: []integration.Data{
 			integration.Data("foo: bar\n"),
 		},
-		Source: "file:tests/advanced_ad.yaml",
+		Source:       "file:tests/advanced_ad.yaml",
+		ConfigFormat: yamlFile,
 	}
+
+	file, err = os.ReadFile("tests/advanced_ad_kube_endpoints.yaml")
+	require.Nil(t, err)
+	cfgFormat = configFormat{}
+	require.Nil(t, yaml.Unmarshal(file, &cfgFormat))
+	yamlFile, err = yaml.Marshal(cfgFormat)
+	require.Nil(t, err)
 
 	expectedConfig2 := integration.Config{
 		Name: "advanced_ad_kube_endpoints",
@@ -163,7 +179,8 @@ func TestReadConfigFiles(t *testing.T) {
 		Instances: []integration.Data{
 			integration.Data("foo: bar\n"),
 		},
-		Source: "file:tests/advanced_ad_kube_endpoints.yaml",
+		Source:       "file:tests/advanced_ad_kube_endpoints.yaml",
+		ConfigFormat: yamlFile,
 	}
 
 	configs, _, err = ReadConfigFiles(WithAdvancedADOnly)

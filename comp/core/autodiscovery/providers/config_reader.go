@@ -27,16 +27,16 @@ import (
 )
 
 type configFormat struct {
-	ADIdentifiers           []string                           `yaml:"ad_identifiers"`
-	AdvancedADIdentifiers   []integration.AdvancedADIdentifier `yaml:"advanced_ad_identifiers"`
-	ClusterCheck            bool                               `yaml:"cluster_check"`
-	InitConfig              interface{}                        `yaml:"init_config"`
-	MetricConfig            interface{}                        `yaml:"jmx_metrics"`
-	LogsConfig              interface{}                        `yaml:"logs"`
-	Instances               []integration.RawMap
-	DockerImages            []string `yaml:"docker_images"`             // Only imported for deprecation warning
-	IgnoreAutodiscoveryTags bool     `yaml:"ignore_autodiscovery_tags"` // Use to ignore tags coming from autodiscovery
-	CheckTagCardinality     string   `yaml:"check_tag_cardinality"`     // Use to set the tag cardinality override for the check
+	ADIdentifiers           []string                           `yaml:"ad_identifiers,omitempty"`
+	AdvancedADIdentifiers   []integration.AdvancedADIdentifier `yaml:"advanced_ad_identifiers,omitempty"`
+	ClusterCheck            bool                               `yaml:"cluster_check,omitempty"`
+	InitConfig              interface{}                        `yaml:"init_config,omitempty"`
+	MetricConfig            interface{}                        `yaml:"jmx_metrics,omitempty"`
+	LogsConfig              interface{}                        `yaml:"logs,omitempty"`
+	Instances               []integration.RawMap               `yaml:"instances,omitempty"`
+	DockerImages            []string                           `yaml:"docker_images,omitempty"`             // Only imported for deprecation warning
+	IgnoreAutodiscoveryTags bool                               `yaml:"ignore_autodiscovery_tags,omitempty"` // Use to ignore tags coming from autodiscovery
+	CheckTagCardinality     string                             `yaml:"check_tag_cardinality,omitempty"`     // Use to set the tag cardinality override for the check
 }
 
 type configPkg struct {
@@ -378,6 +378,12 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 			return conf, err
 		}
 		log.Warnf("reading config file %v: %v\n", fpath, strictErr)
+	}
+
+	// Marshal the config format to a []byte
+	conf.ConfigFormat, err = yaml.Marshal(cf)
+	if err != nil {
+		log.Errorf("Failed to marshal config format: %v", err)
 	}
 
 	// If no valid instances were found & this is neither a metrics file, nor a logs file
