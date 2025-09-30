@@ -135,7 +135,8 @@ Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
 GPUVendor: [nvidia]
 ----------- Resize Policy -----------
-RestartPolicy: CPU: NotRequired, Memory: RestartContainer
+RestartPolicy (CPU): NotRequired
+RestartPolicy (Memory): RestartContainer
 ----------- Allocated Resources -----------
 Name: nvidia.com/gpu, ID: GPU-1234
 Hostname: 
@@ -168,7 +169,6 @@ Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
 ----------- Resize Policy -----------
-RestartPolicy: CPU: , Memory: 
 ----------- Allocated Resources -----------
 Hostname: 
 Network IPs: 
@@ -201,7 +201,8 @@ Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
 GPUVendor: [nvidia]
 ----------- Resize Policy -----------
-RestartPolicy: CPU: NotRequired, Memory: RestartContainer
+RestartPolicy (CPU): NotRequired
+RestartPolicy (Memory): RestartContainer
 ----------- Allocated Resources -----------
 Name: nvidia.com/gpu, ID: GPU-1234
 Hostname: 

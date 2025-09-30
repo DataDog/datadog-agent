@@ -489,11 +489,18 @@ type ContainerResizePolicy struct {
 	MemoryRestartPolicy string
 
 	// Currently, the only supported resourceName values are "cpu" and "memory"
-	// Additionally, these strings are always either "Never" or "OnFailure" (k8s docs)
+	// Additionally, these strings are always either "NotRequired" or "RestartContainer" (k8s docs)
 }
 
 func (crp ContainerResizePolicy) String() string {
-	return fmt.Sprintf("RestartPolicy: CPU: %s, Memory: %s", crp.CPURestartPolicy, crp.MemoryRestartPolicy)
+	var sb strings.Builder
+	if crp.CPURestartPolicy != "" {
+		_, _ = fmt.Fprintln(&sb, "RestartPolicy (CPU):", crp.CPURestartPolicy)
+	}
+	if crp.MemoryRestartPolicy != "" {
+		_, _ = fmt.Fprintln(&sb, "RestartPolicy (Memory):", crp.MemoryRestartPolicy)
+	}
+	return sb.String()
 }
 
 // ContainerAllocatedResource is a resource allocated to a container, consisting of a name and an ID.
@@ -669,7 +676,7 @@ func (c Container) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "----------- Resize Policy -----------")
-		_, _ = fmt.Fprintln(&sb, c.ResizePolicy.String())
+		_, _ = fmt.Fprint(&sb, c.ResizePolicy.String())
 	}
 
 	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
