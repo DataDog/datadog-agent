@@ -2,14 +2,44 @@
 
 ## Build
 
+### Local Build (macOS/Linux native)
+
 ```bash
 # Build with proper agent version (required for Remote Config backend compatibility)
 go build -tags "grpcnotrace serverless otlp" \
-  -ldflags "-X 'github.com/DataDog/datadog-agent/pkg/version.AgentVersion=7.60.0'" \
+  -ldflags "-s -w -X 'github.com/DataDog/datadog-agent/pkg/version.AgentVersion=7.60.0'" \
   -o bin/agentless ./cmd/agentless
 ```
 
 **Important**: The agent version must be >= 7.39.1 to satisfy the Remote Config backend constraints.
+
+### Cross-Compilation for Linux (from macOS)
+
+The agentless agent uses CGo dependencies (e.g., `zstd`), which require a C compiler for the target platform. Use Docker for cross-compilation:
+
+```bash
+# Build for Linux AMD64 (with UPX compression)
+docker run --rm --platform linux/amd64 -v "$PWD":/workspace -w /workspace golang:1.24 bash -c '
+  go build -tags "grpcnotrace serverless otlp" \
+    -ldflags "-s -w -X '\''github.com/DataDog/datadog-agent/pkg/version.AgentVersion=7.60.0'\''" \
+    -o bin/agentless-linux-amd64 ./cmd/agentless && \
+  apt-get update -qq && apt-get install -y -qq upx-ucl > /dev/null 2>&1 && \
+  upx --best --lzma bin/agentless-linux-amd64
+'
+
+# Build for Linux ARM64 (with UPX compression)
+docker run --rm --platform linux/arm64 -v "$PWD":/workspace -w /workspace golang:1.24 bash -c '
+  go build -tags "grpcnotrace serverless otlp" \
+    -ldflags "-s -w -X '\''github.com/DataDog/datadog-agent/pkg/version.AgentVersion=7.60.0'\''" \
+    -o bin/agentless-linux-arm64 ./cmd/agentless && \
+  apt-get update -qq && apt-get install -y -qq upx-ucl > /dev/null 2>&1 && \
+  upx --best --lzma bin/agentless-linux-arm64
+'
+```
+
+The `-s -w` ldflags strip debug symbols (reducing binary size before compression), and UPX applies additional compression.
+
+**Note**: The project requires Go >= 1.24.7 (see `go.work`).
 
 ## Run
 
