@@ -95,7 +95,7 @@ func (l *Launcher) Stop() {
 		delete(l.tailers, tailer.Identifier())
 	}
 	stopper.Stop()
-	l.publisherMetadataCache.Close()
+	l.publisherMetadataCache.Flush()
 }
 
 // sanitizedConfig sets default values for the config

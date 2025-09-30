@@ -1,9 +1,9 @@
-//go:build windows
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
+
+//go:build windows
 
 package publishermetadatacacheimpl
 
@@ -79,7 +79,7 @@ func TestPublisherMetadataCache_Close_CleansUpAllHandles(t *testing.T) {
 	_, found2 := cache.cache.Get("Publisher2")
 	assert.True(t, found2)
 
-	cache.Close()
+	cache.Flush()
 
 	// Verify cache is empty after close
 	_, found1 = cache.cache.Get("Publisher1")

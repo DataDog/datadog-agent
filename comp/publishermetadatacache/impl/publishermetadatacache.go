@@ -1,9 +1,9 @@
-//go:build windows
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
+
+//go:build windows
 
 // Package publishermetadatacacheimpl implements the publishermetadatacache component interface.
 package publishermetadatacacheimpl
@@ -47,19 +47,18 @@ func New(api evtapi.API) publishermetadatacache.Component {
 	// Only using expiration for invalid handles to retry creating the handle once it expires.
 	// Ignore expiration for valid handles.
 	c := cache.New(5*time.Minute, 0)
-	
+
 	c.OnEvicted(func(_ string, value interface{}) {
 		if handle, ok := value.(evtapi.EventPublisherMetadataHandle); ok {
 			evtapi.EvtClosePublisherMetadata(api, handle)
 		}
 	})
-	
+
 	return &publisherMetadataCache{
 		cache:  c,
 		evtapi: api,
 	}
 }
-
 
 // NewComponent creates a new publishermetadatacache component
 func NewComponent(reqs Requires) Provides {
@@ -68,7 +67,7 @@ func NewComponent(reqs Requires) Provides {
 	// Register cleanup hook to close all handles when component shuts down
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
-			cache.Close()
+			cache.Flush()
 			return nil
 		},
 	})
@@ -77,7 +76,6 @@ func NewComponent(reqs Requires) Provides {
 		Comp: cache,
 	}
 }
-
 
 // Get retrieves a cached EventPublisherMetadataHandle for the given publisher name.
 // If not found in cache, it calls EvtOpenPublisherMetadata and caches the result.
@@ -100,7 +98,7 @@ func (c *publisherMetadataCache) Get(publisherName string) evtapi.EventPublisher
 		// Cache the invalid handle and retry creating the handle once it expires from the cache.
 		handle = InvalidHandle
 	}
-	
+
 	c.cache.SetDefault(publisherName, handle)
 	return handle
 }
@@ -125,7 +123,7 @@ func (c *publisherMetadataCache) FormatMessage(publisherName string, event evtap
 	return message
 }
 
-// Close cleans up all cached handles when the component shuts down
-func (c *publisherMetadataCache) Close() {
+// Flush cleans up all cached handles when the component shuts down
+func (c *publisherMetadataCache) Flush() {
 	c.cache.Flush()
 }

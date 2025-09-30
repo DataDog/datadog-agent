@@ -14,7 +14,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
-	publishermetadatacachemock "github.com/DataDog/datadog-agent/comp/publishermetadatacache/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
@@ -26,7 +25,6 @@ import (
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		publishermetadatacachemock.Module(),
 		fx.Provide(newMock),
 		fx.Provide(func(m agent.Mock) agent.Component { return m }))
 }
