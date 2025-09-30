@@ -180,9 +180,9 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v77445509-0f6a3ac2
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v76200931-ab3026c3
+  CI_IMAGE_WIN_LTSC2022_X64: v77445509-0f6a3ac2
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v76200931-ab3026c3
+  CI_IMAGE_WIN_LTSC2025_X64: v77445509-0f6a3ac2
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -526,7 +526,7 @@ workflow:
   - <<: *if_installer_tests
   - <<: *if_auto_e2e_tests
     variables:
-      E2E_OSVERS: $E2E_BRANCH_OSVERS
+      E2E_DESCRIPTORS: $E2E_BRANCH_DESCRIPTORS
 
 .security_agent_change_paths: &security_agent_change_paths
   - pkg/ebpf/**/*

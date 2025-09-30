@@ -113,7 +113,16 @@ func generateIR(
 	programID ir.ProgramID,
 	objFile object.FileWithDwarf,
 	probeDefs []ir.ProbeDefinition,
-) (_ *ir.Program, retErr error) {
+) (ret *ir.Program, retErr error) {
+	defer func() {
+		if retErr != nil {
+			return
+		}
+		if len(ret.Probes) == 0 {
+			retErr = &ir.NoSuccessfulProbesError{Issues: ret.Issues}
+		}
+	}()
+
 	// Ensure deterministic output.
 	slices.SortFunc(probeDefs, func(a, b ir.ProbeDefinition) int {
 		return cmp.Compare(a.GetID(), b.GetID())
@@ -1368,6 +1377,7 @@ func populateEventExpressions(
 		expr := &ir.RootExpression{
 			Name:   variable.Name,
 			Offset: uint32(0),
+			Kind:   ir.RootExpressionKindArgument,
 			Expression: ir.Expression{
 				Type: variable.Type,
 				Operations: []ir.ExpressionOp{

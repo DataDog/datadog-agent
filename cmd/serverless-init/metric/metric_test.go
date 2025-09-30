@@ -71,6 +71,20 @@ func TestAddShutdownMetric(t *testing.T) {
 	assert.Equal(t, metric.Source, metrics.MetricSourceServerless)
 }
 
+func TestAddExtraTags(t *testing.T) {
+	demux := createDemultiplexer(t)
+	mockAgent := serverlessMetrics.ServerlessMetricAgent{
+		Demux: demux,
+	}
+	Add("tagged.metric", 1.0, mockMetricSource, mockAgent, "exit_code:1")
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Equal(t, 0, len(timedMetrics))
+	assert.Equal(t, 1, len(generatedMetrics))
+	metric := generatedMetrics[0]
+	assert.Contains(t, metric.Tags, "exit_code:1")
+	assert.NotContains(t, mockAgent.GetExtraTags(), "exit_code:1")
+}
+
 func TestNilDemuxDoesNotPanic(t *testing.T) {
 	demux := createDemultiplexer(t)
 	mockAgent := serverlessMetrics.ServerlessMetricAgent{

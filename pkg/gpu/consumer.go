@@ -188,8 +188,10 @@ func (c *cudaEventConsumer) Start() {
 	log.Trace("CUDA event consumer started")
 }
 
-func isStreamSpecificEvent(eventType gpuebpf.CudaEventType) bool {
-	return eventType != gpuebpf.CudaEventTypeSetDevice && eventType != gpuebpf.CudaEventTypeVisibleDevicesSet
+func isStreamSpecificEvent(et gpuebpf.CudaEventType) bool {
+	return et != gpuebpf.CudaEventTypeSetDevice &&
+		et != gpuebpf.CudaEventTypeVisibleDevicesSet &&
+		et != gpuebpf.CudaEventTypeSyncDevice
 }
 
 func (c *cudaEventConsumer) handleEvent(header *gpuebpf.CudaEventHeader, dataPtr unsafe.Pointer, dataLen int) error {
@@ -201,7 +203,7 @@ func (c *cudaEventConsumer) handleEvent(header *gpuebpf.CudaEventHeader, dataPtr
 	return c.handleGlobalEvent(header, dataPtr, dataLen)
 }
 
-func handleTypedEvent[K any](c *cudaEventConsumer, handler func(*K), eventType gpuebpf.CudaEventType, data unsafe.Pointer, dataLen int, expectedSize int) error {
+func handleTypedEventErr[K any](c *cudaEventConsumer, handler func(*K) error, eventType gpuebpf.CudaEventType, data unsafe.Pointer, dataLen int, expectedSize int) error {
 	if dataLen != expectedSize {
 		evStr := eventType.String()
 		c.telemetry.eventErrors.Inc(evStr, telemetryEventErrorMismatch)
@@ -209,11 +211,18 @@ func handleTypedEvent[K any](c *cudaEventConsumer, handler func(*K), eventType g
 	}
 
 	typedEvent := (*K)(data)
-
-	handler(typedEvent)
+	if err := handler(typedEvent); err != nil {
+		return err
+	}
 	c.debugCollector.tryRecordEvent(typedEvent)
-
 	return nil
+}
+
+func handleTypedEvent[K any](c *cudaEventConsumer, handler func(*K), eventType gpuebpf.CudaEventType, data unsafe.Pointer, dataLen int, expectedSize int) error {
+	return handleTypedEventErr(c, func(k *K) error {
+		handler(k)
+		return nil
+	}, eventType, data, dataLen, expectedSize)
 }
 
 func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
@@ -254,6 +263,23 @@ func (c *cudaEventConsumer) handleVisibleDevicesSet(vds *gpuebpf.CudaVisibleDevi
 	c.sysCtx.setUpdatedVisibleDevicesEnvVar(int(pid), unix.ByteSliceToString(vds.Devices[:]))
 }
 
+func (c *cudaEventConsumer) handleDeviceSync(event *gpuebpf.CudaSetDeviceEvent) error {
+	streams, err := c.streamHandlers.getActiveDeviceStreams(&event.Header)
+	if err != nil {
+		return fmt.Errorf("cannot get streams for the active device: %w", err)
+	}
+
+	// we reproduce device sync behavior by dispatching a synthetic stream sync
+	// event for all the streams on the TID's active device
+	evt := gpuebpf.CudaSync{Header: event.Header}
+	for _, stream := range streams {
+		evt.Header.Stream_id = stream.metadata.streamID
+		stream.handleSync(&evt)
+	}
+
+	return nil
+}
+
 func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
 	eventType := gpuebpf.CudaEventType(header.Type)
 	switch eventType {
@@ -261,6 +287,8 @@ func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, d
 		return handleTypedEvent(c, c.handleSetDevice, eventType, data, dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
 	case gpuebpf.CudaEventTypeVisibleDevicesSet:
 		return handleTypedEvent(c, c.handleVisibleDevicesSet, eventType, data, dataLen, gpuebpf.SizeofCudaVisibleDevicesSetEvent)
+	case gpuebpf.CudaEventTypeSyncDevice:
+		return handleTypedEventErr(c, c.handleDeviceSync, eventType, data, dataLen, gpuebpf.SizeofCudaSyncDeviceEvent)
 	default:
 		c.telemetry.eventErrors.Inc(telemetryEventTypeUnknown, telemetryEventErrorUnknownType)
 		return fmt.Errorf("unknown event type: %d", header.Type)
