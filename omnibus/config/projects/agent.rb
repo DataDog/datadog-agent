@@ -236,6 +236,11 @@ if do_build
     dependency 'datadog-security-agent-policies'
   end
 
+  # TODO: Publish FIPS builds of ADP to `binaries.ddbuild.io` and pull them in `datadog-agent-data-plane` when FIPS mode is enabled.
+  if not fips_mode? && linux_target?
+    dependency 'datadog-agent-data-plane'
+  end
+
   # this dependency puts few files out of the omnibus install dir and move them
   # in the final destination. This way such files will be listed in the packages
   # manifest and owned by the package manager. This is the only point in the build

@@ -1,26 +1,25 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides: datadog-agent
-# Short-Description: Start and stop datadog agent
-# Description: Datadog Agent
+# Provides: datadog-agent-data-plane
+# Short-Description: Start and stop datadog agent data plane
+# Description: Datadog Agent Data Plane
 # Required-Start: $remote_fs
 # Required-Stop: $remote_fs
-# Should-Start: datadog-agent-data-plane datadog-agent-process datadog-agent-trace datadog-agent-security
-# Should-Stop: datadog-agent-data-plane datadog-agent-process datadog-agent-trace datadog-agent-security
 # Default-Start: 2 3 4 5
 # Default-Stop: 0 1 6
 ### END INIT INFO
 
 . /lib/lsb/init-functions
 
+ETC_DIR="<%= etc_dir %>"
 INSTALL_DIR="<%= install_dir %>"
-AGENTPATH="$INSTALL_DIR/bin/agent/agent"
-PIDFILE="$INSTALL_DIR/run/agent.pid"
-AGENT_ARGS="run -p $PIDFILE"
+AGENTPATH="$INSTALL_DIR/embedded/bin/agent-data-plane"
+PIDFILE="$INSTALL_DIR/run/agent-data-plane.pid"
+AGENT_ARGS="run --config=$ETC_DIR/datadog.yaml --pid=$PIDFILE"
 AGENT_USER="dd-agent"
-NAME="datadog-agent"
-DESC="Datadog Agent"
+NAME="datadog-agent-data-plane"
+DESC="Datadog Agent Data Plane"
 
 
 
@@ -53,8 +52,9 @@ do_start()
 	# on this one.  As a last resort, sleep for some time.
 }
 
+
 #
-# Start the agents and wait for them to be up
+# Start the agent and wait for it to be up
 #
 start_and_wait()
 {
@@ -71,10 +71,6 @@ start_and_wait()
 				if [ "$?" -eq "1" ]; then
 					# We've started up successfully. Exit cleanly
 					log_end_msg 0
-					service datadog-agent-data-plane start
-					service datadog-agent-process start
-					service datadog-agent-trace start
-					service datadog-agent-security start
 					return 0
 				else
 					retries=$(($retries - 1))
@@ -98,28 +94,21 @@ do_stop()
 	#   1 if daemon was already stopped
 	#   2 if daemon could not be stopped
 	#   other if a failure occurred
-	start-stop-daemon --stop --quiet --retry=30 --pidfile $PIDFILE --user $AGENT_USER --startas $AGENTPATH
+	start-stop-daemon --stop --quiet --retry=30 --pidfile $PIDFILE --user $AGENT_USER --exec $AGENTPATH
 	RETVAL="$?"
 	rm -f $PIDFILE
 	return $RETVAL
 }
 
 #
-# Stop the agents and wait for them to be down
+# Stop the agent and wait for it to be down
 #
 stop_and_wait()
 {
 	log_daemon_msg "Stopping $DESC" "$NAME"
 	do_stop
 	case "$?" in
-		0|1)
-			log_end_msg 0
-			service datadog-agent-data-plane stop
-			service datadog-agent-process stop
-			service datadog-agent-trace stop
-			service datadog-agent-security stop
-			return 0
-			;;
+		0|1) log_end_msg 0 ;;
 		*) log_end_msg 1 ;; # Failed to stop
 	esac
 }
@@ -137,7 +126,7 @@ case "$1" in
 
 		start_and_wait
 
-			;;
+		;;
 
 	stop)
 		if init_is_upstart; then
