@@ -26,8 +26,9 @@ type SketchSeries struct {
 	Source     MetricSource         `json:"-"` // This is only used by api V2
 }
 
-func (ss *SketchSeries) GetName() string {
-	return ss.Name
+// GetName returns the name of the SketchSeries
+func (sl *SketchSeries) GetName() string {
+	return sl.Name
 }
 
 // String returns the JSON representation of a SketchSeries as a string
