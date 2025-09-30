@@ -63,7 +63,7 @@ func TestAgentWindowsSuite(t *testing.T) {
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
 				),
-				awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsDefault), ec2.WithInstanceType("t3.xlarge")),
+				awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
 			),
 		),
 	)
