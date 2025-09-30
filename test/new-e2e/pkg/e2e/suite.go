@@ -238,6 +238,8 @@ func (bs *BaseSuite[Env]) EventuallyWithExponentialBackoff(condition func() erro
 	bs.Suite.T().Helper()
 
 	err := backoff.Retry(condition, backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(5*time.Second),
+		backoff.WithMultiplier(2),
 		backoff.WithMaxInterval(maxInterval),
 		backoff.WithMaxElapsedTime(maxElapsedTime),
 	))
