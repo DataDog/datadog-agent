@@ -44,8 +44,6 @@ type Daemon struct {
 
 	TraceAgent trace.ServerlessTraceAgent
 
-	ColdStartCreator *trace.ColdStartSpanCreator
-
 	OTLPAgent *otlp.ServerlessOTLPAgent
 
 	// lastInvocations stores last invocation times to be able to compute the
@@ -223,11 +221,6 @@ func (d *Daemon) SetOTLPAgent(otlpAgent *otlp.ServerlessOTLPAgent) {
 	d.OTLPAgent = otlpAgent
 }
 
-//nolint:revive // TODO(SERV) Fix revive linter
-func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
-	d.ColdStartCreator = creator
-}
-
 // SetFlushStrategy sets the flush strategy to use.
 func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) {
 	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.GetFlushStrategy())
@@ -354,10 +347,6 @@ func (d *Daemon) Stop() {
 
 	if d.MetricAgent != nil {
 		d.MetricAgent.Stop()
-	}
-
-	if d.ColdStartCreator != nil {
-		d.ColdStartCreator.Stop()
 	}
 
 	if d.OTLPAgent != nil {

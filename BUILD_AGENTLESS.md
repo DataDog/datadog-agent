@@ -6,12 +6,15 @@
 
 ```bash
 # Build with proper agent version (required for Remote Config backend compatibility)
-go build -tags "grpcnotrace serverless otlp" \
+go build -tags "grpcnotrace serverless zlib zstd" \
   -ldflags "-s -w -X 'github.com/DataDog/datadog-agent/pkg/version.AgentVersion=7.60.0'" \
   -o bin/agentless ./cmd/agentless
 ```
 
-**Important**: The agent version must be >= 7.39.1 to satisfy the Remote Config backend constraints.
+**Important**: 
+- The agent version must be >= 7.39.1 to satisfy the Remote Config backend constraints
+- OTLP support has been **removed** to reduce binary size by ~21-22% (saves ~7MB uncompressed, ~1.6MB compressed)
+- Build tags `zlib` and `zstd` are **required** for metrics and logs compression support
 
 ### Cross-Compilation for Linux (from macOS)
 
@@ -20,7 +23,7 @@ The agentless agent uses CGo dependencies (e.g., `zstd`), which require a C comp
 ```bash
 # Build for Linux AMD64 (with UPX compression)
 docker run --rm --platform linux/amd64 -v "$PWD":/workspace -w /workspace golang:1.24 bash -c '
-  go build -tags "grpcnotrace serverless otlp" \
+  go build -tags "grpcnotrace serverless zlib zstd" \
     -ldflags "-s -w -X '\''github.com/DataDog/datadog-agent/pkg/version.AgentVersion=7.60.0'\''" \
     -o bin/agentless-linux-amd64 ./cmd/agentless && \
   apt-get update -qq && apt-get install -y -qq upx-ucl > /dev/null 2>&1 && \
@@ -29,7 +32,7 @@ docker run --rm --platform linux/amd64 -v "$PWD":/workspace -w /workspace golang
 
 # Build for Linux ARM64 (with UPX compression)
 docker run --rm --platform linux/arm64 -v "$PWD":/workspace -w /workspace golang:1.24 bash -c '
-  go build -tags "grpcnotrace serverless otlp" \
+  go build -tags "grpcnotrace serverless zlib zstd" \
     -ldflags "-s -w -X '\''github.com/DataDog/datadog-agent/pkg/version.AgentVersion=7.60.0'\''" \
     -o bin/agentless-linux-arm64 ./cmd/agentless && \
   apt-get update -qq && apt-get install -y -qq upx-ucl > /dev/null 2>&1 && \
@@ -37,7 +40,22 @@ docker run --rm --platform linux/arm64 -v "$PWD":/workspace -w /workspace golang
 '
 ```
 
-The `-s -w` ldflags strip debug symbols (reducing binary size before compression), and UPX applies additional compression.
+**Optimizations:**
+- `-s -w` ldflags strip debug symbols (reduces binary size before compression)
+- UPX applies LZMA compression (73-77% compression ratio)
+- `otlp` build tag removed (saves 21-22% binary size)
+- `zlib` and `zstd` tags included (adds ~10-11% for full metrics/logs support)
+
+**Final Sizes (Full Telemetry: Traces + Metrics + Logs):**
+- Linux AMD64: **6.8 MB** (compressed) / 26 MB (uncompressed)
+- Linux ARM64: **5.6 MB** (compressed) / 24 MB (uncompressed)
+- macOS ARM64: **24 MB** (no UPX available)
+
+**Capability Comparison:**
+- **Agentless Agent**: 6.8 MB (traces + metrics + logs)
+- **Traces-only build**: 6.2 MB (traces only, no metrics/logs)
+- **Standard Agent**: 100+ MB (full agent with all integrations)
+- **Size overhead**: Metrics + Logs add only 0.6-0.7 MB (10-11%)
 
 **Note**: The project requires Go >= 1.24.7 (see `go.work`).
 
@@ -49,14 +67,36 @@ DD_API_KEY=your_api_key DD_LOG_LEVEL=debug ./bin/agentless
 
 ## Features
 
-- ✅ Standalone trace agent with embedded remote configuration service
-- ✅ No IPC dependency on main Datadog agent  
-- ✅ Origin tag set to "agentless" instead of "lambda"
-- ✅ Trace collection and APM data forwarding
-- ✅ Debug logging with `DD_LOG_LEVEL=debug`
-- ✅ Configuration via `datadog.yaml` or environment variables
-- ✅ **UDS/Named Pipe by default** - TCP listener disabled (`DD_APM_RECEIVER_PORT=0`)
-- ✅ **Default socket path**: `/tmp/datadog_libagent.socket` (Unix) or `\\.\pipe\datadog-libagent` (Windows)
+- ✅ **Full observability**: Traces + Metrics + Logs with embedded remote configuration
+- ✅ **No IPC dependency** on main Datadog agent  
+- ✅ **Origin tag** set to "agentless" instead of "lambda"
+- ✅ **Debug logging** with `DD_LOG_LEVEL=debug`
+- ✅ **Configuration** via `datadog.yaml` or environment variables
+
+### Default Transport Configuration
+
+**Unix Domain Sockets (UDS) / Named Pipes** are used by default for better performance and security:
+
+**APM Traces:**
+- Unix/Linux/macOS: `/tmp/datadog_libagent.socket`
+- Windows: `\\.\pipe\datadog-libagent`
+- TCP port: **disabled** (set to `0`)
+
+**DogStatsD Metrics:**
+- Unix/Linux/macOS: `/tmp/datadog_dogstatsd.socket`
+- Windows: `\\.\pipe\datadog-dogstatsd`
+- UDP port: **disabled** (set to `0`)
+
+**To enable network ports instead:**
+```bash
+# Enable TCP for traces
+export DD_APM_RECEIVER_PORT=8126
+export DD_APM_RECEIVER_SOCKET=""
+
+# Enable UDP for metrics
+export DD_DOGSTATSD_PORT=8125
+export DD_DOGSTATSD_SOCKET=""
+```
 
 ## Configuration
 

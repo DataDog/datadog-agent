@@ -13,38 +13,25 @@ import (
 )
 
 const (
-	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
-	ddOriginTagName    = "_dd.origin"
-	ddOriginTagValue   = "agentless"
+	ddOriginTagName  = "_dd.origin"
+	ddOriginTagValue = "agentless"
 )
 
 type spanModifier struct {
-	tags           map[string]string
-	lambdaSpanChan chan<- *pb.Span
-	//nolint:revive // TODO(SERV) Fix revive linter
-	coldStartSpanId uint64
-	ddOrigin        string
+	tags     map[string]string
+	ddOrigin string
 }
 
 // ModifySpan applies extra logic to the given span
 func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
-	if span.Service == "aws.lambda" {
-		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
-		if s.tags["service"] != "" {
-			span.Service = s.tags["service"]
-		}
-		if s.lambdaSpanChan != nil && span.Name == "aws.lambda" {
-			s.lambdaSpanChan <- span
-		}
+	// Apply service name override if configured
+	if s.tags["service"] != "" && span.Service == "" {
+		span.Service = s.tags["service"]
 	}
 
 	// ensure all spans have tag _dd.origin in addition to span.Origin
 	if origin := span.Meta[ddOriginTagName]; origin == "" {
 		traceutil.SetMeta(span, ddOriginTagName, s.ddOrigin)
-	}
-
-	if span.Name == "aws.lambda.load" {
-		span.ParentID = s.coldStartSpanId
 	}
 
 	if inferredspan.CheckIsInferredSpan(span) {

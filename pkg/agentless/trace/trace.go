@@ -21,11 +21,11 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
+	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/agentless/trace/modifier"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/agentless/trace/modifier"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -102,8 +102,6 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 type StartServerlessTraceAgentArgs struct {
 	Enabled             bool
 	LoadConfig          Load
-	LambdaSpanChan      chan<- *pb.Span
-	ColdStartSpanID     uint64
 	AzureServerlessTags string
 	FunctionTags        string
 	RCService           *remoteconfig.CoreAgentService
@@ -132,13 +130,10 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			tc.AzureServerlessTags = args.AzureServerlessTags
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 			ta.SpanModifier = &spanModifier{
-				coldStartSpanId: args.ColdStartSpanID,
-				lambdaSpanChan:  args.LambdaSpanChan,
-				ddOrigin:        getDDOrigin(),
+				ddOrigin: getDDOrigin(),
 			}
 			ta.TracerPayloadModifier = serverlessmodifier.NewTracerPayloadModifier(args.FunctionTags)
 
-			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			startTraceAgentConfigEndpoint(args.RCService, tc)
 			go ta.Run()
 			return &serverlessTraceAgent{

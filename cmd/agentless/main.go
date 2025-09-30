@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,14 +19,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/agentless/apikey"
 	"github.com/DataDog/datadog-agent/pkg/agentless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/agentless/debug"
+	"github.com/DataDog/datadog-agent/pkg/agentless/metrics"
 	serverlessRemoteConfig "github.com/DataDog/datadog-agent/pkg/agentless/remoteconfig"
 	"github.com/DataDog/datadog-agent/pkg/agentless/trace"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -48,6 +53,7 @@ func main() {
 		runAgent,
 		taggernoop.Module(),
 		hostnameimpl.Module(),
+		logscompressionfx.Module(),
 	)
 
 	if err != nil {
@@ -56,7 +62,7 @@ func main() {
 	}
 }
 
-func runAgent(tagger tagger.Component, hostname hostname.Component) {
+func runAgent(tagger tagger.Component, hostname hostname.Component, compression logscompression.Component) {
 
 	startTime := time.Now()
 
@@ -70,6 +76,9 @@ func runAgent(tagger tagger.Component, hostname hostname.Component) {
 	// Start the agentless daemon
 	agentlessDaemon := startCommunicationServer(startTime)
 
+	// Start the metric agent
+	_ = startMetricAgent(agentlessDaemon, tagger)
+
 	// Start RC service if remote configuration is enabled
 	// Use a valid hostname identifier for the RC service
 	agentHostname, err := os.Hostname()
@@ -78,9 +87,17 @@ func runAgent(tagger tagger.Component, hostname hostname.Component) {
 	}
 	rcService := serverlessRemoteConfig.StartRCService(agentHostname)
 
-	// Start the trace agent
-	traceAgent := startTraceAgent(agentlessDaemon, tagger, rcService)
-	if traceAgent == nil {
+	// Start the trace agent and logs agent concurrently
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go startTraceAgent(&wg, agentlessDaemon, tagger, rcService)
+	go startLogsAgent(&wg, agentlessDaemon, tagger, compression, hostname)
+
+	wg.Wait()
+
+	// Verify trace agent started
+	if agentlessDaemon.TraceAgent == nil {
 		log.Error("Failed to start trace agent")
 		return
 	}
@@ -116,6 +133,7 @@ func setupAgentlessOverrides() {
 		os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
 	}
 
+	// APM (Traces) - prefer Unix socket/named pipe over TCP
 	// Set APM receiver port to 0 (disable TCP listener) if not explicitly set
 	if os.Getenv("DD_APM_RECEIVER_PORT") == "" {
 		os.Setenv("DD_APM_RECEIVER_PORT", "0")
@@ -134,6 +152,25 @@ func setupAgentlessOverrides() {
 		}
 	}
 
+	// DogStatsD (Metrics) - prefer Unix socket/named pipe over UDP
+	// Disable UDP port if not explicitly set
+	if os.Getenv("DD_DOGSTATSD_PORT") == "" {
+		os.Setenv("DD_DOGSTATSD_PORT", "0")
+	}
+
+	// Set platform-specific DogStatsD socket/pipe defaults if not explicitly set
+	if runtime.GOOS == "windows" {
+		// Windows: use named pipe
+		if os.Getenv("DD_DOGSTATSD_PIPE_NAME") == "" {
+			os.Setenv("DD_DOGSTATSD_PIPE_NAME", `\\.\pipe\datadog-dogstatsd`)
+		}
+	} else {
+		// Unix-like systems: use Unix domain socket
+		if os.Getenv("DD_DOGSTATSD_SOCKET") == "" {
+			os.Setenv("DD_DOGSTATSD_SOCKET", "/tmp/datadog_dogstatsd.socket")
+		}
+	}
+
 	// Set config file path
 	if datadogConfigPath == "" {
 		if configFile := os.Getenv("DD_CONFIG_FILE"); configFile != "" {
@@ -144,14 +181,45 @@ func setupAgentlessOverrides() {
 	}
 }
 
-func startTraceAgent(agentlessDaemon *daemon.Daemon, tagger tagger.Component, rcService *remoteconfig.CoreAgentService) trace.ServerlessTraceAgent {
+func startMetricAgent(agentlessDaemon *daemon.Daemon, tagger tagger.Component) *metrics.ServerlessMetricAgent {
+	metricAgent := &metrics.ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+		Tagger:               tagger,
+	}
+	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, false)
+	agentlessDaemon.SetStatsdServer(metricAgent)
+	log.Debug("Metric agent started")
+	return metricAgent
+}
+
+func startTraceAgent(wg *sync.WaitGroup, agentlessDaemon *daemon.Daemon, tagger tagger.Component, rcService *remoteconfig.CoreAgentService) {
+	defer wg.Done()
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:    configUtils.IsAPMEnabled(pkgconfigsetup.Datadog()),
 		LoadConfig: &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
 		RCService:  rcService,
 	})
 	agentlessDaemon.SetTraceAgent(traceAgent)
-	return traceAgent
+	log.Debug("Trace agent started")
+}
+
+func startLogsAgent(wg *sync.WaitGroup, agentlessDaemon *daemon.Daemon, tagger tagger.Component, compression logscompression.Component, hostname hostname.Component) {
+	defer wg.Done()
+
+	// Check if logs are enabled
+	if !pkgconfigsetup.Datadog().GetBool("logs_enabled") {
+		log.Debug("Logs agent disabled (logs_enabled=false)")
+		return
+	}
+
+	// Simple channel-based logs setup (no Lambda-specific telemetry API)
+	logsAgent, err := serverlessLogs.SetupLogAgent(nil, "Agentless", "agentless", tagger, compression, hostname)
+	if err != nil {
+		log.Errorf("Error setting up the logs agent: %s", err)
+		return
+	}
+	agentlessDaemon.SetLogsAgent(logsAgent)
+	log.Debug("Logs agent started")
 }
 
 func setupApiKey() bool {

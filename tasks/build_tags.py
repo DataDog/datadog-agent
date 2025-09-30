@@ -205,7 +205,8 @@ SBOMGEN_TAGS = {
 SERVERLESS_TAGS = {"grpcnotrace", "serverless", "otlp"}
 
 # AGENTLESS_TAGS lists the tags necessary to build agentless
-AGENTLESS_TAGS = {"grpcnotrace", "serverless", "otlp"}
+# Removed otlp (not needed), added zlib/zstd (for logs/metrics compression)
+AGENTLESS_TAGS = {"grpcnotrace", "serverless", "zlib", "zstd"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = {
