@@ -380,6 +380,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
 	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
+	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
+	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
+	config.BindEnvAndSetDefault("secret_image_to_handle", map[string]string{})
 	config.SetDefault("secret_audit_file_max_size", 0)
 
 	// IPC API server timeout
@@ -944,7 +947,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
 
 	// Synthetics configuration
-	config.BindEnvAndSetDefault("synthetics.enabled", false)
+	config.BindEnvAndSetDefault("synthetics.collector.enabled", false)
+	config.BindEnvAndSetDefault("synthetics.collector.workers", 4)
+	config.BindEnvAndSetDefault("synthetics.collector.flush_interval", "10s")
 	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
@@ -2424,18 +2429,21 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
-		Type:                   config.GetString("secret_backend_type"),
-		Config:                 config.GetStringMap("secret_backend_config"),
-		Command:                config.GetString("secret_backend_command"),
-		Arguments:              config.GetStringSlice("secret_backend_arguments"),
-		Timeout:                config.GetInt("secret_backend_timeout"),
-		MaxSize:                config.GetInt("secret_backend_output_max_size"),
-		RefreshInterval:        config.GetInt("secret_refresh_interval"),
-		RefreshIntervalScatter: config.GetBool("secret_refresh_scatter"),
-		GroupExecPerm:          config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		RemoveLinebreak:        config.GetBool("secret_backend_remove_trailing_line_break"),
-		RunPath:                config.GetString("run_path"),
-		AuditFileMaxSize:       config.GetInt("secret_audit_file_max_size"),
+		Type:                        config.GetString("secret_backend_type"),
+		Config:                      config.GetStringMap("secret_backend_config"),
+		Command:                     config.GetString("secret_backend_command"),
+		Arguments:                   config.GetStringSlice("secret_backend_arguments"),
+		Timeout:                     config.GetInt("secret_backend_timeout"),
+		MaxSize:                     config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:             config.GetInt("secret_refresh_interval"),
+		RefreshIntervalScatter:      config.GetBool("secret_refresh_scatter"),
+		GroupExecPerm:               config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:             config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:                     config.GetString("run_path"),
+		AuditFileMaxSize:            config.GetInt("secret_audit_file_max_size"),
+		ScopeIntegrationToNamespace: config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
+		AllowedNamespace:            config.GetStringSlice("secret_allowed_k8s_namespace"),
+		ImageToHandle:               config.GetStringMapStringSlice("secret_image_to_handle"),
 	})
 
 	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
@@ -2456,7 +2464,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 				log.Errorf("Could not assign new value of secret %s (%+q) to config: %s", handle, settingPath, err)
 			}
 		})
-		if _, err = secretResolver.Resolve(yamlConf, origin); err != nil {
+		if _, err = secretResolver.Resolve(yamlConf, origin, "", ""); err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}
 	}
