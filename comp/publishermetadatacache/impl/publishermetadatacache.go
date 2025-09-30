@@ -111,8 +111,10 @@ func (c *publisherMetadataCache) FormatMessage(publisherName string, event evtap
 	}
 	message, err := c.evtapi.EvtFormatMessage(handle, event, 0, nil, flags)
 	if err != nil {
-		// Ignore this error
-		if err == windows.ERROR_EVT_MESSAGE_NOT_FOUND {
+		// Ignore these errors
+		if err == windows.ERROR_EVT_MESSAGE_NOT_FOUND ||
+			err == windows.ERROR_EVT_MESSAGE_ID_NOT_FOUND ||
+			err == windows.ERROR_EVT_MESSAGE_LOCALE_NOT_FOUND {
 			return ""
 		}
 		// FormatMessage failed with an old valid handle, so delete the cache entry
