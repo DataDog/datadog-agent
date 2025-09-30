@@ -26,13 +26,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+type mockFlusher struct {
+}
+
+func (m *mockFlusher) Flush() {
+}
+
 func TestConsumerCanStartAndStop(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
 	consumer.Start()
 	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
@@ -46,7 +52,7 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	cfg := config.New()
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(t))
+	consumer := newCudaEventConsumer(ctx, handlers, nil, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
 	pid := uint32(1)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
@@ -149,7 +155,7 @@ func BenchmarkConsumer(b *testing.B) {
 				b.Cleanup(ctx.cudaKernelCache.Stop)
 			}
 
-			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))
+			consumer := newCudaEventConsumer(ctx, handlers, nil, &mockFlusher{}, cfg, testutil.GetTelemetryMock(b))
 			b.ResetTimer()
 			injectEventsToConsumer(b, consumer, events, b.N)
 		})
@@ -182,7 +188,7 @@ func TestConsumerProcessExitChannel(t *testing.T) {
 	cfg := config.New()
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
 	// Start the consumer
 	consumer.Start()
@@ -237,7 +243,7 @@ func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
 	cfg.ScanProcessesInterval = 100 * time.Millisecond // don't wait too long
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
 
 	// Start the consumer
 	consumer.Start()

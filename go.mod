@@ -123,6 +123,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/network/driver v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
@@ -1120,6 +1121,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/types => ./pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ./pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics
+	github.com/DataDog/datadog-agent/pkg/network/driver => ./pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ./pkg/network/payload
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ./pkg/networkpath/payload
