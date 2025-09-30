@@ -1245,6 +1245,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Infrastructure mode
+	// The infrastructure mode is used to determine the features that are available to the agent.
+	// The possible values are: full, basic, end_user_device.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Configuration for TLS for outgoing connections
