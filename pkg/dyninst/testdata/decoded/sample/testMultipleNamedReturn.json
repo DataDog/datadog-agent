@@ -60,11 +60,11 @@
             "locals": {
               "result": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "value": "41"
               },
               "result2": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "value": "41"
               }
             }
           }

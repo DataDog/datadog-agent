@@ -65,7 +65,11 @@
             "locals": {
               "~r0": {
                 "type": "main.behavior",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
               }
             }
           }
@@ -146,7 +150,17 @@
             "locals": {
               "~r0": {
                 "type": "main.behavior",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "main.firstBehavior",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "foo"
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -228,7 +242,18 @@
             "locals": {
               "~r0": {
                 "type": "main.behavior",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "*main.firstBehavior",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "foo"
+                      }
+                    }
+                  }
+                }
               }
             }
           }

@@ -60,15 +60,15 @@
             "locals": {
               "~r0": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "value": "41"
               },
               "result2": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "value": "42"
               },
               "~r2": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "value": "43"
               }
             }
           }

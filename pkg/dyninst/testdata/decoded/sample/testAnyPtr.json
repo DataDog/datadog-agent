@@ -60,7 +60,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "<nil>"
               }
             }
           }
@@ -136,7 +136,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "0x[addr]"
               }
             }
           }
@@ -213,7 +213,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "0x[addr]"
               }
             }
           }
@@ -290,7 +290,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "0x[addr]"
               }
             }
           }
@@ -373,7 +373,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "0x[addr]"
               }
             }
           }
@@ -462,7 +462,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "0x[addr]"
               }
             }
           }
