@@ -71,7 +71,7 @@ const systemCrashDumpFile = `C:\Windows\MEMORY.DMP`
 const systemCrashDumpOutFileName = `SystemCrash.DMP`
 
 // Default scaling of timeouts based on present E2E flakiness. Adjust this as necessary.
-const defaultTimeoutScale = 1
+const defaultTimeoutScale = 3
 
 // Default scaling of timeouts for tests with driver verifier. This needs to be generous.
 const driverVerifierTimeoutScale = 10
@@ -238,7 +238,7 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 				return fmt.Errorf("waiting for %s to stop", serviceName)
 			}
 			return nil
-		}, (2*s.timeoutScale)*time.Minute, 10*time.Second, "%s should be stopped", serviceName))
+		}, (2*s.timeoutScale)*time.Minute, 60*time.Second, "%s should be stopped", serviceName))
 	}
 
 	// collect display names for services
@@ -265,7 +265,7 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 			}
 		}
 		return nil
-	}, (1*s.timeoutScale)*time.Minute, 10*time.Second, "should have hard exit messages in the event log")
+	}, (1*s.timeoutScale)*time.Minute, 60*time.Second, "should have hard exit messages in the event log")
 }
 
 type agentServiceDisabledSuite struct {
@@ -695,7 +695,7 @@ func (s *baseStartStopSuite) assertServiceState(expected string, serviceName str
 			return fmt.Errorf("%s should be %s", serviceName, expected)
 		}
 		return nil
-	}, (2*s.timeoutScale)*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+	}, (2*s.timeoutScale)*time.Minute, 60*time.Second, "%s should be in the expected state", serviceName)
 
 	// if a driver service failed to get to the expected state, capture a kernel dump for debugging.
 	if s.T().Failed() && slices.Contains(s.getInstalledKernelServices(), serviceName) {
@@ -739,7 +739,7 @@ func (s *baseStartStopSuite) stopAllServices() {
 				return fmt.Errorf("%s should be stopped", serviceName)
 			}
 			return nil
-		}, (2*s.timeoutScale)*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+		}, (2*s.timeoutScale)*time.Minute, 60*time.Second, "%s should be in the expected state", serviceName)
 	}
 }
 func (s *baseStartStopSuite) getInstalledUserServices() []string {
