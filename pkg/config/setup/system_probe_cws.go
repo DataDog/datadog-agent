@@ -85,7 +85,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.analyzers", []string{"os"})
-	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.use_v2_collector", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.use_v2_collector", true)
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
@@ -95,6 +95,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dns_match_max_depth", 3)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.node_eviction_timeout", "0s") // Disabled for now - waiting for another PR to be merged
 
 	// CWS - Auto suppression
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.enabled", true)

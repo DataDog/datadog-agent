@@ -33,7 +33,7 @@ jobs:
           echo "Last commit message: $COMMIT_MESSAGE"
 
           # Extract PR number from format "(#1234)" in commit message
-          PR_NUMBER=$(echo "$COMMIT_MESSAGE" | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+')
+          PR_NUMBER="$(echo "$COMMIT_MESSAGE" | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' | tail -n 1)"
 
           # If no PR number found in commit message, exit with error
           if [ -z "$PR_NUMBER" ]; then

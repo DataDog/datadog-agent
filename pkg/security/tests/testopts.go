@@ -40,6 +40,7 @@ type testOpts struct {
 	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
+	securityProfileNodeEvictionTimeout         time.Duration
 	enableAutoSuppression                      bool
 	autoSuppressionEventTypes                  []string
 	enableAnomalyDetection                     bool
