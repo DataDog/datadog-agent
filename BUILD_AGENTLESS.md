@@ -55,6 +55,8 @@ DD_API_KEY=your_api_key DD_LOG_LEVEL=debug ./bin/agentless
 - ✅ Trace collection and APM data forwarding
 - ✅ Debug logging with `DD_LOG_LEVEL=debug`
 - ✅ Configuration via `datadog.yaml` or environment variables
+- ✅ **UDS/Named Pipe by default** - TCP listener disabled (`DD_APM_RECEIVER_PORT=0`)
+- ✅ **Default socket path**: `/tmp/datadog_libagent.socket` (Unix) or `\\.\pipe\datadog-libagent` (Windows)
 
 ## Configuration
 
@@ -68,6 +70,34 @@ remote_configuration:
   enabled: true
 apm_config:
   enabled: true
+  # Note: receiver_port defaults to 0 (TCP disabled)
+  # receiver_socket defaults to /tmp/datadog_libagent.socket
+```
+
+### Default APM Receiver Settings
+
+The agentless agent uses **platform-specific IPC by default** for better performance and security:
+
+- **`DD_APM_RECEIVER_PORT=0`** - TCP listener is disabled by default
+
+**Unix/Linux/macOS:**
+- **`DD_APM_RECEIVER_SOCKET=/tmp/datadog_libagent.socket`** - Default UDS path
+
+**Windows:**
+- **`DD_APM_WINDOWS_PIPE_NAME=\\.\pipe\datadog-libagent`** - Default named pipe
+
+To enable TCP listener (e.g., for compatibility):
+```bash
+DD_APM_RECEIVER_PORT=8126 ./bin/agentless
+```
+
+To use a custom socket/pipe path:
+```bash
+# Unix/Linux/macOS
+DD_APM_RECEIVER_SOCKET=/var/run/datadog/apm.socket ./bin/agentless
+
+# Windows
+DD_APM_WINDOWS_PIPE_NAME=\\.\pipe\my-custom-pipe ./bin/agentless
 ```
 
 ## Remote Configuration

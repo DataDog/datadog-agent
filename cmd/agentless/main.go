@@ -9,6 +9,7 @@ package main
 import (
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -113,6 +114,24 @@ func setupAgentlessOverrides() {
 	// Enable remote configuration by default for agentless agent
 	if strings.ToLower(os.Getenv("DD_REMOTE_CONFIGURATION_ENABLED")) != "false" {
 		os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
+	}
+
+	// Set APM receiver port to 0 (disable TCP listener) if not explicitly set
+	if os.Getenv("DD_APM_RECEIVER_PORT") == "" {
+		os.Setenv("DD_APM_RECEIVER_PORT", "0")
+	}
+
+	// Set platform-specific APM receiver socket/pipe defaults if not explicitly set
+	if runtime.GOOS == "windows" {
+		// Windows: use named pipe
+		if os.Getenv("DD_APM_WINDOWS_PIPE_NAME") == "" {
+			os.Setenv("DD_APM_WINDOWS_PIPE_NAME", `\\.\pipe\datadog-libagent`)
+		}
+	} else {
+		// Unix-like systems: use Unix domain socket
+		if os.Getenv("DD_APM_RECEIVER_SOCKET") == "" {
+			os.Setenv("DD_APM_RECEIVER_SOCKET", "/tmp/datadog_libagent.socket")
+		}
 	}
 
 	// Set config file path
