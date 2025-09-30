@@ -66,9 +66,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    10e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
@@ -82,9 +80,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:   eventTypeDBMMetadata,
@@ -101,9 +97,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:              eventTypeDBMActivity,
@@ -117,9 +111,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:   eventTypeDBMHealth,
@@ -134,9 +126,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		defaultInputChanSize: 500,
 	}, {
 		eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
 		category:                      "NDM",
@@ -233,6 +223,30 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		// container images in the workloadmeta store. This can be a lot of
 		// payloads at once, so we need a large input channel size to avoid dropping
 		defaultInputChanSize: 1000,
+	},
+	{
+		eventType:                     eventplatform.EventTypeSoftwareInventory,
+		category:                      "EUDM",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "software_inventory.forwarder.",
+		hostnameEndpointPrefix:        "event-platform-intake.",
+		intakeTrackType:               "softinv",
+		defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+	},
+	{
+		eventType:                     eventplatform.EventTypeSynthetics,
+		category:                      "Synthetics",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "synthetics.forwarder.",
+		hostnameEndpointPrefix:        "http-synthetics.logs.",
+		intakeTrackType:               "synthetics",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 	},
 }
 
@@ -470,7 +484,6 @@ func newHTTPPassthroughPipeline(
 			senderImpl.In(),
 			make(chan struct{}),
 			serverlessMeta,
-			sender.NewArraySerializer(),
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,

@@ -394,9 +394,36 @@ type RootExpression struct {
 	Name string
 	// Offset is the offset of the expression in the event output.
 	Offset uint32
+	// Kind is the kind of the expression.
+	Kind RootExpressionKind
 	// Expression is the logical operations to be evaluated to produce the
 	// value of the event.
 	Expression Expression
+}
+
+// RootExpressionKind is the kind of a root expression.
+type RootExpressionKind uint8
+
+const (
+	_ RootExpressionKind = iota
+	// RootExpressionKindArgument corresponds to an argument of the event.
+	RootExpressionKindArgument
+	// RootExpressionKindLocal corresponds to a local variable of the event.
+	RootExpressionKindLocal
+	// RootExpressionKindTemplateSegment means that this expression is part of a
+	// template segment.
+	// RootExpressionKindTemplateSegment
+)
+
+func (k RootExpressionKind) String() string {
+	switch k {
+	case RootExpressionKindArgument:
+		return "argument"
+	case RootExpressionKindLocal:
+		return "local"
+	default:
+		return fmt.Sprintf("RootExpressionKind(%d)", k)
+	}
 }
 
 // UnresolvedPointeeType is a placeholder type that represents an unresolved
