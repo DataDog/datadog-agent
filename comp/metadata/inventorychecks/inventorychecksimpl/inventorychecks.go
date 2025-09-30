@@ -310,7 +310,7 @@ func (ic *inventorychecksImpl) getFilesMetadata() metadata {
 	filesMetadata := metadata{}
 	for _, configFile := range configFiles {
 		configHash := sha256.Sum256(configFile.ConfigFormat)
-		// TODO: use source as key once we have a way to get the source from the config file
+		// Use source as key once we have a way to get the source from the config file
 		filesMetadata[strings.TrimPrefix(configFile.Source, "file:")] = metadata{
 			"raw_config": string(configFile.ConfigFormat),
 			"hash":       configHash,
