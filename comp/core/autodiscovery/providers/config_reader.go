@@ -41,7 +41,8 @@ type configFormat struct {
 	CheckTagCardinality     string                             `yaml:"check_tag_cardinality,omitempty"`     // Use to set the tag cardinality override for the check
 }
 
-type configFormatWrapper struct {
+// ConfigFormatWrapper is a wrapper for the config format
+type ConfigFormatWrapper struct {
 	ConfigFormat string
 	Filename     string
 	Hash         string
@@ -51,7 +52,7 @@ type configPkg struct {
 	confs      []integration.Config
 	defaults   []integration.Config
 	others     []integration.Config
-	cfgFormats []configFormatWrapper
+	cfgFormats []ConfigFormatWrapper
 }
 
 type configEntry struct {
@@ -61,7 +62,7 @@ type configEntry struct {
 	isMetric   bool
 	isLogsOnly bool
 	err        error
-	cfgFormat  configFormatWrapper
+	cfgFormat  ConfigFormatWrapper
 }
 
 var reader *configFilesReader
@@ -154,10 +155,10 @@ func ReadConfigFiles(keep FilterFunc) ([]integration.Config, map[string]string, 
 }
 
 // ReadConfigFormats returns the config formats read from config files
-func ReadConfigFormats() []configFormatWrapper {
+func ReadConfigFormats() []ConfigFormatWrapper {
 	cachedFormats, found := reader.cache.Get("configFormats")
 	if found {
-		return cachedFormats.([]configFormatWrapper)
+		return cachedFormats.([]ConfigFormatWrapper)
 	}
 
 	return nil
@@ -184,12 +185,12 @@ func (r *configFilesReader) readAndCacheAll() ([]integration.Config, map[string]
 
 // read scans paths searching for configuration files. When found,
 // it parses the files and try to unmarshall Yaml contents into integration.Config instances.
-func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []configFormatWrapper, map[string]string) {
+func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []ConfigFormatWrapper, map[string]string) {
 	integrationErrors := map[string]string{}
 	configs := []integration.Config{}
 	configNames := make(map[string]struct{}) // use this map as a python set
 	defaultConfigs := []integration.Config{}
-	configFormats := []configFormatWrapper{}
+	configFormats := []ConfigFormatWrapper{}
 
 	for _, path := range r.paths {
 		log.Infof("Searching for configuration files at: %s", path)
@@ -334,7 +335,7 @@ func collectDir(parentPath string, folder os.DirEntry, integrationErrors map[str
 	otherConfigs := []integration.Config{}
 	const dirExt string = ".d"
 	dirPath := filepath.Join(parentPath, folder.Name())
-	cfgFormats := []configFormatWrapper{}
+	cfgFormats := []ConfigFormatWrapper{}
 
 	if filepath.Ext(folder.Name()) != dirExt {
 		// the name of this directory isn't in the form `integrationName.d`, skip it
@@ -381,7 +382,7 @@ func collectDir(parentPath string, folder os.DirEntry, integrationErrors map[str
 const emptyFileError = "empty file"
 
 // GetIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file
-func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, configFormatWrapper, error) {
+func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, ConfigFormatWrapper, error) {
 	cf := configFormat{}
 	conf := integration.Config{Name: name}
 
@@ -389,32 +390,32 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, confi
 	// FIXME: ReadFile reads the entire file, possible security implications
 	yamlFile, err := os.ReadFile(fpath)
 	if err != nil {
-		return conf, configFormatWrapper{}, err
+		return conf, ConfigFormatWrapper{}, err
 	}
 
 	// Check for empty file and return special error if so
 	if len(yamlFile) == 0 {
-		return conf, configFormatWrapper{}, errors.New(emptyFileError)
+		return conf, ConfigFormatWrapper{}, errors.New(emptyFileError)
 	}
 
 	// Parse configuration
 	// Try UnmarshalStrict first, so we can warn about duplicated keys
 	if strictErr := yaml.UnmarshalStrict(yamlFile, &cf); strictErr != nil {
 		if err := yaml.Unmarshal(yamlFile, &cf); err != nil {
-			return conf, configFormatWrapper{}, err
+			return conf, ConfigFormatWrapper{}, err
 		}
 		log.Warnf("reading config file %v: %v\n", fpath, strictErr)
 	}
 
 	serializedConfigFormat, err := yaml.Marshal(cf)
 	if err != nil {
-		return conf, configFormatWrapper{}, err
+		return conf, ConfigFormatWrapper{}, err
 	}
 
 	// If no valid instances were found & this is neither a metrics file, nor a logs file
 	// this is not a valid configuration file
 	if cf.MetricConfig == nil && cf.LogsConfig == nil && len(cf.Instances) < 1 {
-		return conf, configFormatWrapper{}, errors.New("Configuration file contains no valid instances")
+		return conf, ConfigFormatWrapper{}, errors.New("Configuration file contains no valid instances")
 	}
 
 	// at this point the Yaml was already parsed, no need to check the error
@@ -468,7 +469,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, confi
 
 	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {
-		return conf, configFormatWrapper{}, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
+		return conf, ConfigFormatWrapper{}, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
 	}
 
 	// Interpolate env vars. Returns an error a variable wasn't substituted, ignore it.
@@ -483,7 +484,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, confi
 	conf.Source = "file:" + fpath
 	hash := sha256.Sum256(yamlFile)
 
-	return conf, configFormatWrapper{ConfigFormat: string(serializedConfigFormat), Filename: fpath, Hash: hex.EncodeToString(hash[:])}, err
+	return conf, ConfigFormatWrapper{ConfigFormat: string(serializedConfigFormat), Filename: fpath, Hash: hex.EncodeToString(hash[:])}, err
 }
 
 func containsString(slice []string, str string) bool {
