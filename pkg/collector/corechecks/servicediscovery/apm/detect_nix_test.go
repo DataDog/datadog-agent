@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-
 func Test_javaDetector(t *testing.T) {
 	data := []struct {
 		name   string

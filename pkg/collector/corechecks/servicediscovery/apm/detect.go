@@ -66,7 +66,6 @@ func Detect(lang language.Language, ctx usm.DetectionContext, tracerMetadata *tr
 	return None
 }
 
-
 const (
 	// ddTraceGoPrefix(V2) is the prefix of the dd-trace-go symbols. The symbols
 	// we are looking for are for example:

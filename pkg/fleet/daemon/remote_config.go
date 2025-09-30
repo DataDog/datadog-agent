@@ -286,7 +286,7 @@ type experimentTaskParams struct {
 
 type installPackageTaskParams struct {
 	Version            string `json:"version"`
-	ApmInstrumentation bool   `json:"apm_instrumentation"`
+	ApmInstrumentation string `json:"apm_instrumentation"`
 }
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error

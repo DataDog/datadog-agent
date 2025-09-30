@@ -654,7 +654,7 @@ func TestConversions(t *testing.T) {
 						},
 						TcpPorts:           []int32{8080, 9090},
 						UdpPorts:           []int32{53},
-						ApmInstrumentation: "enabled",
+						ApmInstrumentation: true,
 						Ust: &pb.UST{
 							Service: "test_service",
 							Env:     "test_env",

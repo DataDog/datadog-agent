@@ -1609,7 +1609,7 @@ type Service struct {
 	// UDPPorts is the list of UDP ports the service is listening on
 	UDPPorts []uint16
 
-	// APMInstrumentation indicates the APM instrumentation status
+	// APMInstrumentation indicates if the service is instrumented for APM
 	APMInstrumentation bool
 
 	// Type is the service type (e.g., "web_service")

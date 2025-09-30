@@ -626,7 +626,7 @@ func toProtoService(service *workloadmeta.Service) *pb.Service {
 		TracerMetadata:           protoTracerMetadata,
 		TcpPorts:                 tcpPorts,
 		UdpPorts:                 udpPorts,
-		ApmInstrumentation:       boolToApmInstrumentationString(service.APMInstrumentation),
+		ApmInstrumentation:       service.APMInstrumentation,
 		Ust:                      toProtoUST(service.UST),
 	}
 }
@@ -1166,20 +1166,7 @@ func toWorkloadmetaService(protoService *pb.Service) *workloadmeta.Service {
 		TracerMetadata:           tracerMetadata,
 		TCPPorts:                 tcpPorts,
 		UDPPorts:                 udpPorts,
-		APMInstrumentation:       apmInstrumentationStringToBool(protoService.ApmInstrumentation),
+		APMInstrumentation:       protoService.ApmInstrumentation,
 		UST:                      toWorkloadmetaUST(protoService.Ust),
 	}
-}
-
-// boolToApmInstrumentationString converts a boolean APM instrumentation status to protobuf string format
-func boolToApmInstrumentationString(instrumented bool) string {
-	if instrumented {
-		return "enabled"
-	}
-	return ""
-}
-
-// apmInstrumentationStringToBool converts a protobuf APM instrumentation string to boolean
-func apmInstrumentationStringToBool(instrumentation string) bool {
-	return instrumentation == "enabled"
 }
