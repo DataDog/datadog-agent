@@ -184,7 +184,7 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	// create the new remote Agent instance abnd fetch availale services
 	details, err := ra.newRemoteAgentClient(registration)
 	if err != nil {
-		ra.telemetryStore.remoteAgentRegisteredError.Inc(sanatizeString(registration.AgentDisplayName))
+		ra.telemetryStore.remoteAgentRegisteredError.Inc(sanitizeString(registration.AgentDisplayName))
 		return "", 0, err
 	}
 
@@ -240,13 +240,13 @@ func (ra *remoteAgentRegistry) start() {
 				for _, sessionID := range agentsToRemove {
 					details, ok := ra.agentMap[sessionID]
 					if ok {
-						delete(ra.agentMap, sessionID)
 						if details.unhealthy {
-							log.Warnf("Remote agent '%s' deregistered due to session ID validation failure.", sessionID)
+							log.Warnf("Remote agent '%s' deregistered due to session ID validation failure (expected: %s, got: %s)", details.RegistrationData.AgentDisplayName, details.RegistrationData.SessionID, sessionID)
 						} else {
-							log.Infof("Remote agent '%s' deregistered after being idle for %s.", sessionID, remoteAgentIdleTimeout)
+							log.Infof("Remote agent '%s' deregistered after being idle for %s.", details.RegistrationData.AgentDisplayName, remoteAgentIdleTimeout)
 						}
 						ra.telemetryStore.remoteAgentRegistered.Dec(details.agentSanitizedDisplayName)
+						delete(ra.agentMap, sessionID)
 					}
 				}
 
