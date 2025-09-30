@@ -52,7 +52,6 @@ func newTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
 	// transactional store should be in charge of opening/closing boltDB
 	db, err := openCacheDB(metadata.Path, metadata.AgentVersion, metadata.APIKey, metadata.URL)
 	if err != nil {
-		db.Close()
 		return nil, err
 	}
 	s := &transactionalStore{
@@ -66,7 +65,6 @@ func newTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
 func recreateTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
 	db, err := recreate(metadata.Path, metadata.AgentVersion, metadata.APIKey, metadata.URL)
 	if err != nil {
-		db.Close()
 		return nil, err
 	}
 	s := &transactionalStore{
