@@ -11,7 +11,7 @@ import (
 )
 
 // AddRenderedInfoToMap renders event record fields using EvtFormatMessage and adds them to the map.
-func AddRenderedInfoToMap(m *Map, api evtapi.API, publisherMetadataCache publishermetadatacache.Component, providerName string, event evtapi.EventRecordHandle) {
+func AddRenderedInfoToMap(m *Map, publisherMetadataCache publishermetadatacache.Component, providerName string, event evtapi.EventRecordHandle) {
 	var message, task, opcode, level string
 
 	message = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageEvent)

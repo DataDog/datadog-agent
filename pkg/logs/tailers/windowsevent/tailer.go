@@ -339,7 +339,7 @@ func (t *Tailer) enrichEvent(m *windowsevent.Map, event evtapi.EventRecordHandle
 		return fmt.Errorf("failed to get provider name: %v", err)
 	}
 
-	windowsevent.AddRenderedInfoToMap(m, t.evtapi, t.publisherMetadataCache, providerName, event)
+	windowsevent.AddRenderedInfoToMap(m, t.publisherMetadataCache, providerName, event)
 
 	return nil
 }
