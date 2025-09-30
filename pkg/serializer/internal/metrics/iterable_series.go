@@ -314,6 +314,20 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 			return err
 		}
 
+		if serie.Device != "" {
+			err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
+				err = ps.String(resourceType, "device")
+				if err != nil {
+					return err
+				}
+
+				return ps.String(resourceName, serie.Device)
+			})
+			if err != nil {
+				return err
+			}
+		}
+
 		if len(serie.Resources) > 0 {
 			for _, r := range serie.Resources {
 				err = ps.Embedded(seriesResources, func(ps *molecule.ProtoStream) error {
@@ -509,13 +523,10 @@ func encodeSerie(serie *metrics.Serie, stream *jsoniter.Stream) {
 	stream.WriteString(serie.Host)
 	stream.WriteMore()
 
-	for _, res := range serie.Resources {
-		if res.Type == "device" {
-			stream.WriteObjectField("device")
-			stream.WriteString(res.Name)
-			stream.WriteMore()
-			break
-		}
+	if serie.Device != "" {
+		stream.WriteObjectField("device")
+		stream.WriteString(serie.Device)
+		stream.WriteMore()
 	}
 
 	stream.WriteObjectField("type")
