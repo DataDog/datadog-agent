@@ -100,7 +100,7 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 
 func (rac *remoteAgentClient) fetchSupportedServices() ([]remoteAgentServiceName, error) {
 	// Initialize the reflection
-	streamCtx, streamCancel := context.WithCancel(context.Background())
+	streamCtx, streamCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer streamCancel()
 	stream, err := rac.ServerReflectionInfo(streamCtx)
 	if err != nil {
