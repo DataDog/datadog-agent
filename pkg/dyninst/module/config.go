@@ -16,6 +16,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -40,6 +41,12 @@ type Config struct {
 
 	// ProcessSyncDisabled disables the process sync for the module.
 	ProcessSyncDisabled bool
+
+	TestingKnobs struct {
+		LoaderOptions       []loader.Option
+		ScraperOverride     func(Scraper) Scraper
+		IRGeneratorOverride func(IRGenerator) IRGenerator
+	}
 }
 
 // erasedActuator is an erased type for an Actuator.

@@ -61,11 +61,18 @@ func NewModule(
 	if err != nil {
 		return nil, err
 	}
-	m := newUnstartedModule(realDeps.asDependencies())
+	deps := realDeps.asDependencies()
+	if override := config.TestingKnobs.ScraperOverride; override != nil {
+		deps.Scraper = override(deps.Scraper)
+	}
+	if override := config.TestingKnobs.IRGeneratorOverride; override != nil {
+		deps.IRGenerator = override(deps.IRGenerator)
+	}
+	m := newUnstartedModule(deps)
 	m.shutdown.realDependencies = realDeps
 	procMon := procmon.NewProcessMonitor(&processHandler{
 		module:         m,
-		scraperHandler: realDeps.scraper.AsProcMonHandler(),
+		scraperHandler: deps.Scraper.AsProcMonHandler(),
 	})
 	m.shutdown.processMonitor = procMon
 	m.shutdown.unsubscribeExec = subscriber.SubscribeExec(procMon.NotifyExec)
@@ -142,7 +149,6 @@ func (c *realDependencies) asDependencies() dependencies {
 		Attacher:            c.attacher,
 		LogsFactory:         logsUploaderFactoryImpl[*uploader.LogsUploader]{factory: c.logUploader},
 		DiagnosticsUploader: c.diagsUploader,
-		ObjectLoader:        c.objectLoader,
 		symdbManager:        c.symdbManager,
 	}
 }
@@ -202,7 +208,11 @@ func makeRealDependencies(config *Config) (_ realDependencies, retErr error) {
 	}
 	ret.actuator = actuator.NewActuator()
 
-	ret.loader, err = loader.NewLoader()
+	var loaderOpts []loader.Option
+	if config.TestingKnobs.LoaderOptions != nil {
+		loaderOpts = config.TestingKnobs.LoaderOptions
+	}
+	ret.loader, err = loader.NewLoader(loaderOpts...)
 	if err != nil {
 		return ret, fmt.Errorf("error creating loader: %w", err)
 	}

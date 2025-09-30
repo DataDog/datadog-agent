@@ -8,7 +8,12 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -245,7 +250,13 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 		if !ok {
 			envVar, err = kernel.GetProcessEnvVariable(pid, ctx.procRoot, cuda.CudaVisibleDevicesEnvVar)
 			if err != nil {
-				return nil, fmt.Errorf("error getting env var %s for process %d: %w", cuda.CudaVisibleDevicesEnvVar, pid, err)
+				// Check if procRoot/pid exists, if not, the process has exited and we can't get the env var. Don't
+				// block metrics on that.
+				if _, err := os.Stat(filepath.Join(ctx.procRoot, strconv.Itoa(pid))); err != nil && errors.Is(err, fs.ErrNotExist) {
+					envVar = ""
+				} else {
+					return nil, fmt.Errorf("error getting env var %s for process %d: %w", cuda.CudaVisibleDevicesEnvVar, pid, err)
+				}
 			}
 		}
 

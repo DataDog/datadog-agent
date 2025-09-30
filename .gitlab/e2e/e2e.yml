@@ -930,7 +930,6 @@ generate-flakes-finder-pipeline:
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64", "specific:true"]
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - dda inv -- -e testwasher.generate-flake-finder-pipeline
     - dda inv -- -e linter.gitlab-ci --input-file $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
   artifacts:
@@ -988,7 +987,6 @@ generate-fips-e2e-pipeline:
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64", "specific:true"]
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - dda inv -- -e fips.generate-fips-e2e-pipeline
     - dda inv -- -e linter.gitlab-ci --input-file $CI_PROJECT_DIR/fips-e2e-gitlab-ci.yml
   artifacts:

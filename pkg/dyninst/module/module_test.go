@@ -832,7 +832,6 @@ func (d *fakeTestingDependencies) toDeps() module.Dependencies {
 		Attacher:            d.attacher,
 		LogsFactory:         d.logsFactory,
 		DiagnosticsUploader: d.diagUploader,
-		ObjectLoader:        d.objectLoader,
 	}
 }
 

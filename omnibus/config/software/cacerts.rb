@@ -27,7 +27,7 @@ name "cacerts"
 
 # Omnibus breaks if there is no version on elements. You get an error like
 #   Software must specify a `version; to cache it in S3 (cacerts[/go/src/github.com/DataDog/datadog-agent/omnibus/config/software/cacerts.rb])!
-default_version "2025-08-12"
+default_version "2025-09-09"
 
 build do
   license "MPL-2.0"

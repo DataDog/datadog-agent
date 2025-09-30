@@ -7,7 +7,9 @@ package server
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"math/bits"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,8 +50,8 @@ type dogstatsdEvent struct {
 }
 
 type eventHeader struct {
-	titleLength int
-	textLength  int
+	titleLength uint
+	textLength  uint
 }
 
 var (
@@ -113,8 +115,8 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 	}
 
 	return eventHeader{
-		titleLength: titleLength,
-		textLength:  textLength,
+		titleLength: uint(titleLength),
+		textLength:  uint(textLength),
 	}, nil
 }
 
@@ -192,12 +194,21 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 		return dogstatsdEvent{}, err
 	}
 
-	if len(rawEvent) < header.textLength+header.titleLength+1 {
-		return dogstatsdEvent{}, fmt.Errorf("invalid event")
+	textStart, overflow := bits.Add(header.titleLength, 1, 0)
+	if overflow > 0 {
+		return dogstatsdEvent{}, errors.New("invalid event")
+	}
+	contentLength, overflow := bits.Add(textStart, header.textLength, 0)
+	if overflow > 0 {
+		return dogstatsdEvent{}, errors.New("invalid event")
+	}
+
+	if uint(len(rawEvent)) < contentLength {
+		return dogstatsdEvent{}, errors.New("invalid event")
 	}
 
 	title := cleanEventText(rawEvent[:header.titleLength])
-	text := cleanEventText(rawEvent[header.titleLength+1 : header.titleLength+1+header.textLength])
+	text := cleanEventText(rawEvent[textStart:contentLength])
 
 	event := dogstatsdEvent{
 		title:     string(title),
@@ -206,11 +217,11 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 		alertType: alertTypeInfo,
 	}
 
-	if len(rawEvent) == header.textLength+header.titleLength+1 {
+	if uint(len(rawEvent)) == contentLength {
 		return event, nil
 	}
 
-	optionalFields := rawEvent[header.titleLength+1+header.textLength+1:]
+	optionalFields := rawEvent[contentLength:]
 	var optionalField []byte
 	for optionalFields != nil {
 		optionalField, optionalFields = nextField(optionalFields)

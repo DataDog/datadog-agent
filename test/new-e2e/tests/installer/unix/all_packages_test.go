@@ -36,17 +36,17 @@ type packageTestsWithSkippedFlavors struct {
 var (
 	amd64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404,
-		// e2eos.AmazonLinux2,
-		// e2eos.Debian12,
-		// e2eos.RedHat9,
-		// // e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
-		// e2eos.CentOS7,
-		// e2eos.Suse15,
+		e2eos.AmazonLinux2,
+		e2eos.Debian12,
+		e2eos.RedHat9,
+		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
+		e2eos.CentOS7,
+		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		// e2eos.Ubuntu2404,
-		// e2eos.AmazonLinux2,
-		// e2eos.Suse15,
+		e2eos.Ubuntu2404,
+		e2eos.AmazonLinux2,
+		e2eos.Suse15,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},

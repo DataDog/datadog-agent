@@ -22,6 +22,9 @@ build do
   # 2.0 is the license version here, not the python version
   license "Python-2.0"
 
+  # Apply CVE-2025-8194 patch to fix tarfile module vulnerability
+  patch source: "CVE-2025-8194-tarfile.patch"
+
   unless windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
     python_configure_options = [

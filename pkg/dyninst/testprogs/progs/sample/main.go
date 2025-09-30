@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2"
+	lib_v2 "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2"
 )
 
 func main() {
@@ -46,5 +46,6 @@ func main() {
 	executeGenericFuncs()
 	executeMapFuncs()
 	executeInterfaceFuncs()
+	executeReturns()
 	go returnGoroutineId()
 }
