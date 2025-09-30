@@ -228,6 +228,7 @@ func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string, s *Seria
 			if strings.HasPrefix(string(payload), prefix) {
 				return true
 			}
+			fmt.Printf("Payload:  %q\nExpected: %q\n", string(payload), prefix)
 		}
 	}
 	return false
@@ -344,11 +345,29 @@ func TestSendV1Series(t *testing.T) {
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
-			matcher := createJSONPayloadMatcher(`{"series":[]}`, s)
+			matcher := createJSONPayloadMatcher(
+				`{"series":[{"metric":"foo","points":[[1759241515,3.14],[1759241525,2.71]],`+
+					`"tags":["bar","baz"],"host":"localhost","device":"sda","type":"gauge",`+
+					`"interval":10,"source_type_name":"System"}]}`, s)
 
 			f.On("SubmitV1Series", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
+			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{
+				Name:   "foo",
+				MType:  metrics.APIGaugeType,
+				Device: "sda",
+				Tags: tagset.NewCompositeTags(
+					[]string{"bar"},
+					[]string{"baz", "dd.internal.resource:ook:eek"},
+				),
+				Points: []metrics.Point{
+					{Ts: 1759241515, Value: 3.14},
+					{Ts: 1759241525, Value: 2.71},
+				},
+				Host:           "localhost",
+				SourceTypeName: "System",
+				Interval:       10,
+			}}))
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 		})
