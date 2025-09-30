@@ -21,7 +21,7 @@ require (
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/goware/modvendor v0.5.0
-	github.com/hashicorp/vault v1.20.3
+	github.com/hashicorp/vault v1.20.4
 	github.com/hashicorp/vault/api v1.21.0
 	github.com/hashicorp/vault/api/auth/approle v0.10.0
 	github.com/hashicorp/vault/api/auth/aws v0.10.0
@@ -83,7 +83,7 @@ require (
 	github.com/digitalocean/godo v1.7.5 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dnaeon/go-vcr v1.2.0 // indirect
-	github.com/docker/docker v28.3.3+incompatible // indirect
+	github.com/docker/docker v28.4.0+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/duosecurity/duo_api_golang v0.0.0-20190308151101-6c680f768e74 // indirect
@@ -131,7 +131,7 @@ require (
 	github.com/hashicorp/consul/sdk v0.16.1 // indirect
 	github.com/hashicorp/eventlogger v0.2.10 // indirect
 	github.com/hashicorp/go-bexpr v0.1.12 // indirect
-	github.com/hashicorp/go-discover v1.1.1-0.20250822114713-cd0e09c8e096 // indirect
+	github.com/hashicorp/go-discover v1.1.1-0.20250922102917-55e5010ad859 // indirect
 	github.com/hashicorp/go-discover/provider/gce v0.0.0-20241120163552-5eb1507d16b4 // indirect
 	github.com/hashicorp/go-hmac-drbg v0.0.0-20210916214228-a6e5a68489f6 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
