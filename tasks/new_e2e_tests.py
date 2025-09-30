@@ -281,7 +281,7 @@ def run(
         # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
         old_profile = os.getenv("AWS_PROFILE", "")
         if "AWS_PROFILE" in os.environ:
-            del(os.environ["AWS_PROFILE"])
+            del os.environ["AWS_PROFILE"]
         backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
         executor = DynTestExecutor(ctx, backend, IndexKind.PACKAGE, get_commit_sha(ctx, short=True))
         changes = get_modified_files(ctx)
@@ -432,6 +432,7 @@ def run(
         )
         if test_res is None:
             ctx.run("datadog-ci tag --level job --tags 'e2e.skipped_all_tests:true'")
+            return
 
         washer = TestWasher(test_output_json_file=partial_result_json)
 
