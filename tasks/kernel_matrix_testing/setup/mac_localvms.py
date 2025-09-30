@@ -170,7 +170,9 @@ class BootPService(Requirement):
 
 class MacNFSService(Requirement):
     def check(self, ctx: Context, fix: bool) -> list[RequirementState]:
-        res = ctx.run("sudo nfsd status", warn=True)  # This command can return a non-zero exit code if the service is not enabled/running
+        res = ctx.run(
+            "sudo nfsd status", warn=True
+        )  # This command can return a non-zero exit code if the service is not enabled/running
         if res is None:
             return [RequirementState(Status.FAIL, f"Failed to check NFS service: {res}")]
 
