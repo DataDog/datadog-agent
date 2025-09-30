@@ -66,6 +66,11 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 		err := C.GoString(cErr)
 		defer C.free(unsafe.Pointer(cErr))
 
+		// the loading error message can be very verbose (~850 chars)
+		if len(err) > 300 {
+			err = err[:300] + "..."
+		}
+
 		errMsg := fmt.Sprintf("failed to load shared library %q: %s", name, err)
 		return nil, errors.New(errMsg)
 	}
