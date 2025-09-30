@@ -7,8 +7,13 @@
 
 bazel:build-deps:linux-amd64:
   extends: [ .bazel:build-deps, .linux_x64 ]
-  tags: [ "arch:amd64", "specific:true" ]
+  #tags: [ "arch:amd64", "specific:true" ]
+  tags: ["linux-persistent:amd64", "specific:true"]
   script:
+    - echo 'startup --output_user_root=/data/output' >> .bazelrc
+    - echo 'build --disk_cache=/data/bzl' >> .bazelrc
+    - echo 'common --repository_cache=/data/bzl-repo' >> .bazelrc
+    - echo 'common --repo_contents_cache=/data/bzl-repo' >> .bazelrc
     - bazel build //deps/...
 
 bazel:build-deps:linux-arm64:
