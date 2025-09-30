@@ -41,8 +41,9 @@ static __always_inline __u64 get_ringbuf_flags(size_t data_size) {
     if (ringbuffer_wakeup_size == 0) {
         return 0;
     }
-    __u64 sz = bpf_ringbuf_query(&http_batch_events, DD_BPF_RB_AVAIL_DATA);
-    return (sz + data_size) >= ringbuffer_wakeup_size ? DD_BPF_RB_FORCE_WAKEUP : DD_BPF_RB_NO_WAKEUP;
+    // Query the amount of data waiting to be consumed in the ring buffer
+    __u64 pending_data = bpf_ringbuf_query(&http_batch_events, DD_BPF_RB_AVAIL_DATA);
+    return (pending_data + data_size) >= ringbuffer_wakeup_size ? DD_BPF_RB_FORCE_WAKEUP : DD_BPF_RB_NO_WAKEUP;
 }
 
 static __always_inline void http_output_event(void *ctx, http_event_t *event) {
