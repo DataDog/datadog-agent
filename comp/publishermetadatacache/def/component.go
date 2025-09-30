@@ -12,14 +12,11 @@ import (
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
-// team: windows-agent
+// team: windows-products
 
 // Component is a cache for EventPublisherMetadataHandle instances.
 // It caches handles obtained from EvtOpenPublisherMetadata calls to avoid expensive repeated calls.
 type Component interface {
-	// Get retrieves a cached EventPublisherMetadataHandle for the given publisher name.
-	Get(publisherName string) evtapi.EventPublisherMetadataHandle
-
 	// FormatMessage formats an event message using the cached EventPublisherMetadataHandle.
 	FormatMessage(publisherName string, event evtapi.EventRecordHandle, flags uint) string
 
