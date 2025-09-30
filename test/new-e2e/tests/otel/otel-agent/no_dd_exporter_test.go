@@ -32,12 +32,12 @@ var noDDExporterProvidedConfig string
 var noDDExporterFullConfig string
 
 func TestOTelAgentWithNoDDExporter(t *testing.T) {
-	values := enableOTELAgentConfig(`
+	values := `
 datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-`)
+`
 	t.Parallel()
 	e2e.Run(t, &noDDExporterTestSuite{},
 		e2e.WithProvisioner(

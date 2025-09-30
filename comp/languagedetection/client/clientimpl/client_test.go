@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -47,13 +47,14 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 	mockDCAClient := &MockDCAClient{respCh: respCh}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"language_detection.reporting.enabled":       "true",
-			"language_detection.enabled":                 "true",
-			"cluster_agent.enabled":                      "true",
-			"language_detection.reporting.buffer_period": "50ms",
-		}}),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"language_detection.reporting.enabled":       "true",
+				"language_detection.enabled":                 "true",
+				"cluster_agent.enabled":                      "true",
+				"language_detection.reporting.buffer_period": "50ms",
+			})
+		}),
 		telemetryimpl.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -92,14 +93,15 @@ func TestClientEnabled(t *testing.T) {
 			testCase.clusterAgentEnabled),
 			func(t *testing.T) {
 				deps := fxutil.Test[dependencies](t, fx.Options(
-					config.MockModule(),
 					fxutil.ProvideOptional[secrets.Component](),
-					fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-						"language_detection.enabled":           testCase.languageDetectionEnabled,
-						"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
-						"cluster_agent.enabled":                testCase.clusterAgentEnabled,
-					}}),
-					secretsimpl.MockModule(),
+					fx.Provide(func() config.Component {
+						return config.NewMockWithOverrides(t, map[string]interface{}{
+							"language_detection.enabled":           testCase.languageDetectionEnabled,
+							"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
+							"cluster_agent.enabled":                testCase.clusterAgentEnabled,
+						})
+					}),
+					fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 					telemetryimpl.MockModule(),
 					fx.Provide(func() log.Component { return logmock.New(t) }),
 					workloadmetafxmock.MockModule(workloadmeta.NewParams()),

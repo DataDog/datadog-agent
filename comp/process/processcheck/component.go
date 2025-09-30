@@ -10,9 +10,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/types"
 )
 
-// team: container-intake
+// team: container-experiences
 
-//nolint:revive // TODO(PROC) Fix revive linter
+// Component is the component type.
 type Component interface {
 	types.CheckComponent
 }

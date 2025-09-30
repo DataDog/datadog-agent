@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Remote Agent updates on Windows now use the ``/norestart`` MSI option
+    to prevent Windows from automatically rebooting the host in rare cases
+    when files are in use.

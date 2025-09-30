@@ -35,4 +35,8 @@ const (
 	AgentStartTime = "X-DD-Agent-Start-Time"
 	// PayloadSource describes which agent process sent the payload (i.e. process or core agent)
 	PayloadSource = "X-DD-Payload-Source"
+	// ProcessesEnabled is a boolean value that indicates if the processes feature is enabled
+	ProcessesEnabled = "X-DD-Processes-Enabled"
+	// ServiceDiscoveryEnabled is a boolean value that indicates if the service discovery feature is enabled
+	ServiceDiscoveryEnabled = "X-DD-Service-Discovery-Enabled"
 )

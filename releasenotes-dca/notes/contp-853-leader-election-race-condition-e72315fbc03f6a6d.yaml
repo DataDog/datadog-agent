@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed an issue that caused some Datadog Cluster Agent replicas to restart
+    during the first install.
+  - |
+    When using leases for leader election with the
+    ``leader_election_default_resource`` option, the Datadog Cluster Agent no
+    longer creates an unused config map.

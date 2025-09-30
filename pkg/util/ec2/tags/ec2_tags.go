@@ -20,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
@@ -29,9 +30,12 @@ import (
 // declare these as vars not const to ease testing
 var (
 	tagsCacheKey = cache.BuildAgentKey("ec2", "GetTags")
+	infoCacheKey = cache.BuildAgentKey("ec2", "GetInstanceInfo")
 
-	// This is used in ec2_tags.go which is behind the 'ec2' build flag
-	imdsTags = "/tags/instance" //nolint:unused
+	imdsTags = "/tags/instance"
+
+	// for testing purposes
+	fetchContainerInstanceARN = getContainerInstanceARN
 )
 
 func isTagExcluded(tag string) bool {
@@ -41,6 +45,63 @@ func isTagExcluded(tag string) bool {
 		}
 	}
 	return false
+}
+
+// GetInstanceInfo collects information about the EC2 instance as host tags. This mimic the tags set by the AWS
+// integration in Datadog backend allowing customer to collect those information without having to enable the crawler.
+func GetInstanceInfo(ctx context.Context) ([]string, error) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
+		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+	}
+
+	if !pkgconfigsetup.Datadog().GetBool("collect_ec2_instance_info") {
+		return nil, nil
+	}
+
+	if ec2Info, found := cache.Cache.Get(infoCacheKey); found {
+		return ec2Info.([]string), nil
+	}
+
+	info, err := ec2internal.GetInstanceDocument(ctx)
+	if err != nil {
+		log.Debugf("could not fetch instance information: %s", err)
+		return nil, err
+	}
+
+	tags := []string{}
+	getAndSet := func(infoName string, tagName string) {
+		if isTagExcluded(tagName) {
+			return
+		}
+		if val, ok := info[infoName]; ok {
+			tags = append(tags, fmt.Sprintf("%s:%s", tagName, val))
+		} else {
+			tags = append(tags, fmt.Sprintf("%s:unavailable", tagName))
+		}
+	}
+
+	getAndSet("region", "region")
+	getAndSet("instanceType", "instance-type")
+	getAndSet("accountId", "aws_account")
+	getAndSet("imageId", "image")
+	getAndSet("availabilityZone", "availability-zone")
+
+	// Add container instance ARN when running on ECS EC2
+	if env.IsFeaturePresent(env.ECSEC2) {
+		const ciaTagName = "container_instance_arn"
+		if !isTagExcluded(ciaTagName) {
+			arn, err := fetchContainerInstanceARN(ctx)
+			if err != nil || arn == "" {
+				log.Debugf("could not fetch container instance ARN: %v", err)
+			} else {
+				tags = append(tags, fmt.Sprintf("%s:%s", ciaTagName, arn))
+			}
+		}
+	}
+
+	// save tags to the cache in case we exceed quotas later
+	cache.Cache.Set(infoCacheKey, tags, cache.NoExpiration)
+	return tags, nil
 }
 
 func fetchEc2Tags(ctx context.Context) ([]string, error) {

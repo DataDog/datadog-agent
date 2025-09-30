@@ -14,9 +14,12 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -31,9 +34,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
+	usmutils "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// logLimitProbe is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
+var logLimitProbe = log.NewLogLimit(20, 10*time.Minute)
 
 const (
 	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
@@ -72,6 +80,7 @@ const (
 	cudaFreeProbe                probeFuncName = "uprobe__cudaFree"
 	cudaSetDeviceProbe           probeFuncName = "uprobe__cudaSetDevice"
 	cudaSetDeviceRetProbe        probeFuncName = "uretprobe__cudaSetDevice"
+	cudaDeviceSyncRetProbe       probeFuncName = "uretprobe__cudaDeviceSynchronize"
 	cudaEventRecordProbe         probeFuncName = "uprobe__cudaEventRecord"
 	cudaEventQueryProbe          probeFuncName = "uprobe__cudaEventQuery"
 	cudaEventQueryRetProbe       probeFuncName = "uretprobe__cudaEventQuery"
@@ -80,7 +89,10 @@ const (
 	cudaEventDestroyProbe        probeFuncName = "uprobe__cudaEventDestroy"
 	cudaMemcpyProbe              probeFuncName = "uprobe__cudaMemcpy"
 	cudaMemcpyRetProbe           probeFuncName = "uretprobe__cudaMemcpy"
+	setenvProbe                  probeFuncName = "uprobe__setenv"
 )
+
+const ringbufferWakeupSizeConstantName = "ringbuffer_wakeup_size"
 
 // ProbeDependencies holds the dependencies for the probe
 type ProbeDependencies struct {
@@ -108,6 +120,8 @@ type Probe struct {
 	telemetry        *probeTelemetry
 	mapCleanerEvents *ddebpf.MapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue]
 	streamHandlers   *streamCollection
+	lastCheck        atomic.Int64
+	ringBuffer       *manager.RingBuffer
 }
 
 type probeTelemetry struct {
@@ -183,8 +197,9 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
+	memPools.ensureInit(deps.Telemetry)
 	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry, cfg)
-	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.cfg, deps.Telemetry)
+	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.ringBuffer, p.cfg, deps.Telemetry)
 	p.statsGenerator = newStatsGenerator(sysCtx, p.streamHandlers, deps.Telemetry)
 
 	if err = p.start(); err != nil {
@@ -207,6 +222,9 @@ func (p *Probe) start() error {
 	if err := p.attacher.Start(); err != nil {
 		return fmt.Errorf("error starting uprobes attacher: %w", err)
 	}
+
+	ddebpf.AddProbeFDMappings(p.m.Manager)
+
 	return nil
 }
 
@@ -214,13 +232,15 @@ func (p *Probe) start() error {
 func (p *Probe) Close() {
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
-	ddebpf.ClearNameMappings(consts.GpuModuleName)
+	ddebpf.ClearProgramIDMappings(consts.GpuModuleName)
 	p.consumer.Stop()
 	p.eventHandler.Stop()
 }
 
 // GetAndFlush returns the GPU stats
 func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
+	p.lastCheck.Store(time.Now().Unix())
+
 	now, err := ddebpf.NowNanoseconds()
 	if err != nil {
 		return nil, fmt.Errorf("error getting current time: %w", err)
@@ -308,7 +328,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 // it must be called BEFORE the InitWithOptions method of the manager is called
 func (p *Probe) setupSharedBuffer(o *manager.Options) {
 	rbHandler := ddebpf.NewRingBufferHandler(consumerChannelSize)
-	rb := &manager.RingBuffer{
+	p.ringBuffer = &manager.RingBuffer{
 		Map: manager.Map{Name: cudaEventsRingbuf},
 		RingBufferOptions: manager.RingBufferOptions{
 			RecordHandler: rbHandler.RecordHandler,
@@ -334,11 +354,16 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 	}
 
-	p.m.Manager.RingBuffers = append(p.m.Manager.RingBuffers, rb)
+	o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
+		Name:  ringbufferWakeupSizeConstantName,
+		Value: uint64(p.cfg.RingBufferWakeupSize),
+	})
+
+	p.m.Manager.RingBuffers = append(p.m.Manager.RingBuffers, p.ringBuffer)
 	p.eventHandler = rbHandler
 
-	rb.TelemetryEnabled = true
-	ebpftelemetry.ReportRingBufferTelemetry(rb)
+	p.ringBuffer.TelemetryEnabled = true
+	ebpftelemetry.ReportRingBufferTelemetry(p.ringBuffer)
 }
 
 // CollectConsumedEvents waits until the debug collector stores count events and returns them
@@ -348,42 +373,67 @@ func (p *Probe) CollectConsumedEvents(ctx context.Context, count int) ([][]byte,
 	return p.consumer.debugCollector.wait(ctx)
 }
 
-func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
-	return uprobes.AttacherConfig{
-		Rules: []*uprobes.AttachRule{
-			{
-				LibraryNameRegex: regexp.MustCompile(`libcudart\.so`),
-				Targets:          uprobes.AttachToExecutable | uprobes.AttachToSharedLibraries,
-				ProbesSelector: []manager.ProbesSelector{
-					&manager.AllOf{
-						Selectors: []manager.ProbesSelector{
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaLaunchKernelProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMallocProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMallocRetProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncRetProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaFreeProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceRetProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventRecordProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryRetProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventSynchronizeProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventSynchronizeRetProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventDestroyProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMemcpyProbe}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMemcpyRetProbe}},
-						},
-					},
+// getCudaLibraryAttacherRule returns the attach rule for the CUDA libraries
+// split in a separate function to make it easier to test
+func getCudaLibraryAttacherRule() *uprobes.AttachRule {
+	return &uprobes.AttachRule{
+		LibraryNameRegex: regexp.MustCompile(`lib(cudart|nd4jcuda)\.so`),
+		Targets:          uprobes.AttachToExecutable | uprobes.AttachToSharedLibraries,
+		ProbesSelector: []manager.ProbesSelector{
+			&manager.AllOf{
+				Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaLaunchKernelProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMallocProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMallocRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaFreeProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaDeviceSyncRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventRecordProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventSynchronizeProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventSynchronizeRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventDestroyProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMemcpyProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMemcpyRetProbe}},
 				},
 			},
 		},
+	}
+}
+
+// getLibcAttacherRule returns the attach rule for the libc library
+// split in a separate function to make it easier to test
+func getLibcAttacherRule() *uprobes.AttachRule {
+	return &uprobes.AttachRule{
+		LibraryNameRegex: regexp.MustCompile(`libc\.so`),
+		Targets:          uprobes.AttachToSharedLibraries | uprobes.AttachToExecutable,
+		ProbesSelector: []manager.ProbesSelector{
+			&manager.AllOf{
+				Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: setenvProbe}},
+				},
+			},
+		},
+	}
+}
+
+func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
+	return uprobes.AttacherConfig{
+		Rules: []*uprobes.AttachRule{
+			getCudaLibraryAttacherRule(),
+			getLibcAttacherRule(),
+		},
 		EbpfConfig:                     &cfg.Config,
 		PerformInitialScan:             cfg.InitialProcessSync,
-		SharedLibsLibset:               sharedlibraries.LibsetGPU,
+		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetGPU, sharedlibraries.LibsetLibc},
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
-		EnableDetailedLogging:          true,
+		EnableDetailedLogging:          cfg.AttacherDetailedLogs,
+		ExcludeTargets:                 uprobes.ExcludeInternal | uprobes.ExcludeSelf,
 	}
 }
 
@@ -398,7 +448,7 @@ func (p *Probe) setupMapCleaner() error {
 		return fmt.Errorf("error creating map cleaner: %w", err)
 	}
 
-	p.mapCleanerEvents.Clean(defaultMapCleanerInterval, nil, nil, func(now int64, _ gpuebpf.CudaEventKey, val gpuebpf.CudaEventValue) bool {
+	p.mapCleanerEvents.Start(defaultMapCleanerInterval, nil, nil, func(now int64, _ gpuebpf.CudaEventKey, val gpuebpf.CudaEventValue) bool {
 		return (now - int64(val.Access_ktime_ns)) > defaultEventTTL.Nanoseconds()
 	})
 
@@ -409,4 +459,37 @@ func (p *Probe) setupMapCleaner() error {
 func toPowerOf2(x int) int {
 	log := math.Log2(float64(x))
 	return int(math.Pow(2, math.Round(log)))
+}
+
+// GetDebugStats returns the debug stats for the GPU monitoring probe
+func (p *Probe) GetDebugStats() map[string]interface{} {
+	var activeGpus []map[string]interface{}
+
+	for _, gpu := range p.sysCtx.deviceCache.All() {
+		info := gpu.GetDeviceInfo()
+		wmetaGpu, err := p.sysCtx.workloadmeta.GetGPU(info.UUID)
+		_, isMIG := gpu.(*safenvml.MIGDevice)
+
+		activeGpus = append(activeGpus, map[string]interface{}{
+			"uuid":       info.UUID,
+			"name":       info.Name,
+			"index":      info.Index,
+			"sm_version": info.SMVersion,
+			"is_mig":     isMIG,
+			"in_wmeta":   err == nil && wmetaGpu != nil,
+		})
+	}
+
+	healthStatus := health.GetLive()
+
+	return map[string]interface{}{
+		"active_gpus":  activeGpus,
+		"kernel_cache": p.sysCtx.cudaKernelCache.GetStats(),
+		"attacher": map[string]interface{}{
+			"active_processes":  usmutils.GetTracedProgramList(consts.GpuModuleName),
+			"blocked_processes": usmutils.GetBlockedPathIDsList(consts.GpuModuleName),
+		},
+		"consumer_healthy": slices.Contains(healthStatus.Healthy, consts.GpuConsumerHealthName),
+		"last_check":       p.lastCheck.Load(),
+	}
 }

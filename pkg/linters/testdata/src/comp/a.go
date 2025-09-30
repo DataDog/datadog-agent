@@ -6,4 +6,4 @@
 // Package a is a test package to test the linter
 package a
 
-import _ "github.com/DataDog/datadog-agent/pkg/config" // want "pkg/config should not be used inside comp folder"
+import _ "github.com/DataDog/datadog-agent/pkg/config/setup" // want `pkg/config/setup should not be used inside comp folder`

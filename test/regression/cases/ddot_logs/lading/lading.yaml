@@ -5,12 +5,29 @@ generator:
       headers:
         content-type: "application/x-protobuf"
       target_uri: "http://127.0.0.1:4318/v1/logs"
-      bytes_per_second: "3 Mb"
+      bytes_per_second: "3 MiB"
       parallel_connections: 5
       method:
         post:
-          maximum_prebuild_cache_size_bytes: "512 Mb"
-          variant: "opentelemetry_logs"
+          maximum_prebuild_cache_size_bytes: "512 MiB"
+          variant:
+            opentelemetry_logs:
+              contexts:
+                total_contexts:
+                  constant: 1000
+              trace_cardinality:
+                constant: 10
+              body_size:
+                inclusive:
+                  min: 128
+                  max: 512
+              severity_weights:
+                trace: 10
+                debug: 10
+                info: 10
+                warn: 10
+                error: 10
+                fatal: 10
 
 blackhole:
   - http:
@@ -18,6 +35,9 @@ blackhole:
       body_variant: "nothing"
   - http:
       binding_addr: "127.0.0.1:9092"
+      body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9093"
       body_variant: "nothing"
 
 target_metrics:

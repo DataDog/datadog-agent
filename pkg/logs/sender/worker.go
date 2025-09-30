@@ -11,11 +11,11 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -32,7 +32,6 @@ var (
 // the auditor or block the pipeline if they fail. There will always be at
 // least 1 reliable destination (the main destination).
 type worker struct {
-	auditor        auditor.Auditor
 	config         pkgconfigmodel.Reader
 	inputChan      chan *message.Payload
 	outputChan     chan *message.Payload
@@ -42,6 +41,8 @@ type worker struct {
 	bufferSize     int
 	senderDoneChan chan *sync.WaitGroup
 	flushWg        *sync.WaitGroup
+	sink           Sink
+	workerID       string
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -50,11 +51,12 @@ type worker struct {
 func newWorker(
 	config pkgconfigmodel.Reader,
 	inputChan chan *message.Payload,
-	auditor auditor.Auditor,
-	destinations *client.Destinations,
+	sink Sink,
+	destinationFactory DestinationFactory,
 	bufferSize int,
 	serverlessMeta ServerlessMeta,
 	pipelineMonitor metrics.PipelineMonitor,
+	workerID string,
 ) *worker {
 	var senderDoneChan chan *sync.WaitGroup
 	var flushWg *sync.WaitGroup
@@ -64,25 +66,26 @@ func newWorker(
 		flushWg = serverlessMeta.WaitGroup()
 	}
 	return &worker{
-		auditor:        auditor,
 		config:         config,
 		inputChan:      inputChan,
-		destinations:   destinations,
+		sink:           sink,
+		destinations:   destinationFactory(workerID),
 		bufferSize:     bufferSize,
 		senderDoneChan: senderDoneChan,
 		flushWg:        flushWg,
 		done:           make(chan struct{}),
 		finished:       make(chan struct{}),
+		workerID:       workerID,
 
 		// Telemetry
 		pipelineMonitor: pipelineMonitor,
-		utilization:     pipelineMonitor.MakeUtilizationMonitor("sender"),
+		utilization:     pipelineMonitor.MakeUtilizationMonitor(metrics.WorkerTlmName, workerID),
 	}
 }
 
 // Start starts the worker.
 func (s *worker) start() {
-	s.outputChan = s.auditor.Channel()
+	s.outputChan = s.sink.Channel()
 
 	go s.run()
 }
@@ -95,14 +98,20 @@ func (s *worker) stop() {
 }
 
 func (s *worker) run() {
-	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, s.outputChan, s.bufferSize)
+	noopSink := noopDestinationsSink(s.bufferSize)
+	reliableOutputChan := s.outputChan
+	if reliableOutputChan == nil {
+		reliableOutputChan = noopSink
+	}
 
-	sink := additionalDestinationsSink(s.bufferSize)
-	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, sink, s.bufferSize)
+	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, reliableOutputChan, s.bufferSize)
+	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, noopSink, s.bufferSize)
 	continueLoop := true
 	for continueLoop {
 		select {
 		case payload := <-s.inputChan:
+			s.pipelineMonitor.ReportComponentEgress(payload, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
+			s.pipelineMonitor.ReportComponentIngress(payload, metrics.WorkerTlmName, s.workerID)
 			s.utilization.Start()
 			var startInUse = time.Now()
 			senderDoneWg := &sync.WaitGroup{}
@@ -110,9 +119,16 @@ func (s *worker) run() {
 			sent := false
 			for !sent {
 				for _, destSender := range reliableDestinations {
+					// Drop non-MRF payloads to MRF destinations
+					if destSender.destination.IsMRF() && !payload.IsMRF() {
+						log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+						sent = true
+						continue
+					}
+
 					if destSender.Send(payload) {
 						if destSender.destination.Metadata().ReportingEnabled {
-							s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag())
+							s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag(), s.workerID)
 						}
 						sent = true
 						if s.senderDoneChan != nil {
@@ -131,6 +147,12 @@ func (s *worker) run() {
 			}
 
 			for i, destSender := range reliableDestinations {
+				// Drop non-MRF payloads to MRF destinations
+				if destSender.destination.IsMRF() && !payload.IsMRF() {
+					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+					sent = true
+					continue
+				}
 				// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
 				// loss on intermittent failures.
 				if !destSender.lastSendSucceeded {
@@ -143,6 +165,12 @@ func (s *worker) run() {
 
 			// Attempt to send to unreliable destinations
 			for i, destSender := range unreliableDestinations {
+				// Drop non-MRF payloads to MRF destinations
+				if destSender.destination.IsMRF() && !payload.IsMRF() {
+					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
+					sent = true
+					continue
+				}
 				if !destSender.NonBlockingSend(payload) {
 					tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
 					tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
@@ -163,7 +191,7 @@ func (s *worker) run() {
 				// Decrement the wait group when this payload has been sent
 				s.flushWg.Done()
 			}
-			s.pipelineMonitor.ReportComponentEgress(payload, "sender")
+			s.pipelineMonitor.ReportComponentEgress(payload, metrics.WorkerTlmName, s.workerID)
 		case <-s.done:
 			continueLoop = false
 		}
@@ -176,17 +204,18 @@ func (s *worker) run() {
 	for _, destSender := range unreliableDestinations {
 		destSender.Stop()
 	}
-	close(sink)
+	close(noopSink)
 	s.finished <- struct{}{}
 }
 
 // Drains the output channel from destinations that don't update the auditor.
-func additionalDestinationsSink(bufferSize int) chan *message.Payload {
+func noopDestinationsSink(bufferSize int) chan *message.Payload {
 	sink := make(chan *message.Payload, bufferSize)
 	go func() {
 		// drain channel, stop when channel is closed
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range sink {
+		for msg := range sink {
+			// Consume messages from channel until closed
+			_ = msg
 		}
 	}()
 	return sink

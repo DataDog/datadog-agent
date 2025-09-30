@@ -63,9 +63,10 @@ const (
 type csiInjectionType string
 
 const (
-	csiAPMSocket               csiInjectionType = "APMSocket"
-	csiDSDSocket               csiInjectionType = "DSDSocket"
-	csiDatadogSocketsDirectory csiInjectionType = "DatadogSocketsDirectory"
+	csiAPMSocket          csiInjectionType = "APMSocket"
+	csiAPMSocketDirectory csiInjectionType = "APMSocketDirectory"
+	csiDSDSocket          csiInjectionType = "DSDSocket"
+	csiDSDSocketDirectory csiInjectionType = "DSDSocketDirectory"
 )
 
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
@@ -118,6 +119,11 @@ func (w *Webhook) Endpoint() string {
 // be invoked
 func (w *Webhook) Resources() map[string][]string {
 	return w.resources
+}
+
+// Timeout returns the timeout for the webhook
+func (w *Webhook) Timeout() int32 {
+	return 0
 }
 
 // Operations returns the operations on the resources specified for which

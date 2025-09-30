@@ -489,6 +489,12 @@ func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
 	}
 
+	// All metrics stored in the "pms" slice above must follow the format:
+	//    <subsystem>__<metric_name>
+	// The "subsystem" and "name" should be concatenated with a double underscore ("__") separator,
+	// e.g., "checks__execution_time". Therefore, the "Options.NoDoubleUnderscoreSep: true" option
+	// must not be used when creating metrics.
+
 	session := a.sender.startSession(a.cancelCtx)
 	for _, p := range profiles {
 		a.reportAgentMetrics(session, pms, p)

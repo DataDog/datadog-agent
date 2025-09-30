@@ -5,7 +5,6 @@
 package rpm_test
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -16,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -28,44 +29,38 @@ import (
 )
 
 var (
-	osVersion    = flag.String("osversion", "", "os version to test")
-	platform     = flag.String("platform", "", "platform to test")
-	architecture = flag.String("arch", "", "architecture to test (x86_64, arm64)")
-	majorVersion = flag.String("major-version", "7", "major version to test (6, 7)")
+	osDescriptors = flag.String("osdescriptors", "", "platform/arch/os version (debian/x86_64/11)")
+	majorVersion  = flag.String("major-version", "7", "major version to test (6, 7)")
 )
 
 type rpmTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 
+	osDesc    e2eos.Descriptor
 	osVersion float64
 }
 
 func TestRpmScript(t *testing.T) {
-	platformJSON := map[string]map[string]map[string]string{}
+	osDescriptors, err := platforms.ParseOSDescriptors(*osDescriptors)
+	if err != nil {
+		t.Fatalf("failed to parse os descriptors: %v", err)
+	}
+	if len(osDescriptors) == 0 {
+		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
+	}
 
-	err := json.Unmarshal(platforms.Content, &platformJSON)
-	require.NoErrorf(t, err, "failed to unmarshal platform file: %v", err)
-
-	osVersions := strings.Split(*osVersion, ",")
-
-	t.Log("Parsed platform json file: ", platformJSON)
-
-	for _, osVers := range osVersions {
-		osVers := osVers
-		if platformJSON[*platform][*architecture][osVers] == "" {
-			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
-			t.Fatalf("No image found for %s %s %s", *platform, *architecture, osVers)
-		}
+	for _, osDesc := range osDescriptors {
+		osDesc := osDesc
 
 		vmOpts := []ec2.VMOption{}
 		if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
 
-		t.Run(fmt.Sprintf("test RPM package on %s %s", osVers, *architecture), func(tt *testing.T) {
+		t.Run(fmt.Sprintf("test RPM package on %s", platforms.PrettifyOsDescriptor(osDesc)), func(tt *testing.T) {
 			tt.Parallel()
-			tt.Logf("Testing %s", osVers)
-			slice := strings.Split(osVers, "-")
+			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
+			slice := strings.Split(osDesc.Version, "-")
 			var version float64
 			if len(slice) == 2 {
 				version, err = strconv.ParseFloat(slice[1], 64)
@@ -80,15 +75,14 @@ func TestRpmScript(t *testing.T) {
 				version = 0
 			}
 
-			osDesc := platforms.BuildOSDescriptor(*platform, *architecture, osVers)
-			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
+			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
 
 			e2e.Run(tt,
 				&rpmTestSuite{osVersion: version},
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
-				e2e.WithStackName(fmt.Sprintf("rpm-test-%v-%s-%v", osVers, *architecture, *majorVersion)),
+				e2e.WithStackName(fmt.Sprintf("rpm-test-%s-%v", platforms.PrettifyOsDescriptor(osDesc), *majorVersion)),
 			)
 		})
 	}
@@ -101,17 +95,17 @@ func (is *rpmTestSuite) TestRpm() {
 	require.NoError(is.T(), err)
 	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, filemanager, unixHelper)
 
-	if *platform != "centos" {
+	if is.osDesc.Flavor != e2eos.CentOS {
 		is.T().Skip("Skipping test on non-centos platform")
 	}
 
 	var arch string
-	if *architecture == "arm64" {
+	if is.osDesc.Architecture == e2eos.ARM64Arch {
 		arch = "aarch64"
 	} else {
-		arch = *architecture
+		arch = "x86_64"
 	}
-	yumrepo := fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
+	yumrepo := fmt.Sprintf("http://s3.amazonaws.com/yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
 		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 

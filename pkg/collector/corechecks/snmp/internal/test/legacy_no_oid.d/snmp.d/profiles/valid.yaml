@@ -1,0 +1,24 @@
+metrics:
+  - MIB: VALID-MIB1
+    OID: 1.2.3.4.5.6.1
+    name: validName1
+
+  - MIB: VALID-MIB2
+    symbol:
+      OID: 1.2.3.4.5.6.2
+      name: validName2
+
+  - MIB: VALID-MIB3
+    table:
+      OID: 1.2.3.4.5.6.3
+      name: validTable3
+    symbols:
+      - OID: 1.2.3.4.5.6.3.1
+        name: validName3_1
+        metric_type: monotonic_count
+      - OID: 1.2.3.4.5.6.3.2
+        name: validName3_2
+        metric_type: monotonic_count
+    metric_tags:
+      - index: 1
+        tag: validTag3

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import fnmatch
 import glob
-import json
 import operator
 import os
 import re
@@ -22,6 +21,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
+from tasks.collector import OCB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
@@ -37,17 +37,18 @@ from tasks.libs.common.utils import (
     running_in_ci,
 )
 from tasks.libs.releasing.json import _get_release_json_value
+from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
-from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX, update_file
+from tasks.update_go import PATTERN_MAJOR_MINOR, update_file
 
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
-TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
+TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*", ".gitlab-ci.yml"]
 # TODO(songy23): contrib and OCB versions do not match in 0.122. Revert this once 0.123 is released
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v0.122.0/go.mod"
+    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OCB_VERSION}/go.mod"
 )
 
 
@@ -115,10 +116,11 @@ def test_flavor(
     cmd: str,
     env: dict[str, str],
     args: dict[str, str],
-    junit_tar: str,
+    result_junit: str,
     test_profiler: TestProfiler,
     coverage: bool = False,
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
+    recursive: bool = True,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -141,16 +143,13 @@ def test_flavor(
         result.result_json_path = os.path.join(result.path, result_json)
         args["json_flag"] = "--jsonfile " + result.result_json_path
 
-    # Produce the junit file only if a junit tarball needs to be produced
-    if junit_tar:
-        junit_file = f"junit-out-{flavor.name}.xml"
-        result.junit_file_path = os.path.join('.', junit_file)
-
-        junit_file_flag = "--junitfile " + result.junit_file_path if junit_tar else ""
-        args["junit_file_flag"] = junit_file_flag
+    # Produce the junit file if needed
+    if result_junit:
+        result_junit_path = os.path.join(result.path, result_junit)
+        args["junit_file_flag"] = "--junitfile " + result_junit_path
 
     # Compute full list of targets to run tests against
-    packages = compute_gotestsum_cli_args(modules)
+    packages = compute_gotestsum_cli_args(list(modules), recursive)
 
     with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
         res = ctx.run(
@@ -180,8 +179,8 @@ def test_flavor(
                 print(f"Could not remove coverage file {cov_path}\n{e}")
             return
 
-    if junit_tar:
-        enrich_junitxml(result.junit_file_path, flavor)
+    if result_junit:
+        enrich_junitxml(result_junit, flavor)  # type: ignore
 
     return result
 
@@ -202,15 +201,18 @@ def sanitize_env_vars():
     We want to ignore all `DD_` variables, as they will interfere with the behavior of some unit tests
     """
     for env in os.environ:
+        # Allow the env var that enables NodeTreeModel for testing purposes
+        if env == "DD_CONF_NODETREEMODEL":
+            continue
         if env.startswith("DD_"):
             del os.environ[env]
 
 
-def process_test_result(test_result: TestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(
+    test_result: TestResult, junit_tar: str, junit_files: list[str], flavor: AgentFlavor, test_washer: bool
+) -> bool:
     if junit_tar:
-        junit_file = test_result.junit_file_path
-
-        produce_junit_tar(junit_file, junit_tar)
+        produce_junit_tar(junit_files, junit_tar)
 
     success = process_result(flavor=flavor, result=test_result)
 
@@ -267,6 +269,7 @@ def test(
     skip_flakes=False,
     build_stdlib=False,
     test_washer=False,
+    extra_args=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
@@ -336,7 +339,9 @@ def test(
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
     )
     govet_flags = '-vet=off'
-    gotest_flags = '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
+    gotest_flags = (
+        '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args}'
+    )
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
@@ -354,6 +359,7 @@ def test(
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
         "skip_flakes": "--skip-flake" if skip_flakes else "",
         "gotestsum_format": "standard-verbose" if verbose else "pkgname",
+        "extra_args": extra_args or "",
     }
 
     # Test
@@ -373,6 +379,7 @@ def test(
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
     with gitlab_section("Running unit tests", collapsed=True):
+        result_junit = f"junit-out-{flavor}.xml" if junit_tar else ""
         test_result = test_flavor(
             ctx,
             flavor=flavor,
@@ -381,10 +388,11 @@ def test(
             cmd=cmd,
             env=env,
             args=args,
-            junit_tar=junit_tar,
+            result_junit=result_junit,
             result_json=result_json,
             test_profiler=test_profiler,
             coverage=coverage,
+            recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
         )
 
     # Output (only if tests ran)
@@ -398,7 +406,7 @@ def test(
             # print("\n--- Top 15 packages sorted by run time:")
             test_profiler.print_sorted(15)
 
-        success = process_test_result(test_result, junit_tar, flavor, test_washer)
+        success = process_test_result(test_result, junit_tar, [result_junit], flavor, test_washer)
         if not success:
             raise Exit(code=1)
 
@@ -614,22 +622,15 @@ def send_unit_tests_stats(_, job_name, extra_tag=None):
 
 
 def parse_test_log(log_file):
-    failed_tests = []
-    n_test_executed = 0
-    with open(log_file) as f:
-        for line in f:
-            json_line = json.loads(line)
-            if (
-                json_line["Action"] == "fail"
-                and "Test" in json_line
-                and f'{json_line["Package"]}/{json_line["Test"]}' not in failed_tests
-            ):
-                n_test_executed += 1
-                failed_tests.append(f'{json_line["Package"]}/{json_line["Test"]}')
-            if json_line["Action"] == "pass" and "Test" in json_line:
-                n_test_executed += 1
-                if f'{json_line["Package"]}/{json_line["Test"]}' in failed_tests:
-                    failed_tests.remove(f'{json_line["Package"]}/{json_line["Test"]}')
+    obj: ResultJson = ResultJson.from_file(log_file)
+    failed_tests = [
+        f"{package}/{test_name}"
+        for package, tests in obj.failing_tests.items()
+        for test_name in tests
+        if test_name != "_"  # Exclude package-level failures
+    ]
+
+    n_test_executed = len([line for line in obj.lines if line.action in (ActionType.PASS, ActionType.FAIL)])
     return failed_tests, n_test_executed
 
 
@@ -875,7 +876,7 @@ def get_go_modified_files(ctx):
     ]
 
 
-def compute_gotestsum_cli_args(modules: list[GoModule]):
+def compute_gotestsum_cli_args(modules: list[GoModule], recursive: bool = True):
     targets = []
     for module in modules:
         if not module.should_test():
@@ -885,8 +886,10 @@ def compute_gotestsum_cli_args(modules: list[GoModule]):
             if not target_path.startswith('./'):
                 target_path = f"./{target_path}"
             targets.append(target_path)
-
-    packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    if recursive:
+        packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    else:
+        packages = ' '.join(targets)
     return packages
 
 
@@ -943,30 +946,52 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
-    pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
+    # Get Go version from upstream (e.g., "1.24")
+    upstream_pattern = f"^go {PATTERN_MAJOR_MINOR}\r?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
-    matches = re.findall(pattern, r.text, flags=re.MULTILINE)
-    if len(matches) != 1:
+    upstream_matches = re.findall(upstream_pattern, r.text, flags=re.MULTILINE)
+    if len(upstream_matches) != 1:
         raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
-    upstream_version = matches[0]
+    upstream_major_minor = upstream_matches[0]
+
+    # Expected version for local modules is the upstream version with .0 patch (e.g., "1.24.0")
+    expected_local_version = f"{upstream_major_minor}.0"
+
+    # Pattern to match major.minor.patch format in local modules
+    local_pattern = f"^go {PATTERN_MAJOR_MINOR}\\.\\d+\r?$"
+
+    # Collect all errors instead of failing at the first one
+    format_errors = []
+    version_errors = []
 
     for path, module in get_default_modules().items():
         if module.used_by_otel:
             mod_file = f"./{path}/go.mod"
             with open(mod_file, newline='', encoding='utf-8') as reader:
                 content = reader.read()
-                matches = re.findall(pattern, content, flags=re.MULTILINE)
-                if len(matches) != 1:
-                    raise Exit(f"{mod_file} does not match expected go directive format")
-                if matches[0] != upstream_version:
+                local_matches = re.findall(local_pattern, content, flags=re.MULTILINE)
+                if len(local_matches) != 1:
+                    format_errors.append(f"{mod_file} does not match expected go directive format")
+                    continue
+
+                actual_local_version = local_matches[0]
+                if actual_local_version != expected_local_version:
                     if fix:
                         update_file(
                             True,
                             mod_file,
-                            f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$",
-                            f"go {upstream_version}",
+                            f"^go {PATTERN_MAJOR_MINOR}\\.\\d+\r?$",
+                            f"go {expected_local_version}",
                         )
                     else:
-                        raise Exit(
-                            f"{mod_file} version {matches[0]} does not match upstream version: {upstream_version}"
+                        version_errors.append(
+                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_major_minor})"
                         )
+
+    # Report all errors at once if any were found
+    all_errors = format_errors + version_errors
+    if all_errors:
+        error_msg = "Found the following OTEL module version issues:\n" + "\n".join(
+            f"  - {error}" for error in all_errors
+        )
+        raise Exit(error_msg)

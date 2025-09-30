@@ -4,43 +4,46 @@ Subscriptions are a common form of registration, and have support in the `pkg/ut
 
 In defining subscriptions, the component that transmits messages is the _collecting_ component, and the processes receiving components are the _providing_ components. These are matched using the message type, which must be unique across the codebase, and should not be a built-in type like `string`. Providing components provide a `subscriptions.Receiver[coll.Message]` which has a `Ch` channel from which to receive messages. Collecting components require a `subscriptions.Transmitter[coll.Message]` which has a `Notify` method to send messages.
 
-=== ":octicons-file-code-16: announcer/component.go"
-    ```go
-    // ...
-    // To subscribe to these announcements, provide a subscriptions.Subscription[announcer.Announcement].
-    // ...
-    package announcer
-    ```
+/// tab | :octicons-file-code-16: announcer/component.go
+```go
+// ...
+// To subscribe to these announcements, provide a subscriptions.Subscription[announcer.Announcement].
+// ...
+package announcer
+```
+///
 
-=== ":octicons-file-code-16: announcer/announcer.go"
-    ```go
-    func newAnnouncer(tx subscriptions.Transmitter[Anouncement]) Component {
-        return &announcer{announcementTx: tx}  // (store the transmitter)
-    }
+/// tab | :octicons-file-code-16: announcer/announcer.go
+```go
+func newAnnouncer(tx subscriptions.Transmitter[Anouncement]) Component {
+    return &announcer{announcementTx: tx}  // (store the transmitter)
+}
 
-    // ... later send messages with
-    func (ann *announcer) announce(a announcement) {
-        ann.annoucementTx.Notify(a)
-    }
-    ```
+// ... later send messages with
+func (ann *announcer) announce(a announcement) {
+    ann.annoucementTx.Notify(a)
+}
+```
+///
 
-=== ":octicons-file-code-16: listener/listener.go"
-    ```go
-    func newListener() (Component, subscriptions.Receiver[announcer.Announcement]) {
-        rx := subscriptions.Receiver[Event]() // create a receiver
-        return &listener{announcementRx: rx}, rx  // capture the receiver _and_ return it
-    }
+/// tab | :octicons-file-code-16: listener/listener.go
+```go
+func newListener() (Component, subscriptions.Receiver[announcer.Announcement]) {
+    rx := subscriptions.Receiver[Event]() // create a receiver
+    return &listener{announcementRx: rx}, rx  // capture the receiver _and_ return it
+}
 
-    // ... later receive messages (usually in an actor's main loop)
-    func (l *listener) run() {
-        loop {
-            select {
-            case a := <- l.announcementRx.Ch:
-                ...
-            }
+// ... later receive messages (usually in an actor's main loop)
+func (l *listener) run() {
+    loop {
+        select {
+        case a := <- l.announcementRx.Ch:
+            ...
         }
     }
-    ```
+}
+```
+///
 
 Any component receiving messages via a subscription will _automatically_ be instantiated by Fx if it is delcared in the app, regardless of whether its Component type is required by some other component. The workaround for this is to return a zero-valued Receiver when the component does not actually wish to receive messages (such as when the component is disabled by user configuration).
 

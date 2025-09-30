@@ -16,42 +16,69 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TimeNow useful for mocking
-var TimeNow = time.Now
+var (
+	// TimeNow useful for mocking
+	TimeNow = time.Now
+)
 
 // DeviceUserTagResourcePrefix contains the REDAPL table to store device user tags
-const DeviceUserTagResourcePrefix = "dd.internal.resource:ndm_device_user_tags"
+const DeviceUserTagResourcePrefix = "dd.internal.resource:ndm_device"
 
-// GetDevicesMetadata process devices API payloads to build metadata
-func GetDevicesMetadata(namespace string, devices []client.ApplianceLite) []devicemetadata.DeviceMetadata {
+// GetDeviceMetadataFromAppliances process devices API payloads to build metadata
+func GetDeviceMetadataFromAppliances(namespace string, devices []client.Appliance) []devicemetadata.DeviceMetadata {
 	var devicesMetadata []devicemetadata.DeviceMetadata
 	for _, device := range devices {
-		devicesMetadata = append(devicesMetadata, buildDeviceMetadata(namespace, device))
+		devicesMetadata = append(devicesMetadata, buildApplianceDeviceMetadata(namespace, device))
 	}
 	return devicesMetadata
 }
 
-// GetControllersMetadata process devices API payloads to build metadata
-func GetControllersMetadata(namespace string, controllers []client.ControllerStatus) []devicemetadata.DeviceMetadata {
-	var controllersMetadata []devicemetadata.DeviceMetadata
-	for _, controller := range controllers {
-		controllersMetadata = append(controllersMetadata, buildControllerMetadata(namespace, controller))
+// GetDeviceMetadataFromDirector process devices API payloads to build metadata
+func GetDeviceMetadataFromDirector(namespace string, director *client.DirectorStatus) (devicemetadata.DeviceMetadata, error) {
+	ipAddress, err := director.IPAddress()
+	if err != nil {
+		return devicemetadata.DeviceMetadata{}, err
 	}
-	return controllersMetadata
+
+	return devicemetadata.DeviceMetadata{
+		ID:          buildDeviceID(namespace, ipAddress),
+		IDTags:      []string{"device_namespace:" + namespace, "device_ip:" + ipAddress},
+		Tags:        buildDirectorDeviceTags(namespace, ipAddress, director),
+		IPAddress:   ipAddress,
+		Vendor:      "versa",
+		Name:        director.HAConfig.ClusterID,
+		Status:      devicemetadata.DeviceStatusReachable, // TODO: seems like there's no real concept of reachable/unreachable for directors
+		OsVersion:   director.PkgInfo.Version,
+		Integration: "versa",
+		DeviceType:  mapNDMDeviceType("director"),
+	}, nil
 }
 
-// GetDevicesTags process devices API payloads to build device tags
-func GetDevicesTags(namespace string, devices []client.ApplianceLite) map[string][]string {
+// GetApplianceDevicesTags process devices API payloads to build device tags
+func GetApplianceDevicesTags(namespace string, devices []client.Appliance) map[string][]string {
 	deviceTags := make(map[string][]string)
 	for _, device := range devices {
 		deviceTags[device.IPAddress] = buildApplianceDeviceTags(namespace, device)
-		deviceTags[device.IPAddress] = append(deviceTags[device.IPAddress], fmt.Sprintf("%s:%s", DeviceUserTagResourcePrefix, buildDeviceID(namespace, device)))
+		deviceTags[device.IPAddress] = append(deviceTags[device.IPAddress], fmt.Sprintf("%s:%s", DeviceUserTagResourcePrefix, buildDeviceID(namespace, device.IPAddress)))
 	}
 	return deviceTags
 }
 
+// GetDirectorDeviceTags process devices API payloads to build device tags
+func GetDirectorDeviceTags(namespace string, director *client.DirectorStatus) (map[string][]string, error) {
+	ipAddress, err := director.IPAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	deviceTags := make(map[string][]string)
+	deviceTags[ipAddress] = buildDirectorDeviceTags(namespace, ipAddress, director)
+	deviceTags[ipAddress] = append(deviceTags[ipAddress], fmt.Sprintf("%s:%s", DeviceUserTagResourcePrefix, buildDeviceID(namespace, ipAddress)))
+	return deviceTags, nil
+}
+
 // GetDevicesUptime process devices API payloads to compute uptimes
-func GetDevicesUptime(devices []client.ApplianceLite) map[string]float64 {
+func GetDevicesUptime(devices []client.Appliance) map[string]float64 {
 	uptimes := make(map[string]float64, len(devices))
 	for _, device := range devices {
 		uptime, err := computeUptime(device)
@@ -65,7 +92,7 @@ func GetDevicesUptime(devices []client.ApplianceLite) map[string]float64 {
 }
 
 // GetDevicesStatus process devices API payloads to get status
-func GetDevicesStatus(devices []client.ApplianceLite) map[string]float64 {
+func GetDevicesStatus(devices []client.Appliance) map[string]float64 {
 	states := make(map[string]float64)
 	for _, device := range devices {
 		status := 1.0
@@ -77,8 +104,8 @@ func GetDevicesStatus(devices []client.ApplianceLite) map[string]float64 {
 	return states
 }
 
-func buildDeviceMetadata(namespace string, device client.ApplianceLite) devicemetadata.DeviceMetadata {
-	id := buildDeviceID(namespace, device)
+func buildApplianceDeviceMetadata(namespace string, device client.Appliance) devicemetadata.DeviceMetadata {
+	id := buildDeviceID(namespace, device.IPAddress)
 
 	return devicemetadata.DeviceMetadata{
 		ID:           id,
@@ -86,44 +113,22 @@ func buildDeviceMetadata(namespace string, device client.ApplianceLite) deviceme
 		Vendor:       "versa",
 		Name:         device.Name,
 		Tags:         append(buildApplianceDeviceTags(namespace, device), "source:versa"),
-		IDTags:       []string{"device_namespace:" + namespace, "system_ip:" + device.IPAddress},
+		IDTags:       []string{"device_namespace:" + namespace, "device_ip:" + device.IPAddress},
 		Status:       mapNDMBoolStatus(device.Unreachable),
 		PingStatus:   mapNDMPingStatus(device.PingStatus),
 		Model:        device.Hardware.Model,
-		OsName:       "Versa PLACEHOLDER",
 		Version:      device.SoftwareVersion,
 		SerialNumber: device.Hardware.SerialNo,
 		DeviceType:   mapNDMDeviceType(device.Type),
 		ProductName:  device.Hardware.Model,
-		Location:     device.Location,
+		Location:     device.ApplianceLocation.LocationID, // TODO: is this appropriate?
 		Integration:  "versa",
-	}
-}
-
-func buildControllerMetadata(namespace string, controller client.ControllerStatus) devicemetadata.DeviceMetadata {
-	id := fmt.Sprintf("%s:%s", namespace, controller.Name)
-
-	return devicemetadata.DeviceMetadata{
-		ID:        id,
-		IPAddress: controller.IPAddress,
-		Vendor:    "versa",
-		Name:      controller.Name,
-		Tags:      append(buildControllerDeviceTags(namespace, controller), "source:versa"),
-		IDTags:    []string{"device_namespace:" + namespace, "system_ip:" + controller.IPAddress},
-		Status:    mapNDMStringStatus(controller.Status),
 	}
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 func mapNDMBoolStatus(versaUnreachable bool) devicemetadata.DeviceStatus {
 	if versaUnreachable {
-		return devicemetadata.DeviceStatusUnreachable
-	}
-	return devicemetadata.DeviceStatusReachable
-}
-
-func mapNDMStringStatus(versaStatus string) devicemetadata.DeviceStatus {
-	if versaStatus == "UNREACHABLE" {
 		return devicemetadata.DeviceStatusUnreachable
 	}
 	return devicemetadata.DeviceStatusReachable
@@ -136,51 +141,67 @@ func mapNDMPingStatus(versaPingStatus string) devicemetadata.DeviceStatus {
 	return devicemetadata.DeviceStatusReachable
 }
 
-func mapNDMDeviceType(_ string) string {
-	return "Versa PLACEHOLDER"
+func mapNDMDeviceType(versaType string) string {
+	switch versaType {
+	case "branch":
+		return "router"
+	case "controller", "director":
+		return "sd-wan"
+	default:
+		return "other"
+	}
 }
 
-func buildApplianceDeviceTags(namespace string, device client.ApplianceLite) []string {
-	return []string{
+func buildApplianceDeviceTags(namespace string, device client.Appliance) []string {
+	tags := []string{
 		"device_vendor:versa",
 		"device_namespace:" + namespace,
 		"hostname:" + device.Name,
+		"site:" + device.Name,
 		"system_ip:" + device.IPAddress,
-		"site_id:" + device.Location,
+		"location_id:" + device.ApplianceLocation.LocationID, // TODO: is this appropriate?
 		"type:" + device.Type,
 		"device_ip:" + device.IPAddress,
 		"device_hostname:" + device.Name,
-		"device_id:" + buildDeviceID(namespace, device),
+		"device_id:" + buildDeviceID(namespace, device.IPAddress),
 	}
+	tags = append(tags, device.ApplianceTags...)
+
+	return tags
 }
 
-func buildControllerDeviceTags(namespace string, controller client.ControllerStatus) []string {
-	return []string{
+func buildDirectorDeviceTags(namespace string, ipAddress string, directorStatus *client.DirectorStatus) []string {
+	tags := []string{
 		"device_vendor:versa",
 		"device_namespace:" + namespace,
-		"hostname:" + controller.Name,
-		"system_ip:" + controller.IPAddress,
-		"lock_status:" + controller.LockStatus,
-		"sync_status:" + controller.SyncStatus,
-		"device_ip:" + controller.IPAddress,
-		"device_hostname:" + controller.Name,
-		"device_id:" + fmt.Sprintf("%s:%s", namespace, controller.Name),
+		"hostname:" + directorStatus.HAConfig.ClusterID, // TODO: should we use IP address instead
+		"type:director",
+		"device_ip:" + ipAddress,
+		"device_hostname:" + directorStatus.HAConfig.ClusterID,
+		"device_id:" + buildDeviceID(namespace, ipAddress),
+		"startup_mode:" + directorStatus.HAConfig.StartupMode,
 	}
+
+	for _, ip := range directorStatus.HAConfig.MyVnfManagementIPs {
+		tags = append(tags, "management_ip:"+ip)
+	}
+
+	return tags
 }
 
-func computeUptime(device client.ApplianceLite) (float64, error) {
+func computeUptime(device client.Appliance) (float64, error) {
 	now := TimeNow().UnixMilli()
 
 	// TODO: should we be using lastUpdatedTime instead of startTime?
 	parsedTime, err := time.Parse("Mon Jan 2 15:04:05 2006", device.StartTime)
 	if err != nil {
-		return 0, fmt.Errorf("Error parsing device uptime: %w", err)
+		return 0, fmt.Errorf("error parsing device uptime: %w", err)
 	}
 	deviceUptime := parsedTime.UnixMilli()
 
 	return math.Round((float64(now) - float64(deviceUptime)) / 10), nil // In hundredths of a second, to match SNMP
 }
 
-func buildDeviceID(namespace string, device client.ApplianceLite) string {
-	return fmt.Sprintf("%s:%s", namespace, device.IPAddress)
+func buildDeviceID(namespace string, deviceID string) string {
+	return fmt.Sprintf("%s:%s", namespace, deviceID)
 }

@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -86,17 +86,22 @@ func (suite *CollectorDemuxTestSuite) SetupTest() {
 	suite.demux = fxutil.Test[demultiplexer.FakeSamplerMock](suite.T(), fx.Provide(func() log.Component { return logmock.New(suite.T()) }), metricscompressionmock.MockModule(), logscompressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 	suite.SenderManagerMock = NewSenderManagerMock(suite.demux)
 	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
-		core.MockBundle(),
+		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond})
+		}),
 		haagentmock.Module(),
+		hostnameimpl.MockModule(),
+		fx.Provide(func() option.Option[agenttelemetry.Component] {
+			return option.None[agenttelemetry.Component]()
+		}),
 		fx.Provide(func() sender.SenderManager {
 			return suite.SenderManagerMock
 		}),
 		fx.Provide(func() option.Option[serializer.MetricSerializer] {
 			return option.None[serializer.MetricSerializer]()
 		}),
-		fx.Replace(config.MockParams{
-			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},
-		})))
+	))
 
 	suite.c.start(context.TODO())
 }

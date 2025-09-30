@@ -33,7 +33,7 @@ build do
   end
 
   # we assume the go deps are already installed before running omnibus
-  command "invoke dogstatsd.build --major-version #{major_version_arg}", env: env
+  command "invoke dogstatsd.build --major-version #{major_version_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
 
   mkdir "#{install_dir}/etc/datadog-dogstatsd"
   unless windows_target?
@@ -69,9 +69,4 @@ build do
         mode: 0644,
         vars: { install_dir: install_dir }
   end
-
-  # The file below is touched by software builds that don't put anything in the installation
-  # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
-  # final package
-  delete "#{install_dir}/uselessfile"
 end

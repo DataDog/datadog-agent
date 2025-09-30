@@ -5,12 +5,14 @@
 
 package dbconfig
 
+import "github.com/DataDog/datadog-agent/pkg/compliance/types"
+
 // DBResource holds a database configuration data and the resource type
 // associated with it.
 type DBResource struct {
-	Type        string   `json:"type"`
-	ContainerID string   `json:"container_id,omitempty"`
-	Config      DBConfig `json:"config"`
+	Type        types.ResourceType `json:"type"`
+	ContainerID string             `json:"container_id,omitempty"`
+	Config      DBConfig           `json:"config"`
 }
 
 // DBConfig represents a database application configuration metadata that we

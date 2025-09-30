@@ -12,16 +12,15 @@ import (
 	"os"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func setupTraceAgentTest(t *testing.T) {
@@ -72,6 +71,7 @@ func TestStartEnabledTrueValidConfigInvalidPath(t *testing.T) {
 
 	lambdaSpanChan := make(chan *pb.Span)
 
+	configmock.SetDefaultConfigType(t, "yaml")
 	t.Setenv("DD_API_KEY", "x")
 	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 		Enabled:         true,
@@ -98,23 +98,6 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	defer agent.Stop()
 	assert.NotNil(t, agent)
 	assert.IsType(t, &serverlessTraceAgent{}, agent)
-}
-
-func TestLoadConfigShouldBeFast(t *testing.T) {
-	flake.Mark(t)
-	setupTraceAgentTest(t)
-
-	startTime := time.Now()
-	lambdaSpanChan := make(chan *pb.Span)
-
-	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
-		Enabled:         true,
-		LoadConfig:      &LoadConfig{Path: "./testdata/valid.yml"},
-		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanID: random.Random.Uint64(),
-	})
-	defer agent.Stop()
-	assert.True(t, time.Since(startTime) < time.Second)
 }
 
 func TestFilterSpanFromLambdaLibraryOrRuntimeHttpSpan(t *testing.T) {
@@ -217,5 +200,45 @@ func TestGetDDOriginCloudServices(t *testing.T) {
 		t.Setenv(envVar, "myService")
 		assert.Equal(t, service, getDDOrigin())
 		os.Unsetenv(envVar)
+	}
+}
+
+func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
+	tests := []struct {
+		name         string
+		functionTags string
+	}{
+		{
+			name:         "with function tags",
+			functionTags: "env:production,service:my-service,version:1.0",
+		},
+		{
+			name:         "with empty function tags",
+			functionTags: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupTraceAgentTest(t)
+
+			lambdaSpanChan := make(chan *pb.Span)
+
+			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
+				Enabled:         true,
+				LoadConfig:      &LoadConfig{Path: "./testdata/valid.yml"},
+				LambdaSpanChan:  lambdaSpanChan,
+				ColdStartSpanID: random.Random.Uint64(),
+				FunctionTags:    tt.functionTags,
+			})
+			defer agent.Stop()
+
+			assert.NotNil(t, agent)
+			assert.IsType(t, &serverlessTraceAgent{}, agent)
+
+			// Access the underlying agent to check TracerPayloadModifier
+			serverlessAgent := agent.(*serverlessTraceAgent)
+			assert.NotNil(t, serverlessAgent.ta.TracerPayloadModifier)
+		})
 	}
 }

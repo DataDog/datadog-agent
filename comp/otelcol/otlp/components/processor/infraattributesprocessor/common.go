@@ -13,18 +13,19 @@ import (
 	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
-	conventions22 "go.opentelemetry.io/collector/semconv/v1.22.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.21.0"
+	conventions22 "go.opentelemetry.io/otel/semconv/v1.22.0"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var unifiedServiceTagMap = map[string][]string{
-	tags.Service: {conventions.AttributeServiceName},
-	tags.Env:     {conventions.AttributeDeploymentEnvironment, "deployment.environment.name"},
-	tags.Version: {conventions.AttributeServiceVersion},
+	tags.Service: {string(conventions.ServiceNameKey)},
+	tags.Env:     {string(conventions.DeploymentEnvironmentKey), "deployment.environment.name"},
+	tags.Version: {string(conventions.ServiceVersionKey)},
 }
 
 type infraTagsProcessor struct {
@@ -55,6 +56,13 @@ func (p infraTagsProcessor) ProcessTags(
 	resourceAttributes pcommon.Map,
 	allowHostnameOverride bool,
 ) {
+	if _, ok := resourceAttributes.Get(string(conventions.ContainerIDKey)); !ok {
+		originInfo := originInfoFromAttributes(resourceAttributes, cardinality)
+		if containerID, err := p.tagger.GenerateContainerIDFromOriginInfo(originInfo); err == nil {
+			resourceAttributes.PutStr(string(conventions.ContainerIDKey), containerID)
+		}
+	}
+
 	entityIDs := entityIDsFromAttributes(resourceAttributes)
 	tagMap := make(map[string]string)
 
@@ -113,41 +121,72 @@ func (p infraTagsProcessor) ProcessTags(
 	}
 }
 
+func originInfoFromAttributes(attrs pcommon.Map, cardinality types.TagCardinality) origindetection.OriginInfo {
+	originInfo := origindetection.OriginInfo{
+		ExternalData: origindetection.ExternalData{
+			Init: false, // Assume non-init container by default
+		},
+		Cardinality:   types.TagCardinalityToString(cardinality),
+		ProductOrigin: origindetection.ProductOriginOTel,
+	}
+
+	if processPid, ok := attrs.Get(string(conventions.ProcessPIDKey)); ok && processPid.Type() == pcommon.ValueTypeInt {
+		originInfo.LocalData.ProcessID = uint32(processPid.Int())
+	}
+	if podUID, ok := attrs.Get(string(conventions.K8SPodUIDKey)); ok {
+		originInfo.LocalData.PodUID = podUID.AsString()
+		originInfo.ExternalData.PodUID = podUID.AsString()
+	}
+	if k8sContainerName, ok := attrs.Get(string(conventions.K8SContainerNameKey)); ok {
+		originInfo.ExternalData.ContainerName = k8sContainerName.AsString()
+	}
+
+	// Ad-hoc attributes for data not covered by K8s semantic conventions
+	if cgroupInode, ok := attrs.Get("datadog.container.cgroup_inode"); ok && cgroupInode.Type() == pcommon.ValueTypeInt {
+		originInfo.LocalData.Inode = uint64(cgroupInode.Int())
+	}
+	if initContainer, ok := attrs.Get("datadog.container.is_init"); ok && initContainer.Type() == pcommon.ValueTypeBool {
+		originInfo.ExternalData.Init = initContainer.Bool()
+	}
+
+	return originInfo
+}
+
 // TODO: Replace OriginIDFromAttributes in opentelemetry-mapping-go with this method
 // entityIDsFromAttributes gets the entity IDs from resource attributes.
 // If not found, an empty string slice is returned.
 func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
 	entityIDs := make([]types.EntityID, 0, 8)
 	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
-	if containerID, ok := attrs.Get(conventions.AttributeContainerID); ok {
+	if containerID, ok := attrs.Get(string(conventions.ContainerIDKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.ContainerID, containerID.AsString()))
 	}
-	if ociManifestDigest, ok := attrs.Get(conventions22.AttributeOciManifestDigest); ok {
+	if ociManifestDigest, ok := attrs.Get(string(conventions22.OciManifestDigestKey)); ok {
 		splitImageID := strings.SplitN(ociManifestDigest.AsString(), "@sha256:", 2)
 		if len(splitImageID) == 2 {
 			entityIDs = append(entityIDs, types.NewEntityID(types.ContainerImageMetadata, fmt.Sprintf("sha256:%v", splitImageID[1])))
 		}
 	}
-	if ecsTaskArn, ok := attrs.Get(conventions.AttributeAWSECSTaskARN); ok {
+	if ecsTaskArn, ok := attrs.Get(string(conventions.AWSECSTaskARNKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.ECSTask, ecsTaskArn.AsString()))
 	}
-	if deploymentName, ok := attrs.Get(conventions.AttributeK8SDeploymentName); ok {
-		namespace, namespaceOk := attrs.Get(conventions.AttributeK8SNamespaceName)
+	if deploymentName, ok := attrs.Get(string(conventions.K8SDeploymentNameKey)); ok {
+		namespace, namespaceOk := attrs.Get(string(conventions.K8SNamespaceNameKey))
 		if namespaceOk {
 			entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", namespace.AsString(), deploymentName.AsString())))
 		}
 	}
-	if namespace, ok := attrs.Get(conventions.AttributeK8SNamespaceName); ok {
+	if namespace, ok := attrs.Get(string(conventions.K8SNamespaceNameKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, fmt.Sprintf("/namespaces//%s", namespace.AsString())))
 	}
 
-	if nodeName, ok := attrs.Get(conventions.AttributeK8SNodeName); ok {
+	if nodeName, ok := attrs.Get(string(conventions.K8SNodeNameKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, fmt.Sprintf("/nodes//%s", nodeName.AsString())))
 	}
-	if podUID, ok := attrs.Get(conventions.AttributeK8SPodUID); ok {
+	if podUID, ok := attrs.Get(string(conventions.K8SPodUIDKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesPodUID, podUID.AsString()))
 	}
-	if processPid, ok := attrs.Get(conventions.AttributeProcessPID); ok {
+	if processPid, ok := attrs.Get(string(conventions.ProcessPIDKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.Process, processPid.AsString()))
 	}
 	return entityIDs

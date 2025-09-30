@@ -1,0 +1,91 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
+
+package module
+
+import (
+	"encoding/json"
+	"io"
+	"time"
+
+	"golang.org/x/time/rate"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+type sink struct {
+	runtime      *runtimeImpl
+	decoder      Decoder
+	symbolicator symbol.Symbolicator
+	programID    ir.ProgramID
+	service      string
+	logUploader  LogsUploader
+}
+
+var _ dispatcher.Sink = &sink{}
+
+// We don't want to be too noisy about decoding errors, but we do want to learn
+// about them and we don't want to bail out completely.
+var decodingErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
+
+func (s *sink) HandleEvent(event output.Event) error {
+	var (
+		decodedBytes []byte
+		probe        ir.ProbeDefinition
+		err          error
+	)
+	decodedBytes, probe, err = s.decoder.Decode(decode.Event{
+		Event:       event,
+		ServiceName: s.service,
+	}, s.symbolicator, decodedBytes)
+	if err != nil {
+		if probe != nil {
+			if reported := s.runtime.reportProbeError(
+				s.programID, probe, err, "DecodeFailed",
+			); reported {
+				log.Warnf(
+					"failed to report probe error for probe %s in service %s: %v",
+					probe.GetID(), s.service, err,
+				)
+			}
+			return nil
+		}
+		if decodingErrorLogLimiter.Allow() {
+			log.Warnf(
+				"failed to decode event in service %s: %v",
+				s.service, err,
+			)
+		} else {
+			log.Tracef(
+				"failed to decode event in service %s: %v",
+				s.service, err,
+			)
+		}
+		// TODO: Report failures to the controller to remove the relevant probe
+		// or program.
+		return nil
+	}
+	s.runtime.setProbeMaybeEmitting(s.programID, probe)
+	s.logUploader.Enqueue(json.RawMessage(decodedBytes))
+	return nil
+}
+
+func (s *sink) Close() {
+	if s.logUploader != nil {
+		s.logUploader.Close()
+	}
+	if closer, ok := s.symbolicator.(io.Closer); ok {
+		if err := closer.Close(); err != nil {
+			log.Warnf("failed to close symbolicator: %v", err)
+		}
+	}
+}

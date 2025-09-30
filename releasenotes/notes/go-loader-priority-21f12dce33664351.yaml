@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    If a check has both a Go and a Python version, the Go version now has priority by default.
+    This change should not have any visible impact, but if needed, you can
+    disable this configuration by setting `prioritize_go_check_loader` to `false`.

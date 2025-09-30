@@ -79,6 +79,8 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		PeerTags:       s.peerTags,
 		IsTraceRoot:    a.IsTraceRoot,
 		GRPCStatusCode: a.GRPCStatusCode,
+		HTTPMethod:     a.HTTPMethod,
+		HTTPEndpoint:   a.HTTPEndpoint,
 	}, nil
 }
 
@@ -143,6 +145,7 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 			ContainerID:     k.ContainerID,
 			GitCommitSha:    k.GitCommitSha,
 			ImageTag:        k.ImageTag,
+			Lang:            k.Lang,
 			ProcessTagsHash: k.ProcessTagsHash,
 		}
 		s, ok := m[key]

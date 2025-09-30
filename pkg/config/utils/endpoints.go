@@ -32,7 +32,7 @@ const (
 func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
 	resolvedDDURL := c.GetString(urlKey)
 	if c.IsSet("site") {
-		log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, c.GetString(urlKey))
+		log.Debugf("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, c.GetString(urlKey))
 	}
 	return resolvedDDURL
 }
@@ -165,12 +165,45 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 			Keys:              []string{c.GetString("multi_region_failover.api_key")},
 		}}
 	}
+
+	// Populate preaggregation endpoint
+	if c.GetBool("preaggregation.enabled") {
+		preaggURL := c.GetString("preaggregation.dd_url")
+		if preaggURL == "" {
+			return nil, fmt.Errorf("preaggregation.dd_url is required when preaggregation.enabled is true")
+		}
+		if preaggURL == ddURL {
+			return nil, fmt.Errorf("preaggregation.dd_url must not match primary URL")
+		}
+		if _, exists := additionalEndpoints[preaggURL]; exists {
+			return nil, fmt.Errorf("preaggregation.dd_url must not match any additional endpoints")
+		}
+
+		apiKey := c.GetString("preaggregation.api_key")
+		if apiKey == "" {
+			return nil, fmt.Errorf("preaggregation.api_key is required when preaggregation.enabled is true")
+		}
+		additionalEndpoints[preaggURL] = []APIKeys{{
+			ConfigSettingPath: "preaggregation.api_key",
+			Keys:              []string{apiKey},
+		}}
+	}
+
 	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
 }
 
-// BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix
+var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|ddog-gov\.com$`)
+
+// BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix.
+// If the site is a datadog well-known one, it is suffixed with a dot to make it a FQDN.
+// Using FQDN will prevent useless DNS queries built with the search domains of `/etc/resolv.conf`.
+// https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 func BuildURLWithPrefix(prefix, site string) string {
-	return prefix + strings.TrimSpace(site)
+	site = strings.TrimSpace(site)
+	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
+		site += "."
+	}
+	return prefix + site
 }
 
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
@@ -240,7 +273,7 @@ func GetMRFInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
 
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
 // version (see AddAgentVersionToDomain).
-var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)(\.)?$`)
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
 func getDomainPrefix(app string) string {

@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"go.uber.org/atomic"
 )
 
 // EPIntakeVersion is the events platform intake API version
@@ -36,6 +38,9 @@ const (
 	EPIntakeVersion2
 )
 
+// EmptyPathPrefix is the default path prefix for the endpoint.
+const EmptyPathPrefix = ""
+
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
 	isReliable bool
@@ -54,6 +59,7 @@ type Endpoint struct {
 
 	Host                    string `mapstructure:"host" json:"host"`
 	Port                    int
+	PathPrefix              string `mapstructure:"path_prefix" json:"path_prefix"`
 	UseCompression          bool   `mapstructure:"use_compression" json:"use_compression"`
 	CompressionKind         string `mapstructure:"compression_kind" json:"compression_kind"`
 	CompressionLevel        int    `mapstructure:"compression_level" json:"compression_level"`
@@ -83,14 +89,21 @@ type unmarshalEndpoint struct {
 	Endpoint `mapstructure:",squash"`
 }
 
+// EndpointCompressionOptions is the compression options for the endpoint
+type EndpointCompressionOptions struct {
+	CompressionKind  string
+	CompressionLevel int
+}
+
 // NewEndpoint returns a new Endpoint with the minimal field initialized.
-func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, useSSL bool) Endpoint {
+func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, pathPrefix string, useSSL bool) Endpoint {
 	apiKey = pkgconfigutils.SanitizeAPIKey(apiKey)
 	return Endpoint{
 		apiKey:            atomic.NewString(apiKey),
 		configSettingPath: apiKeyConfigPath,
 		Host:              host,
 		Port:              port,
+		PathPrefix:        pathPrefix,
 		useSSL:            useSSL,
 		isReliable:        true, // by default endpoints are reliable
 	}
@@ -115,6 +128,7 @@ func newTCPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
 // newHTTPEndpoint returns a new HTTP Endpoint based on LogsConfigKeys The endpoint is by default reliable and will use
 // the settings related to HTTP from the configuration (compression, Backoff, recovery, ...).
 func newHTTPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
+
 	apiKey, configPath := logsConfig.getMainAPIKey()
 	e := Endpoint{
 		apiKey:                  atomic.NewString(apiKey),
@@ -143,7 +157,7 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys) []Endpoint {
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
-		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, false)
+		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, EmptyPathPrefix, false)
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
@@ -179,12 +193,12 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
-		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, false)
+		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, e.PathPrefix, false)
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
-
 		newE.UseCompression = main.UseCompression
+		newE.CompressionKind = main.CompressionKind
 		newE.CompressionLevel = main.CompressionLevel
 		newE.ProxyAddress = e.ProxyAddress
 		newE.isReliable = e.IsReliable == nil || *e.IsReliable
@@ -239,7 +253,8 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 
 	host := e.Host
 	port := e.Port
-
+	pathPrefix := e.PathPrefix
+	redactedAPIKey := scrubber.HideKeyExceptLastFiveChars(e.GetAPIKey())
 	var protocol string
 	if useHTTP {
 		if e.UseSSL() {
@@ -264,12 +279,16 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 		}
 	}
 
-	return fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
+	status := fmt.Sprintf("%sSending %s logs in %s to %s on port %d (API Key: %s)", prefix, compression, protocol, host, port, redactedAPIKey)
+	if pathPrefix != EmptyPathPrefix {
+		status = fmt.Sprintf("%s and path prefix \"%s\"", status, pathPrefix)
+	}
+	return status
 }
 
 // onConfigUpdate handles configuration change notification to update the internal API key of the Endpoint if needed
 func (e *Endpoint) onConfigUpdate(l *LogsConfigKeys) {
-	l.getConfig().OnUpdate(func(key string, oldVal interface{}, newVal interface{}) {
+	l.getConfig().OnUpdate(func(key string, _ model.Source, oldVal interface{}, newVal interface{}, _ uint64) {
 		if key != e.configSettingPath {
 			return
 		}

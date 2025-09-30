@@ -1,0 +1,105 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testDeepSlice7",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testDeepSlice7",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
+            "lineNumber": 145
+          },
+          {
+            "function": "main.executeComplexFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
+            "lineNumber": 257
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 36
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testDeepSlice7",
+          "location": {
+            "method": "main.testDeepSlice7"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "*main.deepSlice7",
+                "address": "[addr]",
+                "fields": {
+                  "a": {
+                    "type": "[]*main.deepSlice8",
+                    "size": "1",
+                    "elements": [
+                      {
+                        "type": "*main.deepSlice8",
+                        "address": "[addr]",
+                        "fields": {
+                          "a": {
+                            "type": "[]*main.deepSlice9",
+                            "size": "1",
+                            "elements": [
+                              {
+                                "type": "*main.deepSlice9",
+                                "address": "[addr]",
+                                "fields": {
+                                  "a": {
+                                    "type": "[]interface {}",
+                                    "size": "1",
+                                    "elements": [
+                                      {
+                                        "type": "interface {}",
+                                        "fields": {
+                                          "data": {
+                                            "type": "*main.deepSlice1",
+                                            "notCapturedReason": "missing type information"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

@@ -13,7 +13,9 @@ import (
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.uber.org/zap"
@@ -24,7 +26,11 @@ type ExporterConfig struct {
 	// squash ensures fields are correctly decoded in embedded struct
 	exporterhelper.TimeoutConfig `mapstructure:",squash"`
 
-	exporterhelper.QueueConfig `mapstructure:"sending_queue"`
+	HTTPConfig confighttp.ClientConfig `mapstructure:",squash"`
+
+	exporterhelper.QueueBatchConfig `mapstructure:"sending_queue"`
+
+	configtls.ClientConfig `mapstructure:"tls"`
 
 	Metrics MetricsConfig `mapstructure:"metrics"`
 	// API defines the Datadog API configuration.
@@ -117,10 +123,7 @@ var _ confmap.Unmarshaler = (*ExporterConfig)(nil)
 type MetricsConfig struct {
 	Metrics datadogconfig.MetricsConfig `mapstructure:",squash"`
 
-	// The following 3 configs are only used in OTLP ingestion and not expected to be used in the converged agent.
-
-	// TagCardinality is the level of granularity of tags to send for OTLP metrics.
-	TagCardinality string `mapstructure:"tag_cardinality"`
+	// The following 2 configs are only used in OTLP ingestion and not expected to be used in the converged agent.
 
 	// APMStatsReceiverAddr is the address to send APM stats to.
 	APMStatsReceiverAddr string `mapstructure:"apm_stats_receiver_addr"`

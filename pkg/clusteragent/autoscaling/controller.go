@@ -147,7 +147,7 @@ func (c *Controller) process() bool {
 		c.Workqueue.AddAfter(key, res.RequeueAfter)
 	} else if res.Requeue {
 		c.Workqueue.AddRateLimited(key)
-	} else {
+	} else { // no requeue
 		c.Workqueue.Forget(key)
 	}
 

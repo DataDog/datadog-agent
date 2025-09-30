@@ -75,7 +75,7 @@ int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
+    fill_cgroup_context(entry, &event.cgroup);
     fill_span_context(&event.span);
 
     // dentry resolution in setattr.h
@@ -120,8 +120,7 @@ HOOK_SYSCALL_EXIT(fchownat) {
     return sys_chown_ret(ctx, retval);
 }
 
-SEC("tracepoint/handle_sys_chown_exit")
-int tracepoint_handle_sys_chown_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_chown_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_chown_ret(args, args->ret);
 }
 

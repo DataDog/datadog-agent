@@ -36,6 +36,7 @@ type PodMetadata struct {
 	Labels            map[string]string `json:"labels,omitempty"`
 	Owners            []PodOwner        `json:"ownerReferences,omitempty"`
 	CreationTimestamp time.Time         `json:"creationTimestamp,omitempty"`
+	DeletionTimestamp *time.Time        `json:"deletionTimestamp,omitempty"`
 }
 
 // PodOwner contains fields for unmarshalling a Pod.Metadata.Owners
@@ -48,15 +49,16 @@ type PodOwner struct {
 
 // Spec contains fields for unmarshalling a Pod.Spec
 type Spec struct {
-	HostNetwork       bool                    `json:"hostNetwork,omitempty"`
-	NodeName          string                  `json:"nodeName,omitempty"`
-	InitContainers    []ContainerSpec         `json:"initContainers,omitempty"`
-	Containers        []ContainerSpec         `json:"containers,omitempty"`
-	Volumes           []VolumeSpec            `json:"volumes,omitempty"`
-	PriorityClassName string                  `json:"priorityClassName,omitempty"`
-	SecurityContext   *PodSecurityContextSpec `json:"securityContext,omitempty"`
-	RuntimeClassName  *string                 `json:"runtimeClassName,omitempty"`
-	Tolerations       []Toleration            `json:"tolerations,omitempty"`
+	HostNetwork         bool                    `json:"hostNetwork,omitempty"`
+	NodeName            string                  `json:"nodeName,omitempty"`
+	InitContainers      []ContainerSpec         `json:"initContainers,omitempty"`
+	Containers          []ContainerSpec         `json:"containers,omitempty"`
+	EphemeralContainers []ContainerSpec         `json:"ephemeralContainers,omitempty"`
+	Volumes             []VolumeSpec            `json:"volumes,omitempty"`
+	PriorityClassName   string                  `json:"priorityClassName,omitempty"`
+	SecurityContext     *PodSecurityContextSpec `json:"securityContext,omitempty"`
+	RuntimeClassName    *string                 `json:"runtimeClassName,omitempty"`
+	Tolerations         []Toleration            `json:"tolerations,omitempty"`
 }
 
 // PodSecurityContextSpec contains fields for unmarshalling a Pod.Spec.SecurityContext
@@ -196,16 +198,17 @@ type VolumeClaimTemplateSpec struct {
 
 // Status contains fields for unmarshalling a Pod.Status
 type Status struct {
-	Phase          string            `json:"phase,omitempty"`
-	HostIP         string            `json:"hostIP,omitempty"`
-	PodIP          string            `json:"podIP,omitempty"`
-	Containers     []ContainerStatus `json:"containerStatuses,omitempty"`
-	InitContainers []ContainerStatus `json:"initContainerStatuses,omitempty"`
-	AllContainers  []ContainerStatus
-	Conditions     []Conditions `json:"conditions,omitempty"`
-	QOSClass       string       `json:"qosClass,omitempty"`
-	StartTime      time.Time    `json:"startTime,omitempty"`
-	Reason         string       `json:"reason,omitempty"`
+	Phase               string            `json:"phase,omitempty"`
+	HostIP              string            `json:"hostIP,omitempty"`
+	PodIP               string            `json:"podIP,omitempty"`
+	Containers          []ContainerStatus `json:"containerStatuses,omitempty"`
+	InitContainers      []ContainerStatus `json:"initContainerStatuses,omitempty"`
+	EphemeralContainers []ContainerStatus `json:"ephemeralContainerStatuses,omitempty"`
+	AllContainers       []ContainerStatus
+	Conditions          []Conditions `json:"conditions,omitempty"`
+	QOSClass            string       `json:"qosClass,omitempty"`
+	StartTime           time.Time    `json:"startTime,omitempty"`
+	Reason              string       `json:"reason,omitempty"`
 }
 
 // GetAllContainers returns the list of init and regular containers
@@ -218,19 +221,20 @@ func (s *Status) GetAllContainers() []ContainerStatus {
 type Conditions struct {
 	Type   string `json:"type,omitempty"`
 	Status string `json:"status,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers
 type ContainerStatus struct {
-	Name               string                       `json:"name"`
-	Image              string                       `json:"image"`
-	ImageID            string                       `json:"imageID"`
-	ID                 string                       `json:"containerID"`
-	Ready              bool                         `json:"ready"`
-	RestartCount       int                          `json:"restartCount"`
-	State              ContainerState               `json:"state"`
-	LastState          ContainerState               `json:"lastState"`
-	AllocatedResources []ContainerAllocatedResource `json:"allocatedResources,omitempty"`
+	Name                       string                       `json:"name"`
+	Image                      string                       `json:"image"`
+	ImageID                    string                       `json:"imageID"`
+	ID                         string                       `json:"containerID"`
+	Ready                      bool                         `json:"ready"`
+	RestartCount               int                          `json:"restartCount"`
+	State                      ContainerState               `json:"state"`
+	LastState                  ContainerState               `json:"lastState"`
+	ResolvedAllocatedResources []ContainerAllocatedResource `json:"resolvedAllocatedResources,omitempty"`
 }
 
 // ContainerAllocatedResource contains the fields for an assigned resource to a container
@@ -277,4 +281,16 @@ type ContainerStateTerminated struct {
 	StartedAt  time.Time `json:"startedAt"`
 	FinishedAt time.Time `json:"finishedAt"`
 	Reason     string    `json:"reason"`
+}
+
+// ConfigSpec is the kubelet configuration, only the
+// necessary fields are stored
+type ConfigSpec struct {
+	CPUManagerPolicy string `json:"cpuManagerPolicy"`
+}
+
+// ConfigDocument is the wrapper struct that holds
+// the kubelet config
+type ConfigDocument struct {
+	KubeletConfig ConfigSpec `json:"kubeletconfig"`
 }

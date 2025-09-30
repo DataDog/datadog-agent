@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type StatefulSetCollector struct {
 // NewStatefulSetCollector creates a new collector for the Kubernetes
 // StatefulSet resource.
 func NewStatefulSetCollector(metadataAsTags utils.MetadataAsTags) *StatefulSetCollector {
-	resourceType := getResourceType(statefulSetName, statefulSetVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.StatefulSetName, utilTypes.StatefulSetVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewStatefulSetCollector(metadataAsTags utils.MetadataAsTags) *StatefulSetCo
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 statefulSetName,
+			Name:                                 utilTypes.StatefulSetName,
 			Kind:                                 kubernetes.StatefulSetKind,
 			NodeType:                             orchestrator.K8sStatefulSet,
-			Version:                              statefulSetVersion,
+			Version:                              utilTypes.StatefulSetVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
@@ -92,7 +93,7 @@ func (c *StatefulSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collec
 func (c *StatefulSetCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -100,7 +101,7 @@ func (c *StatefulSetCollector) Process(rcfg *collectors.CollectorRunConfig, list
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"golang.org/x/net/context"
 )
 
 // EBPFLessSelfTest defines an ebpf less self test
@@ -38,7 +39,7 @@ func (o *EBPFLessSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 }
 
 // GenerateEvent generate an event
-func (o *EBPFLessSelfTest) GenerateEvent() error {
+func (o *EBPFLessSelfTest) GenerateEvent(_ context.Context) error {
 	return nil
 }
 

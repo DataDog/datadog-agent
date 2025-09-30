@@ -64,7 +64,7 @@ type activityTreeOpts struct {
 // Profile represents a security profile
 type Profile struct {
 	// common to ActivityDump and SecurityProfile
-	m            sync.Mutex
+	sync.Mutex
 	ActivityTree *activity_tree.ActivityTree
 	treeOpts     activityTreeOpts
 
@@ -158,15 +158,15 @@ func New(opts ...Opts) *Profile {
 
 // SetTreeType updates the type and owner of the ActivityTree of this profile
 func (p *Profile) SetTreeType(validator activity_tree.Owner, treeType string) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 	p.ActivityTree.SetType(treeType, validator)
 }
 
 // GetSelectorStr returns the string representation of the profile selector
 func (p *Profile) GetSelectorStr() string {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 	return p.getSelectorStr()
 }
 
@@ -237,15 +237,15 @@ func (p *Profile) DecodeFromReader(reader io.Reader, format config.StorageFormat
 
 // IsEmpty return true if the dump did not contain any nodes
 func (p *Profile) IsEmpty() bool {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 	return p.ActivityTree.IsEmpty()
 }
 
 // InsertAndGetSize inserts an event in the profile and returns the new size of the profile if the event was inserted
 func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, int64, error) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	ok, err := p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 	if !ok || err != nil {
@@ -257,30 +257,30 @@ func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bo
 
 // Insert inserts an event in the profile
 func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
 
 // ComputeInMemorySize returns the size of a dump in memory
 func (p *Profile) ComputeInMemorySize() int64 {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 	return p.ActivityTree.Stats.ApproximateSize()
 }
 
 // FakeOverweight fakes an overweight profile
 func (p *Profile) FakeOverweight() {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 	p.ActivityTree.Stats.ProcessNodes = 99999
 }
 
 // AddTags adds tags to the profile
 func (p *Profile) AddTags(tags []string) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	existingTagNames := make([]string, 0, len(p.tags))
 	for _, tag := range p.tags {
@@ -297,24 +297,24 @@ func (p *Profile) AddTags(tags []string) {
 
 // GetTagValue returns the value of the given tag name
 func (p *Profile) GetTagValue(tagName string) string {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	return utils.GetTagValue(tagName, p.tags)
 }
 
 // HasTag returns true if the profile has the given tag
 func (p *Profile) HasTag(tag string) bool {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	return slices.Contains(p.tags, tag)
 }
 
 // GetTags returns a copy of the profile tags
 func (p *Profile) GetTags() []string {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	tags := make([]string, len(p.tags))
 	copy(tags, p.tags)
@@ -323,24 +323,24 @@ func (p *Profile) GetTags() []string {
 
 // ScrubProcessArgsEnvs scrubs the process arguments and environment variables
 func (p *Profile) ScrubProcessArgsEnvs(resolver *process.EBPFResolver) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	p.ActivityTree.ScrubProcessArgsEnvs(resolver)
 }
 
 // Snapshot collects procfs data for all the processes in the activity tree
 func (p *Profile) Snapshot(newEvent func() *model.Event) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	p.ActivityTree.Snapshot(newEvent)
 }
 
 // GetWorkloadSelector returns the workload selector
 func (p *Profile) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	if p.selector.IsReady() {
 		return &p.selector
@@ -363,23 +363,23 @@ func (p *Profile) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 
 	p.selector = selector
 	// Once per workload, when tags are resolved and the first time we successfully get the selector, tag all the existing nodes
-	p.ActivityTree.TagAllNodes(selector.Tag)
+	p.ActivityTree.TagAllNodes(selector.Tag, time.Now())
 
 	return &p.selector
 }
 
 // SendStats sends stats for this profile's activity tree
 func (p *Profile) SendStats(statsdClient statsd.ClientInterface) error {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	return p.ActivityTree.SendStats(statsdClient)
 }
 
 // AddSnapshotAncestors adds the given process branch to the profile, calling the callback for each process cache entry which resulted in a new node insertion
 func (p *Profile) AddSnapshotAncestors(ancestors []*model.ProcessCacheEntry, resolvers *resolvers.EBPFResolvers, callback func(*model.ProcessCacheEntry)) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	imageTag := utils.GetTagValue("image_tag", p.tags)
 
@@ -396,8 +396,8 @@ func (p *Profile) AddSnapshotAncestors(ancestors []*model.ProcessCacheEntry, res
 
 // Contains checks if the profile contains the given event
 func (p *Profile) Contains(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	return p.ActivityTree.Contains(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
@@ -406,16 +406,16 @@ func (p *Profile) Contains(event *model.Event, insertMissingProcesses bool, imag
 
 // GetProfileCookie returns the profile cookie
 func (p *Profile) GetProfileCookie() uint64 {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	return p.profileCookie
 }
 
 // GenerateSyscallsFilters generates the syscall filters for the profile
 func (p *Profile) GenerateSyscallsFilters() [64]byte {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	var output [64]byte
 	for _, pCtxt := range p.versionContexts {
@@ -467,8 +467,8 @@ func (p *Profile) getGlobalState() model.EventFilteringProfileState {
 
 // GetVersionContext returns the context of the givent version if any
 func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	ctx, ok := p.versionContexts[imageTag]
 	return ctx, ok
@@ -476,8 +476,8 @@ func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
 
 // GetVersions returns the number of versions stored in the profile (debug purpose only)
 func (p *Profile) GetVersions() []string {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 	versions := []string{}
 	for version := range p.versionContexts {
 		versions = append(versions, version)
@@ -487,8 +487,8 @@ func (p *Profile) GetVersions() []string {
 
 // SetVersionState force a state for a given version (debug purpose only)
 func (p *Profile) SetVersionState(imageTag string, state model.EventFilteringProfileState, lastAnomalyNano uint64) error {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	ctx, found := p.versionContexts[imageTag]
 	if !found {
@@ -514,8 +514,8 @@ func (p *Profile) IsEventTypeValid(evtType model.EventType) bool {
 
 // GetGlobalEventTypeState returns the global state of a profile for a given event type: AutoLearning, StableEventType or UnstableEventType
 func (p *Profile) GetGlobalEventTypeState(et model.EventType) model.EventFilteringProfileState {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	globalState := model.AutoLearning
 	for _, ctx := range p.versionContexts {
@@ -534,8 +534,8 @@ func (p *Profile) GetGlobalEventTypeState(et model.EventType) model.EventFilteri
 
 // PrepareNewVersion prepares a new version of the profile
 func (p *Profile) PrepareNewVersion(newImageTag string, tags []string, maxImageTags int, nowTimestamp uint64) []string {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	// prepare new profile context to be inserted
 	newProfileCtx := &VersionContext{
@@ -553,8 +553,8 @@ func (p *Profile) PrepareNewVersion(newImageTag string, tags []string, maxImageT
 
 // AddVersionContext adds a new version context to the profile
 func (p *Profile) AddVersionContext(version string, ctx *VersionContext) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	p.versionContexts[version] = ctx
 }
@@ -604,8 +604,8 @@ func (p *Profile) GetEventTypes() []model.EventType {
 
 // LoadFromNewProfile loads a new profile into the current profile
 func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	p.Metadata = newProfile.Metadata
 	p.selector = newProfile.selector
@@ -634,16 +634,21 @@ func (p *Profile) Reset() {
 
 // ComputeSyscallsList computes the top level list of syscalls
 func (p *Profile) ComputeSyscallsList() []uint32 {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	return p.ActivityTree.ComputeSyscallsList()
 }
 
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
+	p.InstancesLock.Lock()
+	defer p.InstancesLock.Unlock()
+
 	for _, workload := range p.Instances {
-		if entry.ContainerID == workload.ContainerID {
+		// Check if the workload IDs match
+		workloadID := workload.GetWorkloadID()
+		if workloadID != nil && (workloadID == entry.ContainerID || workloadID == entry.CGroup.CGroupID) {
 			return true
 		}
 	}
@@ -655,8 +660,8 @@ func (p *Profile) NewProcessNodeCallback(_ *activity_tree.ProcessNode) {}
 
 // GetImageNameTag returns the image name and tag for the profiled container
 func (p *Profile) GetImageNameTag() (string, string) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	return p.selector.Image, p.selector.Tag
 }
@@ -680,9 +685,9 @@ func (p *Profile) getTimeOrderedVersionContexts() []*VersionContext {
 
 // GetVersionContextIndex returns the context of the givent version if any
 func (p *Profile) GetVersionContextIndex(index int) *VersionContext {
-	p.m.Lock()
+	p.Lock()
 	orderedVersions := p.getTimeOrderedVersionContexts()
-	p.m.Unlock()
+	p.Unlock()
 
 	if index >= len(orderedVersions) {
 		return nil
@@ -692,8 +697,8 @@ func (p *Profile) GetVersionContextIndex(index int) *VersionContext {
 
 // ListAllVersionStates prints the state of all versions of the profile
 func (p *Profile) ListAllVersionStates() {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	if len(p.versionContexts) > 0 {
 		fmt.Printf("### Profile: %+v\n", p.GetSelectorStr())
@@ -717,6 +722,8 @@ func (p *Profile) ListAllVersionStates() {
 			}
 		}
 		fmt.Printf("Instances:\n")
+		p.InstancesLock.Lock()
+		defer p.InstancesLock.Unlock()
 		for _, instance := range p.Instances {
 			fmt.Printf("  - %+v\n", instance.ContainerID)
 		}

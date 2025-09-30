@@ -137,7 +137,7 @@ tasks/unit_tests/testdata/add_reviewers/new-e2e/fake.go""")
         self.assertCountEqual(
             pr_mock.create_review_request.call_args[1]['team_reviewers'],
             [
-                'windows-agent',
+                'windows-products',
                 'debugger',
                 'agent-e2e-testing',
             ],

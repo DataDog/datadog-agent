@@ -61,7 +61,7 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 		aggr.isActive = false
 	}
 
-	for handler := range g.streamHandlers.allStreams() {
+	for _, handler := range g.streamHandlers.allStreams() {
 		aggr, err := g.getOrCreateAggregator(handler.metadata)
 		if err != nil {
 			log.Errorf("Error getting or creating aggregator for handler metadata %v: %s", handler.metadata, err)
@@ -69,14 +69,16 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 		}
 
 		currData := handler.getCurrentData(uint64(nowKtime))
-		pastData := handler.getPastData(true)
+		pastData := handler.getPastData()
 
 		if currData != nil {
 			aggr.processCurrentData(currData)
+			currData.releaseSpans()
 		}
 
 		if pastData != nil {
 			aggr.processPastData(pastData)
+			pastData.releaseSpans()
 		}
 	}
 
@@ -185,19 +187,19 @@ func (g *statsGenerator) getNormalizationFactors(stats []model.StatsTuple) (map[
 		var deviceFactors normalizationFactors
 
 		// This factor guarantees that usage[uuid] / normFactor <= maxThreads
-		if usage.cores > float64(device.CoreCount) {
-			deviceFactors.cores = usage.cores / float64(device.CoreCount)
+		if usage.cores > float64(device.GetDeviceInfo().CoreCount) {
+			deviceFactors.cores = usage.cores / float64(device.GetDeviceInfo().CoreCount)
 		} else {
 			deviceFactors.cores = 1
 		}
 
-		if usage.memory > float64(device.Memory) {
-			deviceFactors.memory = usage.memory / float64(device.Memory)
+		if usage.memory > float64(device.GetDeviceInfo().Memory) {
+			deviceFactors.memory = usage.memory / float64(device.GetDeviceInfo().Memory)
 		} else {
 			deviceFactors.memory = 1
 		}
 
-		normFactors[device.UUID] = deviceFactors
+		normFactors[device.GetDeviceInfo().UUID] = deviceFactors
 	}
 
 	return normFactors, nil

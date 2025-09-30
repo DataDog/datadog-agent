@@ -25,6 +25,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -34,15 +35,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 const (
@@ -58,6 +60,22 @@ var (
 	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.IMDSEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
 )
 
+// WorkloadEventType represents the type of workload event
+type WorkloadEventType int
+
+const (
+	// WorkloadEventResolved indicates a workload selector was resolved
+	WorkloadEventResolved WorkloadEventType = iota
+	// WorkloadEventDeleted indicates a workload was deleted
+	WorkloadEventDeleted
+)
+
+// WorkloadEvent represents an ordered workload event
+type WorkloadEvent struct {
+	Type     WorkloadEventType
+	Workload *tags.Workload
+}
+
 // Manager is the manager for activity dumps and security profiles
 type Manager struct {
 	m sync.Mutex
@@ -70,11 +88,12 @@ type Manager struct {
 	pathsReducer  *activity_tree.PathsReducer
 
 	// fields from ActivityDumpManager
-	activityDumpLoadConfig map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig
+	activityDumpLoadConfig *model.ActivityDumpLoadConfig
 
 	// ebpf maps
 	tracedPIDsMap              *ebpf.Map
 	tracedCgroupsMap           *ebpf.Map
+	tracedCgroupsDiscardedMap  *ebpf.Map
 	cgroupWaitList             *ebpf.Map
 	activityDumpsConfigMap     *ebpf.Map
 	activityDumpConfigDefaults *ebpf.Map
@@ -89,9 +108,11 @@ type Manager struct {
 	remoteStorage             *storage.ActivityDumpRemoteStorageForwarder
 	configuredStorageRequests map[config.StorageFormat][]config.StorageRequest
 
-	activeDumps         []*dump.ActivityDump
-	snapshotQueue       chan *dump.ActivityDump
-	contextTags         []string
+	activeDumps      []*dump.ActivityDump
+	snapshotQueue    chan *dump.ActivityDump
+	contextTags      []string
+	containerFilters *containers.Filter
+
 	hostname            string
 	lastStoppedDumpTime time.Time
 
@@ -125,16 +146,24 @@ type Manager struct {
 
 	// chan used to move an ActivityDump profile to a SecurityProfile profile
 	newProfiles chan *profile.Profile
+
+	// Single ordered channel for workload events to ensure proper ordering
+	workloadEvents chan *WorkloadEvent
 }
 
 // NewManager returns a new instance of the security profile manager
-func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler storage.ActivityDumpHandler) (*Manager, error) {
+func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component) (*Manager, error) {
 	tracedPIDs, err := managerhelper.Map(ebpf, "traced_pids")
 	if err != nil {
 		return nil, err
 	}
 
 	tracedCgroupsMap, err := managerhelper.Map(ebpf, "traced_cgroups")
+	if err != nil {
+		return nil, err
+	}
+
+	tracedCgroupsDiscardedMap, err := managerhelper.Map(ebpf, "traced_cgroups_discarded")
 	if err != nil {
 		return nil, err
 	}
@@ -204,6 +233,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	// add remote storage requests
+	// the actual fields are not really used, but this allows to report the correct request
 	configuredStorageRequests = append(configuredStorageRequests, config.NewStorageRequest(
 		config.RemoteStorage,
 		config.Protobuf,
@@ -211,7 +241,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		"",
 	))
 
-	hostname, err := hostnameutils.GetHostname()
+	hostname, err := hostnameutils.GetHostname(ipc)
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}
@@ -227,6 +257,11 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	// add source tag
 	if len(utils.GetTagValue("source", contextTags)) == 0 {
 		contextTags = append(contextTags, fmt.Sprintf("source:%s", ActivityDumpSource))
+	}
+
+	containerFilters, err := utils.NewContainerFilter()
+	if err != nil {
+		return nil, err
 	}
 
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *profile.Profile](cfg.RuntimeSecurity.SecurityProfileCacheSize, nil)
@@ -255,6 +290,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 
 		tracedPIDsMap:              tracedPIDs,
 		tracedCgroupsMap:           tracedCgroupsMap,
+		tracedCgroupsDiscardedMap:  tracedCgroupsDiscardedMap,
 		cgroupWaitList:             cgroupWaitList,
 		activityDumpsConfigMap:     activityDumpsConfigMap,
 		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
@@ -269,8 +305,9 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		remoteStorage:             remoteStorage,
 		configuredStorageRequests: perFormatStorageRequests(configuredStorageRequests),
 
-		contextTags: contextTags,
-		hostname:    hostname,
+		contextTags:      contextTags,
+		containerFilters: containerFilters,
+		hostname:         hostname,
 
 		minDumpTimeout: minDumpTimeout,
 
@@ -291,20 +328,16 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		eventFiltering: make(map[eventFilteringEntry]*atomic.Uint64),
 
 		newProfiles: make(chan *profile.Profile, 100),
+
+		workloadEvents: make(chan *WorkloadEvent, 100),
 	}
 
 	m.initMetricsMap()
 
-	defaultLoadConfigs, err := m.getDefaultLoadConfigs()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get default load configs: %w", err)
-	}
-
+	defaultConfig := m.getDefaultLoadConfig()
 	// push default load config values
-	for cgroupManager, defaultConfig := range defaultLoadConfigs {
-		if err := m.activityDumpConfigDefaults.Put(uint32(cgroupManager), defaultConfig); err != nil {
-			return nil, fmt.Errorf("couldn't update default activity dump load config for manager %s: %w", cgroupManager.String(), err)
-		}
+	if err := m.activityDumpConfigDefaults.Put(uint32(0), defaultConfig); err != nil {
+		return nil, fmt.Errorf("couldn't update default activity dump load config: %w", err)
 	}
 
 	return m, nil
@@ -330,6 +363,7 @@ func (m *Manager) Start(ctx context.Context) {
 	var adTagsTickerChan <-chan time.Time
 	var adLoadControlTickerChan <-chan time.Time
 	var silentWorkloadsTickerChan <-chan time.Time
+	var nodeEvictionTickerChan <-chan time.Time
 
 	if m.config.RuntimeSecurity.ActivityDumpEnabled {
 		adCleanupTicker := time.NewTicker(m.config.RuntimeSecurity.ActivityDumpCleanupPeriod)
@@ -357,9 +391,27 @@ func (m *Manager) Start(ctx context.Context) {
 		silentWorkloadsTickerChan = make(chan time.Time)
 	}
 
+	if m.config.RuntimeSecurity.SecurityProfileEnabled && m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
+		nodeEvictionTicker := time.NewTicker(m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
+		defer nodeEvictionTicker.Stop()
+		nodeEvictionTickerChan = nodeEvictionTicker.C
+	} else {
+		nodeEvictionTickerChan = make(chan time.Time)
+	}
+
 	if m.config.RuntimeSecurity.SecurityProfileEnabled {
-		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorResolved, m.onWorkloadSelectorResolvedEvent)
-		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorDeleted, m.onWorkloadDeletedEvent)
+		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorResolved, func(workload *tags.Workload) {
+			m.workloadEvents <- &WorkloadEvent{
+				Type:     WorkloadEventResolved,
+				Workload: workload,
+			}
+		})
+		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorDeleted, func(workload *tags.Workload) {
+			m.workloadEvents <- &WorkloadEvent{
+				Type:     WorkloadEventDeleted,
+				Workload: workload,
+			}
+		})
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -383,8 +435,12 @@ func (m *Manager) Start(ctx context.Context) {
 			}
 		case <-silentWorkloadsTickerChan:
 			m.handleSilentWorkloads()
+		case <-nodeEvictionTickerChan:
+			m.evictUnusedNodes()
 		case newProfile := <-m.newProfiles:
 			m.onNewProfile(newProfile)
+		case workloadEvent := <-m.workloadEvents:
+			m.onWorkloadEvent(workloadEvent)
 		}
 	}
 }
@@ -590,4 +646,39 @@ func perFormatStorageRequests(requests []config.StorageRequest) map[config.Stora
 		perFormatRequests[request.Format] = append(perFormatRequests[request.Format], request)
 	}
 	return perFormatRequests
+}
+
+// evictUnusedNodes performs periodic eviction of non-touched nodes from all active profiles
+func (m *Manager) evictUnusedNodes() {
+	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout <= 0 {
+		return
+	}
+
+	evictionTime := time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
+	totalEvicted := 0
+
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	for selector, profile := range m.profiles {
+		if profile == nil {
+			continue
+		}
+		profile.Lock()
+		if profile.ActivityTree == nil {
+			profile.Unlock()
+			continue
+		}
+
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime)
+		if evicted > 0 {
+			totalEvicted += evicted
+			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
+		}
+		profile.Unlock()
+	}
+
+	if totalEvicted > 0 {
+		seclog.Infof("evicted %d total unused process nodes across all profiles", totalEvicted)
+	}
 }

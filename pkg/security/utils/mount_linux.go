@@ -8,6 +8,12 @@
 package utils
 
 import (
+	"bufio"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -111,4 +117,36 @@ func GetFSTypeFromFilePath(path string) string {
 		}
 	}
 	return ""
+}
+
+// GetHostMountPathID returns the mount ID of specified mount path
+func GetHostMountPathID(mountPath string) (uint32, error) {
+	file, err := os.Open("/proc/1/mountinfo")
+	if err != nil {
+		return 0, fmt.Errorf("GetMountPathID for %s error: failed to open /proc/1/mountinfo: %w", mountPath, err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+		if len(fields) < 10 {
+			continue
+		}
+
+		if fields[4] == mountPath {
+			id, err := strconv.Atoi(fields[0])
+			if err != nil {
+				return 0, err
+			}
+			return uint32(id), nil
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return 0, fmt.Errorf("GetMountPathID error reading mountinfo: %w", err)
+	}
+
+	return 0, fmt.Errorf("GetMountPathID error looking for %s mount path id", mountPath)
 }

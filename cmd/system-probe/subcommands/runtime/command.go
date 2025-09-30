@@ -30,10 +30,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/clihelpers"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api/transform"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -83,9 +84,9 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(evalRule,
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
 				core.Bundle(),
 			)
 		},
@@ -116,7 +117,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
 				core.Bundle(),
@@ -140,7 +141,7 @@ func commonReloadPoliciesCommands(_ *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -158,7 +159,7 @@ func selfTestCommands(_ *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -225,7 +226,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpProcessCache,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -264,7 +265,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(dumpNetworkNamespace,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -291,7 +292,7 @@ func discardersCommands(_ *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -378,7 +379,8 @@ func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.
 		return fmt.Errorf("get policies request failed: %s", output.Error)
 	}
 
-	transformedOutput := output.GetRuleSetReportMessage().FromProtoToKFiltersRuleSetReport()
+	// extract and report the filters
+	transformedOutput := transform.FromProtoToFilterReport(output.GetRuleSetReportMessage().GetFilters())
 
 	content, _ := json.MarshalIndent(transformedOutput, "", "\t")
 	_, err = fmt.Fprintf(writer, "%s\n", string(content))

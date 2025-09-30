@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -36,12 +38,13 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type agentServer struct {
+	hostname hostnameinterface.Component
+
 	pb.UnimplementedAgentServer
 }
 
@@ -58,10 +61,11 @@ type serverSecure struct {
 	remoteAgentRegistry remoteagentregistry.Component
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
+	configStreamServer  *configstreamServer.Server
 }
 
 func (s *agentServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
-	h, err := hostname.Get(ctx)
+	h, err := s.hostname.Get(ctx)
 	if err != nil {
 		return &pb.HostnameReply{}, err
 	}
@@ -194,6 +198,16 @@ func (s *serverSecure) GetConfigStateHA(_ context.Context, _ *emptypb.Empty) (*p
 	return rcServiceMRF.ConfigGetState()
 }
 
+func (s *serverSecure) ResetConfigState(_ context.Context, _ *emptypb.Empty) (*pb.ResetStateConfigResponse, error) {
+	rcService, isSet := s.configService.Get()
+
+	if !isSet || rcService == nil {
+		log.Debug(rcNotInitializedErr.Error())
+		return nil, rcNotInitializedErr
+	}
+	return rcService.ConfigResetState()
+}
+
 // WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter
 func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSecure_WorkloadmetaStreamEntitiesServer) error {
 	return s.workloadmetaServer.StreamEntities(in, out)
@@ -222,6 +236,10 @@ func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentS
 func (s *serverSecure) GetHostTags(ctx context.Context, _ *pb.HostTagRequest) (*pb.HostTagReply, error) {
 	tags := hosttags.Get(ctx, true, s.configComp)
 	return &pb.HostTagReply{System: tags.System, GoogleCloudPlatform: tags.GoogleCloudPlatform}, nil
+}
+
+func (s *serverSecure) StreamConfigEvents(in *pb.ConfigStreamRequest, out pb.AgentSecure_StreamConfigEventsServer) error {
+	return s.configStreamServer.StreamConfigEvents(in, out)
 }
 
 func init() {

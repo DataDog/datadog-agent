@@ -24,14 +24,16 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -44,8 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 )
 
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
@@ -61,15 +61,16 @@ type dependencies struct {
 	Lc         fx.Lifecycle
 	Shutdowner fx.Shutdowner
 
-	Config             config.Component
-	Secrets            option.Option[secrets.Component]
-	Context            context.Context
-	Params             *Params
-	TelemetryCollector telemetry.TelemetryCollector
-	Statsd             statsd.Component
-	Tagger             tagger.Component
-	Compressor         compression.Component
-	At                 authtoken.Component
+	Config                config.Component
+	Secrets               option.Option[secrets.Component]
+	Context               context.Context
+	Params                *Params
+	TelemetryCollector    telemetry.TelemetryCollector
+	Statsd                statsd.Component
+	Tagger                tagger.Component
+	Compressor            compression.Component
+	IPC                   ipc.Component
+	TracerPayloadModifier pkgagent.TracerPayloadModifier
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -103,7 +104,7 @@ type component struct {
 	params             *Params
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
-	at                 authtoken.Component
+	ipc                ipc.Component
 	wg                 *sync.WaitGroup
 }
 
@@ -126,7 +127,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		params:             deps.Params,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
-		at:                 deps.At,
+		ipc:                deps.IPC,
 		wg:                 &sync.WaitGroup{},
 	}
 	statsdCl, err := setupMetrics(deps.Statsd, c.config, c.telemetryCollector)
@@ -144,6 +145,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		statsdCl,
 		deps.Compressor,
 	)
+	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
 
 	c.config.OnUpdateAPIKey(c.UpdateAPIKey)
 

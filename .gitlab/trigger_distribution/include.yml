@@ -1,0 +1,25 @@
+stages:
+  - deploy_containers
+  - deploy_mutable_image_tags
+  - deploy_packages
+  - deploy_cws_instrumentation
+  - deploy_cws_instrumentation_mutable_tags
+  - deploy_dca
+  - deploy_dca_mutable_tags
+  - trigger_release
+
+include:
+  - .gitlab/common/shared.yml
+  - .gitlab/common/container_publish_job_templates.yml
+  - .gitlab/deploy_containers/deploy_containers_a7.yml
+  - .gitlab/deploy_containers/deploy_mutable_image_tags.yml
+  - .gitlab/deploy_ot_standalone/deploy_ot_standalone.yml
+  - .gitlab/deploy_ot_standalone/deploy_ot_standalone_mutable_tags.yml
+  - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
+  - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation_mutable_tags.yml
+  - .gitlab/deploy_dca/deploy_dca.yml
+  - .gitlab/deploy_dca/deploy_dca_mutable_tags.yml
+  - .gitlab/deploy_packages/winget.yml
+  - .gitlab/trigger_release/agent.yml
+  - .gitlab/trigger_release/installer.yml
+  - .gitlab/trigger_distribution/conditions.yml

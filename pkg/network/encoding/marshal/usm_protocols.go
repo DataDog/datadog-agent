@@ -8,8 +8,8 @@ package marshal
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,7 +34,7 @@ import (
 func FormatProtocolStack(originalStack protocols.Stack, staticTags uint64) *model.ProtocolStack {
 	var stack []model.ProtocolType
 
-	if network.IsTLSTag(staticTags) || originalStack.Encryption == protocols.TLS {
+	if tls.IsTLSTag(staticTags) || originalStack.Encryption == protocols.TLS {
 		stack = addProtocol(stack, protocols.TLS)
 	}
 	if originalStack.Application != protocols.Unknown {

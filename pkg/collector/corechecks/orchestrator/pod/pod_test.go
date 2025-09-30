@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -134,6 +135,8 @@ func (suite *PodTestSuite) SetupSuite() {
 	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
 	mockConfig.SetWithoutSource("orchestrator_explorer.enabled", true)
 	mockConfig.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
+	mockConfig.SetWithoutSource("kubernetes_pod_labels_as_tags", `{"tier":"dd_tier","component":"dd_component"}`)
+	mockConfig.SetWithoutSource("kubernetes_pod_annotations_as_tags", `{"kubernetes.io/config.source":"config_source","kubernetes.io/config.hash":"config_hash"}`)
 
 	kubeutil, _ := kubelet.GetKubeUtilWithRetrier()
 	require.NotNil(suite.T(), kubeutil)
@@ -151,6 +154,7 @@ func (suite *PodTestSuite) SetupSuite() {
 	suite.tagger = fakeTagger
 
 	suite.check = &Check{
+		cfg:       mockConfig,
 		sender:    sender,
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(mockConfig, mockStore, fakeTagger)),
 		hostName:  testHostName,
@@ -186,4 +190,29 @@ func (suite *PodTestSuite) TestPodCheck() {
 
 	require.Len(suite.T(), suite.sender.pods[0].(*process.CollectorPod).Pods, 10)
 	require.Len(suite.T(), suite.sender.manifests[0].(*process.CollectorManifest).Manifests, 10)
+
+	require.Equal(suite.T(),
+		sorted(suite.sender.pods[0].(*process.CollectorPod).Tags...),
+		sorted("kube_api_version:v1"))
+	require.Equal(suite.T(),
+		sorted(suite.sender.pods[0].(*process.CollectorPod).Pods[0].Tags...),
+		sorted("kube_condition_podscheduled:true", "pod_status:pending",
+			"dd_component:kube-proxy", "dd_tier:node",
+			"config_hash:260c2b1d43b094af6d6b4ccba082c2db", "config_source:file"))
+
+	require.Equal(suite.T(),
+		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Tags...),
+		sorted())
+	require.Equal(suite.T(),
+		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Manifests[0].Tags...),
+		sorted("kube_api_version:v1", "kube_condition_podscheduled:true", "pod_status:pending",
+			"dd_component:kube-proxy", "dd_tier:node",
+			"config_hash:260c2b1d43b094af6d6b4ccba082c2db", "config_source:file"))
+}
+
+func sorted(l ...string) []string {
+	var s []string
+	s = append(s, l...)
+	sort.Strings(s)
+	return s
 }

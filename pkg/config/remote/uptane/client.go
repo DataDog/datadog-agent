@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/go-tuf/client"
 	"github.com/DataDog/go-tuf/data"
@@ -228,8 +227,6 @@ func NewCDNClient(cacheDB *bbolt.DB, site, apiKey string, options ...ClientOptio
 // Update updates the uptane client and rollbacks in case of error
 func (c *CDNClient) Update(ctx context.Context) error {
 	var err error
-	span, ctx := tracer.StartSpanFromContext(ctx, "CDNClient.Update")
-	defer span.Finish(tracer.WithError(err))
 	c.Lock()
 	defer c.Unlock()
 	c.cachedVerify = false
@@ -250,8 +247,6 @@ func (c *CDNClient) Update(ctx context.Context) error {
 // update updates the uptane client
 func (c *CDNClient) update(ctx context.Context) error {
 	var err error
-	span, ctx := tracer.StartSpanFromContext(ctx, "CDNClient.update")
-	defer span.Finish(tracer.WithError(err))
 
 	err = c.updateRepos(ctx)
 	if err != nil {
@@ -264,10 +259,8 @@ func (c *CDNClient) update(ctx context.Context) error {
 	return c.verify()
 }
 
-func (c *CDNClient) updateRepos(ctx context.Context) error {
+func (c *CDNClient) updateRepos(_ context.Context) error {
 	var err error
-	span, _ := tracer.StartSpanFromContext(ctx, "CDNClient.updateRepos")
-	defer span.Finish(tracer.WithError(err))
 
 	_, err = c.directorTUFClient.Update()
 	if err != nil {

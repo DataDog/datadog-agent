@@ -16,6 +16,8 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -144,7 +146,6 @@ func TestCreateContainerService(t *testing.T) {
 			Annotations: map[string]string{
 				fmt.Sprintf("ad.datadoghq.com/%s.exclude", kubernetesContainer.Name):         `false`,
 				fmt.Sprintf("ad.datadoghq.com/%s.exclude", kubernetesExcludedContainer.Name): `true`,
-				tolerateUnreadyAnnotation: `true`,
 			},
 		},
 		Containers: []workloadmeta.OrchestratorContainer{
@@ -162,6 +163,12 @@ func TestCreateContainerService(t *testing.T) {
 		IP:    "127.0.0.1",
 		Ready: false,
 	}
+
+	podWithTolerateUnreadyAnnotation := pod.DeepCopy().(*workloadmeta.KubernetesPod)
+	podWithTolerateUnreadyAnnotation.Annotations["ad.datadoghq.com/tolerate-unready"] = "true"
+
+	podWithCheck := pod.DeepCopy().(*workloadmeta.KubernetesPod)
+	podWithCheck.Annotations["ad.datadoghq.com/foobar.checks"] = `{"redisdb": {"instances": [{"host": "%%host%%", "port": 6379}]}}`
 
 	// Define a container excluded by the "container_exclude" config setting
 	containerExcludeConfigSetting := []string{"image:gcr.io/excluded:.*"}
@@ -294,7 +301,28 @@ func TestCreateContainerService(t *testing.T) {
 						},
 						hosts: map[string]string{"pod": pod.IP},
 						ports: []ContainerPort{},
-						ready: true,
+						ready: false, // Pod not ready and no tolerate-unready annotation
+					},
+				},
+			},
+		},
+		{
+			name:      "pod with tolerate-unready annotation",
+			container: kubernetesContainer,
+			pod:       podWithTolerateUnreadyAnnotation,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foo": {
+					service: &service{
+						tagger: taggerComponent,
+						entity: kubernetesContainer,
+						adIdentifiers: []string{
+							"docker://foo",
+							"gcr.io/foobar",
+							"foobar",
+						},
+						hosts: map[string]string{"pod": pod.IP},
+						ports: []ContainerPort{},
+						ready: true, // Because of the tolerate-unready annotation
 					},
 				},
 			},
@@ -309,6 +337,73 @@ func TestCreateContainerService(t *testing.T) {
 			name:             "excluded by config setting",
 			container:        containerExcludedByConfigSetting,
 			expectedServices: map[string]wlmListenerSvc{},
+		},
+		{
+			name:      "pod check annotation added to check names",
+			container: kubernetesContainer,
+			pod:       podWithCheck,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foo": {
+					service: &service{
+						tagger: taggerComponent,
+						entity: kubernetesContainer,
+						adIdentifiers: []string{
+							"docker://foo",
+							"gcr.io/foobar",
+							"foobar",
+						},
+						hosts:      map[string]string{"pod": podWithCheck.IP},
+						ports:      []ContainerPort{},
+						ready:      false,
+						checkNames: []string{"redisdb"},
+					},
+				},
+			},
+		},
+		{
+			name:      "pod check id accounted for in check names resolution",
+			container: kubernetesContainer,
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   podID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"ad.datadoghq.com/bar.checks":      `{"postgresql": {}}`,
+						"ad.datadoghq.com/foobar.check.id": `bar`,
+					},
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    kubernetesContainer.ID,
+						Name:  kubernetesContainer.Name,
+						Image: kubernetesContainer.Image,
+					},
+				},
+				IP:    "127.0.0.1",
+				Ready: true,
+			},
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foo": {
+					service: &service{
+						tagger: taggerComponent,
+						entity: kubernetesContainer,
+						adIdentifiers: []string{
+							"docker://foo",
+							"gcr.io/foobar",
+							"foobar",
+							"bar",
+						},
+						hosts:      map[string]string{"pod": "127.0.0.1"},
+						ports:      []ContainerPort{},
+						ready:      true,
+						checkNames: []string{"postgresql"},
+					},
+				},
+			},
 		},
 	}
 
@@ -387,6 +482,13 @@ func TestComputeContainerServiceIDs(t *testing.T) {
 
 func newContainerListener(t *testing.T, tagger tagger.Component) (*ContainerListener, *testWorkloadmetaListener) {
 	wlm := newTestWorkloadmetaListener(t)
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	return &ContainerListener{workloadmetaListener: wlm, tagger: tagger}, wlm
+	return &ContainerListener{
+		workloadmetaListener: wlm,
+		globalFilter:         filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter:        filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:           filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:               tagger,
+	}, wlm
 }

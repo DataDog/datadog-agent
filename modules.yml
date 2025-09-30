@@ -14,7 +14,6 @@ modules:
     - ./comp
   comp/api/api/def:
     used_by_otel: true
-  comp/api/authtoken: default
   comp/core/config:
     used_by_otel: true
   comp/core/configsync: default
@@ -23,6 +22,14 @@ modules:
   comp/core/flare/types:
     used_by_otel: true
   comp/core/hostname/hostnameinterface:
+    used_by_otel: true
+  comp/core/ipc/def:
+    used_by_otel: true
+  comp/core/ipc/httphelpers:
+    used_by_otel: true
+  comp/core/ipc/impl:
+    used_by_otel: true
+  comp/core/ipc/mock:
     used_by_otel: true
   comp/core/log/def:
     used_by_otel: true
@@ -33,7 +40,15 @@ modules:
   comp/core/log/impl-trace: default
   comp/core/log/mock:
     used_by_otel: true
-  comp/core/secrets:
+  comp/core/secrets/def:
+    used_by_otel: true
+  comp/core/secrets/fx:
+    used_by_otel: true
+  comp/core/secrets/impl:
+    used_by_otel: true
+  comp/core/secrets/mock:
+    used_by_otel: true
+  comp/core/secrets/utils:
     used_by_otel: true
   comp/core/status:
     used_by_otel: true
@@ -117,6 +132,10 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
+  internal/tools/gotest-custom:
+    independent: false
+    should_tag: false
+    should_test_condition: never
   internal/tools/independent-lint:
     independent: false
     should_tag: false
@@ -168,6 +187,7 @@ modules:
     used_by_otel: true
   pkg/config/viperconfig:
     used_by_otel: true
+  pkg/dyninst/testprogs/progs: ignored
   pkg/errors: default
   pkg/fips:
     used_by_otel: true
@@ -177,8 +197,6 @@ modules:
   pkg/linters/components/pkgconfigusage:
     independent: false
     should_tag: false
-  pkg/logs/auditor:
-    used_by_otel: true
   pkg/logs/client:
     used_by_otel: true
   pkg/logs/diagnostic:
@@ -191,8 +209,7 @@ modules:
     used_by_otel: true
   pkg/logs/processor:
     used_by_otel: true
-  pkg/logs/sds:
-    used_by_otel: true
+  pkg/logs/sds: default
   pkg/logs/sender:
     used_by_otel: true
   pkg/logs/sources:
@@ -201,14 +218,30 @@ modules:
     used_by_otel: true
   pkg/logs/status/utils:
     used_by_otel: true
+  pkg/logs/types:
+    used_by_otel: true
   pkg/logs/util/testutils:
     used_by_otel: true
   pkg/metrics:
     used_by_otel: true
+  pkg/network/driver: default
   pkg/network/payload: default
   pkg/networkdevice/profile: default
   pkg/networkpath/payload: default
   pkg/obfuscate:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/inframetadata:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest:
+    should_test_condition: never
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/otlp/attributes:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/otlp/logs:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/otlp/metrics:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/otlp/rum:
     used_by_otel: true
   pkg/orchestrator/model:
     used_by_otel: true
@@ -261,7 +294,8 @@ modules:
     used_by_otel: true
   pkg/util/filesystem:
     used_by_otel: true
-  pkg/util/flavor: default
+  pkg/util/flavor:
+    used_by_otel: true
   pkg/util/fxutil:
     used_by_otel: true
   pkg/util/grpc:
@@ -283,6 +317,10 @@ modules:
   pkg/util/pointer:
     used_by_otel: true
   pkg/util/prometheus: default
+  pkg/util/quantile:
+    used_by_otel: true
+  pkg/util/quantile/sketchtest:
+    used_by_otel: true
   pkg/util/scrubber:
     used_by_otel: true
   pkg/util/sort:

@@ -58,7 +58,7 @@ type WorkloadMetaCollector struct {
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
 
-	staticTags                    map[string][]string // for ECS and EKS Fargate
+	staticTags                    map[string][]string // for ECS, EKS Fargate, and DCA
 	k8sResourcesAnnotationsAsTags map[string]map[string]string
 	k8sResourcesLabelsAsTags      map[string]map[string]string
 	globContainerLabels           map[string]glob.Glob
@@ -92,8 +92,7 @@ func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags
 
 // Run runs the continuous event watching loop and sends new tags to the
 // tagger based on the events sent by the workloadmeta.
-func (c *WorkloadMetaCollector) Run(ctx context.Context, datadogConfig config.Component) {
-	c.collectStaticGlobalTags(ctx, datadogConfig)
+func (c *WorkloadMetaCollector) Run(ctx context.Context) {
 	c.stream(ctx)
 }
 
@@ -106,15 +105,12 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 			if c.staticTags == nil {
 				c.staticTags = make(map[string][]string, 1)
 			}
-			if _, exists := c.staticTags[clusterTagNamePrefix]; !exists {
-				c.staticTags[clusterTagNamePrefix] = []string{}
-			}
-			c.staticTags[clusterTagNamePrefix] = append(c.staticTags[clusterTagNamePrefix], cluster)
+			c.staticTags[clusterTagNamePrefix] = []string{cluster}
 		}
 	}
 	// These are the global tags that should only be applied to the internal global entity on DCA.
 	// Whereas the static tags are applied to containers and pods directly as well.
-	globalEnvTags := tagutil.GetGlobalEnvTags(datadogConfig)
+	globalEnvTags := tagutil.GetClusterAgentStaticTags(datadogConfig)
 
 	tagList := taglist.NewTagList()
 
@@ -174,7 +170,7 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 }
 
 // NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
-func NewWorkloadMetaCollector(_ context.Context, cfg config.Component, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
+func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
 		tagProcessor:                      p,
 		store:                             store,
@@ -197,6 +193,11 @@ func NewWorkloadMetaCollector(_ context.Context, cfg config.Component, store wor
 	// kubernetes resources metadata as tags
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 	c.initK8sResourcesMetaAsTags(metadataAsTags.GetResourcesLabelsAsTags(), metadataAsTags.GetResourcesAnnotationsAsTags())
+
+	// initialize static global tags
+	if p != nil {
+		c.collectStaticGlobalTags(ctx, cfg)
+	}
 
 	return c
 }

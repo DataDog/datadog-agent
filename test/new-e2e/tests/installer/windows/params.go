@@ -22,6 +22,7 @@ type Params struct {
 	// but they can (and should) be passed to the executable.
 	installerScript string
 	extraEnvVars    map[string]string
+	pipelineID      string
 }
 
 // Option is an optional function parameter type for the Params
@@ -55,6 +56,14 @@ func WithInstallerURL(installerURL string) Option {
 func WithInstallerScript(installerScript string) Option {
 	return func(params *Params) error {
 		params.installerScript = installerScript
+		return nil
+	}
+}
+
+// WithPipelineID sets the pipeline ID to fetch artifacts/scripts from.
+func WithPipelineID(id string) Option {
+	return func(params *Params) error {
+		params.pipelineID = id
 		return nil
 	}
 }
@@ -159,6 +168,33 @@ func WithMSIDevEnvOverrides(prefix string) MsiOption {
 		}
 		if version, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_VERSION", prefix)); ok {
 			err := WithOption(WithURLFromInstallersJSON(pipeline.StableURL, version))(params)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+// WithInstallScriptDevEnvOverrides applies overrides to use local files for development.
+//
+// Example: local installer exe
+//
+//	export CURRENT_AGENT_INSTALLER_URL="file:///path/to/installer.exe"
+//
+// Example: local install script
+//
+//	export CURRENT_AGENT_INSTALLER_SCRIPT="file:///path/to/install.ps1"
+func WithInstallScriptDevEnvOverrides(prefix string) Option {
+	return func(params *Params) error {
+		if url, ok := os.LookupEnv(fmt.Sprintf("%s_INSTALLER_URL", prefix)); ok {
+			err := WithInstallerURL(url)(params)
+			if err != nil {
+				return err
+			}
+		}
+		if script, ok := os.LookupEnv(fmt.Sprintf("%s_INSTALLER_SCRIPT", prefix)); ok {
+			err := WithInstallerScript(script)(params)
 			if err != nil {
 				return err
 			}

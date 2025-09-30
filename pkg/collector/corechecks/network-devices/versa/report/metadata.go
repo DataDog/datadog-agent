@@ -21,13 +21,13 @@ var TimeNow = time.Now
 // SendMetadata send Versa device, interface and IP Address metadata
 func (s *Sender) SendMetadata(devices []devicemetadata.DeviceMetadata, interfaces []devicemetadata.InterfaceMetadata, ipAddresses []devicemetadata.IPAddressMetadata) {
 	collectionTime := TimeNow()
-	metadataPayloads := devicemetadata.BatchPayloads(integrations.Versa, s.namespace, "", collectionTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, nil, nil, nil)
+	metadataPayloads := devicemetadata.BatchPayloads(integrations.Versa, s.namespace, "", collectionTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, nil, nil, nil, nil)
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
 		if err != nil {
 			log.Errorf("Error marshalling Versa metadata : %s", err)
 			continue
 		}
-		s.sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
+		s.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
 	}
 }

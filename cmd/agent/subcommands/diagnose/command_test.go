@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -144,4 +144,13 @@ func TestShowAgentTelemetryCommand(t *testing.T) {
 		func(payload payloadName) {
 			require.Equal(t, payloadName("agent-telemetry"), payload)
 		})
+}
+
+func TestShowFullAgentTelemetryCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "agent-full-telemetry"},
+		printAgentFullTelemetry,
+		func() {},
+	)
 }

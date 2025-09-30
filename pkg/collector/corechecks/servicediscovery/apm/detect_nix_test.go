@@ -18,7 +18,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
@@ -26,44 +25,6 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
-
-func TestTracerMetadata(t *testing.T) {
-	curPid := os.Getpid()
-	ctx := usm.NewDetectionContext(nil, envs.NewVariables(nil), nil)
-	ctx.Pid = curPid
-	t.Run("valid data", func(t *testing.T) {
-		curDir, err := testutil.CurDir()
-		require.NoError(t, err)
-		testDataPath := filepath.Join(curDir, "testdata/tracer_cpp.data")
-		data, err := os.ReadFile(testDataPath)
-		require.NoError(t, err)
-		createTracerMemfd(t, data)
-
-		if !isTracerMetadataValid(ctx) {
-			t.Errorf("metadata not found")
-		}
-	})
-	t.Run("invalid data", func(t *testing.T) {
-		createTracerMemfd(t, []byte("invalid data"))
-		if isTracerMetadataValid(ctx) {
-			t.Errorf("metadata should not be present")
-		}
-	})
-}
-
-func createTracerMemfd(t *testing.T, l []byte) {
-	t.Helper()
-	fd, err := unix.MemfdCreate("datadog-tracer-info-xxx", 0)
-	require.NoError(t, err)
-	t.Cleanup(func() { unix.Close(fd) })
-	err = unix.Ftruncate(fd, int64(len(l)))
-	require.NoError(t, err)
-	data, err := unix.Mmap(fd, 0, len(l), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
-	require.NoError(t, err)
-	copy(data, l)
-	err = unix.Munmap(data)
-	require.NoError(t, err)
-}
 
 func TestInjected(t *testing.T) {
 	data := []struct {

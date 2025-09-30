@@ -3,8 +3,7 @@
 # Contains jobs which build various libraries needed for system-probe.
 
 .build_clang_common:
-  rules:
-    !reference [.manual]
+  rules: !reference [.manual]
   stage: deps_build
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
@@ -96,16 +95,16 @@
 
 build_clang_x64:
   extends: .build_clang_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   variables:
     ARCH: amd64
     CMAKE_ARCH: x86_64
 
 build_clang_arm64:
   extends: .build_clang_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
   variables:
     ARCH: arm64
     CMAKE_ARCH: aarch64
@@ -115,8 +114,8 @@ build_processed_btfhub_archive:
     - !reference [.on_scheduled_main]
     - !reference [.manual]
   stage: deps_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$CI_IMAGE_BTF_GEN_SUFFIX:$CI_IMAGE_BTF_GEN
+  tags: ["arch:amd64", "specific:true"]
   variables:
     KUBERNETES_CPU_REQUEST: 32
   script:

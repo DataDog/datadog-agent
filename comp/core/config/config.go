@@ -8,12 +8,11 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	"go.uber.org/fx"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -67,10 +66,7 @@ func NewServerlessConfig(path string) (Component, error) {
 	options := []func(*Params){WithConfigName("serverless")}
 
 	_, err := os.Stat(path)
-	if os.IsNotExist(err) &&
-		(strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml")) {
-		options = append(options, WithConfigMissingOK(true))
-	} else if !os.IsNotExist(err) {
+	if !os.IsNotExist(err) {
 		options = append(options, WithConfFilePath(path))
 	}
 
@@ -87,14 +83,15 @@ func newComponent(deps dependencies) (provides, error) {
 }
 
 func newConfig(deps dependencies) (*cfg, error) {
-	config := pkgconfigsetup.Datadog()
+	config := pkgconfigsetup.GlobalConfigBuilder()
+
 	warnings, err := setupConfig(config, deps)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
 			if warnings == nil {
 				warnings = &pkgconfigmodel.Warnings{}
 			}
-			warnings.Err = e
+			warnings.Errors = []error{e}
 			e = nil
 		}
 		return &cfg{Config: config, warnings: warnings}, e
@@ -131,6 +128,10 @@ func (c *cfg) fillFlare(fb flaretypes.FlareBuilder) error {
 
 		// use best effort to include security-agent.yaml to the flare
 		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml")) //nolint:errcheck
+
+		// use best effort to include application_monitoring.yaml to the flare
+		// application_monitoring.yaml is a file that lets customers configure Datadog SDKs at the level of the host
+		fb.CopyFileTo(filepath.Join(confDir, "application_monitoring.yaml"), filepath.Join("etc", "application_monitoring.yaml")) //nolint:errcheck
 	}
 
 	for _, path := range c.ExtraConfigFilesUsed() {

@@ -20,22 +20,28 @@ import (
 const (
 	// BasenameApproverKernelMapName defines the basename approver kernel map name
 	BasenameApproverKernelMapName = "basename_approvers"
+	// InUpperLayerApproverKernelMapName defines the in upper layer approver kernel map name
+	InUpperLayerApproverKernelMapName = "in_upper_layer_approvers"
 
+	// PolicyApproverType is the type of policy approver
+	PolicyApproverType = "policy"
 	// BasenameApproverType is the type of basename approver
 	BasenameApproverType = "basename"
 	// FlagApproverType is the type of flags approver
 	FlagApproverType = "flag"
 	// AUIDApproverType is the type of auid approver
 	AUIDApproverType = "auid"
+	// InUpperLayerApproverType is the type of in upper layer approver
+	InUpperLayerApproverType = "in_upper_layer"
 )
 
-type kfiltersGetter func(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error)
+type kfiltersGetter func(approvers rules.Approvers) (KFilters, []eval.Field, error)
 
 // KFilterGetters var contains all the kfilter getters
 var KFilterGetters = make(map[eval.EventType]kfiltersGetter)
 
-func newBasenameKFilter(tableName string, eventType model.EventType, basename string) (activeKFilter, error) {
-	return &eventMaskEntry{
+func newBasenameKFilter(tableName string, eventType model.EventType, basename string) (kFilter, error) {
+	return &eventMaskKFilter{
 		approverType: BasenameApproverType,
 		tableName:    tableName,
 		tableKey:     ebpf.NewStringMapItem(basename, BasenameFilterSize),
@@ -43,7 +49,16 @@ func newBasenameKFilter(tableName string, eventType model.EventType, basename st
 	}, nil
 }
 
-func newBasenameKFilters(tableName string, eventType model.EventType, basenames ...string) (approvers []activeKFilter, _ error) {
+func newInUpperLayerKFilter(tableName string, eventType model.EventType) (kFilter, error) {
+	return &eventMaskKFilter{
+		approverType: InUpperLayerApproverType,
+		tableName:    tableName,
+		tableKey:     uint32(0),
+		eventMask:    uint64(1 << (eventType - 1)),
+	}, nil
+}
+
+func newBasenameKFilters(tableName string, eventType model.EventType, basenames ...string) (approvers []kFilter, _ error) {
 	for _, basename := range basenames {
 		activeKFilter, err := newBasenameKFilter(tableName, eventType, basename)
 		if err != nil {
@@ -62,13 +77,13 @@ func uintValues[I uint32 | uint64](fvs rules.FilterValues) []I {
 	return values
 }
 
-func newKFilterWithUInt32Flags(tableName string, flags ...uint32) (activeKFilter, error) {
+func newKFilterWithUInt32Flags(tableName string, flags ...uint32) (kFilter, error) {
 	var bitmask uint32
 	for _, flag := range flags {
 		bitmask |= flag
 	}
 
-	return &arrayEntry{
+	return &arrayKFilter{
 		approverType: FlagApproverType,
 		tableName:    tableName,
 		index:        uint32(0),
@@ -77,13 +92,13 @@ func newKFilterWithUInt32Flags(tableName string, flags ...uint32) (activeKFilter
 	}, nil
 }
 
-func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (activeKFilter, error) {
+func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (kFilter, error) {
 	var bitmask uint64
 	for _, flag := range flags {
 		bitmask |= flag
 	}
 
-	return &arrayEntry{
+	return &arrayKFilter{
 		approverType: FlagApproverType,
 		tableName:    tableName,
 		index:        uint32(0),
@@ -92,11 +107,11 @@ func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (activeKFilter
 	}, nil
 }
 
-func getFlagsKFilter(tableName string, flags ...uint32) (activeKFilter, error) {
+func getFlagsKFilter(tableName string, flags ...uint32) (kFilter, error) {
 	return newKFilterWithUInt32Flags(tableName, flags...)
 }
 
-func getEnumsKFilters(tableName string, enums ...uint64) (activeKFilter, error) {
+func getEnumsKFilters(tableName string, enums ...uint64) (kFilter, error) {
 	var flags []uint64
 	for _, enum := range enums {
 		flags = append(flags, 1<<enum)
@@ -104,7 +119,7 @@ func getEnumsKFilters(tableName string, enums ...uint64) (activeKFilter, error) 
 	return newKFilterWithUInt64Flags(tableName, flags...)
 }
 
-func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]activeKFilter, []eval.Field, error) {
+func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]kFilter, []eval.Field, error) {
 	var fieldHandled []eval.Field
 
 	stringValues := func(fvs rules.FilterValues) []string {
@@ -120,7 +135,7 @@ func getBasenameKFilters(eventType model.EventType, field string, approvers rule
 		prefix += "." + field
 	}
 
-	var kfilters []activeKFilter
+	var kfilters []kFilter
 	for field, values := range approvers {
 		switch field {
 		case prefix + model.NameSuffix:
@@ -147,9 +162,9 @@ func getBasenameKFilters(eventType model.EventType, field string, approvers rule
 }
 
 func fimKFiltersGetter(eventType model.EventType, fields []eval.Field) kfiltersGetter {
-	return func(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+	return func(approvers rules.Approvers) (KFilters, []eval.Field, error) {
 		var (
-			kfilters     []activeKFilter
+			kfilters     []kFilter
 			fieldHandled []eval.Field
 		)
 
@@ -169,7 +184,7 @@ func fimKFiltersGetter(eventType model.EventType, fields []eval.Field) kfiltersG
 		kfilters = append(kfilters, kfs...)
 		fieldHandled = append(fieldHandled, handled...)
 
-		return newActiveKFilters(kfilters...), fieldHandled, nil
+		return newKFilters(kfilters...), fieldHandled, nil
 	}
 }
 
@@ -189,4 +204,5 @@ func init() {
 	KFilterGetters["chdir"] = fimKFiltersGetter(model.FileChdirEventType, []eval.Field{"file"})
 	KFilterGetters["bpf"] = bpfKFiltersGetter
 	KFilterGetters["sysctl"] = sysctlKFiltersGetter
+	KFilterGetters["connect"] = connectKFiltersGetter
 }

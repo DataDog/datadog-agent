@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The cilium conntracker is now enabled by default
+    in the system-probe, and now expects the /sys/fs/bpf
+    to be mounted at /host/sys/fs/bpf in containerized
+    environments. The conntracker, if enabled, will fail
+    to load unless this mount is provided, with the log line
+    "not loading cilium conntracker since cilium maps are not present"
+    in system-probe's log file. Users who have enabled
+    this feature can either upgrade to the latest helm
+    chart or add this mount to their container

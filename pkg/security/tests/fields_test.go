@@ -28,6 +28,10 @@ func TestFieldsResolver(t *testing.T) {
 			ID:         "test_fields_exec",
 			Expression: `exec.file.name == "ls" && exec.argv == "test-fields"`,
 		},
+		{
+			ID:         "test_fields_extension",
+			Expression: `open.file.extension == ".txt" && open.flags & O_CREAT != 0`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -63,5 +67,14 @@ func TestFieldsResolver(t *testing.T) {
 
 			// rely on validateAbnormalPaths
 		}))
+	})
+
+	t.Run("extension", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			_, _, err = test.Create("test-fields.txt")
+			return err
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_fields_extension")
+		})
 	})
 }

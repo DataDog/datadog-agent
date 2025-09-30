@@ -19,7 +19,7 @@ type Event interface {
 	Init()
 	// GetType returns the Type of the Event
 	GetType() EventType
-	// GetFieldEventType returns the Event Field Metadata for the given Field
+	// GetFieldMetadata returns the Event Field Metadata for the given Field
 	GetFieldMetadata(field Field) (EventType, reflect.Kind, string, error)
 	// SetFieldValue sets the value of the given Field
 	SetFieldValue(field Field, value interface{}) error

@@ -9,11 +9,14 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os/exec"
+	"syscall"
 	"testing"
 
+	"github.com/iceber/iouring-go"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
@@ -27,7 +30,7 @@ func TestBindEvent(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_bind_af_inet",
-			Expression: `bind.addr.family == AF_INET && process.file.name == "syscall_tester"`,
+			Expression: `bind.addr.family == AF_INET && process.file.name in [ "syscall_tester", "testsuite" ]`,
 		},
 		{
 			ID:         "test_bind_af_inet6",
@@ -50,7 +53,7 @@ func TestBindEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "bind-af-inet-any-success-tcp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "bind-af-inet-any-success-tcp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET", "any", "tcp"}
 		envs := []string{}
 
@@ -73,7 +76,66 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "bind-af-inet-any-success-udp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	t.Run("bind-af-inet-any-success-tcp-io-uring", func(t *testing.T) {
+		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer unix.Close(fd)
+
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		sa := unix.SockaddrInet4{
+			Port: 4242,
+			Addr: [4]byte(net.IPv4(0, 0, 0, 0)),
+		}
+
+		prepRequest, err := iouring.Bind(int32(fd), sa)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignal(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			ret, err := result.ReturnInt()
+			if err != nil {
+				if err == syscall.EBADF || err == syscall.EINVAL {
+					return ErrSkipTest{fmt.Sprintf("bind not supported by io_uring: %s", err)}
+				}
+				return err
+			}
+
+			if ret < 0 {
+				return fmt.Errorf("failed to bind with io_uring: %d", ret)
+			}
+
+			return err
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "bind", event.GetType(), "wrong event type")
+			assert.Equal(t, uint16(unix.AF_INET), event.Bind.AddrFamily, "wrong address family")
+			assert.Equal(t, uint16(4242), event.Bind.Addr.Port, "wrong address port")
+			assert.Equal(t, string("0.0.0.0/32"), event.Bind.Addr.IPNet.String(), "wrong address")
+			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
+			assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Bind.Protocol, "wrong protocol")
+
+			test.validateBindSchema(t, event)
+		})
+	})
+
+	test.RunMultiMode(t, "bind-af-inet-any-success-udp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET", "any", "udp"}
 		envs := []string{}
 
@@ -96,7 +158,7 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "bind-af-inet6-any-success", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "bind-af-inet6-any-success", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET6", "any"}
 		envs := []string{}
 
@@ -118,7 +180,7 @@ func TestBindEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "bind-af-unknown-unix", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "bind-af-unknown-unix", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_UNIX"}
 		envs := []string{}
 

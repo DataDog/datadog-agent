@@ -6,7 +6,7 @@
 // Package windowseventlog defines the Windows Event Log check component
 package windowseventlog
 
-// team: windows-agent
+// team: windows-products
 
 // Component is the component type.
 type Component interface {

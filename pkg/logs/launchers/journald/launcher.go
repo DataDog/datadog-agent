@@ -5,7 +5,7 @@
 
 //go:build systemd
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package journald provides journald-based log launchers (no-op for non-systemd builds)
 package journald
 
 import (
@@ -16,7 +16,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -29,12 +29,12 @@ import (
 // SDJournalFactory is a JournalFactory implementation that produces sdjournal instances
 type SDJournalFactory struct{}
 
-//nolint:revive // TODO(AML) Fix revive linter
+// NewJournal creates a new sdjournal instance
 func (s *SDJournalFactory) NewJournal() (tailer.Journal, error) {
 	return sdjournal.NewJournal()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// NewJournalFromPath creates a new sdjournal instance from the supplied path
 func (s *SDJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
 	return sdjournal.NewJournalFromDir(path)
 }
@@ -68,9 +68,7 @@ func NewLauncherWithFactory(journalFactory tailer.JournalFactory, fc *flareContr
 }
 
 // Start starts the launcher.
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, _ *tailers.TailerTracker) {
 	l.sources = sourceProvider.GetAddedForType(config.JournaldType)
 	l.pipelineProvider = pipelineProvider
 	l.registry = registry
@@ -143,7 +141,7 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (*tailer.Tailer, error
 		return nil, err
 	}
 
-	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan(), journal, source.Config.ShouldProcessRawMessage(), l.tagger)
+	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan(), journal, source.Config.ShouldProcessRawMessage(), l.tagger, l.registry)
 	cursor := l.registry.GetOffset(tailer.Identifier())
 
 	err = tailer.Start(cursor)

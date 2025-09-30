@@ -1,0 +1,89 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testBigStruct",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testBigStruct",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
+            "lineNumber": 81
+          },
+          {
+            "function": "main.executeComplexFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
+            "lineNumber": 217
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 36
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testBigStruct",
+          "location": {
+            "method": "main.testBigStruct"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "b": {
+                "type": "main.bigStruct",
+                "fields": {
+                  "x": {
+                    "type": "[]*string",
+                    "size": "1",
+                    "elements": [
+                      {
+                        "type": "*string",
+                        "address": "[addr]",
+                        "value": "abc"
+                      }
+                    ]
+                  },
+                  "z": {
+                    "type": "int",
+                    "value": "5"
+                  },
+                  "writer": {
+                    "type": "io.Writer",
+                    "fields": {
+                      "data": {
+                        "type": "io.discard",
+                        "fields": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

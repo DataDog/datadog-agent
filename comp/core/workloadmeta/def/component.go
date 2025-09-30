@@ -60,6 +60,13 @@ type Component interface {
 	// to this function.
 	GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error)
 
+	// ListKubernetesPods returns metadata about all known Kubernetes pods, equivalent
+	// to all entities with kind KindKubernetesPod.
+	ListKubernetesPods() []*KubernetesPod
+
+	// GetKubeletMetrics returns metadata about kubelet metrics.
+	GetKubeletMetrics() (*KubeletMetrics, error)
+
 	// GetKubernetesDeployment returns metadata about a Kubernetes deployment. It fetches
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
@@ -96,9 +103,18 @@ type Component interface {
 	// to all entities with kind KindProcess.
 	ListProcesses() []*Process
 
+	// GetContainerForProcess returns the container associated with a process if it exists.
+	// It fetches the entity with kind KindProcess and the given pid and then the entity
+	// with kind KindContainer with the cid from the process entity.
+	GetContainerForProcess(processID string) (*Container, error)
+
 	// GetGPU returns metadata about a GPU device. It fetches the entity
 	// with kind KindGPU and the given ID.
 	GetGPU(id string) (*GPU, error)
+
+	// GetKubelet returns the kubelet. It fetches the entity with kind KindKubelet.
+	// There can only be one kubelet entity so further specification is unnecessary.
+	GetKubelet() (*Kubelet, error)
 
 	// ListGPUs returns metadata about all known GPU devices, equivalent
 	// to all entities with kind KindGPU.

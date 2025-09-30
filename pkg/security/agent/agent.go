@@ -7,7 +7,6 @@
 package agent
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -24,35 +23,34 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
-	statsdClient            statsd.ClientInterface
-	hostname                string
-	reporter                common.RawReporter
-	client                  *RuntimeSecurityClient
-	running                 *atomic.Bool
-	wg                      sync.WaitGroup
-	connected               *atomic.Bool
-	eventReceived           *atomic.Uint64
-	activityDumpReceived    *atomic.Uint64
-	profContainersTelemetry *profContainersTelemetry
-	endpoints               *config.Endpoints
-	cancel                  context.CancelFunc
+	statsdClient         statsd.ClientInterface
+	hostname             string
+	reporter             common.RawReporter
+	client               *RuntimeSecurityClient
+	running              *atomic.Bool
+	wg                   sync.WaitGroup
+	connected            *atomic.Bool
+	eventReceived        *atomic.Uint64
+	activityDumpReceived *atomic.Uint64
+	endpoints            *config.Endpoints
+	cancel               context.CancelFunc
 
 	// activity dump
-	storage storage.ActivityDumpStorage
+	storage ADStorage
 }
 
-// RSAOptions represents the runtime security agent options
-type RSAOptions struct {
-	LogProfiledWorkloads bool
+// ADStorage represents the interface for the activity dump storage
+type ADStorage interface {
+	backend.ActivityDumpHandler
+
+	SendTelemetry(_ statsd.ClientInterface)
 }
 
 // Start the runtime security agent
@@ -71,11 +69,6 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 		// Start activity dumps listener
 		go rsa.StartActivityDumpListener()
 		go rsa.startActivityDumpStorageTelemetry(ctx)
-	}
-
-	if rsa.profContainersTelemetry != nil {
-		// Send Profiled Containers telemetry
-		go rsa.profContainersTelemetry.run(ctx)
 	}
 }
 
@@ -167,7 +160,7 @@ func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
 			}
 
 			if seclog.DefaultLogger.IsTracing() {
-				seclog.DefaultLogger.Tracef("Got activity dump [%s]", msg.GetDump().GetMetadata().GetName())
+				seclog.DefaultLogger.Tracef("Got activity dump [%s]", msg.GetSelector())
 			}
 
 			rsa.activityDumpReceived.Inc()
@@ -183,35 +176,20 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	if rsa.reporter == nil {
 		return
 	}
-	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.GetTags()...)
+	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
 }
 
 // DispatchActivityDump forwards an activity dump message to the backend
 func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStreamMessage) {
-	// parse dump from message
-	p, storageRequests, err := profile.NewProfileFromActivityDumpMessage(msg.GetDump())
-	if err != nil {
-		seclog.Errorf("%v", err)
-		return
-	}
-	if rsa.profContainersTelemetry != nil {
-		// register for telemetry for this container
-		imageName, imageTag := p.GetImageNameTag()
-		rsa.profContainersTelemetry.registerProfiledContainer(imageName, imageTag)
-	}
+	selector := msg.GetSelector()
+	image := selector.GetName()
+	tag := selector.GetTag()
 
 	// storage might be nil, on windows for example
 	if rsa.storage != nil {
-		raw := bytes.NewBuffer(msg.GetData())
-
-		for _, requests := range storageRequests {
-			for _, request := range requests {
-				if request.Type == sconfig.RemoteStorage {
-					if err := rsa.storage.Persist(request, p, raw); err != nil {
-						seclog.Errorf("%v", err)
-					}
-				}
-			}
+		err := rsa.storage.HandleActivityDump(image, tag, msg.GetHeader(), msg.GetData())
+		if err != nil {
+			seclog.Errorf("couldn't handle activity dump: %v", err)
 		}
 	}
 }

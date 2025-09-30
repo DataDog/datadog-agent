@@ -36,9 +36,13 @@ __attribute__((always_inline)) u8 global_limiter_allow(u32 key, u16 rate, u16 sh
     u64 now = bpf_ktime_get_ns();
 
     struct rate_limiter_ctx *rate_ctx_p = bpf_map_lookup_elem(&global_rate_limiters, &key);
-    if (rate_ctx_p == NULL) {
-        struct rate_limiter_ctx rate_ctx = new_rate_limiter(now, should_count);
-        bpf_map_update_elem(&global_rate_limiters, &key, &rate_ctx, BPF_ANY);
+    if (!rate_ctx_p) { // should never happen since global_rate_limiters is an array map
+        return 0;
+    }
+
+    if (get_current_period(rate_ctx_p) == 0) {
+        // If the rate limiter is not initialized, we initialize it now
+        *rate_ctx_p = new_rate_limiter(now, should_count);
         return 1;
     }
 

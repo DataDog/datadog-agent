@@ -116,7 +116,9 @@ func TestFromEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
@@ -305,7 +307,9 @@ func TestAgentUserVars(t *testing.T) {
 			name:    "not set",
 			envVars: map[string]string{},
 			expected: &Env{
-				AgentUserName: "",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "",
+				},
 			},
 		},
 		{
@@ -314,7 +318,9 @@ func TestAgentUserVars(t *testing.T) {
 				envAgentUserName: "customuser",
 			},
 			expected: &Env{
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 			},
 		},
 		{
@@ -323,7 +329,9 @@ func TestAgentUserVars(t *testing.T) {
 				envAgentUserNameCompat: "customuser",
 			},
 			expected: &Env{
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 			},
 		},
 		{
@@ -333,7 +341,9 @@ func TestAgentUserVars(t *testing.T) {
 				envAgentUserNameCompat: "otheruser",
 			},
 			expected: &Env{
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 			},
 		},
 	}
@@ -345,7 +355,7 @@ func TestAgentUserVars(t *testing.T) {
 				defer os.Unsetenv(key)
 			}
 			result := FromEnv()
-			assert.Equal(t, tt.expected.AgentUserName, result.AgentUserName)
+			assert.Equal(t, tt.expected.MsiParams.AgentUserName, result.MsiParams.AgentUserName)
 		})
 	}
 }

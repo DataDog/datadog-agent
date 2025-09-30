@@ -46,7 +46,7 @@ type SecurityModuleClient interface {
 	GetConfig(ctx context.Context, in *GetConfigParams, opts ...grpc.CallOption) (*SecurityConfigMessage, error)
 	GetStatus(ctx context.Context, in *GetStatusParams, opts ...grpc.CallOption) (*Status, error)
 	RunSelfTest(ctx context.Context, in *RunSelfTestParams, opts ...grpc.CallOption) (*SecuritySelfTestResultMessage, error)
-	GetRuleSetReport(ctx context.Context, in *GetRuleSetReportParams, opts ...grpc.CallOption) (*GetRuleSetReportResultMessage, error)
+	GetRuleSetReport(ctx context.Context, in *GetRuleSetReportParams, opts ...grpc.CallOption) (*GetRuleSetReportMessage, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesParams, opts ...grpc.CallOption) (*ReloadPoliciesResultMessage, error)
 	DumpNetworkNamespace(ctx context.Context, in *DumpNetworkNamespaceParams, opts ...grpc.CallOption) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(ctx context.Context, in *DumpDiscardersParams, opts ...grpc.CallOption) (*DumpDiscardersMessage, error)
@@ -128,9 +128,9 @@ func (c *securityModuleClient) RunSelfTest(ctx context.Context, in *RunSelfTestP
 	return out, nil
 }
 
-func (c *securityModuleClient) GetRuleSetReport(ctx context.Context, in *GetRuleSetReportParams, opts ...grpc.CallOption) (*GetRuleSetReportResultMessage, error) {
+func (c *securityModuleClient) GetRuleSetReport(ctx context.Context, in *GetRuleSetReportParams, opts ...grpc.CallOption) (*GetRuleSetReportMessage, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetRuleSetReportResultMessage)
+	out := new(GetRuleSetReportMessage)
 	err := c.cc.Invoke(ctx, SecurityModule_GetRuleSetReport_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -256,7 +256,7 @@ type SecurityModuleServer interface {
 	GetConfig(context.Context, *GetConfigParams) (*SecurityConfigMessage, error)
 	GetStatus(context.Context, *GetStatusParams) (*Status, error)
 	RunSelfTest(context.Context, *RunSelfTestParams) (*SecuritySelfTestResultMessage, error)
-	GetRuleSetReport(context.Context, *GetRuleSetReportParams) (*GetRuleSetReportResultMessage, error)
+	GetRuleSetReport(context.Context, *GetRuleSetReportParams) (*GetRuleSetReportMessage, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error)
 	DumpNetworkNamespace(context.Context, *DumpNetworkNamespaceParams) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(context.Context, *DumpDiscardersParams) (*DumpDiscardersMessage, error)
@@ -294,7 +294,7 @@ func (UnimplementedSecurityModuleServer) GetStatus(context.Context, *GetStatusPa
 func (UnimplementedSecurityModuleServer) RunSelfTest(context.Context, *RunSelfTestParams) (*SecuritySelfTestResultMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RunSelfTest not implemented")
 }
-func (UnimplementedSecurityModuleServer) GetRuleSetReport(context.Context, *GetRuleSetReportParams) (*GetRuleSetReportResultMessage, error) {
+func (UnimplementedSecurityModuleServer) GetRuleSetReport(context.Context, *GetRuleSetReportParams) (*GetRuleSetReportMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRuleSetReport not implemented")
 }
 func (UnimplementedSecurityModuleServer) ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error) {

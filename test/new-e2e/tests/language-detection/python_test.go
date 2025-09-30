@@ -23,25 +23,25 @@ func (s *languageDetectionSuite) installPython() {
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr))))
 	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "local_process_collector")
+	s.checkDetectedLanguage("python3", "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigNoCheckStr))))
 	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "local_process_collector")
+	s.checkDetectedLanguage("python3", "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(processConfigStr))))
 	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "remote_process_collector")
+	s.checkDetectedLanguage("python3", "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgentNoCheck() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(processConfigNoCheckStr))))
 	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "remote_process_collector")
+	s.checkDetectedLanguage("python3", "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) runPython() {

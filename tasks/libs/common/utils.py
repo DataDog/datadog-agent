@@ -17,7 +17,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
-from subprocess import CalledProcessError, check_output
+from pathlib import Path
+from subprocess import check_output
 from types import SimpleNamespace
 
 import requests
@@ -176,6 +177,15 @@ def get_embedded_path(ctx):
     return None
 
 
+def get_repo_root():
+    """
+    Get the root of the repository, where the .git directory is.
+    """
+    import tasks
+
+    return Path(tasks.__file__).parent.parent
+
+
 def get_xcode_version(ctx):
     """
     Get the version of XCode used depending on how it's installed.
@@ -248,9 +258,6 @@ def get_build_flags(
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
-    ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
-    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython=3 "
-
     # adding rtloader libs and headers to the env
     if rtloader_lib:
         if not headless_mode:
@@ -315,6 +322,9 @@ def get_build_flags(
                 ),
                 file=sys.stderr,
             )
+    elif sys.platform.startswith('linux'):
+        # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
+        extldflags += "-Wl,-z,lazy "
 
     if os.getenv("DD_CC"):
         env["CC"] = os.getenv("DD_CC")
@@ -377,11 +387,11 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
 
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
+    version = get_version(ctx, include_git=True, major_version=major_version)
+    package_version = os.getenv('PACKAGE_VERSION', version)
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
-    ldflags += (
-        f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, major_version=major_version)} "
-    )
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersion={version} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPayloadVersion={payload_v} "
     if install_path:
         if sys.platform == 'win32':
@@ -397,9 +407,10 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
             #       it's also hardcoded in Generate-OCIPackage.ps1
             package_version = f"{package_version}-1"
         else:
-            package_version = os.path.basename(install_path)
-        if package_version != "datadog-agent":
-            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
+            install_dir = os.path.basename(install_path)
+            if install_dir != "datadog-agent":
+                package_version = install_dir
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
     return ldflags
 
 
@@ -415,35 +426,6 @@ def get_root():
     Get the root of the Go project
     """
     return check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').strip()
-
-
-def get_git_branch_name():
-    """
-    Return the name of the current git branch
-    """
-    return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode('utf-8').strip()
-
-
-def get_git_pretty_ref():
-    """
-    Return the name of the current Git branch or the tag if in a detached state
-    """
-    # https://docs.gitlab.com/ee/ci/variables/predefined_variables.html
-    if running_in_gitlab_ci():
-        return os.environ["CI_COMMIT_REF_NAME"]
-
-    # https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
-    if running_in_github_actions():
-        return os.environ.get("GITHUB_HEAD_REF") or os.environ["GITHUB_REF"].split("/")[-1]
-
-    current_branch = get_git_branch_name()
-    if current_branch != "HEAD":
-        return current_branch
-
-    try:
-        return check_output(["git", "describe", "--tags", "--exact-match"]).decode('utf-8').strip()
-    except CalledProcessError:
-        return current_branch
 
 
 @contextmanager

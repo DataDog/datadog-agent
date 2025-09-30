@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix noisy error logs when scrubbing large pod container commands.

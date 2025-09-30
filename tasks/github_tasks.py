@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import time
 from collections import Counter
-from functools import lru_cache
 
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -17,111 +15,23 @@ from tasks.libs.ciproviders.github_actions_tools import (
     follow_workflow_run,
     print_failed_jobs_logs,
     print_workflow_conclusion,
-    trigger_macos_workflow,
     trigger_windows_bump_workflow,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
-from tasks.libs.common.git import get_default_branch
-from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
-from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
+from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
 from tasks.libs.releasing.version import current_version
 from tasks.libs.types.types import PermissionCheck
-from tasks.release import _get_release_json_value
 
 ALL_TEAMS = '@datadog/agent-all'
 
 
-@lru_cache(maxsize=None)
-def concurrency_key():
-    current_ref = get_git_pretty_ref()
-
-    # We want workflows to run to completion on the default branch and release branches
-    if re.search(rf'^({get_default_branch()}|\d+\.\d+\.x)$', current_ref):
-        return None
-
-    return current_ref
-
-
-def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
-    github_action_ref = _get_release_json_value(f'{release}::MACOS_BUILD_VERSION')
-
-    run = trigger_macos_workflow(
-        github_action_ref=github_action_ref,
-        concurrency_key=concurrency_key(),
-        **kwargs,
-    )
-
-    workflow_conclusion, workflow_url = follow_workflow_run(run)
-
-    if workflow_conclusion == "failure":
-        print_failed_jobs_logs(run)
-
-    print_workflow_conclusion(workflow_conclusion, workflow_url)
-
-    if destination:
-        download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
-
-    return workflow_conclusion
-
-
-@task
-def trigger_macos(
-    _,
-    workflow_type="build",
-    datadog_agent_ref=None,
-    release_version="nightly",
-    major_version="7",
-    destination=".",
-    version_cache=None,
-    retry_download=3,
-    retry_interval=10,
-    integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
-):
-    """
-    Args:
-        datadog_agent_ref: If None, will be the default branch.
-    """
-
-    datadog_agent_ref = datadog_agent_ref or get_default_branch()
-
-    if workflow_type == "build":
-        conclusion = _trigger_macos_workflow(
-            # Provide the release version to be able to fetch the associated
-            # macos-build branch from release.json for all workflows...
-            release_version,
-            destination,
-            retry_download,
-            retry_interval,
-            workflow_name="macos.yaml",
-            datadog_agent_ref=datadog_agent_ref,
-            # ... And provide the release version as a workflow input when needed
-            release_version=release_version,
-            major_version=major_version,
-            # Send pipeline id and bucket branch so that the package version
-            # can be constructed properly for nightlies.
-            gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
-            bucket_branch=os.environ.get("BUCKET_BRANCH", None),
-            version_cache_file_content=version_cache,
-            integrations_core_ref=integrations_core_ref,
-        )
-    else:
-        raise Exit(f"Unsupported workflow type: {workflow_type}", code=1)
-    if conclusion != "success":
-        raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
-
-
-def _update_windows_runner_version(new_version=None, repo="buildenv"):
+def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-images"):
     if new_version is None:
         raise Exit(message="workflow needs the 'new_version' field value to be not None")
     args_per_repo = {
-        "buildenv": {
-            "workflow_name": "runner-bump.yml",
-            "github_action_ref": "master",
-        },
         "ci-platform-machine-images": {
             "workflow_name": "windows-runner-agent-bump.yml",
             "github_action_ref": "main",
@@ -134,8 +44,6 @@ def _update_windows_runner_version(new_version=None, repo="buildenv"):
         github_action_ref=args_per_repo[repo]["github_action_ref"],
         new_version=new_version,
     )
-    # We are only waiting 0.5min between each status check because buildenv
-    # or ci-platform-machine-images are much faster than macOS builds
     full_repo = f"DataDog/{repo}"
     workflow_conclusion, workflow_url = follow_workflow_run(run, full_repo, 0.5)
 
@@ -169,15 +77,15 @@ def update_windows_runner_version(
     new_version=None,
 ):
     """
-    Trigger a workflow on the buildenv and ci-platform-machine-images repositories to bump windows gitlab runner
+    Trigger a workflow on the ci-platform-machine-images repository to bump windows gitlab runner
     """
     if new_version is None:
         new_version = str(current_version(ctx, "7"))
 
-    for repo in ["buildenv", "ci-platform-machine-images"]:
-        conclusion = _update_windows_runner_version(new_version, repo)
-        if conclusion != "success":
-            raise Exit(message=f"Windows runner bump workflow {conclusion} for {repo}", code=1)
+    repo = "ci-platform-machine-images"
+    conclusion = _update_windows_runner_version(new_version, repo)
+    if conclusion != "success":
+        raise Exit(message=f"Windows runner bump workflow {conclusion} for {repo}", code=1)
 
 
 @task
@@ -399,7 +307,8 @@ def pr_commenter(
     _,
     title: str,
     body: str = '',
-    pr_id: int | None = None,
+    body_file: str = '',
+    pr_id: int = 0,
     verbose: bool = True,
     delete: bool = False,
     force_delete: bool = False,
@@ -421,6 +330,12 @@ def pr_commenter(
 
     from tasks.libs.ciproviders.github_api import GithubAPI
 
+    assert not body_file or not body, "Use either body or body_file, not both"
+
+    if body_file:
+        with open(body_file) as f:
+            body = f.read()
+
     if not body and not delete:
         return
 
@@ -428,7 +343,7 @@ def pr_commenter(
 
     github = GithubAPI()
 
-    if pr_id is None:
+    if pr_id == 0:
         branch = os.environ["CI_COMMIT_BRANCH"]
         prs = list(github.get_pr_for_branch(branch))
         if len(prs) == 0 and not fail_on_pr_missing:
@@ -693,7 +608,9 @@ query {
 
 
 @task
-def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REPO, channel: str = "agent-devx-ops"):
+def check_permissions(
+    _, name: str, check: PermissionCheck = PermissionCheck.REPO, channel: str = DEFAULT_SLACK_CHANNEL
+):
     """
     Check the permissions on a given repository or team.
       - list contributing teams on the repository or subteams
@@ -709,7 +626,7 @@ def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REP
         gh = GithubAPI()
         root = gh.get_team(name)
         depth = None
-        admins = root.get_members(role='maintainer')
+        admins = list(root.get_members(role='maintainer'))
     else:
         gh = GithubAPI(f"datadog/{name}")
         root = gh._repository

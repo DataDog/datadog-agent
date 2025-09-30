@@ -415,23 +415,23 @@ func (_c *SecurityModuleServer_GetEvents_Call) RunAndReturn(run func(*api.GetEve
 }
 
 // GetRuleSetReport provides a mock function with given fields: _a0, _a1
-func (_m *SecurityModuleServer) GetRuleSetReport(_a0 context.Context, _a1 *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
+func (_m *SecurityModuleServer) GetRuleSetReport(_a0 context.Context, _a1 *api.GetRuleSetReportParams) (*api.GetRuleSetReportMessage, error) {
 	ret := _m.Called(_a0, _a1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetRuleSetReport")
 	}
 
-	var r0 *api.GetRuleSetReportResultMessage
+	var r0 *api.GetRuleSetReportMessage
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *api.GetRuleSetReportParams) (*api.GetRuleSetReportMessage, error)); ok {
 		return rf(_a0, _a1)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *api.GetRuleSetReportParams) *api.GetRuleSetReportResultMessage); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *api.GetRuleSetReportParams) *api.GetRuleSetReportMessage); ok {
 		r0 = rf(_a0, _a1)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.GetRuleSetReportResultMessage)
+			r0 = ret.Get(0).(*api.GetRuleSetReportMessage)
 		}
 	}
 
@@ -463,12 +463,12 @@ func (_c *SecurityModuleServer_GetRuleSetReport_Call) Run(run func(_a0 context.C
 	return _c
 }
 
-func (_c *SecurityModuleServer_GetRuleSetReport_Call) Return(_a0 *api.GetRuleSetReportResultMessage, _a1 error) *SecurityModuleServer_GetRuleSetReport_Call {
+func (_c *SecurityModuleServer_GetRuleSetReport_Call) Return(_a0 *api.GetRuleSetReportMessage, _a1 error) *SecurityModuleServer_GetRuleSetReport_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *SecurityModuleServer_GetRuleSetReport_Call) RunAndReturn(run func(context.Context, *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error)) *SecurityModuleServer_GetRuleSetReport_Call {
+func (_c *SecurityModuleServer_GetRuleSetReport_Call) RunAndReturn(run func(context.Context, *api.GetRuleSetReportParams) (*api.GetRuleSetReportMessage, error)) *SecurityModuleServer_GetRuleSetReport_Call {
 	_c.Call.Return(run)
 	return _c
 }

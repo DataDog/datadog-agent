@@ -56,6 +56,7 @@ var subservices = []Servicedef{
 			"system_probe_config.enabled":     pkgconfigsetup.SystemProbe(),
 			"windows_crash_detection.enabled": pkgconfigsetup.SystemProbe(),
 			"runtime_security_config.enabled": pkgconfigsetup.SystemProbe(),
+			"software_inventory.enabled":      pkgconfigsetup.Datadog(),
 		},
 		serviceName:    "datadog-system-probe",
 		serviceInit:    sysprobeInit,
@@ -79,6 +80,15 @@ var subservices = []Servicedef{
 		serviceInit:    installerInit,
 		shouldShutdown: true,
 	},
+	{
+		name: "otel",
+		configKeys: map[string]model.Config{
+			"otelcollector.enabled": pkgconfigsetup.Datadog(),
+		},
+		serviceName:    "datadog-otel-agent",
+		serviceInit:    otelInit,
+		shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
+	},
 }
 
 func apmInit() error {
@@ -98,6 +108,10 @@ func securityInit() error {
 }
 
 func installerInit() error {
+	return nil
+}
+
+func otelInit() error {
 	return nil
 }
 

@@ -10,7 +10,7 @@ blackhole:
       binding_addr: "127.0.0.1:9091"
       body_variant: "nothing"
   - http:
-      binding_addr: "127.0.0.1:9092"
+      binding_addr: "127.0.0.1:9093"
       body_variant: "nothing"
 
 target_metrics:

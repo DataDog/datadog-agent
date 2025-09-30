@@ -5,14 +5,14 @@
 
 //go:build docker
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package tailers provides tailers for API logs
 package tailers
 
 import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
@@ -26,6 +26,7 @@ import (
 // modified to suit the Tailer interface directly and to handle connection
 // failures on its own, and this wrapper will no longer be necessary.
 
+// DockerSocketTailer is a tailer for docker socket logs
 type DockerSocketTailer struct {
 	dockerutil containerTailerPkg.DockerContainerLogInterface
 	base
@@ -61,6 +62,7 @@ func (t *DockerSocketTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan 
 		erroredContainerID,
 		t.readTimeout,
 		t.tagger,
+		t.registry,
 	)
 	since, err := since(t.registry, inner.Identifier())
 	if err != nil {

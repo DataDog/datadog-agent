@@ -1,0 +1,138 @@
+ARG AGENT_REPO=datadog/agent-dev
+ARG AGENT_VERSION=nightly-full-main-jmx
+ARG AGENT_BRANCH=main
+ARG UBUNTU_VERSION=24.04
+# Use the Ubuntu Slim AMD64 base image
+FROM ubuntu:${UBUNTU_VERSION} AS builder
+
+# Set environment variables
+ARG AGENT_REPO
+ARG AGENT_VERSION
+ARG AGENT_BRANCH
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set the working directory
+WORKDIR /workspace
+
+# Update and install necessary packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    software-properties-common \
+    build-essential \
+    git \
+    rpm \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# We can't get tarballs for dev branches, so we can't just pull the tarball from github.
+# Instead we make a treeless clone at the reference provided, and build from the repo.
+# We also have to use the repo clone because some invoke tasks rely on git coommands unavailable
+# in repo tarball archives. For the same reason a shallow clone will also not work.
+RUN git clone --branch ${AGENT_BRANCH} --filter=tree:0 https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_BRANCH}
+
+# Set the working directory to the source code
+WORKDIR /workspace/datadog-agent-${AGENT_BRANCH}
+
+# Install Go based on architecture
+RUN GO_VERSION=$(cat .go-version) && \
+    ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+    GO_ARCH="linux-amd64"; \
+    elif [ "$ARCH" = "arm64" ]; then \
+    GO_ARCH="linux-arm64"; \
+    else \
+    echo "Unsupported architecture: $ARCH" && exit 1; \
+    fi && \
+    curl -OL https://golang.org/dl/go${GO_VERSION}.$GO_ARCH.tar.gz && \
+    tar -C /usr/local -xzf go${GO_VERSION}.$GO_ARCH.tar.gz && \
+    rm go${GO_VERSION}.$GO_ARCH.tar.gz
+
+# Set up Go environment
+ENV PATH="/usr/local/go/bin:${PATH}"
+RUN mkdir /go
+ENV GOPATH=/go
+
+# Verify installations
+RUN go version && \
+    curl --version
+
+ENV DDA_INTERACTIVE=false
+# Install prebuilt dda and sync tasks
+RUN ARCH=$(dpkg --print-architecture) && \
+    DDA_VERSION=v0.25.0 && \
+    if [ "$ARCH" = "amd64" ]; then DDA_ARCH="x86_64"; \
+    elif [ "$ARCH" = "arm64" ]; then DDA_ARCH="aarch64"; fi && \
+    curl -fsSL "https://github.com/DataDog/datadog-agent-dev/releases/download/${DDA_VERSION}/dda-${DDA_ARCH}-unknown-linux-gnu.tar.gz" \
+    | tar -xzf - -C /usr/local/bin && \
+    chmod +x /usr/local/bin/dda && \
+    dda self dep sync -f legacy-tasks
+
+
+# Copy the manifest file
+COPY manifest.yaml /workspace/datadog-agent-${AGENT_BRANCH}/comp/otelcol/collector-contrib/impl/manifest.yaml
+
+# Generate the files
+RUN dda inv collector.generate
+
+# Build the OTel agent
+RUN dda inv otel-agent.build --byoc
+
+# Install nfpm if package type is specified
+ARG PACKAGE_TYPE
+RUN if [ -n "$PACKAGE_TYPE" ]; then \
+    ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then ARCH="x86_64"; fi && \
+    curl -fsSL "https://github.com/goreleaser/nfpm/releases/download/v2.43.0/nfpm_2.43.0_linux_${ARCH}.tar.gz" | tar -xzf - -C /usr/local/bin/ && \
+    chmod +x /usr/local/bin/nfpm; \
+    fi
+
+# Build packages if PACKAGE_TYPE is specified, otherwise just output the binary
+RUN <<'RUNSCRIPT'
+ARCH=$(dpkg --print-architecture)
+mkdir -p /dist
+if [ -n "$PACKAGE_TYPE" ]; then
+  if [ "$PACKAGE_TYPE" != "deb" ] && [ "$PACKAGE_TYPE" != "rpm" ]; then
+    echo "PACKAGE_TYPE must be 'deb' or 'rpm', got: $PACKAGE_TYPE" >&2
+    exit 1
+  fi
+  cd /workspace/datadog-agent-${AGENT_BRANCH}
+  cat > nfpm.yaml <<EOF
+name: datadog-agent-ddot-byoc
+version: "${AGENT_VERSION}"
+arch: "${ARCH}"
+description: "Datadog Distribution of OpenTelemetry Collector (Custom)"
+contents:
+  - src: bin/otel-agent/otel-agent
+    dst: /opt/datadog-agent/embedded/bin/otel-agent
+    file_info:
+      mode: 0755
+  - src: bin/otel-agent/dist/otel-config.yaml
+    dst: /etc/datadog-agent/otel-config.yaml.example
+conflicts:
+  - datadog-agent-ddot
+overrides:
+  deb:
+    depends:
+      - "datadog-agent (= 1:${AGENT_VERSION}-1)"
+  rpm:
+    depends:
+      - "datadog-agent = 1:${AGENT_VERSION}-1"
+EOF
+  nfpm package --config nfpm.yaml --target /dist --packager "${PACKAGE_TYPE}"
+else
+  cp /workspace/datadog-agent-${AGENT_BRANCH}/bin/otel-agent/otel-agent /dist/
+fi
+RUNSCRIPT
+
+# Create a stage for extracting the built artifact (binary or packages)
+FROM scratch AS artifact
+ARG AGENT_BRANCH
+COPY --from=builder /dist/* /ddot-byoc/
+
+# Use the final Datadog agent image
+FROM ${AGENT_REPO}:${AGENT_VERSION}
+ARG AGENT_BRANCH
+# Copy the built OTel agent from the builder stage
+COPY --from=builder /workspace/datadog-agent-${AGENT_BRANCH}/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent

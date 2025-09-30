@@ -16,8 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -40,6 +42,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(showSecretInfo,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -51,6 +54,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(secretRefresh,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -59,8 +63,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{secretInfoCommand}
 }
 
-func showSecretInfo(config config.Component, _ log.Component) error {
-	res, err := callIPCEndpoint(config, "agent/secrets")
+func showSecretInfo(_ log.Component, client ipc.HTTPClient) error {
+	endpoint, err := client.NewIPCEndpoint("/agent/secrets")
+	if err != nil {
+		return err
+	}
+
+	res, err := endpoint.DoGet()
 	if err != nil {
 		return err
 	}
@@ -68,9 +77,13 @@ func showSecretInfo(config config.Component, _ log.Component) error {
 	return nil
 }
 
-func secretRefresh(config config.Component, _ log.Component) error {
+func secretRefresh(config config.Component, _ log.Component, client ipc.HTTPClient) error {
 	fmt.Println("Agent refresh:")
-	res, err := callIPCEndpoint(config, "agent/secret/refresh")
+	endpoint, err := client.NewIPCEndpoint("/agent/secret/refresh")
+	if err != nil {
+		return err
+	}
+	res, err := endpoint.DoGet()
 	if err != nil {
 		return err
 	}
@@ -78,7 +91,7 @@ func secretRefresh(config config.Component, _ log.Component) error {
 
 	if config.GetBool("apm_config.enabled") {
 		fmt.Println("APM agent refresh:")
-		res, err = traceAgentSecretRefresh(config)
+		res, err = traceAgentSecretRefresh(config, client)
 		if err != nil {
 			return err
 		}
@@ -87,7 +100,7 @@ func secretRefresh(config config.Component, _ log.Component) error {
 
 	{
 		fmt.Println("Security Agent refresh:")
-		res, err := securityAgentSecretRefresh(config)
+		res, err := securityAgentSecretRefresh(config, client)
 		if err != nil {
 			// the security agent might not be running
 			// so we handle the error in a non-fatal way
@@ -99,7 +112,7 @@ func secretRefresh(config config.Component, _ log.Component) error {
 
 	{
 		fmt.Println("Process Agent refresh:")
-		res, err := processAgentSecretRefresh(config)
+		res, err := processAgentSecretRefresh(config, client)
 		if err != nil {
 			// the process agent might not be running
 			// so we handle the error in a non-fatal way
@@ -112,22 +125,16 @@ func secretRefresh(config config.Component, _ log.Component) error {
 	return nil
 }
 
-func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigName string) ([]byte, error) {
-	err := apiutil.SetAuthToken(conf)
-	if err != nil {
-		return nil, err
-	}
-
+func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigName string, client ipc.HTTPClient) ([]byte, error) {
 	port := conf.GetInt(portConfigName)
 	if port <= 0 {
 		return nil, fmt.Errorf("invalid %s -- %d", portConfigName, port)
 	}
 
-	c := apiutil.GetClient()
-	c.Timeout = conf.GetDuration("server_timeout") * time.Second
+	timeout := conf.GetDuration("server_timeout") * time.Second
 
 	url := fmt.Sprintf("https://127.0.0.1:%d/secret/refresh", port)
-	res, err := apiutil.DoGet(c, url, apiutil.CloseConnection)
+	res, err := client.Get(url, ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout))
 	if err != nil {
 		return nil, fmt.Errorf("could not contact %s: %s", agentName, err)
 	}
@@ -135,22 +142,14 @@ func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigNam
 	return res, nil
 }
 
-func traceAgentSecretRefresh(conf config.Component) ([]byte, error) {
-	return commonSubAgentSecretRefresh(conf, "trace-agent", "apm_config.debug.port")
+func traceAgentSecretRefresh(conf config.Component, client ipc.HTTPClient) ([]byte, error) {
+	return commonSubAgentSecretRefresh(conf, "trace-agent", "apm_config.debug.port", client)
 }
 
-func securityAgentSecretRefresh(conf config.Component) ([]byte, error) {
-	return commonSubAgentSecretRefresh(conf, "security-agent", "security_agent.cmd_port")
+func securityAgentSecretRefresh(conf config.Component, client ipc.HTTPClient) ([]byte, error) {
+	return commonSubAgentSecretRefresh(conf, "security-agent", "security_agent.cmd_port", client)
 }
 
-func processAgentSecretRefresh(conf config.Component) ([]byte, error) {
-	return commonSubAgentSecretRefresh(conf, "process-agent", "process_config.cmd_port")
-}
-
-func callIPCEndpoint(config config.Component, endpointURL string) ([]byte, error) {
-	endpoint, err := apiutil.NewIPCEndpoint(config, endpointURL)
-	if err != nil {
-		return nil, err
-	}
-	return endpoint.DoGet()
+func processAgentSecretRefresh(conf config.Component, client ipc.HTTPClient) ([]byte, error) {
+	return commonSubAgentSecretRefresh(conf, "process-agent", "process_config.cmd_port", client)
 }

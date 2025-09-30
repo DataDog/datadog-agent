@@ -26,52 +26,26 @@ build do
     block do
         # Conf files
         if windows_target?
-            conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
-            conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
-            # delete the directory if it exists, then recreate it, because
-            # move will skip/silently fail if the destination directory exists
-            delete conf_dir
-            mkdir conf_dir
-            move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
-            if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty? and not windows_arch_i386?
-              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", conf_dir_root, :force=>true
-            end
-            if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty? and not windows_arch_i386?
-              move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", conf_dir_root, :force=>true
-              move "#{install_dir}/etc/datadog-agent/runtime-security.d", conf_dir_root, :force=>true
-            end
-            if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-              move "#{install_dir}/etc/datadog-agent/apm-inject.yaml.example", conf_dir_root, :force=>true
-            end
-            move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
-
-            # remove the config files for the subservices; they'll be started
-            # based on the config file
-            delete "#{conf_dir}/apm.yaml.default"
-            delete "#{conf_dir}/process_agent.yaml.default"
+            conf_dir = "#{install_dir}/etc/datadog-agent"
+            confd_dir = "#{conf_dir}/conf.d"
 
             # load isn't supported by windows
-            delete "#{conf_dir}/load.d"
-
-            # service_discovery isn't supported by windows
-            delete "#{conf_dir}/service_discovery.d"
+            delete "#{confd_dir}/load.d"
 
             # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end
 
         if linux_target? || osx_target?
-            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
-            # default to `pip2` if the default Python runtime is Python 2.
-            delete "#{install_dir}/embedded/bin/pip"
-            link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
-
-            delete "#{install_dir}/embedded/bin/python"
-            link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
-
-            # Used in https://docs.datadoghq.com/agent/guide/python-3/
-            delete "#{install_dir}/embedded/bin/2to3"
-            link "#{install_dir}/embedded/bin/2to3-3.12", "#{install_dir}/embedded/bin/2to3"
+            delete "#{install_dir}/embedded/bin/pip"  # copy of pip3.12
+            delete "#{install_dir}/embedded/bin/pip3"  # copy of pip3.12
+            block 'create relative symlinks within embedded Python distribution' do
+              Dir.chdir "#{install_dir}/embedded/bin" do
+                File.symlink 'pip3.12', 'pip3'
+                File.symlink 'pip3', 'pip'
+                File.symlink 'python3', 'python'
+              end
+            end
 
             delete "#{install_dir}/embedded/lib/config_guess"
 
@@ -89,6 +63,7 @@ build do
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/application_monitoring.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             unless heroku_target?
               if sysprobe_enabled?
                 move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
@@ -103,12 +78,10 @@ build do
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
             end
 
-            if ot_target?
-              move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+            # Create the installer symlink if the file doesn't already exist
+            unless File.exist?("#{install_dir}/embedded/bin/installer")
+              link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
             end
-
-            # Create the installer symlink
-            link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
@@ -157,6 +130,14 @@ build do
             # removing the info folder to reduce package size by ~4MB
             delete "#{install_dir}/embedded/share/info"
 
+            # remove some debug ebpf object files to reduce the size of the package
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/shared-libraries-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/shared-libraries-debug.o"
+
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
             #    https://github.com/pypa/manylinux/issues/119
@@ -178,12 +159,20 @@ build do
             # Most postgres binaries are removed in postgres' own software
             # recipe, but we need pg_config to build psycopq.
             delete "#{install_dir}/embedded/bin/pg_config"
+
+            # Deduplicate files using symlinks
+            command "dda inv -- omnibus.deduplicate-files --directory #{install_dir}/embedded", cwd: Dir.pwd
+
+            # Edit rpath from a true path to relative path for each binary if install_dir contains /opt/datadog-packages
+            if install_dir.include?("/opt/datadog-packages")
+              # The healthcheck will fail as the rpath doesn't contain install_dir
+              command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
+            end
         end
 
         if osx_target?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
-            delete "#{install_dir}/etc/conf.d/service_discovery.d"
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
@@ -201,12 +190,24 @@ build do
             end
 
             if code_signing_identity
-                # Codesign everything
-                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
+                # Sometimes the timestamp service is not available, so we retry
+                codesign = "../tools/ci/retry.sh codesign"
+                app = "'#{install_dir}/Datadog Agent.app'"
+
+                # Codesign ~480 files (out of ~28000)
+                command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
+                    set -euo pipefail
+                    (
+                        # Gather all executables, whether binaries or scripts
+                        find #{install_dir} -path #{app} -prune -o -type f -perm +111 -print0
+                        # Gather non executable Mach-O binaries leveraging parallelism
+                        find #{install_dir} -path #{app} -prune -o -type f ! -perm +111 -print0 |
+                            xargs -0 -n1000 -P#{workers} file -n --mime-type |
+                            awk -F: '/[^)]:[[:space:]]*application\\/x-mach-binary/ { printf "%s%c", $1, 0 }'
+                        # Add .app bundle at once to avoid corruption from partial parallel signing of its content
+                        printf '%s\\0' #{app}
+                    ) | xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
+                SH
             end
         end
     end

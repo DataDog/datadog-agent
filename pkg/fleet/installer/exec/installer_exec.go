@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -45,18 +46,40 @@ type installerCmd struct {
 	ctx  context.Context
 }
 
+func (i *InstallerExec) newInstallerCmdCustomPathDetached(ctx context.Context, command string, path string, args ...string) *installerCmd {
+	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
+	span.SetTag("args", strings.Join(args, " "))
+	// NOTE: We very intentionally don't provide ctx to exec.Command.
+	//       exec.Command will kill the process if the context is cancelled. We don't want that here since
+	//       it is supposed to be a detached process that may live longer than the current process.
+	cmd := exec.Command(path, append([]string{command}, args...)...)
+	// We're running this process in the background, so we don't intend to collect any output from it.
+	// We set channels to nil here because os/exec waits on these pipes to close even after
+	// the process terminates which can cause us (or our parent) to be forever blocked
+	// by this child process or any children it creates, which may inherit any of these handles
+	// and keep them open.
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	return i.setupInstallerCmd(ctx, span, cmd)
+}
+
 func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command string, path string, args ...string) *installerCmd {
-	env := i.env.ToEnv()
-	// Enforce the use of the installer when it is bundled with the agent.
-	env = append(env, "DD_BUNDLED_AGENT=installer")
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", strings.Join(args, " "))
 	cmd := exec.CommandContext(ctx, path, append([]string{command}, args...)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return i.setupInstallerCmd(ctx, span, cmd)
+}
+
+func (i *InstallerExec) setupInstallerCmd(ctx context.Context, span *telemetry.Span, cmd *exec.Cmd) *installerCmd {
+	env := i.env.ToEnv()
+	// Enforce the use of the installer when it is bundled with the agent.
+	env = append(env, "DD_BUNDLED_AGENT=installer")
 	env = append(os.Environ(), env...)
 	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	cmd = i.newInstallerCmdPlatform(cmd)
 	return &installerCmd{
 		Cmd:  cmd,
@@ -67,6 +90,10 @@ func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command s
 
 func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
 	return i.newInstallerCmdCustomPath(ctx, command, i.installerBinPath, args...)
+}
+
+func (i *InstallerExec) newInstallerCmdDetached(ctx context.Context, command string, args ...string) *installerCmd {
+	return i.newInstallerCmdCustomPathDetached(ctx, command, i.installerBinPath, args...)
 }
 
 // Install installs a package.
@@ -153,8 +180,15 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 }
 
 // InstallConfigExperiment installs an experiment.
-func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) (err error) {
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", pkg, version, string(rawConfig))
+func (i *InstallerExec) InstallConfigExperiment(
+	ctx context.Context, pkg string, operations config.Operations,
+) (err error) {
+	operationsBytes, err := json.Marshal(operations)
+	if err != nil {
+		return fmt.Errorf("error marshalling config operations: %w", err)
+	}
+	cmdLineArgs := []string{pkg, string(operationsBytes)}
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
@@ -332,4 +366,11 @@ func (i *InstallerExec) RunHook(ctx context.Context, hookContext string) (err er
 	cmd := i.newInstallerCmd(ctx, "hooks", hookContext)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
+}
+
+// StartPackageCommandDetached starts a package-specific command for a given package in the background with detached standard IO.
+func (i *InstallerExec) StartPackageCommandDetached(ctx context.Context, packageName string, command string) (err error) {
+	cmd := i.newInstallerCmdDetached(ctx, "package-command", packageName, command)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Start()
 }

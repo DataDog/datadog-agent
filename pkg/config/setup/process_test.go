@@ -43,10 +43,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: false,
 		},
 		{
-			key:          "process_config.remote_tagger",
-			defaultValue: false,
-		},
-		{
 			key:          "process_config.process_discovery.enabled",
 			defaultValue: true,
 		},
@@ -142,6 +138,11 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.intervals.connections",
 			defaultValue: nil,
 		},
+		// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+		{
+			key:          "process_config.process_collection.use_wlm",
+			defaultValue: runtime.GOOS == "linux",
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -233,12 +234,6 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS",
 			value:    "1",
 			expected: 1,
-		},
-		{
-			key:      "process_config.remote_tagger",
-			env:      "DD_PROCESS_CONFIG_REMOTE_TAGGER",
-			value:    "true",
-			expected: true,
 		},
 		{
 			key:      "process_config.process_discovery.enabled",
@@ -463,6 +458,13 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_INTERVALS_CONNECTIONS",
 			value:    "10",
 			expected: "10",
+		},
+		// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+		{
+			key:      "process_config.process_collection.use_wlm",
+			env:      "DD_PROCESS_CONFIG_PROCESS_COLLECTION_USE_WLM",
+			value:    "false",
+			expected: false,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {

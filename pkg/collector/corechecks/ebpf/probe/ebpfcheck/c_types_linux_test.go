@@ -19,3 +19,19 @@ func TestCgoAlignment_mmapRegion(t *testing.T) {
 func TestCgoAlignment_ringMmap(t *testing.T) {
 	ebpftest.TestCgoAlignment[ringMmap](t)
 }
+
+func TestCgoAlignment_cookie(t *testing.T) {
+	ebpftest.TestCgoAlignment[cookie](t)
+}
+
+func TestCgoAlignment_kStatsError(t *testing.T) {
+	ebpftest.TestCgoAlignment[kStatsError](t)
+}
+
+func TestCgoAlignment_kprobeKernelStats(t *testing.T) {
+	ebpftest.TestCgoAlignment[kprobeKernelStats](t)
+}
+
+func TestCgoAlignment_kprobeStatsErrors(t *testing.T) {
+	ebpftest.TestCgoAlignment[kprobeStatsErrors](t)
+}

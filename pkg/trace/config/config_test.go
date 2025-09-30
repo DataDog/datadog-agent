@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,5 +64,72 @@ func TestPeerTagsAggregation(t *testing.T) {
 		cfg := New()
 		cfg.PeerTags = basePeerTags[:2]
 		assert.Equal(t, basePeerTags, cfg.ConfiguredPeerTags())
+	})
+}
+
+func TestMRFFailoverAPM(t *testing.T) {
+	t.Run("undefined", func(t *testing.T) {
+		cfg := New()
+		assert.False(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("default-true", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = true
+		assert.True(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("default-false", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = false
+		assert.False(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("rc-true", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = false
+		val := true
+		cfg.MRFFailoverAPMRC = &val
+		assert.True(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("rc-false", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = true
+		val := false
+		cfg.MRFFailoverAPMRC = &val
+		assert.False(t, cfg.MRFFailoverAPM())
+	})
+	// Test that RC overrides can be removed (set to nil)
+	t.Run("rc-unset", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = true
+		val := false
+		cfg.MRFFailoverAPMRC = &val
+		assert.False(t, cfg.MRFFailoverAPM())
+		cfg.MRFFailoverAPMRC = nil
+		assert.True(t, cfg.MRFFailoverAPM())
+	})
+}
+
+func TestSQLObfuscationMode(t *testing.T) {
+	t.Run("normalize_only", func(t *testing.T) {
+		cfg := New()
+		cfg.SQLObfuscationMode = "normalize_only"
+		assert.Equal(t, obfuscate.NormalizeOnly, obfuscationMode(cfg, false))
+	})
+	t.Run("obfuscate_only", func(t *testing.T) {
+		cfg := New()
+		cfg.SQLObfuscationMode = "obfuscate_only"
+		assert.Equal(t, obfuscate.ObfuscateOnly, obfuscationMode(cfg, false))
+	})
+	t.Run("obfuscate_and_normalize", func(t *testing.T) {
+		cfg := New()
+		cfg.SQLObfuscationMode = "obfuscate_and_normalize"
+		assert.Equal(t, obfuscate.ObfuscateAndNormalize, obfuscationMode(cfg, false))
+	})
+	t.Run("empty", func(t *testing.T) {
+		cfg := New()
+		assert.Equal(t, obfuscate.ObfuscationMode(""), obfuscationMode(cfg, false))
+	})
+	t.Run("sqlexer", func(t *testing.T) {
+		cfg := New()
+		assert.Equal(t, obfuscate.ObfuscateOnly, obfuscationMode(cfg, true))
 	})
 }

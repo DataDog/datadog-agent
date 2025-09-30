@@ -24,13 +24,15 @@ var moduleOrder = []types.ModuleName{
 	config.OOMKillProbeModule,
 	config.EventMonitorModule, // there is a dependency from EventMonitor -> NetworkTracer, so EventMonitor has to follow NetworkTracer
 	config.ProcessModule,
-	config.DynamicInstrumentationModule,
+	config.DynamicInstrumentationModule, // dynamic instrumentation needs to be after EventMonitor
 	config.LanguageDetectionModule,
 	config.ComplianceModule,
 	config.PingModule,
 	config.TracerouteModule,
 	config.DiscoveryModule,
 	config.GPUMonitoringModule, // GPU monitoring needs to be initialized after EventMonitor, so that we have the event consumer ready
+	config.SoftwareInventoryModule,
+	config.PrivilegedLogsModule,
 }
 
 // nolint: deadcode, unused // may be unused with certain build tag combinations

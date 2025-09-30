@@ -17,6 +17,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -27,30 +28,54 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
-	collectorID         = "kubelet"
-	componentName       = "workloadmeta-kubelet"
-	expireFreq          = 15 * time.Second
-	dockerImageIDPrefix = "docker-pullable://"
+	collectorID             = "kubelet"
+	componentName           = "workloadmeta-kubelet"
+	expireFreq              = 15 * time.Second
+	kubeletConfigExpireFreq = 20 * time.Minute // It's unlikely that the kubelet config would change frequently
+	dockerImageIDPrefix     = "docker-pullable://"
 )
 
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
 type collector struct {
-	id         string
-	catalog    workloadmeta.AgentType
-	watcher    *kubelet.PodWatcher
-	store      workloadmeta.Component
-	lastExpire time.Time
-	expireFreq time.Duration
+	id                         string
+	catalog                    workloadmeta.AgentType
+	store                      workloadmeta.Component
+	collectEphemeralContainers bool
+
+	// These fields are only used when querying the Kubelet directly
+	kubeUtil             kubelet.KubeUtilInterface
+	lastSeenPodUIDs      map[string]time.Time
+	lastSeenContainerIDs map[string]time.Time
+
+	// These fields are used to pull the kubelet config
+	kubeletConfigLastExpire time.Time
+
+	// usePodWatcher indicates whether to use the pod watcher for collecting
+	// pods. The new implementation queries the Kubelet directly instead. This
+	// option is only here as a fallback in case the new implementation causes
+	// issues.
+	usePodWatcher bool
+	watcher       *kubelet.PodWatcher // only used if usePodWatcher is true
+	lastExpire    time.Time           // only used if usePodWatcher is true
 }
 
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			id:                         collectorID,
+			catalog:                    workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
+			usePodWatcher:              deps.Config.GetBool("kubelet_use_pod_watcher"),
 		},
 	}, nil
 }
@@ -65,28 +90,203 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
+	c.store = store
+
 	var err error
 
-	c.store = store
-	c.lastExpire = time.Now()
-	c.expireFreq = expireFreq
-	c.watcher, err = kubelet.NewPodWatcher(expireFreq)
-	if err != nil {
-		return err
+	if c.usePodWatcher {
+		c.watcher, err = kubelet.NewPodWatcher(expireFreq)
+		if err != nil {
+			return err
+		}
+		c.lastExpire = time.Now()
+	} else {
+		c.kubeUtil, err = kubelet.GetKubeUtil()
+		if err != nil {
+			return err
+		}
+		c.lastSeenPodUIDs = make(map[string]time.Time)
+		c.lastSeenContainerIDs = make(map[string]time.Time)
 	}
 
 	return nil
 }
 
 func (c *collector) Pull(ctx context.Context) error {
+	if c.usePodWatcher {
+		return c.pullUsingPodWatcher(ctx)
+	}
+
+	return c.pullFromKubelet(ctx)
+}
+
+func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.CollectorEvent, error) {
+	_, config, err := c.kubeUtil.GetConfig(ctx)
+	if err != nil {
+		return workloadmeta.CollectorEvent{}, err
+	}
+
+	wmetaConfigDocument := workloadmeta.KubeletConfigDocument{
+		KubeletConfig: workloadmeta.KubeletConfigSpec{
+			CPUManagerPolicy: config.KubeletConfig.CPUManagerPolicy,
+		},
+	}
+
+	return workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceNodeOrchestrator,
+		Entity: &workloadmeta.Kubelet{
+			EntityID: workloadmeta.EntityID{
+				ID:   workloadmeta.KubeletID,
+				Kind: workloadmeta.KindKubelet,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: workloadmeta.KubeletName,
+			},
+			ConfigDocument: wmetaConfigDocument,
+		},
+	}, nil
+}
+
+func (c *collector) pullFromKubelet(ctx context.Context) error {
+	events := []workloadmeta.CollectorEvent{}
+
+	podList, err := c.kubeUtil.GetLocalPodListWithMetadata(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Pull the kubelet config every kubeletConfigExpireFreq
+	// This needs to be before the pod list
+	if time.Since(c.kubeletConfigLastExpire) > kubeletConfigExpireFreq {
+		configEvent, err := c.pullKubeletConfig(ctx)
+		if err == nil {
+			events = append(events, configEvent)
+			// only update last expiry if the config was successfully retrieved
+			c.kubeletConfigLastExpire = time.Now()
+		}
+	}
+
+	if podList == nil {
+		c.store.Notify(events)
+		return nil
+	}
+
+	events = append(events, parsePods(podList.Items, c.collectEphemeralContainers)...)
+
+	// Mark return pods and containers as seen now
+	now := time.Now()
+	for _, pod := range podList.Items {
+		if pod.Metadata.UID != "" {
+			c.lastSeenPodUIDs[pod.Metadata.UID] = now
+		}
+		for _, container := range pod.Status.GetAllContainers() {
+			if container.ID != "" {
+				c.lastSeenContainerIDs[container.ID] = now
+			}
+		}
+	}
+
+	expireEvents := c.eventsForExpiredEntities(now)
+	events = append(events, expireEvents...)
+
+	// Report expired pod count. This is needed by the Kubelet check
+	events = append(events, eventForKubeletMetrics(podList.ExpiredCount))
+
+	c.store.Notify(events)
+
+	return nil
+}
+
+// eventsForExpiredEntities returns a list of workloadmeta.CollectorEvent
+// containing events for expired pods and containers.
+// The old implementation based on a pod watcher expired pods and containers
+// at a set frequency (expireFreq). Instead, we could delete them on every
+// pull by keeping a list of items from the last pull and removing those
+// not seen in the current one. That would be simpler and likely safe,
+// but to avoid unexpected issues, we’ll keep the old behavior for now.
+func (c *collector) eventsForExpiredEntities(now time.Time) []workloadmeta.CollectorEvent {
+	var events []workloadmeta.CollectorEvent
+
+	// Find expired pods
+	var expiredPodUIDs []string
+	for uid, lastSeen := range c.lastSeenPodUIDs {
+		if now.Sub(lastSeen) > expireFreq {
+			expiredPodUIDs = append(expiredPodUIDs, uid)
+			delete(c.lastSeenPodUIDs, uid)
+		}
+	}
+
+	// Find expired containers
+	var expiredContainerIDs []string
+	for containerID, lastSeen := range c.lastSeenContainerIDs {
+		if now.Sub(lastSeen) > expireFreq {
+			expiredContainerIDs = append(expiredContainerIDs, containerID)
+			delete(c.lastSeenContainerIDs, containerID)
+		}
+	}
+
+	events = append(events, parseExpiredPods(expiredPodUIDs)...)
+	events = append(events, parseExpiredContainers(expiredContainerIDs)...)
+
+	return events
+}
+
+func parseExpiredPods(expiredPodUIDs []string) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(expiredPodUIDs))
+
+	for _, uid := range expiredPodUIDs {
+		entity := &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   uid,
+			},
+			FinishedAt: time.Now(),
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceNodeOrchestrator,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: entity,
+		})
+	}
+
+	return events
+}
+
+func parseExpiredContainers(expiredContainerIDs []string) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(expiredContainerIDs))
+
+	for _, containerID := range expiredContainerIDs {
+		// Split the container ID to get just the ID part (remove runtime prefix like "docker://")
+		_, id := containers.SplitEntityName(containerID)
+
+		entity := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   id,
+			},
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceNodeOrchestrator,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: entity,
+		})
+	}
+
+	return events
+}
+
+func (c *collector) pullUsingPodWatcher(ctx context.Context) error {
 	updatedPods, err := c.watcher.PullChanges(ctx)
 	if err != nil {
 		return err
 	}
 
-	events := parsePods(updatedPods)
+	events := parsePods(updatedPods, c.collectEphemeralContainers)
 
-	if time.Since(c.lastExpire) >= c.expireFreq {
+	if time.Since(c.lastExpire) >= expireFreq {
 		var expiredIDs []string
 		expiredIDs, err = c.watcher.Expire()
 		if err == nil {
@@ -108,7 +308,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
+func parsePods(pods []*kubelet.Pod, collectEphemeralContainers bool) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
@@ -121,9 +321,9 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 		// Validate allocation size.
 		// Limits hardcoded here are huge enough to never be hit.
 		if len(pod.Spec.Containers) > 10000 ||
-			len(pod.Spec.InitContainers) > 10000 {
-			log.Errorf("pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
-				podMeta.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
+			len(pod.Spec.InitContainers) > 10000 || len(pod.Spec.EphemeralContainers) > 10000 {
+			log.Errorf("pod %s has a crazy number of containers: %d, init containers: %d or ephemeral containers: %d. Skipping it!",
+				podMeta.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers), len(pod.Spec.EphemeralContainers))
 			continue
 		}
 
@@ -146,20 +346,40 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 			&podID,
 		)
 
+		var podEphemeralContainers []workloadmeta.OrchestratorContainer
+		var ephemeralContainerEvents []workloadmeta.CollectorEvent
+		var ephemeralContainerStatuses []workloadmeta.KubernetesContainerStatus
+		if collectEphemeralContainers {
+			podEphemeralContainers, ephemeralContainerEvents = parsePodContainers(
+				pod,
+				pod.Spec.EphemeralContainers,
+				pod.Status.EphemeralContainers,
+				&podID,
+			)
+
+			ephemeralContainerStatuses = convertContainerStatuses(pod.Status.EphemeralContainers)
+		}
+
 		GPUVendors := getGPUVendorsFromContainers(initContainerEvents, containerEvents)
 
 		podOwners := pod.Owners()
 		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))
 		for _, o := range podOwners {
 			owners = append(owners, workloadmeta.KubernetesPodOwner{
-				Kind: o.Kind,
-				Name: o.Name,
-				ID:   o.ID,
+				Kind:       o.Kind,
+				Name:       o.Name,
+				ID:         o.ID,
+				Controller: o.Controller,
 			})
 		}
 
 		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
 		RuntimeClassName := extractPodRuntimeClassName(&pod.Spec)
+
+		var startTime *time.Time
+		if !pod.Status.StartTime.IsZero() {
+			startTime = &pod.Status.StartTime
+		}
 
 		entity := &workloadmeta.KubernetesPod{
 			EntityID: podID,
@@ -173,6 +393,7 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 			PersistentVolumeClaimNames: pod.GetPersistentVolumeClaimNames(),
 			InitContainers:             podInitContainers,
 			Containers:                 podContainers,
+			EphemeralContainers:        podEphemeralContainers,
 			Ready:                      kubelet.IsPodReady(pod),
 			Phase:                      pod.Status.Phase,
 			IP:                         pod.Status.PodIP,
@@ -181,10 +402,24 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 			GPUVendorList:              GPUVendors,
 			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
+			CreationTimestamp:          podMeta.CreationTimestamp,
+			DeletionTimestamp:          podMeta.DeletionTimestamp,
+			StartTime:                  startTime,
+			NodeName:                   pod.Spec.NodeName,
+			HostIP:                     pod.Status.HostIP,
+			HostNetwork:                pod.Spec.HostNetwork,
+			InitContainerStatuses:      convertContainerStatuses(pod.Status.InitContainers),
+			ContainerStatuses:          convertContainerStatuses(pod.Status.Containers),
+			EphemeralContainerStatuses: ephemeralContainerStatuses,
+			Conditions:                 convertConditions(pod.Status.Conditions),
+			Volumes:                    convertVolumes(pod.Spec.Volumes),
+			Tolerations:                convertTolerations(pod.Spec.Tolerations),
+			Reason:                     pod.Status.Reason,
 		}
 
 		events = append(events, initContainerEvents...)
 		events = append(events, containerEvents...)
+		events = append(events, ephemeralContainerEvents...)
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
 			Type:   workloadmeta.EventTypeSet,
@@ -213,6 +448,7 @@ func parsePodContainers(
 		}
 
 		var containerSecurityContext *workloadmeta.ContainerSecurityContext
+		var readinessProbe *workloadmeta.ContainerProbe
 		var env map[string]string
 		var ports []workloadmeta.ContainerPort
 		var resources workloadmeta.ContainerResources
@@ -254,6 +490,7 @@ func parsePodContainers(
 
 			podContainer.Image.ID = imageID
 			containerSecurityContext = extractContainerSecurityContext(containerSpec)
+			readinessProbe = extractReadinessProbe(containerSpec)
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
 				ports = append(ports, workloadmeta.ContainerPort{
@@ -267,7 +504,7 @@ func parsePodContainers(
 		}
 
 		var allocatedResources []workloadmeta.ContainerAllocatedResource
-		for _, resource := range container.AllocatedResources {
+		for _, resource := range container.ResolvedAllocatedResources {
 			allocatedResources = append(allocatedResources, workloadmeta.ContainerAllocatedResource{
 				Name: resource.Name,
 				ID:   resource.ID,
@@ -310,15 +547,16 @@ func parsePodContainers(
 						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
 					},
 				},
-				Image:              image,
-				EnvVars:            env,
-				SecurityContext:    containerSecurityContext,
-				Ports:              ports,
-				Runtime:            workloadmeta.ContainerRuntime(runtime),
-				State:              containerState,
-				Owner:              parent,
-				Resources:          resources,
-				AllocatedResources: allocatedResources,
+				Image:                      image,
+				EnvVars:                    env,
+				SecurityContext:            containerSecurityContext,
+				ReadinessProbe:             readinessProbe,
+				Ports:                      ports,
+				Runtime:                    workloadmeta.ContainerRuntime(runtime),
+				State:                      containerState,
+				Owner:                      parent,
+				Resources:                  resources,
+				ResolvedAllocatedResources: allocatedResources,
 			},
 		})
 	}
@@ -402,6 +640,16 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 	}
 }
 
+func extractReadinessProbe(spec *kubelet.ContainerSpec) *workloadmeta.ContainerProbe {
+	if spec.ReadinessProbe == nil {
+		return nil
+	}
+
+	return &workloadmeta.ContainerProbe{
+		InitialDelaySeconds: int32(spec.ReadinessProbe.InitialDelaySeconds),
+	}
+}
+
 func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	// filter out env vars that have external sources (eg. ConfigMap, Secret, etc.)
 	envSpec = slices.DeleteFunc(envSpec, func(v kubelet.EnvVar) bool {
@@ -444,12 +692,33 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
+
+	if spec.Resources == nil {
+		// Ephemeral containers do not have resources defined
+		return resources
+	}
+
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
 		resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)
 	}
 
 	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
 		resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
+	}
+
+	if cpuLimit, found := spec.Resources.Limits[kubelet.ResourceCPU]; found {
+		resources.CPULimit = kubernetes.FormatCPURequests(cpuLimit)
+	}
+
+	if memoryLimit, found := spec.Resources.Limits[kubelet.ResourceMemory]; found {
+		resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
+	}
+
+	// Check if the CPU Requested is a whole core or cores
+	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
+		if cpuReq.MilliValue()%1000 == 0 {
+			resources.RequestedWholeCores = pointer.Ptr(true)
+		}
 	}
 
 	// extract GPU resource info from the possible GPU sources
@@ -467,6 +736,16 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	}
 	resources.GPUVendorList = gpuVendorList
 
+	resources.RawRequests = make(map[string]string)
+	for resourceName, quantity := range spec.Resources.Requests {
+		resources.RawRequests[string(resourceName)] = quantity.String()
+	}
+
+	resources.RawLimits = make(map[string]string)
+	for resourceName, quantity := range spec.Resources.Limits {
+		resources.RawLimits[string(resourceName)] = quantity.String()
+	}
+
 	return resources
 }
 
@@ -478,6 +757,126 @@ func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.Cont
 	}
 
 	return nil
+}
+
+func convertVolumes(volumes []kubelet.VolumeSpec) []workloadmeta.KubernetesPodVolume {
+	if volumes == nil {
+		return nil
+	}
+
+	result := make([]workloadmeta.KubernetesPodVolume, len(volumes))
+
+	for i, volume := range volumes {
+		result[i] = workloadmeta.KubernetesPodVolume{
+			Name: volume.Name,
+		}
+
+		if volume.PersistentVolumeClaim != nil {
+			result[i].PersistentVolumeClaim = &workloadmeta.KubernetesPersistentVolumeClaim{
+				ClaimName: volume.PersistentVolumeClaim.ClaimName,
+				ReadOnly:  volume.PersistentVolumeClaim.ReadOnly,
+			}
+		}
+
+		if volume.Ephemeral != nil && volume.Ephemeral.VolumeClaimTemplate != nil {
+			result[i].Ephemeral = &workloadmeta.KubernetesEphemeralVolume{
+				Name:        volume.Ephemeral.VolumeClaimTemplate.Metadata.Name,
+				UID:         volume.Ephemeral.VolumeClaimTemplate.Metadata.UID,
+				Annotations: volume.Ephemeral.VolumeClaimTemplate.Metadata.Annotations,
+				Labels:      volume.Ephemeral.VolumeClaimTemplate.Metadata.Labels,
+			}
+		}
+	}
+
+	return result
+}
+
+func convertTolerations(tolerations []kubelet.Toleration) []workloadmeta.KubernetesPodToleration {
+	if tolerations == nil {
+		return nil
+	}
+
+	result := make([]workloadmeta.KubernetesPodToleration, len(tolerations))
+
+	for i, toleration := range tolerations {
+		result[i] = workloadmeta.KubernetesPodToleration{
+			Key:               toleration.Key,
+			Operator:          toleration.Operator,
+			Value:             toleration.Value,
+			Effect:            toleration.Effect,
+			TolerationSeconds: toleration.TolerationSeconds,
+		}
+	}
+
+	return result
+}
+
+func convertConditions(conditions []kubelet.Conditions) []workloadmeta.KubernetesPodCondition {
+	if conditions == nil {
+		return nil
+	}
+
+	result := make([]workloadmeta.KubernetesPodCondition, len(conditions))
+
+	for i, condition := range conditions {
+		result[i] = workloadmeta.KubernetesPodCondition{
+			Type:   condition.Type,
+			Status: condition.Status,
+			Reason: condition.Reason,
+		}
+	}
+
+	return result
+}
+
+func convertContainerStatuses(containerStatuses []kubelet.ContainerStatus) []workloadmeta.KubernetesContainerStatus {
+	if containerStatuses == nil {
+		return nil
+	}
+
+	result := make([]workloadmeta.KubernetesContainerStatus, len(containerStatuses))
+
+	for i, status := range containerStatuses {
+		result[i] = workloadmeta.KubernetesContainerStatus{
+			ContainerID:          status.ID,
+			Name:                 status.Name,
+			Image:                status.Image,
+			ImageID:              status.ImageID,
+			Ready:                status.Ready,
+			RestartCount:         int32(status.RestartCount),
+			State:                convertContainerState(status.State),
+			LastTerminationState: convertContainerState(status.LastState),
+		}
+	}
+
+	return result
+}
+
+func convertContainerState(state kubelet.ContainerState) workloadmeta.KubernetesContainerState {
+	result := workloadmeta.KubernetesContainerState{}
+
+	if state.Waiting != nil {
+		result.Waiting = &workloadmeta.KubernetesContainerStateWaiting{
+			Reason: state.Waiting.Reason,
+		}
+	}
+
+	if state.Running != nil {
+		result.Running = &workloadmeta.KubernetesContainerStateRunning{
+			StartedAt: state.Running.StartedAt,
+		}
+	}
+
+	if state.Terminated != nil {
+		result.Terminated = &workloadmeta.KubernetesContainerStateTerminated{
+			ExitCode:   state.Terminated.ExitCode,
+			StartedAt:  state.Terminated.StartedAt,
+			FinishedAt: state.Terminated.FinishedAt,
+			Reason:     state.Terminated.Reason,
+		}
+	}
+
+	return result
 }
 
 func parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
@@ -514,4 +913,19 @@ func parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
 	}
 
 	return events
+}
+
+func eventForKubeletMetrics(expiredPodCount int) workloadmeta.CollectorEvent {
+	kubeletMetrics := &workloadmeta.KubeletMetrics{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubeletMetrics,
+			ID:   "kubelet-metrics",
+		},
+		ExpiredPodCount: expiredPodCount,
+	}
+
+	return workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: kubeletMetrics,
+	}
 }

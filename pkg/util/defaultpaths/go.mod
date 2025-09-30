@@ -1,12 +1,12 @@
 module github.com/DataDog/datadog-agent/pkg/util/defaultpaths
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
-	golang.org/x/sys v0.32.0
+	golang.org/x/sys v0.36.0
 )
 
 require (
@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/time v0.11.0 // indirect
+	golang.org/x/time v0.12.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -22,18 +22,25 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../comp/api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../../comp/core/ipc/def
+	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../../comp/core/ipc/httphelpers
+	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../../comp/core/ipc/impl
+	github.com/DataDog/datadog-agent/comp/core/ipc/mock => ../../../comp/core/ipc/mock
 	github.com/DataDog/datadog-agent/comp/core/log/def => ../../../comp/core/log/def
 	github.com/DataDog/datadog-agent/comp/core/log/fx => ../../../comp/core/log/fx
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../comp/core/log/impl
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace => ../../../comp/core/log/impl-trace
 	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../comp/core/log/mock
-	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../../comp/core/secrets/def
+	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ../../../comp/core/secrets/fx
+	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ../../../comp/core/secrets/impl
+	github.com/DataDog/datadog-agent/comp/core/secrets/mock => ../../../comp/core/secrets/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../../comp/core/secrets/utils
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ../../../comp/core/status/statusimpl
 	github.com/DataDog/datadog-agent/comp/core/tagger/def => ../../../comp/core/tagger/def
@@ -98,7 +105,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage => ../../../pkg/linters/components/pkgconfigusage
-	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
@@ -110,12 +116,20 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../pkg/metrics
+	github.com/DataDog/datadog-agent/pkg/network/driver => ../../../pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../pkg/network/payload
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ../../../pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ../../../pkg/networkpath/payload
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../pkg/obfuscate
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata => ../../../pkg/opentelemetry-mapping-go/inframetadata
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest => ../../../pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes => ../../../pkg/opentelemetry-mapping-go/otlp/attributes
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs => ../../../pkg/opentelemetry-mapping-go/otlp/logs
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics => ../../../pkg/opentelemetry-mapping-go/otlp/metrics
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum => ../../../pkg/opentelemetry-mapping-go/otlp/rum
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../../pkg/orchestrator/model
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../pkg/proto
@@ -151,6 +165,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/otel => ../../../pkg/util/otel
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/prometheus => ../../../pkg/util/prometheus
+	github.com/DataDog/datadog-agent/pkg/util/quantile => ../../../pkg/util/quantile
+	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest => ../../../pkg/util/quantile/sketchtest
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../../../pkg/util/sort
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../../pkg/util/startstop

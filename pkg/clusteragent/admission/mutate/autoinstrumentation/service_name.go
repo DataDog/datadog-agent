@@ -13,6 +13,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,40 +29,58 @@ const (
 	// serviceNameSourceOwnerName will tell us if we pulled the DD_SERVICE
 	// from the pod owner name.
 	serviceNameSourceOwnerName = "owner"
+
+	// the next two sources are used to denote whether the service name
+	// came from labels or annotations (when mapping pod meta as tags).
+	serviceNameSourceLabelsAsTags      = "labels_as_tags"
+	serviceNameSourceAnnotationsAsTags = "annotations_as_tags"
 )
 
 type serviceNameMutator struct {
-	noop   bool
-	EnvVar corev1.EnvVar     `json:"env"`
-	Source serviceNameSource `json:"source"`
+	EnvVar corev1.EnvVar
+	Source serviceNameSource
 }
 
 func (s *serviceNameMutator) mutateContainer(c *corev1.Container) error {
-	if s.noop {
+	if s == nil {
 		return nil
 	}
 
-	for _, e := range c.Env {
-		if e.Name == kubernetes.ServiceTagEnvVar {
-			return nil
+	var source *corev1.EnvVar
+	if s.Source != "" {
+		source = &corev1.EnvVar{Name: "DD_SERVICE_K8S_ENV_SOURCE"}
+		if s.EnvVar.Value != "" {
+			source.Value = fmt.Sprintf("%s=%s", s.Source, s.EnvVar.Value)
+		} else {
+			source.Value = string(s.Source)
 		}
 	}
 
-	var envs []corev1.EnvVar
-	envs = append(envs, s.EnvVar)
-
-	if s.Source != "" && s.EnvVar.Value != "" {
-		envs = append(envs, corev1.EnvVar{
-			Name:  "DD_SERVICE_K8S_ENV_SOURCE",
-			Value: fmt.Sprintf("%s=%s", s.Source, s.EnvVar.Value),
-		})
+	mutator := &ustEnvVarMutator{
+		EnvVar: s.EnvVar,
+		Source: source,
 	}
 
-	c.Env = append(envs, c.Env...)
+	return mutator.mutateContainer(c)
+}
+
+func serviceNameMutatorForMetaAsTags(pod *corev1.Pod, t podMetaAsTags) *serviceNameMutator {
+	for _, check := range []struct {
+		kind   podMetaKind
+		source serviceNameSource
+	}{
+		{podMetaKindLabels, serviceNameSourceLabelsAsTags},
+		{podMetaKindAnnotations, serviceNameSourceAnnotationsAsTags},
+	} {
+		if env, found := envVarForPodMetaMapping(pod, check.kind, t, tags.Service, kubernetes.ServiceTagEnvVar); found {
+			return &serviceNameMutator{EnvVar: env, Source: check.source}
+		}
+	}
+
 	return nil
 }
 
-func newServiceNameMutator(pod *corev1.Pod) *serviceNameMutator {
+func newServiceNameMutator(pod *corev1.Pod, t podMetaAsTags) *serviceNameMutator {
 	vars := findServiceNameEnvVarsInPod(pod)
 	if len(vars) > 1 {
 		log.Debug("more than one unique definition of service name found for the pod")
@@ -74,15 +93,21 @@ func newServiceNameMutator(pod *corev1.Pod) *serviceNameMutator {
 		}
 	}
 
-	log.Debug("no service env vars found in pod, checking owner name")
+	log.Debug("no DD_SERVICE env vars found in pod")
+	log.Debug("checking metaAsTags")
+	if mutator := serviceNameMutatorForMetaAsTags(pod, t); mutator != nil {
+		return mutator
+	}
+
+	log.Debug("no service env vars found & tags found in pod, checking owner name")
 	name, err := getServiceNameFromPodOwnerName(pod)
 	if err != nil || name == "" {
 		log.Debugf("error getting owner name for pod: %v", err)
-		return &serviceNameMutator{noop: true}
+		return nil
 	}
 
 	if name == "" {
-		return &serviceNameMutator{noop: true}
+		return nil
 	}
 
 	return &serviceNameMutator{

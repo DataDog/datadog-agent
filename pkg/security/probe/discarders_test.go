@@ -362,10 +362,16 @@ func TestIsDiscarderOverride(t *testing.T) {
 		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields)
 
+	supportedDiscarders := map[eval.Field]bool{
+		eval.Field("process.file.path"): true,
+		eval.Field("unlink.file.path"):  true,
+	}
+
 	var opts rules.Opts
 	opts.
 		WithEventTypeEnabled(enabled).
-		WithLogger(seclog.DefaultLogger)
+		WithLogger(seclog.DefaultLogger).
+		WithSupportedDiscarders(supportedDiscarders)
 
 	var listener testEventListener
 

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Do not fail remote upgrade on Windows when the Agent service takes more than 3 minutes to start

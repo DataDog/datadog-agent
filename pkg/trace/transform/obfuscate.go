@@ -6,6 +6,9 @@
 package transform
 
 import (
+	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -37,6 +40,15 @@ const (
 	TextNonParsable = "Non-parsable SQL query"
 )
 
+func obfuscateOTelDBAttributes(oq *obfuscate.ObfuscatedQuery, span *pb.Span) {
+	if _, ok := traceutil.GetMeta(span, string(semconv.DBStatementKey)); ok {
+		traceutil.SetMeta(span, string(semconv.DBStatementKey), oq.Query)
+	}
+	if _, ok := traceutil.GetMeta(span, string(semconv126.DBQueryTextKey)); ok {
+		traceutil.SetMeta(span, string(semconv126.DBQueryTextKey), oq.Query)
+	}
+}
+
 // ObfuscateSQLSpan obfuscates a SQL span using pkg/obfuscate logic
 func ObfuscateSQLSpan(o *obfuscate.Obfuscator, span *pb.Span) (*obfuscate.ObfuscatedQuery, error) {
 	if span.Resource == "" {
@@ -50,6 +62,7 @@ func ObfuscateSQLSpan(o *obfuscate.Obfuscator, span *pb.Span) (*obfuscate.Obfusc
 		return nil, err
 	}
 	span.Resource = oq.Query
+	obfuscateOTelDBAttributes(oq, span)
 	if len(oq.Metadata.TablesCSV) > 0 {
 		traceutil.SetMeta(span, "sql.tables", oq.Metadata.TablesCSV)
 	}

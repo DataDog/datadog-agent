@@ -9,7 +9,6 @@ package sbom
 
 import (
 	"errors"
-	"fmt"
 	"runtime"
 	"time"
 
@@ -18,14 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -112,6 +110,7 @@ func (c *Config) Parse(data []byte) error {
 type Check struct {
 	core.CheckBase
 	workloadmetaStore workloadmeta.Component
+	filterStore       workloadfilter.Component
 	tagger            tagger.Component
 	instance          *Config
 	processor         *processor
@@ -121,22 +120,18 @@ type Check struct {
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) option.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, cfg config.Component, tagger tagger.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
+			filterStore:       filterStore,
 			tagger:            tagger,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
 			cfg:               cfg,
 		})
 	})
-}
-
-func isProcfsSBOMEnabled() bool {
-	// Allowed only on Fargate instance for now
-	return pkgconfigsetup.Datadog().GetBool("sbom.container.enabled") && fargate.IsFargateInstance()
 }
 
 // Configure parses the check configuration and initializes the sbom check
@@ -159,16 +154,15 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	c.sender = sender
-	sender.SetNoIndex(true)
 
 	if c.processor, err = newProcessor(
 		c.workloadmetaStore,
+		c.filterStore,
 		sender,
 		c.tagger,
+		c.cfg,
 		c.instance.ChunkSize,
 		time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second,
-		c.cfg.GetBool("sbom.host.enabled"),
-		isProcfsSBOMEnabled(),
 		time.Duration(c.instance.HostHeartbeatValiditySeconds)*time.Second); err != nil {
 		return err
 	}
@@ -180,11 +174,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
-
-	containerFilter, err := collectors.NewSBOMContainerFilter()
-	if err != nil {
-		return fmt.Errorf("failed to create container filter: %w", err)
-	}
 
 	filter := workloadmeta.NewFilterBuilder().
 		AddKind(workloadmeta.KindContainer).
@@ -209,8 +198,14 @@ func (c *Check) Run() error {
 
 	c.sendUsageMetrics()
 
-	containerPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.ContainerPeriodicRefreshSeconds) * time.Second)
-	defer containerPeriodicRefreshTicker.Stop()
+	containerRefreshPeriod := time.Duration(c.instance.ContainerPeriodicRefreshSeconds) * time.Second
+	var containerRefresher containerPeriodicRefresher
+	if c.cfg.GetBool("sbom.container_image.use_spread_refresher") {
+		containerRefresher = newSpreadRefresher(containerRefreshPeriod, c.workloadmetaStore, c.processor)
+	} else {
+		containerRefresher = newBatchRefresher(containerRefreshPeriod, c.workloadmetaStore, c.processor)
+	}
+	defer containerRefresher.stop()
 
 	procfsSbomChan := make(chan sbom.ScanResult) // default value to listen to nothing
 	if collectors.GetProcfsScanner() != nil && collectors.GetProcfsScanner().Channel() != nil {
@@ -230,7 +225,7 @@ func (c *Check) Run() error {
 			if !ok {
 				return nil
 			}
-			c.processor.processContainerImagesEvents(eventBundle, containerFilter)
+			c.processor.processContainerImagesEvents(eventBundle)
 		case scanResult, ok := <-hostSbomChan:
 			if !ok {
 				return nil
@@ -241,8 +236,8 @@ func (c *Check) Run() error {
 				return nil
 			}
 			c.processor.processProcfsScanResult(scanResult)
-		case <-containerPeriodicRefreshTicker.C:
-			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
+		case <-containerRefresher.tick():
+			containerRefresher.step()
 		case <-hostPeriodicRefreshTicker.C:
 			c.processor.triggerHostScan()
 		case <-metricTicker.C:
@@ -254,7 +249,9 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) sendUsageMetrics() {
-	c.sender.Count("datadog.agent.sbom.container_images.running", 1.0, "", nil)
+	if c.cfg.GetBool("sbom.container_image.enabled") {
+		c.sender.Count("datadog.agent.sbom.container_images.running", 1.0, "", nil)
+	}
 
 	if c.cfg.GetBool("sbom.host.enabled") {
 		c.sender.Count("datadog.agent.sbom.hosts.running", 1.0, "", []string{"os:" + runtime.GOOS})

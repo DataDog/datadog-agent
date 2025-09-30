@@ -145,6 +145,7 @@ type Client struct {
 	ndmflowAggregator              aggregator.NDMFlowAggregator
 	netpathAggregator              aggregator.NetpathAggregator
 	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
+	hostAggregator                 aggregator.HostAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -176,6 +177,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
 		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
+		hostAggregator:                 aggregator.NewHostAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -332,6 +334,15 @@ func (c *Client) getNetpathEvents() error {
 		return err
 	}
 	return c.netpathAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getHostInfos() error {
+	payloads, err := c.getFakePayloads(intakeEndpoint)
+	if err != nil {
+		return err
+	}
+
+	return c.hostAggregator.UnmarshallPayloads(payloads)
 }
 
 // FilterMetrics fetches fakeintake on `/api/v2/series` endpoint and returns
@@ -722,7 +733,34 @@ func (c *Client) GetLastProcessPayloadAPIKey() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if len(payloads) == 0 {
+		return "", errors.New("no process payloads found")
+	}
 	return payloads[len(payloads)-1].APIKey, nil
+}
+
+// GetAllProcessPayloadAPIKeys fetches fakeintake on `/api/v1/collector` endpoint and returns
+// a list of unique API keys of the received process payloads
+func (c *Client) GetAllProcessPayloadAPIKeys() ([]string, error) {
+	payloads, err := c.getFakePayloads(processesEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(payloads) == 0 {
+		return nil, errors.New("no process payloads found")
+	}
+
+	keysFound := make(map[string]struct{})
+	keys := make([]string, 0)
+	for _, payload := range payloads {
+		if _, ok := keysFound[payload.APIKey]; !ok {
+			keysFound[payload.APIKey] = struct{}{}
+			keys = append(keys, payload.APIKey)
+		}
+	}
+
+	return keys, nil
 }
 
 // GetContainers fetches fakeintake on `/api/v1/container` endpoint and returns
@@ -1043,6 +1081,26 @@ func (c *Client) GetLatestNetpathEvents() ([]*aggregator.Netpath, error) {
 		}
 	}
 	return netpaths, nil
+}
+
+// GetLatestHostInfos returns the latest host information received by the fake intake
+func (c *Client) GetLatestHostInfos() ([]*aggregator.Host, error) {
+	err := c.getHostInfos()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var hostInfos []*aggregator.Host
+	for _, name := range c.hostAggregator.GetNames() {
+		payloads := c.hostAggregator.GetPayloadsByName(name)
+
+		if len(payloads) > 0 {
+			hostInfos = append(hostInfos, payloads...)
+		}
+	}
+
+	return hostInfos, nil
 }
 
 // filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options

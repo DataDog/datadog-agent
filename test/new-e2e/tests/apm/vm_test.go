@@ -29,6 +29,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 )
 
 type VMFakeintakeSuite struct {
@@ -47,6 +48,16 @@ func NewVMFakeintakeSuite(tr transport) *VMFakeintakeSuite {
 		transport:    tr,
 		extraLogging: extraLogging,
 	}
+}
+
+// SetupSuite is called once before all tests in the suite.
+// This function is called by [testify Suite].
+func (s *VMFakeintakeSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure() // cleanup if setup fails
+
+	// Pre-pull Docker image once for all tests to avoid network timeout issues during test execution
+	s.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:" + apps.Version)
 }
 
 func vmProvisionerOpts(opts ...awshost.ProvisionerOption) []awshost.ProvisionerOption {
@@ -126,7 +137,7 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
+		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake, !s.Env().Agent.FIPSEnabled)
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }

@@ -54,18 +54,17 @@ type LeaderEngine struct {
 	m       sync.Mutex
 	once    sync.Once
 
-	subscribers                 []chan struct{}
-	UpdateLeaderInClusterChecks chan struct{}
-	HolderIdentity              string
-	LeaseDuration               time.Duration
-	LeaseName                   string
-	LeaderNamespace             string
-	coreClient                  corev1.CoreV1Interface
-	coordClient                 coordinationv1.CoordinationV1Interface
-	ServiceName                 string
-	leaderIdentityMutex         sync.RWMutex
-	leaderElector               *leaderelection.LeaderElector
-	lockType                    string
+	subscribers         []chan struct{}
+	HolderIdentity      string
+	LeaseDuration       time.Duration
+	LeaseName           string
+	LeaderNamespace     string
+	coreClient          corev1.CoreV1Interface
+	coordClient         coordinationv1.CoordinationV1Interface
+	ServiceName         string
+	leaderIdentityMutex sync.RWMutex
+	leaderElector       *leaderelection.LeaderElector
+	lockType            string
 
 	// leaderIdentity is the HolderIdentity of the current leader.
 	leaderIdentity string
@@ -76,14 +75,13 @@ type LeaderEngine struct {
 
 func newLeaderEngine(ctx context.Context) *LeaderEngine {
 	return &LeaderEngine{
-		ctx:                         ctx,
-		LeaseName:                   pkgconfigsetup.Datadog().GetString("leader_lease_name"),
-		LeaderNamespace:             common.GetResourcesNamespace(),
-		ServiceName:                 pkgconfigsetup.Datadog().GetString("cluster_agent.kubernetes_service_name"),
-		leaderMetric:                metrics.NewLeaderMetric(),
-		subscribers:                 []chan struct{}{},
-		UpdateLeaderInClusterChecks: make(chan struct{}),
-		LeaseDuration:               defaultLeaderLeaseDuration,
+		ctx:             ctx,
+		LeaseName:       pkgconfigsetup.Datadog().GetString("leader_lease_name"),
+		LeaderNamespace: common.GetResourcesNamespace(),
+		ServiceName:     pkgconfigsetup.Datadog().GetString("cluster_agent.kubernetes_service_name"),
+		leaderMetric:    metrics.NewLeaderMetric(),
+		subscribers:     []chan struct{}{},
+		LeaseDuration:   defaultLeaderLeaseDuration,
 	}
 }
 

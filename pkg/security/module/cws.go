@@ -16,9 +16,11 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -30,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -40,7 +41,7 @@ const (
 	selftestMaxRetry    = 25 // more than 5 minutes so that we can get host tags
 	selftestStartAfter  = 15 * time.Second
 	selftestDelay       = 15 * time.Second
-	selftestPassedDelay = 5 * time.Minute
+	selftestPassedDelay = 60 * time.Minute
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -68,7 +69,7 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, opts Opts, compression compression.Component) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, opts Opts, compression compression.Component, ipc ipc.Component) (*CWSConsumer, error) {
 	crtelemcfg := telemetry.ContainersRunningTelemetryConfig{
 		RuntimeEnabled: cfg.RuntimeEnabled,
 		FIMEnabled:     cfg.FIMEnabled,
@@ -86,9 +87,9 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		}
 	}
 
-	family := config.GetFamilyAddress(cfg.SocketPath)
+	family := common.GetFamilyAddress(cfg.SocketPath)
 
-	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression)
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +126,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		listeners = append(listeners, selfTester)
 	}
 
-	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c, c.statsdClient, listeners...)
+	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c, c.statsdClient, ipc, listeners...)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +196,7 @@ func (c *CWSConsumer) Start() error {
 	seclog.Infof("runtime security started")
 
 	// we can now wait for self test events
-	cb := func(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
+	cb := func(success []eval.RuleID, fails []eval.RuleID) {
 		c.selfTestCount++
 
 		seclog.Debugf("self-test results : success : %v, failed : %v, run %d", success, fails, c.selfTestCount)
@@ -206,11 +207,11 @@ func (c *CWSConsumer) Start() error {
 		}
 
 		if !c.selfTestPassed && c.selfTestCount == selftestMaxRetry {
-			c.reportSelfTest(success, fails, testEvents)
+			c.reportSelfTest(success, fails)
 		} else if len(fails) == 0 {
 			c.selfTestPassed = true
 
-			c.reportSelfTest(success, fails, testEvents)
+			c.reportSelfTest(success, fails)
 		}
 
 		if _, err := c.RunSelfTest(false); err != nil {
@@ -224,7 +225,7 @@ func (c *CWSConsumer) Start() error {
 	}
 
 	// do not wait external api connection, send directly running metrics
-	if c.config.SendEventFromSystemProbe {
+	if c.config.SendPayloadsFromSystemProbe {
 		c.startRunningMetrics()
 	}
 
@@ -262,14 +263,14 @@ func (c *CWSConsumer) RunSelfTest(gRPC bool) (bool, error) {
 		return false, nil
 	}
 
-	if err := c.selfTester.RunSelfTest(selftests.DefaultTimeout); err != nil {
+	if err := c.selfTester.RunSelfTest(c.ctx, selftests.DefaultTimeout); err != nil {
 		return true, err
 	}
 
 	return true, nil
 }
 
-func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
+func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID) {
 	if !c.config.SelfTestSendReport {
 		return
 	}
@@ -287,7 +288,7 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID,
 	}
 
 	// send the custom event with the list of succeed and failed self tests
-	rule, event := selftests.NewSelfTestEvent(c.probe.GetAgentContainerContext(), success, fails, testEvents)
+	rule, event := selftests.NewSelfTestEvent(c.probe.GetAgentContainerContext(), success, fails)
 	c.SendEvent(rule, event, nil, "")
 }
 
@@ -315,7 +316,7 @@ func (c *CWSConsumer) HandleCustomEvent(rule *rules.Rule, event *events.CustomEv
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
 // Implements the EventSender interface
-func (c *CWSConsumer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
+func (c *CWSConsumer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
 	if c.rateLimiter.Allow(rule.ID, event) {
 		c.eventSender.SendEvent(rule, event, extTagsCb, service)
 	} else {
@@ -329,8 +330,9 @@ func (c *CWSConsumer) APIServer() *APIServer {
 }
 
 // HandleActivityDump sends an activity dump to the backend
-func (c *CWSConsumer) HandleActivityDump(dump *api.ActivityDumpStreamMessage) {
-	c.apiServer.SendActivityDump(dump)
+func (c *CWSConsumer) HandleActivityDump(imageName string, imageTag string, header []byte, data []byte) error {
+	c.apiServer.SendActivityDump(imageName, imageTag, header, data)
+	return nil
 }
 
 // SendStats send stats
@@ -388,4 +390,9 @@ func (c *CWSConsumer) GetRuleEngine() *rulesmodule.RuleEngine {
 func (c *CWSConsumer) PrepareForFunctionalTests() {
 	// no need for container running telemetry in functional tests
 	c.crtelemetry = nil
+}
+
+// GetStatus returns the status of the module
+func (c *CWSConsumer) GetStatus(ctx context.Context) (*api.Status, error) {
+	return c.apiServer.GetStatus(ctx, &api.GetStatusParams{})
 }

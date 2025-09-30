@@ -1,0 +1,37 @@
+.scan_windows_package:
+  stage: scan
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-7*.msi"
+    OMNIBUS_PIPELINE_DIR: $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
+  before_script:
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    - ls $OMNIBUS_PIPELINE_DIR
+    - dda self dep sync -f virustotal
+  script:
+    - dda inv --feat virustotal -- virustotal.submit --omnibus-pipeline-dir $OMNIBUS_PIPELINE_DIR --pattern $SCAN_ARTIFACT_PATTERN
+
+scan_packages_windows-x64:
+  rules:
+    - !reference [.on_deploy]
+    - !reference [.on_main]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  extends: .scan_windows_package
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-7*.msi"
+  allow_failure: true
+
+scan_packages_windows-fips-x64:
+  rules:
+    - !reference [.on_deploy]
+    - !reference [.on_main]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  extends: .scan_windows_package
+  needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-fips-agent-7*.msi"
+  allow_failure: true

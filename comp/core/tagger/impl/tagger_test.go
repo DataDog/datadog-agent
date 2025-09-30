@@ -55,7 +55,7 @@ func setupFakeMetricsProvider(mockMetricsProvider metrics.Provider) func() {
 }
 
 func TestAccumulateTagsFor(t *testing.T) {
-	entityID := types.NewEntityID("", "entity_name")
+	entityID := types.NewEntityID(types.ContainerID, "entity_name")
 
 	mockReq := MockRequires{
 		Config:    configmock.New(t),
@@ -247,7 +247,7 @@ func TestGenerateContainerIDFromExternalData(t *testing.T) {
 		fx.Supply(config.Params{}),
 		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -328,7 +328,7 @@ func TestGenerateContainerIDFromInode(t *testing.T) {
 		fx.Supply(config.Params{}),
 		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -760,4 +760,58 @@ func TestEnrichTags(t *testing.T) {
 			assert.Equal(t, tt.expectedTags, tb.Get())
 		})
 	}
+}
+
+func TestEnrichTagsContainerIDMismatch(t *testing.T) {
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule()),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	fakeTagger := NewMock(mockReq).Comp
+
+	localContainerID, externalContainerID, podUID := "local-container-id", "external-container-id", "pod-uid"
+	containerName := "container-name"
+
+	fakeTagger.SetTags(types.NewEntityID(types.KubernetesPodUID, podUID), "kubelet", []string{"pod-low"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, localContainerID), "kubelet", []string{"local-container-low"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, externalContainerID), "kubelet", []string{"external-container-low"}, nil, nil, nil)
+
+	// Set up fake metrics provider that returns a different container ID than the local data
+	mockMetricsProvider := collectormock.NewMetricsProvider()
+	externalContainerMetaCollector := collectormock.MetaCollector{
+		ContainerID:           externalContainerID,
+		CIDFromPodUIDContName: map[string]string{fmt.Sprint(podUID, "/", containerName): externalContainerID},
+	}
+	mockMetricsProvider.RegisterMetaCollector(&externalContainerMetaCollector)
+	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
+	defer cleanUp()
+
+	t.Run("container ID mismatch - external data ignored", func(t *testing.T) {
+		tb := tagset.NewHashingTagsAccumulator()
+		originInfo := taggertypes.OriginInfo{
+			ProductOrigin: origindetection.ProductOriginAPM,
+			LocalData: origindetection.LocalData{
+				ContainerID: localContainerID, // Local data has one container ID
+				PodUID:      podUID,
+			},
+			ExternalData: origindetection.ExternalData{
+				Init:          false,
+				ContainerName: containerName, // External data resolves to different container ID
+				PodUID:        podUID,
+			},
+			Cardinality: "high",
+		}
+		fakeTagger.EnrichTags(tb, originInfo)
+		actualTags := tb.Get()
+
+		assert.Contains(t, actualTags, "local-container-low")
+		assert.Contains(t, actualTags, "pod-low")
+		assert.NotContains(t, actualTags, "external-container-low")
+	})
 }

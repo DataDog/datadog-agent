@@ -20,11 +20,11 @@ import (
 )
 
 type fieldsCollector struct {
-	device       ddnvml.SafeDevice
+	device       ddnvml.Device
 	fieldMetrics []fieldValueMetric
 }
 
-func newFieldsCollector(device ddnvml.SafeDevice) (Collector, error) {
+func newFieldsCollector(device ddnvml.Device) (Collector, error) {
 	c := &fieldsCollector{
 		device: device,
 	}
@@ -32,10 +32,7 @@ func newFieldsCollector(device ddnvml.SafeDevice) (Collector, error) {
 
 	// Remove any unsupported fields, we also want to check if we have any fields left
 	// to avoid doing unnecessary work
-	err := c.removeUnsupportedFields()
-	if err != nil {
-		return nil, err
-	}
+	c.removeUnsupportedMetrics()
 	if len(c.fieldMetrics) == 0 {
 		return nil, errUnsupportedDevice
 	}
@@ -44,16 +41,21 @@ func newFieldsCollector(device ddnvml.SafeDevice) (Collector, error) {
 }
 
 func (c *fieldsCollector) DeviceUUID() string {
-	uuid, _ := c.device.GetUUID()
-	return uuid
+	return c.device.GetDeviceInfo().UUID
 }
 
-func (c *fieldsCollector) removeUnsupportedFields() error {
+func (c *fieldsCollector) removeUnsupportedMetrics() {
 	fieldValues, err := c.getFieldValues()
 	if err != nil {
-		return err
+		// If the entire field values API is unsupported, remove all metrics
+		if ddnvml.IsUnsupported(err) {
+			c.fieldMetrics = nil
+		}
+		// Otherwise, do nothing and keep all metrics
+		return
 	}
 
+	// Remove individual unsupported fields
 	for _, val := range fieldValues {
 		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) {
 			c.fieldMetrics = slices.DeleteFunc(c.fieldMetrics, func(fm fieldValueMetric) bool {
@@ -61,8 +63,6 @@ func (c *fieldsCollector) removeUnsupportedFields() error {
 			})
 		}
 	}
-
-	return nil
 }
 
 func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {

@@ -11,21 +11,18 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/fx"
-
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -38,13 +35,6 @@ type AgentTestSuite struct {
 
 	source          *sources.LogSource
 	configOverrides map[string]interface{}
-}
-
-type testDeps struct {
-	fx.In
-
-	Config configComponent.Component
-	Log    log.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -66,15 +56,9 @@ func (suite *AgentTestSuite) TearDownTest() {
 }
 
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) *Agent {
-	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
-		configComponent.MockModule(),
-		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-	))
-
 	agent := &Agent{
-		log:         deps.Log,
-		config:      deps.Config,
+		log:         logmock.New(suite.T()),
+		config:      configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides),
 		endpoints:   endpoints,
 		compression: compressionfx.NewMockCompressor(),
 	}
@@ -137,7 +121,7 @@ func (suite *AgentTestSuite) TestAgentHttp() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
-	endpoint := config.NewEndpoint("", "", "fake:", 0, false)
+	endpoint := config.NewEndpoint("", "", "fake:", 0, config.EmptyPathPrefix, false)
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	agent := createAgent(suite, endpoints)
@@ -181,12 +165,12 @@ func TestAgentTestSuite(t *testing.T) {
 }
 
 func TestBuildEndpoints(t *testing.T) {
-	deps := fxutil.Test[testDeps](t, fx.Options(
-		configComponent.MockModule(),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-	))
+	cfg := configComponent.NewMock(t)
+	lg := logmock.New(t)
+	cfg.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceDefault)
 
-	endpoints, err := buildEndpoints(deps.Config, deps.Log)
+	endpoints, err := buildEndpoints(cfg, lg, config.OTelCollectorIntakeOrigin)
 	assert.Nil(t, err)
-	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoints.Main.Host)
+	assert.Equal(t, "agent-http-intake.logs.datadoghq.com.", endpoints.Main.Host)
+	assert.Equal(t, config.OTelCollectorIntakeOrigin, endpoints.Main.Origin)
 }

@@ -21,10 +21,12 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -245,19 +247,20 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Create Auth Token for the client
-			authtokenmock.New(t)
-
-			overrides := map[string]interface{}{
-				"language_detection.enabled":               true,
-				"process_config.run_in_core_agent.enabled": false,
-			}
+			// Create ipc component for the client
+			ipcComp := ipcmock.New(t)
 
 			// We do not inject any collectors here; we instantiate
 			// and initialize it out-of-band below. That's OK.
 			mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-				core.MockBundle(),
-				fx.Replace(config.MockParams{Overrides: overrides}),
+				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+				fx.Provide(func(t testing.TB) config.Component {
+					return config.NewMockWithOverrides(t, map[string]interface{}{
+						"language_detection.enabled":                true,
+						"process_config.run_in_core_agent.enabled":  false,
+						"process_config.process_collection.use_wlm": false,
+					})
+				}),
 				workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 			))
 
@@ -269,7 +272,7 @@ func TestCollection(t *testing.T) {
 			server := newMockServer(ctx, test.serverResponses, test.errorResponse)
 			defer server.stop()
 
-			grpcServer := grpc.NewServer()
+			grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(ipcComp.GetTLSServerConfig())))
 			pbgo.RegisterProcessEntityStreamServer(grpcServer, server)
 
 			lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -291,7 +294,7 @@ func TestCollection(t *testing.T) {
 					Reader: mockStore.GetConfig(),
 					port:   port,
 				},
-				Insecure: true,
+				IPC: ipcComp,
 			}
 
 			mockStore.Notify(test.preEvents)

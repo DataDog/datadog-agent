@@ -41,6 +41,7 @@ ALL_TAGS = {
     "kubeapiserver",
     "kubelet",
     "linux_bpf",
+    "ncm",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
     "npm",
@@ -57,6 +58,7 @@ ALL_TAGS = {
     "serverless",
     "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
     "systemd",
+    "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
     "trivy_no_javadb",
@@ -80,11 +82,13 @@ AGENT_TAGS = {
     "docker",
     "ec2",
     "etcd",
+    "fargateprocess",
     "grpcnotrace",
     "jetson",
     "jmx",
     "kubeapiserver",
     "kubelet",
+    "ncm",
     "netcgo",
     "nvml",
     "oracle",
@@ -93,6 +97,7 @@ AGENT_TAGS = {
     "podman",
     "python",
     "systemd",
+    "systemprobechecks",
     "trivy",
     "trivy_no_javadb",
     "zk",
@@ -109,6 +114,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "crio",
         "docker",
         "ec2",
+        "fargateprocess",
         "jetson",
         "kubeapiserver",
         "kubelet",
@@ -244,6 +250,8 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
+OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
+
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 
@@ -254,7 +262,12 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy"}
 
 # List of tags to always remove when building on Windows
-WINDOWS_EXCLUDE_TAGS = {"linux_bpf", "nvml", "requirefips"}
+WINDOWS_EXCLUDE_TAGS = {
+    "linux_bpf",
+    "nvml",
+    "requirefips",
+    "crio",
+}
 
 # List of tags to always remove when building on Darwin/macOS
 DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "no_dynamic_plugins", "nvml", "cri", "crio"}
@@ -282,6 +295,7 @@ build_tags = {
         "trace-agent": TRACE_AGENT_TAGS,
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS,
         "sbomgen": SBOMGEN_TAGS,
+        "otel-agent": OTEL_AGENT_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),

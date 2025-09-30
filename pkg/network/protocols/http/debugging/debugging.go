@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build (windows && npm) || (linux && linux_bpf)
+
 // Package debugging provides a debugging view of the HTTP protocol.
 package debugging
 
@@ -63,7 +65,7 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 
 		for status, stat := range v.Data {
 			debug.StaticTags = stat.StaticTags
-			debug.DynamicTags = stat.DynamicTags
+			debug.DynamicTags = stat.DynamicTags.GetAll()
 
 			debug.ByStatus[status] = Stats{
 				Count:              stat.Count,

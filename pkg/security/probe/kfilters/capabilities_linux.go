@@ -15,13 +15,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func validateBasenameFilter(value rules.FilterValue) bool {
+// validateScalarPathFilter validates that the path can be handled by the basename filter
+func validateScalarPathFilter(value rules.FilterValue) bool {
 	switch value.Type {
 	case eval.ScalarValueType:
 		return true
-	case eval.GlobValueType:
-		basename := path.Base(value.Value.(string))
-		if !strings.Contains(basename, "*") {
+	case eval.GlobValueType, eval.PatternValueType:
+		pattern := path.Base(value.Value.(string))
+		if !strings.Contains(pattern, "*") {
 			return true
 		}
 	}
@@ -29,19 +30,21 @@ func validateBasenameFilter(value rules.FilterValue) bool {
 	return false
 }
 
-func buildBasenameCapabilities(event string, fields ...string) rules.FieldCapabilities {
+func buildFileCapabilities(event string, fields ...string) rules.FieldCapabilities {
 	var caps rules.FieldCapabilities
 
 	for _, field := range fields {
 		caps = append(caps, rules.FieldCapabilities{
 			{
-				Field:       event + "." + field + ".path",
-				TypeBitmask: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
-				ValidateFnc: validateBasenameFilter,
+				Field:        event + "." + field + ".path",
+				TypeBitmask:  eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
+				ValidateFnc:  validateScalarPathFilter,
+				FilterWeight: 300,
 			},
 			{
-				Field:       event + "." + field + ".name",
-				TypeBitmask: eval.ScalarValueType,
+				Field:        event + "." + field + ".name",
+				TypeBitmask:  eval.ScalarValueType,
+				FilterWeight: 300,
 			},
 		}...)
 	}
@@ -57,19 +60,20 @@ func mergeCapabilities(caps ...rules.FieldCapabilities) rules.FieldCapabilities 
 }
 
 func init() {
-	allCapabilities["chmod"] = mergeCapabilities(buildBasenameCapabilities("chmod", "file"), processCapabilities)
-	allCapabilities["chown"] = mergeCapabilities(buildBasenameCapabilities("chown", "file"), processCapabilities)
-	allCapabilities["link"] = mergeCapabilities(buildBasenameCapabilities("link", "file", "file.destination"), processCapabilities)
-	allCapabilities["mkdir"] = mergeCapabilities(buildBasenameCapabilities("mkdir", "file"), processCapabilities)
-	allCapabilities["open"] = openCapabilities
-	allCapabilities["rename"] = mergeCapabilities(buildBasenameCapabilities("rename", "file", "file.destination"), processCapabilities)
-	allCapabilities["rmdir"] = mergeCapabilities(buildBasenameCapabilities("rmdir", "file"), processCapabilities)
-	allCapabilities["unlink"] = mergeCapabilities(buildBasenameCapabilities("unlink", "file"), processCapabilities)
-	allCapabilities["utimes"] = mergeCapabilities(buildBasenameCapabilities("utimes", "file"), processCapabilities)
-	allCapabilities["mmap"] = mmapCapabilities
+	allCapabilities["chmod"] = mergeCapabilities(buildFileCapabilities("chmod", "file"), processCapabilities)
+	allCapabilities["chown"] = mergeCapabilities(buildFileCapabilities("chown", "file"), processCapabilities)
+	allCapabilities["link"] = mergeCapabilities(buildFileCapabilities("link", "file", "file.destination"), processCapabilities)
+	allCapabilities["mkdir"] = mergeCapabilities(buildFileCapabilities("mkdir", "file"), processCapabilities)
+	allCapabilities["open"] = mergeCapabilities(buildFileCapabilities("open", "file"), openFlagsCapabilities, processCapabilities)
+	allCapabilities["rename"] = mergeCapabilities(buildFileCapabilities("rename", "file", "file.destination"), processCapabilities)
+	allCapabilities["rmdir"] = mergeCapabilities(buildFileCapabilities("rmdir", "file"), processCapabilities)
+	allCapabilities["unlink"] = mergeCapabilities(buildFileCapabilities("unlink", "file"), processCapabilities)
+	allCapabilities["utimes"] = mergeCapabilities(buildFileCapabilities("utimes", "file"), processCapabilities)
+	allCapabilities["mmap"] = mergeCapabilities(buildFileCapabilities("mmap", "file"), mmapCapabilities, processCapabilities)
 	allCapabilities["mprotect"] = mprotectCapabilities
-	allCapabilities["splice"] = spliceCapabilities
-	allCapabilities["chdir"] = mergeCapabilities(buildBasenameCapabilities("chdir", "file"), processCapabilities)
+	allCapabilities["splice"] = mergeCapabilities(buildFileCapabilities("splice", "file"), spliceCapabilities, processCapabilities)
+	allCapabilities["chdir"] = mergeCapabilities(buildFileCapabilities("chdir", "file"), processCapabilities)
 	allCapabilities["bpf"] = bpfCapabilities
 	allCapabilities["sysctl"] = sysctlCapabilities
+	allCapabilities["connect"] = connectCapabilities
 }

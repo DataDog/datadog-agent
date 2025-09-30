@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 )
 
@@ -40,7 +41,7 @@ type PodDisruptionBudgetCollector struct {
 // NewPodDisruptionBudgetCollectorVersion creates a new collector for the Kubernetes Pod Disruption Budget
 // resource.
 func NewPodDisruptionBudgetCollectorVersion(metadataAsTags utils.MetadataAsTags) *PodDisruptionBudgetCollector {
-	resourceType := getResourceType(podDisruptionBudgetName, podDisruptionBudgetVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.PodDisruptionBudgetName, utilTypes.PodDisruptionBudgetVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -53,10 +54,10 @@ func NewPodDisruptionBudgetCollectorVersion(metadataAsTags utils.MetadataAsTags)
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 podDisruptionBudgetName,
+			Name:                                 utilTypes.PodDisruptionBudgetName,
 			Kind:                                 kubernetes.PodDisruptionBudgetKind,
 			NodeType:                             orchestrator.K8sPodDisruptionBudget,
-			Version:                              podDisruptionBudgetVersion,
+			Version:                              utilTypes.PodDisruptionBudgetVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
@@ -95,7 +96,7 @@ func (c *PodDisruptionBudgetCollector) Run(rcfg *collectors.CollectorRunConfig) 
 func (c *PodDisruptionBudgetCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -103,7 +104,7 @@ func (c *PodDisruptionBudgetCollector) Process(rcfg *collectors.CollectorRunConf
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

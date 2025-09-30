@@ -24,8 +24,8 @@ const (
 func instrumentationVersion(v string) (version, error) {
 	switch v {
 	case "v1":
-		log.Warn("autoinstrumentation version=v1 is deprecated, defaulting to v2")
-		return instrumentationV2, nil
+		log.Warn("autoinstrumentation version=v1 is deprecated, please consider migrating to version=v2")
+		return instrumentationV1, nil
 	case "v2":
 		return instrumentationV2, nil
 	default:

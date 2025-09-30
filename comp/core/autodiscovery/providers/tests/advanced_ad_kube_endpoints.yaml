@@ -1,0 +1,10 @@
+advanced_ad_identifiers:
+  - kube_endpoints:
+      name: svc-name
+      namespace: svc-ns
+      resolve: ip
+
+init_config:
+
+instances:
+  - foo: bar

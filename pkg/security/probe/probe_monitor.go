@@ -136,6 +136,12 @@ func (m *EBPFMonitors) SendStats() error {
 				return fmt.Errorf("failed to send process_resolver stats: %w", err)
 			}
 		}
+
+		if resolvers.FileMetadataResolver != nil {
+			if err := resolvers.FileMetadataResolver.SendStats(); err != nil {
+				return fmt.Errorf("failed to send file_resolver stats: %w", err)
+			}
+		}
 	}
 
 	if err := m.eventStreamMonitor.SendStats(); err != nil {

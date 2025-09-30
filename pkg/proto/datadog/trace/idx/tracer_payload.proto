@@ -20,8 +20,8 @@ message TraceChunk {
 	bool droppedTrace = 5;
 	// traceID specifies the ID of the trace to which all spans in this chunk belong.
 	bytes traceID = 6;
-	// decisionMakerRef specifies the string table ref of the optional string decision maker (previously span tag _dd.p.dm)
-	uint32 decisionMakerRef = 7;
+	// samplingMechanism specifies the optional sampling mechanism (previously part of span tag _dd.p.dm)
+	uint32 samplingMechanism = 7;
 }
 
 // TracerPayload represents a payload the trace agent receives from tracers.
@@ -39,14 +39,13 @@ message TracerPayload {
 	// runtimeIDRef specifies the string table ref of the V4 UUID representation of a tracer session.
 	uint32 runtimeIDRef = 6;
 	// envRef specifies the string table ref of the `env` tag that set with the tracer.
-	uint32 envRef = 8;
+	uint32 envRef = 7;
 	// hostnameRef specifies the string table ref of the hostname of where the tracer is running.
-	uint32 hostnameRef = 9;
-	// versionRef specifies the string table ref of the `version` tag that set with the tracer.
-	uint32 versionRef = 10;
+	uint32 hostnameRef = 8;
+	// appVersionRef specifies the string table ref of the `version` tag set in the tracer.
+	uint32 appVersionRef = 9;
 	// a collection of key to value pairs common in all `chunks`
-	map<uint32, AnyValue> attributes = 11;
+	map<uint32, AnyValue> attributes = 10;
 	// chunks specifies list of containing trace chunks.
-	repeated TraceChunk chunks = 12;
-
+	repeated TraceChunk chunks = 11;
 }

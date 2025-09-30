@@ -121,10 +121,11 @@ func TestParseUri(t *testing.T) {
 			expectedClassPathLocations: map[string][]string{},
 		},
 	}
-	parser := newSpringBootParser(NewDetectionContext(nil, envs.NewVariables(nil), fstest.MapFS(nil)))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fsLocs, cpLocs := parser.parseURI(strings.Split(tt.locations, ";"), tt.configName, tt.profiles, tt.cwd)
+			envs := envs.NewVariables(map[string]string{"PWD": tt.cwd})
+			parser := newSpringBootParser(NewDetectionContext(nil, envs, fstest.MapFS(nil)))
+			fsLocs, cpLocs := parser.parseURI(strings.Split(tt.locations, ";"), tt.configName, tt.profiles)
 			require.Equal(t, tt.expectedFileSystemLocations, fsLocs)
 			require.Equal(t, tt.expectedClassPathLocations, cpLocs)
 		})

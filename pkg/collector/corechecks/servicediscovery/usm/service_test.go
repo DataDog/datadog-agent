@@ -53,10 +53,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 		envs                        map[string]string
 		lang                        language.Language
 		expectedGeneratedName       string
-		expectedDDService           string
 		expectedAdditionalServices  []string
 		expectedGeneratedNameSource ServiceNameSource
-		ddServiceInjected           bool
 		fs                          *SubDirFS
 		skipOnWindows               bool
 	}{
@@ -75,26 +73,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"./my-server.sh",
 			},
-			expectedGeneratedName:       "my-server",
-			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			name: "single arg executable with DD_SERVICE",
-			cmdline: []string{
-				"./my-server.sh",
-			},
-			envs:                        map[string]string{"DD_SERVICE": "my-service"},
-			expectedDDService:           "my-service",
-			expectedGeneratedName:       "my-server",
-			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			name: "single arg executable with DD_TAGS",
-			cmdline: []string{
-				"./my-server.sh",
-			},
-			envs:                        map[string]string{"DD_TAGS": "service:my-service"},
-			expectedDDService:           "my-service",
 			expectedGeneratedName:       "my-server",
 			expectedGeneratedNameSource: CommandLine,
 		},
@@ -162,6 +140,42 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			lang:                        language.Ruby,
 			expectedGeneratedName:       "td-agent",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "ruby - puma with app name in brackets",
+			cmdline: []string{
+				"puma", "6.4.3", "(unix:///var/opt/app/sockets/app.socket,tcp://127.0.0.1:8080)", "[app-worker]",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "app-worker",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "ruby - puma cluster worker with app name",
+			cmdline: []string{
+				"puma:", "cluster", "worker", "0:", "15381", "[app-worker]",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "app-worker",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "ruby - puma with simple app name",
+			cmdline: []string{
+				"puma", "6.6.0", "(tcp://localhost:8080)", "[app]",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "ruby - puma without app name",
+			cmdline: []string{
+				"puma", "6.6.0", "(tcp://localhost:8080)",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "puma",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -535,21 +549,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/java", "-Ddd.service=custom", "-jar", "app.jar",
 			},
 			lang:                        language.Java,
-			expectedDDService:           "custom",
-			expectedGeneratedName:       "app",
-			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			// The system property takes priority over the environment variable, see
-			// https://docs.datadoghq.com/tracing/trace_collection/library_config/java/
-			name: "java with dd_service as system property and DD_SERVICE",
-			cmdline: []string{
-				"/usr/bin/java", "-Ddd.service=dd-service-from-property", "-jar", "app.jar",
-			},
-			lang:                        language.Java,
-			envs:                        map[string]string{"DD_SERVICE": "dd-service-from-env"},
-			expectedDDService:           "dd-service-from-property",
-			expectedGeneratedName:       "app",
+			expectedGeneratedName:       "custom",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -626,8 +626,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"swoole-server.php",
 			},
 			lang:                        language.PHP,
-			expectedDDService:           "foo",
-			expectedGeneratedName:       "php",
+			expectedGeneratedName:       "foo",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -669,34 +668,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedGeneratedName:       "php8",
 			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			name:                        "DD_SERVICE_set_manually",
-			cmdline:                     []string{"java", "-jar", "Foo.jar"},
-			lang:                        language.Java,
-			envs:                        map[string]string{"DD_SERVICE": "howdy"},
-			expectedDDService:           "howdy",
-			expectedGeneratedName:       "Foo",
-			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			name:                        "DD_SERVICE_set_manually_tags",
-			cmdline:                     []string{"java", "-jar", "Foo.jar"},
-			lang:                        language.Java,
-			envs:                        map[string]string{"DD_TAGS": "service:howdy"},
-			expectedDDService:           "howdy",
-			expectedGeneratedName:       "Foo",
-			expectedGeneratedNameSource: CommandLine,
-		},
-		{
-			name:                        "DD_SERVICE_set_manually_injection",
-			cmdline:                     []string{"java", "-jar", "Foo.jar"},
-			lang:                        language.Java,
-			envs:                        map[string]string{"DD_SERVICE": "howdy", "DD_INJECTION_ENABLED": "tracer,service_name"},
-			expectedDDService:           "howdy",
-			expectedGeneratedName:       "Foo",
-			expectedGeneratedNameSource: CommandLine,
-			ddServiceInjected:           true,
 		},
 		{
 			name: "gunicorn simple",
@@ -827,6 +798,83 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedName:       "airflow-webserver",
 			expectedGeneratedNameSource: CommandLine,
 		},
+		{
+			name: "uvicorn with first arg",
+			cmdline: []string{
+				"/usr/local/bin/python",
+				"/usr/local/bin/uvicorn",
+				"myapp.asgi:application",
+				"--host=0.0.0.0",
+				"--port=8000",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "myapp.asgi",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with middle args",
+			cmdline: []string{
+				"/app/.venv/bin/python3",
+				"/app/.venv/bin/uvicorn",
+				"--factory",
+				"--host=0.0.0.0",
+				"--port=8000",
+				"app:create_app",
+				"--workers=4",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with header",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"--header=X-Foo:Bar",
+				"api.v1.app:app",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "api.v1.app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with header separate",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"--header",
+				"X-Foo:Bar",
+				"api.v1.app:app",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "api.v1.app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with header separate last",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"api.v1.app:app",
+				"--header",
+				"X-Foo:Bar",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "api.v1.app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn unknown",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"foo",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "uvicorn",
+			expectedGeneratedNameSource: CommandLine,
+		},
 	}
 
 	for _, tt := range tests {
@@ -839,14 +887,12 @@ func TestExtractServiceMetadata(t *testing.T) {
 			ctx := NewDetectionContext(tt.cmdline, envs.NewVariables(tt.envs), fs)
 			ctx.ContextMap = make(DetectorContextMap)
 			meta, ok := ExtractServiceMetadata(tt.lang, ctx)
-			if len(tt.expectedGeneratedName) == 0 && len(tt.expectedDDService) == 0 {
+			if len(tt.expectedGeneratedName) == 0 {
 				require.False(t, ok)
 			} else {
 				require.True(t, ok)
-				require.Equal(t, tt.expectedDDService, meta.DDService)
 				require.Equal(t, tt.expectedGeneratedName, meta.Name)
 				require.Equal(t, tt.expectedAdditionalServices, meta.AdditionalNames)
-				require.Equal(t, tt.ddServiceInjected, meta.DDServiceInjected)
 				require.Equal(t, tt.expectedGeneratedNameSource, meta.Source)
 			}
 		})

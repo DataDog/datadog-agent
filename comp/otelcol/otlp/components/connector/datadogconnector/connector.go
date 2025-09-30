@@ -6,26 +6,30 @@ package datadogconnector // import "github.com/DataDog/datadog-agent/comp/otelco
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor"
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
+	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
+
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
 
 // traceToMetricConnector is the schema for connector
@@ -69,6 +73,7 @@ func getTraceAgentCfg(logger *zap.Logger, cfg datadogconfig.TracesConnectorConfi
 	acfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	acfg.OTLPReceiver.SpanNameRemappings = cfg.SpanNameRemappings
 	acfg.OTLPReceiver.SpanNameAsResourceName = cfg.SpanNameAsResourceName
+	acfg.OTLPReceiver.IgnoreMissingDatadogFields = cfg.IgnoreMissingDatadogFields
 	acfg.Ignore["resource"] = cfg.IgnoreResources
 	acfg.ComputeStatsBySpanKind = cfg.ComputeStatsBySpanKind
 	acfg.PeerTagsAggregation = cfg.PeerTagsAggregation

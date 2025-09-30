@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type DaemonSetCollector struct {
 // NewDaemonSetCollector creates a new collector for the Kubernetes DaemonSet
 // resource.
 func NewDaemonSetCollector(metadataAsTags utils.MetadataAsTags) *DaemonSetCollector {
-	resourceType := getResourceType(daemonSetName, daemonSetVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.DaemonSetName, utilTypes.DaemonSetVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewDaemonSetCollector(metadataAsTags utils.MetadataAsTags) *DaemonSetCollec
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 daemonSetName,
+			Name:                                 utilTypes.DaemonSetName,
 			Kind:                                 kubernetes.DaemonSetKind,
 			NodeType:                             orchestrator.K8sDaemonSet,
-			Version:                              daemonSetVersion,
+			Version:                              utilTypes.DaemonSetVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
@@ -92,7 +93,7 @@ func (c *DaemonSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 func (c *DaemonSetCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -100,7 +101,7 @@ func (c *DaemonSetCollector) Process(rcfg *collectors.CollectorRunConfig, list i
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

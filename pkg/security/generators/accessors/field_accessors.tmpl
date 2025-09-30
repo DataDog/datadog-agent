@@ -11,6 +11,7 @@ package {{.Name}}
 import (
     "net"
     "time"
+    "fmt"
 
     "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -146,3 +147,36 @@ func (ev *Event) {{$getter}}() {{ $accessorReturnType }} {
     {{end}}
 }
 {{end}}
+
+// ValidateFileField validates that GetFileField would return a valid FileEvent
+func (e *Event) ValidateFileField(field string) error {
+	switch field {
+    {{range $Field := .FileFields }}
+    case {{ $Field.Name | quote }}:
+        return nil
+    {{end}}
+
+	default:
+		return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
+	}
+}
+
+// GetFileField returns the FileEvent associated with a field name
+func (e *Event) GetFileField(field string) (*FileEvent, error) {
+	switch field {
+    {{range $Field := .FileFields }}
+    case {{ $Field.Name | quote }}:
+        {{$Checks := $Field.StructField | GetFileFieldCheck $.AllFields}}
+        {{range $Check := $Checks}}
+            {{$Check = $Check | printf "e.%s"}}
+            if !{{$Check}}() {
+                return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+            }
+        {{end}}
+        return &e.{{ $Field.StructField }}, nil
+    {{end}}
+
+	default:
+		return nil, fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
+	}
+}

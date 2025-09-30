@@ -20,10 +20,10 @@ license "Apache-2.0"
 license_file "LICENSE.txt"
 skip_transitive_dependency_licensing true
 
-dependency "zlib"
+dependency "zlib" unless windows?
 dependency "cacerts"
 
-default_version "3.4.1"
+default_version "3.5.2"
 
 source url: "https://www.openssl.org/source/openssl-#{version}.tar.gz", extract: :lax_tar
 
@@ -39,11 +39,16 @@ version("3.3.1") { source sha256: "777cd596284c883375a2a7a11bf5d2786fc5413255efa
 version("3.3.2") { source sha256: "2e8a40b01979afe8be0bbfb3de5dc1c6709fedb46d6c89c10da114ab5fc3d281" }
 version("3.4.0") { source sha256: "e15dda82fe2fe8139dc2ac21a36d4ca01d5313c75f99f46c4e8a27709b7294bf" }
 version("3.4.1") { source sha256: "002a2d6b30b58bf4bea46c43bdd96365aaf8daa6c428782aa4feee06da197df3" }
+version("3.5.2") { source sha256: "c53a47e5e441c930c3928cf7bf6fb00e5d129b630e0aa873b08258656e7345ec" }
+
 
 relative_path "openssl-#{version}"
 
 build do
-  patch source: "0001-fix-preprocessor-concatenation.patch"
+  if version != "3.5.2"
+    # Patch is no longer needed in 3.5.2, keeping it in for backwards compatibility
+    patch source: "0001-fix-preprocessor-concatenation.patch"
+  end
 
   env = with_standard_compiler_flags(with_embedded_path)
   if windows?
@@ -60,7 +65,7 @@ build do
   configure_args = []
   if mac_os_x?
     configure_cmd = "./Configure"
-    configure_args << "darwin64-x86_64-cc"
+    configure_args << "darwin64-#{arm_target? ? "arm64" : "x86_64"}-cc"
   elsif windows?
     configure_cmd = "perl.exe ./Configure"
     configure_args << (windows_arch_i386? ? "mingw" : "mingw64")
@@ -69,8 +74,6 @@ build do
   end
 
   configure_args << [
-    "--with-zlib-lib=#{install_dir}/embedded/lib",
-    "--with-zlib-include=#{install_dir}/embedded/include",
     "--libdir=lib",
     "no-idea",
     "no-mdc2",
@@ -81,21 +84,32 @@ build do
   ]
 
   if windows?
-    configure_args << "zlib-dynamic"
+    configure_args << [
+      "--prefix=#{python_3_embedded}",
+      "no-zlib",
+      "no-uplink",
+    ]
     if ENV["AGENT_FLAVOR"] == "fips"
       configure_args << '--openssldir="C:/Program Files/Datadog/Datadog Agent/embedded3/ssl"'
       # Provide a context name for our configuration through the registry
       configure_args << "-DOSSL_WINCTX=datadog-fips-agent"
     end
   else
-    configure_args << "zlib"
+    configure_args << [
+      "--prefix=#{install_dir}/embedded",
+      "--with-zlib-lib=#{install_dir}/embedded/lib",
+      "--with-zlib-include=#{install_dir}/embedded/include",
+      "zlib",
+    ]
   end
 
   # Out of abundance of caution, we put the feature flags first and then
   # the crazy platform specific compiler flags at the end.
   configure_args << env["CFLAGS"] << env["LDFLAGS"]
 
-  configure(*configure_args, bin: configure_cmd, env: env, no_build_triplet: true)
+  # We don't use the regular configure wrapper function here since openssl's configure
+  # is not the usual autoconf configure but something handmade written in perl
+  command "#{configure_cmd} #{configure_args.join(' ')}", env: env
 
   command "make depend", env: env
   command "make -j #{workers}", env: env
@@ -107,6 +121,5 @@ build do
     delete "#{install_dir}/embedded/lib/libcrypto.a"
     delete "#{install_dir}/embedded/lib/libssl.a"
   else
-    copy "ms/applink.c", "#{install_dir}/embedded3/include/openssl"
   end
 end

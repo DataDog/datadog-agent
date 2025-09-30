@@ -16,10 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
+	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"gopkg.in/yaml.v3"
 )
 
 //
@@ -55,9 +57,9 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 
 // GetPayload builds a payload of all the agentchecks metadata
 func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
-	hostnameData, _ := hostname.Get(ctx)
+	hostnameData, _ := c.hostname.Get(ctx)
 
-	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config)
+	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config, c.hostname)
 	meta.Hostname = hostnameData
 
 	cp := hostMetadataUtils.GetCommonPayload(hostnameData, c.config)
@@ -70,18 +72,26 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	checkStats := expvars.GetCheckStats()
 	for _, stats := range checkStats {
 		for _, s := range stats {
+			integrationTags := []string{}
+			if check, found := c.get(s.CheckID); found {
+				var err error
+				integrationTags, err = collectTags(check.InstanceConfig())
+				if err != nil {
+					log.Infof("Error collecting tags from check %s: %v", check, err)
+				}
+			}
 			var status []interface{}
 			if s.LastError != "" {
 				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "ERROR", s.LastError, "",
+					s.CheckName, s.CheckName, s.CheckID, "ERROR", s.LastError, "", integrationTags,
 				}
 			} else if len(s.LastWarnings) != 0 {
 				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "WARNING", s.LastWarnings, "",
+					s.CheckName, s.CheckName, s.CheckID, "WARNING", s.LastWarnings, "", integrationTags,
 				}
 			} else {
 				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "OK", "", "",
+					s.CheckName, s.CheckName, s.CheckID, "OK", "", "", integrationTags,
 				}
 			}
 			payload.AgentChecks = append(payload.AgentChecks, status)
@@ -95,7 +105,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 			log.Warnf("Error formatting loader error from check %s: %v", check, err)
 		}
 		status := []interface{}{
-			check, check, "initialization", "ERROR", string(jsonErrs),
+			check, check, "initialization", "ERROR", string(jsonErrs), []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
@@ -103,7 +113,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	configErrors := autodiscoveryimpl.GetConfigErrors()
 	for check, e := range configErrors {
 		status := []interface{}{
-			check, check, "initialization", "ERROR", e,
+			check, check, "initialization", "ERROR", e, []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
@@ -111,11 +121,70 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	jmxStartupError := jmxStatus.GetStartupError()
 	if jmxStartupError.LastError != "" {
 		status := []interface{}{
-			"jmx", "jmx", "initialization", "ERROR", jmxStartupError.LastError,
+			"jmx", "jmx", "initialization", "ERROR", jmxStartupError.LastError, []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
 
+	stats := map[string]interface{}{}
+	jmxStatus.PopulateStatus(stats)
+	instanceConfByName := map[string]interface{}{}
+	for _, config := range jmxfetch.GetScheduledConfigs() {
+		for _, instance := range config.Instances {
+			instanceconfig := map[interface{}]interface{}{}
+			err := yaml.Unmarshal(instance, &instanceconfig)
+			if err != nil {
+				log.Errorf("invalid instance section: %s", err)
+				continue
+			}
+			if tagsNode, ok := instanceconfig["tags"]; ok {
+				if instanceName, ok := instanceconfig["name"].(string); ok {
+					instanceConfByName[instanceName] = tagsNode
+				}
+			}
+		}
+	}
+
+	if _, ok := stats["JMXStatus"]; ok {
+		if status, ok := stats["JMXStatus"].(jmxStatus.Status); ok {
+			for checkName, checksRaw := range status.ChecksStatus.InitializedChecks {
+				checks, ok := checksRaw.([]interface{})
+				if !ok {
+					continue
+				}
+				for _, checkRaw := range checks {
+					var tags interface{}
+					check, ok := checkRaw.(map[string]interface{})
+					// The default check status is OK, so if there is no status, it means the check is OK
+					if !ok {
+						continue
+					}
+					checkStatus, ok := check["status"].(string)
+					if !ok {
+						checkStatus = "OK"
+					}
+					checkID, ok := check["instance_name"].(string)
+					if !ok {
+						checkID = checkName
+					} else {
+						if tags, ok = instanceConfByName[checkID]; !ok {
+							tags = []string{}
+						}
+						checkID = fmt.Sprintf("%s:%s", checkName, checkID)
+					}
+					checkError, ok := check["message"].(string)
+					if !ok {
+						checkError = ""
+					}
+
+					status := []interface{}{
+						checkName, checkName, checkID, checkStatus, checkError, "", tags,
+					}
+					payload.AgentChecks = append(payload.AgentChecks, status)
+				}
+			}
+		}
+	}
 	return payload
 }
 
@@ -135,4 +204,32 @@ func (c *collectorImpl) collectMetadata(ctx context.Context) time.Duration {
 		c.log.Errorf("unable to submit agentchecks metadata payload, %s", err)
 	}
 	return defaultInterval
+}
+
+func collectTags(config string) ([]string, error) {
+	if config == "" {
+		return []string{}, nil
+	}
+
+	var instanceconfig map[interface{}]interface{}
+	unmarshalErr := yaml.Unmarshal([]byte(config), &instanceconfig)
+	if unmarshalErr != nil {
+		return []string{}, unmarshalErr
+	}
+
+	if tagsNode, ok := instanceconfig["tags"]; ok {
+		if tags, ok := tagsNode.(string); ok {
+			return []string{tags}, nil
+		}
+		if tags, ok := tagsNode.([]interface{}); ok {
+			out := make([]string, 0, len(tags))
+			for _, tag := range tags {
+				out = append(out, tag.(string))
+			}
+			return out, nil
+		}
+	}
+
+	return []string{}, nil
+
 }

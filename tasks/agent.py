@@ -15,12 +15,14 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -45,15 +47,7 @@ if sys.platform == "win32":
     # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
     # This dir contains `aws.rb` which will execute if we just call `aws`,
     # so we need to be explicit about the executable extension/path
-    # NOTE: awscli seems to have a bug where running "aws.cmd", quoted, without a full path,
-    #       causes it to fail due to not searching the PATH.
-    # NOTE: The full path to `aws.cmd` is likely to contain spaces, so if the full path is
-    #       used instead, it must be quoted when passed to ctx.run.
-    # This unfortunately means that the quoting requirements are different if you use
-    # the full path or just the filename.
-    # aws.cmd -> awscli v1 from Python env
-    AWS_CMD = "aws.cmd"
-    # TODO: can we use use `aws.exe` from AWSCLIv2? E2E expects v2.
+    AWS_CMD = "aws.exe"
 else:
     AWS_CMD = "aws"
 
@@ -87,9 +81,10 @@ AGENT_CORECHECKS = [
     "orchestrator_ecs",
     "cisco_sdwan",
     "network_path",
-    "service_discovery",
     "gpu",
     "wlan",
+    "discovery",
+    "versa",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -98,6 +93,7 @@ WINDOWS_CORECHECKS = [
     "windows_registry",
     "winkmem",
     "wincrashdetect",
+    "windows_certificate",
     "winproc",
     "win32_event_log",
 ]
@@ -156,10 +152,6 @@ def build(
         dda inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
-
-    if flavor.is_ot():
-        # for agent build purposes the UA agent is just like base
-        flavor = AgentFlavor.base
 
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
@@ -221,28 +213,27 @@ def build(
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
 
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
-
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
 
     if include_sds:
         build_tags.append("sds")
 
-    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
-    args = {
-        "go_mod": go_mod,
-        "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
-        "go_build_tags": " ".join(build_tags),
-        "agent_bin": agent_bin,
-        "gcflags": gcflags,
-        "ldflags": ldflags,
-        "REPO_PATH": REPO_PATH,
-        "flavor": "iot-agent" if flavor.is_iot() else "agent",
-    }
+    flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
     with gitlab_section("Build agent", collapsed=True):
-        ctx.run(cmd.format(**args), env=env)
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/{flavor_cmd}",
+            mod=go_mod,
+            env=env,
+            bin_path=agent_bin,
+            race=race,
+            rebuild=rebuild,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        )
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
@@ -336,7 +327,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
 
     # System probe not supported on windows
-    if sys.platform.startswith('linux') or windows_sysprobe:
+    if sys.platform != 'win32' or windows_sysprobe:
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
@@ -460,16 +451,27 @@ def hacky_dev_image_build(
     target_image="agent",
     process_agent=False,
     trace_agent=False,
+    system_probe=False,
     push=False,
+    race=False,
     signed_pull=False,
+    arch=None,
+    development=True,
 ):
+    if arch is None:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+
+    if arch is None:
+        print("Unable to determine architecture to build, please set `arch`", file=sys.stderr)
+        raise Exit(code=1)
+
     if base_image is None:
         import requests
         import semver
 
         # Try to guess what is the latest release of the agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list")
+        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list", timeout=10)
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -483,15 +485,18 @@ def hacky_dev_image_build(
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:
         ctx.run(
-            f"docker run --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
+            f"docker run --platform linux/{arch} --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
         )
 
-        os.environ["DELVE"] = "1"
+        if development:
+            os.environ["DELVE"] = "1"
         os.environ["LD_LIBRARY_PATH"] = (
             os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
         )
         build(
             ctx,
+            race=race,
+            development=development,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(
@@ -509,6 +514,12 @@ def hacky_dev_image_build(
 
         trace_agent_build(ctx)
         copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
+
+    if system_probe:
+        from tasks.system_probe import build as system_probe_build
+
+        system_probe_build(ctx)
+        copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -574,7 +585,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build --platform linux/{arch} -t {target_image} -f {dockerfile.name} .', env=pull_env)
 
         if push:
             ctx.run(f'docker push {target_image}')
@@ -611,7 +622,16 @@ def check_supports_python_version(check_dir, python):
         if 'requires-python' not in project_metadata:
             return True
 
-        specifier = SpecifierSet(project_metadata['requires-python'])
+        requires_python = project_metadata['requires-python']
+        # Handle malformed requires-python values (e.g., just ">=" without version)
+        if not requires_python or requires_python.strip() in ['>=', '>', '<=', '<', '==', '!=', '~=', '===']:
+            return True
+
+        try:
+            specifier = SpecifierSet(requires_python)
+        except Exception:
+            # If the specifier is malformed, assume it supports the Python version
+            return True
         # It might be e.g. `>=3.8` which would not immediatelly contain `3`
         for minor_version in range(100):
             if specifier.contains(f'{python}.{minor_version}'):
@@ -642,12 +662,11 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
     """
     import json
 
-    excluded = excluded.split(',')
     integrations = []
 
     for entry in os.listdir(integrations_dir):
         int_path = os.path.join(integrations_dir, entry)
-        if not os.path.isdir(int_path) or entry in excluded:
+        if not os.path.isdir(int_path) or entry in excluded.split(','):
             continue
 
         manifest_file_path = os.path.join(int_path, "manifest.json")
@@ -880,5 +899,4 @@ def build_remote_agent(ctx, env=None):
     """
     Builds the remote-agent example client.
     """
-    cmd = "go build -v -o bin/remote-agent ./internal/remote-agent"
-    return ctx.run(cmd, env=env or {})
+    return go_build(ctx, "./internal/remote-agent", verbose=True, bin_path="bin/remote-agent", env=env or {})

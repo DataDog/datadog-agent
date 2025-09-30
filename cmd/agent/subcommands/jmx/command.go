@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -35,10 +34,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
@@ -112,7 +114,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		params := core.BundleParams{
 			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 			SecretParams: secrets.NewEnabledParams(),
-			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
+			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false),
+		}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
 		}
@@ -130,9 +133,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
 			grpcNonefx.Module(),
-			authtokenimpl.Module(),
 			fx.Supply(option.None[collector.Component]()),
 			fx.Supply(option.None[integrations.Component]()),
+			workloadfilterfx.Module(),
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
 			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
@@ -146,6 +149,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			haagentfx.Module(),
 			logscompression.Module(),
 			metricscompression.Module(),
+			ipcfx.ModuleReadOnly(),
 		)
 	}
 
@@ -285,7 +289,8 @@ func runJmxCommandConsole(config config.Component,
 	collector option.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
 	logReceiver option.Option[integrations.Component],
-	tagger tagger.Component) error {
+	tagger tagger.Component,
+	ipc ipc.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
@@ -297,7 +302,7 @@ func runJmxCommandConsole(config config.Component,
 	}
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(secretResolver, wmeta, ac, config.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, tagger, ac, config.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
@@ -319,7 +324,7 @@ func runJmxCommandConsole(config config.Component,
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, agentAPI, jmxLogger)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, agentAPI, jmxLogger, ipc)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

@@ -30,7 +30,7 @@ func TestDump(t *testing.T) {
 		Resources: wmdef.ContainerResources{
 			GPUVendorList: []string{"nvidia"},
 		},
-		AllocatedResources: []wmdef.ContainerAllocatedResource{
+		ResolvedAllocatedResources: []wmdef.ContainerAllocatedResource{
 			{Name: "nvidia.com/gpu", ID: "GPU-1234"},
 		},
 		Runtime:       wmdef.ContainerRuntimeDocker,

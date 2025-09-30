@@ -5,6 +5,7 @@
 
 //go:build systemd
 
+// Package journald provides journald-based log launchers (no-op for non-systemd builds)
 package journald
 
 import (
@@ -17,31 +18,23 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/journald"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 type MockJournal struct{}
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (m *MockJournal) AddMatch(match string) error { return nil }
-func (m *MockJournal) AddDisjunction() error       { return nil }
-func (m *MockJournal) SeekTail() error             { return nil }
-func (m *MockJournal) SeekHead() error             { return nil }
-
-//nolint:revive // TODO(AML) Fix revive linter
-func (m *MockJournal) Wait(timeout time.Duration) int { return 0 }
-
-//nolint:revive // TODO(AML) Fix revive linter
-func (m *MockJournal) SeekCursor(cursor string) error { return nil }
-
-//nolint:revive // TODO(AML) Fix revive linter
-func (m *MockJournal) NextSkip(skip uint64) (uint64, error)       { return 0, nil }
+func (m *MockJournal) AddMatch(_ string) error                    { return nil }
+func (m *MockJournal) AddDisjunction() error                      { return nil }
+func (m *MockJournal) SeekTail() error                            { return nil }
+func (m *MockJournal) SeekHead() error                            { return nil }
+func (m *MockJournal) Wait(_ time.Duration) int                   { return 0 }
+func (m *MockJournal) SeekCursor(_ string) error                  { return nil }
+func (m *MockJournal) NextSkip(_ uint64) (uint64, error)          { return 0, nil }
 func (m *MockJournal) Close() error                               { return nil }
 func (m *MockJournal) Next() (uint64, error)                      { return 0, nil }
 func (m *MockJournal) Previous() (uint64, error)                  { return 0, nil }
@@ -55,8 +48,7 @@ func (s *MockJournalFactory) NewJournal() (tailer.Journal, error) {
 	return &MockJournal{}, nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (s *MockJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
+func (s *MockJournalFactory) NewJournalFromPath(_ string) (tailer.Journal, error) {
 	return &MockJournal{}, nil
 }
 
@@ -66,7 +58,7 @@ func newTestLauncher(t *testing.T) *Launcher {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	launcher := NewLauncherWithFactory(&MockJournalFactory{}, flare.NewFlareController(), fakeTagger)
-	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditor.New("", "registry.json", time.Hour, health.RegisterLiveness("fake")), tailers.NewTailerTracker())
+	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditorMock.NewMockRegistry(), tailers.NewTailerTracker())
 	return launcher
 }
 
@@ -116,8 +108,8 @@ func TestMultipleTailersOnSamePath(t *testing.T) {
 func TestMultipleTailersSamePathWithId(t *testing.T) {
 	launcher := newTestLauncher(t)
 
-	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{Path: "/foo/bar", ConfigId: "foo"})
-	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar", ConfigId: "bar"})
+	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{Path: "/foo/bar", ConfigID: "foo"})
+	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar", ConfigID: "bar"})
 
 	launcher.stop <- struct{}{}
 
@@ -127,8 +119,8 @@ func TestMultipleTailersSamePathWithId(t *testing.T) {
 func TestMultipleTailersWithId(t *testing.T) {
 	launcher := newTestLauncher(t)
 
-	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{ConfigId: "foo"})
-	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{ConfigId: "bar"})
+	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{ConfigID: "foo"})
+	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{ConfigID: "bar"})
 
 	launcher.stop <- struct{}{}
 

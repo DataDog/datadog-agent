@@ -50,11 +50,13 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 
 	scanner, err := globalutils.NewScanner(regexp.MustCompile(`.*started \(kafka.server.KafkaRaftServer\).*`), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
-	dockerCfg := dockerutils.NewComposeConfig("kafka",
-		dockerutils.DefaultTimeout,
-		dockerutils.DefaultRetries,
-		scanner,
-		env,
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"kafka",
+			scanner,
+			dockerutils.WithEnv(env),
+		),
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	return dockerutils.Run(t, dockerCfg)
 }

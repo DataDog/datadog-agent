@@ -58,11 +58,12 @@ func NewController(
 	pa workload.PodPatcher,
 	datadogConfig config.Component,
 	demultiplexer demultiplexer.Component,
+	imageResolver autoinstrumentation.ImageResolver,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer, imageResolver)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer, imageResolver)
 }
 
 // Webhook represents an admission webhook
@@ -90,6 +91,8 @@ type Webhook interface {
 	MatchConditions() []admiv1.MatchCondition
 	// WebhookFunc runs the logic of the webhook and returns the admission response
 	WebhookFunc() admission.WebhookFunc
+	// Timeout returns the timeout for the webhook
+	Timeout() int32
 }
 
 // generateWebhooks returns the list of webhooks. The order of the webhooks returned
@@ -98,7 +101,7 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
+func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component, imageResolver autoinstrumentation.ImageResolver) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
 
@@ -141,7 +144,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	webhooks = append(webhooks, autoscalingWebhook)
 
 	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
-	apmWebhook, err := generateAutoInstrumentationWebhook(wmeta, datadogConfig)
+	apmWebhook, err := generateAutoInstrumentationWebhook(wmeta, datadogConfig, imageResolver)
 	if err != nil {
 		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	} else {
@@ -180,13 +183,13 @@ func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig c
 	return tagsfromlabels.NewWebhook(wmeta, datadogConfig, mutator), nil
 }
 
-func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*autoinstrumentation.Webhook, error) {
+func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, imageResolver autoinstrumentation.ImageResolver) (*autoinstrumentation.Webhook, error) {
 	config, err := autoinstrumentation.NewConfig(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
 	}
 
-	apm, err := autoinstrumentation.NewMutatorWithFilter(config, wmeta)
+	apm, err := autoinstrumentation.NewMutatorWithFilter(config, wmeta, imageResolver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
 	}

@@ -27,6 +27,35 @@ import (
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
+// DatadogInstallerRunner represents an interface for the Datadog Installer
+type DatadogInstallerRunner interface {
+	// type  helpers
+	SetBinaryPath(path string)
+
+	// subcommands
+	Version() (string, error)
+	SetCatalog(newCatalog Catalog) (string, error)
+	StartExperiment(packageName string, packageVersion string) (string, error)
+	PromoteExperiment(packageName string) (string, error)
+	StopExperiment(packageName string) (string, error)
+	InstallPackage(packageName string, opts ...installer.PackageOption) (string, error)
+	InstallExperiment(packageName string, opts ...installer.PackageOption) (string, error)
+	RemovePackage(packageName string) (string, error)
+	RemoveExperiment(packageName string) (string, error)
+	Status() (string, error)
+	Purge() (string, error)
+	GarbageCollect() (string, error)
+	SetConfigExperiment(config ConfigExperiment) (string, error)
+	StartConfigExperiment(packageName string, config ConfigExperiment) (string, error)
+	PromoteConfigExperiment(packageName string) (string, error)
+	StopConfigExperiment(packageName string) (string, error)
+
+	// MSI commands
+	// TODO: we should separate installation from the command line interface
+	Install(opts ...MsiOption) error
+	Uninstall(opts ...MsiOption) error
+}
+
 // DatadogInstaller represents an interface to the Datadog Installer on the remote host.
 type DatadogInstaller struct {
 	binaryPath          string
@@ -48,6 +77,11 @@ func NewDatadogInstaller(env *environments.WindowsHost, msiURL, outputDir string
 		outputDir:           outputDir,
 		defaultInstallerURL: msiURL,
 	}
+}
+
+// SetBinaryPath sets the path to the Datadog Installer binary.
+func (d *DatadogInstaller) SetBinaryPath(path string) {
+	d.binaryPath = path
 }
 
 func (d *DatadogInstaller) execute(cmd string, options ...client.ExecuteOption) (string, error) {
@@ -151,14 +185,20 @@ func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 	return d.execute(fmt.Sprintf("daemon set-catalog '%s'", catalog))
 }
 
+// ignoreEOF ignores EOF errors
+//
+// Prior to 7.68, the daemon kills the connection for daemon commands that restart the daemon.
+// Starting with 7.68, the daemon responds properly so the tests assert for it
+func ignoreEOF(err error) error {
+	if err != nil && strings.Contains(err.Error(), "EOF") {
+		return nil
+	}
+	return err
+}
+
 // StartExperiment will use the Datadog Installer service to start an experiment.
 func (d *DatadogInstaller) StartExperiment(packageName string, packageVersion string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon start-experiment '%s' '%s'", packageName, packageVersion))
-}
-
-// StartInstallerExperiment will use the Datadog Installer service to start an experiment
-func (d *DatadogInstaller) StartInstallerExperiment(packageName string, packageVersion string) (string, error) {
-	return d.execute(fmt.Sprintf("daemon start-installer-experiment '%s' '%s'", packageName, packageVersion))
 }
 
 // PromoteExperiment will use the Datadog Installer service to promote an experiment.
@@ -247,7 +287,7 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	}
 	msiArgList := params.msiArgs[:]
 	if params.agentUser != "" {
-		msiArgList = append(msiArgList, fmt.Sprintf("DDAGENTUSER_NAME=%s", params.agentUser))
+		msiArgList = append(msiArgList, fmt.Sprintf(`DDAGENTUSER_NAME="%s"`, params.agentUser))
 	}
 	msiArgs := ""
 	if msiArgList != nil {
@@ -319,7 +359,7 @@ func CreatePackageSourceIfLocal(host *components.RemoteHost, pkg TestPackageConf
 			return pkg, err
 		}
 		// Must replace slashes so that daemon can parse it correctly
-		outPath = strings.Replace(outPath, "\\", "/", -1)
+		outPath = strings.ReplaceAll(outPath, "\\", "/")
 		pkg.urloverride = fmt.Sprintf("file://%s", outPath)
 	}
 	return pkg, nil
@@ -439,7 +479,9 @@ func WithURLOverride(url string) PackageOption {
 func WithPipeline(pipeline string) PackageOption {
 	return func(params *TestPackageConfig) error {
 		params.Version = fmt.Sprintf("pipeline-%s", pipeline)
-		params.Registry = consts.PipelineOCIRegistry
+		if err := WithRegistry(consts.PipelineOCIRegistry)(params); err != nil {
+			return err
+		}
 		return nil
 	}
 }
@@ -507,4 +549,98 @@ func WithDevEnvOverrides(prefix string) PackageOption {
 		}
 		return nil
 	}
+}
+
+// SetConfigExperiment sets the config catalog for the Datadog Installer daemon.
+func (d *DatadogInstaller) SetConfigExperiment(config ConfigExperiment) (string, error) {
+	serializedConfig, err := json.Marshal(map[string]ConfigExperiment{
+		config.ID: config,
+	})
+	if err != nil {
+		return "", err
+	}
+	// Escape quotes in the JSON string to handle PowerShell quoting properly
+	configStr := strings.ReplaceAll(string(serializedConfig), `"`, `\"`)
+	return d.execute(fmt.Sprintf("daemon set-config-catalog '%s'", configStr))
+}
+
+// StartConfigExperiment starts a config experiment using the provided InstallerConfig through the daemon.
+// It first sets the config catalog and then starts the experiment.
+func (d *DatadogInstaller) StartConfigExperiment(packageName string, config ConfigExperiment) (string, error) {
+	// First set the config catalog
+	_, err := d.SetConfigExperiment(config)
+	if err != nil {
+		return "", err
+	}
+	// Then start the config experiment
+	return d.execute(fmt.Sprintf("daemon start-config-experiment %s %s", packageName, config.ID))
+}
+
+// PromoteConfigExperiment promotes a config experiment through the daemon.
+func (d *DatadogInstaller) PromoteConfigExperiment(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon promote-config-experiment %s", packageName))
+}
+
+// StopConfigExperiment stops a config experiment through the daemon.
+func (d *DatadogInstaller) StopConfigExperiment(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon stop-config-experiment %s", packageName))
+}
+
+// ConfigExperiment represents a configuration experiment for the Datadog Installer.
+type ConfigExperiment struct {
+	ID    string                 `json:"id"`
+	Files []ConfigExperimentFile `json:"files"`
+}
+
+// ConfigExperimentFile represents a configuration file in a config experiment.
+type ConfigExperimentFile struct {
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
+}
+
+// DatadogInstallerGA represents an interface to the Datadog Installer on the remote host for GA versions (7.65.x).
+// It handles special cases for the 7.65.x versions of the installer.
+//
+// We still check the version because the version may change during the test run, e.g. during MustStartExperiment,
+// so this type mainly serves to keep the special case logic out of the normal DatadogInstaller type so we don't
+// unintentially apply it to other tests.
+type DatadogInstallerGA struct {
+	*DatadogInstaller
+}
+
+// StartExperiment will use the Datadog Installer service to start an experiment.
+// For 7.65.x versions, it uses the start-installer-experiment subcommand.
+func (d *DatadogInstallerGA) StartExperiment(packageName string, packageVersion string) (string, error) {
+	if packageName == consts.AgentPackage {
+		ver, err := d.Version()
+		if err != nil {
+			return "", err
+		}
+		if strings.HasPrefix(ver, "7.65.") {
+			return d.StartInstallerExperiment(consts.AgentPackage, packageVersion)
+		}
+		out, err := d.DatadogInstaller.StartExperiment(packageName, packageVersion)
+		return out, ignoreEOF(err)
+	}
+	return d.DatadogInstaller.StartExperiment(packageName, packageVersion)
+}
+
+// StartInstallerExperiment will use the Datadog Installer service to start an experiment for the Agent package.
+//
+// Only needed for 7.65, future versions use the start-experiment subcommand instead.
+func (d *DatadogInstallerGA) StartInstallerExperiment(packageName string, packageVersion string) (string, error) {
+	out, err := d.execute(fmt.Sprintf("daemon start-installer-experiment '%s' '%s'", packageName, packageVersion))
+	return out, ignoreEOF(err)
+}
+
+// StopExperiment will use the Datadog Installer service to stop an experiment for the Agent package.
+//
+// Workarounds:
+// - ignore EOF errors
+func (d *DatadogInstallerGA) StopExperiment(packageName string) (string, error) {
+	out, err := d.DatadogInstaller.StopExperiment(packageName)
+	if packageName == consts.AgentPackage {
+		return out, ignoreEOF(err)
+	}
+	return out, err
 }

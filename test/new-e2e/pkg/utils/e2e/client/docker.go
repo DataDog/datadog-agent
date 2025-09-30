@@ -6,9 +6,13 @@
 package client
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -117,7 +121,7 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 		return "", "", fmt.Errorf("error when running command %v on container %v:\n   exit code: %d\n   stdout: %v\n   stderr: %v", commands, containerName, execInspectResp.ExitCode, stdout, stderr)
 	}
 
-	return stdout, stderr, err
+	return stdout, suppressGoCoverWarning(stderr), err
 }
 
 // ListContainers returns a list of container names.
@@ -147,4 +151,85 @@ func (docker *Docker) getContainerIDsByName() (map[string]string, error) {
 		}
 	}
 	return containersMap, nil
+}
+
+// DownloadFile downloads a file or directory from the container to the local filesystem.
+func (docker *Docker) DownloadFile(containerName, containerPath, localPath string) error {
+	docker.t.Logf("Downloading from container %s:%s to local path %s", containerName, containerPath, localPath)
+
+	ctx := context.Background()
+	reader, _, err := docker.client.CopyFromContainer(ctx, containerName, containerPath)
+	if err != nil {
+		return fmt.Errorf("failed to copy from container %s:%s: %w", containerName, containerPath, err)
+	}
+	defer reader.Close()
+
+	tarReader := tar.NewReader(reader)
+
+	// Process all entries in the tar archive
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar header: %w", err)
+		}
+
+		// Get the base name of the container path to strip it from entry names
+		baseName := filepath.Base(containerPath)
+		entryName := strings.TrimPrefix(header.Name, "./")
+
+		// For single files, use the localPath directly
+		// For directories, strip the top-level directory name and place contents under localPath
+		var target string
+		if header.Typeflag == tar.TypeReg && entryName == baseName {
+			// Single file case
+			target = localPath
+		} else {
+			// Directory case - strip the base directory name
+			if entryName == baseName || entryName == baseName+"/" {
+				// Skip the root directory entry itself
+				continue
+			}
+			if strings.HasPrefix(entryName, baseName+"/") {
+				entryName = strings.TrimPrefix(entryName, baseName+"/")
+			}
+			target = filepath.Join(localPath, entryName)
+		}
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", target, err)
+			}
+			docker.t.Logf("Created directory: %s", target)
+
+		case tar.TypeReg:
+			// Ensure parent directory exists
+			dir := filepath.Dir(target)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return fmt.Errorf("failed to create parent directory %s: %w", dir, err)
+			}
+
+			outFile, err := os.Create(target)
+			if err != nil {
+				return fmt.Errorf("failed to create file %s: %w", target, err)
+			}
+
+			_, err = io.Copy(outFile, tarReader)
+			closeErr := outFile.Close()
+			if err != nil {
+				return fmt.Errorf("failed to write file contents to %s: %w", target, err)
+			}
+			if closeErr != nil {
+				return fmt.Errorf("failed to close file %s: %w", target, closeErr)
+			}
+
+			docker.t.Logf("Created file: %s", target)
+		}
+	}
+
+	docker.t.Logf("Successfully downloaded to %s", localPath)
+	return nil
 }

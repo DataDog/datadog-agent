@@ -107,8 +107,10 @@ type Event struct {
 //
 // profiles[].metric.metrics[].name (required)
 // -------------------------------------------
-// Metric's full name typically in the form of "<metric group>.<metric name>".
-// It is required parameter to avoid emitting all available metrics unintentionally.
+// The full metric name is formatted as "<metric group>.<metric name>". In telemetry.NewGauge()
+// and similar APIs, "metric group" corresponds to the "subsystem" parameter, and "metric name"
+// corresponds to the "name" parameter. Do not use the "Options.NoDoubleUnderscoreSep" option
+// in these APIs, as it is not supported in agent telemetry.
 //
 // profiles[].metric.metrics[].aggregate_tags (optional)
 // -----------------------------------------------------
@@ -189,11 +191,20 @@ var defaultProfiles = `
   profiles:
   - name: checks
     metric:
+      exclude:
+        zero_metric: true
       metrics:
         - name: checks.execution_time
           aggregate_tags:
             - check_name
             - check_loader
+        - name: checks.delay
+          aggregate_tags:
+            - check_name
+        - name: checks.runs
+          aggregate_tags:
+            - check_name
+            - state
         - name: pymem.inuse
     schedule:
       start_after: 30
@@ -211,7 +222,13 @@ var defaultProfiles = `
         - name: logs.decoded
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
+          aggregate_tags:
+            - compression_kind
         - name: logs.sender_latency
+        - name: logs.truncated
+          aggregate_tags:
+            - service
+            - source
         - name: logs.auto_multi_line_aggregator_flush
           aggregate_tags:
             - truncated
@@ -222,6 +239,10 @@ var defaultProfiles = `
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
+        - name: transactions.http_errors
+          aggregate_tags:
+            - code
+            - endpoint
     schedule:
       start_after: 30
       iterations: 0
@@ -250,7 +271,7 @@ var defaultProfiles = `
       start_after: 30
       iterations: 0
       period: 900
-  - name: api
+  - name: connectivity
     metric:
       exclude:
         zero_metric: true
@@ -262,6 +283,17 @@ var defaultProfiles = `
             - method
             - path
             - auth
+        - name: grpc.request_duration_seconds
+          aggregate_tags:
+            - service_method
+        - name: grpc.request_count
+          aggregate_tags:
+            - service_method
+            - status
+        - name: grpc.error_count
+          aggregate_tags:
+            - service_method
+            - error_code
     schedule:
       start_after: 600
       iterations: 0
@@ -272,15 +304,78 @@ var defaultProfiles = `
         request_type: agent-bsod
         payload_key: agent_bsod
         message: 'Agent BSOD'
-  - name: status
+  - name: service-discovery
+    metric:
+      metrics:
+        - name: service_discovery.discovered_services
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
+  - name: runtime-started
     metric:
       exclude:
         zero_metric: true
       metrics:
-        - name: status.dce_render_errors
+        - name: runtime.started
+    schedule:
+      start_after: 5
+      iterations: 1
+  - name: runtime-running
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: runtime.running
+  - name: hostname
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: hostname.drift_detected
           aggregate_tags:
-            - kind
-            - template_name
+            - state
+            - provider
+        - name: hostname.drift_resolution_time_ms
+          aggregate_tags:
+            - state
+            - provider
+    schedule:
+      start_after: 1800 # 30 minutes
+      iterations: 0
+      period: 21600 # 6 hours
+  - name: rtloader
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: rtloader.inuse_bytes
+        - name: rtloader.frees
+        - name: rtloader.allocations
+  - name: otlp
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: runtime.datadog_agent_otlp_ingest_metrics
+          aggregate_tags:
+            - version
+            - command
+            - host
+        - name: runtime.datadog_agent_ddot_metrics
+          aggregate_tags:
+            - version
+            - command
+            - host
+        - name: runtime.datadog_agent_ddot_traces
+          aggregate_tags:
+            - version
+            - command
+            - host
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
 `
 
 func compileMetricsExclude(p *Profile) error {
@@ -338,7 +433,9 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 		return fmt.Errorf("profile '%s' 'metrics[].name' '(%s)' attribute should have two elements separated by '.'", p.Name, m.Name)
 	}
 
-	// Convert Datadog metric name to Prometheus metric name (used for quick(er) matching)
+	// Converts a Datadog metric name to a Prometheus metric name for quicker matching. Prometheus metrics
+	// (from the "telemetry" package) must be declared without setting Options.NoDoubleUnderscoreSep to true,
+	// ensuring the full metric name includes double underscores ("__"); otherwise, matching will fail.
 	promName := fmt.Sprintf("%s__%s", names[0], names[1])
 	p.metricsMap[promName] = m
 

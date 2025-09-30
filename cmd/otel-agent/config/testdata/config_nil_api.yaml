@@ -5,7 +5,7 @@ receivers:
       http:
 exporters:
   datadog:
-    api:
+    api: null
 processors:
   batch:
     timeout: 10s

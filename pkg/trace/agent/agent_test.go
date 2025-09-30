@@ -103,6 +103,16 @@ func (c *mockConcentrator) Reset() []stats.Input {
 	return ret
 }
 
+type mockTracerPayloadModifier struct {
+	modifyCalled bool
+	lastPayload  *pb.TracerPayload
+}
+
+func (m *mockTracerPayloadModifier) Modify(tp *pb.TracerPayload) {
+	m.modifyCalled = true
+	m.lastPayload = tp
+}
+
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
 // desired string
 func TestFormatTrace(t *testing.T) {
@@ -127,6 +137,68 @@ func TestFormatTrace(t *testing.T) {
 	assert.NotEqual("Non-parsable SQL query", result.Meta["sql.query"])
 	assert.NotContains(result.Meta["sql.query"], "42")
 	assert.Contains(result.Meta["sql.query"], "SELECT name FROM people WHERE age = ?")
+}
+
+func TestStopWaits(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation.Cache.Enabled = true
+	cfg.Obfuscation.Cache.MaxSize = 1_000
+	// Disable the HTTP server to avoid colliding with a real agent on CI machines
+	cfg.ReceiverPort = 0
+	// But keep a ReceiverSocket so that the Receiver can start and shutdown normally
+	cfg.ReceiverSocket = t.TempDir() + "/trace-agent-test.sock"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		agnt.Run()
+	}()
+
+	now := time.Now()
+	span := &pb.Span{
+		TraceID:  1,
+		SpanID:   1,
+		Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+		Type:     "sql",
+		Start:    now.Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+	}
+
+	// Use select to avoid blocking if channel is closed
+	payload := &api.Payload{
+		TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+	}
+
+	select {
+	case agnt.In <- payload:
+		// Successfully sent payload
+	case <-ctx.Done():
+		// Context cancelled before we could send
+		t.Fatal("Context cancelled before payload could be sent")
+	case <-time.After(500 * time.Millisecond):
+		// Timeout - this shouldn't happen in normal operation.
+		// 500ms is used to allow worker goroutines to start and be ready
+		t.Fatal("Timeout sending payload to agent")
+	}
+
+	cancel()
+	wg.Wait() // Wait for agent to completely exit
+
+	mtw, ok := agnt.TraceWriter.(*mockTraceWriter)
+	if !ok {
+		t.Fatal("Expected mockTraceWriter")
+	}
+	mtw.mu.Lock()
+	defer mtw.mu.Unlock()
+
+	assert := assert.New(t)
+	assert.Len(mtw.payloads, 1)
+	assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", mtw.payloads[0].TracerPayload.Chunks[0].Spans[0].Meta["sql.query"])
 }
 
 func TestProcess(t *testing.T) {
@@ -165,6 +237,36 @@ func TestProcess(t *testing.T) {
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
 		assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", span.Meta["sql.query"])
+	})
+
+	t.Run("TracerPayloadModifier", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		// Create a mock TracerPayloadModifier that tracks calls
+		mockModifier := &mockTracerPayloadModifier{}
+		agnt.TracerPayloadModifier = mockModifier
+
+		now := time.Now()
+		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "test-resource",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		})
+
+		assert := assert.New(t)
+		assert.True(mockModifier.modifyCalled, "TracerPayloadModifier.Modify should have been called")
+		assert.NotNil(mockModifier.lastPayload, "TracerPayloadModifier should have received a payload")
 	})
 
 	t.Run("ReplacerMetrics", func(t *testing.T) {
@@ -1574,6 +1676,41 @@ func TestSampling(t *testing.T) {
 	}
 }
 
+func TestProbSamplerSetsChunkPriority(t *testing.T) {
+	now := time.Now()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	statsd := mockStatsd.NewMockClientInterface(ctrl)
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{}), ProbabilisticSamplerEnabled: true, ProbabilisticSamplerSamplingPercentage: 100}
+	root := &pb.Span{
+		Service:  "serv1",
+		Start:    now.UnixNano(),
+		Duration: (100 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{"_top_level": 1},
+		Meta:     map[string]string{},
+	}
+	chunk := testutil.TraceChunkWithSpan(root)
+	pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
+	pt.TraceChunk.Priority = int32(-128)
+
+	a := &Agent{
+		NoPrioritySampler:    sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:        sampler.NewErrorsSampler(cfg),
+		PrioritySampler:      sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		RareSampler:          sampler.NewRareSampler(config.New()),
+		ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg),
+		EventProcessor:       newEventProcessor(cfg, statsd),
+		SamplerMetrics:       sampler.NewMetrics(statsd),
+		conf:                 cfg,
+	}
+
+	keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	assert.True(t, keep)
+	// In order to ensure intake keeps this chunk we must override whatever priority was previously set on this chunk
+	// This is especially an issue for incoming OTLP spans where the chunk priority may have the "unset" value of -128
+	assert.Equal(t, int32(1), pt.TraceChunk.Priority)
+}
+
 func TestSampleTrace(t *testing.T) {
 	now := time.Now()
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
@@ -2824,6 +2961,79 @@ func TestMergeDuplicates(t *testing.T) {
 	assert.Equal(t, expected, in)
 }
 
+func TestProcessStatsTimeout(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	statsPayload := testutil.StatsPayloadSample()
+
+	t.Run("context_timeout", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload) // unbuffered channel, will block
+
+		start := time.Now()
+		err := agnt.ProcessStats(ctx, statsPayload, "go", "v1.2.3", "test-container", "v1")
+		elapsed := time.Since(start)
+
+		assert.Error(t, err)
+		assert.Equal(t, context.DeadlineExceeded, err)
+
+		// Should timeout around 50ms, not hang indefinitely
+		assert.Less(t, elapsed, 100*time.Millisecond, "ProcessStats should respect context timeout")
+		assert.Greater(t, elapsed, 45*time.Millisecond, "ProcessStats should wait for context timeout")
+	})
+
+	t.Run("context_cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload) // unbuffered channel, will block
+
+		// Cancel the context after a short delay
+		go func() {
+			time.Sleep(30 * time.Millisecond)
+			cancel()
+		}()
+
+		start := time.Now()
+		err := agnt.ProcessStats(ctx, statsPayload, "go", "v1.2.3", "test-container", "v1")
+		elapsed := time.Since(start)
+
+		assert.Error(t, err)
+		assert.Equal(t, context.Canceled, err)
+
+		// Should be cancelled around 30ms
+		assert.Less(t, elapsed, 60*time.Millisecond, "ProcessStats should respect context cancellation")
+		assert.Greater(t, elapsed, 25*time.Millisecond, "ProcessStats should wait for context cancellation")
+	})
+
+	t.Run("successful_processing", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+
+		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload, 10)
+
+		err := agnt.ProcessStats(ctx, statsPayload, "go", "v1.2.3", "test-container", "v1")
+
+		// Should succeed without error
+		assert.NoError(t, err)
+
+		// Verify stats were actually processed
+		select {
+		case stats := <-agnt.ClientStatsAggregator.In:
+			assert.NotNil(t, stats)
+			assert.Equal(t, "go", stats.Lang)
+			assert.Equal(t, "test-container", stats.ContainerID)
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("Expected stats to be sent to ClientStatsAggregator.In channel")
+		}
+	})
+}
+
 func TestSampleWithPriorityNone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cfg := config.New()
@@ -3308,13 +3518,6 @@ func TestProcessedTrace(t *testing.T) {
 			Meta:     map[string]string{"env": "test", "version": "v1.0.1"},
 		}
 		chunk := testutil.TraceChunkWithSpan(root)
-		cfg := config.New()
-		cfg.ContainerTags = func(cid string) ([]string, error) {
-			if cid == "1" {
-				return []string{"image_tag:abc", "git.commit.sha:abc123"}, nil
-			}
-			return nil, nil
-		}
 		// Only fill out the relevant fields for processedTrace().
 		apiPayload := &api.Payload{
 			TracerPayload: &pb.TracerPayload{
@@ -3326,7 +3529,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		pt := processedTrace(apiPayload, chunk, root, "abc", "abc123")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -3351,13 +3554,6 @@ func TestProcessedTrace(t *testing.T) {
 			Meta:     map[string]string{"env": "test", "version": "v1.0.1", "_dd.git.commit.sha": "abc123"},
 		}
 		chunk := testutil.TraceChunkWithSpan(root)
-		cfg := config.New()
-		cfg.ContainerTags = func(cid string) ([]string, error) {
-			if cid == "1" {
-				return []string{"image_tag:abc", "git.commit.sha:def456"}, nil
-			}
-			return nil, nil
-		}
 		// Only fill out the relevant fields for processedTrace().
 		apiPayload := &api.Payload{
 			TracerPayload: &pb.TracerPayload{
@@ -3369,7 +3565,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		pt := processedTrace(apiPayload, chunk, root, "abc", "def456")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -3409,7 +3605,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		pt := processedTrace(apiPayload, chunk, root, "", "")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,

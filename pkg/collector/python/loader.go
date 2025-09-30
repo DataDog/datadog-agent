@@ -65,10 +65,11 @@ const (
 const PythonCheckLoaderName string = "python"
 
 func init() {
-	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
-		return NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, int, error) {
+		loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+		return loader, 20, err
 	}
-	loaders.RegisterLoader(20, factory)
+	loaders.RegisterLoader(factory)
 
 	configureErrors = map[string][]string{}
 	py3Linted = map[string]struct{}{}
@@ -89,7 +90,7 @@ func init() {
 
 // PythonCheckLoader is a specific loader for checks living in Python modules
 //
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 type PythonCheckLoader struct {
 	logReceiver option.Option[integrations.Component]
 }
@@ -117,7 +118,7 @@ func (*PythonCheckLoader) Name() string {
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
-func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
 	if pkgconfigsetup.Datadog().GetBool("python_lazy_loading") {
 		pythonOnce.Do(func() {
 			InitPython(common.GetPythonPaths()...)
@@ -178,7 +179,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	// all failed, return error for last failure
 	if checkModule == nil || checkClass == nil {
 		log.Debugf("PyLoader returning %s for %s", err, moduleName)
-		return nil, err
+		return nil, fmt.Errorf("unable to load python module %s: %v", name, err)
 	}
 
 	wheelVersion := "unversioned"
@@ -234,8 +235,12 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		return c, err
 	}
 
+	configSource := config.Source
+	if instanceIndex >= 0 {
+		configSource = fmt.Sprintf("%s[%d]", configSource, instanceIndex)
+	}
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
-	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source); err != nil {
+	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, configSource); err != nil {
 		C.rtloader_decref(rtloader, checkClass)
 		C.rtloader_decref(rtloader, checkModule)
 
@@ -248,6 +253,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	if v, ok := cl.logReceiver.Get(); ok {
+		log.Debugf("Registering integration in loader: %s", c.ID())
 		v.RegisterIntegration(string(c.id), config)
 	}
 
@@ -306,39 +312,8 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 	status := a7TagUnknown
 	metricValue := 0.0
 	if checkFilePath != "" {
-		// __file__ return the .pyc file path
-		if strings.HasSuffix(checkFilePath, ".pyc") {
-			checkFilePath = checkFilePath[:len(checkFilePath)-1]
-		}
-
-		if strings.TrimSpace(pkgconfigsetup.Datadog().GetString("python_version")) == "3" {
-			// the linter used by validatePython3 doesn't work when run from python3
-			status = a7TagPython3
-			metricValue = 1.0
-		} else {
-			// validatePython3 is CPU and memory hungry, make sure we only run one instance of it
-			// at once to avoid CPU and mem usage spikes
-			linterLock.Lock()
-			warnings, err := validatePython3(checkName, checkFilePath)
-			linterLock.Unlock()
-
-			if err != nil {
-				status = a7TagUnknown
-				log.Warnf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
-			} else if len(warnings) == 0 {
-				status = a7TagReady
-				metricValue = 1.0
-			} else {
-				status = a7TagNotReady
-				log.Warnf("The Python 3 linter returned warnings for check '%s'. For more details, check the output of the 'status' command or the status page of the Agent GUI).", checkName)
-				statsLock.Lock()
-				defer statsLock.Unlock()
-				for _, warning := range warnings {
-					log.Debug(warning)
-					py3Warnings[checkName] = append(py3Warnings[checkName], warning)
-				}
-			}
-		}
+		status = a7TagPython3
+		metricValue = 1.0
 	}
 
 	// add a serie to the aggregator to be sent on every flush

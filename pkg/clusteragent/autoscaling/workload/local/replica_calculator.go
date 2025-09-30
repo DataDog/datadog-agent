@@ -78,7 +78,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	recommendedReplicas := model.HorizontalScalingValues{}
 
 	for _, objective := range objectives {
-		recSettings, err := newResourceRecommenderSettings(dpai.Spec().Fallback, objective)
+		recSettings, err := newResourceRecommenderSettings(objective)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to get resource recommender settings: %s", err)
 		}

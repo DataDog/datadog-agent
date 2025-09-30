@@ -5,7 +5,7 @@
 
 //go:build kubelet || docker
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package container provides container-based log launchers
 package container
 
 import (
@@ -13,13 +13,10 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-
-	//nolint:revive // TODO(AML) Fix revive linter
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -77,9 +74,7 @@ func NewLauncher(sources *sourcesPkg.LogSources, wmeta option.Option[workloadmet
 }
 
 // Start starts the Launcher
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, _ *tailers.TailerTracker) {
 	// only start this launcher once it's determined that we should be logging containers, and not pods.
 	ctx, cancel := context.WithCancel(context.Background())
 	l.cancel = cancel
@@ -186,5 +181,5 @@ func (l *Launcher) stop() {
 	stopper.Stop()
 	log.Info("Stopping container launcher")
 
-	l.tailers = make(map[*sources.LogSource]tailerfactory.Tailer)
+	l.tailers = make(map[*sourcesPkg.LogSource]tailerfactory.Tailer)
 }

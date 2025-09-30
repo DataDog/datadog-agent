@@ -6,17 +6,17 @@
 package config
 
 import (
-	"github.com/DataDog/appsec-internal-go/appsec"
 	"testing"
 
+	"github.com/DataDog/appsec-internal-go/appsec"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestConfig(t *testing.T) {
-	defaultRules, err := appsec.RulesFromEnv()
-	require.NoError(t, err)
 	expectedDefaultConfig := &Config{
-		Rules:          defaultRules,
+		Rules:          nil, // Using default built-in rules
 		WafTimeout:     appsec.WAFTimeoutFromEnv(),
 		TraceRateLimit: appsec.RateLimitFromEnv(),
 		Obfuscator:     appsec.NewObfuscatorConfig(),
@@ -26,7 +26,15 @@ func TestConfig(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		cfg, err := NewConfig()
 		require.NoError(t, err)
-		require.Equal(t, expectedDefaultConfig, cfg)
+		// NOTE -- Not comparing with assert.Equal because the sampler value is not comparable this way.
+		assert.Equal(t, expectedDefaultConfig.Rules, cfg.Rules)
+		assert.Equal(t, expectedDefaultConfig.WafTimeout, cfg.WafTimeout)
+		assert.Equal(t, expectedDefaultConfig.TraceRateLimit, cfg.TraceRateLimit)
+		assert.Equal(t, expectedDefaultConfig.Obfuscator, cfg.Obfuscator)
+		assert.Equal(t, expectedDefaultConfig.APISec.Enabled, cfg.APISec.Enabled)
+		//nolint:staticcheck // SA1019 using the new endpoint-aware sampler does not make sense for Lambda.
+		assert.Equal(t, expectedDefaultConfig.APISec.SampleRate, cfg.APISec.SampleRate)
+		// Not comparing the APISec sampler -- it's not comparable this way.
 	})
 
 	t.Run("appsec", func(t *testing.T) {

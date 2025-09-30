@@ -164,7 +164,7 @@ func Test_injectTags(t *testing.T) {
 		},
 	}
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	datadogConfig := config.NewMock(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			filter, err := NewFilter(datadogConfig)

@@ -5,15 +5,17 @@
 
 //go:build kubelet || docker
 
+// Package tailers provides tailers for API logs
 package tailers
 
 import (
 	"context"
-	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"time"
 
+	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
@@ -121,8 +123,9 @@ func (t *base) run(
 				// is unbuffered, any pending writes to this channel could cause a deadlock as the tailers stop
 				// condition is managed in the same goroutine in containerTailerPkg.
 				go func() {
-					//nolint:revive // TODO(AML) Fix revive linter
-					for range erroredContainerID {
+					for id := range erroredContainerID {
+						// Consume messages from channel until closed
+						_ = id
 					}
 				}()
 				stopTailer(inner)

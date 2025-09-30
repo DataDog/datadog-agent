@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// for now the installer is not supported on windows
-//go:build !windows
-
 package daemon
 
 import (
@@ -18,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -60,8 +58,8 @@ func (m *testDaemon) PromoteExperiment(ctx context.Context, pkg string) error {
 	return args.Error(0)
 }
 
-func (m *testDaemon) StartConfigExperiment(ctx context.Context, url string, hash string) error {
-	args := m.Called(ctx, url, hash)
+func (m *testDaemon) StartConfigExperiment(ctx context.Context, url string, operations config.Operations) error {
+	args := m.Called(ctx, url, operations)
 	return args.Error(0)
 }
 
@@ -97,6 +95,10 @@ func (m *testDaemon) GetAPMInjectionStatus() (APMInjectionStatus, error) {
 
 func (m *testDaemon) SetCatalog(catalog catalog) {
 	m.Called(catalog)
+}
+
+func (m *testDaemon) SetConfigCatalog(configs map[string]installerConfig) {
+	m.Called(configs)
 }
 
 type testLocalAPI struct {

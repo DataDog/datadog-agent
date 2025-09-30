@@ -7,12 +7,21 @@
 #include "process.h"
 
 int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file, struct inode *inode) {
-    if (syscall->exec.is_parsed) {
+    struct dentry *dentry  = get_file_dentry(file);
+    if (syscall->exec.dentry) {
+        // handle nlink that needs to be collected in the second pass
+        if (dentry) {
+            u32 nlink = get_dentry_nlink(dentry);
+            if (nlink > syscall->exec.file.metadata.nlink) {
+                syscall->exec.file.metadata.nlink = nlink;
+            }
+            if (is_overlayfs(dentry)) {
+                set_overlayfs_nlink(dentry, &syscall->exec.file);
+            }
+        }
         return 0;
     }
-    syscall->exec.is_parsed = 1;
-
-    syscall->exec.dentry = get_file_dentry(file);
+    syscall->exec.dentry = dentry;
 
     struct path *path = get_file_f_path_addr(file);
 
@@ -21,7 +30,7 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
 
     syscall->exec.file.path_key.ino = inode ? get_inode_ino(inode) : get_path_ino(path);
     syscall->exec.file.path_key.mount_id = mount_id;
-    syscall->exec.file.path_key.path_id = get_path_id(mount_id, 0);
+    set_file_inode(syscall->exec.dentry, &syscall->exec.file, 0);
 
     inc_mount_ref(mount_id);
 
@@ -33,7 +42,7 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_current_or_impersonated_exec_syscall();

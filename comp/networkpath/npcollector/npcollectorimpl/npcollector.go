@@ -130,8 +130,11 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 }
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
-func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common.Pathtest {
+func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common.Pathtest {
 	protocol := convertProtocol(conn.GetType())
+	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
+		protocol = payload.ProtocolICMP
+	}
 
 	rDNSEntry := dns[conn.Raddr.GetIp()]
 	var reverseDNSHostname string
@@ -140,8 +143,8 @@ func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common
 	}
 
 	var remotePort uint16
-	// UDP traces should not be done to the active port
-	if protocol != payload.ProtocolUDP {
+	// only TCP traces can be done to the active port
+	if protocol == payload.ProtocolTCP {
 		remotePort = uint16(conn.Raddr.GetPort())
 	}
 
@@ -262,7 +265,7 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
 		}
-		pathtest := makePathtest(conn, dns)
+		pathtest := s.makePathtest(conn, dns)
 
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
@@ -343,12 +346,14 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
 	cfg := config.Config{
-		DestHostname: ptest.Pathtest.Hostname,
-		DestPort:     ptest.Pathtest.Port,
-		MaxTTL:       uint8(s.collectorConfigs.maxTTL),
-		Timeout:      s.collectorConfigs.timeout,
-		Protocol:     ptest.Pathtest.Protocol,
-		TCPMethod:    s.collectorConfigs.tcpMethod,
+		DestHostname:              ptest.Pathtest.Hostname,
+		DestPort:                  ptest.Pathtest.Port,
+		MaxTTL:                    uint8(s.collectorConfigs.maxTTL),
+		Timeout:                   s.collectorConfigs.timeout,
+		Protocol:                  ptest.Pathtest.Protocol,
+		TCPMethod:                 s.collectorConfigs.tcpMethod,
+		TCPSynParisTracerouteMode: s.collectorConfigs.tcpSynParisTracerouteMode,
+		ReverseDNS:                false, // Do not run reverse DNS in datadog-traceroute, it's handled in npcollector
 	}
 
 	path, err := s.runTraceroute(cfg, s.telemetrycomp)
@@ -456,17 +461,19 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 	}
 
 	// collect unique IP addresses from destination and hops
-	ipSet := make(map[string]struct{}, len(path.Hops)+1) // +1 for destination
+	ipSet := make(map[string]struct{})
 
-	// only look up the destination hostname if we need to
-	if knownDestHostname == "" {
-		ipSet[path.Destination.IPAddress] = struct{}{}
-	}
-	for _, hop := range path.Hops {
-		if !hop.Reachable {
-			continue
+	for _, run := range path.Traceroute.Runs {
+		// only look up the destination hostname if we need to
+		if knownDestHostname == "" {
+			ipSet[run.Destination.IPAddress.String()] = struct{}{}
 		}
-		ipSet[hop.IPAddress] = struct{}{}
+		for _, hop := range run.Hops {
+			if !hop.Reachable {
+				continue
+			}
+			ipSet[hop.IPAddress.String()] = struct{}{}
+		}
 	}
 	ipAddrs := make([]string, 0, len(ipSet))
 	for ip := range ipSet {
@@ -483,27 +490,33 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 		s.logger.Debugf("Reverse lookup failed for all hops in path from %s to %s", path.Source.Hostname, path.Destination.Hostname)
 	}
 
-	// assign resolved hostnames to destination and hops
-	if knownDestHostname != "" {
-		path.Destination.ReverseDNSHostname = knownDestHostname
-	} else {
-		hostname := s.getReverseDNSResult(path.Destination.IPAddress, results)
-		// if hostname is blank, use what's given by traceroute
-		// TODO: would it be better to move the logic up from the traceroute command?
-		// benefit to the current approach is having consistent behavior for all paths
-		// both static and dynamic
-		if hostname != "" {
-			path.Destination.ReverseDNSHostname = hostname
+	for i := range path.Traceroute.Runs {
+		run := &path.Traceroute.Runs[i]
+		// assign resolved hostnames to destination and hops
+		if knownDestHostname != "" {
+			run.Destination.ReverseDNS = []string{knownDestHostname}
+		} else {
+			// TODO: We should make reverse DNS return all available DNS names, not just one.
+			hostname := s.getReverseDNSResult(run.Destination.IPAddress.String(), results)
+			// if hostname is blank, use what's given by traceroute
+			// TODO: would it be better to move the logic up from the traceroute command?
+			// benefit to the current approach is having consistent behavior for all paths
+			// both static and dynamic
+			if hostname != "" {
+				run.Destination.ReverseDNS = []string{hostname}
+			}
 		}
-	}
 
-	for i, hop := range path.Hops {
-		if !hop.Reachable {
-			continue
-		}
-		hostname := s.getReverseDNSResult(hop.IPAddress, results)
-		if hostname != "" {
-			path.Hops[i].Hostname = hostname
+		for j := range run.Hops {
+			hop := &run.Hops[j]
+			if !hop.Reachable {
+				continue
+			}
+			ipAddr := hop.IPAddress.String()
+			rDNS := s.getReverseDNSResult(ipAddr, results)
+			if rDNS != "" {
+				hop.ReverseDNS = []string{rDNS}
+			}
 		}
 	}
 }

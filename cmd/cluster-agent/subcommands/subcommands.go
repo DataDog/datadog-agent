@@ -10,11 +10,13 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
+	cmdautoscalerlist "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/autoscalerlist"
 	cmdcheck "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/check"
 	cmdclusterchecks "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/clusterchecks"
 	cmdcompliance "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/compliance"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/config"
 	cmdconfigcheck "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/configcheck"
+	cmdcoverage "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/coverage"
 	cmddiagnose "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/diagnose"
 	cmdflare "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/flare"
 	cmdhealth "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/health"
@@ -46,7 +48,9 @@ func ClusterAgentSubcommands() []command.SubcommandFactory {
 		cmdsecrethelper.Commands,
 		cmdtelemetry.Commands,
 		cmdstatus.Commands,
+		cmdautoscalerlist.Commands,
 		cmdworkloadlist.Commands,
 		cmdtaggerlist.Commands,
+		cmdcoverage.Commands,
 	}
 }

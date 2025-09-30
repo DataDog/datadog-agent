@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
+
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -359,12 +361,13 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 		tags   []string
 	}
 	tests := []struct {
-		name            string
-		metrics         []profiledefinition.MetricsConfig
-		values          *valuestore.ResultValueStore
-		tags            []string
-		expectedMetrics []expectedMetric
-		expectedLogs    []logCount
+		name             string
+		interfaceConfigs []snmpintegration.InterfaceConfig
+		metrics          []profiledefinition.MetricsConfig
+		values           *valuestore.ResultValueStore
+		tags             []string
+		expectedMetrics  []expectedMetric
+		expectedLogs     []logCount
 	}{
 		{
 			name: "report scalar error",
@@ -441,7 +444,122 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 					method: "Gauge",
 					name:   "snmp.interfaceMetric",
 					value:  float64(1),
-					tags:   []string{"dd.internal.resource:ndm_interface_user_tags:device_id:1"},
+					tags:   []string{"dd.internal.resource:ndm_interface:device_id:1"},
+				},
+			},
+		},
+		{
+			name: "disabled interface are not reported",
+			interfaceConfigs: []snmpintegration.InterfaceConfig{
+				{
+					MatchField: "name",
+					MatchValue: "name1",
+					Disabled:   true,
+				},
+				{
+					MatchField: "index",
+					MatchValue: "2",
+					Disabled:   true,
+				},
+			},
+			metrics: []profiledefinition.MetricsConfig{
+				{
+					Symbols: []profiledefinition.SymbolConfig{
+						{
+							OID:  "1.3.6.1.2.1.31.1.1.1.7",
+							Name: "ifHCInUcastPkts",
+						},
+						{
+							OID:  "1.3.6.1.2.1.31.1.1.1.8",
+							Name: "ifHCInMulticastPkts",
+						},
+						{
+							OID:  "1.2.3.4",
+							Name: "someOtherMetric1",
+						},
+					},
+					MetricTags: profiledefinition.MetricTagConfigList{
+						{
+							Symbol: profiledefinition.SymbolConfigCompat{
+								OID:  "1.3.6.1.2.1.31.1.1.1.1",
+								Name: "ifName",
+							},
+							Tag: "interface",
+						},
+					},
+				},
+				{
+					Symbols: []profiledefinition.SymbolConfig{
+						{
+							OID:  "2.3.4.5",
+							Name: "someOtherMetric2",
+						},
+					},
+				},
+			},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.1": {
+						"0": valuestore.ResultValue{Value: "name0"},
+						"1": valuestore.ResultValue{Value: "name1"},
+						"2": valuestore.ResultValue{Value: "name2"},
+					},
+					"1.3.6.1.2.1.31.1.1.1.7": {
+						"0": valuestore.ResultValue{Value: float64(10)},
+						"1": valuestore.ResultValue{Value: float64(11)},
+						"2": valuestore.ResultValue{Value: float64(12)},
+					},
+					"1.3.6.1.2.1.31.1.1.1.8": {
+						"0": valuestore.ResultValue{Value: float64(20)},
+						"1": valuestore.ResultValue{Value: float64(21)},
+						"2": valuestore.ResultValue{Value: float64(22)},
+					},
+					"1.2.3.4": {
+						"0": valuestore.ResultValue{Value: float64(30)},
+						"1": valuestore.ResultValue{Value: float64(31)},
+						"2": valuestore.ResultValue{Value: float64(32)},
+					},
+					"2.3.4.5": {
+						"2": valuestore.ResultValue{Value: float64(42)},
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					method: "Gauge",
+					name:   "snmp.ifHCInUcastPkts",
+					value:  float64(10),
+					tags:   []string{"interface:name0", "dd.internal.resource:ndm_interface:device_id:0"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.ifHCInMulticastPkts",
+					value:  float64(20),
+					tags:   []string{"interface:name0", "dd.internal.resource:ndm_interface:device_id:0"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.someOtherMetric1",
+					value:  float64(30),
+					tags:   []string{"interface:name0", "dd.internal.resource:ndm_interface:device_id:0"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.someOtherMetric1",
+					value:  float64(31),
+					tags:   []string{"interface:name1"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.someOtherMetric1",
+					value:  float64(32),
+					tags:   []string{"interface:name2"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.someOtherMetric2",
+					value:  float64(42),
+					tags:   []string{},
 				},
 			},
 		},
@@ -458,7 +576,10 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			mockSender := mocksender.NewMockSender("foo")
 			mockSender.SetupAcceptAll()
 
-			metricSender := MetricSender{sender: mockSender}
+			metricSender := MetricSender{
+				sender:           mockSender,
+				interfaceConfigs: tt.interfaceConfigs,
+			}
 
 			metricSender.ReportMetrics(tt.metrics, tt.values, tt.tags, "device_id")
 

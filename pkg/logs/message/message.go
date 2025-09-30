@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package message provides log message data structures and utilities
 package message
 
 import (
@@ -19,11 +19,8 @@ import (
 // or/and at the end of every trucated lines.
 var TruncatedFlag = []byte("...TRUNCATED...")
 
-// TruncatedTag is added to truncated log messages (if enabled).
-const TruncatedTag = "truncated"
-
-// AutoMultiLineTag is added to multiline log messages (if enabled).
-const AutoMultiLineTag = "auto_multiline"
+// AggregatedJSONTag is added to recombined JSON log messages (if enabled).
+const AggregatedJSONTag = "aggregated_json:true"
 
 // EscapedLineFeed is used to escape new line character
 // for multiline message.
@@ -43,13 +40,8 @@ type Payload struct {
 	UnencodedSize int
 }
 
-func NewPayload(messages []*Message, encoded []byte, encoding string, unencodedSize int) *Payload {
-	messageMetas := make([]*MessageMetadata, len(messages))
-	for i, m := range messages {
-		// Split the metadata from the message content to avoid holding the entire message in memory
-		meta := m.MessageMetadata
-		messageMetas[i] = &meta
-	}
+// NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
+func NewPayload(messageMetas []*MessageMetadata, encoded []byte, encoding string, unencodedSize int) *Payload {
 	return &Payload{
 		MessageMetas:  messageMetas,
 		Encoded:       encoded,
@@ -65,7 +57,7 @@ func (m *Payload) Count() int64 {
 
 // Size returns the size of the message.
 func (m *Payload) Size() int64 {
-	var size int64 = 0
+	var size int64
 	for _, m := range m.MessageMetas {
 		size += m.Size()
 	}
@@ -78,6 +70,9 @@ type Message struct {
 	MessageMetadata
 }
 
+// MessageMetadata contains metadata information about a log message
+//
+//nolint:revive // exported: ignore package name struct conflict
 type MessageMetadata struct {
 	Hostname           string
 	Origin             *Origin
@@ -210,6 +205,7 @@ type ParsingExtra struct {
 	IsPartial   bool
 	IsTruncated bool
 	IsMultiLine bool
+	IsMRFAllow  bool
 	Tags        []string
 }
 
@@ -235,6 +231,13 @@ func NewMessageWithSource(content []byte, status string, source *sources.LogSour
 	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
 }
 
+// NewMessageWithSourceWithParsingExtra adds isTruncated to the parsingExtra tag for a new unstructured message with content, status, source and ingestionTimestamp
+func NewMessageWithSourceWithParsingExtra(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64, isTruncated bool) *Message {
+	msg := NewMessageWithSource(content, status, source, ingestionTimestamp)
+	msg.ParsingExtra.IsTruncated = isTruncated
+	return msg
+}
+
 // NewMessage constructs an unstructured message with content,
 // status, origin and the ingestion timestamp.
 func NewMessage(content []byte, origin *Origin, status string, ingestionTimestamp int64) *Message {
@@ -250,6 +253,13 @@ func NewMessage(content []byte, origin *Origin, status string, ingestionTimestam
 			IngestionTimestamp: ingestionTimestamp,
 		},
 	}
+}
+
+// NewMessageWithParsingExtra adds parsingExtra data to a new message
+func NewMessageWithParsingExtra(content []byte, origin *Origin, status string, ingestionTimestamp int64, parsingExtra ParsingExtra) *Message {
+	msg := NewMessage(content, origin, status, ingestionTimestamp)
+	msg.ParsingExtra = parsingExtra
+	return msg
 }
 
 // NewStructuredMessage creates a new message that had some structure the moment
@@ -270,6 +280,13 @@ func NewStructuredMessage(content StructuredContent, origin *Origin, status stri
 			IngestionTimestamp: ingestionTimestamp,
 		},
 	}
+}
+
+// NewStructuredMessageWithParsingExtra adds isTruncated to the parsingExtra tag for a new structured message with content, status, origin and ingestionTimestamp
+func NewStructuredMessageWithParsingExtra(content StructuredContent, origin *Origin, status string, ingestionTimestamp int64, isTruncated bool) *Message {
+	msg := NewStructuredMessage(content, origin, status, ingestionTimestamp)
+	msg.ParsingExtra.IsTruncated = isTruncated
+	return msg
 }
 
 // Render renders the message.
@@ -360,7 +377,7 @@ func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime
 // if status is not set, StatusInfo will be returned.
 func (m *MessageMetadata) GetStatus() string {
 	if m.Status == "" {
-		m.Status = StatusInfo
+		return StatusInfo
 	}
 	return m.Status
 }
@@ -370,12 +387,12 @@ func (m *MessageMetadata) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
 }
 
-// Message returns all tags that this message is attached with.
+// Tags returns all tags that this message is attached with.
 func (m *MessageMetadata) Tags() []string {
 	return m.Origin.Tags(m.ProcessingTags)
 }
 
-// Message returns all tags that this message is attached with, as a string.
+// TagsToString returns all tags that this message is attached with, as a string.
 func (m *MessageMetadata) TagsToString() string {
 	return m.Origin.TagsToString(m.ProcessingTags)
 }
@@ -390,6 +407,19 @@ func (m *MessageMetadata) Size() int64 {
 	return int64(m.RawDataLen)
 }
 
+// RecordProcessingRule records the application of a processing rule to a message.
+func (m *MessageMetadata) RecordProcessingRule(ruleType string, ruleName string) {
+	if m.Origin != nil && m.Origin.LogSource != nil {
+		m.Origin.LogSource.ProcessingInfo.Inc(ruleType + ":" + ruleName)
+	} else {
+		nilSource := "LogSource"
+		if m.Origin == nil {
+			nilSource = "Origin"
+		}
+		log.Debugf("Unable to record processing rule: %s is nil", nilSource)
+	}
+}
+
 // TruncatedReasonTag returns a tag with the reason for truncation.
 func TruncatedReasonTag(reason string) string {
 	return fmt.Sprintf("truncated:%s", reason)
@@ -398,4 +428,13 @@ func TruncatedReasonTag(reason string) string {
 // MultiLineSourceTag returns a tag for multiline logs.
 func MultiLineSourceTag(source string) string {
 	return fmt.Sprintf("multiline:%s", source)
+}
+
+// IsMRF returns true if the payload should be sent to MRF endpoints.
+func (m *Payload) IsMRF() bool {
+	if len(m.MessageMetas) == 0 {
+		return false
+	}
+	// all messages in a payload are either all MRF or not
+	return m.MessageMetas[0].IsMRFAllow
 }

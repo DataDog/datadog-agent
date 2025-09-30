@@ -268,6 +268,7 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 		}, func() {
 			for _, stat := range stats {
 				stat.Close()
+				requestStatPool.Put(stat)
 			}
 		}
 }
@@ -300,7 +301,7 @@ func (p *protocol) setupMapCleaner() {
 
 	// Clean up idle connections. We currently use the same TTL as HTTP, but we plan to rename this variable to be more generic.
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val postgresebpf.EbpfTx) bool {
+	mapCleaner.Start(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val postgresebpf.EbpfTx) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

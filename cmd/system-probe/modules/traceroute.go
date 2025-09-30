@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || windows
-
 package modules
 
 import (
@@ -131,14 +129,18 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	}
 	protocol := query.Get("protocol")
 	tcpMethod := query.Get("tcp_method")
+	tcpSynParisTracerouteMode := query.Get("tcp_syn_paris_traceroute_mode")
+	reverseDNS := query.Get("reverse_dns")
 
 	return tracerouteutil.Config{
-		DestHostname: host,
-		DestPort:     uint16(port),
-		MaxTTL:       uint8(maxTTL),
-		Timeout:      time.Duration(timeout),
-		Protocol:     payload.Protocol(protocol),
-		TCPMethod:    payload.TCPMethod(tcpMethod),
+		DestHostname:              host,
+		DestPort:                  uint16(port),
+		MaxTTL:                    uint8(maxTTL),
+		Timeout:                   time.Duration(timeout),
+		Protocol:                  payload.Protocol(protocol),
+		TCPMethod:                 payload.TCPMethod(tcpMethod),
+		TCPSynParisTracerouteMode: tcpSynParisTracerouteMode == "true",
+		ReverseDNS:                reverseDNS == "true",
 	}, nil
 }
 

@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const (
@@ -47,7 +48,7 @@ type PlatformProbe interface {
 	NewModel() *model.Model
 	DumpDiscarders() (string, error)
 	FlushDiscarders() error
-	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
+	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error)
 	OnNewRuleSetLoaded(_ *rules.RuleSet)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
@@ -58,6 +59,14 @@ type PlatformProbe interface {
 	GetEventTags(_ containerutils.ContainerID) []string
 	EnableEnforcement(bool)
 }
+
+var probeTelemetry = struct {
+	totalVariables telemetry.Gauge
+}{
+	totalVariables: metrics.NewITGauge(metrics.MetricSECLTotalVariables, []string{"type", "scope"}, "Number of instantiated variables"),
+}
+
+var probeEventZeroer = model.NewEventZeroer()
 
 // EventConsumer defines a probe event consumer
 type EventConsumer struct {
@@ -192,7 +201,9 @@ func (p *Probe) Close() error {
 
 // Stop the probe
 func (p *Probe) Stop() {
-	p.cancelFnc()
+	if p.cancelFnc != nil {
+		p.cancelFnc()
+	}
 	p.wg.Wait()
 
 	p.PlatformProbe.Stop()
@@ -205,7 +216,7 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
-func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
 	return p.PlatformProbe.ApplyRuleSet(rs)
 }
 
@@ -396,6 +407,7 @@ func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.Rule
 	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
 	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 	ruleOpts.WithRuleActionPerformedCb(p.onRuleActionPerformed)
+	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: probeTelemetry.totalVariables})
 
 	eventCtor := func() eval.Event {
 		return p.PlatformProbe.NewEvent()

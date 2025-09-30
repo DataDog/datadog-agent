@@ -34,4 +34,15 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
     fi
 fi
 
+# Uninstall the agent if it was installed by the installer
+if command -v datadog-installer >/dev/null 2>&1 && datadog-installer is-installed datadog-agent; then
+    datadog-installer remove datadog-agent || printf "[ WARNING ]\tFailed to remove datadog-agent installed by the installer\n"
+fi
+
+# Old version of the install scripts created a __pycache__ directory in the python-scripts directory
+# Remove it to avoid any issues with the new package.
+if [ -d "${INSTALL_DIR}/python-scripts/__pycache__" ]; then
+    rm -rf "${INSTALL_DIR}/python-scripts/__pycache__" || true
+fi
+
 exit 0

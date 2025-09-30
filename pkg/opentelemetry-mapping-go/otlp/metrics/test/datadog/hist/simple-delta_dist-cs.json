@@ -1,0 +1,92 @@
+{
+  "Metrics": {
+    "Sketches": [
+      {
+        "Name": "doubleHist.test",
+        "Tags": [
+          "attribute_tag:attribute_value"
+        ],
+        "Host": "hostname",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Timestamp": 1667560641226420924,
+        "Summary": {
+          "Min": -100,
+          "Max": 100,
+          "Sum": 3.141592653589793,
+          "Avg": 0.15707963267948966,
+          "Cnt": 20
+        },
+        "Keys": [
+          0
+        ],
+        "Counts": [
+          20
+        ]
+      }
+    ],
+    "TimeSeries": [
+      {
+        "Name": "doubleHist.test.count",
+        "Tags": [
+          "attribute_tag:attribute_value"
+        ],
+        "Host": "hostname",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Type": "count",
+        "Timestamp": 1667560641226420924,
+        "Value": 20
+      },
+      {
+        "Name": "doubleHist.test.sum",
+        "Tags": [
+          "attribute_tag:attribute_value"
+        ],
+        "Host": "hostname",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Type": "count",
+        "Timestamp": 1667560641226420924,
+        "Value": 3.141592653589793
+      },
+      {
+        "Name": "doubleHist.test.min",
+        "Tags": [
+          "attribute_tag:attribute_value"
+        ],
+        "Host": "hostname",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Type": "gauge",
+        "Timestamp": 1667560641226420924,
+        "Value": -100
+      },
+      {
+        "Name": "doubleHist.test.max",
+        "Tags": [
+          "attribute_tag:attribute_value"
+        ],
+        "Host": "hostname",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Type": "gauge",
+        "Timestamp": 1667560641226420924,
+        "Value": 100
+      }
+    ]
+  },
+  "Hosts": {
+    "hostname": {}
+  }
+}

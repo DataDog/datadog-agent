@@ -7,18 +7,20 @@
 
 package http
 
+import "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
+
 // Add increments the TLS-aware counter based on the specified transaction's static tags
 func (t *TLSCounter) Add(tx Transaction) {
 	switch tx.StaticTags() {
-	case GnuTLS:
+	case tls.GnuTLS:
 		t.counterGnuTLS.Add(1)
-	case OpenSSL:
+	case tls.OpenSSL:
 		t.counterOpenSSL.Add(1)
-	case Go:
+	case tls.Go:
 		t.counterGoTLS.Add(1)
-	case Istio:
+	case tls.Istio:
 		t.counterIstioTLS.Add(1)
-	case NodeJS:
+	case tls.NodeJS:
 		t.counterNodeJSTLS.Add(1)
 	default:
 		t.counterPlain.Add(1)

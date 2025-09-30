@@ -28,29 +28,29 @@ type windowsSecretSuite struct {
 
 func TestWindowsSecretSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
 }
 
 func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		output := v.Env().Agent.Client.Secret()
 		assert.Contains(t, output, "=== Checking executable permissions ===")
 		assert.Contains(t, output, "Executable path: /does/not/exist")
-		assert.Contains(t, output, "Executable permissions: error: secretBackendCommand '/does/not/exist' does not exist")
+		assert.Contains(t, output, "Executable permissions: error: the executable does not have the correct permissions")
 		assert.Regexp(t, "Number of secrets .+: 0", output)
 	}, 30*time.Second, 2*time.Second)
 }
 
 func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe"))))
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		output := v.Env().Agent.Client.Secret()
 		assert.Contains(t, output, "=== Checking executable permissions ===")
 		assert.Contains(t, output, "Executable path: C:\\Windows\\system32\\cmd.exe")
-		assert.Regexp(t, "Executable permissions: error: invalid executable 'C:\\\\Windows\\\\system32\\\\cmd.exe': other users/groups than LOCAL_SYSTEM, .+ have rights on it", output)
+		assert.Regexp(t, "Executable permissions: error: the executable does not have the correct permissions", output)
 		assert.Regexp(t, "Number of secrets .+: 0", output)
 	}, 30*time.Second, 2*time.Second)
 }
@@ -74,7 +74,7 @@ host_aliases:
 	// We embed a script that file create the secret binary (C:\wrapper.bat) with the correct permissions
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			awshost.WithAgentOptions(agentParams...),
 		),
 	)
@@ -87,7 +87,7 @@ host_aliases:
 	ddagentRegex := `Access : .+\\ddagentuser Allow  ReadAndExecute`
 	assert.Regexp(v.T(), ddagentRegex, output)
 	assert.Regexp(v.T(), "Number of secrets .+: 1", output)
-	assert.Contains(v.T(), output, "- 'alias_secret':\r\n\tused in 'datadog.yaml' configuration in entry 'host_aliases")
+	assert.Regexp(v.T(), `- 'alias_secret':\r?\n\s+- used in 'datadog\.yaml' configuration in entry 'host_aliases/0'`, output)
 	// assert we don't output the resolved secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")
 }
@@ -110,7 +110,7 @@ api_key: ENC[api_key]
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
 
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		awshost.WithAgentOptions(agentParams...)),
 	)
 

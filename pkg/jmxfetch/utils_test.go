@@ -48,7 +48,7 @@ func TestJSONConverter(t *testing.T) {
 	for name, config := range cache {
 		c[name] = GetJSONSerializableMap(config)
 	}
-	j["configurations"] = c
+	j["configs"] = c
 
 	//json encode
 	_, err := json.Marshal(GetJSONSerializableMap(j))

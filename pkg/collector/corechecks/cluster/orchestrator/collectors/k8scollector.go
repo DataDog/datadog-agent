@@ -8,8 +8,7 @@
 package collectors
 
 import (
-	"fmt"
-
+	"github.com/benbjohnson/clock"
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -65,17 +64,21 @@ type OrchestratorInformerFactory struct {
 func NewK8sProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadata) *processors.K8sProcessorContext {
 	return &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              rcfg.Config,
-			MsgGroupID:       rcfg.MsgGroupRef.Inc(),
-			NodeType:         metadata.NodeType,
-			ManifestProducer: true,
-			ClusterID:        rcfg.ClusterID,
-			Kind:             metadata.Kind,
-			APIVersion:       metadata.Version,
+			Cfg:                 rcfg.Config,
+			MsgGroupID:          rcfg.MsgGroupRef.Inc(),
+			NodeType:            metadata.NodeType,
+			ManifestProducer:    true,
+			ClusterID:           rcfg.ClusterID,
+			Kind:                metadata.Kind,
+			APIVersion:          metadata.Version,
+			CollectorTags:       metadata.CollectorTags(),
+			TerminatedResources: rcfg.TerminatedResources,
+			AgentVersion:        rcfg.AgentVersion,
+			Clock:               clock.New(),
 		},
-		APIClient:          rcfg.APIClient,
-		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", metadata.Version),
-		LabelsAsTags:       metadata.LabelsAsTags,
-		AnnotationsAsTags:  metadata.AnnotationsAsTags,
+		APIClient:         rcfg.APIClient,
+		LabelsAsTags:      metadata.LabelsAsTags,
+		AnnotationsAsTags: metadata.AnnotationsAsTags,
+		HostName:          rcfg.HostName,
 	}
 }

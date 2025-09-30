@@ -16,7 +16,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -40,7 +39,7 @@ func newMockSenderFactory() *mockSenderFactory {
 
 func (f *mockSenderFactory) NewTCPSender(
 	_ pkgconfigmodel.Reader,
-	_ auditor.Auditor,
+	_ sender.Sink,
 	_ int,
 	serverlessMeta sender.ServerlessMeta,
 	_ *config.Endpoints,
@@ -62,11 +61,12 @@ func (f *mockSenderFactory) NewTCPSender(
 
 func (f *mockSenderFactory) NewHTTPSender(
 	_ pkgconfigmodel.Reader,
-	_ auditor.Auditor,
+	_ sender.Sink,
 	_ int,
 	serverlessMeta sender.ServerlessMeta,
 	_ *config.Endpoints,
 	_ *client.DestinationsContext,
+	_ string,
 	_ string,
 	_ string,
 	queueCount int,
@@ -216,14 +216,13 @@ func TestProviderConfigurations(t *testing.T) {
 			}()
 
 			destinationsContext := &client.DestinationsContext{}
-			auditor := auditor.NewNullAuditor()
 			diagnosticMessageReceiver := &diagnostic.BufferedMessageReceiver{}
 			status := statusinterface.NewStatusProviderMock()
 			compression := compressionfx.NewMockCompressor()
 
 			providerImpl := NewProvider(
 				tc.numberOfPipelines,
-				auditor,
+				&sender.NoopSink{},
 				diagnosticMessageReceiver,
 				nil, // processing rules
 				endpoints,
@@ -285,14 +284,13 @@ func TestPipelineChannelDistribution(t *testing.T) {
 			})
 
 			destinationsContext := &client.DestinationsContext{}
-			auditor := auditor.NewNullAuditor()
 			diagnosticMessageReceiver := &diagnostic.BufferedMessageReceiver{}
 			status := statusinterface.NewStatusProviderMock()
 			compression := compressionfx.NewMockCompressor()
 
 			providerImpl := NewProvider(
 				tc.numberOfPipelines,
-				auditor,
+				&sender.NoopSink{},
 				diagnosticMessageReceiver,
 				nil, // processing rules
 				endpoints,

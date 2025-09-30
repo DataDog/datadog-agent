@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
@@ -1412,6 +1414,36 @@ func TestOpOverridePartials(t *testing.T) {
 	}
 }
 
+func TestMultipleOpOverrides(t *testing.T) {
+	event := &testEvent{
+		title: "hello world",
+	}
+
+	testCases := []struct {
+		expression     string
+		expectedResult bool
+	}{
+		{expression: `event.title == "hello world"`, expectedResult: true},
+		{expression: `event.title == "Hello World"`, expectedResult: true},
+		{expression: `event.title == "HELLO WORLD"`, expectedResult: true},
+		{expression: `event.title == "hellO worlD"`, expectedResult: false},
+		{expression: `"hello world" == event.title`, expectedResult: true},
+		{expression: `"Hello World" == event.title`, expectedResult: true},
+		{expression: `"HELLO WORLD" == event.title`, expectedResult: true},
+		{expression: `"hellO worlD" == event.title`, expectedResult: false},
+	}
+
+	for _, tc := range testCases {
+		ctx := NewContext(event)
+		result, _, err := eval(ctx, tc.expression)
+		if err != nil {
+			t.Errorf("error while evaluating `%s`: %s", tc.expression, err)
+			continue
+		}
+		assert.Equal(t, tc.expectedResult, result, "expression: `%s`", tc.expression)
+	}
+}
+
 func TestFieldValues(t *testing.T) {
 	tests := []struct {
 		Expr     string
@@ -1620,6 +1652,234 @@ func TestMatchingSubExprs(t *testing.T) {
 			if test.Expected != decorated {
 				t.Errorf("rule decoration error : %s vs %s => %v : %v", test.Expected, decorated, res, err)
 			}
+		})
+	}
+}
+
+func FuzzEval(f *testing.F) {
+	// Add SECL expressions from all test cases as seeds
+
+	// TestStringError
+	f.Add(`process.name != "/usr/bin/vipw" && process.uid != 0 && open.filename == 3`)
+	f.Add(`process.name != "/usr/bin/vipw" && process.uid != "test" && Open.Filename == "/etc/shadow"`)
+	f.Add(`(process.name != "/usr/bin/vipw") == "test"`)
+
+	// TestSimpleString
+	f.Add(`process.name != ""`)
+	f.Add(`process.name != "/usr/bin/vipw"`)
+	f.Add(`process.name != "/usr/bin/cat"`)
+	f.Add(`process.name == "/usr/bin/cat"`)
+	f.Add(`process.name == "/usr/bin/vipw"`)
+	f.Add(`(process.name == "/usr/bin/cat" && process.uid == 0) && (process.name == "/usr/bin/cat" && process.uid == 0)`)
+	f.Add(`(process.name == "/usr/bin/cat" && process.uid == 1) && (process.name == "/usr/bin/cat" && process.uid == 1)`)
+
+	// TestSimpleInt
+	f.Add(`111 != 555`)
+	f.Add(`process.uid != 555`)
+	f.Add(`process.uid != 444`)
+	f.Add(`process.uid == 444`)
+	f.Add(`process.uid == 555`)
+	f.Add(`--3 == 3`)
+	f.Add(`3 ^ 3 == 0`)
+	f.Add(`^0 == -1`)
+
+	// TestSimpleBool
+	f.Add(`(444 == 444) && ("test" == "test")`)
+	f.Add(`(444 == 444) and ("test" == "test")`)
+	f.Add(`(444 != 444) && ("test" == "test")`)
+	f.Add(`(444 != 555) && ("test" == "test")`)
+	f.Add(`(444 != 555) && ("test" != "aaaa")`)
+
+	// TestPrecedence
+	f.Add(`false || (true != true)`)
+	f.Add(`false || true`)
+	f.Add(`false or true`)
+	f.Add(`1 == 1 & 1`)
+	f.Add(`not true && false`)
+	f.Add(`not (true && false)`)
+
+	// TestParenthesis
+	f.Add(`(true) == (true)`)
+
+	// TestSimpleBitOperations
+	f.Add(`(3 & 3) == 3`)
+	f.Add(`(3 & 1) == 3`)
+	f.Add(`(2 | 1) == 3`)
+	f.Add(`(3 & 1) != 0`)
+	f.Add(`0 != 3 & 1`)
+	f.Add(`(3 ^ 3) == 0`)
+
+	// TestStringMatcher
+	f.Add(`process.name =~ "/usr/bin/c$t/test/*"`)
+	f.Add(`process.name =~ "/usr/bin/c$t*"`)
+	f.Add(`process.name =~ "/usr/bin/c*"`)
+	f.Add(`process.name =~ "/usr/bin/**"`)
+	f.Add(`process.name =~ "/usr/**"`)
+	f.Add(`process.name =~ "/**"`)
+	f.Add(`process.name =~ "/usr/bin/*"`)
+	f.Add(`process.name !~ "/usr/sbin/*"`)
+	f.Add(`process.name == ~"/usr/bin/*"`)
+	f.Add(`process.name =~ ~"/usr/bin/*"`)
+	f.Add(`process.name =~ r".*/bin/.*"`)
+	f.Add(`process.name =~ r".*/[usr]+/bin/.*"`)
+	f.Add(`process.name == r".*/bin/.*"`)
+	f.Add(`r".*/bin/.*" == process.name`)
+	f.Add(`process.argv0 =~ "http://*"`)
+	f.Add(`process.argv0 =~ "*example.com"`)
+
+	// TestVariables
+	f.Add(`process.name == "/proc/${pid}/maps/${str}"`)
+	f.Add(`process.pid == ${pid}`)
+
+	// TestInArray
+	f.Add(`"a" in [ "a", "b", "c" ]`)
+	f.Add(`process.name in [ "c", "b", "aaa" ]`)
+	f.Add(`"d" in [ "aaa", "b", "c" ]`)
+	f.Add(`"aaa" not in [ "aaa", "b", "c" ]`)
+	f.Add(`process.name not in [ "c", "b", "aaa" ]`)
+	f.Add(`3 in [ 1, 2, 3 ]`)
+	f.Add(`process.uid in [ 1, 2, 3 ]`)
+	f.Add(`4 not in [ 1, 2, 3 ]`)
+	f.Add(`process.name in [ ~"*a*" ]`)
+	f.Add(`process.name in [ ~"*d*", "aaa" ]`)
+	f.Add(`process.name in [ ~"*d*", ~"aa*" ]`)
+	f.Add(`process.name in [ r".*d.*", r"aa.*" ]`)
+	f.Add(`process.name not in [ r".*d.*", r"ab.*" ]`)
+	f.Add(`retval in [ EPERM, EACCES, EPFNOSUPPORT ]`)
+
+	// TestComplex
+	f.Add(`open.filename =~ "/var/lib/httpd/*" && open.flags & (O_CREAT | O_TRUNC | O_EXCL | O_RDWR | O_WRONLY) > 0`)
+
+	// TestPartial
+	f.Add(`true || process.name == "/usr/bin/cat"`)
+	f.Add(`false || process.name == "/usr/bin/cat"`)
+	f.Add(`true && process.name == "abc"`)
+	f.Add(`false && process.name == "abc"`)
+	f.Add(`open.filename == "test1" && process.name == "/usr/bin/cat"`)
+	f.Add(`open.filename == "test1" && process.name != "/usr/bin/cat"`)
+	f.Add(`open.filename == "test1" || process.name == "/usr/bin/cat"`)
+	f.Add(`open.filename == "test1" && !(process.name == "/usr/bin/cat")`)
+	f.Add(`open.filename == "test1" && process.name =~ "ab*"`)
+	f.Add(`open.filename == "test1" && process.name == open.filename`)
+	f.Add(`open.filename in [ "test1", "test2" ] && process.name == "abc"`)
+	f.Add(`!(open.filename in [ "test1", "test2" ]) && process.name == "abc"`)
+	f.Add(`open.filename == open.filename`)
+	f.Add(`open.filename != open.filename`)
+	f.Add(`open.filename == "test1" && process.uid == 123`)
+	f.Add(`open.filename == "test1" && process.is_root`)
+	f.Add(`process.uid & (1 | 1024) == 1`)
+	f.Add(`process.name == "abc" && ^process.uid != 0`)
+
+	// TestConstants
+	f.Add(`retval in [ EPERM, EACCES ]`)
+	f.Add(`open.filename in [ my_constant_1, my_constant_2 ]`)
+	f.Add(`process.is_root in [ true, false ]`)
+
+	// TestRegister
+	f.Add(`process.list[A].key == 10`)
+	f.Add(`process.list[A].key != 10`)
+	f.Add(`process.list[A].key >= 200`)
+	f.Add(`process.list[A].key > 100`)
+	f.Add(`10 == process.list[A].key`)
+	f.Add(`10 != process.list[A].key`)
+	f.Add(`10 in process.list[A].key`)
+	f.Add(`10 not in process.list[A].key`)
+	f.Add(`process.array[A].flag == true`)
+	f.Add(`"AAA" in process.list[A].value`)
+	f.Add(`"AAA" not in process.list[A].value`)
+	f.Add(`~"AA*" in process.list[A].value`)
+	f.Add(`process.list[A].value == ~"AA*"`)
+	f.Add(`process.list[A].value =~ "AA*"`)
+	f.Add(`process.list[A].value in ["~zzzz", ~"AA*", "nnnnn"]`)
+	f.Add(`process.list[A].key == 10 && process.list[A].value == "AAA"`)
+	f.Add(`process.array[A].key == 1000 && process.array[A].value == "EEEE"`)
+
+	// TestDuration
+	f.Add(`process.created_at < 2s`)
+	f.Add(`process.created_at > 2s`)
+
+	// TestIPv4
+	f.Add(`192.168.0.1 == 192.168.0.1`)
+	f.Add(`192.168.0.15 in 192.168.0.1/24`)
+	f.Add(`192.168.0.16 not in 192.168.1.1/24`)
+	f.Add(`192.168.0.16/16 allin 192.168.1.1/8`)
+	f.Add(`network.ip == 192.168.0.1`)
+	f.Add(`network.ip == ::ffff:192.168.0.1`)
+	f.Add(`network.ip in 192.168.0.1/32`)
+	f.Add(`network.ip in 0.0.0.0/0`)
+	f.Add(`network.ip in [ 127.0.0.1, 192.168.0.1, 10.0.0.1 ]`)
+	f.Add(`network.ips in 192.168.0.0/16`)
+	f.Add(`network.ips allin 192.168.0.0/8`)
+	f.Add(`network.cidr in 192.168.0.0/8`)
+
+	// TestIPv6
+	f.Add(`2001:0:0eab:dead::a0:abcd:4e == 2001:0:0eab:dead::a0:abcd:4e`)
+	f.Add(`2001:0:0eab:dead::a0:abcd:4e in 2001:0:0eab:dead::a0:abcd:0/120`)
+	f.Add(`2001:0:0eab:dead::a0:abcd:4e/64 allin 2001:0:0eab:dead::a0:abcd:1b00/32`)
+	f.Add(`network.ip == 2001:0:0eab:dead::a0:abcd:4e`)
+	f.Add(`network.ip in ::1/0`)
+	f.Add(`network.ip in 2001:0:0eab:dead::a0:abcd:0/112`)
+
+	// TestOpOverrides
+	f.Add(`process.or_name == "not"`)
+	f.Add(`process.or_name != "not"`)
+	f.Add(`process.or_name in ["not"]`)
+	f.Add(`process.or_array.value == "not"`)
+
+	// TestArithmeticOperation
+	f.Add(`1 + 2 == 5 - 2 && process.name == "ls"`)
+	f.Add(`1 + 2 != 3 && process.name == "ls"`)
+	f.Add(`1 + 2 - 3 + 4  == 4 && process.name == "ls"`)
+	f.Add(`1 - 2 + 3 - (1 - 4) - (1 - 5) == 9 &&  process.name == "ls"`)
+	f.Add(`10s + 40s == 50s && process.name == "ls"`)
+	f.Add(`process.created_at < 5s && process.name == "ls"`)
+	f.Add(`open.opened_at - process.created_at + 3s <= 5s && process.name == "ls"`)
+
+	// TestMatchingSubExprs
+	f.Add(`true && process.name == "ls"`)
+	f.Add(`true && "ls" == process.name`)
+	f.Add(`true && process.name == process.name`)
+	f.Add(`true && process.name in ["ls"]`)
+	f.Add(`true && process.name =~ "*ls*"`)
+	f.Add(`true && process.name == ~"*ls*"`)
+	f.Add(`true && process.name == r".*ls.*"`)
+	f.Add(`true && process.uid == 22`)
+	f.Add(`true && process.uid >= 22`)
+	f.Add(`true && process.is_root`)
+	f.Add(`false || process.is_root`)
+	f.Add(`network.ip == 192.168.0.1`)
+	f.Add(`192.168.0.1 == network.ip`)
+	f.Add(`network.ips allin [192.168.0.0/16, 192.168.0.0/24]`)
+
+	// Benchmark expressions
+	f.Add(`process.name == "/usr/bin/ls" && process.uid == 1`)
+	f.Add(`process.name == "/usr/bin/ls" && process.uid != 0`)
+
+	f.Fuzz(func(_ *testing.T, expr string) {
+		commonFuzzEval(expr)
+	})
+}
+
+func commonFuzzEval(expr string) {
+	model := &testModel{}
+	opts := newOptsWithParams(testConstants, nil)
+
+	// Attempt to parse and evaluate the rule
+	rule, err := parseRule(expr, model, opts)
+	if err != nil {
+		return
+	}
+	_ = rule
+}
+
+func TestDiscoveredByFuzz(t *testing.T) {
+	exprs := []string{
+		`"!"!=A`,
+	}
+
+	for _, expr := range exprs {
+		t.Run(expr, func(_ *testing.T) {
+			commonFuzzEval(expr)
 		})
 	}
 }

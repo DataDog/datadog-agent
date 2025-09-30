@@ -16,6 +16,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -56,6 +57,11 @@ func NewClusterProcessor() *ClusterProcessor {
 // Process is used to process a list of node resources forming a cluster.
 func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interface{}) (processResult processors.ProcessResult, processed int, err error) {
 	processed = -1
+
+	processResult = processors.ProcessResult{
+		MetadataMessages: []model.MessageBody{},
+		ManifestMessages: []model.MessageBody{},
+	}
 
 	defer processors.RecoverOnPanic()
 
@@ -162,11 +168,12 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 
 	metadataMessages := []model.MessageBody{
 		&model.CollectorCluster{
-			ClusterName: pctx.Cfg.KubeClusterName,
-			ClusterId:   pctx.ClusterID,
-			GroupId:     pctx.MsgGroupID,
-			Cluster:     clusterModel,
-			Tags:        pctx.Cfg.ExtraTags,
+			ClusterName:  pctx.Cfg.KubeClusterName,
+			ClusterId:    pctx.ClusterID,
+			GroupId:      pctx.MsgGroupID,
+			Cluster:      clusterModel,
+			Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+			AgentVersion: ctx.GetAgentVersion(),
 		},
 	}
 	manifestMessages := []model.MessageBody{
@@ -174,6 +181,7 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 			ClusterName: pctx.Cfg.KubeClusterName,
 			ClusterId:   pctx.ClusterID,
 			GroupId:     pctx.MsgGroupID,
+			HostName:    pctx.HostName,
 			Manifests: []*model.Manifest{
 				{
 					Content:         yaml,
@@ -182,9 +190,13 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 					Type:            int32(orchestrator.K8sCluster),
 					Uid:             pctx.ClusterID,
 					Version:         "v1",
+					// when manifest get buffered, they share a common CollectorManifest - collector-specific tags
+					// should be added to the Manifest only
+					Tags: pctx.GetCollectorTags(),
 				},
 			},
-			Tags: pctx.Cfg.ExtraTags,
+			Tags:         pctx.Cfg.ExtraTags,
+			AgentVersion: ctx.GetAgentVersion(),
 		},
 	}
 	processResult = processors.ProcessResult{

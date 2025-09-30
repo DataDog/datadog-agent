@@ -9,7 +9,6 @@ package rules
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -44,34 +43,10 @@ var (
 
 	// ErrMultipleEventCategories is returned when multile event categories are in the same expansion
 	ErrMultipleEventCategories = errors.New("multiple event categories in the same rule expansion")
+
+	// ErrPolicyIsEmpty is returned when a policy has no rules or macros
+	ErrPolicyIsEmpty = errors.New("the policy is empty")
 )
-
-// ErrFieldTypeUnknown is returned when a field has an unknown type
-type ErrFieldTypeUnknown struct {
-	Field string
-}
-
-func (e *ErrFieldTypeUnknown) Error() string {
-	return fmt.Sprintf("field type unknown for `%s`", e.Field)
-}
-
-// ErrValueTypeUnknown is returned when the value of a field has an unknown type
-type ErrValueTypeUnknown struct {
-	Field string
-}
-
-func (e *ErrValueTypeUnknown) Error() string {
-	return fmt.Sprintf("value type unknown for `%s`", e.Field)
-}
-
-// ErrNoApprover is returned when no approver was found for a set of rules
-type ErrNoApprover struct {
-	Fields []string
-}
-
-func (e ErrNoApprover) Error() string {
-	return fmt.Sprintf("no approver for fields `%s`", strings.Join(e.Fields, ", "))
-}
 
 // ErrNoEventTypeBucket is returned when no bucket could be found for an event type
 type ErrNoEventTypeBucket struct {
@@ -82,24 +57,20 @@ func (e ErrNoEventTypeBucket) Error() string {
 	return fmt.Sprintf("no bucket for event type `%s`", e.EventType)
 }
 
-// ErrPoliciesLoad is returned on policies dir error
-type ErrPoliciesLoad struct {
-	Name string
-	Err  error
-}
-
-func (e ErrPoliciesLoad) Error() string {
-	return fmt.Sprintf("policies dir read error `%s`: %s", e.Name, e.Err)
-}
-
 // ErrPolicyLoad is returned on policy file error
 type ErrPolicyLoad struct {
-	Name string
-	Err  error
+	Name    string
+	Version string
+	Source  string
+	Err     error
 }
 
-func (e ErrPolicyLoad) Error() string {
-	return fmt.Sprintf("policy file error `%s`: %s", e.Name, e.Err)
+func (e *ErrPolicyLoad) Error() string {
+	return fmt.Sprintf("error loading policy `%s` from source `%s`: %s", e.Name, e.Source, e.Err)
+}
+
+func (e *ErrPolicyLoad) Unwrap() error {
+	return e.Err
 }
 
 // ErrMacroLoad is on macro definition error
@@ -108,8 +79,12 @@ type ErrMacroLoad struct {
 	Err   error
 }
 
-func (e ErrMacroLoad) Error() string {
+func (e *ErrMacroLoad) Error() string {
 	return fmt.Sprintf("macro `%s` definition error: %s", e.Macro.Def.ID, e.Err)
+}
+
+func (e *ErrMacroLoad) Unwrap() error {
+	return e.Err
 }
 
 // ErrRuleLoad is on rule definition error
@@ -118,8 +93,12 @@ type ErrRuleLoad struct {
 	Err  error
 }
 
-func (e ErrRuleLoad) Error() string {
+func (e *ErrRuleLoad) Error() string {
 	return fmt.Sprintf("rule `%s` error: %s", e.Rule.Def.ID, e.Err)
+}
+
+func (e *ErrRuleLoad) Unwrap() error {
+	return e.Err
 }
 
 // RuleLoadErrType defines an rule error type
@@ -139,7 +118,7 @@ const (
 )
 
 // Type return the type of the error
-func (e ErrRuleLoad) Type() RuleLoadErrType {
+func (e *ErrRuleLoad) Type() RuleLoadErrType {
 	switch e.Err {
 	case ErrRuleAgentVersion:
 		return AgentVersionErrType
@@ -150,7 +129,7 @@ func (e ErrRuleLoad) Type() RuleLoadErrType {
 	}
 
 	switch e.Err.(type) {
-	case *ErrFieldTypeUnknown, *ErrValueTypeUnknown, *ErrRuleSyntax, *ErrFieldNotAvailable:
+	case *ErrRuleSyntax, *ErrFieldNotAvailable:
 		return SyntaxErrType
 	}
 
@@ -166,14 +145,36 @@ func (e *ErrRuleSyntax) Error() string {
 	return fmt.Sprintf("syntax error `%v`", e.Err)
 }
 
+func (e *ErrRuleSyntax) Unwrap() error {
+	return e.Err
+}
+
 // ErrActionFilter is on filter definition error
 type ErrActionFilter struct {
 	Expression string
 	Err        error
 }
 
-func (e ErrActionFilter) Error() string {
+func (e *ErrActionFilter) Error() string {
 	return fmt.Sprintf("filter `%s` error: %s", e.Expression, e.Err)
+}
+
+func (e *ErrActionFilter) Unwrap() error {
+	return e.Err
+}
+
+// ErrScopeField is return on scope field definition error
+type ErrScopeField struct {
+	Expression string
+	Err        error
+}
+
+func (e *ErrScopeField) Error() string {
+	return fmt.Sprintf("scope_field `%s` error: %s", e.Expression, e.Err)
+}
+
+func (e *ErrScopeField) Unwrap() error {
+	return e.Err
 }
 
 // ErrFieldNotAvailable is returned when a field is not available
@@ -185,14 +186,4 @@ type ErrFieldNotAvailable struct {
 
 func (e *ErrFieldNotAvailable) Error() string {
 	return fmt.Sprintf("field `%s` not available for event type `%v`, available for `%v`", e.Field, e.EventType, e.RestrictedTo)
-}
-
-// ErrActionNotAvailable is returned when an action is not available
-type ErrActionNotAvailable struct {
-	ActionName string
-	EventType  eval.EventType
-}
-
-func (e *ErrActionNotAvailable) Error() string {
-	return fmt.Sprintf("action `%s` not available for event type `%v`", e.ActionName, e.EventType)
 }

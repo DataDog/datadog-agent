@@ -17,18 +17,17 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
@@ -36,6 +35,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-dogstatsd"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -112,7 +112,6 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 
 	configOptions := []func(*config.Params){
 		config.WithConfFilePath(cliParams.confPath),
-		config.WithConfigMissingOK(true),
 		config.WithConfigName("dogstatsd"),
 	}
 	if cliParams.socketPath != "" {
@@ -140,7 +139,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
-			InitHelper: common.GetWorkloadmetaInit(),
+			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
 		metricscompressionfx.Module(),
 		logscompressionfx.Module(),
@@ -148,7 +147,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			demultiplexerimpl.WithContinueOnMissingHostname(),
 			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
 		)),
-		secretsimpl.Module(),
+		secretsfx.Module(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
@@ -164,7 +163,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		resourcesimpl.Module(),
 		hostimpl.Module(),
 		inventoryagentimpl.Module(),
-		authtokenimpl.Module(),
+		ipcfx.ModuleReadWrite(),
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),
 		inventoryhostimpl.Module(),
@@ -241,7 +240,7 @@ func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Compone
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if !config.IsSet("api_key") {
+	if !config.IsConfigured("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return
 	}

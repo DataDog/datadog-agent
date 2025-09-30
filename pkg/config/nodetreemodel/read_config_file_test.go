@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +34,7 @@ network_devices:
     bind_host: ko
 `
 
-func setupDefault(_ *testing.T, cfg model.Config) *ntmConfig {
+func setupDefault(_ *testing.T, cfg model.BuildableConfig) *ntmConfig {
 	cfg.SetDefault("network_devices.snmp_traps.enabled", false)
 	cfg.SetDefault("network_devices.snmp_traps.port", 0)
 	cfg.SetDefault("network_devices.snmp_traps.bind_host", "")
@@ -69,11 +70,13 @@ func TestReadConfig(t *testing.T) {
 	err = cfg.ReadConfig(strings.NewReader(confYaml2))
 	require.NoError(t, err)
 
-	assert.Equal(t, true, cfg.GetBool("network_devices.snmp_traps.enabled"))
+	// by reading confYaml2, we override the values set by confYaml, causing snmp_traps.enabled,
+	// snmp_traps.stop_timeout, and snmp_traps.namespace to be set to their default values.
+	assert.Equal(t, false, cfg.GetBool("network_devices.snmp_traps.enabled"))
 	assert.Equal(t, 9876, cfg.GetInt("network_devices.snmp_traps.port"))
 	assert.Equal(t, "ko", cfg.GetString("network_devices.snmp_traps.bind_host"))
-	assert.Equal(t, 4, cfg.GetInt("network_devices.snmp_traps.stop_timeout"))
-	assert.Equal(t, "abc", cfg.GetString("network_devices.snmp_traps.namespace"))
+	assert.Equal(t, 0, cfg.GetInt("network_devices.snmp_traps.stop_timeout"))
+	assert.Equal(t, "", cfg.GetString("network_devices.snmp_traps.namespace"))
 }
 
 func TestReadSingleFile(t *testing.T) {
@@ -204,7 +207,7 @@ c:
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, "unknown key from YAML: c.unknown", c.warnings[0])
+	assert.Equal(t, errors.New("unknown key from YAML: c.unknown"), c.warnings[0])
 
 	expected := &innerNode{
 		children: map[string]Node{
@@ -237,17 +240,30 @@ c: 1234
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, "invalid type from configuration for key 'c'", c.warnings[0])
+	assert.Equal(t, errors.New("invalid type from configuration for key 'c': 1234"), c.warnings[0])
 
-	expected := &innerNode{
-		children: map[string]Node{
-			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
-			"c": &innerNode{
-				children: map[string]Node{},
-			},
-		},
-	}
-	assert.Equal(t, expected, c.file)
+	// The file node with "1234" still exists, but it was not merged because it didn't match
+	// the schema layer.
+	expected := `tree(#ptr<000000>) source=root
+> a
+    leaf(#ptr<000001>), val:"orange", source:file
+> c
+  inner(#ptr<000002>)
+  > d
+      leaf(#ptr<000003>), val:true, source:default
+tree(#ptr<000004>) source=default
+> a
+    leaf(#ptr<000005>), val:"apple", source:default
+> c
+  inner(#ptr<000002>)
+  > d
+      leaf(#ptr<000003>), val:true, source:default
+tree(#ptr<000006>) source=file
+> a
+    leaf(#ptr<000001>), val:"orange", source:file
+> c
+    leaf(#ptr<000007>), val:1234, source:file`
+	assert.Equal(t, expected, c.Stringify("all", model.OmitPointerAddr))
 }
 
 func TestToMapStringInterface(t *testing.T) {
@@ -257,14 +273,18 @@ func TestToMapStringInterface(t *testing.T) {
 	assert.Error(t, err)
 	_, err = toMapStringInterface("test", "key")
 	assert.Error(t, err)
-	_, err = toMapStringInterface(map[int]string{1: "test"}, "key")
-	assert.Error(t, err)
-	_, err = toMapStringInterface(map[interface{}]string{1: "test"}, "key")
-	assert.Error(t, err)
-	_, err = toMapStringInterface(map[interface{}]string{1: "test", "test2": "test2"}, "key")
-	assert.Error(t, err)
 
-	data, err := toMapStringInterface(map[string]string{"test": "test"}, "key")
+	data, err := toMapStringInterface(map[int]string{1: "test"}, "key")
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"1": "test"}, data)
+	data, err = toMapStringInterface(map[interface{}]string{1: "test"}, "key")
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"1": "test"}, data)
+	data, err = toMapStringInterface(map[interface{}]string{1: "test", "test2": "test2"}, "key")
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"1": "test", "test2": "test2"}, data)
+
+	data, err = toMapStringInterface(map[string]string{"test": "test"}, "key")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"test": "test"}, data)
 

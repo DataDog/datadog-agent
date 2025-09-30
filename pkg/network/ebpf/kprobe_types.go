@@ -32,6 +32,7 @@ type ProtocolStack C.protocol_stack_t
 type ProtocolStackWrapper C.protocol_stack_wrapper_t
 type TLSTags C.tls_info_t
 type TLSTagsWrapper C.tls_info_wrapper_t
+type NetTimeMs C.time_ms_t
 
 // udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
 type _Ctype_struct_sock uint64
@@ -55,10 +56,6 @@ const (
 
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
 const SizeofBatch = C.sizeof_batch_t
-
-const TCPFailureConnReset = C.TCP_CONN_FAILED_RESET
-const TCPFailureConnTimeout = C.TCP_CONN_FAILED_TIMEOUT
-const TCPFailureConnRefused = C.TCP_CONN_FAILED_REFUSED
 
 const SizeofConn = C.sizeof_conn_t
 

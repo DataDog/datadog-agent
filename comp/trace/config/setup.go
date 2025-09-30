@@ -19,22 +19,20 @@ import (
 
 	"go.opentelemetry.io/collector/component/componenttest"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,27 +46,19 @@ const (
 	apiEndpointPrefix = "https://trace.agent."
 	// mrfPrefix is the MRF site prefix.
 	mrfPrefix = "mrf."
-	// rcClientName is the default name for remote configuration clients in the trace agent
-	rcClientName = "trace-agent"
 )
 
-const (
-	// rcClientPollInterval is the default poll interval for remote configuration clients. 1 second ensures that
-	// clients remain up to date without paying too much of a performance cost (polls that contain no updates are cheap)
-	rcClientPollInterval = time.Second * 1
-)
-
-func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
+func setupConfigCommon(deps Dependencies) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
-	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.At)
+	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.IPC)
 }
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
 // and a valid configuration can be returned based on defaults and environment variables. If a
 // valid configuration can not be obtained, an error is returned.
-func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component, at authtoken.Component) (*config.AgentConfig, error) {
-	cfg, err := prepareConfig(c, tagger, at)
+func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component, ipc ipc.Component) (*config.AgentConfig, error) {
+	cfg, err := prepareConfig(c, tagger, ipc)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -85,20 +75,22 @@ func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Componen
 	return cfg, validate(cfg, c)
 }
 
-func prepareConfig(c corecompcfg.Component, tagger tagger.Component, at authtoken.Component) (*config.AgentConfig, error) {
+func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Component) (*config.AgentConfig, error) {
 	cfg := config.New()
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
 	cfg.GitCommit = version.Commit
-	cfg.ReceiverSocket = defaultReceiverSocket
 
 	// the core config can be assumed to already be set-up as it has been
 	// injected as a component dependency
 	// TODO: do not interface directly with pkg/config anywhere
 	coreConfigObject := c.Object()
+
 	if coreConfigObject == nil {
 		return nil, errors.New("no core config found! Bailing out")
 	}
+
+	cfg.ReceiverSocket = coreConfigObject.GetString("apm_config.receiver_socket")
 
 	if !coreConfigObject.GetBool("disable_file_logging") {
 		cfg.LogFilePath = DefaultLogFilePath
@@ -115,11 +107,19 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, at authtoke
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if pkgconfigsetup.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote(c, ipcAddress, at)
+		client, err := remote(c, ipcAddress, ipc)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
 			cfg.RemoteConfigClient = client
+		}
+	}
+	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
+		mrfClient, err := mrfRemoteClient(ipcAddress, ipc)
+		if err != nil {
+			log.Errorf("Error when subscribing to MRF remote config management %v", err)
+		} else {
+			cfg.MRFRemoteConfigClient = mrfClient
 		}
 	}
 	cfg.ContainerTags = func(cid string) ([]string, error) {
@@ -129,14 +129,13 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, at authtoke
 		return tagger.GenerateContainerIDFromOriginInfo(originInfo)
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
-	cfg.GetAgentAuthToken = apiutil.GetAuthToken
+	cfg.AuthToken = ipc.GetAuthToken()
+	cfg.IPCTLSClientConfig = ipc.GetTLSClientConfig()
+	cfg.IPCTLSServerConfig = ipc.GetTLSServerConfig()
 	cfg.HTTPTransportFunc = func() *http.Transport {
 		return httputils.CreateHTTPTransport(coreConfigObject)
 	}
 
-	cfg.IsMRFEnabled = func() bool {
-		return coreConfigObject.GetBool("multi_region_failover.enabled") && coreConfigObject.GetBool("multi_region_failover.failover_apm")
-	}
 	return cfg, nil
 }
 
@@ -191,6 +190,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		if err != nil {
 			return fmt.Errorf("cannot construct MRF endpoint: %s", err)
 		}
+		c.MRFFailoverAPMDefault = core.GetBool("multi_region_failover.failover_apm")
 
 		c.Endpoints = append(c.Endpoints, &config.Endpoint{
 			Host:   mrfURL,
@@ -237,7 +237,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	prevEnv := c.DefaultEnv
-	c.DefaultEnv = traceutil.NormalizeTagValue(c.DefaultEnv)
+	c.DefaultEnv = normalize.NormalizeTagValue(c.DefaultEnv)
 	if c.DefaultEnv != prevEnv {
 		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
@@ -588,6 +588,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.profiling_additional_endpoints"; core.IsSet(k) {
 		c.ProfilingProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
+	if k := "apm_config.profiling_receiver_timeout"; core.IsSet(k) {
+		c.ProfilingProxy.ReceiverTimeout = core.GetInt(k)
+	}
 	if k := "apm_config.debugger_dd_url"; core.IsSet(k) {
 		c.DebuggerProxy.DDURL = core.GetString(k)
 	}
@@ -598,13 +601,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.DebuggerProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
 	if k := "apm_config.debugger_diagnostics_dd_url"; core.IsSet(k) {
-		c.DebuggerDiagnosticsProxy.DDURL = core.GetString(k)
+		c.DebuggerIntakeProxy.DDURL = core.GetString(k)
 	}
 	if k := "apm_config.debugger_diagnostics_api_key"; core.IsSet(k) {
-		c.DebuggerDiagnosticsProxy.APIKey = core.GetString(k)
+		c.DebuggerIntakeProxy.APIKey = core.GetString(k)
 	}
 	if k := "apm_config.debugger_diagnostics_additional_endpoints"; core.IsSet(k) {
-		c.DebuggerDiagnosticsProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+		c.DebuggerIntakeProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
 	if k := "apm_config.symdb_dd_url"; core.IsSet(k) {
 		c.SymDBProxy.DDURL = core.GetString(k)
@@ -650,6 +653,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "ol_proxy_config.additional_endpoints"; core.IsSet(k) {
 		c.OpenLineageProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	}
+	if k := "ol_proxy_config.api_version"; core.IsSet(k) {
+		c.OpenLineageProxy.APIVersion = core.GetInt(k)
 	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil

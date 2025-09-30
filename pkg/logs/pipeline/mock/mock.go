@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package mock provides mock pipeline components for testing
 package mock
 
 import (
@@ -32,25 +32,13 @@ func (p *mockProvider) Start() {}
 // Stop does nothing
 func (p *mockProvider) Stop() {}
 
-func (p *mockProvider) ReconfigureSDSStandardRules(_ []byte) (bool, error) {
-	return false, nil
-}
-
-func (p *mockProvider) ReconfigureSDSAgentConfig(_ []byte) (bool, error) {
-	return false, nil
-}
-
-func (p *mockProvider) StopSDSProcessing() error {
-	return nil
-}
-
 func (p *mockProvider) GetOutputChan() chan *message.Message {
 	return nil
 }
 
 // Flush does nothing
 //
-//nolint:revive // TODO(AML) Fix revive linter
+
 func (p *mockProvider) Flush(_ context.Context) {}
 
 // NextPipelineChan returns the next pipeline
@@ -59,6 +47,6 @@ func (p *mockProvider) NextPipelineChan() chan *message.Message {
 }
 
 // NextPipelineChanWithInstance returns the next pipeline
-func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
-	return p.msgChan, metrics.NewNoopPipelineMonitor("")
+func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
+	return p.msgChan, metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", "")
 }

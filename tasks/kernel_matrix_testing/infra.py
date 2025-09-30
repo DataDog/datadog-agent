@@ -4,7 +4,7 @@ import glob
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, TypedDict, cast
 
 from invoke.context import Context
 
@@ -100,9 +100,10 @@ class LibvirtDomain:
         tag: str,
         vmset_tags: list[str],
         ssh_key_path: str | None,
-        arch: KMTArchNameOrLocal | None,
+        arch: KMTArchNameOrLocal,
         instance: HostInstance,
         user: str = "root",
+        gdb_port: int = 0,
     ):
         self.ip = ip
         self.name = domain_id
@@ -110,8 +111,9 @@ class LibvirtDomain:
         self.vmset_tags = vmset_tags
         self.ssh_key = ssh_key_path
         self.instance = instance
-        self.arch = arch
+        self.arch: KMTArchNameOrLocal = arch
         self.user = user
+        self.gdb_port = gdb_port
 
     def run_cmd(self, ctx: Context, cmd: str, allow_fail=False, verbose=False, timeout_sec=None):
         if timeout_sec is not None:
@@ -214,7 +216,14 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
             # location in the local machine.
             instance.add_microvm(
                 LibvirtDomain(
-                    vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], os.fspath(get_kmt_os().ddvm_rsa), arch, instance
+                    vm["ip"],
+                    vm["id"],
+                    vm["tag"],
+                    vm["vmset-tags"],
+                    os.fspath(get_kmt_os().ddvm_rsa),
+                    arch,
+                    instance,
+                    gdb_port=vm.get("gdb-port", 0),
                 )
             )
 
@@ -244,6 +253,7 @@ def build_alien_infrastructure(alien_vms: Path) -> dict[KMTArchNameOrLocal, Host
         ssh_user = "root"
         if "ssh_user" in vm:
             ssh_user = vm["ssh_user"]
+
         instance.add_microvm(
             LibvirtDomain(
                 vm["ip"],
@@ -251,7 +261,7 @@ def build_alien_infrastructure(alien_vms: Path) -> dict[KMTArchNameOrLocal, Host
                 "",
                 [],
                 vm["ssh_key_path"],
-                vm["arch"],
+                cast(KMTArchNameOrLocal, vm["arch"]),
                 instance,
                 ssh_user,
             )

@@ -16,14 +16,17 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
+
+	"go.uber.org/multierr"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/multierr"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -87,12 +90,12 @@ func (a *InjectorInstaller) Finish(err error) {
 func (a *InjectorInstaller) Setup(ctx context.Context) error {
 	var err error
 
-	if err := setupAppArmor(ctx); err != nil {
+	if err = setupAppArmor(ctx); err != nil {
 		return err
 	}
 
 	// Create mandatory dirs
-	err = os.Mkdir("/var/log/datadog/dotnet", 0777)
+	err = os.MkdirAll("/var/log/datadog/dotnet", 0755)
 	if err != nil && !os.IsExist(err) {
 		return fmt.Errorf("error creating /var/log/datadog/dotnet: %w", err)
 	}
@@ -221,32 +224,12 @@ func (a *InjectorInstaller) setLDPreloadConfigContent(_ context.Context, ldSoPre
 
 // deleteLDPreloadConfigContent deletes the content of the LD preload configuration
 func (a *InjectorInstaller) deleteLDPreloadConfigContent(_ context.Context, ldSoPreload []byte) ([]byte, error) {
-	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
-
-	if !strings.Contains(string(ldSoPreload), launcherPreloadPath) {
-		// If the line of interest isn't there, return fast
-		return ldSoPreload, nil
-	}
-
-	// Possible configurations of the preload path, order matters
-	replacementsToTest := [][]byte{
-		[]byte(launcherPreloadPath + "\n"),
-		[]byte("\n" + launcherPreloadPath),
-		[]byte(launcherPreloadPath + " "),
-		[]byte(" " + launcherPreloadPath),
-	}
-	for _, replacement := range replacementsToTest {
-		ldSoPreloadNew := bytes.Replace(ldSoPreload, replacement, []byte{}, 1)
-		if !bytes.Equal(ldSoPreloadNew, ldSoPreload) {
-			return ldSoPreloadNew, nil
-		}
-	}
-	if bytes.Equal(ldSoPreload, []byte(launcherPreloadPath)) {
-		// If the line is the only one in the file without newlines, return an empty file
-		return []byte{}, nil
-	}
-
-	return nil, fmt.Errorf("failed to remove %s from %s", launcherPreloadPath, ldSoPreloadPath)
+	// we want to make sure that we also remove the line if it was updated to be a dynamic path (supporting no-op 32bit libraries)
+	regexPath := a.installPath + "/inject/(.*?/)?launcher\\.preload\\.so"
+	// match beginning of the line and the [dynamic] path and trailing whitespaces (spaces\tabs\new lines) OR
+	// match ANY leading whitespaces (spaces\tabs\new lines) with the dynamic path
+	matcher := regexp.MustCompile("^" + regexPath + "(\\s*)|(\\s*)" + regexPath)
+	return []byte(matcher.ReplaceAllString(string(ldSoPreload), "")), nil
 }
 
 func (a *InjectorInstaller) verifySharedLib(ctx context.Context, libPath string) (err error) {
@@ -281,7 +264,7 @@ func (a *InjectorInstaller) addInstrumentScripts(ctx context.Context) (err error
 	hostMutator := newFileMutator(
 		"/usr/bin/dd-host-install",
 		func(_ context.Context, _ []byte) ([]byte, error) {
-			return embedded.FS.ReadFile("dd-host-install")
+			return embedded.ScriptDDHostInstall, nil
 		},
 		nil, nil,
 	)
@@ -299,7 +282,7 @@ func (a *InjectorInstaller) addInstrumentScripts(ctx context.Context) (err error
 	containerMutator := newFileMutator(
 		"/usr/bin/dd-container-install",
 		func(_ context.Context, _ []byte) ([]byte, error) {
-			return embedded.FS.ReadFile("dd-container-install")
+			return embedded.ScriptDDContainerInstall, nil
 		},
 		nil, nil,
 	)
@@ -320,7 +303,7 @@ func (a *InjectorInstaller) addInstrumentScripts(ctx context.Context) (err error
 		cleanupMutator := newFileMutator(
 			"/usr/bin/dd-cleanup",
 			func(_ context.Context, _ []byte) ([]byte, error) {
-				return embedded.FS.ReadFile("dd-cleanup")
+				return embedded.ScriptDDCleanup, nil
 			},
 			nil, nil,
 		)
@@ -350,19 +333,9 @@ func (a *InjectorInstaller) removeInstrumentScripts(ctx context.Context) (retErr
 		path := filepath.Join("/usr/bin", script)
 		_, err := os.Stat(path)
 		if err == nil {
-			content, err := os.ReadFile(path)
+			err = os.Remove(path)
 			if err != nil {
-				return fmt.Errorf("failed to read %s: %w", path, err)
-			}
-			embeddedContent, err := embedded.FS.ReadFile(script)
-			if err != nil {
-				return fmt.Errorf("failed to read embedded %s: %w", script, err)
-			}
-			if bytes.Equal(content, embeddedContent) {
-				err = os.Remove(path)
-				if err != nil {
-					return fmt.Errorf("failed to remove %s: %w", path, err)
-				}
+				return fmt.Errorf("failed to remove %s: %w", path, err)
 			}
 		}
 	}
@@ -373,41 +346,63 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 	span, _ := telemetry.StartSpanFromContext(ctx, "add_local_stable_config")
 	defer func() { span.Finish(err) }()
 
-	type ApmConfigDefault struct {
-		RuntimeMetricsEnabled *bool   `yaml:"DD_RUNTIME_METRICS_ENABLED,omitempty"`
-		LogsInjection         *bool   `yaml:"DD_LOGS_INJECTION,omitempty"`
-		APMTracingEnabled     *bool   `yaml:"DD_APM_TRACING_ENABLED,omitempty"`
-		ProfilingEnabled      *string `yaml:"DD_PROFILING_ENABLED,omitempty"`
-		DataStreamsEnabled    *bool   `yaml:"DD_DATA_STREAMS_ENABLED,omitempty"`
-		AppsecEnabled         *bool   `yaml:"DD_APPSEC_ENABLED,omitempty"`
-		IastEnabled           *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
-		DataJobsEnabled       *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
-		AppsecScaEnabled      *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
-	}
-	type ApplicationMonitoring struct {
-		Default ApmConfigDefault `yaml:"apm_configuration_default"`
-	}
-
 	appMonitoringConfigMutator := newFileMutator(
 		localStableConfigPath,
-		func(_ context.Context, _ []byte) ([]byte, error) {
-			cfg := ApplicationMonitoring{
-				Default: ApmConfigDefault{
-					RuntimeMetricsEnabled: a.Env.InstallScript.RuntimeMetricsEnabled,
-					LogsInjection:         a.Env.InstallScript.LogsInjection,
-					APMTracingEnabled:     a.Env.InstallScript.APMTracingEnabled,
-					DataStreamsEnabled:    a.Env.InstallScript.DataStreamsEnabled,
-					AppsecEnabled:         a.Env.InstallScript.AppsecEnabled,
-					IastEnabled:           a.Env.InstallScript.IastEnabled,
-					DataJobsEnabled:       a.Env.InstallScript.DataJobsEnabled,
-					AppsecScaEnabled:      a.Env.InstallScript.AppsecScaEnabled,
-				},
+		func(_ context.Context, existing []byte) ([]byte, error) {
+			cfg := config.ApplicationMonitoringConfig{
+				Default: config.APMConfigurationDefault{},
+			}
+			hasChanged := false
+
+			if len(existing) > 0 {
+				err := yaml.Unmarshal(existing, &cfg)
+				if err != nil {
+					return nil, fmt.Errorf("failed to unmarshal existing application_monitoring.yaml: %w", err)
+				}
+			}
+
+			if a.Env.InstallScript.RuntimeMetricsEnabled != nil {
+				hasChanged = true
+				cfg.Default.RuntimeMetricsEnabled = a.Env.InstallScript.RuntimeMetricsEnabled
+			}
+			if a.Env.InstallScript.LogsInjection != nil {
+				hasChanged = true
+				cfg.Default.LogsInjection = a.Env.InstallScript.LogsInjection
+			}
+			if a.Env.InstallScript.APMTracingEnabled != nil {
+				hasChanged = true
+				cfg.Default.APMTracingEnabled = a.Env.InstallScript.APMTracingEnabled
+			}
+			if a.Env.InstallScript.DataStreamsEnabled != nil {
+				hasChanged = true
+				cfg.Default.DataStreamsEnabled = a.Env.InstallScript.DataStreamsEnabled
+			}
+			if a.Env.InstallScript.AppsecEnabled != nil {
+				hasChanged = true
+				cfg.Default.AppsecEnabled = a.Env.InstallScript.AppsecEnabled
+			}
+			if a.Env.InstallScript.IastEnabled != nil {
+				hasChanged = true
+				cfg.Default.IastEnabled = a.Env.InstallScript.IastEnabled
+			}
+			if a.Env.InstallScript.DataJobsEnabled != nil {
+				hasChanged = true
+				cfg.Default.DataJobsEnabled = a.Env.InstallScript.DataJobsEnabled
+			}
+			if a.Env.InstallScript.AppsecScaEnabled != nil {
+				hasChanged = true
+				cfg.Default.AppsecScaEnabled = a.Env.InstallScript.AppsecScaEnabled
 			}
 			if a.Env.InstallScript.ProfilingEnabled != "" {
+				hasChanged = true
 				cfg.Default.ProfilingEnabled = &a.Env.InstallScript.ProfilingEnabled
 			}
 
-			return yaml.Marshal(cfg)
+			// Avoid creating a .backup file and overwriting the existing file if no changes were made
+			if hasChanged {
+				return yaml.Marshal(cfg)
+			}
+			return existing, nil
 		},
 		nil, nil,
 	)
@@ -416,7 +411,7 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 		return err
 	}
 	err = os.Chmod(localStableConfigPath, 0644)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to set permissions for application_monitoring.yaml: %w", err)
 	}
 

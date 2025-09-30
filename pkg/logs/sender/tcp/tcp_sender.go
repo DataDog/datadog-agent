@@ -9,7 +9,6 @@ package tcp
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -21,7 +20,7 @@ import (
 // NewTCPSender returns a new tcp sender.
 func NewTCPSender(
 	config pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	sink sender.Sink,
 	bufferSize int,
 	serverlessMeta sender.ServerlessMeta,
 	endpoints *config.Endpoints,
@@ -32,13 +31,13 @@ func NewTCPSender(
 	workersPerQueue int,
 ) *sender.Sender {
 	log.Debugf("Creating a new sender for component %s with %d queues, %d tcp workers", componentName, queueCount, workersPerQueue)
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor("tcp_sender")
+	pipelineMonitor := metrics.NewTelemetryPipelineMonitor()
 
 	destinationFactory := tcpDestinationFactory(endpoints, destinationsCtx, serverlessMeta, status)
 
 	return sender.NewSender(
 		config,
-		auditor,
+		sink,
 		destinationFactory,
 		bufferSize,
 		serverlessMeta,
@@ -55,7 +54,7 @@ func tcpDestinationFactory(
 	status statusinterface.Status,
 ) sender.DestinationFactory {
 	isServerless := serverlessMeta != nil
-	return func() *client.Destinations {
+	return func(_ string) *client.Destinations {
 		reliable := []client.Destination{}
 		additionals := []client.Destination{}
 		for _, endpoint := range endpoints.GetReliableEndpoints() {

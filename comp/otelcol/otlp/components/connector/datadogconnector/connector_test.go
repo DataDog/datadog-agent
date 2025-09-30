@@ -5,17 +5,16 @@ package datadogconnector
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"sort"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+
+	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
+
 	"github.com/google/go-cmp/cmp"
+	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -24,12 +23,15 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/collector/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
 var _ component.Component = (*traceToMetricConnector)(nil) // testing that the connectorImp properly implements the type Component interface
@@ -63,7 +65,7 @@ func TestTraceToTraceConnectorNative(t *testing.T) {
 
 func creteConnectorNative(t *testing.T) (*traceToMetricConnector, *consumertest.MetricsSink) {
 	cfg := NewFactory().CreateDefaultConfig().(*Config)
-	cfg.Traces.ResourceAttributesAsContainerTags = []string{semconv.AttributeCloudAvailabilityZone, semconv.AttributeCloudRegion, "az"}
+	cfg.Traces.ResourceAttributesAsContainerTags = []string{string(semconv.CloudAvailabilityZoneKey), string(semconv.CloudRegionKey), "az"}
 	return creteConnectorNativeWithCfg(t, cfg)
 }
 
@@ -299,7 +301,7 @@ func testMeasuredAndClientKindNative(t *testing.T, enableOperationAndResourceNam
 	td := ptrace.NewTraces()
 	res := td.ResourceSpans().AppendEmpty().Resource()
 	res.Attributes().PutStr("service.name", "svc")
-	res.Attributes().PutStr(semconv.AttributeDeploymentEnvironmentName, "my-env")
+	res.Attributes().PutStr(string(semconv.DeploymentEnvironmentNameKey), "my-env")
 
 	ss := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
 	// Root span
@@ -433,8 +435,8 @@ func TestObfuscate(t *testing.T) {
 
 	td := ptrace.NewTraces()
 	res := td.ResourceSpans().AppendEmpty().Resource()
-	res.Attributes().PutStr(semconv.AttributeServiceName, "svc")
-	res.Attributes().PutStr(semconv.AttributeDeploymentEnvironmentName, "my-env")
+	res.Attributes().PutStr(string(semconv.ServiceNameKey), "svc")
+	res.Attributes().PutStr(string(semconv.DeploymentEnvironmentNameKey), "my-env")
 
 	ss := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
 	s := ss.AppendEmpty()
@@ -442,9 +444,9 @@ func TestObfuscate(t *testing.T) {
 	s.SetKind(ptrace.SpanKindClient)
 	s.SetTraceID(testTraceID)
 	s.SetSpanID(testSpanID1)
-	s.Attributes().PutStr(semconv.AttributeDBSystem, semconv.AttributeDBSystemMySQL)
-	s.Attributes().PutStr(semconv.AttributeDBOperationName, "SELECT")
-	s.Attributes().PutStr(semconv.AttributeDBQueryText, "SELECT username FROM users WHERE id = 123") // id value 123 should be obfuscated
+	s.Attributes().PutStr(string(semconv.DBSystemKey), semconv.DBSystemMySQL.Value.AsString())
+	s.Attributes().PutStr(string(semconv.DBOperationNameKey), "SELECT")
+	s.Attributes().PutStr(string(semconv.DBQueryTextKey), "SELECT username FROM users WHERE id = 123") // id value 123 should be obfuscated
 
 	err = connector.ConsumeTraces(context.Background(), td)
 	require.NoError(t, err)

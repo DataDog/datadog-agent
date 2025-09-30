@@ -1,0 +1,70 @@
+{
+  "employee/K8S_INJECTION_DD/1.dd-lib-python-init.json/config":
+    {
+      "repository_name": "dd-lib-python-init",
+      "repository_url": "gcr.io/datadoghq/dd-lib-python-init",
+      "images": [
+        {
+          "tag": "latest",
+          "digest": "sha256:abc123",
+          "canonical_version": "3.1.0"
+        },
+        {
+          "tag": "3",
+          "digest": "sha256:def456",
+          "canonical_version": "3.0.0"
+        }
+      ]
+    },
+  "employee/K8S_INJECTION_DD/2.dd-lib-java-init.json/config":
+    {
+      "repository_name": "dd-lib-java-init",
+      "repository_url": "gcr.io/datadoghq/dd-lib-java-init",
+      "images": [
+        {
+          "tag": "latest",
+          "digest": "sha256:ghi789",
+          "canonical_version": "1.5.2"
+        },
+        {
+          "tag": "1",
+          "digest": "sha256:java456",
+          "canonical_version": "1.0.0"
+        }
+      ]
+    },
+  "employee/K8S_INJECTION_DD/3.dd-lib-js-init.json/config":
+    {
+      "repository_name": "dd-lib-js-init",
+      "repository_url": "gcr.io/datadoghq/dd-lib-js-init",
+      "images": [
+        {
+          "tag": "latest",
+          "digest": "sha256:js123",
+          "canonical_version": "5.2.1"
+        },
+        {
+          "tag": "5",
+          "digest": "sha256:js456",
+          "canonical_version": "5.0.0"
+        }
+      ]
+    },
+  "employee/K8S_INJECTION_DD/1.apm-inject.json/config":
+    {
+      "repository_name": "apm-inject",
+      "repository_url": "gcr.io/datadoghq/apm-inject",
+      "images": [
+        {
+          "tag": "latest",
+          "digest": "sha256:inject123",
+          "canonical_version": "0.2.1"
+        },
+        {
+          "tag": "0",
+          "digest": "sha256:inject456",
+          "canonical_version": "0.2.1"
+        }
+      ]
+    }
+  }

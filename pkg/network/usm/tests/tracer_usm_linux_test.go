@@ -90,6 +90,8 @@ const (
 
 	fetchAPIKey   = 1
 	produceAPIKey = 0
+
+	redisProtocolVersion = 3
 )
 
 func httpSupported() bool {
@@ -1612,7 +1614,6 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 	}
 
 	redisTeardown := func(_ *testing.T, ctx testContext) {
-		redis.NewClient(ctx.serverAddress, defaultDialer, withTLS)
 		if client, ok := ctx.extras["client"].(*redis2.Client); ok {
 			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
@@ -1635,7 +1636,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1659,7 +1661,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Set(timedContext, "key", "value", time.Minute)
@@ -1686,7 +1689,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1729,7 +1733,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -2298,27 +2303,32 @@ func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Clien
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.HTTP
+		requests := conns.USMData.HTTP
 		if isHTTP2 {
-			requests = conns.HTTP2
+			requests = conns.USMData.HTTP2
 		}
 		if getRequestStats == nil || postRequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
 		}
 
 		for key, stats := range requests {
-			if getRequestStats != nil && postRequestsStats != nil {
-				break
-			}
 			if key.Path.Content.Get() != parsedURL.Path {
 				continue
 			}
 			if key.Method.String() == "GET" {
-				getRequestStats = stats
+				if getRequestStats == nil {
+					getRequestStats = stats
+				} else {
+					getRequestStats.CombineWith(stats)
+				}
 				continue
 			}
 			if key.Method.String() == "POST" {
-				postRequestsStats = stats
+				if postRequestsStats == nil {
+					postRequestsStats = stats
+				} else {
+					postRequestsStats.CombineWith(stats)
+				}
 				continue
 			}
 		}
@@ -2415,8 +2425,7 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	record1 := &kgo.Record{Topic: topicName1, Value: []byte("Hello Kafka!")}
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
-	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
+	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record1).FirstErr(), "record had a produce error while synchronously producing")
 
 	record2 := &kgo.Record{Topic: topicName2, Value: []byte("Hello Kafka!")}
 	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
@@ -2428,27 +2437,46 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	require.Empty(t, fetches.Errors())
 	require.Len(t, fetches.Records(), 1)
 
-	var fetchRequestStats, produceRequestsStats *kafka.RequestStats
+	localhostAddress := util.AddressFromString(localhost)
+	var fetchRequestStats, produceTopic1RequestsStats, produceTopic2RequestsStats *kafka.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.Kafka
-		if fetchRequestStats == nil || produceRequestsStats == nil {
-			require.True(ct, len(requests) > 0, "no requests")
+		requests := conns.USMData.Kafka
+		if fetchRequestStats == nil || produceTopic1RequestsStats == nil || produceTopic2RequestsStats == nil {
+			require.Truef(ct, len(requests) > 0, "no requests; fetch: is nil? %v; produce t1: is nil? %v; produce t2: is nil? %v", fetchRequestStats == nil, produceTopic1RequestsStats == nil, produceTopic2RequestsStats == nil)
 		}
 
 		for key, stats := range requests {
-			if fetchRequestStats != nil && produceRequestsStats != nil {
-				break
+			srcAddr := util.FromLowHigh(key.SrcIPLow, key.SrcIPHigh)
+			if srcAddr != localhostAddress {
+				continue
 			}
 
 			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.FetchAPIKey {
-				fetchRequestStats = stats
+				if fetchRequestStats == nil {
+					fetchRequestStats = stats
+				} else {
+					fetchRequestStats.CombineWith(stats)
+				}
 				continue
 			}
 			if key.TopicName.Get() == topicName1 && key.RequestAPIKey == kafka.ProduceAPIKey {
-				produceRequestsStats = stats
+				if produceTopic1RequestsStats == nil {
+					produceTopic1RequestsStats = stats
+				} else {
+					produceTopic1RequestsStats.CombineWith(stats)
+				}
+				continue
+			}
+
+			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.ProduceAPIKey {
+				if produceTopic2RequestsStats == nil {
+					produceTopic2RequestsStats = stats
+				} else {
+					produceTopic2RequestsStats.CombineWith(stats)
+				}
 				continue
 			}
 		}
@@ -2460,13 +2488,20 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 		require.Nil(ct, fetchRequestStats.ErrorCodeToStat[0].Latencies)
 		require.NotZero(ct, fetchRequestStats.ErrorCodeToStat[0].FirstLatencySample)
 
-		require.NotNil(ct, produceRequestsStats)
-		require.Len(ct, produceRequestsStats.ErrorCodeToStat, 1)
-		require.NotNil(ct, produceRequestsStats.ErrorCodeToStat[0])
-		require.Equal(ct, 2, produceRequestsStats.ErrorCodeToStat[0].Count)
-		require.NotNil(ct, produceRequestsStats.ErrorCodeToStat[0].Latencies)
-		require.NotZero(ct, produceRequestsStats.ErrorCodeToStat[0].FirstLatencySample)
-		require.Equal(ct, float64(2), produceRequestsStats.ErrorCodeToStat[0].Latencies.GetCount())
+		require.NotNil(ct, produceTopic1RequestsStats)
+		require.Len(ct, produceTopic1RequestsStats.ErrorCodeToStat, 1)
+		require.NotNil(ct, produceTopic1RequestsStats.ErrorCodeToStat[0])
+		require.Equal(ct, 2, produceTopic1RequestsStats.ErrorCodeToStat[0].Count)
+		require.NotNil(ct, produceTopic1RequestsStats.ErrorCodeToStat[0].Latencies)
+		require.Zero(ct, produceTopic1RequestsStats.ErrorCodeToStat[0].FirstLatencySample) // Since we reported 2 records in the same event, we don't have FirstLatencySample.
+		require.Equal(ct, float64(2), produceTopic1RequestsStats.ErrorCodeToStat[0].Latencies.GetCount())
+
+		require.NotNil(ct, produceTopic2RequestsStats)
+		require.Len(ct, produceTopic2RequestsStats.ErrorCodeToStat, 1)
+		require.NotNil(ct, produceTopic2RequestsStats.ErrorCodeToStat[0])
+		require.Equal(ct, 1, produceTopic2RequestsStats.ErrorCodeToStat[0].Count)
+		require.Nil(ct, produceTopic2RequestsStats.ErrorCodeToStat[0].Latencies)
+		require.NotZero(ct, produceTopic2RequestsStats.ErrorCodeToStat[0].FirstLatencySample) // Since we reported 2 records in the same event, we don't have FirstLatencySample.
 	}, 10*time.Second, 1*time.Second)
 }
 
@@ -2492,7 +2527,7 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		requests := conns.Postgres
+		requests := conns.USMData.Postgres
 		if insertRequestStats == nil || selectRequestsStats == nil {
 			require.True(ct, len(requests) > 0, "no requests")
 		}
@@ -2525,6 +2560,76 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 	}, 10*time.Second, 1*time.Second)
 }
 
+func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
+	serverAddress := net.JoinHostPort(localhost, redisPort)
+	require.NoError(t, redis.RunServer(t, localhost, redisPort, false))
+
+	client, err := redis.NewClient(serverAddress, &net.Dialer{}, false, redisProtocolVersion)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+		require.NoError(t, client.FlushDB(timedContext).Err())
+		require.NoError(t, client.Close())
+	})
+
+	timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	keyName := "key"
+	require.NoError(t, client.Set(timedContext, keyName, "value", time.Minute).Err())
+
+	timedContext2, cancel2 := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel2()
+	for i := 0; i < 2; i++ {
+		res := client.Get(timedContext2, keyName)
+		val, err := res.Result()
+		require.NoError(t, err)
+		require.Equal(t, "value", val)
+	}
+
+	var getRequestStats, setRequestStats *redis.RequestStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		requests := conns.USMData.Redis
+		if len(requests) == 0 {
+			require.True(ct, len(requests) > 0, "no requests")
+		}
+
+		for key, stats := range requests {
+			if getRequestStats != nil && setRequestStats != nil {
+				break
+			}
+
+			if key.KeyName.Get() == keyName && key.Command == redis.GetCommand {
+				getRequestStats = stats
+				continue
+			}
+			if key.KeyName.Get() == keyName && key.Command == redis.SetCommand {
+				setRequestStats = stats
+				continue
+			}
+		}
+
+		require.NotNil(ct, getRequestStats)
+		require.Len(ct, getRequestStats.ErrorToStats, 1)
+		require.Contains(ct, getRequestStats.ErrorToStats, false)
+		require.NotContains(ct, getRequestStats.ErrorToStats, true)
+		require.Equal(ct, 2, getRequestStats.ErrorToStats[false].Count)
+		require.NotNil(ct, getRequestStats.ErrorToStats[false].Latencies)
+		require.NotZero(ct, getRequestStats.ErrorToStats[false].FirstLatencySample)
+
+		require.NotNil(ct, setRequestStats)
+		require.Len(ct, setRequestStats.ErrorToStats, 1)
+		require.Contains(ct, setRequestStats.ErrorToStats, false)
+		require.NotContains(ct, setRequestStats.ErrorToStats, true)
+		require.Equal(ct, 1, setRequestStats.ErrorToStats[false].Count)
+		require.Nil(ct, setRequestStats.ErrorToStats[false].Latencies)
+		require.NotZero(ct, setRequestStats.ErrorToStats[false].FirstLatencySample)
+	}, 10*time.Second, 1*time.Second)
+}
+
 func (s *USMSuite) TestVerifySketches() {
 	t := s.T()
 	skipIfKernelIsNotSupported(t, usmconfig.MinimumKernelVersion)
@@ -2534,6 +2639,8 @@ func (s *USMSuite) TestVerifySketches() {
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
+	cfg.EnableRedisMonitoring = true
+	cfg.RedisTrackResources = true
 
 	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
@@ -2559,6 +2666,10 @@ func (s *USMSuite) TestVerifySketches() {
 		{
 			name:     "postgres",
 			testFunc: testPostgresSketches,
+		},
+		{
+			name:     "redis",
+			testFunc: testRedisSketches,
 		},
 	}
 	for _, tt := range tests {

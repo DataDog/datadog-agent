@@ -7,6 +7,8 @@
 package utils
 
 import (
+	"encoding/binary"
+
 	"github.com/Masterminds/semver/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -28,4 +30,11 @@ func BoolTouint64(value bool) uint64 {
 		return 1
 	}
 	return 0
+}
+
+// HostToNetworkShort htons
+func HostToNetworkShort(short uint16) uint16 {
+	b := make([]byte, 2)
+	binary.NativeEndian.PutUint16(b, short)
+	return binary.BigEndian.Uint16(b)
 }

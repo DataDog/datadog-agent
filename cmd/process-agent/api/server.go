@@ -13,11 +13,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -57,4 +58,6 @@ func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 	}).Methods("GET")
 	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
 	r.HandleFunc("/secret/refresh", injectDeps(deps, secretRefreshHandler)).Methods("GET")
+	// Special handler to compute running agent Code coverage
+	coverage.SetupCoverageHandler(r)
 }

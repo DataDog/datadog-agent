@@ -31,6 +31,14 @@ type logCallbackContext struct {
 	unfinished     string
 }
 
+type crashContext struct {
+	bugCheckCode uint32
+	bugCheckArg1 uint64
+	bugCheckArg2 uint64
+	bugCheckArg3 uint64
+	bugCheckArg4 uint64
+}
+
 // maximum number of stack trace lines we'll look through, looking for non-"NT!" lines
 const maxLinesToScan = int(200)
 
@@ -96,23 +104,48 @@ func logLineCallbackGo(ctx *logCallbackContext, line string) {
 }
 
 // this extra layer of indirection so that we can swap out test code which skips the actual debugger.
-func doReadCrashDump(filename string, ctx *logCallbackContext, exterr *uint32) error {
+func doReadCrashDump(filename string, ctx *logCallbackContext, crashCtx *crashContext, exterr *uint32) error {
+	var bugCheckInfo C.BUGCHECK_INFO
 	fnasCString := C.CString(filename)
-	err := C.readCrashDump(fnasCString, unsafe.Pointer(ctx), (*C.long)(unsafe.Pointer(exterr)))
+
+	err := C.readCrashDump(
+		fnasCString,
+		unsafe.Pointer(ctx),
+		&bugCheckInfo,
+		(*C.long)(unsafe.Pointer(exterr)))
 
 	C.free(unsafe.Pointer(fnasCString))
 
 	if err != C.RCD_NONE {
 		return fmt.Errorf("Error reading crash dump file %v", err)
 	}
+
+	crashCtx.bugCheckCode = uint32(bugCheckInfo.code)
+	crashCtx.bugCheckArg1 = uint64(bugCheckInfo.arg1)
+	crashCtx.bugCheckArg2 = uint64(bugCheckInfo.arg2)
+	crashCtx.bugCheckArg3 = uint64(bugCheckInfo.arg3)
+	crashCtx.bugCheckArg4 = uint64(bugCheckInfo.arg4)
+
 	return nil
 }
 
 func parseWinCrashDump(wcs *WinCrashStatus) {
 	var ctx logCallbackContext
 	var extendedError uint32
+	var crashCtx crashContext
+	var callstack string
+	var offenderCaptured bool
 
-	err := readfn(wcs.FileName, &ctx, &extendedError)
+	frames := map[string]bool{}
+
+	err := readfn(wcs.FileName, &ctx, &crashCtx, &extendedError)
+
+	// at minimum, try to report the bugcheck code
+	wcs.BugCheck = fmt.Sprintf("%X", crashCtx.bugCheckCode)
+	wcs.BugCheckArg1 = fmt.Sprintf("%X", crashCtx.bugCheckArg1)
+	wcs.BugCheckArg2 = fmt.Sprintf("%X", crashCtx.bugCheckArg2)
+	wcs.BugCheckArg3 = fmt.Sprintf("%X", crashCtx.bugCheckArg3)
+	wcs.BugCheckArg4 = fmt.Sprintf("%X", crashCtx.bugCheckArg4)
 
 	if err != nil {
 		wcs.StatusCode = WinCrashStatusCodeFailed
@@ -125,6 +158,11 @@ func parseWinCrashDump(wcs *WinCrashStatus) {
 		wcs.ErrString = fmt.Sprintf("Invalid crash dump file %s", wcs.FileName)
 		wcs.StatusCode = WinCrashStatusCodeFailed
 		return
+	}
+
+	if extendedError != 0 {
+		// this may occur if the file is not a kernel crash dump. Partial information may still be fetched.
+		log.Errorf("Partial error from crash dump %s: %x", wcs.FileName, extendedError)
 	}
 
 	// set a maximum of how many lines we'll scan looking for NT!.  The loglinecallback
@@ -165,10 +203,15 @@ func parseWinCrashDump(wcs *WinCrashStatus) {
 		}
 
 		if strings.HasPrefix(line, bugcheckCodePrefix) {
-			codeAsString := strings.TrimSpace(line[len(bugcheckCodePrefix)+1:])
-			wcs.BugCheck = codeAsString
+			// only fill the bugcheck code if nothing was previously found.
+			if wcs.BugCheck == "" {
+				codeAsString := strings.TrimSpace(line[len(bugcheckCodePrefix)+1:])
+				wcs.BugCheck = codeAsString
+			}
+
 			continue
 		}
+
 		// skip lines that start with RetAddr, that's just the header
 		if strings.HasPrefix(line, retAddrPrefix) {
 			continue
@@ -183,13 +226,33 @@ func parseWinCrashDump(wcs *WinCrashStatus) {
 		if len(parts) != 3 {
 			continue
 		}
+
 		callsite := strings.TrimSpace(parts[2])
+
+		if _, found := frames[callsite]; found {
+			// if we see the same frame, we are getting a duplicate dump, stop now.
+			break
+		}
+
+		callstack += callsite + ","
+		frames[callsite] = true
+
 		if strings.HasPrefix(callsite, ntBangPrefix) {
 			// we're still in ntoskernel, keep looking
 			continue
 		}
-		wcs.Offender = callsite
-		break
+
+		if !offenderCaptured {
+			wcs.Offender = callsite
+			offenderCaptured = true
+		}
+
+		// continue capturing the callstack frames
 	}
+
+	callstack = strings.TrimSuffix(callstack, ",")
+
+	// keep the symbols unresolved.
+	wcs.Callstack = callstack
 	wcs.StatusCode = WinCrashStatusCodeSuccess
 }

@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/google/gopacket/layers"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -77,11 +78,18 @@ type TCPProcessor struct {
 	pendingConns map[PCAPTuple]*connectionState
 	// establishedConns contains connections with tcpState == connStatEstablished
 	establishedConns map[PCAPTuple]*connectionState
+	// recentlyClosed is analogous to the TIME_WAIT state after a connection closes. we use this to
+	// suppress "pre-existing connection" logic on retransmits after a connection closes
+	recentlyClosed *expirable.LRU[PCAPTuple, struct{}]
 }
 
 // TODO make this into a config value
 const maxPendingConns = 4096
 const pendingConnTimeoutNs = uint64(5 * time.Second)
+
+// In practice, linux remembers connections for 1 minute after close (see TCP_TIMEWAIT_LEN).
+// I don't think the exact value matters though, since we use an LRU cache regardless
+const recentlyClosedTimeout = 1 * time.Minute
 
 // NewTCPProcessor constructs an empty TCPProcessor
 func NewTCPProcessor(cfg *config.Config) *TCPProcessor {
@@ -89,6 +97,7 @@ func NewTCPProcessor(cfg *config.Config) *TCPProcessor {
 		cfg:              cfg,
 		pendingConns:     make(map[PCAPTuple]*connectionState, maxPendingConns),
 		establishedConns: make(map[PCAPTuple]*connectionState, cfg.MaxTrackedConnections),
+		recentlyClosed:   expirable.NewLRU[PCAPTuple, struct{}](int(cfg.MaxTrackedConnections), nil, recentlyClosedTimeout),
 	}
 }
 
@@ -260,7 +269,7 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 	}
 	conn.TCPFailures[uint16(reason)]++
 
-	if st.tcpState == connStatEstablished {
+	if st.tcpState != connStatClosed {
 		conn.Monotonic.TCPClosed++
 	}
 	*st = connectionState{
@@ -297,10 +306,24 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 	}
 	origState := st.tcpState
 
+	if tcp.SYN {
+		// for some reason they're trying to re-use a recently-closed port
+		t.removeRecentlyClosed(tuple)
+	} else if t.isRecentlyClosed(tuple) {
+		// if it's recently closed, we don't want to run TCP state tracking on the retransmits.
+		// this avoids turning retransmits on recently closed connections into "partial connections"
+		return ProcessResultNone, nil
+	}
+
 	t.updateSynFlag(conn, st, pktType, tcp, payloadLen)
 	t.updateTCPStats(conn, st, pktType, tcp, payloadLen, timestampNs)
 	t.updateFinFlag(conn, st, pktType, tcp, payloadLen)
 	t.updateRstFlag(conn, st, pktType, tcp, payloadLen)
+
+	// sync the ConnectionStats direction if necessary
+	if conn.Direction == network.UNKNOWN {
+		conn.Direction = st.connDirection
+	}
 
 	stateChanged := st.tcpState != origState
 	if stateChanged {
@@ -317,6 +340,7 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 	}
 	// if the connection just closed, store it in the tracer's closeCallback
 	if st.tcpState == connStatClosed && stateChanged {
+		t.markRecentlyClosed(tuple)
 		return ProcessResultCloseConn, nil
 	}
 	return ProcessResultNone, nil
@@ -338,6 +362,9 @@ func (t *TCPProcessor) RemoveConn(tuple PCAPTuple) {
 	delete(t.establishedConns, tuple)
 }
 
+var pendingConnFullLimiter = log.NewLogLimit(20, 10*time.Minute)
+var establishedConnFullLimiter = log.NewLogLimit(20, 10*time.Minute)
+
 // moveConn moves a connection to the correct map based on its tcpState.
 // If it had to drop the connection because the target map was full, it returns false.
 func (t *TCPProcessor) moveConn(tuple PCAPTuple, st *connectionState) bool {
@@ -351,6 +378,9 @@ func (t *TCPProcessor) moveConn(tuple PCAPTuple, st *connectionState) bool {
 		ok := WriteMapWithSizeLimit(t.pendingConns, tuple, st, maxPendingConns)
 		if !ok {
 			statsTelemetry.droppedPendingConns.Inc()
+			if pendingConnFullLimiter.ShouldLog() {
+				log.Warnf("pending connections buffer filled to %d, connection droped", maxPendingConns)
+			}
 		}
 		return ok
 	case connStatEstablished:
@@ -358,6 +388,9 @@ func (t *TCPProcessor) moveConn(tuple PCAPTuple, st *connectionState) bool {
 		ok := WriteMapWithSizeLimit(t.establishedConns, tuple, st, maxTrackedConns)
 		if !ok {
 			statsTelemetry.droppedEstablishedConns.Inc()
+			if establishedConnFullLimiter.ShouldLog() {
+				log.Warnf("established connections buffer filled to %d, connection droped", maxTrackedConns)
+			}
 		}
 		return ok
 	}
@@ -396,12 +429,15 @@ func MakeConnStatsTuple(tuple PCAPTuple) network.ConnectionTuple {
 	return network.ConnectionTuple(tuple)
 }
 
-// GetConnDirection returns the direction of the connection.
-// If the SYN packet was not seen (for a pre-existing connection), it returns ConnDirUnknown.
-func (t *TCPProcessor) GetConnDirection(tuple PCAPTuple) (network.ConnectionDirection, bool) {
-	conn, ok := t.getConn(tuple)
-	if !ok {
-		return network.UNKNOWN, false
-	}
-	return conn.connDirection, true
+func (t *TCPProcessor) markRecentlyClosed(tuple PCAPTuple) bool {
+	return t.recentlyClosed.Add(tuple, struct{}{})
+}
+
+func (t *TCPProcessor) removeRecentlyClosed(tuple PCAPTuple) bool {
+	return t.recentlyClosed.Remove(tuple)
+}
+
+func (t *TCPProcessor) isRecentlyClosed(tuple PCAPTuple) bool {
+	_, ok := t.recentlyClosed.Peek(tuple)
+	return ok
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -44,10 +44,8 @@ func NewLauncher() *Launcher {
 	}
 }
 
-// Start starts the launcher.
-//
-//nolint:revive // TODO(WINA) Fix revive linter
-func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
+// Start starts the launcher by setting up Windows event log sources and beginning to tail them.
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, _ *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
 	l.sources = sourceProvider.GetAddedForType(config.WindowsEventType)
 	l.registry = registry
@@ -114,7 +112,7 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (tailer, error) {
 		Query:             sanitizedConfig.Query,
 		ProcessRawMessage: sanitizedConfig.ProcessRawMessage,
 	}
-	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan())
+	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan(), l.registry)
 	bookmark := l.registry.GetOffset(t.Identifier())
 	t.Start(bookmark)
 	return t, nil

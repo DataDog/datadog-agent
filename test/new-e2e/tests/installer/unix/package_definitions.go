@@ -65,8 +65,9 @@ func WithAlias(alias string) PackageOption {
 
 // PackagesConfig is the list of known packages configuration for testing
 var PackagesConfig = []TestPackageConfig{
-	{Name: "datadog-installer", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com"},
-	{Name: "datadog-agent", Alias: "agent-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com"},
+	{Name: "datadog-installer", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
+	{Name: "datadog-agent", Alias: "agent-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
+	{Name: "datadog-ddot", Alias: "ddot-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
 	{Name: "datadog-apm-inject", Version: "latest"},
 	{Name: "datadog-apm-library-java", Version: "latest"},
 	{Name: "datadog-apm-library-ruby", Version: "latest"},
@@ -83,12 +84,12 @@ func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architectu
 	env["DD_API_KEY"] = apiKey
 	env["DD_SITE"] = "datadoghq.com"
 	// Install Script env variables
-	env["DD_INSTALLER"] = "true"
-	env["TESTING_KEYS_URL"] = "keys.datadoghq.com"
-	env["TESTING_APT_URL"] = "apttesting.datad0g.com"
-	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("E2E_PIPELINE_ID"), arch)
-	env["TESTING_YUM_URL"] = "yumtesting.datad0g.com"
+	env["TESTING_KEYS_URL"] = "apttesting.datad0g.com/test-keys"
+	env["TESTING_APT_URL"] = fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID"))
+	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("stable-%s 7", arch)
+	env["TESTING_YUM_URL"] = "s3.amazonaws.com/yumtesting.datad0g.com"
 	env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
+	env["DD_APM_INSTRUMENTATION_PIPELINE_ID"] = os.Getenv("E2E_PIPELINE_ID")
 }
 
 func installScriptInstallerEnv(env map[string]string, packagesConfig []TestPackageConfig) {

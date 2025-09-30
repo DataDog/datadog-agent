@@ -150,7 +150,7 @@ func TestGetStatus(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -303,8 +303,8 @@ X Section
 
 `, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusTextOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -351,8 +351,8 @@ X Section
 `, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusTextOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -364,7 +364,7 @@ X Section
 				// We have to do this strings replacement because html/temaplte escapes the `+` sign
 				// https://github.com/golang/go/issues/42506
 				result := string(bytes)
-				unescapedResult := strings.Replace(result, "&#43;", "+", -1)
+				unescapedResult := strings.ReplaceAll(result, "&#43;", "+")
 
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
@@ -405,8 +405,8 @@ X Section
 `, agentVersion, agentFlavor, pid, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"), goVersion, arch)
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusHTMLOutput, "\r\n", "\n", -1)
-				output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusHTMLOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(unescapedResult, "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -419,7 +419,7 @@ X Section
 				// We have to do this strings replacement because html/temaplte escapes the `+` sign
 				// https://github.com/golang/go/issues/42506
 				result := string(bytes)
-				unescapedResult := strings.Replace(result, "&#43;", "+", -1)
+				unescapedResult := strings.ReplaceAll(result, "&#43;", "+")
 
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
@@ -454,8 +454,8 @@ X Section
 `, agentVersion, agentFlavor, pid, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"), goVersion, arch)
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusHTMLOutput, "\r\n", "\n", -1)
-				output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusHTMLOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(unescapedResult, "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -486,7 +486,7 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -533,8 +533,8 @@ Section
 `, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedOutput, "\r\n", "\n", -1)
-	output := strings.Replace(string(bytesResult), "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedOutput, "\r\n", "\n")
+	output := strings.ReplaceAll(string(bytesResult), "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }
@@ -552,7 +552,7 @@ func TestGetStatusWithErrors(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -626,8 +626,8 @@ Status render errors
 `, testTextHeader, pid, goVersion, arch, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusTextErrorOutput, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusTextErrorOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -647,7 +647,7 @@ Status render errors
 
 func TestGetStatusBySection(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -753,8 +753,8 @@ X Section
 `
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -772,8 +772,8 @@ X Section
 </div>
 `
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -791,8 +791,8 @@ X Section
 `
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -823,7 +823,7 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -886,8 +886,8 @@ Status render errors
 `
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expected, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expected, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -935,8 +935,8 @@ Status render errors
 `, testTextHeader, pid, goVersion, arch, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusTextErrorOutput, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusTextErrorOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -967,7 +967,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -1095,7 +1095,7 @@ func TestFlareProvider(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(agentParams),
 	))
@@ -1108,7 +1108,7 @@ func TestFlareProvider(t *testing.T) {
 
 func TestGetStatusBySectionIncorrect(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,

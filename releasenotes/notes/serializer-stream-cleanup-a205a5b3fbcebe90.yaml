@@ -1,0 +1,8 @@
+deprecations:
+  - |
+    Remove deprecated serializer options.
+    
+    * ``enable_stream_payload_serialization``
+    * ``enable_service_checks_stream_payload_serialization``
+    * ``enable_events_stream_payload_serialization``
+    * ``enable_sketch_stream_payload_serialization``

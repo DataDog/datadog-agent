@@ -62,3 +62,123 @@ func TestDockerFileFormat(t *testing.T) {
 	assert.Equal(t, message.StatusInfo, msg.Status)
 	assert.Equal(t, "2019-06-06T16:35:55.930852915Z", msg.ParsingExtra.Timestamp)
 }
+
+func TestDockerFileFormatNullJSON(t *testing.T) {
+	parser := New()
+
+	// This test reproduces the bug found by fuzzing - JSON unmarshal succeeds
+	// but returns nil, causing a panic when accessing log.Stream
+	// Examples: the JSON literal null, arrays, primitives, etc.
+	testCases := []struct {
+		name  string
+		input []byte
+	}{
+		{
+			name:  "JSON literal null",
+			input: []byte(`null`),
+		},
+		{
+			name:  "JSON array",
+			input: []byte(`[]`),
+		},
+		{
+			name:  "JSON string",
+			input: []byte(`"string"`),
+		},
+		{
+			name:  "JSON number",
+			input: []byte(`123`),
+		},
+		{
+			name:  "JSON boolean true",
+			input: []byte(`true`),
+		},
+		{
+			name:  "JSON boolean false",
+			input: []byte(`false`),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			logMessage := message.NewMessage(tc.input, nil, "", 0)
+
+			// This should not panic
+			assert.NotPanics(t, func() {
+				msg, err := parser.Parse(logMessage)
+				// Should return an error for these cases
+				assert.NotNil(t, err)
+				assert.Equal(t, message.StatusInfo, msg.Status)
+				assert.Equal(t, tc.input, msg.GetContent())
+			})
+		})
+	}
+}
+
+func TestDockerFileFormatMultipleNewlines(t *testing.T) {
+	parser := New()
+
+	// This test documents the parser's behavior with newlines. The parser
+	// strips exactly ONE trailing newline (the line terminator). Multiple
+	// newlines represent actual content (empty lines).
+	testCases := []struct {
+		name            string
+		input           []byte
+		expectedContent []byte
+		expectedPartial bool
+	}{
+		{
+			name:            "empty log without newline",
+			input:           []byte(`{"log":"","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}`),
+			expectedContent: []byte(""),
+			expectedPartial: false, // Empty content is not partial
+		},
+		{
+			name:            "single newline",
+			input:           []byte(`{"log":"\n","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}`),
+			expectedContent: []byte(""),
+			expectedPartial: false,
+		},
+		{
+			name:            "double newline",
+			input:           []byte(`{"log":"\n\n","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}`),
+			expectedContent: []byte("\n"),
+			expectedPartial: false,
+		},
+		{
+			name:            "triple newline",
+			input:           []byte(`{"log":"\n\n\n","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}`),
+			expectedContent: []byte("\n\n"),
+			expectedPartial: false,
+		},
+		{
+			name:            "text with trailing newline",
+			input:           []byte(`{"log":"hello\n","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}`),
+			expectedContent: []byte("hello"),
+			expectedPartial: false,
+		},
+		{
+			name:            "text with multiple trailing newlines",
+			input:           []byte(`{"log":"hello\n\n","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}`),
+			expectedContent: []byte("hello\n"),
+			expectedPartial: false,
+		},
+		{
+			name:            "text without trailing newline",
+			input:           []byte(`{"log":"hello","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}`),
+			expectedContent: []byte("hello"),
+			expectedPartial: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			logMessage := message.NewMessage(tc.input, nil, "", 0)
+			msg, err := parser.Parse(logMessage)
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expectedContent, msg.GetContent())
+			assert.Equal(t, tc.expectedPartial, msg.ParsingExtra.IsPartial)
+			assert.Equal(t, message.StatusInfo, msg.Status)
+		})
+	}
+}

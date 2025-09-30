@@ -69,7 +69,7 @@ int hook_complete_walk(ctx_t *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_LINK);
@@ -77,8 +77,7 @@ int hook_complete_walk(ctx_t *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_link_src_callback")
-int tail_call_target_dr_link_src_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_link_src_callback, ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
@@ -134,7 +133,7 @@ int rethook___lookup_hash(ctx_t *ctx) {
     return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK___LOOKUP_HASH);
 }
 
-int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_type) {
+int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
         pop_syscall(EVENT_LINK);
         return 0;
@@ -170,11 +169,11 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
         syscall->resolver.dentry = syscall->link.target_dentry;
         syscall->resolver.key = syscall->link.target_file.path_key;
         syscall->resolver.discarder_event_type = 0;
-        syscall->resolver.callback = select_dr_key(dr_type, DR_LINK_DST_CALLBACK_KPROBE_KEY, DR_LINK_DST_CALLBACK_TRACEPOINT_KEY);
+        syscall->resolver.callback = select_dr_key(prog_type, DR_LINK_DST_CALLBACK_KPROBE_KEY, DR_LINK_DST_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
 
-        resolve_dentry(ctx, dr_type);
+        resolve_dentry(ctx, prog_type);
     }
 
     // if the tail call fails, we need to pop the syscall cache entry
@@ -185,22 +184,21 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
 HOOK_EXIT("do_linkat")
 int rethook_do_linkat(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
-    return sys_link_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+    return sys_link_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(link) {
     int retval = SYSCALL_PARMRET(ctx);
-    return sys_link_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+    return sys_link_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(linkat) {
     int retval = SYSCALL_PARMRET(ctx);
-    return sys_link_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+    return sys_link_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
-SEC("tracepoint/handle_sys_link_exit")
-int tracepoint_handle_sys_link_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_link_ret(args, args->ret, DR_TRACEPOINT);
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_link_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_link_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
 int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
@@ -226,7 +224,7 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
+    fill_cgroup_context(entry, &event.cgroup);
     fill_span_context(&event.span);
 
     send_event(ctx, EVENT_LINK, event);
@@ -234,13 +232,11 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_link_dst_callback")
-int tail_call_target_dr_link_dst_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_link_dst_callback, ctx_t *ctx) {
     return dr_link_dst_callback(ctx);
 }
 
-SEC("tracepoint/dr_link_dst_callback")
-int tracepoint_dr_link_dst_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(dr_link_dst_callback, struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_link_dst_callback(args);
 }
 

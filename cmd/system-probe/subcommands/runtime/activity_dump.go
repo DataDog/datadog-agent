@@ -19,13 +19,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -68,7 +69,7 @@ func listCommands(_ *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -91,7 +92,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -144,7 +145,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(generateActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -222,7 +223,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -283,7 +284,7 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(diffActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -531,7 +532,12 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 			output.Storage = append(output.Storage, storageRequest.ToStorageRequestMessage(p.Metadata.Name))
 		case secconfig.RemoteStorage:
 			if remoteStorage == nil && remoteStorageErr == nil {
-				remoteStorage, remoteStorageErr = storage.NewActivityDumpRemoteStorage()
+				backend, err := backend.NewActivityDumpRemoteBackend()
+				if err != nil {
+					return fmt.Errorf("couldn't instantiate remote storage backend: %w", err)
+				}
+
+				remoteStorage, remoteStorageErr = storage.NewActivityDumpRemoteStorageForwarder(backend)
 				if remoteStorageErr != nil {
 					return fmt.Errorf("couldn't instantiate remote storage: %w", remoteStorageErr)
 				}
@@ -629,7 +635,7 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 }
 
 func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {
-	fmt.Printf("%so file: %s\n", prefix, storage.GetFile())
+	fmt.Printf("%s- file: %s\n", prefix, storage.GetFile())
 	fmt.Printf("%s  format: %s\n", prefix, storage.GetFormat())
 	fmt.Printf("%s  storage type: %s\n", prefix, storage.GetType())
 	fmt.Printf("%s  compression: %v\n", prefix, storage.GetCompression())

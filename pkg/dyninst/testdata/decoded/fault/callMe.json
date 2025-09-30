@@ -1,0 +1,69 @@
+[
+  {
+    "service": "fault",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.callMe",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.callMe",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/fault/main.go",
+            "lineNumber": 53
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/fault/main.go",
+            "lineNumber": 46
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "callMe",
+          "location": {
+            "method": "main.callMe"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "s1": {
+                "type": "string",
+                "value": "a"
+              },
+              "s2": {
+                "type": "string",
+                "size": "4",
+                "notCapturedReason": "unavailable"
+              },
+              "i": {
+                "type": "*int",
+                "address": "[addr]",
+                "value": "0"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

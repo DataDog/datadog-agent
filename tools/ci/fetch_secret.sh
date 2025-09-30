@@ -9,15 +9,15 @@ set +x
 
 while [[ $retry_count -lt $max_retries ]]; do
     if [ -n "$parameter_field" ]; then
-        vault_name="kv/k8s/gitlab-runner/datadog-agent"
+        vault_name="kv/k8s/${POD_NAMESPACE}/datadog-agent"
         if [[ "$(uname -s)" == "Darwin" ]]; then
             vault_name="kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent"
         fi
-        result=$(vault kv get -field="${parameter_field}" "${vault_name}"/"${parameter_name}" 2> errorFile)
+        result="$(vault kv get -field="${parameter_field}" "${vault_name}"/"${parameter_name}" 2> errorFile)"
     else
-        result=$(aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)
+        result="$(aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)"
     fi
-    error=$(<errorFile)
+    error="$(<errorFile)"
     if [ -n "$result" ]; then
         echo "$result"
         exit 0
@@ -27,9 +27,9 @@ while [[ $retry_count -lt $max_retries ]]; do
         >&2 echo "Permanent error: unable to locate credentials, not retrying"
         exit 42
     fi
-    retry_count=$((retry_count+1))
-    sleep $((2**retry_count))
+    retry_count="$((retry_count+1))"
+    sleep "$((2**retry_count))"
 done
 
-echo "Failed to retrieve parameter after $max_retries retries"
+echo "Failed to retrieve parameter after $max_retries retries" >&2
 exit 1
