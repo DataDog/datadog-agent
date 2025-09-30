@@ -121,8 +121,6 @@ type MatchingProgram interface {
 	IsMatched(obj workloadfilter.Filterable) bool
 	// GetTargetType returns the target resource type of the program
 	GetTargetType() workloadfilter.ResourceType
-	// GetError returns any error that occurred during the creation of the program
-	GetError() error
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
@@ -186,7 +184,7 @@ func (c *Config) String() string {
 
 	celString := c.CELSelector.String()
 	if celString != "" {
-		rawConfig["cel_selector"] = c.CELSelector
+		rawConfig["cel_selector"] = celString
 	}
 
 	yaml.Unmarshal(c.InitConfig, &initConfig) //nolint:errcheck

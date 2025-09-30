@@ -15,7 +15,6 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 // CreateDummyKubeService creates a dummy KubeServiceService for testing purposes.
@@ -52,17 +51,6 @@ func CreateDummyContainerService(ctn *workloadmeta.Container, tagger tagger.Comp
 	return &WorkloadService{
 		entity:        ctn,
 		adIdentifiers: []string{ctn.Image.RawName},
-		tagger:        tagger,
-		wmeta:         wmeta,
-	}
-}
-
-// CreateDummyPodService creates a dummy PodService for testing purposes.
-func CreateDummyPodService(pod *workloadmeta.KubernetesPod, tagger tagger.Component, wmeta workloadmeta.Component) *WorkloadService {
-	adID := kubelet.PodUIDToEntityName(pod.ID)
-	return &WorkloadService{
-		entity:        pod,
-		adIdentifiers: []string{adID},
 		tagger:        tagger,
 		wmeta:         wmeta,
 	}

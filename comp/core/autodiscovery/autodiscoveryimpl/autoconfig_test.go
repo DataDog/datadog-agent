@@ -472,39 +472,6 @@ func TestResolveTemplate(t *testing.T) {
 		assert.Equal(t, countLoadedConfigs(ac), 0)
 	})
 
-	t.Run("CEL Identifier on Kubernetes Pod", func(t *testing.T) {
-		_, ac := getResolveTestConfig(t)
-
-		tpl := integration.Config{
-			Name:        "pod-check",
-			CELSelector: workloadfilter.Rules{Pods: []string{`pod.namespace.matches("include-ns") && !pod.name.matches("excluded-name") && !("team" in pod.annotations && pod.annotations["team"].matches("exclude"))`}},
-		}
-		changes := ac.processNewConfig(tpl)
-		ac.applyChanges(changes)
-		assert.Equal(t, countLoadedConfigs(ac), 0)
-
-		// Test matching pod
-		wmetaPod := listeners.CreateDummyPod("name", "include-ns", nil)
-		svc1 := listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
-		ac.processNewService(svc1)
-		assert.Equal(t, countLoadedConfigs(ac), 1)
-
-		// Test non-matching pods
-		wmetaPod = listeners.CreateDummyPod("excluded-name", "include-ns", map[string]string{})
-		svc2 := listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
-		ac.processNewService(svc2)
-		assert.Equal(t, countLoadedConfigs(ac), 1)
-
-		wmetaPod = listeners.CreateDummyPod("name", "include-ns", map[string]string{"team": "exclude"})
-		svc3 := listeners.CreateDummyPodService(wmetaPod, mockTagger, mockStore)
-		ac.processNewService(svc3)
-		assert.Equal(t, countLoadedConfigs(ac), 1)
-
-		// Test pod deletion
-		ac.processDelService(svc1)
-		assert.Equal(t, countLoadedConfigs(ac), 0)
-	})
-
 	t.Run("CEL Identifier on Container", func(t *testing.T) {
 		// Setup container tied to a pod
 		wmetaPod := listeners.CreateDummyPod("pod-name", "pod-ns", nil)

@@ -82,10 +82,9 @@ func (s *WorkloadService) GetADIdentifiers() []string {
 	switch s.entity.(type) {
 	case *workloadmeta.Container:
 		return append(s.adIdentifiers, string(adtypes.CelContainerIdentifier))
-	case *workloadmeta.KubernetesPod:
-		return append(s.adIdentifiers, string(adtypes.CelPodIdentifier))
+	default:
+		return s.adIdentifiers
 	}
-	return s.adIdentifiers
 }
 
 // GetHosts returns the service's IPs for each host.
@@ -161,10 +160,9 @@ func (s *WorkloadService) GetFilterableEntity() workloadfilter.Filterable {
 		}
 		return workloadmetafilter.CreateContainer(e, workloadmetafilter.CreatePod(pod))
 	case *workloadmeta.KubernetesPod:
-		return workloadmetafilter.CreatePod(e)
-	default:
-		return nil
+		// unsupported pod filtering: only endpoint checks are scheduled on pods
 	}
+	return nil
 }
 
 // filterTemplatesEmptyOverrides drops file-based templates if this service is a container
