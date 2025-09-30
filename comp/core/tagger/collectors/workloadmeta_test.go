@@ -3042,6 +3042,70 @@ func TestHandleProcess(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "process with TracerMetadata service tags and multiple entries",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+					TracerMetadata: []tracermetadata.TracerMetadata{
+						{
+							ServiceName:    "first-tracer-service",
+							ServiceEnv:     "dev",
+							ServiceVersion: "1.0.0",
+							ProcessTags:    "framework:express",
+						},
+						{
+							ServiceEnv: "test",
+						},
+						{
+							ServiceName:    "second-tracer-service",
+							ServiceEnv:     envFromDD,
+							ServiceVersion: "2.0.0",
+							ProcessTags:    "runtime:nodejs",
+						},
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					"env:dev",
+					"env:test",
+					"framework:express",
+					"runtime:nodejs",
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"service:first-tracer-service",
+					"service:second-tracer-service",
+					fmt.Sprintf("version:%s", versionFromDD),
+					"version:1.0.0",
+					"version:2.0.0",
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					"env:dev",
+					"env:test",
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"service:first-tracer-service",
+					"service:second-tracer-service",
+					fmt.Sprintf("version:%s", versionFromDD),
+					"version:1.0.0",
+					"version:2.0.0",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
