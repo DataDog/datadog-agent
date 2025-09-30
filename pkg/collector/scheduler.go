@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -84,6 +85,10 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
+			if slices.Contains(constants.GetInfraBasicAllowedChecks(), c.String()) {
+				log.Infof("Check %s is not allowed in infra basic mode, skipping", c.String())
+				continue
+			}
 			_, err := coll.RunCheck(c)
 			if err != nil {
 				log.Errorf("Unable to run Check %s: %v", c, err)
