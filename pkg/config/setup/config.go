@@ -1178,6 +1178,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Config Stream
 	config.BindEnvAndSetDefault("config_stream.sleep_interval", 3*time.Second)
+
+	// Data Plane
+	config.BindEnvAndSetDefault("data_plane.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
 }
 
 func agent(config pkgconfigmodel.Setup) {
