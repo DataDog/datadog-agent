@@ -194,10 +194,10 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		USMKernelBufferPages:                  cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
 		USMDataChannelSize:                    cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
 		DisableMapPreallocation:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
-		USMDirectConsumerBufferWakeupCount:    cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_buffer_wakeup_count")),
-		USMDirectConsumerChannelSize:          cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_channel_size")),
-		USMDirectConsumerPerfBufferSizePerCPU: cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_perf_buffer_size_per_cpu")),
-		USMDirectConsumerRingBufferSizePerCPU: cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer_ring_buffer_size_per_cpu")),
+		USMDirectConsumerBufferWakeupCount:    cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer", "buffer_wakeup_count")),
+		USMDirectConsumerChannelSize:          cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer", "channel_size")),
+		USMDirectConsumerPerfBufferSizePerCPU: cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer", "perf_buffer_size_per_cpu")),
+		USMDirectConsumerRingBufferSizePerCPU: cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer", "ring_buffer_size_per_cpu")),
 
 		// HTTP Protocol Configuration
 		EnableHTTPMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "http", "enabled")),
