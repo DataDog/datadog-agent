@@ -81,9 +81,9 @@ Package: main
 		Var: u64F: uint64 (declared at line 113, available: )
 		Var: uintToPointTo: uint (declared at line 120, available: )
 		Var: x: main.structWithTwoValues (declared at line 134, available: )
-	Function: executeReturns (main.executeReturns) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [85:107] injectible: [85-92], [94-98], [100-102], [104-107]
-		Var: &v: *main.firstBehavior (declared at line 94, available: [85-107])
-		Var: &fortyTwo: *int (declared at line 97, available: [98-98])
+	Function: executeReturns (main.executeReturns) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [224:263] injectible: [224-231], [233-237], [239-241], [243-245], [248-263]
+		Var: &v: *main.firstBehavior (declared at line 233, available: [224-263])
+		Var: &fortyTwo: *int (declared at line 236, available: [237-237])
 	Function: executeSliceFuncs (main.executeSliceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [68:92] injectible: [68-71], [73-80], [82-86], [88-88], [90-92]
 		Var: originalSlice: []int (declared at line 69, available: )
 		Var: s: []uint (declared at line 78, available: )
@@ -503,6 +503,29 @@ Package: main
 		Arg: failed: bool (declared at line 41, available: [41-42])
 		Arg: ~r0: interface {} (declared at line 41, available: )
 		Arg: ~r1: error (declared at line 41, available: )
+	Function: testReturnsArray (main.testReturnsArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [124:125] injectible: [124-125]
+		Arg: a: [3]int (declared at line 124, available: [124-125])
+		Arg: ~r0: [3]int (declared at line 124, available: )
+	Function: testReturnsArrayOne (main.testReturnsArrayOne) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [131:133] injectible: [131-133]
+		Arg: ~r0: [1]int (declared at line 131, available: )
+	Function: testReturnsArrayZero (main.testReturnsArrayZero) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [139:141] injectible: [139-141]
+		Arg: ~r0: [0]int (declared at line 139, available: )
+	Function: testReturnsBacktrackInt (main.testReturnsBacktrackInt) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [162:164] injectible: [162-164]
+		Arg: ~r0: int (declared at line 162, available: )
+		Arg: ~r1: int (declared at line 162, available: )
+		Arg: ~r2: int (declared at line 162, available: )
+		Arg: ~r3: int (declared at line 162, available: )
+		Arg: ~r4: int (declared at line 162, available: )
+		Arg: ~r5: int (declared at line 162, available: )
+		Arg: ~r6: int (declared at line 162, available: )
+		Arg: ~r7: int (declared at line 162, available: )
+		Arg: ~r8: string (declared at line 162, available: )
+	Function: testReturnsBoolAndUintptr (main.testReturnsBoolAndUintptr) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [219:221] injectible: [219-221]
+		Arg: ~r0: bool (declared at line 219, available: )
+		Arg: ~r1: uintptr (declared at line 219, available: )
+	Function: testReturnsComplex (main.testReturnsComplex) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [105:107] injectible: [105-107]
+		Arg: ~r0: complex64 (declared at line 105, available: )
+		Arg: ~r1: complex128 (declared at line 105, available: )
 	Function: testReturnsError (main.testReturnsError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [33:37] injectible: [33-35], [37-37]
 		Arg: failed: bool (declared at line 33, available: [33-34])
 		Arg: ~r0: error (declared at line 33, available: )
@@ -522,6 +545,51 @@ Package: main
 		Arg: v: interface {} (declared at line 55, available: [55-56])
 		Arg: ~r0: main.behavior (declared at line 55, available: )
 		Var: b: main.behavior (declared at line 56, available: [56-61])
+	Function: testReturnsLargeStruct (main.testReturnsLargeStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [116:118] injectible: [116-118]
+		Arg: ~r0: main.largeStruct (declared at line 116, available: )
+	Function: testReturnsManyFloats (main.testReturnsManyFloats) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [97:99] injectible: [97-99]
+		Arg: ~r0: float64 (declared at line 97, available: )
+		Arg: ~r1: float64 (declared at line 97, available: )
+		Arg: ~r2: float64 (declared at line 97, available: )
+		Arg: ~r3: float64 (declared at line 97, available: )
+		Arg: ~r4: float64 (declared at line 97, available: )
+		Arg: ~r5: float64 (declared at line 97, available: )
+		Arg: ~r6: float64 (declared at line 97, available: )
+		Arg: ~r7: float64 (declared at line 97, available: )
+		Arg: ~r8: float64 (declared at line 97, available: )
+		Arg: ~r9: float64 (declared at line 97, available: )
+		Arg: ~r10: float64 (declared at line 97, available: )
+		Arg: ~r11: float64 (declared at line 97, available: )
+		Arg: ~r12: float64 (declared at line 97, available: )
+		Arg: ~r13: float64 (declared at line 97, available: )
+		Arg: ~r14: float64 (declared at line 97, available: )
+		Arg: ~r15: float64 (declared at line 97, available: )
+	Function: testReturnsMixed (main.testReturnsMixed) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [182:184] injectible: [182-184]
+		Arg: ~r0: int (declared at line 182, available: )
+		Arg: ~r1: float64 (declared at line 182, available: )
+		Arg: ~r2: int (declared at line 182, available: )
+		Arg: ~r3: float64 (declared at line 182, available: )
+		Arg: ~r4: string (declared at line 182, available: )
+	Function: testReturnsMixedStruct (main.testReturnsMixedStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [152:154] injectible: [152-154]
+		Arg: ~r0: main.mixedStruct (declared at line 152, available: )
+	Function: testReturnsMultipleFloats (main.testReturnsMultipleFloats) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [211:213] injectible: [211-213]
+		Arg: ~r0: float32 (declared at line 211, available: )
+		Arg: ~r1: float64 (declared at line 211, available: )
+	Function: testReturnsOnlyFloat (main.testReturnsOnlyFloat) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [203:205] injectible: [203-205]
+		Arg: ~r0: float64 (declared at line 203, available: )
+	Function: testReturnsPrimitives (main.testReturnsPrimitives) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [88:90] injectible: [88-90]
+		Arg: ~r0: int8 (declared at line 88, available: )
+		Arg: ~r1: int16 (declared at line 88, available: )
+		Arg: ~r2: int32 (declared at line 88, available: )
+		Arg: ~r3: int64 (declared at line 88, available: )
+		Arg: ~r4: uint8 (declared at line 88, available: )
+		Arg: ~r5: uint16 (declared at line 88, available: )
+		Arg: ~r6: uint32 (declared at line 88, available: )
+		Arg: ~r7: uint64 (declared at line 88, available: )
+	Function: testReturnsStructWithArray (main.testReturnsStructWithArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [194:196] injectible: [194-196]
+		Arg: ~r0: main.structWithArray (declared at line 194, available: )
+	Function: testReturnsWideStruct (main.testReturnsWideStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [174:176] injectible: [174-176]
+		Arg: ~r0: main.wideStruct (declared at line 174, available: )
 	Function: testRuneArray (main.testRuneArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go [18:18] injectible: [18-18]
 		Arg: x: [2]int32 (declared at line 18, available: [18-18])
 	Function: testSingleBool (main.testSingleBool) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/basics.go [19:19] injectible: [19-19]
@@ -718,6 +786,17 @@ Package: main
 	Type: main.iterExample
 		Function: rangeOverIterator (main.iterExample.rangeOverIterator) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/ranges.go [15:19] injectible: [15-16], [19-19]
 			Arg: ~p0: main.iterExample (declared at line 15, available: )
+	Type: main.largeStruct
+		Field: a: int
+		Field: b: int
+		Field: c: int
+		Field: d: int
+		Field: e: int
+		Field: f: int
+		Field: g: int
+		Field: h: int
+		Field: i: int
+		Field: j: int
 	Type: main.lotsOfFields
 		Field: a: uint8
 		Field: b: uint8
@@ -745,6 +824,10 @@ Package: main
 		Field: x: uint8
 		Field: y: uint8
 		Field: z: uint8
+	Type: main.mixedStruct
+		Field: a: int
+		Field: b: float64
+		Field: c: int
 	Type: main.nStruct
 		Field: aBool: bool
 		Field: aInt: int
@@ -792,6 +875,9 @@ Package: main
 		Field: arr: [5]uint8
 	Type: main.structWithAny
 		Field: a: interface {}
+	Type: main.structWithArray
+		Field: arr: [2]int
+		Field: x: int
 	Type: main.structWithCyclicMaps
 		Field: m1: map[struct {}]main.structWithCyclicMaps
 		Field: m2: map[struct {}]map[struct {}]main.structWithCyclicMaps
@@ -848,6 +934,18 @@ Package: main
 		Field: b: main.tierB
 	Type: main.triggerVerifierErrorForTesting
 	Type: main.typeAlias
+	Type: main.wideStruct
+		Field: a: int
+		Field: b: int
+		Field: c: int
+		Field: d: int
+		Field: e: int
+		Field: f: int
+		Field: g: int
+		Field: h: int
+		Field: i: int
+		Field: j: int
+		Field: k: int
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 	Function: Foo (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Foo) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [12:13] injectible: [12-13]
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2

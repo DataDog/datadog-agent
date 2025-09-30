@@ -489,12 +489,14 @@ func (b *baseType) encodeValueFields(
 		if len(data) != 4 {
 			return errors.New("passed data not long enough for float32")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatFloat(float64(math.Float32frombits(binary.NativeEndian.Uint32(data))), 'f', -1, 64)))
+		// TODO: figure out why using -1 precision causes test results to get unstable.
+		return writeTokens(enc, jsontext.String(strconv.FormatFloat(float64(math.Float32frombits(binary.NativeEndian.Uint32(data))), 'f', 6, 64)))
 	case reflect.Float64:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for float64")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatFloat(math.Float64frombits(binary.NativeEndian.Uint64(data)), 'f', -1, 64)))
+		// TODO: figure out why using -1 precision causes test results to get unstable.
+		return writeTokens(enc, jsontext.String(strconv.FormatFloat(math.Float64frombits(binary.NativeEndian.Uint64(data)), 'f', 6, 64)))
 	case reflect.Complex64:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for complex64")

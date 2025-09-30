@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testSomeNamedReturn",
+      "method": "main.testReturnsBoolAndUintptr",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testSomeNamedReturn",
+            "function": "main.testReturnsBoolAndUintptr",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 82
+            "lineNumber": 221
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 245
+            "lineNumber": 262
           },
           {
             "function": "main.main",
@@ -42,33 +42,21 @@
           }
         ],
         "probe": {
-          "id": "testSomeNamedReturn",
+          "id": "testReturnsBoolAndUintptr",
           "location": {
-            "method": "main.testSomeNamedReturn"
+            "method": "main.testReturnsBoolAndUintptr"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "i": {
-                "type": "int",
-                "value": "42"
-              }
-            }
-          },
           "return": {
             "locals": {
               "~r0": {
-                "type": "int",
-                "value": "41"
+                "type": "bool",
+                "value": "true"
               },
-              "result2": {
-                "type": "int",
-                "value": "42"
-              },
-              "~r2": {
-                "type": "int",
-                "value": "43"
+              "~r1": {
+                "type": "uintptr",
+                "value": "0x1234"
               }
             }
           }

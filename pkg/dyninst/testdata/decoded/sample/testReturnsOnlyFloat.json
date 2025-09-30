@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testSomeNamedReturn",
+      "method": "main.testReturnsOnlyFloat",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testSomeNamedReturn",
+            "function": "main.testReturnsOnlyFloat",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 82
+            "lineNumber": 205
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 245
+            "lineNumber": 260
           },
           {
             "function": "main.main",
@@ -42,33 +42,17 @@
           }
         ],
         "probe": {
-          "id": "testSomeNamedReturn",
+          "id": "testReturnsOnlyFloat",
           "location": {
-            "method": "main.testSomeNamedReturn"
+            "method": "main.testReturnsOnlyFloat"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "i": {
-                "type": "int",
-                "value": "42"
-              }
-            }
-          },
           "return": {
             "locals": {
               "~r0": {
-                "type": "int",
-                "value": "41"
-              },
-              "result2": {
-                "type": "int",
-                "value": "42"
-              },
-              "~r2": {
-                "type": "int",
-                "value": "43"
+                "type": "float64",
+                "notCapturedReason": "unavailable"
               }
             }
           }

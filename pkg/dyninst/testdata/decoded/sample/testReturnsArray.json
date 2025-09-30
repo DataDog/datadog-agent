@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testSomeNamedReturn",
+      "method": "main.testReturnsArray",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testSomeNamedReturn",
+            "function": "main.testReturnsArray",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 82
+            "lineNumber": 125
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 245
+            "lineNumber": 252
           },
           {
             "function": "main.main",
@@ -42,33 +42,53 @@
           }
         ],
         "probe": {
-          "id": "testSomeNamedReturn",
+          "id": "testReturnsArray",
           "location": {
-            "method": "main.testSomeNamedReturn"
+            "method": "main.testReturnsArray"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "i": {
-                "type": "int",
-                "value": "42"
+              "a": {
+                "type": "[3]int",
+                "size": "3",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "type": "int",
+                    "value": "2"
+                  },
+                  {
+                    "type": "int",
+                    "value": "3"
+                  }
+                ]
               }
             }
           },
           "return": {
             "locals": {
               "~r0": {
-                "type": "int",
-                "value": "41"
-              },
-              "result2": {
-                "type": "int",
-                "value": "42"
-              },
-              "~r2": {
-                "type": "int",
-                "value": "43"
+                "type": "[3]int",
+                "size": "3",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "11"
+                  },
+                  {
+                    "type": "int",
+                    "value": "12"
+                  },
+                  {
+                    "type": "int",
+                    "value": "13"
+                  }
+                ]
               }
             }
           }

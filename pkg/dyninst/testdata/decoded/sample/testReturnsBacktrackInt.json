@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testSomeNamedReturn",
+      "method": "main.testReturnsBacktrackInt",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testSomeNamedReturn",
+            "function": "main.testReturnsBacktrackInt",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 82
+            "lineNumber": 164
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 245
+            "lineNumber": 256
           },
           {
             "function": "main.main",
@@ -42,33 +42,49 @@
           }
         ],
         "probe": {
-          "id": "testSomeNamedReturn",
+          "id": "testReturnsBacktrackInt",
           "location": {
-            "method": "main.testSomeNamedReturn"
+            "method": "main.testReturnsBacktrackInt"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "i": {
-                "type": "int",
-                "value": "42"
-              }
-            }
-          },
           "return": {
             "locals": {
               "~r0": {
                 "type": "int",
-                "value": "41"
+                "value": "1"
               },
-              "result2": {
+              "~r1": {
                 "type": "int",
-                "value": "42"
+                "value": "2"
               },
               "~r2": {
                 "type": "int",
-                "value": "43"
+                "value": "3"
+              },
+              "~r3": {
+                "type": "int",
+                "value": "4"
+              },
+              "~r4": {
+                "type": "int",
+                "value": "5"
+              },
+              "~r5": {
+                "type": "int",
+                "value": "6"
+              },
+              "~r6": {
+                "type": "int",
+                "value": "7"
+              },
+              "~r7": {
+                "type": "int",
+                "value": "8"
+              },
+              "~r8": {
+                "type": "string",
+                "value": "overflow"
               }
             }
           }

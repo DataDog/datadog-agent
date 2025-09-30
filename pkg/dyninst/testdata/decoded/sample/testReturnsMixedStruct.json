@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testSomeNamedReturn",
+      "method": "main.testReturnsMixedStruct",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testSomeNamedReturn",
+            "function": "main.testReturnsMixedStruct",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 82
+            "lineNumber": 154
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 245
+            "lineNumber": 255
           },
           {
             "function": "main.main",
@@ -42,33 +42,30 @@
           }
         ],
         "probe": {
-          "id": "testSomeNamedReturn",
+          "id": "testReturnsMixedStruct",
           "location": {
-            "method": "main.testSomeNamedReturn"
+            "method": "main.testReturnsMixedStruct"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "i": {
-                "type": "int",
-                "value": "42"
-              }
-            }
-          },
           "return": {
             "locals": {
               "~r0": {
-                "type": "int",
-                "value": "41"
-              },
-              "result2": {
-                "type": "int",
-                "value": "42"
-              },
-              "~r2": {
-                "type": "int",
-                "value": "43"
+                "type": "main.mixedStruct",
+                "fields": {
+                  "a": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "b": {
+                    "type": "float64",
+                    "value": "0.000000"
+                  },
+                  "c": {
+                    "type": "int",
+                    "value": "3"
+                  }
+                }
               }
             }
           }
