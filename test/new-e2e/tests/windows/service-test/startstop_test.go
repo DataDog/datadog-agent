@@ -31,7 +31,6 @@ import (
 
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -265,6 +264,7 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 				return fmt.Errorf("should have hard exit message for %s in the event log", displayName)
 			}
 		}
+		return nil
 	}, (1*s.timeoutScale)*time.Minute, 10*time.Second, "should have hard exit messages in the event log")
 }
 
