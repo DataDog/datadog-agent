@@ -10,7 +10,7 @@ import (
 	"github.com/cilium/ebpf/features"
 )
 
-// RingBufferSupportedNPM returns true if the kernel supports ring buffers and the config enables them
-func (c *Config) RingBufferSupportedNPM() bool {
-	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
+// RingBufferSupportedUSM returns true if the kernel supports ring buffers and the config enables them
+func (c *Config) RingBufferSupportedUSM() bool {
+	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.EnableUSMRingBuffers
 }
