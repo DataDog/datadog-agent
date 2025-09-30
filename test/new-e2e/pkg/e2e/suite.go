@@ -158,6 +158,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -734,7 +735,15 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)
+				bs.T().Logf("Unable to destroy stack %s: %s", stackName, out)
+				_, err := bs.datadogClient.PostEvent(&datadog.Event{
+					Title: pointer.Ptr(fmt.Sprintf("Unable to destroy stack %s", stackName)),
+					Text:  pointer.Ptr(fmt.Sprintf("Unable to destroy stack %s: %s", stackName, out)),
+					Tags:  []string{"test:e2e", "stack:destroy", "stack_name:" + stackName},
+				})
+				if err != nil {
+					bs.T().Logf("Unable to post event: %v", err)
+				}
 			} else {
 				bs.T().Logf("Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
 			}
