@@ -794,3 +794,27 @@ def ask_review_actor(pr):
     for event in pr.get_issue_events():
         if event.event == "labeled" and event.label.name == "ask-review":
             return event.actor.name or event.actor.login
+
+
+def generate_local_github_token(ctx):
+    """
+    Generates a github token locally.
+    """
+
+    try:
+        token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
+
+        assert token.startswith('gh') and ' ' not in token, (
+            "`ddtool auth github token` returned an invalid token, it might be due to ddtool outdated. Please run `brew update && brew upgrade ddtool`."
+        )
+
+        return token
+    except AssertionError:
+        # No retry on asserts
+        raise
+    except Exception:
+        # Try to login and then get a token
+        ctx.run('ddtool auth github login')
+        token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
+
+        return token
