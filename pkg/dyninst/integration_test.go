@@ -16,6 +16,8 @@ import (
 	"io"
 	"maps"
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"path/filepath"
@@ -30,23 +32,21 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
 
 //go:embed testdata/decoded
@@ -54,6 +54,8 @@ var testdataFS embed.FS
 
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
+	current := goleak.IgnoreCurrent()
+	t.Cleanup(func() { goleak.VerifyNone(t, current) })
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	programs := testprogs.MustGetPrograms(t)
 	var integrationTestPrograms = map[string]struct{}{
@@ -124,10 +126,10 @@ func testDyninst(
 	require.NoError(t, err)
 	defer func() { assert.NoError(t, codeDump.Close()) }()
 
-	objectFile, err := os.Create(filepath.Join(tempDir, "probe.bpf.o"))
+	testServer := newFakeAgent(t)
+	t.Cleanup(testServer.s.Close)
+	cfg, err := module.NewConfig(nil)
 	require.NoError(t, err)
-	defer func() { assert.NoError(t, objectFile.Close()) }()
-
 	loaderOpts := []loader.Option{
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
@@ -136,12 +138,22 @@ func testDyninst(
 	if debug {
 		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
 	}
-	reporter := makeTestReporter(t, irDump)
-	loader, err := loader.NewLoader(loaderOpts...)
+	cfg.TestingKnobs.LoaderOptions = loaderOpts
+	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
+	cfg.LogUploaderURL = testServer.getLogsURL()
+	cfg.DiagsUploaderURL = testServer.getDiagsURL()
+	cfg.ProcessSyncDisabled = true
+	scraper := &fakeScraper{}
+	cfg.TestingKnobs.ScraperOverride = func(_ module.Scraper) module.Scraper {
+		return scraper
+	}
+	cfg.TestingKnobs.IRGeneratorOverride = func(g module.IRGenerator) module.IRGenerator {
+		return &outputSavingIRGenerator{irGenerator: g, t: t, output: irDump}
+	}
+	subscriber := &fakeSubscriber{}
+	m, err := module.NewModule(cfg, subscriber)
 	require.NoError(t, err)
-	a := actuator.NewActuator(loader)
-	require.NoError(t, err)
-	at := a.NewTenant("integration-test", reporter, irgen.NewGenerator())
+	t.Cleanup(m.Close)
 
 	// Launch the sample service.
 	t.Logf("launching %s", service)
@@ -166,28 +178,39 @@ func testDyninst(
 			},
 		},
 	}
-
-	// Send update to actuator to instrument the process.
-	at.HandleUpdate(actuator.ProcessesUpdate{
-		Processes: []actuator.ProcessUpdate{
-			{
-				ProcessID: actuator.ProcessID{
-					PID: int32(sampleProc.Process.Pid),
-				},
+	const runtimeID = "foo"
+	scraper.putUpdates([]rcscrape.ProcessUpdate{
+		{
+			ProcessUpdate: procmon.ProcessUpdate{
+				ProcessID:  procmon.ProcessID{PID: int32(sampleProc.Process.Pid)},
 				Executable: exe,
-				Probes:     probes,
+				Service:    service,
 			},
+			RuntimeID:         runtimeID,
+			Probes:            probes,
+			ShouldUploadSymDB: false,
 		},
-		Removals: []actuator.ProcessID{},
 	})
 
 	// Wait for the process to be attached.
 	t.Log("Waiting for attachment")
-	sink, ok := <-reporter.attached
-	require.True(t, ok)
-	if t.Failed() {
-		return nil
+	allProbeIDs := make(map[string]struct{}, len(probes))
+	for _, p := range probes {
+		allProbeIDs[p.GetID()] = struct{}{}
 	}
+	assertProbesInstalled := func(c *assert.CollectT) {
+		installedProbeIDs := make(map[string]struct{}, len(probes))
+		for _, d := range testServer.getDiags() {
+			if d.diagnosticMessage.Debugger.Status == uploader.StatusInstalled {
+				installedProbeIDs[d.diagnosticMessage.Debugger.ProbeID] = struct{}{}
+			}
+		}
+		assert.Equal(c, allProbeIDs, installedProbeIDs)
+	}
+	require.EventuallyWithT(
+		t, assertProbesInstalled, 10*time.Second, 100*time.Millisecond,
+		"diagnostics should indicate that the probes are installed",
+	)
 
 	// Trigger the function calls, receive the events, and wait for the process
 	// to exit.
@@ -210,94 +233,37 @@ func testDyninst(
 		// the happy path, it's fine to let this be quite long.
 		timeout = 5*time.Second + 5*time.Since(start)
 	}
-	timeoutCh := time.After(timeout)
-	var read []output.Event
-	var timedOut bool
-	for !timedOut && len(read) < totalExpectedEvents {
-		select {
-		case m := <-sink.ch:
-			read = append(read, m)
-		case <-timeoutCh:
-			timedOut = true
+	deadline := time.Now().Add(timeout)
+	var n int
+	for time.Now().Before(deadline) {
+		if n = len(testServer.getLogs()); n >= totalExpectedEvents {
+			break
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
-	if !rewriteEnabled && timedOut {
-		t.Errorf(
-			"timed out after %v waiting for %d events, got %d",
-			timeout, totalExpectedEvents, len(read),
-		)
+	if !rewriteEnabled {
+		require.GreaterOrEqual(t, n, totalExpectedEvents, "expected at least %d events, got %d", totalExpectedEvents, n)
 	}
 	require.NoError(t, sampleProc.Wait())
-
-	at.HandleUpdate(actuator.ProcessesUpdate{
-		Removals: []actuator.ProcessID{
-			{PID: int32(sampleProc.Process.Pid)},
-		},
-	})
-	require.NoError(t, a.Shutdown())
-
-	t.Logf("processing output")
-	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	obj, err := object.OpenElfFileWithDwarf(servicePath)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, obj.Close()) }()
-
-	symbolTable, err := object.ParseGoSymbolTable(obj)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, symbolTable.Close()) }()
-	require.NoError(t, err)
-	symbolicator := symbol.NewGoSymbolicator(&symbolTable.GoSymbolTable)
-	require.NotNil(t, symbolicator)
-
-	cachingSymbolicator, err := symbol.NewCachingSymbolicator(symbolicator, 10000)
-	require.NotNil(t, symbolicator)
-	require.NoError(t, err)
-
-	gotypeTable, err := gotype.NewTable(obj)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, gotypeTable.Close()) }()
-
-	decoder, err := decode.NewDecoder(
-		sink.irp, (*decode.GoTypeNameResolver)(gotypeTable),
-		time.Now(),
-	)
-	require.NoError(t, err)
-
+	m.HandleRemovals([]procmon.ProcessID{{PID: int32(sampleProc.Process.Pid)}})
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Empty(c, m.DiagnosticsStates())
+	}, timeout, 100*time.Millisecond, "expected no diagnostics states")
+	m.Close()
 	retMap := make(map[string][]json.RawMessage)
-	for _, ev := range read {
-		// Validate that the header has the correct program ID.
-		{
-			header, err := ev.Header()
-			require.NoError(t, err)
-			require.Equal(t, ir.ProgramID(header.Prog_id), sink.irp.ID)
+	debugEnabled := os.Getenv("DEBUG") != ""
+	for _, log := range testServer.getLogs() {
+		redacted := redactJSON(t, "", log.body, defaultRedactors)
+		if debugEnabled {
+			t.Logf("Output: %v\n", string(log.body))
+			t.Logf("Sorted and redacted: %v\n", string(redacted))
 		}
-
-		event := decode.Event{
-			Event:       ev,
-			ServiceName: service,
-		}
-		decodeOut := []byte{}
-		decodeOut, probe, err := decoder.Decode(event, cachingSymbolicator, decodeOut)
-		require.NoError(t, err)
-		if os.Getenv("DEBUG") != "" {
-			t.Logf("Output: %s", string(decodeOut))
-		}
-		redacted := redactJSON(t, "", decodeOut, defaultRedactors)
-		if os.Getenv("DEBUG") != "" {
-			t.Logf("Sorted and redacted: %s", redacted)
-		}
-		probeID := probe.GetID()
-		probeRet := retMap[probeID]
-		expIdx := len(probeRet)
-		retMap[probeID] = append(retMap[probeID], json.RawMessage(redacted))
+		expIdx := len(retMap[log.id])
+		retMap[log.id] = append(retMap[log.id], redacted)
 		if !rewriteEnabled {
-			expOut, ok := expOut[probeID]
-			assert.True(t, ok, "expected output for probe %s not found", probeID)
-			assert.Less(
-				t, expIdx, len(expOut),
-				"expected at least %d events for probe %s, got %d",
-				expIdx+1, probeID, len(expOut),
-			)
+			expOut, ok := expOut[log.id]
+			assert.True(t, ok, "expected output for probe %s not found", log.id)
+			assert.Less(t, expIdx, len(expOut), "expected at least %d events for probe %s, got %d", expIdx+1, log.id, len(expOut))
 			assert.Equal(t, string(expOut[expIdx]), string(redacted))
 		}
 	}
@@ -444,96 +410,6 @@ func validateAndSaveOutputs(
 	}
 }
 
-type testMessageSink struct {
-	irp *ir.Program
-	ch  chan output.Event
-}
-
-func (d *testMessageSink) HandleEvent(ev output.Event) error {
-	d.ch <- append(make(output.Event, 0, len(ev)), ev...)
-	return nil
-}
-
-func (d *testMessageSink) Close() {
-	close(d.ch)
-}
-
-type testReporter struct {
-	attached chan *testMessageSink
-	t        *testing.T
-	sink     testMessageSink
-	irDump   *os.File
-}
-
-// ReportLoaded implements actuator.Reporter.
-func (r *testReporter) ReportLoaded(_ actuator.ProcessID, _ actuator.Executable, p *ir.Program) (actuator.Sink, error) {
-	if yaml, err := irprinter.PrintYAML(p); err != nil {
-		r.t.Errorf("failed to print IR: %v", err)
-	} else if _, err := io.Copy(r.irDump, bytes.NewReader(yaml)); err != nil {
-		r.t.Errorf("failed to write IR to file: %v", err)
-	}
-	r.sink = testMessageSink{
-		irp: p,
-		ch:  make(chan output.Event, 100),
-	}
-	return &r.sink, nil
-}
-
-// ReportAttached implements actuator.Reporter.
-func (r *testReporter) ReportAttached(actuator.ProcessID, *ir.Program) {
-	select {
-	case r.attached <- &r.sink:
-	default:
-	}
-}
-
-// ReportDetached implements actuator.Reporter.
-func (r *testReporter) ReportDetached(actuator.ProcessID, *ir.Program) {}
-
-// ReportIRGenFailed implements actuator.Reporter.
-func (r *testReporter) ReportIRGenFailed(
-	processID actuator.ProcessID,
-	err error,
-	probes []ir.ProbeDefinition,
-) {
-	defer close(r.attached)
-	r.t.Fatalf(
-		"IR generation failed for process %v: %#+v (with probes: %v)",
-		processID, err, probes,
-	)
-}
-
-// ReportLoadingFailed implements actuator.Reporter.
-func (r *testReporter) ReportLoadingFailed(
-	processID actuator.ProcessID,
-	program *ir.Program,
-	err error,
-) {
-	defer close(r.attached)
-	r.t.Fatalf(
-		"loading failed for program %d for process %v: %v", program.ID, processID, err,
-	)
-}
-
-// ReportAttachingFailed implements actuator.Reporter.
-func (r *testReporter) ReportAttachingFailed(
-	processID actuator.ProcessID, program *ir.Program, err error,
-) {
-	defer close(r.attached)
-	r.t.Fatalf(
-		"attaching failed for program %d to process %v: %v",
-		program.ID, processID, err,
-	)
-}
-
-func makeTestReporter(t *testing.T, irDump *os.File) *testReporter {
-	return &testReporter{
-		t:        t,
-		attached: make(chan *testMessageSink, 1),
-		irDump:   irDump,
-	}
-}
-
 func getProbeOutputFilename(service, probeID string) string {
 	return filepath.Join(
 		"testdata", "decoded", service, probeID+".json",
@@ -594,3 +470,212 @@ func saveActualOutputOfProbe(outputPath string, content []byte) error {
 	}
 	return nil
 }
+
+// outputSavingIRGenerator is an IRGenerator that saves the output to a file.
+type outputSavingIRGenerator struct {
+	irGenerator module.IRGenerator
+	t           *testing.T
+	output      *os.File
+}
+
+// GenerateIR implements module.IRGenerator.
+func (o *outputSavingIRGenerator) GenerateIR(
+	programID ir.ProgramID, binaryPath string, probes []ir.ProbeDefinition,
+) (*ir.Program, error) {
+	ir, err := o.irGenerator.GenerateIR(programID, binaryPath, probes)
+	if err != nil {
+		return nil, err
+	}
+	assert.NoError(o.t, func() error {
+		irYaml, err := irprinter.PrintYAML(ir)
+		if err != nil {
+			return fmt.Errorf("error printing IR: %w", err)
+		}
+		_, err = o.output.Write(irYaml)
+		if err != nil {
+			return fmt.Errorf("error writing IR: %w", err)
+		}
+		return nil
+	}(), "error saving IR")
+	return ir, nil
+
+}
+
+var _ module.IRGenerator = (*outputSavingIRGenerator)(nil)
+
+type fakeAgent struct {
+	s  *httptest.Server
+	t  *testing.T
+	mu struct {
+		sync.Mutex
+		logs  []receivedLog
+		diags []receivedDiag
+	}
+}
+
+const (
+	logPath  = "/logs"
+	diagPath = "/diags"
+)
+
+func newFakeAgent(t *testing.T) *fakeAgent {
+	f := &fakeAgent{t: t}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/logs", http.HandlerFunc(f.handleLogsUpload))
+	mux.HandleFunc("/diags", http.HandlerFunc(f.handleDiagsUpload))
+	f.s = httptest.NewServer(mux)
+	return f
+}
+
+func (f *fakeAgent) getLogsURL() string  { return f.s.URL + logPath }
+func (f *fakeAgent) getDiagsURL() string { return f.s.URL + diagPath }
+
+type receivedLog struct {
+	id        string
+	timestamp int64
+	body      json.RawMessage
+	headers   http.Header
+}
+
+func (f *fakeAgent) getLogs() []receivedLog {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.mu.logs
+}
+
+type receivedDiag struct {
+	headers           http.Header
+	diagnosticMessage *uploader.DiagnosticMessage
+}
+
+func (f *fakeAgent) getDiags() []receivedDiag {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.mu.diags
+}
+
+func (f *fakeAgent) handleLogsUpload(w http.ResponseWriter, req *http.Request) {
+	logs, err := readLogs(req)
+	if err != nil {
+		f.t.Errorf("failed to read logs: %v", err)
+		http.Error(w, "failed to read logs", http.StatusBadRequest)
+		return
+	}
+	defer w.WriteHeader(http.StatusOK)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.mu.logs = append(f.mu.logs, logs...)
+}
+
+func (f *fakeAgent) handleDiagsUpload(w http.ResponseWriter, req *http.Request) {
+	diags, err := readDiags(req)
+	if err != nil {
+		f.t.Errorf("failed to read diags: %v", err)
+		http.Error(w, "failed to read diags", http.StatusBadRequest)
+		return
+	}
+	defer w.WriteHeader(http.StatusOK)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.mu.diags = append(f.mu.diags, diags...)
+}
+
+func readLogs(req *http.Request) ([]receivedLog, error) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read body: %w", err)
+	}
+	var rawLogs []json.RawMessage
+	if err := json.Unmarshal(body, &rawLogs); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal body: %w", err)
+	}
+	type log struct {
+		Debugger struct {
+			Snapshot struct {
+				Timestamp int64 `json:"timestamp"`
+				Probe     struct {
+					ID string `json:"id"`
+				} `json:"probe"`
+			} `json:"snapshot"`
+		} `json:"debugger"`
+	}
+	ret := make([]receivedLog, len(rawLogs))
+	for i, raw := range rawLogs {
+		var l log
+		if err := json.Unmarshal(raw, &l); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal log: %w", err)
+		}
+		ret[i] = receivedLog{
+			id:        l.Debugger.Snapshot.Probe.ID,
+			timestamp: l.Debugger.Snapshot.Timestamp,
+			body:      raw,
+			headers:   req.Header,
+		}
+	}
+	return ret, nil
+}
+
+func readDiags(req *http.Request) ([]receivedDiag, error) {
+	file, _, err := req.FormFile("event")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get event file: %w", err)
+	}
+	body, err := io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read body: %w", err)
+	}
+
+	var rawDiags []*uploader.DiagnosticMessage
+	if err := json.Unmarshal(body, &rawDiags); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal body: %w", err)
+	}
+	ret := make([]receivedDiag, len(rawDiags))
+	for i, raw := range rawDiags {
+		ret[i] = receivedDiag{
+			headers:           req.Header,
+			diagnosticMessage: raw,
+		}
+	}
+	return ret, nil
+}
+
+type fakeSubscriber struct{}
+
+func (f *fakeSubscriber) SubscribeExec(func(uint32)) func() { return noop }
+func (f *fakeSubscriber) SubscribeExit(func(uint32)) func() { return noop }
+
+func noop() {}
+
+var _ module.ProcessSubscriber = (*fakeSubscriber)(nil)
+
+type fakeScraper struct {
+	mu struct {
+		sync.Mutex
+		outputs []rcscrape.ProcessUpdate
+	}
+}
+
+// HandleUpdate implements procmon.Handler.
+func (f *fakeScraper) HandleUpdate(procmon.ProcessesUpdate) {}
+
+// AsProcMonHandler implements module.Scraper.
+func (f *fakeScraper) AsProcMonHandler() procmon.Handler {
+	return f
+}
+
+// GetUpdates implements module.Scraper.
+func (f *fakeScraper) GetUpdates() []rcscrape.ProcessUpdate {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	ret := f.mu.outputs
+	f.mu.outputs = nil
+	return ret
+}
+
+func (f *fakeScraper) putUpdates(outputs []rcscrape.ProcessUpdate) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.mu.outputs = outputs
+}
+
+var _ module.Scraper = (*fakeScraper)(nil)

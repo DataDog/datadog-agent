@@ -145,7 +145,10 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 
 // RequestLatency returns the latency of the request in nanoseconds
 func (tx *EbpfTx) RequestLatency() float64 {
-	if uint64(tx.Stream.Request_started) == 0 || uint64(tx.Stream.Response_last_seen) == 0 {
+	if tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 {
+		return 0
+	}
+	if tx.Stream.Response_last_seen < tx.Stream.Request_started {
 		return 0
 	}
 	return protocols.NSTimestampToFloat(tx.Stream.Response_last_seen - tx.Stream.Request_started)

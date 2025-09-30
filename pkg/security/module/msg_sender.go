@@ -132,7 +132,8 @@ func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.
 	}
 
 	return &DirectEventMsgSender{
-		reporter: reporter,
+		reporter:  reporter,
+		endpoints: endpoints,
 	}, nil
 }
 
