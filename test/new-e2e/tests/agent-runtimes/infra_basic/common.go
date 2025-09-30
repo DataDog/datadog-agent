@@ -23,12 +23,12 @@ import (
 	checkUtils "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/checks/common"
 )
 
-type infraBasicSuite struct {
+type infraBasicSuite struct { //nolint:unused
 	e2e.BaseSuite[environments.Host]
 	descriptor e2eos.Descriptor
 }
 
-func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption {
+func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption { //nolint:unused
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -40,7 +40,7 @@ func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption {
 }
 
 // runCheckInBasicMode runs a check in infrastructure basic mode
-func (s *infraBasicSuite) runCheckInBasicMode(checkName string, checkConfig string) []check.Metric {
+func (s *infraBasicSuite) runCheckInBasicMode(checkName string, checkConfig string) []check.Metric { //nolint:unused
 	agentConfig := `
 api_key: "00000000000000000000000000000000"
 site: "datadoghq.com"
@@ -65,7 +65,7 @@ process_config:
 }
 
 // assertExcludedIntegrationsDoNotRun verifies that integrations that should be excluded in basic mode do not run
-func (s *infraBasicSuite) assertExcludedIntegrationsDoNotRun() {
+func (s *infraBasicSuite) assertExcludedIntegrationsDoNotRun() { //nolint:unused
 	// List of integrations that should NOT run in basic mode
 	excludedIntegrations := []struct {
 		name   string
@@ -211,7 +211,7 @@ instances:
 }
 
 // assertBasicChecksWork verifies that basic infrastructure checks work correctly
-func (s *infraBasicSuite) assertBasicChecksWork() {
+func (s *infraBasicSuite) assertBasicChecksWork() { //nolint:unused
 	// List of checks that should work in basic mode
 	basicChecks := []struct {
 		name   string
