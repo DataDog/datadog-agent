@@ -7,6 +7,7 @@ package checks
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"runtime"
@@ -183,7 +184,10 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
+	jsonStr, _ := json.Marshal(conns)
+	log.Errorf("jsonStr: %s", jsonStr)
+
+	c.npCollector.ScheduleConns(conns.Conns, conns.Dns, conns.Domains)
 
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	groupID := nextGroupID()

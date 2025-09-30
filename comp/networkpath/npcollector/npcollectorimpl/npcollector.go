@@ -130,7 +130,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 }
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
-func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common.Pathtest {
+func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry, ipToDomain map[string]string) common.Pathtest {
 	protocol := convertProtocol(conn.GetType())
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
@@ -150,8 +150,13 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*m
 
 	sourceContainer := conn.Laddr.GetContainerId()
 
+	hname := conn.Raddr.GetIp()
+	if domain, ok := ipToDomain[hname]; ok {
+		hname = domain
+	}
+
 	return common.Pathtest{
-		Hostname:          conn.Raddr.GetIp(),
+		Hostname:          hname,
 		Port:              remotePort,
 		Protocol:          protocol,
 		SourceContainerID: sourceContainer,
@@ -248,7 +253,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
 	return vpcSubnets, nil
 }
 
-func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry) {
+func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry, domains []string) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
@@ -257,6 +262,16 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
 		return
 	}
+
+	ipToDomain := make(map[string]string)
+	for _, domain := range domains {
+		ips, _ := net.LookupHost(domain)
+		for _, ip := range ips {
+			ipToDomain[ip] = domain
+		}
+	}
+	s.logger.Errorf("ipToDomain: %v", ipToDomain)
+
 	startTime := s.TimeNowFn()
 	_ = s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1)
 	for _, conn := range conns {
@@ -265,7 +280,11 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
 		}
-		pathtest := s.makePathtest(conn, dns)
+
+		jsonStr, _ := json.Marshal(conn)
+		s.logger.Errorf("one conn: %s", jsonStr)
+
+		pathtest := s.makePathtest(conn, dns, ipToDomain)
 
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
