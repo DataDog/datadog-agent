@@ -9,6 +9,12 @@ package converternoagent
 
 import (
 	"context"
+	_ "embed"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,18 +22,18 @@ import (
 )
 
 func TestConverterNoAgentConvert(t *testing.T) {
-	yaml := `
+	yaml := fmt.Sprintf(`
 processors:
-  infraattributes/default:
+  %s:
     enabled: true
   otherProcessor: {}
 service:
   pipelines:
     profiles:
       processors:
-        - infraattributes/default
+        - %s
         - otherProcessor
-`
+`, infraAttributesName(), infraAttributesName())
 	confRetrieved, err := confmap.NewRetrievedFromYAML([]byte(yaml))
 	require.NoError(t, err)
 	conf, err := confRetrieved.AsConf()
@@ -78,4 +84,17 @@ service:
 			},
 		},
 	})
+}
+
+func TestConverterInfraAttributesName(t *testing.T) {
+	config := getDefaultConfig(t)
+	require.Equal(t, 3, strings.Count(config, infraAttributesName()))
+}
+
+func getDefaultConfig(t *testing.T) string {
+	_, file, _, _ := runtime.Caller(0)
+	configPath := filepath.Join(filepath.Dir(file), "../../../../..", "cmd", "host-profiler", "dist", "host-profiler-config.yaml")
+	configData, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	return string(configData)
 }

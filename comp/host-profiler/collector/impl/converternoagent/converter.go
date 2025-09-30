@@ -31,8 +31,12 @@ func (c *converterNoAgent) Convert(_ context.Context, conf *confmap.Conf) error 
 	return removeInfraAttributesProcessor(conf)
 }
 
+func infraAttributesName() string {
+	return "infraattributes/default"
+}
+
 func removeInfraAttributesProcessor(conf *confmap.Conf) error {
-	conf.Delete("processors::infraattributes/default")
+	conf.Delete("processors::" + infraAttributesName())
 	confStringMap := conf.ToStringMap()
 	profilesMap, err := getMapStr(confStringMap, []string{"service", "pipelines", "profiles"})
 	if err != nil {
@@ -49,7 +53,7 @@ func removeInfraAttributesProcessor(conf *confmap.Conf) error {
 			if !ok {
 				return false
 			}
-			return str == "infraattributes/default"
+			return str == infraAttributesName()
 		})
 		profilesMap["processors"] = processors
 	}
