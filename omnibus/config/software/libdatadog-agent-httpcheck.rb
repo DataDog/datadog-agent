@@ -22,7 +22,7 @@ build do
   end
 
   source_file = "#{project.files_path}/#{name}/#{name}.#{extension}"
-  lib_path = "#{install_dir}/embedded/lib/#{source_file}"
+  lib_path = "#{install_dir}/embedded/lib/#{name}.#{extension}"
 
   if File.exist?(source_file)
     copy source_file, "#{install_dir}/embedded/lib/"
