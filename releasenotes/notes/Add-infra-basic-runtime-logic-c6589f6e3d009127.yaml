@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add support for infrastructure basic mode, a lightweight agent runtime that only loads essential components and runs a restricted set of system checks. This mode can be enabled by setting ``infrastructure_mode: "basic"`` in the agent configuration. The basic mode significantly reduces resource consumption by disabling non-essential features like language detection, SNMP, network device monitoring, and advanced integrations.
+enhancements:
+  - |
+    Implement check filtering in the scheduler to enforce infrastructure basic mode restrictions. When running in basic mode, only core system checks (cpu, disk, memory, network, etc.) are allowed to execute. Additional checks can be allowlisted via the ``infra_basic_additional_checks`` configuration option.
+  - |
+    Refactor agent startup logic to conditionally load components based on infrastructure mode. Core components required for basic functionality are loaded in all modes, while full-featured components (autodiscovery, language detection, OTEL collector, etc.) are only loaded when running in full mode.
+other:
+  - |
+    Add comprehensive end-to-end tests for infrastructure basic mode on both Linux and Windows platforms to verify that core system checks function correctly with minimal component initialization.

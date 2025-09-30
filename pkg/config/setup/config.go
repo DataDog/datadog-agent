@@ -1245,7 +1245,16 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Infrastructure mode
+	// The infrastructure mode is used to determine the features that are available to the agent.
+	// The possible values are: full, basic, end_user_device.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
+
+	// Infrastructure basic mode - additional checks
+	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
+	// This setting allows customers to add additional checks to the allowlist beyond the default set.
+	// Example: ["postgres", "redis", "nginx"]
+	config.BindEnvAndSetDefault("infra_basic_additional_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

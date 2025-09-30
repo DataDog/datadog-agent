@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -61,6 +63,7 @@ type CheckScheduler struct {
 	collector      option.Option[collector.Component]
 	senderManager  sender.SenderManager
 	m              sync.RWMutex
+	allowedChecks  map[string]struct{}
 }
 
 // InitCheckScheduler creates and returns a check scheduler
@@ -70,12 +73,20 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger))),
+		allowedChecks:  make(map[string]struct{}),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger) {
 		checkScheduler.addLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
+
+	// Constructs a set of allowed checks to run, if the set is empty, all checks are allowed
+	allowedChecks := constants.GetInfraBasicAllowedChecks(setup.Datadog())
+	for _, check := range allowedChecks {
+		checkScheduler.allowedChecks[check] = struct{}{}
+	}
+
 	return checkScheduler
 }
 
@@ -84,6 +95,13 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
+			// Check if this check is allowed in infra basic mode
+			if len(s.allowedChecks) > 0 {
+				if _, ok := s.allowedChecks[c.String()]; !ok {
+					log.Infof("Check %s is not allowed in infra basic mode, skipping", c.String())
+					continue
+				}
+			}
 			_, err := coll.RunCheck(c)
 			if err != nil {
 				log.Errorf("Unable to run Check %s: %v", c, err)
