@@ -31,9 +31,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func TestInitExtraHeadersNoopCompression(t *testing.T) {
@@ -407,8 +407,8 @@ func TestSendSeries(t *testing.T) {
 			f.On("SubmitSeries", matcher, s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
 			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{
-				Name: "foo",
-				MType: metrics.APIGaugeType,
+				Name:   "foo",
+				MType:  metrics.APIGaugeType,
 				Device: "sda",
 				Tags: tagset.NewCompositeTags(
 					[]string{"bar"},
@@ -418,9 +418,9 @@ func TestSendSeries(t *testing.T) {
 					{Ts: 1759241515, Value: 3.14},
 					{Ts: 1759241525, Value: 2.71},
 				},
-				Host: "localhost",
+				Host:           "localhost",
 				SourceTypeName: "System",
-				Interval: 10,
+				Interval:       10,
 			}}))
 			require.Nil(t, err)
 			f.AssertExpectations(t)
