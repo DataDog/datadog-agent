@@ -64,6 +64,7 @@ type context struct {
 	APMInjection                     bool
 	NetworkPath                      bool
 	ApplicationMonitoring            bool
+	Synthetics                       bool
 }
 
 func mkContext(buildType string) context {
@@ -97,6 +98,7 @@ func mkContext(buildType string) context {
 		PrometheusScrape:  true,
 		OTLP:              true,
 		NetworkPath:       true,
+		Synthetics:        true,
 	}
 
 	switch buildType {
