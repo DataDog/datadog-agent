@@ -30,6 +30,8 @@ import (
 	"testing"
 	"time"
 
+	jsonv2 "github.com/go-json-experiment/json"
+	"github.com/go-json-experiment/json/jsontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -387,7 +389,12 @@ func validateAndSaveOutputs(
 	}
 	for testName, testOutputs := range byTest {
 		for id, out := range testOutputs {
-			marshaled, err := json.MarshalIndent(out, "", "  ")
+			marshaled, err := jsonv2.Marshal(
+				out,
+				jsontext.WithIndent("  "),
+				jsontext.EscapeForHTML(false),
+				jsontext.EscapeForJS(false),
+			)
 			require.NoError(t, err)
 			prev, ok := byProbe[id]
 			if !ok {
