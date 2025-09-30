@@ -12,6 +12,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -27,8 +30,6 @@ import (
 	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 type cliParams struct {
@@ -59,9 +60,6 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 func runHostProfilerCommand(_ context.Context, cliParams *cliParams) error {
 	var opts []fx.Option = []fx.Option{
 		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath)),
-		fx.Invoke(func(collector collector.Component) error {
-			return collector.Run()
-		}),
 	}
 
 	if cliParams.GlobalParams.CoreConfPath != "" {
@@ -81,5 +79,7 @@ func runHostProfilerCommand(_ context.Context, cliParams *cliParams) error {
 		opts = append(opts, fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore))
 	}
 
-	return fxutil.Run(opts...)
+	return fxutil.OneShot(func(collector collector.Component) error {
+		return collector.Run()
+	}, opts...)
 }
