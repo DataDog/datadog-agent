@@ -258,6 +258,7 @@ type EntityMeta struct {
 	Namespace   string
 	Annotations map[string]string
 	Labels      map[string]string
+	UID         string
 }
 
 // String returns a string representation of EntityMeta.
