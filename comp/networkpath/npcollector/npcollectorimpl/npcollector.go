@@ -136,10 +136,13 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*m
 		protocol = payload.ProtocolICMP
 	}
 
+	hname := conn.Raddr.GetIp()
+
 	rDNSEntry := dns[conn.Raddr.GetIp()]
 	var reverseDNSHostname string
 	if rDNSEntry != nil && len(rDNSEntry.Names) > 0 {
 		reverseDNSHostname = rDNSEntry.Names[0]
+		hname = rDNSEntry.Names[0]
 	}
 
 	var remotePort uint16
@@ -150,7 +153,6 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*m
 
 	sourceContainer := conn.Laddr.GetContainerId()
 
-	hname := conn.Raddr.GetIp()
 	if domain, ok := ipToDomain[hname]; ok {
 		hname = domain
 	}
