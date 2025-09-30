@@ -161,7 +161,7 @@ static handles_t load_shared_library(const char *lib_name, const char **error) {
 		goto done;
     }
 
-    // get symbol pointers of 'Run' and 'Free' functions
+    // get symbol pointer of 'Run' function
     lib_handles.run = (run_function_t *)dlsym(lib_handles.lib, "Run");
     dlsym_error = dlerror();
     if (dlsym_error) {
@@ -188,7 +188,7 @@ static void close_shared_library(void *lib_handle) {
 static char *run_shared_library(run_function_t *run_handle, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator) {
 	// verify pointers
     if (!run_handle) {
-        return strdup("pointer to shared library 'Run' function is NULL");
+        return strdup("pointer to shared library 'Run' symbol is NULL");
     }
 
     // run the shared library check and return any error has occurred

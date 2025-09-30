@@ -75,6 +75,12 @@ func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libH
 
 // Run a shared library check
 func (c *SharedLibraryCheck) Run() error {
+	return c.runCheckImpl(true)
+}
+
+// runCheckImpl runs the check implementation with its Run symbol
+// This function is created to allow passing the commitMetrics parameter (not possible due to the Check interface)
+func (c *SharedLibraryCheck) runCheckImpl(commitMetrics bool) error {
 	cID := C.CString(string(c.id))
 	defer C.free(unsafe.Pointer(cID))
 
@@ -94,11 +100,13 @@ func (c *SharedLibraryCheck) Run() error {
 		return fmt.Errorf("Run failed: %s", C.GoString(cErr))
 	}
 
-	s, err := c.senderManager.GetSender(c.ID())
-	if err != nil {
-		return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+	if commitMetrics {
+		s, err := c.senderManager.GetSender(c.ID())
+		if err != nil {
+			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+		}
+		s.Commit()
 	}
-	s.Commit()
 
 	return nil
 }
@@ -106,8 +114,12 @@ func (c *SharedLibraryCheck) Run() error {
 // Stop does nothing
 func (c *SharedLibraryCheck) Stop() {}
 
-// Cancel unschedules the check and closes the associated shared library
-func (c *SharedLibraryCheck) Cancel() {}
+// Cancel closes the associated shared library and unschedules the check
+func (c *SharedLibraryCheck) Cancel() {
+	C.close_shared_library(c.libHandles.lib)
+
+	// TODO: unschedule check
+}
 
 // String representation (for debug and logging)
 func (c *SharedLibraryCheck) String() string {

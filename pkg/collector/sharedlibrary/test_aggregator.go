@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// #include <shared_library.h>
+// #include "shared_library.h"
 import "C"
 
 func testSubmitMetric(t *testing.T) {
