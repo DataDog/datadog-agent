@@ -79,7 +79,9 @@ func runHostProfilerCommand(_ context.Context, cliParams *cliParams) error {
 		opts = append(opts, fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore))
 	}
 
-	return fxutil.OneShot(func(collector collector.Component) error {
-		return collector.Run()
-	}, opts...)
+	return fxutil.OneShot(run, opts...)
+}
+
+func run(collector collector.Component) error {
+	return collector.Run()
 }
