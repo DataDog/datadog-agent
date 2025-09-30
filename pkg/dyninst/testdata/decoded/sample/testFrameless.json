@@ -18,7 +18,7 @@
           {
             "function": "main.testFrameless",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
-            "lineNumber": 79
+            "lineNumber": 80
           },
           {
             "function": "main.executeInlined",

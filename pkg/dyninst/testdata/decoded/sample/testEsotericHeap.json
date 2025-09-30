@@ -18,7 +18,7 @@
           {
             "function": "main.testEsotericHeap",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go",
-            "lineNumber": 47
+            "lineNumber": 49
           },
           {
             "function": "main.executeEsoteric",

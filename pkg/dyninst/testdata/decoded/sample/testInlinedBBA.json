@@ -18,7 +18,7 @@
           {
             "function": "main.testInlinedBBA",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
-            "lineNumber": 44
+            "lineNumber": 46
           },
           {
             "function": "main.testInlinedBB",

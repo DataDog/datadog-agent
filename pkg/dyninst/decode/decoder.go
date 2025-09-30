@@ -236,6 +236,7 @@ func (s *snapshotMessage) init(
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
 	s.Debugger.Snapshot.Captures.Entry = &decoder.entry
+	var returnHeader *output.EventHeader
 	if event.Return != nil {
 		if err := decoder._return.init(
 			event.Return, decoder.program.Types, &s.Debugger.EvaluationErrors,
@@ -246,20 +247,28 @@ func (s *snapshotMessage) init(
 		if returnProbeEvent.probe != probe {
 			return nil, fmt.Errorf("return probe event has different probe than entry probe")
 		}
-		retHeader, err := event.Return.Header()
+		returnHeader, err = event.Return.Header()
 		if err != nil {
 			return nil, fmt.Errorf("error getting return header %w", err)
 		}
-		s.Duration = uint64(retHeader.Ktime_ns - header.Ktime_ns)
+		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
 		s.Debugger.Snapshot.Captures.Return = &decoder._return
 	}
 
-	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(time.Duration(header.Ktime_ns)).UnixMilli())
+	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(
+		time.Duration(header.Ktime_ns),
+	).UnixMilli())
 	s.Timestamp = s.Debugger.Snapshot.Timestamp
 
-	stackFrames, ok := decoder.stackFrames[header.Stack_hash]
+	stackHeader, stackEvent := header, event.Entry
+	if returnHeader != nil {
+		stackHeader, stackEvent = returnHeader, event.Return
+	}
+	stackFrames, ok := decoder.stackFrames[stackHeader.Stack_hash]
 	if !ok {
-		stackFrames, err = symbolicate(event.Entry, header.Stack_hash, symbolicator)
+		stackFrames, err = symbolicate(
+			stackEvent, stackHeader.Stack_hash, symbolicator,
+		)
 		if err != nil {
 			if symbolicateErrorLogLimiter.Allow() {
 				log.Errorf("error symbolicating stack: %v", err)
@@ -270,7 +279,7 @@ func (s *snapshotMessage) init(
 				fmt.Sprintf("error symbolicating stack: %v", err),
 			)
 		} else {
-			decoder.stackFrames[header.Stack_hash] = stackFrames
+			decoder.stackFrames[stackHeader.Stack_hash] = stackFrames
 		}
 	}
 	switch where := probe.GetWhere().(type) {

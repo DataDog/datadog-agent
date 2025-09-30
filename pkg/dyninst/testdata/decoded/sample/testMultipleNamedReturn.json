@@ -18,7 +18,7 @@
           {
             "function": "main.testMultipleNamedReturn",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 72
+            "lineNumber": 76
           },
           {
             "function": "main.executeReturns",
