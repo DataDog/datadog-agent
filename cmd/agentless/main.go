@@ -70,7 +70,12 @@ func runAgent(tagger tagger.Component, hostname hostname.Component) {
 	agentlessDaemon := startCommunicationServer(startTime)
 
 	// Start RC service if remote configuration is enabled
-	rcService := serverlessRemoteConfig.StartRCService("agentless")
+	// Use a valid hostname identifier for the RC service
+	agentHostname, err := os.Hostname()
+	if err != nil || agentHostname == "" {
+		agentHostname = "agentless-agent"
+	}
+	rcService := serverlessRemoteConfig.StartRCService(agentHostname)
 
 	// Start the trace agent
 	traceAgent := startTraceAgent(agentlessDaemon, tagger, rcService)
