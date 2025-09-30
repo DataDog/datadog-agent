@@ -12,33 +12,37 @@ At present the Go modules offer no public stability guarantees and are intended 
 ## Creating a new module
 
 1. Determine the packages that you want to expose and their dependencies.
-/// info
-You might need to refactor the code to have an exportable package, because the `replace` directives that we use might be incompatible with your project.
-///
+
+    /// info
+    You might need to refactor the code to have an exportable package, because the `replace` directives that we use might be incompatible with your project.
+    ///
 
 1. Create a directory for the module:
-```bash
-cd ~/my_path_to/datadog-agent && mkdir mymodule
-```
 
-1. Initialize a new Go module:
-```bash
-cd path/to/mymodule && go mod init && go mod tidy
-```
+    ```bash
+    cd ~/my_path_to/datadog-agent && mkdir mymodule
+    ```
+
+2. Initialize a new Go module:
+
+    ```bash
+    cd path/to/mymodule && go mod init && go mod tidy
+    ```
 This will create the `go.mod` and `go.sum` files in the module's root folder. **Ensure the `go version` line matches the version in the main `go.mod` file.**
 
 1. Create a package file named `doc.go` in your new module based on this template:
-```go
-/// doc.go
 
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2025-present Datadog, Inc.
-package mymodule
-```
+    ```go
+    /// doc.go
 
-1. Update the `modules.yml` file at the root of the repository, adding a section for your new module.
+    // Unless explicitly stated otherwise all files in this repository are licensed
+    // under the Apache License Version 2.0.
+    // This product includes software developed at Datadog (https://www.datadoghq.com/).
+    // Copyright 2025-present Datadog, Inc.
+    package mymodule
+    ```
+
+2. Update the `modules.yml` file at the root of the repository, adding a section for your new module.
 
     See [`modules.yml`](#the-modulesyml-file) for more details. Here are a couple of example configurations:
 
@@ -66,8 +70,10 @@ package mymodule
     ```
     ///
 
-1. Update dependent modules. For each module depending on your new module, add:
+3. Update dependent modules. For each module depending on your new module, add:
+
     - A `require` directive in its `go.mod` containing the new module's path with version `v0.0.0`:
+
         ```
         // Other module's go.mod file
         require (
@@ -88,6 +94,7 @@ package mymodule
         ///
 
     - A [`replace` directive](https://go.dev/ref/mod#go-mod-file-replac) in the main `go.mod` file to replace the module with the local path:
+
         ```
         // main go.mod file
         replace (
@@ -99,7 +106,8 @@ package mymodule
     See this example PR: [#17350](https://github.com/DataDog/datadog-agent/pull/17350/files)
     ///
 
-1. Cleanup and tidy. Run the following commands to generate the update `go.work` and `go.sum` files:
+4. Cleanup and tidy. Run the following commands to generate the update `go.work` and `go.sum` files:
+
     ```bash
     dda inv modules.go-work
     go mod tidy
@@ -110,12 +118,16 @@ package mymodule
 A few invoke tasks are available that help with automatically updating module versions and tags:
 
 * `dda inv release.tag-modules`
-> Creates tags for Go nested modules for a given Datadog Agent version.
-/// info
-For Agent version `7.X.Y` the module will have version `v0.X.Y`.
-///
+
+    > Creates tags for Go nested modules for a given Datadog Agent version.
+
+    /// info
+    For Agent version `7.X.Y` the module will have version `v0.X.Y`.
+    ///
+
 * `dda inv release.update-modules`
-> Updates the internal dependencies between the different Agent nested go modules.
+
+    > Updates the internal dependencies between the different Agent nested go modules.
 
 
 /// info
