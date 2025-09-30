@@ -8,14 +8,12 @@ package inventorychecksimpl
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"expvar"
 	"fmt"
 	"maps"
 	"net/http"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
 
@@ -301,19 +299,18 @@ func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http
 }
 
 func (ic *inventorychecksImpl) getFilesMetadata() metadata {
-	configFiles, _, err := providers.ReadConfigFiles(providers.WithAdvancedADOnly)
-	if err != nil {
-		ic.log.Errorf("could not read files metadata: %v", err)
+	configFiles := providers.ReadConfigFormats()
+	if len(configFiles) == 0 {
+		ic.log.Errorf("could not read files metadata")
 		return metadata{}
 	}
 
 	filesMetadata := metadata{}
 	for _, configFile := range configFiles {
-		configHash := sha256.Sum256(configFile.ConfigFormat)
 		// Use source as key once we have a way to get the source from the config file
-		filesMetadata[strings.TrimPrefix(configFile.Source, "file:")] = metadata{
-			"raw_config": string(configFile.ConfigFormat),
-			"hash":       configHash,
+		filesMetadata[configFile.Filename] = metadata{
+			"raw_config": string(configFile.ConfigFormat), // convert to string
+			"hash":       configFile.Hash,
 		}
 	}
 
