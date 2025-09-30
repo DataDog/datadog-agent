@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build hostprofiler
+//go:build linux
 
+// Package command contains the top-level Cobra command for the host profiler.
 package command
 
 import (
@@ -15,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 )
 
-// MakeCommand makes the top-level Cobra command for this app.
+// MakeRootCommand makes the top-level Cobra command for this app.
 func MakeRootCommand() *cobra.Command {
 	hostProfiler := &cobra.Command{
 		Use:   "host-profiler [command]",
@@ -28,6 +29,7 @@ func MakeRootCommand() *cobra.Command {
 		return &globalParams
 	}
 	hostProfiler.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "config", "c", "", "path to host-profiler configuration file")
+	hostProfiler.PersistentFlags().StringVarP(&globalParams.CoreConfPath, "core-config", "", "", "Location to the Datadog Agent config file. If this value is not set, infra attribute processor and all features related to the Agent will not be enabled.")
 
 	for _, subCommandFactory := range hostProfilerSubcommands() {
 		subcommands := subCommandFactory(globalParamsGetter)
