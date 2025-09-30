@@ -107,12 +107,6 @@ processors:
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
-    logs:
-      log: []
-    metrics:
-      metric: []
-    traces:
-      span: []
 receivers:
   otlp:
     protocols:
