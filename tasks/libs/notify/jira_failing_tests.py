@@ -20,7 +20,7 @@ except ImportError:
 def get_jira():
     username = os.environ['ATLASSIAN_USERNAME']
     password = os.environ['ATLASSIAN_PASSWORD']
-    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password)
+    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password, cloud=True)
 
     return jira
 

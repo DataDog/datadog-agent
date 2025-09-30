@@ -8,12 +8,12 @@
 package setup
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Variables that are overridden at init
@@ -52,6 +52,8 @@ const (
 	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = "/var/run/datadog/dsd.socket"
+	// defaultReceiverSocket is the default Unix Domain Socket path on which Trace agent will listen
+	defaultReceiverSocket = "/var/run/datadog/apm.socket"
 	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = "/var/log/datadog/streamlogs_info/streamlogs.log"
 )
@@ -62,7 +64,8 @@ func osinit() {
 	// Agent binary
 	_here, err := executable.Folder()
 	if err != nil {
-		panic(fmt.Sprintf("Failed to get executable path: %v", err))
+		log.Errorf("Failed to get executable path: %v", err)
+		return
 	}
 	InstallPath = getInstallPathFromExecutable(_here)
 

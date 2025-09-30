@@ -7,6 +7,8 @@ package cloudservice
 
 import (
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
@@ -31,14 +33,11 @@ type CloudService interface {
 	// Init bootstraps the CloudService.
 	Init() error
 
-	// Shutdown cleans up the CloudService
-	Shutdown(agent serverlessMetrics.ServerlessMetricAgent)
+	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
+	Shutdown(agent serverlessMetrics.ServerlessMetricAgent, runErr error)
 
 	// GetStartMetricName returns the metric name for start events
 	GetStartMetricName() string
-
-	// GetShutdownMetricName returns the metric name for shutdown events
-	GetShutdownMetricName() string
 
 	// ShouldForceFlushAllOnForceFlushToSerializer is used for the
 	// forceFlushAll parameter on the call to forceFlushToSerializer in the
@@ -79,17 +78,14 @@ func (l *LocalService) Init() error {
 	return nil
 }
 
-// Shutdown is not necessary for LocalService
-func (l *LocalService) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
+// Shutdown emits the shutdown metric for LocalService
+func (l *LocalService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
+	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", defaultPrefix), 1.0, l.GetSource(), agent)
+}
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (l *LocalService) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.cold_start", defaultPrefix)
-}
-
-// GetShutdownMetricName returns the metric name for container shutdown events
-func (l *LocalService) GetShutdownMetricName() string {
-	return fmt.Sprintf("%s.enhanced.shutdown", defaultPrefix)
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.
