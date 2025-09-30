@@ -1892,6 +1892,41 @@ api_key:
 {{ end -}}
 {{ end -}}
 {{ end -}}
+
+{{ if .Synthetics -}}
+########################################
+## Synthetics Configuration           ##
+########################################
+
+## @param synthetics - custom object - optional
+## Enter specific configuration for Synthetics tests.
+# synthetics:
+
+#   # @param collector - custom object - optional
+#   # Configuration related to run Synthetics tests.
+#
+#   collector:
+
+#     # @param enabled - bool - optional - default: false
+#     # @env DD_SYNTHETICS_COLLECTOR_ENABLED - bool - optional - default: false
+#     # [Preview] Enables Synthetics tests.
+#
+#     enabled: false
+
+#     # @param workers - integer - optional - default: 4
+#     # @env DD_SYNTHETICS_COLLECTOR_WORKERS - integer - optional - default: 4
+#     # The `workers` refers to the number of concurrent workers available for synthetics tests execution.
+#
+#     workers: 4
+
+#     # @param flush_interval - integer - optional - default: 10s
+#     # @env DD_SYNTHETICS_COLLECTOR_FLUSH_INTERVAL - integer - optional - default: 10s
+#     # The `flush_interval` refers to the synthetics run interval for tests execution.
+#
+#     flush_interval: 10s
+
+{{ end -}}
+
 {{ if .Compliance -}}
 #############################################
 ## Security Agent Compliance Configuration ##
