@@ -240,13 +240,17 @@ func (s Symbols) Serialize(w StringWriter) {
 }
 
 // Serialize serializes the symbols in the package as a human-readable string.
-func (p Package) Serialize(w StringWriter) {
+func (p *Package) Serialize(w StringWriter) {
 	w.WriteString("Package: ")
 	w.WriteString(p.Name)
 	w.WriteString("\n")
+	// Serialize functions sorted by name for stable output.
+	sort.Slice(p.Functions, func(i, j int) bool { return p.Functions[i].Name < p.Functions[j].Name })
 	for _, fn := range p.Functions {
 		fn.Serialize(w, "\t")
 	}
+	// Serialize types sorted by name for stable output.
+	sort.Slice(p.Types, func(i, j int) bool { return p.Types[i].Name < p.Types[j].Name })
 	for _, t := range p.Types {
 		t.Serialize(w, "\t")
 	}
