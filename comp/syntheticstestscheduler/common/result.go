@@ -5,15 +5,88 @@
 
 package common
 
-import "github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+import (
+	"fmt"
+	"reflect"
+	"strconv"
 
-// Assertion represents a validation check comparing expected and actual values.
-type Assertion struct {
-	Operator string      `json:"operator"`
-	Type     string      `json:"type"`
-	Expected interface{} `json:"expected"`
-	Actual   interface{} `json:"actual"`
-	Valid    bool        `json:"valid"`
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+)
+
+// AssertionResult represents a validation check comparing expected and actual values.
+type AssertionResult struct {
+	Operator Operator         `json:"operator"`
+	Type     AssertionType    `json:"type"`
+	Property AssertionSubType `json:"property"`
+	Expected interface{}      `json:"expected"`
+	Actual   interface{}      `json:"actual"`
+	Valid    bool             `json:"valid"`
+	Failure  APIFailure       `json:"failure"`
+}
+
+// Compare evaluates the assertion result by comparing the actual and expected values.
+// Sets the Valid field based on the comparison and returns an error if parsing fails.
+func (a *AssertionResult) Compare() error {
+	// Special case: Is / IsNot
+	if a.Operator == OperatorIs || a.Operator == OperatorIsNot {
+		// Try numeric comparison first
+		expNum, expErr := parseToFloat(a.Expected)
+		actNum, actErr := parseToFloat(a.Actual)
+
+		if expErr == nil && actErr == nil {
+			// Both numeric → compare as numbers
+			a.Valid = (actNum == expNum)
+		} else {
+			// Otherwise → compare as raw values
+			a.Valid = reflect.DeepEqual(a.Actual, a.Expected)
+		}
+		if a.Operator == OperatorIsNot {
+			a.Valid = !a.Valid
+		}
+		return nil
+	}
+
+	// For numeric operators (<, <=, >, >=)
+	exp, err := parseToFloat(a.Expected)
+	if err != nil {
+		return fmt.Errorf("expected parse error: %w", err)
+	}
+	act, err := parseToFloat(a.Actual)
+	if err != nil {
+		return fmt.Errorf("actual parse error: %w", err)
+	}
+
+	switch a.Operator {
+	case OperatorLessThan:
+		a.Valid = act < exp
+	case OperatorLessThanOrEquals:
+		a.Valid = act <= exp
+	case OperatorMoreThan:
+		a.Valid = act > exp
+	case OperatorMoreThanOrEquals:
+		a.Valid = act >= exp
+	default:
+		return fmt.Errorf("unsupported operator %v", a.Operator)
+	}
+
+	return nil
+}
+
+func parseToFloat(v interface{}) (float64, error) {
+	switch x := v.(type) {
+	case string:
+		if i, err := strconv.ParseInt(x, 10, 64); err == nil {
+			return float64(i), nil
+		}
+		if f, err := strconv.ParseFloat(x, 64); err == nil {
+			return f, nil
+		}
+		return 0, fmt.Errorf("value must be numeric string, got: %q", x)
+	case int, int64, float32, float64:
+		return reflect.ValueOf(v).Convert(reflect.TypeOf(float64(0))).Float(), nil
+	default:
+		return 0, fmt.Errorf("unsupported type: %T", v)
+	}
 }
 
 // Request represents the network request.
@@ -41,7 +114,7 @@ type Result struct {
 	TestFinishedAt  int64               `json:"testFinishedAt"`
 	TestStartedAt   int64               `json:"testStartedAt"`
 	TestTriggeredAt int64               `json:"testTriggeredAt"`
-	Assertions      []Assertion         `json:"assertions"`
+	Assertions      []AssertionResult   `json:"assertions"`
 	Failure         ErrorOrFailure      `json:"failure"`
 	Duration        int64               `json:"duration"`
 	Request         Request             `json:"request"`
@@ -60,6 +133,9 @@ type Test struct {
 
 // TestResult represents the full test execution result including metadata.
 type TestResult struct {
+	Location struct {
+		ID string `json:"id"`
+	} `json:"location"`
 	DD     map[string]interface{} `json:"_dd"` // TestRequestInternalFields
 	Result Result                 `json:"result"`
 	Test   Test                   `json:"test"`

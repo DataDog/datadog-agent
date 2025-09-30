@@ -180,9 +180,9 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v77445509-0f6a3ac2
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v76200931-ab3026c3
+  CI_IMAGE_WIN_LTSC2022_X64: v77445509-0f6a3ac2
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v76200931-ab3026c3
+  CI_IMAGE_WIN_LTSC2025_X64: v77445509-0f6a3ac2
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -228,7 +228,6 @@ variables:
   DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
   E2E_AZURE: e2e-azure # agent-devx
   E2E_GCP: e2e-gcp # agent-devx
-  GITLAB_TOKEN: gitlab-token # agent-devx
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
   MACOS_GITHUB_APP_1: macos-github-app-one # agent-devx
   MACOS_GITHUB_APP_2: macos-github-app-two # agent-devx
