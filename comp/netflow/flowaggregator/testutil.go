@@ -24,7 +24,7 @@ func WaitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Du
 			return 0, fmt.Errorf("timeout error waiting for events")
 		// Got a tick, we should check on doSomething()
 		case <-ticker.C:
-			events := aggregator.flushedFlowCount.Load()
+			events := aggregator.FlushedFlowCount.Load()
 			if events >= minEvents {
 				return events, nil
 			}
