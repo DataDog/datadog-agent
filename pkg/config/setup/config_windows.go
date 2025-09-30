@@ -40,6 +40,8 @@ var (
 	InstallPath = "c:\\Program Files\\Datadog\\Datadog Agent"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = ""
+	// defaultReceiverSocket is the default Unix Domain Socket path on which Trace agent will listen
+	defaultReceiverSocket = ""
 	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
 )
