@@ -39,10 +39,6 @@ const (
 	coreAgentService = "datadogagent"
 )
 
-// Skip starting the DDOT service during post-install while E2E focuses on install-only validation.
-// Set to false for full E2E validation (including service start)
-const skipDDOTServiceStart = false
-
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
 func preInstallDatadogAgentDDOT(_ HookContext) error {
 	// Best effort stop and delete existing service
@@ -68,11 +64,6 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	// 4) Ensure DDOT service exists/updated, then start it (best-effort)
 	if err = ensureDDOTService(); err != nil {
 		return fmt.Errorf("failed to install ddot service: %w", err)
-	}
-	// Optional: allow E2E packaging tests to skip starting the service for installation test
-	if skipDDOTServiceStart {
-		log.Warnf("DDOT: skipping service start due to skipDDOTServiceStart=%t", skipDDOTServiceStart)
-		return nil
 	}
 	// Start DDOT only when core Agent is running (handle StartPending) and credentials exist
 	running, _ := winutil.IsServiceRunning(coreAgentService)
