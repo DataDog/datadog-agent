@@ -20,11 +20,11 @@ build do
   end
 
   # copy the lib corresponding to the platform
-  if File.exist?("#{project_dir}/#{name}.#{extension}")
-    copy "#{project_dir}/#{name}.#{extension}", "#{install_dir}/embedded/lib/"
+  if File.exist?("#{project.files_path}/#{name}/#{name}.#{extension}")
+    copy "#{project.files_path}/#{name}/#{name}.#{extension}", "#{install_dir}/embedded/lib/"
     command "chmod +x #{install_dir}/embedded/lib/#{name}.#{extension}"
   else
-    raise "#{name}.#{extension} not found in #{project_dir}"
+    raise "#{name}.#{extension} not found in #{project.files_path}/#{name}"
   end
 
   # verify the library was copied correctly
