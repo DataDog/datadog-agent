@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+enhancements:
   - |
     dbm: add SQL obfuscation `ReplaceBindParameter` option to support obfuscating SQL bind parameters.
