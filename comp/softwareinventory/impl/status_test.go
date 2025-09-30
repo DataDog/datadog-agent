@@ -11,23 +11,23 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStatusFundamentals(t *testing.T) {
-	is, _ := newSoftwareInventory(t, true)
+	f := newFixtureWithData(t, true, nil)
+	is := f.sut()
+
 	assert.Equal(t, "Software Inventory Metadata", is.Name())
 	assert.Equal(t, 4, is.Index())
 }
 
 func TestGetPayloadRefreshesCachedValues(t *testing.T) {
-	mockData := []software.Entry{
+	f := newFixtureWithData(t, true, []software.Entry{
 		{DisplayName: "FooApp", ProductCode: "foo"},
 		{DisplayName: "BarApp", ProductCode: "bar"},
-	}
-	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
+	})
+	is := f.sut()
 
 	// Status JSON should trigger a refresh of cached values
 	stats := make(map[string]interface{})
@@ -39,7 +39,7 @@ func TestGetPayloadRefreshesCachedValues(t *testing.T) {
 	assert.Contains(t, stats, "software_inventory_metadata")
 	// Note: The exact structure of stats depends on how the JSON is marshaled
 	// This test may need adjustment based on the actual output format
-	sp.AssertNumberOfCalls(t, "GetCheck", 1)
+	f.sysProbeClient.AssertNumberOfCalls(t, "GetCheck", 1)
 }
 
 func TestStatusTemplates(t *testing.T) {
@@ -107,8 +107,8 @@ func TestStatusTemplates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			is, sp := newSoftwareInventory(t, true)
-			sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(tt.mockData, nil)
+			f := newFixtureWithData(t, true, tt.mockData)
+			is := f.sut()
 
 			// Test Text template
 			var buf bytes.Buffer
@@ -126,14 +126,14 @@ func TestStatusTemplates(t *testing.T) {
 			}
 
 			// Verify that we only call GetCheck once per test case
-			sp.AssertNumberOfCalls(t, "GetCheck", 1)
+			f.sysProbeClient.AssertNumberOfCalls(t, "GetCheck", 1)
 		})
 	}
 }
 
 func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
-	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return([]software.Entry{}, nil)
+	f := newFixtureWithData(t, true, []software.Entry{})
+	is := f.sut()
 
 	// Test Text template
 	var buf bytes.Buffer
@@ -149,5 +149,5 @@ func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
 	assert.Contains(t, buf.String(), `<div class="stat_data inventory-scrollbox"`)
 
 	// The populateStatus caches the values once.
-	sp.AssertNumberOfCalls(t, "GetCheck", 1)
+	f.sysProbeClient.AssertNumberOfCalls(t, "GetCheck", 1)
 }
