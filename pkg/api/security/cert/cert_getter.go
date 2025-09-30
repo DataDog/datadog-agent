@@ -93,6 +93,10 @@ func FetchIPCCert(config configModel.Reader) (*tls.Config, *tls.Config, *tls.Con
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error while setting TLS configs: %w", err)
 	}
+
+	clientConfig.InsecureSkipVerify = config.GetBool("tls_client_insecure")
+	serverConfig.InsecureSkipVerify = config.GetBool("tls_server_insecure")
+
 	return clientConfig, serverConfig, clusterClientConfig, nil
 }
 
@@ -126,6 +130,10 @@ func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader) (*tls.
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error while setting TLS configs: %w", err)
 	}
+
+	clientConfig.InsecureSkipVerify = config.GetBool("tls_client_insecure")
+	serverConfig.InsecureSkipVerify = config.GetBool("tls_server_insecure")
+
 	return clientConfig, serverConfig, clusterClientConfig, err
 }
 

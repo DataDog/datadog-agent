@@ -38,7 +38,7 @@ func NewHTTPMiddleware(logger func(format string, params ...interface{}), authto
 
 			// The following comparison must be evaluated in constant time
 			if len(tok) < 2 || !constantCompareStrings(tok[1], authtoken) {
-				err = fmt.Errorf("invalid session token")
+				err = fmt.Errorf("invalid session tokena")
 				http.Error(w, err.Error(), 403)
 				logger("invalid auth token for %s request to %s: %s", r.Method, r.RequestURI, err)
 				return

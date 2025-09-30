@@ -20,7 +20,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -34,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
 )
 
 const (
@@ -59,7 +59,7 @@ type CWSConsumer struct {
 	rateLimiter    *events.RateLimiter
 	sendStatsChan  chan chan bool
 	eventSender    events.EventSender
-	grpcServer     *GRPCServer
+	grpcCmdServer  *grpcutils.Server
 	ruleEngine     *rulesmodule.RuleEngine
 	selfTester     *selftests.SelfTester
 	selfTestCount  int
@@ -87,7 +87,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		}
 	}
 
-	family := common.GetFamilyAddress(cfg.SocketPath)
+	family, socketPath := config.GetSocketAddress(cfg.CmdSocketPath)
 
 	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
 	if err != nil {
@@ -106,7 +106,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		apiServer:     apiServer,
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
-		grpcServer:    NewGRPCServer(family, cfg.SocketPath),
+		grpcCmdServer: grpcutils.NewServer(family, socketPath),
 		selfTester:    selfTester,
 		reloader:      NewReloader(),
 		crtelemetry:   crtelemetry,
@@ -144,7 +144,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	seclog.SetPatterns(cfg.LogPatterns...)
 	seclog.SetTags(cfg.LogTags...)
 
-	api.RegisterSecurityModuleServer(c.grpcServer.server, c.apiServer)
+	api.RegisterSecurityModuleServer(c.grpcCmdServer.ServiceRegistrar(), c.apiServer)
 
 	// platform specific initialization
 	if err := c.init(evm, cfg, opts); err != nil {
@@ -175,7 +175,7 @@ func (c *CWSConsumer) ID() string {
 
 // Start the module
 func (c *CWSConsumer) Start() error {
-	if err := c.grpcServer.Start(); err != nil {
+	if err := c.grpcCmdServer.Start(); err != nil {
 		return err
 	}
 
@@ -306,7 +306,7 @@ func (c *CWSConsumer) Stop() {
 
 	c.wg.Wait()
 
-	c.grpcServer.Stop()
+	c.grpcCmdServer.Stop()
 }
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation

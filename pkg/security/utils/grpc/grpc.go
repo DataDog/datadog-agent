@@ -3,31 +3,33 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package module holds module related files
-package module
+// Package grpc holds grpc related files
+package grpc
 
 import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 
+	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
-// GRPCServer defines a gRPC server
-type GRPCServer struct {
+// Server defines a gRPC server
+type Server struct {
 	server  *grpc.Server
 	wg      sync.WaitGroup
 	family  string
 	address string
 }
 
-// NewGRPCServer returns a new gRPC server
-func NewGRPCServer(family string, address string) *GRPCServer {
+// NewServer returns a new gRPC server
+func NewServer(family string, address string) *Server {
 	// force socket cleanup of previous socket not cleanup
 	if family == "unix" {
 		if err := os.Remove(address); err != nil && !os.IsNotExist(err) {
@@ -38,23 +40,45 @@ func NewGRPCServer(family string, address string) *GRPCServer {
 	// Add gRPC metrics interceptors
 	opts := grpcutil.ServerOptionsWithMetrics()
 
-	return &GRPCServer{
+	return &Server{
 		family:  family,
 		address: address,
 		server:  grpc.NewServer(opts...),
 	}
 }
 
+// ServiceRegistrar returns the gRPC server
+func (g *Server) ServiceRegistrar() grpc.ServiceRegistrar {
+	return g.server
+}
+
 // Start the server
-func (g *GRPCServer) Start() error {
-	ln, err := net.Listen(g.family, g.address)
+func (g *Server) Start() error {
+	var ln net.Listener
+	var err error
+
+	if g.family == "vsock" {
+		port, parseErr := strconv.Atoi(g.address)
+		if parseErr != nil {
+			return parseErr
+		}
+
+		if port <= 0 {
+			return fmt.Errorf("invalid port '%s' for vsock", g.address)
+		}
+
+		ln, err = vsock.Listen(uint32(port), &vsock.Config{})
+	} else {
+		ln, err = net.Listen(g.family, g.address)
+	}
+
 	if err != nil {
 		return fmt.Errorf("unable to create runtime security socket: %w", err)
 	}
 
 	if g.family == "unix" {
 		if err := os.Chmod(g.address, 0700); err != nil {
-			return fmt.Errorf("unable to create runtime security socket: %w", err)
+			return fmt.Errorf("unable to update permissions of runtime security socket: %w", err)
 		}
 	}
 
@@ -71,7 +95,7 @@ func (g *GRPCServer) Start() error {
 }
 
 // Stop the server
-func (g *GRPCServer) Stop() {
+func (g *Server) Stop() {
 	if g.server != nil {
 		g.server.Stop()
 	}

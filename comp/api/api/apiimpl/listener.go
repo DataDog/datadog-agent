@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/mdlayher/vsock"
 )
 
 // getIPCAddressPort returns a listening connection
@@ -22,11 +23,17 @@ func getIPCAddressPort() (string, error) {
 }
 
 // getListener returns a listening connection
-func getListener(address string) (net.Listener, error) {
-	return net.Listen("tcp", address)
+func getListener(address string) (net.Listener, bool, error) {
+	if pkgconfigsetup.Datadog().GetString("vsock_addr") != "" {
+		port := pkgconfigsetup.Datadog().GetInt("cmd_port")
+		listener, err := vsock.Listen(uint32(port), &vsock.Config{})
+		return listener, false, err
+	}
+	listener, err := net.Listen("tcp", address)
+	return listener, true, err
 }
 
-// returns whether the IPC server is enabled, and if so its host and host:port
+// getIPCServerAddressPort returns whether the IPC server is enabled, and if so its host and host:port
 func getIPCServerAddressPort() (string, string, bool) {
 	ipcServerPort := pkgconfigsetup.Datadog().GetInt("agent_ipc.port")
 	if ipcServerPort == 0 {

@@ -60,6 +60,9 @@ func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("unable to fetch IPC certificate (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
 	}
 
+	clientConfig.InsecureSkipVerify = reqs.Conf.GetBool("tls_client_insecure")
+	serverConfig.InsecureSkipVerify = reqs.Conf.GetBool("tls_server_insecure")
+
 	return buildIPCComponent(reqs, token, clientConfig, serverConfig, clusterClientConfig)
 }
 
@@ -82,6 +85,9 @@ func NewReadWriteComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, fmt.Errorf("error while creating or fetching IPC cert: %w", err)
 	}
+
+	clientConfig.InsecureSkipVerify = reqs.Conf.GetBool("tls_client_insecure")
+	serverConfig.InsecureSkipVerify = reqs.Conf.GetBool("tls_server_insecure")
 
 	return buildIPCComponent(reqs, token, clientConfig, serverConfig, clusterClientConfig)
 }
