@@ -235,3 +235,74 @@ func TestRemoteAgentServiceDiscovery(t *testing.T) {
 		})
 	}
 }
+
+func TestSanitizeString(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "normal case with spaces and mixed case",
+			input:    "My Agent Name",
+			expected: "my-agent-name",
+		},
+		{
+			name:     "already lowercase with spaces",
+			input:    "my agent name",
+			expected: "my-agent-name",
+		},
+		{
+			name:     "single word uppercase",
+			input:    "Agent",
+			expected: "agent",
+		},
+		{
+			name:     "single word lowercase",
+			input:    "agent",
+			expected: "agent",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "multiple consecutive spaces",
+			input:    "My  Agent  Name",
+			expected: "my--agent--name",
+		},
+		{
+			name:     "leading and trailing spaces",
+			input:    " My Agent Name ",
+			expected: "-my-agent-name-",
+		},
+		{
+			name:     "mixed case without spaces",
+			input:    "MyAgentName",
+			expected: "myagentname",
+		},
+		{
+			name:     "all uppercase with spaces",
+			input:    "MY AGENT NAME",
+			expected: "my-agent-name",
+		},
+		{
+			name:     "single space",
+			input:    " ",
+			expected: "-",
+		},
+		{
+			name:     "complex case with numbers and mixed case",
+			input:    "Datadog Agent v7.1 Test",
+			expected: "datadog-agent-v7.1-test",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			result := sanitizeString(testCase.input)
+			require.Equal(t, testCase.expected, result, "sanitizeString(%q) should return %q, but got %q", testCase.input, testCase.expected, result)
+		})
+	}
+}

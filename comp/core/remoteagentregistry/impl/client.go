@@ -76,7 +76,7 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 
 	client := &remoteAgentClient{
 		RegistrationData:          *registration,
-		agentSanitizedDisplayName: sanatizeString(registration.AgentDisplayName),
+		agentSanitizedDisplayName: sanitizeString(registration.AgentDisplayName),
 		lastSeen:                  time.Now(),
 		// gRPC relative
 		ServerReflectionClient:  grpc_reflection_v1.NewServerReflectionClient(conn),
@@ -253,10 +253,10 @@ func callAgentsForService[PbType any, StructuredType any](
 	return resultSlice
 }
 
-func sanatizeString(s string) string {
-	result := []string{}
-	for _, s := range strings.Split(s, " ") {
-		result = append(result, strings.ToLower(s))
+func sanitizeString(in string) string {
+	out := []string{}
+	for _, s := range strings.Split(in, " ") {
+		out = append(out, strings.ToLower(s))
 	}
-	return strings.Join(result, "-")
+	return strings.Join(out, "-")
 }
