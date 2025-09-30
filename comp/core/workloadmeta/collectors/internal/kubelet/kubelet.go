@@ -151,7 +151,7 @@ func (c *collector) pullKubeletConfig(ctx context.Context) (workloadmeta.Collect
 func (c *collector) pullFromKubelet(ctx context.Context) error {
 	events := []workloadmeta.CollectorEvent{}
 
-	podList, err := c.kubeUtil.GetLocalPodList(ctx)
+	podList, err := c.kubeUtil.GetLocalPodListWithMetadata(ctx)
 	if err != nil {
 		return err
 	}
@@ -167,11 +167,16 @@ func (c *collector) pullFromKubelet(ctx context.Context) error {
 		}
 	}
 
-	events = append(events, parsePods(podList, c.collectEphemeralContainers)...)
+	if podList == nil {
+		c.store.Notify(events)
+		return nil
+	}
+
+	events = append(events, parsePods(podList.Items, c.collectEphemeralContainers)...)
 
 	// Mark return pods and containers as seen now
 	now := time.Now()
-	for _, pod := range podList {
+	for _, pod := range podList.Items {
 		if pod.Metadata.UID != "" {
 			c.lastSeenPodUIDs[pod.Metadata.UID] = now
 		}
@@ -184,6 +189,9 @@ func (c *collector) pullFromKubelet(ctx context.Context) error {
 
 	expireEvents := c.eventsForExpiredEntities(now)
 	events = append(events, expireEvents...)
+
+	// Report expired pod count. This is needed by the Kubelet check
+	events = append(events, eventForKubeletMetrics(podList.ExpiredCount))
 
 	c.store.Notify(events)
 
@@ -340,6 +348,7 @@ func parsePods(pods []*kubelet.Pod, collectEphemeralContainers bool) []workloadm
 
 		var podEphemeralContainers []workloadmeta.OrchestratorContainer
 		var ephemeralContainerEvents []workloadmeta.CollectorEvent
+		var ephemeralContainerStatuses []workloadmeta.KubernetesContainerStatus
 		if collectEphemeralContainers {
 			podEphemeralContainers, ephemeralContainerEvents = parsePodContainers(
 				pod,
@@ -347,6 +356,8 @@ func parsePods(pods []*kubelet.Pod, collectEphemeralContainers bool) []workloadm
 				pod.Status.EphemeralContainers,
 				&podID,
 			)
+
+			ephemeralContainerStatuses = convertContainerStatuses(pod.Status.EphemeralContainers)
 		}
 
 		GPUVendors := getGPUVendorsFromContainers(initContainerEvents, containerEvents)
@@ -392,12 +403,14 @@ func parsePods(pods []*kubelet.Pod, collectEphemeralContainers bool) []workloadm
 			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
 			CreationTimestamp:          podMeta.CreationTimestamp,
+			DeletionTimestamp:          podMeta.DeletionTimestamp,
 			StartTime:                  startTime,
 			NodeName:                   pod.Spec.NodeName,
 			HostIP:                     pod.Status.HostIP,
 			HostNetwork:                pod.Spec.HostNetwork,
 			InitContainerStatuses:      convertContainerStatuses(pod.Status.InitContainers),
 			ContainerStatuses:          convertContainerStatuses(pod.Status.Containers),
+			EphemeralContainerStatuses: ephemeralContainerStatuses,
 			Conditions:                 convertConditions(pod.Status.Conditions),
 			Volumes:                    convertVolumes(pod.Spec.Volumes),
 			Tolerations:                convertTolerations(pod.Spec.Tolerations),
@@ -726,6 +739,16 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	}
 	resources.GPUVendorList = gpuVendorList
 
+	resources.RawRequests = make(map[string]string)
+	for resourceName, quantity := range spec.Resources.Requests {
+		resources.RawRequests[string(resourceName)] = quantity.String()
+	}
+
+	resources.RawLimits = make(map[string]string)
+	for resourceName, quantity := range spec.Resources.Limits {
+		resources.RawLimits[string(resourceName)] = quantity.String()
+	}
+
 	return resources
 }
 
@@ -822,6 +845,7 @@ func convertConditions(conditions []kubelet.Conditions) []workloadmeta.Kubernete
 		result[i] = workloadmeta.KubernetesPodCondition{
 			Type:   condition.Type,
 			Status: condition.Status,
+			Reason: condition.Reason,
 		}
 	}
 
@@ -912,4 +936,19 @@ func parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
 	}
 
 	return events
+}
+
+func eventForKubeletMetrics(expiredPodCount int) workloadmeta.CollectorEvent {
+	kubeletMetrics := &workloadmeta.KubeletMetrics{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubeletMetrics,
+			ID:   "kubelet-metrics",
+		},
+		ExpiredPodCount: expiredPodCount,
+	}
+
+	return workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: kubeletMetrics,
+	}
 }

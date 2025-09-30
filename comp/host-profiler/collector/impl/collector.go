@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build hostprofiler
+//go:build linux
 
 // Package collectorimpl implements the collector component interface
 package collectorimpl
@@ -22,10 +22,12 @@ import (
 	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
 )
 
+// Params contains the parameters for the collector component.
 type Params struct {
 	uri string
 }
 
+// NewParams creates a new Params instance.
 func NewParams(uri string) Params {
 	return Params{
 		uri: uri,
@@ -49,7 +51,10 @@ type collectorImpl struct {
 // NewComponent creates a new collector component
 func NewComponent(reqs Requires) (Provides, error) {
 	// Enable profiles support (disabled by default)
-	featuregate.GlobalRegistry().Set("service.profilesSupport", true)
+	err := featuregate.GlobalRegistry().Set("service.profilesSupport", true)
+	if err != nil {
+		return Provides{}, err
+	}
 
 	settings, err := newCollectorSettings(reqs.Params.uri)
 	if err != nil {
