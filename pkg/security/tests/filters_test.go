@@ -963,8 +963,7 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 		time.Sleep(2 * time.Second)
 
 		// force the double buffer to be flushed
-		test.eventMonitor.SendStats()
-		test.eventMonitor.SendStats()
+		test.sendStats()
 		test.statsdClient.Flush()
 
 		if err := waitForOpenProbeEvent(test, func() error {
@@ -978,7 +977,7 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 		}
 	})
 
-	test.eventMonitor.SendStats()
+	test.sendStats()
 
 	if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer"); count != 0 {
 		t.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
@@ -998,7 +997,7 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 		}
 	})
 
-	test.eventMonitor.SendStats()
+	test.sendStats()
 	defer test.statsdClient.Flush()
 
 	if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer"); count == 0 {
