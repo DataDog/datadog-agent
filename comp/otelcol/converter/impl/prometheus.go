@@ -337,10 +337,14 @@ func findInternalMetricsAddress(conf *confmap.Conf) string {
 		host := "0.0.0.0"
 		port := 8888
 		if h, ok := promExpMap["host"]; ok {
-			host = h.(string)
+			if hStr, ok := h.(string); ok {
+				host = hStr
+			}
 		}
 		if p, ok := promExpMap["port"]; ok {
-			port = p.(int)
+			if pInt, ok := p.(int); ok {
+				port = pInt
+			}
 		}
 		return fmt.Sprintf("%s:%d", host, port)
 	}
