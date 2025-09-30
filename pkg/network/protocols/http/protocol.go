@@ -143,7 +143,7 @@ func newHTTPProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protoc
 // Modifiers implements the ModifierProvider interface
 func (p *protocol) Modifiers() []ddebpf.Modifier {
 	if p.consumer == nil {
-		return []ddebpf.Modifier{}
+		return nil
 	}
 	return p.consumer.Modifiers()
 }
