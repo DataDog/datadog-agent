@@ -24,7 +24,6 @@ import (
 func TestCallAgentsForService(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	config := configmock.New(t)
-	config.SetWithoutSource("remote_agent_registry.enabled", true)
 
 	// Set a short timeout for testing
 	config.SetWithoutSource("remote_agent_registry.query_timeout", 1*time.Second)
@@ -185,7 +184,6 @@ func TestCallAgentsForService(t *testing.T) {
 func TestRemoteAgentServiceDiscovery(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	config := configmock.New(t)
-	config.SetWithoutSource("remote_agent_registry.enabled", true)
 
 	// Set a short timeout for testing
 	config.SetWithoutSource("remote_agent_registry.query_timeout", 1*time.Second)

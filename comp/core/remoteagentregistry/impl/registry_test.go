@@ -101,6 +101,7 @@ func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {
 
 func TestDisabled(t *testing.T) {
 	config := configmock.New(t)
+	config.SetWithoutSource("remote_agent_registry.enabled", false)
 
 	provides, _, _, _ := buildComponentWithConfig(t, config)
 
@@ -111,7 +112,6 @@ func TestDisabled(t *testing.T) {
 
 func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component, telemetry.Component, ipc.Component) {
 	config := configmock.New(t)
-	config.SetWithoutSource("remote_agent_registry.enabled", true)
 
 	provides, lc, telemetry, ipc := buildComponentWithConfig(t, config)
 	return provides, lc, config, telemetry, ipc
