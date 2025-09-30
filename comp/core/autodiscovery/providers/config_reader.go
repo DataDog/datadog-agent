@@ -153,6 +153,7 @@ func ReadConfigFiles(keep FilterFunc) ([]integration.Config, map[string]string, 
 	return filterConfigs(configs, keep), errs, nil
 }
 
+// ReadConfigFormats returns the config formats read from config files
 func ReadConfigFormats() []configFormatWrapper {
 	cachedFormats, found := reader.cache.Get("configFormats")
 	if found {
