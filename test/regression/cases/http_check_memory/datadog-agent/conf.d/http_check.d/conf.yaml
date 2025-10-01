@@ -2,21 +2,3 @@ init_config:
 instances:
   - name: "My first service"
     url: http://localhost:9095
-  - name: "My second service"
-    url: http://localhost:9095
-  - name: "My third service"
-    url: http://localhost:9095
-  - name: "My fourth service"
-    url: http://localhost:9095
-  - name: "My fifth service"
-    url: http://localhost:9095
-  - name: "My sixth service"
-    url: http://localhost:9095
-  - name: "My seventh service"
-    url: http://localhost:9095
-  - name: "My eighth service"
-    url: http://localhost:9095
-  - name: "My ninth service"
-    url: http://localhost:9095
-  - name: "My tenth service"
-    url: http://localhost:9095
