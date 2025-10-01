@@ -57,10 +57,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	usmutils "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
@@ -3177,4 +3179,65 @@ func (s *TracerSuite) TestTCPSynRst() {
 
 	assert.Equal(t, uint32(1), conn.TCPFailures[uint16(unix.ECONNREFUSED)])
 	assert.Equal(t, uint16(1), conn.Monotonic.TCPClosed)
+}
+
+func getExampleCertPaths() (string, string, error) {
+	curDir, err := usmtestutil.CurDir()
+	if err != nil {
+		return "", "", err
+	}
+
+	return filepath.Join(curDir, "testdata/example.com.crt"), filepath.Join(curDir, "testdata/example.com.key"), nil
+}
+
+func (s *TracerSuite) TestTLSCertParsing() {
+	t := s.T()
+	cfg := testConfig()
+	cfg.EnableCertCollection = true
+	tr := setupTracer(t, cfg)
+
+	skipOnEbpflessNotSupported(t, cfg)
+	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
+		t.Skip("tls certs not (yet) supported on fentry")
+	}
+	if isPrebuilt(cfg) {
+		t.Skip("tls certs not supported on prebuilt")
+	}
+
+	serverAddr := "127.0.0.1:8002"
+
+	certPath, keyPath, err := getExampleCertPaths()
+	require.NoError(t, err)
+	cmd := usmtestutil.HTTPPythonServer(t, serverAddr, usmtestutil.Options{
+		EnableTLS: true,
+		CertPath:  certPath,
+		KeyPath:   keyPath,
+	})
+
+	usmutils.WaitForProgramsToBeTraced(t, ssluprobes.CNMModuleName, ssluprobes.CNMTLSAttacherName, cmd.Process.Pid, usmutils.ManualTracingFallbackEnabled)
+
+	t.Logf("cmd.Process.Pid: %d\n", cmd.Process.Pid)
+
+	code, _, err := tracertestutil.HTTPSInsecureGet(fmt.Sprintf("https://%s/status/200/foobar", serverAddr))
+	require.NoError(t, err)
+	require.Equal(t, 200, code)
+
+	var cert ssluprobes.CertInfo
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		c := network.FirstConnection(conns, func(c network.ConnectionStats) bool {
+			server := netip.MustParseAddrPort(serverAddr)
+			return server.Addr() == c.Source.Addr && server.Port() == c.SPort
+		})
+		require.NotNil(collect, c)
+		require.NotZero(collect, c.CertInfo)
+
+		cert = c.CertInfo.Value()
+	}, time.Second*5, time.Millisecond*200)
+
+	assert.Equal(t, "7db02b321dd5e9dace3bdbc2963e829fcf07371a", cert.SerialNumber)
+	assert.Equal(t, "example.com", cert.Domain)
+	assert.Equal(t, time.Date(2025, time.September, 23, 17, 20, 31, 0, time.UTC), cert.Validity.NotBefore)
+	assert.Equal(t, time.Date(2035, time.September, 21, 17, 20, 31, 0, time.UTC), cert.Validity.NotAfter)
 }
