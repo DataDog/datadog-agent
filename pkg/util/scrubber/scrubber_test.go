@@ -114,3 +114,56 @@ func TestScrubBig(t *testing.T) {
 	_, err := scrubber.ScrubBytes(content)
 	require.NoError(t, err)
 }
+
+func TestENCTextScrubbing(t *testing.T) {
+	scrubber := NewWithDefaults()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"api_key with ENC", "api_key=ENC[secret]", "api_key=ENC[secret]"},
+		{"api_key regular", "api_key=aaaaaaaaaaaaaaaaaaaaaaaaaabbbbb", "api_key=***************************bbbbb"},
+		{"password with ENC", "password=ENC[secret]", "password=ENC[secret]"},
+		{"password regular", "password=apassword", "password=********"},
+
+		{"token YAML ENC", "auth_token: ENC[yaml_token]", "auth_token: ENC[yaml_token]"},
+		{"token regular", "auth_token: plain_token_value", "auth_token: \"********\""},
+
+		{"empty ENC", "api_key: ENC[]", "api_key: ENC[]"},
+		{"whitespace ENC", "password:   ENC[key]  ", "password:   ENC[key]  "},
+		{"invalid ENC", "password: ENC[incomplete", "password: \"********\""},
+		{"multiple mixed", "api_key: ENC[valid] password: plain_secret", "api_key: ENC[valid] password: \"********\""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := scrubber.ScrubBytes([]byte(tc.input))
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, string(result))
+		})
+	}
+}
+
+func TestENCLineScrubbing(t *testing.T) {
+	scrubber := NewWithDefaults()
+
+	testLines := []struct {
+		input    string
+		expected string
+	}{
+		{"api_key: ENC[line_secret]", "api_key: ENC[line_secret]"},
+		{"password: ENC[line_pass]", "password: ENC[line_pass]"},
+		{"token: ENC[line_token]", "token: ENC[line_token]"},
+		{"token: plain_secret", "token: \"********\""},
+		{"password: plain_pass", "password: \"********\""},
+		{"https://user:ENC[url_pass]@host", "https://user:ENC[url_pass]@host"},
+		{"https://user:secret123@host", "https://user:********@host"},
+	}
+
+	for _, tc := range testLines {
+		result := scrubber.ScrubLine(tc.input)
+		assert.Equal(t, tc.expected, result, "ScrubLine should preserve ENC[] handlers")
+	}
+}
