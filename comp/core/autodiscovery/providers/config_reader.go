@@ -162,11 +162,21 @@ func ReadConfigFormats() []ConfigFormatWrapper {
 	}
 
 	cachedFormats, found := reader.cache.Get("configFormats")
-	if found {
-		return cachedFormats.([]ConfigFormatWrapper)
+	if !found {
+		reader.readAndCacheAll()
+	} else {
+		cachedFormats, found = reader.cache.Get("configFormats")
+		if !found {
+			return []ConfigFormatWrapper{}
+		}
 	}
 
-	return []ConfigFormatWrapper{}
+	typedCachedFormats, ok := cachedFormats.([]ConfigFormatWrapper)
+	if !ok {
+		return []ConfigFormatWrapper{}
+	}
+
+	return typedCachedFormats
 }
 
 func filterConfigs(configs []integration.Config, keep FilterFunc) []integration.Config {
