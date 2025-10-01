@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package receiver implements the receiver for the host profiler.
 package receiver
 
 import (
