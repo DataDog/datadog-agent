@@ -21,6 +21,13 @@ deploy_packages_windows-x64-7:
       --include "datadog-installer-*-1-x86_64.zip"
       --include "datadog-installer-*-1-x86_64.exe"
       $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/
+    - $S3_CP_CMD
+      --recursive
+      --exclude "*"
+      --include "datadog-installer-*-1-x86_64.debug.zip"
+      --include "datadog-installer-*-1-x86_64.zip"
+      --include "datadog-installer-*-1-x86_64.exe"
+      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID $S3_RELEASE_INSTALLER_ARTIFACTS_URI/msi/x86_64/
   artifacts:
     paths:
       - $OMNIBUS_PACKAGE_DIR
