@@ -23,6 +23,7 @@ type NetworkConfigRequest struct {
 	SourceService      *string `json:"source_service,omitempty"`
 	DestinationService *string `json:"destination_service,omitempty"`
 	ProbeCount         *int    `json:"probe_count,omitempty"`
+	TickEvery          *int    `json:"tick_every,omitempty"`
 	TracerouteCount    *int    `json:"traceroute_count,omitempty"`
 	MaxTTL             *int    `json:"max_ttl,omitempty"`
 	Timeout            *int    `json:"timeout,omitempty"` // in seconds
