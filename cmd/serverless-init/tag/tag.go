@@ -9,6 +9,7 @@ package tag
 import (
 	"maps"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -66,7 +67,7 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 	// Only set compute_stats tag if explicitly enabled. This is known to be
 	// incorrect since it does not include traces that get sampled out in the
 	// agent and don't get sent to the backend.
-	if os.Getenv(enableBackendTraceStatsEnvVar) == "true" {
+	if enabled, _ := strconv.ParseBool(os.Getenv(enableBackendTraceStatsEnvVar)); enabled {
 		tagsMap[tags.ComputeStatsKey] = tags.ComputeStatsValue
 	}
 

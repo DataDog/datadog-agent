@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -137,7 +138,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 
 			// Check if trace stats should be disabled for serverless
-			if os.Getenv(disableTraceStatsEnvVar) == "true" {
+			if disabled, _ := strconv.ParseBool(os.Getenv(disableTraceStatsEnvVar)); disabled {
 				log.Debug("Trace stats computation disabled for serverless via DD_SERVERLESS_INIT_DISABLE_TRACE_STATS")
 				ta.Concentrator = &noopConcentrator{}
 			}
