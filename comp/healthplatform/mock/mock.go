@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for health-platform component.
-func Mock(t *testing.T) healthplatform.Component {
+func Mock(_ *testing.T) healthplatform.Component {
 	// TODO: Implement the health-platform mock
 	return nil
 }
