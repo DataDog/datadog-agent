@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -19,10 +20,10 @@ import (
 var TimeNow = time.Now
 
 const (
-	Closed = iota
-	HalfOpen
-	HalfOpenTest
-	Open
+	Unblocked = iota
+	HalfBlocked
+	HalfBlockedTest
+	Blocked
 )
 
 type CircuitBreaker = int
@@ -72,6 +73,33 @@ func newBlockedEndpoints(config config.Component, log log.Component) *blockedEnd
 	}
 }
 
+func printState(prefix string, state CircuitBreaker) {
+	switch state {
+	case Unblocked:
+		fmt.Println("\033[035m", prefix, "unblocked", "\033[0m")
+	case HalfBlocked:
+		fmt.Println("\033[035m", prefix, "half blocked", "\033[0m")
+	case HalfBlockedTest:
+		fmt.Println("\033[035m", prefix, "half blocked test", "\033[0m")
+	case Blocked:
+		fmt.Println("\033[035m", prefix, "blocked", "\033[0m")
+	}
+
+}
+
+func (e *block) setState(state CircuitBreaker) {
+	e.state = state
+	printState("new state", e.state)
+}
+
+func (e *blockedEndpoints) getState(endpoint string) (bool, CircuitBreaker) {
+	if b, ok := e.errorPerEndpoint[endpoint]; ok {
+		return true, b.state
+	}
+
+	return false, 0
+}
+
 func (e *blockedEndpoints) close(endpoint string) {
 	e.m.Lock()
 	defer e.m.Unlock()
@@ -81,25 +109,26 @@ func (e *blockedEndpoints) close(endpoint string) {
 		b = knownBlock
 	} else {
 		b = &block{
-			state: Closed,
+			state: Unblocked,
 		}
 	}
 
 	switch b.state {
-	case Closed:
+	case Unblocked:
 		// The circuit breaker is closed, we need to open it for a given time
 		b.nbError = e.backoffPolicy.IncError(b.nbError)
 		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
-		b.state = Open
-	case HalfOpen:
+		b.setState(Blocked)
+	case HalfBlocked:
+	case HalfBlockedTest:
 		// There is a risk that this transaction was sent before the circuit breaker was
 		// moved to half open. Currently this assumes that it wasn't and we need to work
 		// out a way to solve this....
 		// The test transaction failed, so we need to mave back to closed.
 		b.nbError = e.backoffPolicy.IncError(b.nbError)
 		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
-		b.state = Open
-	case Open:
+		b.setState(Blocked)
+	case Blocked:
 		// We ignore all failures coming in when open. These are transactions sent
 		// before the first one returned with an error.
 	}
@@ -116,23 +145,24 @@ func (e *blockedEndpoints) recover(endpoint string) {
 		b = knownBlock
 	} else {
 		b = &block{
-			state: Closed,
+			state: Unblocked,
 		}
 	}
 
 	switch b.state {
-	case Closed:
+	case Unblocked:
 		// Nothing to do, we are already closed and running smoothly.
-	case HalfOpen:
+	case HalfBlocked:
+	case HalfBlockedTest:
 		// The test worked, we can ease off
 		b.nbError = e.backoffPolicy.DecError(b.nbError)
 		if b.nbError == 0 {
-			b.state = Closed
+			b.setState(Unblocked)
 		} else {
 			b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
-			b.state = Open
+			b.setState(Blocked)
 		}
-	case Open:
+	case Blocked:
 		// If we are open and a successful transaction came through, we
 		// can't be sure if it was sent before the errored transaction or
 		// after, so we will ignore this.
@@ -145,19 +175,21 @@ func (e *blockedEndpoints) isBlock(endpoint string) bool {
 	e.m.RLock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
+
+		printState("current state", b.state)
 		switch b.state {
-		case HalfOpenTest:
+		case HalfBlockedTest:
 			// We have already sent the single transactions to test if the endpoint is now up
 			e.m.RUnlock()
 			return true
-		case HalfOpen:
+		case HalfBlocked:
 			e.m.RUnlock()
 			e.m.Lock()
 			// Send a single transaction to test the endpoint.
-			b.state = HalfOpenTest
+			b.setState(HalfBlockedTest)
 			e.m.Unlock()
 			return false
-		case Open:
+		case Blocked:
 			if TimeNow().Before(b.until) {
 				e.m.RUnlock()
 				return true
@@ -167,7 +199,7 @@ func (e *blockedEndpoints) isBlock(endpoint string) bool {
 				// to test the endpoint.
 				e.m.RUnlock()
 				e.m.Lock()
-				b.state = HalfOpen
+				b.setState(HalfBlockedTest)
 				e.m.Unlock()
 
 				return false

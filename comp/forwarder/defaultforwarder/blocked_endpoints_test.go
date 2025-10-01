@@ -2,21 +2,28 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//
+// 1 Error will give us a backoff duration of base backoff time:
+// between
+// forwarder_backoff_base * 2 ^ num_errors / forwarder_backoff_factor
+// and
+// forwarder_backoff_base * 2 ^ num_errors
 
 package defaultforwarder
 
 import (
+	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
-	//"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	//"github.com/DataDog/datadog-agent/pkg/util/backoff"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
 
-/*
 func TestMinBackoffFactorValid(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
@@ -216,8 +223,10 @@ func TestMaxBlock(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
+
 	e.close("test")
 	e.errorPerEndpoint["test"].nbError = 1000000
+	e.errorPerEndpoint["test"].state = HalfBlockedTest
 
 	e.close("test")
 	now := time.Now()
@@ -233,82 +242,120 @@ func TestMaxBlock(t *testing.T) {
 		now.Add(maxBackoffDuration).Equal(e.errorPerEndpoint["test"].until))
 }
 
-func TestUnblock(t *testing.T) {
-	mockConfig := mock.New(t)
-	log := logmock.New(t)
-	e := newBlockedEndpoints(mockConfig, log)
-
-	e.close("test")
-	require.Contains(t, e.errorPerEndpoint, "test")
-	e.close("test")
-	e.close("test")
-	e.close("test")
-	e.close("test")
-
-	e.recover("test")
-
-	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
-	assert.True(t, ok)
-
-	assert.True(t, e.errorPerEndpoint["test"].nbError == int(math.Max(0, float64(5-policy.RecoveryInterval))))
+func assertState(t *testing.T, e *blockedEndpoints, endpoint string, expected CircuitBreaker) {
+	exists, state := e.getState("test")
+	assert.True(t, exists)
+	assert.Equal(t, expected, state)
 }
 
-func TestMaxUnblock(t *testing.T) {
+func TestIsblockEndpointStaysClosedAfterFailedTest(t *testing.T) {
+	mocktime := time.Now()
+	TimeNow = func() time.Time {
+		return mocktime
+	}
+	defer func() {
+		TimeNow = time.Now
+	}()
+
 	mockConfig := mock.New(t)
-	log := logmock.New(t)
-	e := newBlockedEndpoints(mockConfig, log)
-
-	e.close("test")
-	e.recover("test")
-	e.recover("test")
-	now := time.Now()
-
-	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.True(t, e.errorPerEndpoint["test"].nbError == 0)
-	assert.True(t, now.After(e.errorPerEndpoint["test"].until) || now.Equal(e.errorPerEndpoint["test"].until))
-}
-
-func TestUnblockUnknown(t *testing.T) {
-	mockConfig := mock.New(t)
-	log := logmock.New(t)
-	e := newBlockedEndpoints(mockConfig, log)
-
-	e.recover("test")
-	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.True(t, e.errorPerEndpoint["test"].nbError == 0)
-}
-
-func TestIsBlock(t *testing.T) {
-	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("forwarder_backoff_base", 1)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
 	assert.False(t, e.isBlock("test"))
 
 	e.close("test")
+
+	assert.True(t, e.isBlock("test"))
+
+	mocktime = mocktime.Add(2 * time.Second)
+	assert.False(t, e.isBlock("test"))
+	assert.True(t, e.isBlock("test"))
+
+	e.close("test")
+
+	assertState(t, e, "test", Blocked)
+
+	// Still blocked after 2 seconds
+	mocktime = mocktime.Add(2 * time.Second)
+
+	assertState(t, e, "test", Blocked)
+
+	// Testing again after another 2 seconds
+	mocktime = mocktime.Add(2 * time.Second)
+	assert.False(t, e.isBlock("test"))
+	assert.True(t, e.isBlock("test"))
+	assertState(t, e, "test", HalfBlockedTest)
+}
+
+func TestIsblockEndpointReopensAfterSuccessfulTest(t *testing.T) {
+	mocktime := time.Now()
+	TimeNow = func() time.Time {
+		return mocktime
+	}
+	defer func() {
+		TimeNow = time.Now
+	}()
+
+	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("forwarder_backoff_base", 1)
+	log := logmock.New(t)
+	e := newBlockedEndpoints(mockConfig, log)
+
+	assert.False(t, e.isBlock("test"))
+
+	e.close("test")
+
+	assert.True(t, e.isBlock("test"))
+
+	mocktime = mocktime.Add(2 * time.Second)
+	assert.False(t, e.isBlock("test"))
 	assert.True(t, e.isBlock("test"))
 
 	e.recover("test")
-	assert.False(t, e.isBlock("test"))
+
+	e.isBlock("test")
+	assertState(t, e, "test", Unblocked)
 }
 
-func TestIsBlockTiming(t *testing.T) {
+func TestIsblockEndpointReopensForTest(t *testing.T) {
+	mocktime := time.Now()
+	TimeNow = func() time.Time {
+		return mocktime
+	}
+	defer func() {
+		TimeNow = time.Now
+	}()
+
+	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("forwarder_backoff_base", 1)
+	log := logmock.New(t)
+	e := newBlockedEndpoints(mockConfig, log)
+
+	assert.False(t, e.isBlock("test"))
+
+	e.close("test")
+
+	assert.True(t, e.isBlock("test"))
+
+	mocktime = mocktime.Add(2 * time.Second)
+	assert.False(t, e.isBlock("test"))
+	assert.True(t, e.isBlock("test"))
+}
+
+func TestIsblockEndpointCloses(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	// setting an old close
-	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(-30 * time.Second)}
 	assert.False(t, e.isBlock("test"))
 
-	// setting an new close
-	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(30 * time.Second)}
+	e.close("test")
+
 	assert.True(t, e.isBlock("test"))
 }
 
-*/
-
-func TestIsblockUnknown(t *testing.T) {
+func TestIsblockOpen(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
