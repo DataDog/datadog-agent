@@ -101,6 +101,7 @@ func (s *syntheticsTestScheduler) onConfigUpdate(updates map[string]state.RawCon
 			continue
 		}
 
+		syntheticsTestCfg.Interval = 60
 		newConfig[syntheticsTestCfg.PublicID] = syntheticsTestCfg
 		s.log.Debugf("Processed config %s: %v", configPath, syntheticsTestCfg)
 
@@ -124,7 +125,7 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 			s.state.tests[pubID] = &runningTestState{
 				cfg:     newTestConfig,
 				lastRun: time.Time{},
-				nextRun: s.timeNowFn().UTC().Add(time.Duration(newTestConfig.Interval) * time.Second),
+				nextRun: s.timeNowFn().UTC(),
 			}
 		} else {
 			current.cfg = newTestConfig

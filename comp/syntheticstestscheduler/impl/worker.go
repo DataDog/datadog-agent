@@ -59,16 +59,28 @@ func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 
 // flush enqueues tests whose nextRun is due.
 func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
+
+	s.log.Debugf("[flush] flushTime %s", flushTime.UTC())
 	for id, rt := range s.state.tests {
+		s.log.Debugf("[flush] test id %s", id)
+		s.log.Debugf("[flush] rt.cfg %+v", rt.cfg)
+		s.log.Debugf("[flush] rt.nextRun1 %s", s.state.tests[id].nextRun)
+		s.log.Debugf("[flush] rt.lastRun1 %s", s.state.tests[id].lastRun)
 		if flushTime.After(rt.nextRun) || flushTime.Equal(rt.nextRun) {
 			s.log.Debugf("enqueuing test %s", id)
 			s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
 				nextRun: flushTime,
 				cfg:     rt.cfg,
 			}
+
+			s.log.Debugf("[flush] rt.nextRun2 %s", s.state.tests[id].nextRun)
+			s.log.Debugf("[flush] rt.lastRun2 %s", s.state.tests[id].lastRun)
 			s.updateTestState(rt)
+			s.log.Debugf("[flush] rt.nextRun3 %s", s.state.tests[id].nextRun)
+			s.log.Debugf("[flush] rt.lastRun3 %s", s.state.tests[id].lastRun)
 		}
 	}
+	s.log.Debugf("[flush] len(s.syntheticsTestProcessingChan) %d", len(s.syntheticsTestProcessingChan))
 }
 
 // runWorker is the main loop for a single worker.
@@ -79,6 +91,7 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			s.log.Debugf("worker %d stopping", workerID)
 			return
 		case syntheticsTestCtx := <-s.syntheticsTestProcessingChan:
+			s.log.Debugf("syntheticsTestCtx.cfg1: %+v", syntheticsTestCtx.cfg)
 			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
 			if err != nil {
 				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
@@ -97,6 +110,8 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 				hostname:      hname,
 			}
 
+			s.log.Debugf("syntheticsTestCtx.cfg2: %+v", syntheticsTestCtx.cfg)
+			s.log.Debugf("run traceroute with config: %+v", tracerouteCfg)
 			result, tracerouteErr := s.runTraceroute(ctx, tracerouteCfg, s.telemetry)
 			wResult.finishedAt = s.timeNowFn()
 			wResult.duration = wResult.finishedAt.Sub(wResult.startedAt)
@@ -120,6 +135,7 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			if err = s.sendResult(wResult); err != nil {
 				s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
 			}
+			s.log.Debugf("finished run traceroute with config: %+v", tracerouteCfg)
 		}
 	}
 }
@@ -150,7 +166,8 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 		cfg.MaxTTL = uint8(*ncr.MaxTTL)
 	}
 	if ncr.Timeout != nil {
-		cfg.Timeout = time.Duration(*ncr.Timeout) * time.Second
+		//--timeout <(synthetics timeout * 0.9) / MAX TTL>
+		cfg.Timeout = time.Duration(float64(*ncr.Timeout)*0.9/float64(cfg.MaxTTL)) * time.Second
 	}
 	if ncr.TracerouteCount != nil {
 		cfg.TracerouteQueries = *ncr.TracerouteCount
