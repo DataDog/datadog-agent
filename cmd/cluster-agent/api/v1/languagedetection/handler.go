@@ -307,6 +307,7 @@ func (handler *languageDetectionHandler) syncFollowerWithInjectableLanguages(ctx
 				// Extract deployment name and namespace from entity id
 				deploymentIDs := strings.Split(deployment.ID, "/")
 				if len(deploymentIDs) != 2 {
+					log.Errorf("Invalid deployment ID format: %s, expected 'namespace/name'", deployment.ID)
 					continue
 				}
 				namespace := deploymentIDs[0]
