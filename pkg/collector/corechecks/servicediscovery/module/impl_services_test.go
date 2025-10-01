@@ -262,6 +262,8 @@ func TestServicesServiceName(t *testing.T) {
 	cmd.Dir = "/tmp/"
 	cmd.Env = append(cmd.Env, "OTHER_ENV=test")
 	cmd.Env = append(cmd.Env, "DD_SERVICE=foo😀bar")
+	cmd.Env = append(cmd.Env, "DD_ENV=my😀dd-env")
+	cmd.Env = append(cmd.Env, "DD_VERSION=my😀dd-version")
 	cmd.Env = append(cmd.Env, "YET_OTHER_ENV=test")
 	err = cmd.Start()
 	require.NoError(t, err)
@@ -275,8 +277,10 @@ func TestServicesServiceName(t *testing.T) {
 		svc = findService(pid, resp.Services)
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 
-		// Non-ASCII character removed due to normalization.
-		assert.Equal(collect, "foo_bar", svc.DDService)
+		assert.Equal(collect, "foo😀bar", svc.UST.Service)
+		assert.Equal(collect, "my😀dd-env", svc.UST.Env)
+		assert.Equal(collect, "my😀dd-version", svc.UST.Version)
+
 		assert.Equal(collect, "sleep", svc.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
 	}, 30*time.Second, 100*time.Millisecond)

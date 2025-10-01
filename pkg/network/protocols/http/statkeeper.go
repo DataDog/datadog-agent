@@ -8,6 +8,7 @@
 package http
 
 import (
+	"regexp"
 	"slices"
 	"strconv"
 	"sync"
@@ -15,7 +16,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
+)
+
+var (
+	requestStatsPool = ddsync.NewTypedPool[RequestStats](NewRequestStats)
 )
 
 // StatKeeper is responsible for aggregating HTTP stats.
@@ -41,7 +48,7 @@ type StatKeeper struct {
 func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer IncompleteBuffer) *StatKeeper {
 	var quantizer *URLQuantizer
 	// For now we're only enabling path quantization for HTTP/1 traffic
-	if c.EnableUSMQuantization && telemetry.protocol == "http" {
+	if c.EnableUSMQuantization {
 		quantizer = NewURLQuantizer()
 	}
 
@@ -125,6 +132,12 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 func (h *StatKeeper) Close() {
 }
 
+var (
+	// grpcPattern is a regex pattern to match gRPC paths by the pattern of `/<package>.<service>/<url>`
+	// Note - <service> can contain dots by itself. For instance `/google.pubsub.v2.PublisherService/CreateTopic`
+	grpcPattern = regexp.MustCompile(`^/([^./]+(\.[^./]+)*?)\.([^./]+(\.[^./]+)*?)/([^./]+?)$`)
+)
+
 func (h *StatKeeper) add(tx Transaction) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
@@ -135,7 +148,10 @@ func (h *StatKeeper) add(tx Transaction) {
 	// Quantize HTTP path
 	// (eg. this turns /orders/123/view` into `/orders/*/view`)
 	if h.quantizer != nil {
-		rawPath = h.quantizer.Quantize(rawPath)
+		// Quantize the endpoint if and only if, it is not a gRPC captured by HTTP2 monitoring
+		if tx.Method() != MethodPost || !grpcPattern.Match(rawPath) {
+			rawPath = h.quantizer.Quantize(rawPath)
+		}
 	}
 
 	path, rejected := h.processHTTPPath(tx, rawPath)
@@ -155,7 +171,7 @@ func (h *StatKeeper) add(tx Transaction) {
 	if latency <= 0 {
 		h.telemetry.invalidLatency.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Warnf("latency should never be equal to 0: %s", tx.String())
+			log.Warnf("latency should never be non positive: %s", tx.String())
 		}
 		return
 	}
@@ -182,11 +198,15 @@ func (h *StatKeeper) add(tx Transaction) {
 			return
 		}
 		h.telemetry.aggregations.Add(1)
-		stats = NewRequestStats()
+		stats = requestStatsPool.Get()
 		h.stats[key] = stats
 	}
 
-	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
+	dynamicTagsSet := common.StringSet(nil)
+	if dynamicTags := tx.DynamicTags(); len(dynamicTags) > 0 {
+		dynamicTagsSet = common.NewStringSet(dynamicTags...)
+	}
+	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), dynamicTagsSet)
 }
 
 func pathIsMalformed(fullPath []byte) bool {

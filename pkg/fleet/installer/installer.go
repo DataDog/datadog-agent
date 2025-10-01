@@ -110,11 +110,6 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
 	}
-
-	err = i.ensureConfigSymlink()
-	if err != nil {
-		return nil, fmt.Errorf("could not ensure packages are configured: %w", err)
-	}
 	return i, nil
 }
 
@@ -315,7 +310,10 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	}
 	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
-		return fmt.Errorf("not enough disk space: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrNotEnoughDiskSpace,
+			fmt.Errorf("not enough disk space: %w", err),
+		)
 	}
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
@@ -407,6 +405,10 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 			installerErrors.ErrFilesystemIssue,
 			fmt.Errorf("could not set experiment: %w", err),
 		)
+	}
+	err = i.config.RemoveExperiment(ctx)
+	if err != nil {
+		return fmt.Errorf("could not remove config experiment: %w", err)
 	}
 	// HACK: close so package can be updated as watchdog runs
 	if pkg.Name == packageDatadogAgent && runtime.GOOS == "windows" {
@@ -515,7 +517,11 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.config.WriteExperiment(ctx, operations)
+	err := i.packages.Get(pkg).DeleteExperiment(ctx)
+	if err != nil {
+		return fmt.Errorf("could not delete experiment: %w", err)
+	}
+	err = i.config.WriteExperiment(ctx, operations)
 	if err != nil {
 		return fmt.Errorf("could not write experiment: %w", err)
 	}
@@ -730,20 +736,6 @@ func (i *installerImpl) Close() error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	return i.close()
-}
-
-func (i *installerImpl) ensureConfigSymlink() (err error) {
-	_, err = os.Stat(i.config.ExperimentPath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("could not stat experiment path: %w", err)
-	}
-	if os.IsNotExist(err) && runtime.GOOS != "windows" {
-		err = os.Symlink(i.config.StablePath, i.config.ExperimentPath)
-		if err != nil {
-			return fmt.Errorf("could not symlink experiment path: %w", err)
-		}
-	}
-	return nil
 }
 
 const (

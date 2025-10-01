@@ -57,8 +57,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, deps configDependencies)
 		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, pkgconfigsetup.SystemProbe().GetEnvVars())
 	}
 
-	var e pkgconfigmodel.ConfigFileNotFoundError
-	if err != nil && (!errors.As(err, &e) || confFilePath != "") {
+	if err != nil && (!errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message
 		if errors.Is(err, fs.ErrPermission) {
 			if runtime.GOOS == "windows" {

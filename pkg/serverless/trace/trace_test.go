@@ -12,7 +12,6 @@ import (
 	"os"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -22,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func setupTraceAgentTest(t *testing.T) {
@@ -100,23 +98,6 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	defer agent.Stop()
 	assert.NotNil(t, agent)
 	assert.IsType(t, &serverlessTraceAgent{}, agent)
-}
-
-func TestLoadConfigShouldBeFast(t *testing.T) {
-	flake.Mark(t)
-	setupTraceAgentTest(t)
-
-	startTime := time.Now()
-	lambdaSpanChan := make(chan *pb.Span)
-
-	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
-		Enabled:         true,
-		LoadConfig:      &LoadConfig{Path: "./testdata/valid.yml"},
-		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanID: random.Random.Uint64(),
-	})
-	defer agent.Stop()
-	assert.True(t, time.Since(startTime) < time.Second)
 }
 
 func TestFilterSpanFromLambdaLibraryOrRuntimeHttpSpan(t *testing.T) {
@@ -258,10 +239,6 @@ func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
 			// Access the underlying agent to check TracerPayloadModifier
 			serverlessAgent := agent.(*serverlessTraceAgent)
 			assert.NotNil(t, serverlessAgent.ta.TracerPayloadModifier)
-
-			// Test that the modifier has the correct function tags
-			modifier := serverlessAgent.ta.TracerPayloadModifier.(*tracerPayloadModifier)
-			assert.Equal(t, tt.functionTags, modifier.functionTags)
 		})
 	}
 }

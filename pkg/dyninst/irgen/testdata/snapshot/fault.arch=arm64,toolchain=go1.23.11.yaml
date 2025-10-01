@@ -1,0 +1,1386 @@
+ID: 1
+Probes:
+    - id: callMe
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.callMe}
+      capture: {maxReferenceDepth: 1}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 1}
+      events:
+        - ID: 1
+          Type: 106 EventRootType Probe[main.callMe]
+          InjectionPoints: [{PC: "0xb74fc", Frameless: true}]
+          Condition: null
+Subprograms:
+    - ID: 1
+      Name: main.callMe
+      OutOfLinePCRanges: [0xb74f0..0xb75d0]
+      InlinePCRanges: []
+      Variables:
+        - Name: s1
+          Type: 10 GoStringHeaderType string
+          Locations:
+            - Range: 0xb74f0..0xb7528
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 1, Shift: 0}
+          IsParameter: true
+          IsReturn: false
+        - Name: s2
+          Type: 10 GoStringHeaderType string
+          Locations:
+            - Range: 0xb74f0..0xb7528
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+            - Range: 0xb7528..0xb75d0
+              Pieces:
+                - Size: 8
+                  Op: {CfaOffset: 24}
+                - Size: 8
+                  Op: {CfaOffset: 32}
+          IsParameter: true
+          IsReturn: false
+        - Name: i
+          Type: 94 PointerType *int
+          Locations:
+            - Range: 0xb74f0..0xb7528
+              Pieces: [{Size: 8, Op: {RegNo: 4, Shift: 0}}]
+            - Range: 0xb7528..0xb75d0
+              Pieces: [{Size: 8, Op: {CfaOffset: 40}}]
+          IsParameter: true
+          IsReturn: false
+Types:
+    - __kind: PointerType
+      ID: 39
+      Name: '*[]runtime.ancestorInfo'
+      ByteSize: 8
+      GoRuntimeType: 35552
+      GoKind: 22
+      Pointee: 40 UnresolvedPointeeType []runtime.ancestorInfo
+    - __kind: PointerType
+      ID: 103
+      Name: '*[]uint8.array'
+      ByteSize: 8
+      Pointee: 102 GoSliceDataType []uint8.array
+    - __kind: PointerType
+      ID: 105
+      Name: '*[]uintptr.array'
+      ByteSize: 8
+      Pointee: 104 GoSliceDataType []uintptr.array
+    - __kind: PointerType
+      ID: 5
+      Name: '*bool'
+      ByteSize: 8
+      GoRuntimeType: 26848
+      GoKind: 22
+      Pointee: 4 BaseType bool
+    - __kind: PointerType
+      ID: 96
+      Name: '*error'
+      ByteSize: 8
+      GoRuntimeType: 25760
+      GoKind: 22
+      Pointee: 18 GoInterfaceType error
+    - __kind: PointerType
+      ID: 97
+      Name: '*float32'
+      ByteSize: 8
+      GoRuntimeType: 26720
+      GoKind: 22
+      Pointee: 16 BaseType float32
+    - __kind: PointerType
+      ID: 92
+      Name: '*float64'
+      ByteSize: 8
+      GoRuntimeType: 26784
+      GoKind: 22
+      Pointee: 17 BaseType float64
+    - __kind: PointerType
+      ID: 94
+      Name: '*int'
+      ByteSize: 8
+      GoRuntimeType: 26400
+      GoKind: 22
+      Pointee: 9 BaseType int
+    - __kind: PointerType
+      ID: 20
+      Name: '*int32'
+      ByteSize: 8
+      GoRuntimeType: 26144
+      GoKind: 22
+      Pointee: 13 BaseType int32
+    - __kind: PointerType
+      ID: 93
+      Name: '*int64'
+      ByteSize: 8
+      GoRuntimeType: 26272
+      GoKind: 22
+      Pointee: 14 BaseType int64
+    - __kind: PointerType
+      ID: 26
+      Name: '*runtime._defer'
+      ByteSize: 8
+      GoRuntimeType: 27040
+      GoKind: 22
+      Pointee: 27 UnresolvedPointeeType runtime._defer
+    - __kind: PointerType
+      ID: 24
+      Name: '*runtime._panic'
+      ByteSize: 8
+      GoRuntimeType: 69856
+      GoKind: 22
+      Pointee: 25 UnresolvedPointeeType runtime._panic
+    - __kind: PointerType
+      ID: 60
+      Name: '*runtime.cgoCallers'
+      ByteSize: 8
+      GoRuntimeType: 27680
+      GoKind: 22
+      Pointee: 61 UnresolvedPointeeType runtime.cgoCallers
+    - __kind: PointerType
+      ID: 47
+      Name: '*runtime.coro'
+      ByteSize: 8
+      GoRuntimeType: 27744
+      GoKind: 22
+      Pointee: 48 UnresolvedPointeeType runtime.coro
+    - __kind: PointerType
+      ID: 53
+      Name: '*runtime.g'
+      ByteSize: 8
+      GoRuntimeType: 52896
+      GoKind: 22
+      Pointee: 22 StructureType runtime.g
+    - __kind: PointerType
+      ID: 28
+      Name: '*runtime.m'
+      ByteSize: 8
+      GoRuntimeType: 60288
+      GoKind: 22
+      Pointee: 29 StructureType runtime.m
+    - __kind: PointerType
+      ID: 41
+      Name: '*runtime.sudog'
+      ByteSize: 8
+      GoRuntimeType: 28448
+      GoKind: 22
+      Pointee: 42 UnresolvedPointeeType runtime.sudog
+    - __kind: PointerType
+      ID: 44
+      Name: '*runtime.timer'
+      ByteSize: 8
+      GoRuntimeType: 111968
+      GoKind: 22
+      Pointee: 45 UnresolvedPointeeType runtime.timer
+    - __kind: PointerType
+      ID: 72
+      Name: '*runtime.traceBuf'
+      ByteSize: 8
+      GoRuntimeType: 86016
+      GoKind: 22
+      Pointee: 73 UnresolvedPointeeType runtime.traceBuf
+    - __kind: PointerType
+      ID: 88
+      Name: '*string'
+      ByteSize: 8
+      GoRuntimeType: 25824
+      GoKind: 22
+      Pointee: 10 GoStringHeaderType string
+    - __kind: PointerType
+      ID: 101
+      Name: '*string.str'
+      ByteSize: 8
+      Pointee: 100 GoStringDataType string.str
+    - __kind: PointerType
+      ID: 98
+      Name: '*uint'
+      ByteSize: 8
+      GoRuntimeType: 26464
+      GoKind: 22
+      Pointee: 12 BaseType uint
+    - __kind: PointerType
+      ID: 99
+      Name: '*uint16'
+      ByteSize: 8
+      GoRuntimeType: 26080
+      GoKind: 22
+      Pointee: 7 BaseType uint16
+    - __kind: PointerType
+      ID: 21
+      Name: '*uint32'
+      ByteSize: 8
+      GoRuntimeType: 26208
+      GoKind: 22
+      Pointee: 2 BaseType uint32
+    - __kind: PointerType
+      ID: 95
+      Name: '*uint64'
+      ByteSize: 8
+      GoRuntimeType: 26336
+      GoKind: 22
+      Pointee: 11 BaseType uint64
+    - __kind: PointerType
+      ID: 6
+      Name: '*uint8'
+      ByteSize: 8
+      GoRuntimeType: 25952
+      GoKind: 22
+      Pointee: 3 BaseType uint8
+    - __kind: PointerType
+      ID: 8
+      Name: '*uintptr'
+      ByteSize: 8
+      GoRuntimeType: 26528
+      GoKind: 22
+      Pointee: 1 BaseType uintptr
+    - __kind: EventRootType
+      ID: 106
+      Name: Probe[main.callMe]
+      ByteSize: 41
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: s1
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 10 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 1, index: 0, name: s1}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: s2
+          Offset: 17
+          Kind: argument
+          Expression:
+            Type: 10 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 1, index: 1, name: s2}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: i
+          Offset: 33
+          Kind: argument
+          Expression:
+            Type: 94 PointerType *int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 1, index: 2, name: i}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: ArrayType
+      ID: 85
+      Name: '[10]runtime.heldLockInfo'
+      ByteSize: 160
+      GoRuntimeType: 47040
+      GoKind: 17
+      Count: 10
+      HasCount: true
+      Element: 86 StructureType runtime.heldLockInfo
+    - __kind: ArrayType
+      ID: 71
+      Name: '[2]*runtime.traceBuf'
+      ByteSize: 16
+      GoRuntimeType: 46752
+      GoKind: 17
+      Count: 2
+      HasCount: true
+      Element: 72 PointerType *runtime.traceBuf
+    - __kind: ArrayType
+      ID: 77
+      Name: '[2][8]runtime.pcvalueCacheEnt'
+      ByteSize: 384
+      GoRuntimeType: 46944
+      GoKind: 17
+      Count: 2
+      HasCount: true
+      Element: 78 ArrayType [8]runtime.pcvalueCacheEnt
+    - __kind: ArrayType
+      ID: 52
+      Name: '[2]uint64'
+      ByteSize: 16
+      GoRuntimeType: 43296
+      GoKind: 17
+      Count: 2
+      HasCount: true
+      Element: 11 BaseType uint64
+    - __kind: ArrayType
+      ID: 83
+      Name: '[32]uint64'
+      ByteSize: 256
+      GoRuntimeType: 48864
+      GoKind: 17
+      Count: 32
+      HasCount: true
+      Element: 11 BaseType uint64
+    - __kind: ArrayType
+      ID: 63
+      Name: '[32]uintptr'
+      ByteSize: 256
+      GoRuntimeType: 46560
+      GoKind: 17
+      Count: 32
+      HasCount: true
+      Element: 1 BaseType uintptr
+    - __kind: ArrayType
+      ID: 51
+      Name: '[3]internal/runtime/atomic.Uint32'
+      ByteSize: 12
+      GoRuntimeType: 46272
+      GoKind: 17
+      Count: 3
+      HasCount: true
+      Element: 32 StructureType internal/runtime/atomic.Uint32
+    - __kind: ArrayType
+      ID: 84
+      Name: '[4]uint64'
+      ByteSize: 32
+      GoRuntimeType: 48000
+      GoKind: 17
+      Count: 4
+      HasCount: true
+      Element: 11 BaseType uint64
+    - __kind: ArrayType
+      ID: 56
+      Name: '[6]uintptr'
+      ByteSize: 48
+      GoRuntimeType: 45504
+      GoKind: 17
+      Count: 6
+      HasCount: true
+      Element: 1 BaseType uintptr
+    - __kind: ArrayType
+      ID: 78
+      Name: '[8]runtime.pcvalueCacheEnt'
+      ByteSize: 192
+      GoRuntimeType: 46848
+      GoKind: 17
+      Count: 8
+      HasCount: true
+      Element: 79 StructureType runtime.pcvalueCacheEnt
+    - __kind: UnresolvedPointeeType
+      ID: 40
+      Name: '[]runtime.ancestorInfo'
+      ByteSize: 8
+    - __kind: GoSliceHeaderType
+      ID: 38
+      Name: '[]uint8'
+      ByteSize: 24
+      GoRuntimeType: 33376
+      GoKind: 23
+      RawFields:
+        - Name: array
+          Offset: 0
+          Type: 6 PointerType *uint8
+        - Name: len
+          Offset: 8
+          Type: 9 BaseType int
+        - Name: cap
+          Offset: 16
+          Type: 9 BaseType int
+      Data: 102 GoSliceDataType []uint8.array
+    - __kind: GoSliceDataType
+      ID: 102
+      Name: '[]uint8.array'
+      DynamicSizeClass: slice
+      ByteSize: 1
+      Element: 3 BaseType uint8
+    - __kind: GoSliceHeaderType
+      ID: 43
+      Name: '[]uintptr'
+      ByteSize: 24
+      GoRuntimeType: 33824
+      GoKind: 23
+      RawFields:
+        - Name: array
+          Offset: 0
+          Type: 8 PointerType *uintptr
+        - Name: len
+          Offset: 8
+          Type: 9 BaseType int
+        - Name: cap
+          Offset: 16
+          Type: 9 BaseType int
+      Data: 104 GoSliceDataType []uintptr.array
+    - __kind: GoSliceDataType
+      ID: 104
+      Name: '[]uintptr.array'
+      DynamicSizeClass: slice
+      ByteSize: 8
+      Element: 1 BaseType uintptr
+    - __kind: BaseType
+      ID: 4
+      Name: bool
+      ByteSize: 1
+      GoRuntimeType: 38176
+      GoKind: 1
+    - __kind: BaseType
+      ID: 91
+      Name: complex128
+      ByteSize: 16
+      GoRuntimeType: 37984
+      GoKind: 16
+    - __kind: BaseType
+      ID: 90
+      Name: complex64
+      ByteSize: 8
+      GoRuntimeType: 37920
+      GoKind: 15
+    - __kind: GoInterfaceType
+      ID: 18
+      Name: error
+      ByteSize: 16
+      GoRuntimeType: 58624
+      GoKind: 20
+      RawFields:
+        - Name: tab
+          Offset: 0
+          Type: 19 VoidPointerType unsafe.Pointer
+        - Name: data
+          Offset: 8
+          Type: 19 VoidPointerType unsafe.Pointer
+    - __kind: BaseType
+      ID: 16
+      Name: float32
+      ByteSize: 4
+      GoRuntimeType: 38048
+      GoKind: 13
+    - __kind: BaseType
+      ID: 17
+      Name: float64
+      ByteSize: 8
+      GoRuntimeType: 38112
+      GoKind: 14
+    - __kind: GoSubroutineType
+      ID: 57
+      Name: func()
+      ByteSize: 8
+      GoRuntimeType: 32352
+      GoKind: 19
+    - __kind: GoSubroutineType
+      ID: 67
+      Name: func(*runtime.g, unsafe.Pointer) bool
+      ByteSize: 8
+      GoRuntimeType: 50976
+      GoKind: 19
+    - __kind: BaseType
+      ID: 9
+      Name: int
+      ByteSize: 8
+      GoRuntimeType: 37728
+      GoKind: 2
+    - __kind: BaseType
+      ID: 89
+      Name: int16
+      ByteSize: 2
+      GoRuntimeType: 37344
+      GoKind: 4
+    - __kind: BaseType
+      ID: 13
+      Name: int32
+      ByteSize: 4
+      GoRuntimeType: 37472
+      GoKind: 5
+    - __kind: BaseType
+      ID: 14
+      Name: int64
+      ByteSize: 8
+      GoRuntimeType: 37600
+      GoKind: 6
+    - __kind: BaseType
+      ID: 15
+      Name: int8
+      ByteSize: 1
+      GoRuntimeType: 37216
+      GoKind: 3
+    - __kind: StructureType
+      ID: 82
+      Name: internal/chacha8rand.State
+      ByteSize: 304
+      GoRuntimeType: 103456
+      GoKind: 25
+      RawFields:
+        - Name: buf
+          Offset: 0
+          Type: 83 ArrayType [32]uint64
+        - Name: seed
+          Offset: 256
+          Type: 84 ArrayType [4]uint64
+        - Name: i
+          Offset: 288
+          Type: 2 BaseType uint32
+        - Name: n
+          Offset: 292
+          Type: 2 BaseType uint32
+        - Name: c
+          Offset: 296
+          Type: 2 BaseType uint32
+    - __kind: StructureType
+      ID: 35
+      Name: internal/runtime/atomic.Bool
+      ByteSize: 1
+      GoRuntimeType: 67296
+      GoKind: 25
+      RawFields:
+        - Name: u
+          Offset: 0
+          Type: 36 StructureType internal/runtime/atomic.Uint8
+    - __kind: StructureType
+      ID: 65
+      Name: internal/runtime/atomic.Int64
+      ByteSize: 8
+      GoRuntimeType: 89664
+      GoKind: 25
+      RawFields:
+        - Name: noCopy
+          Offset: 0
+          Type: 33 StructureType internal/runtime/atomic.noCopy
+        - Name: _
+          Offset: 0
+          Type: 66 StructureType internal/runtime/atomic.align64
+        - Name: value
+          Offset: 0
+          Type: 14 BaseType int64
+    - __kind: StructureType
+      ID: 32
+      Name: internal/runtime/atomic.Uint32
+      ByteSize: 4
+      GoRuntimeType: 79744
+      GoKind: 25
+      RawFields:
+        - Name: noCopy
+          Offset: 0
+          Type: 33 StructureType internal/runtime/atomic.noCopy
+        - Name: value
+          Offset: 0
+          Type: 2 BaseType uint32
+    - __kind: StructureType
+      ID: 36
+      Name: internal/runtime/atomic.Uint8
+      ByteSize: 1
+      GoRuntimeType: 79584
+      GoKind: 25
+      RawFields:
+        - Name: noCopy
+          Offset: 0
+          Type: 33 StructureType internal/runtime/atomic.noCopy
+        - Name: value
+          Offset: 0
+          Type: 3 BaseType uint8
+    - __kind: StructureType
+      ID: 70
+      Name: internal/runtime/atomic.Uintptr
+      ByteSize: 8
+      GoRuntimeType: 79904
+      GoKind: 25
+      RawFields:
+        - Name: noCopy
+          Offset: 0
+          Type: 33 StructureType internal/runtime/atomic.noCopy
+        - Name: value
+          Offset: 0
+          Type: 1 BaseType uintptr
+    - __kind: StructureType
+      ID: 66
+      Name: internal/runtime/atomic.align64
+      GoRuntimeType: 56928
+      GoKind: 25
+      RawFields: []
+    - __kind: StructureType
+      ID: 33
+      Name: internal/runtime/atomic.noCopy
+      GoRuntimeType: 56832
+      GoKind: 25
+      RawFields: []
+    - __kind: UnresolvedPointeeType
+      ID: 27
+      Name: runtime._defer
+      ByteSize: 8
+    - __kind: UnresolvedPointeeType
+      ID: 25
+      Name: runtime._panic
+      ByteSize: 8
+    - __kind: UnresolvedPointeeType
+      ID: 61
+      Name: runtime.cgoCallers
+      ByteSize: 8
+    - __kind: UnresolvedPointeeType
+      ID: 48
+      Name: runtime.coro
+      ByteSize: 8
+    - __kind: StructureType
+      ID: 80
+      Name: runtime.dlogPerM
+      GoRuntimeType: 56256
+      GoKind: 25
+      RawFields: []
+    - __kind: StructureType
+      ID: 22
+      Name: runtime.g
+      ByteSize: 432
+      GoRuntimeType: 130176
+      GoKind: 25
+      RawFields:
+        - Name: stack
+          Offset: 0
+          Type: 23 StructureType runtime.stack
+        - Name: stackguard0
+          Offset: 16
+          Type: 1 BaseType uintptr
+        - Name: stackguard1
+          Offset: 24
+          Type: 1 BaseType uintptr
+        - Name: _panic
+          Offset: 32
+          Type: 24 PointerType *runtime._panic
+        - Name: _defer
+          Offset: 40
+          Type: 26 PointerType *runtime._defer
+        - Name: m
+          Offset: 48
+          Type: 28 PointerType *runtime.m
+        - Name: sched
+          Offset: 56
+          Type: 30 StructureType runtime.gobuf
+        - Name: syscallsp
+          Offset: 112
+          Type: 1 BaseType uintptr
+        - Name: syscallpc
+          Offset: 120
+          Type: 1 BaseType uintptr
+        - Name: syscallbp
+          Offset: 128
+          Type: 1 BaseType uintptr
+        - Name: stktopsp
+          Offset: 136
+          Type: 1 BaseType uintptr
+        - Name: param
+          Offset: 144
+          Type: 19 VoidPointerType unsafe.Pointer
+        - Name: atomicstatus
+          Offset: 152
+          Type: 32 StructureType internal/runtime/atomic.Uint32
+        - Name: stackLock
+          Offset: 156
+          Type: 2 BaseType uint32
+        - Name: goid
+          Offset: 160
+          Type: 11 BaseType uint64
+        - Name: schedlink
+          Offset: 168
+          Type: 31 BaseType runtime.guintptr
+        - Name: waitsince
+          Offset: 176
+          Type: 14 BaseType int64
+        - Name: waitreason
+          Offset: 184
+          Type: 34 BaseType runtime.waitReason
+        - Name: preempt
+          Offset: 185
+          Type: 4 BaseType bool
+        - Name: preemptStop
+          Offset: 186
+          Type: 4 BaseType bool
+        - Name: preemptShrink
+          Offset: 187
+          Type: 4 BaseType bool
+        - Name: asyncSafePoint
+          Offset: 188
+          Type: 4 BaseType bool
+        - Name: paniconfault
+          Offset: 189
+          Type: 4 BaseType bool
+        - Name: gcscandone
+          Offset: 190
+          Type: 4 BaseType bool
+        - Name: throwsplit
+          Offset: 191
+          Type: 4 BaseType bool
+        - Name: activeStackChans
+          Offset: 192
+          Type: 4 BaseType bool
+        - Name: parkingOnChan
+          Offset: 193
+          Type: 35 StructureType internal/runtime/atomic.Bool
+        - Name: inMarkAssist
+          Offset: 194
+          Type: 4 BaseType bool
+        - Name: coroexit
+          Offset: 195
+          Type: 4 BaseType bool
+        - Name: raceignore
+          Offset: 196
+          Type: 15 BaseType int8
+        - Name: nocgocallback
+          Offset: 197
+          Type: 4 BaseType bool
+        - Name: tracking
+          Offset: 198
+          Type: 4 BaseType bool
+        - Name: trackingSeq
+          Offset: 199
+          Type: 3 BaseType uint8
+        - Name: trackingStamp
+          Offset: 200
+          Type: 14 BaseType int64
+        - Name: runnableTime
+          Offset: 208
+          Type: 14 BaseType int64
+        - Name: lockedm
+          Offset: 216
+          Type: 37 BaseType runtime.muintptr
+        - Name: sig
+          Offset: 224
+          Type: 2 BaseType uint32
+        - Name: writebuf
+          Offset: 232
+          Type: 38 GoSliceHeaderType []uint8
+        - Name: sigcode0
+          Offset: 256
+          Type: 1 BaseType uintptr
+        - Name: sigcode1
+          Offset: 264
+          Type: 1 BaseType uintptr
+        - Name: sigpc
+          Offset: 272
+          Type: 1 BaseType uintptr
+        - Name: parentGoid
+          Offset: 280
+          Type: 11 BaseType uint64
+        - Name: gopc
+          Offset: 288
+          Type: 1 BaseType uintptr
+        - Name: ancestors
+          Offset: 296
+          Type: 39 PointerType *[]runtime.ancestorInfo
+        - Name: startpc
+          Offset: 304
+          Type: 1 BaseType uintptr
+        - Name: racectx
+          Offset: 312
+          Type: 1 BaseType uintptr
+        - Name: waiting
+          Offset: 320
+          Type: 41 PointerType *runtime.sudog
+        - Name: cgoCtxt
+          Offset: 328
+          Type: 43 GoSliceHeaderType []uintptr
+        - Name: labels
+          Offset: 352
+          Type: 19 VoidPointerType unsafe.Pointer
+        - Name: timer
+          Offset: 360
+          Type: 44 PointerType *runtime.timer
+        - Name: sleepWhen
+          Offset: 368
+          Type: 14 BaseType int64
+        - Name: selectDone
+          Offset: 376
+          Type: 32 StructureType internal/runtime/atomic.Uint32
+        - Name: goroutineProfiled
+          Offset: 380
+          Type: 46 StructureType runtime.goroutineProfileStateHolder
+        - Name: coroarg
+          Offset: 384
+          Type: 47 PointerType *runtime.coro
+        - Name: trace
+          Offset: 392
+          Type: 49 StructureType runtime.gTraceState
+        - Name: gcAssistBytes
+          Offset: 424
+          Type: 14 BaseType int64
+    - __kind: StructureType
+      ID: 49
+      Name: runtime.gTraceState
+      ByteSize: 32
+      GoRuntimeType: 65632
+      GoKind: 25
+      RawFields:
+        - Name: traceSchedResourceState
+          Offset: 0
+          Type: 50 StructureType runtime.traceSchedResourceState
+    - __kind: StructureType
+      ID: 30
+      Name: runtime.gobuf
+      ByteSize: 56
+      GoRuntimeType: 108448
+      GoKind: 25
+      RawFields:
+        - Name: sp
+          Offset: 0
+          Type: 1 BaseType uintptr
+        - Name: pc
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: g
+          Offset: 16
+          Type: 31 BaseType runtime.guintptr
+        - Name: ctxt
+          Offset: 24
+          Type: 19 VoidPointerType unsafe.Pointer
+        - Name: ret
+          Offset: 32
+          Type: 1 BaseType uintptr
+        - Name: lr
+          Offset: 40
+          Type: 1 BaseType uintptr
+        - Name: bp
+          Offset: 48
+          Type: 1 BaseType uintptr
+    - __kind: StructureType
+      ID: 46
+      Name: runtime.goroutineProfileStateHolder
+      ByteSize: 4
+      GoRuntimeType: 77824
+      GoKind: 25
+      RawFields:
+        - Name: noCopy
+          Offset: 0
+          Type: 33 StructureType internal/runtime/atomic.noCopy
+        - Name: value
+          Offset: 0
+          Type: 2 BaseType uint32
+    - __kind: StructureType
+      ID: 54
+      Name: runtime.gsignalStack
+      ByteSize: 40
+      GoRuntimeType: 96768
+      GoKind: 25
+      RawFields:
+        - Name: stack
+          Offset: 0
+          Type: 23 StructureType runtime.stack
+        - Name: stackguard0
+          Offset: 16
+          Type: 1 BaseType uintptr
+        - Name: stackguard1
+          Offset: 24
+          Type: 1 BaseType uintptr
+        - Name: stktopsp
+          Offset: 32
+          Type: 1 BaseType uintptr
+    - __kind: BaseType
+      ID: 31
+      Name: runtime.guintptr
+      ByteSize: 8
+      GoRuntimeType: 49632
+      GoKind: 12
+    - __kind: StructureType
+      ID: 86
+      Name: runtime.heldLockInfo
+      ByteSize: 16
+      GoRuntimeType: 77664
+      GoKind: 25
+      RawFields:
+        - Name: lockAddr
+          Offset: 0
+          Type: 1 BaseType uintptr
+        - Name: rank
+          Offset: 8
+          Type: 87 BaseType runtime.lockRank
+    - __kind: StructureType
+      ID: 74
+      Name: runtime.libcall
+      ByteSize: 48
+      GoRuntimeType: 107136
+      GoKind: 25
+      RawFields:
+        - Name: fn
+          Offset: 0
+          Type: 1 BaseType uintptr
+        - Name: n
+          Offset: 8
+          Type: 1 BaseType uintptr
+        - Name: args
+          Offset: 16
+          Type: 1 BaseType uintptr
+        - Name: r1
+          Offset: 24
+          Type: 1 BaseType uintptr
+        - Name: r2
+          Offset: 32
+          Type: 1 BaseType uintptr
+        - Name: err
+          Offset: 40
+          Type: 1 BaseType uintptr
+    - __kind: BaseType
+      ID: 87
+      Name: runtime.lockRank
+      ByteSize: 8
+      GoRuntimeType: 49536
+      GoKind: 2
+    - __kind: StructureType
+      ID: 29
+      Name: runtime.m
+      ByteSize: 1760
+      GoRuntimeType: 133344
+      GoKind: 25
+      RawFields:
+        - Name: g0
+          Offset: 0
+          Type: 53 PointerType *runtime.g
+        - Name: morebuf
+          Offset: 8
+          Type: 30 StructureType runtime.gobuf
+        - Name: divmod
+          Offset: 64
+          Type: 2 BaseType uint32
+        - Name: _
+          Offset: 68
+          Type: 2 BaseType uint32
+        - Name: procid
+          Offset: 72
+          Type: 11 BaseType uint64
+        - Name: gsignal
+          Offset: 80
+          Type: 53 PointerType *runtime.g
+        - Name: goSigStack
+          Offset: 88
+          Type: 54 StructureType runtime.gsignalStack
+        - Name: sigmask
+          Offset: 128
+          Type: 55 ArrayType runtime.sigset
+        - Name: tls
+          Offset: 136
+          Type: 56 ArrayType [6]uintptr
+        - Name: mstartfn
+          Offset: 184
+          Type: 57 GoSubroutineType func()
+        - Name: curg
+          Offset: 192
+          Type: 53 PointerType *runtime.g
+        - Name: caughtsig
+          Offset: 200
+          Type: 31 BaseType runtime.guintptr
+        - Name: p
+          Offset: 208
+          Type: 58 BaseType runtime.puintptr
+        - Name: nextp
+          Offset: 216
+          Type: 58 BaseType runtime.puintptr
+        - Name: oldp
+          Offset: 224
+          Type: 58 BaseType runtime.puintptr
+        - Name: id
+          Offset: 232
+          Type: 14 BaseType int64
+        - Name: mallocing
+          Offset: 240
+          Type: 13 BaseType int32
+        - Name: throwing
+          Offset: 244
+          Type: 59 BaseType runtime.throwType
+        - Name: preemptoff
+          Offset: 248
+          Type: 10 GoStringHeaderType string
+        - Name: locks
+          Offset: 264
+          Type: 13 BaseType int32
+        - Name: dying
+          Offset: 268
+          Type: 13 BaseType int32
+        - Name: profilehz
+          Offset: 272
+          Type: 13 BaseType int32
+        - Name: spinning
+          Offset: 276
+          Type: 4 BaseType bool
+        - Name: blocked
+          Offset: 277
+          Type: 4 BaseType bool
+        - Name: newSigstack
+          Offset: 278
+          Type: 4 BaseType bool
+        - Name: printlock
+          Offset: 279
+          Type: 15 BaseType int8
+        - Name: incgo
+          Offset: 280
+          Type: 4 BaseType bool
+        - Name: isextra
+          Offset: 281
+          Type: 4 BaseType bool
+        - Name: isExtraInC
+          Offset: 282
+          Type: 4 BaseType bool
+        - Name: isExtraInSig
+          Offset: 283
+          Type: 4 BaseType bool
+        - Name: freeWait
+          Offset: 284
+          Type: 32 StructureType internal/runtime/atomic.Uint32
+        - Name: needextram
+          Offset: 288
+          Type: 4 BaseType bool
+        - Name: g0StackAccurate
+          Offset: 289
+          Type: 4 BaseType bool
+        - Name: traceback
+          Offset: 290
+          Type: 3 BaseType uint8
+        - Name: ncgocall
+          Offset: 296
+          Type: 11 BaseType uint64
+        - Name: ncgo
+          Offset: 304
+          Type: 13 BaseType int32
+        - Name: cgoCallersUse
+          Offset: 308
+          Type: 32 StructureType internal/runtime/atomic.Uint32
+        - Name: cgoCallers
+          Offset: 312
+          Type: 60 PointerType *runtime.cgoCallers
+        - Name: park
+          Offset: 320
+          Type: 62 StructureType runtime.note
+        - Name: alllink
+          Offset: 328
+          Type: 28 PointerType *runtime.m
+        - Name: schedlink
+          Offset: 336
+          Type: 37 BaseType runtime.muintptr
+        - Name: lockedg
+          Offset: 344
+          Type: 31 BaseType runtime.guintptr
+        - Name: createstack
+          Offset: 352
+          Type: 63 ArrayType [32]uintptr
+        - Name: lockedExt
+          Offset: 608
+          Type: 2 BaseType uint32
+        - Name: lockedInt
+          Offset: 612
+          Type: 2 BaseType uint32
+        - Name: nextwaitm
+          Offset: 616
+          Type: 37 BaseType runtime.muintptr
+        - Name: mLockProfile
+          Offset: 624
+          Type: 64 StructureType runtime.mLockProfile
+        - Name: profStack
+          Offset: 688
+          Type: 43 GoSliceHeaderType []uintptr
+        - Name: waitunlockf
+          Offset: 712
+          Type: 67 GoSubroutineType func(*runtime.g, unsafe.Pointer) bool
+        - Name: waitlock
+          Offset: 720
+          Type: 19 VoidPointerType unsafe.Pointer
+        - Name: waitTraceSkip
+          Offset: 728
+          Type: 9 BaseType int
+        - Name: waitTraceBlockReason
+          Offset: 736
+          Type: 68 BaseType runtime.traceBlockReason
+        - Name: syscalltick
+          Offset: 740
+          Type: 2 BaseType uint32
+        - Name: freelink
+          Offset: 744
+          Type: 28 PointerType *runtime.m
+        - Name: trace
+          Offset: 752
+          Type: 69 StructureType runtime.mTraceState
+        - Name: libcall
+          Offset: 784
+          Type: 74 StructureType runtime.libcall
+        - Name: libcallpc
+          Offset: 832
+          Type: 1 BaseType uintptr
+        - Name: libcallsp
+          Offset: 840
+          Type: 1 BaseType uintptr
+        - Name: libcallg
+          Offset: 848
+          Type: 31 BaseType runtime.guintptr
+        - Name: winsyscall
+          Offset: 856
+          Type: 75 StructureType runtime.winlibcall
+        - Name: vdsoSP
+          Offset: 856
+          Type: 1 BaseType uintptr
+        - Name: vdsoPC
+          Offset: 864
+          Type: 1 BaseType uintptr
+        - Name: preemptGen
+          Offset: 872
+          Type: 32 StructureType internal/runtime/atomic.Uint32
+        - Name: signalPending
+          Offset: 876
+          Type: 32 StructureType internal/runtime/atomic.Uint32
+        - Name: pcvalueCache
+          Offset: 880
+          Type: 76 StructureType runtime.pcvalueCache
+        - Name: dlogPerM
+          Offset: 1272
+          Type: 80 StructureType runtime.dlogPerM
+        - Name: mOS
+          Offset: 1272
+          Type: 81 StructureType runtime.mOS
+        - Name: chacha8
+          Offset: 1280
+          Type: 82 StructureType internal/chacha8rand.State
+        - Name: cheaprand
+          Offset: 1584
+          Type: 11 BaseType uint64
+        - Name: locksHeldLen
+          Offset: 1592
+          Type: 9 BaseType int
+        - Name: locksHeld
+          Offset: 1600
+          Type: 85 ArrayType [10]runtime.heldLockInfo
+    - __kind: StructureType
+      ID: 64
+      Name: runtime.mLockProfile
+      ByteSize: 64
+      GoRuntimeType: 106880
+      GoKind: 25
+      RawFields:
+        - Name: waitTime
+          Offset: 0
+          Type: 65 StructureType internal/runtime/atomic.Int64
+        - Name: stack
+          Offset: 8
+          Type: 43 GoSliceHeaderType []uintptr
+        - Name: pending
+          Offset: 32
+          Type: 1 BaseType uintptr
+        - Name: cycles
+          Offset: 40
+          Type: 14 BaseType int64
+        - Name: cyclesLost
+          Offset: 48
+          Type: 14 BaseType int64
+        - Name: disabled
+          Offset: 56
+          Type: 4 BaseType bool
+    - __kind: StructureType
+      ID: 81
+      Name: runtime.mOS
+      ByteSize: 8
+      GoRuntimeType: 86400
+      GoKind: 25
+      RawFields:
+        - Name: profileTimer
+          Offset: 0
+          Type: 13 BaseType int32
+        - Name: profileTimerValid
+          Offset: 4
+          Type: 35 StructureType internal/runtime/atomic.Bool
+        - Name: needPerThreadSyscall
+          Offset: 5
+          Type: 36 StructureType internal/runtime/atomic.Uint8
+    - __kind: StructureType
+      ID: 69
+      Name: runtime.mTraceState
+      ByteSize: 32
+      GoRuntimeType: 86208
+      GoKind: 25
+      RawFields:
+        - Name: seqlock
+          Offset: 0
+          Type: 70 StructureType internal/runtime/atomic.Uintptr
+        - Name: buf
+          Offset: 8
+          Type: 71 ArrayType [2]*runtime.traceBuf
+        - Name: link
+          Offset: 24
+          Type: 28 PointerType *runtime.m
+    - __kind: BaseType
+      ID: 37
+      Name: runtime.muintptr
+      ByteSize: 8
+      GoRuntimeType: 49248
+      GoKind: 12
+    - __kind: StructureType
+      ID: 62
+      Name: runtime.note
+      ByteSize: 8
+      GoRuntimeType: 65248
+      GoKind: 25
+      RawFields: [{Name: key, Offset: 0, Type: 1 BaseType uintptr}]
+    - __kind: StructureType
+      ID: 76
+      Name: runtime.pcvalueCache
+      ByteSize: 392
+      GoRuntimeType: 77504
+      GoKind: 25
+      RawFields:
+        - Name: entries
+          Offset: 0
+          Type: 77 ArrayType [2][8]runtime.pcvalueCacheEnt
+        - Name: inUse
+          Offset: 384
+          Type: 9 BaseType int
+    - __kind: StructureType
+      ID: 79
+      Name: runtime.pcvalueCacheEnt
+      ByteSize: 24
+      GoRuntimeType: 97536
+      GoKind: 25
+      RawFields:
+        - Name: targetpc
+          Offset: 0
+          Type: 1 BaseType uintptr
+        - Name: off
+          Offset: 8
+          Type: 2 BaseType uint32
+        - Name: val
+          Offset: 12
+          Type: 13 BaseType int32
+        - Name: valPC
+          Offset: 16
+          Type: 1 BaseType uintptr
+    - __kind: BaseType
+      ID: 58
+      Name: runtime.puintptr
+      ByteSize: 8
+      GoRuntimeType: 49440
+      GoKind: 12
+    - __kind: ArrayType
+      ID: 55
+      Name: runtime.sigset
+      ByteSize: 8
+      GoRuntimeType: 52512
+      GoKind: 17
+      Count: 2
+      HasCount: true
+      Element: 2 BaseType uint32
+    - __kind: StructureType
+      ID: 23
+      Name: runtime.stack
+      ByteSize: 16
+      GoRuntimeType: 75904
+      GoKind: 25
+      RawFields:
+        - Name: lo
+          Offset: 0
+          Type: 1 BaseType uintptr
+        - Name: hi
+          Offset: 8
+          Type: 1 BaseType uintptr
+    - __kind: UnresolvedPointeeType
+      ID: 42
+      Name: runtime.sudog
+      ByteSize: 8
+    - __kind: BaseType
+      ID: 59
+      Name: runtime.throwType
+      ByteSize: 4
+      GoRuntimeType: 38432
+      GoKind: 10
+    - __kind: UnresolvedPointeeType
+      ID: 45
+      Name: runtime.timer
+      ByteSize: 8
+    - __kind: BaseType
+      ID: 68
+      Name: runtime.traceBlockReason
+      ByteSize: 1
+      GoRuntimeType: 38496
+      GoKind: 8
+    - __kind: UnresolvedPointeeType
+      ID: 73
+      Name: runtime.traceBuf
+      ByteSize: 8
+    - __kind: StructureType
+      ID: 50
+      Name: runtime.traceSchedResourceState
+      ByteSize: 32
+      GoRuntimeType: 76864
+      GoKind: 25
+      RawFields:
+        - Name: statusTraced
+          Offset: 0
+          Type: 51 ArrayType [3]internal/runtime/atomic.Uint32
+        - Name: seq
+          Offset: 16
+          Type: 52 ArrayType [2]uint64
+    - __kind: BaseType
+      ID: 34
+      Name: runtime.waitReason
+      ByteSize: 1
+      GoRuntimeType: 62592
+      GoKind: 8
+    - __kind: StructureType
+      ID: 75
+      Name: runtime.winlibcall
+      GoRuntimeType: 56160
+      GoKind: 25
+      RawFields: []
+    - __kind: GoStringHeaderType
+      ID: 10
+      Name: string
+      ByteSize: 16
+      GoRuntimeType: 37152
+      GoKind: 24
+      RawFields:
+        - Name: str
+          Offset: 0
+          Type: 101 PointerType *string.str
+        - Name: len
+          Offset: 8
+          Type: 9 BaseType int
+      Data: 100 GoStringDataType string.str
+    - __kind: GoStringDataType
+      ID: 100
+      Name: string.str
+      DynamicSizeClass: string
+      ByteSize: 1
+    - __kind: BaseType
+      ID: 12
+      Name: uint
+      ByteSize: 8
+      GoRuntimeType: 37792
+      GoKind: 7
+    - __kind: BaseType
+      ID: 7
+      Name: uint16
+      ByteSize: 2
+      GoRuntimeType: 37408
+      GoKind: 9
+    - __kind: BaseType
+      ID: 2
+      Name: uint32
+      ByteSize: 4
+      GoRuntimeType: 37536
+      GoKind: 10
+    - __kind: BaseType
+      ID: 11
+      Name: uint64
+      ByteSize: 8
+      GoRuntimeType: 37664
+      GoKind: 11
+    - __kind: BaseType
+      ID: 3
+      Name: uint8
+      ByteSize: 1
+      GoRuntimeType: 37280
+      GoKind: 8
+    - __kind: BaseType
+      ID: 1
+      Name: uintptr
+      ByteSize: 8
+      GoRuntimeType: 37856
+      GoKind: 12
+    - __kind: VoidPointerType
+      ID: 19
+      Name: unsafe.Pointer
+      ByteSize: 8
+      GoRuntimeType: 38240
+      GoKind: 26
+MaxTypeID: 106
+Issues: []
+GoModuledataInfo: {FirstModuledataAddr: "0x191240", TypesOffset: 296}
+CommonTypes:
+    G: 22 StructureType runtime.g
+    M: 29 StructureType runtime.m

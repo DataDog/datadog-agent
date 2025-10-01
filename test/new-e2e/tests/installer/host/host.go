@@ -263,7 +263,7 @@ func (h *Host) AssertPackageNotInstalledByInstaller(pkgs ...string) {
 
 // AgentRuntimeConfig returns the runtime agent config on the host.
 func (h *Host) AgentRuntimeConfig() (string, error) {
-	return h.remote.Execute("sudo -u dd-agent datadog-agent config")
+	return h.remote.Execute("sudo -u dd-agent datadog-agent config --all")
 }
 
 // AssertPackageVersion checks if a package is installed with the correct version
@@ -526,6 +526,12 @@ func (h *Host) RemoveProxy() {
 	// Check proxy removed
 	_, err := h.remote.Execute("curl https://google.com")
 	require.NoError(h.t(), err)
+
+	// Remove Docker container
+	_, err = h.remote.Execute("sudo docker rm -f squid-proxy")
+	if err != nil {
+		h.t().Logf("warn: failed to remove Docker container: %v", err)
+	}
 }
 
 // LoadState is the load state of a systemd unit.

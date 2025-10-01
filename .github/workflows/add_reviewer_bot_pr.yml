@@ -10,7 +10,7 @@ on:
 permissions: {}
 jobs:
   save-pr:
-    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]' ||  github.event.pull_request.user.login == 'mend[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Save PR number for later execution
@@ -24,7 +24,7 @@ jobs:
           path: pr/
 
   add_reviewers:
-    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]' ||  github.event.pull_request.user.login == 'mend[bot]'
     runs-on: ubuntu-latest
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
@@ -34,6 +34,12 @@ jobs:
         with:
           scope: DataDog/datadog-agent
           policy: self.add-reviewer-bot-pr.review-pr
+
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          token: ${{ steps.octo-sts.outputs.token }}
 
       - name: Install dda
         uses: ./.github/actions/install-dda

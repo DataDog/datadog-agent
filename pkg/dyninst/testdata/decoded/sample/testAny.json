@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testAny",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -28,7 +28,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -73,7 +73,7 @@
       "name": "",
       "method": "main.testAny",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -95,7 +95,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -140,7 +140,7 @@
       "name": "",
       "method": "main.testAny",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -162,7 +162,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -207,7 +207,7 @@
       "name": "",
       "method": "main.testAny",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -229,7 +229,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -274,7 +274,7 @@
       "name": "",
       "method": "main.testAny",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -296,7 +296,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -341,7 +341,7 @@
       "name": "",
       "method": "main.testAny",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -363,7 +363,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -408,7 +408,7 @@
       "name": "",
       "method": "main.testAny",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -430,7 +430,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -474,7 +474,7 @@
       "name": "",
       "method": "main.testAny",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -496,7 +496,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -541,7 +541,7 @@
       "name": "",
       "method": "main.testAny",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -563,7 +563,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -609,7 +609,7 @@
       "name": "",
       "method": "main.testAny",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -631,7 +631,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 46
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",

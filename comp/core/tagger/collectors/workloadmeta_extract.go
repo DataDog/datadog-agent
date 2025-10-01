@@ -127,6 +127,12 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
+			if entityID.Kind == workloadmeta.KindKubeletMetrics ||
+				entityID.Kind == workloadmeta.KindKubelet {
+				// No tags. Ignore
+				continue
+			}
+
 			taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 			// keep track of children of this entity from previous
@@ -152,7 +158,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			case workloadmeta.KindKubernetesMetadata:
 				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
 			case workloadmeta.KindProcess:
-				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
+				tagInfos = append(tagInfos, c.handleProcess(ev)...)
 			case workloadmeta.KindKubernetesDeployment:
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindGPU:
@@ -244,11 +250,62 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
+	// resize policy tags
+	if container.ResizePolicy.CPURestartPolicy != "" {
+		tagList.AddLow(tags.CPURestartPolicy, container.ResizePolicy.CPURestartPolicy)
+	}
+
+	if container.ResizePolicy.MemoryRestartPolicy != "" {
+		tagList.AddLow(tags.MemoryRestartPolicy, container.ResizePolicy.MemoryRestartPolicy)
+	}
+
 	low, orch, high, standard := tagList.Compute()
 	return []*types.TagInfo{
 		{
 			Source:               containerSource,
 			EntityID:             common.BuildTaggerEntityID(container.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+}
+
+func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.TagInfo {
+	process := ev.Entity.(*workloadmeta.Process)
+
+	// Only create tags if the process has service metadata with UST information
+	if process.Service == nil {
+		return nil
+	}
+
+	tagList := taglist.NewTagList()
+
+	// Add Unified Service Tagging tags if present in the service metadata
+	if process.Service.UST.Service != "" {
+		tagList.AddStandard(tags.Service, process.Service.UST.Service)
+	}
+	if process.Service.UST.Env != "" {
+		tagList.AddStandard(tags.Env, process.Service.UST.Env)
+	}
+	if process.Service.UST.Version != "" {
+		tagList.AddStandard(tags.Version, process.Service.UST.Version)
+	}
+
+	for _, tracerMeta := range process.Service.TracerMetadata {
+		parseProcessTags(tagList, tracerMeta.ProcessTags)
+	}
+
+	low, orch, high, standard := tagList.Compute()
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	return []*types.TagInfo{
+		{
+			Source:               processSource,
+			EntityID:             common.BuildTaggerEntityID(process.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -931,5 +988,38 @@ func parseContainerADTagsLabels(tags *taglist.TagList, labelValue string) {
 			continue
 		}
 		tags.AddHigh(tagParts[0], tagParts[1])
+	}
+}
+
+// parseProcessTags parses comma-separated process tags from TracerMetadata
+// and adds them to the provided tagList as low cardinality tags
+func parseProcessTags(tags *taglist.TagList, processTags string) {
+	if processTags == "" {
+		return
+	}
+
+	for tag := range strings.SplitSeq(processTags, ",") {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+
+		// Split each tag into key:value format
+		key, value, ok := strings.Cut(tag, ":")
+		if !ok {
+			log.Debugf("Process tag %q is not in k:v format, skipping", tag)
+			continue
+		}
+
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+
+		if key == "" || value == "" {
+			log.Debugf("Process tag %q has empty key or value, skipping", tag)
+			continue
+		}
+
+		// Add as low cardinality tag since these are application-level metadata
+		tags.AddLow(key, value)
 	}
 }

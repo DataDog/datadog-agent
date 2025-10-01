@@ -181,15 +181,21 @@ message TracerMetadata {
   string serviceName = 2;
 }
 
+message UST {
+  string service = 1;
+  string env = 2;
+  string version = 3;
+}
+
 message Service {
   string generatedName = 1;
   string generatedNameSource = 2;
   repeated string additionalGeneratedNames = 4;
   repeated TracerMetadata tracerMetadata = 5;
-  string ddService = 6;
   repeated int32 tcpPorts = 7;
   repeated int32 udpPorts = 8;
   string apmInstrumentation = 9;
+  UST ust = 17;
 }
 
 message Language {

@@ -14,7 +14,7 @@ from tasks.go import GOARCH_MAPPING, GOOS_MAPPING
 from tasks.go import version as dot_go_version
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
-from tasks.libs.common.git import check_uncommitted_changes, get_commit_sha, get_current_branch
+from tasks.libs.common.git import check_uncommitted_changes, get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.release import _get_release_json_value
 
 METRIC_GO_DEPS_ALL_NAME = "datadog.agent.go_dependencies.all"
@@ -119,8 +119,8 @@ def diff(
         commit_sha = get_commit_sha(ctx)
 
     if not baseline_ref:
-        base_branch = _get_release_json_value("base_branch")
-        baseline_ref = ctx.run(f"git merge-base {commit_sha} origin/{base_branch}").stdout.strip()
+        base_branch = f'origin/{_get_release_json_value("base_branch")}'
+        baseline_ref = get_common_ancestor(ctx, commit_sha, base_branch)
 
     diffs = {}
     dep_cmd = "go list -f '{{ range .Deps }}{{ printf \"%s\\n\" . }}{{end}}'"

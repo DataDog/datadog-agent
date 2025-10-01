@@ -66,7 +66,11 @@ func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol profiled
 		}
 
 		if symbol.MatchPatternCompiled.MatchString(strValue) {
-			replacedVal := checkconfig.RegexReplaceValue(strValue, symbol.MatchPatternCompiled, symbol.MatchValue)
+			replacement := symbol.MatchValue
+			if replacement == "" {
+				replacement = "$1"
+			}
+			replacedVal := checkconfig.RegexReplaceValue(strValue, symbol.MatchPatternCompiled, replacement)
 			if replacedVal == "" {
 				return valuestore.ResultValue{}, fmt.Errorf("the pattern `%v` matched value `%v`, but template `%s` is not compatible", symbol.MatchPattern, strValue, symbol.MatchValue)
 			}

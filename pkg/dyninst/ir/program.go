@@ -42,6 +42,8 @@ type Program struct {
 	Issues []ProbeIssue
 	// GoModuledataInfo is used to resolve types from interfaces.
 	GoModuledataInfo GoModuledataInfo
+	// CommonTypes store references to common types.
+	CommonTypes CommonTypes
 }
 
 // GoModuledataInfo is information about the runtime-internal structure used to
@@ -61,6 +63,14 @@ type GoModuledataInfo struct {
 	TypesOffset uint32
 }
 
+// CommonTypes stores references to common types.
+type CommonTypes struct {
+	// G corresponds to runtime.g, non-nil
+	G *StructureType
+	// M corresponds to runtime.m, non-nil
+	M *StructureType
+}
+
 // InlinePCRanges represent the pc ranges for a single instance of an inlined subprogram.
 // Ranges correspond to the inlined instance itself. RootRanges correspond to the pc ranges
 // of a subprogram at the root of the tree formed by inlined subroutines. E.g. if this is a
@@ -78,7 +88,7 @@ type Subprogram struct {
 	// Name is the name of the subprogram.
 	Name string
 	// OutOfLinePCRanges are the ranges of PC values that will be probed for the
-	// out-of-line-instances of the subprogram. These are sorted by start PC.
+	// out-of-line instance of the subprogram. These are sorted by start PC.
 	// Some functions may be inlined only in certain callers, in which case
 	// both OutOfLinePCRanges and InlinedPCRanges will be non-empty.
 	OutOfLinePCRanges []PCRange
@@ -87,17 +97,6 @@ type Subprogram struct {
 	InlinePCRanges []InlinePCRanges
 	// Variables are the variables that are used in the subprogram.
 	Variables []*Variable
-}
-
-// SubprogramLine represents a line in the subprogram.
-type SubprogramLine struct {
-	PC              uint64
-	File            string
-	Line            uint32
-	Column          uint32
-	IsStatement     bool
-	IsPrologueEnd   bool
-	IsEpilogueStart bool
 }
 
 // Variable represents a variable or parameter in the subprogram.

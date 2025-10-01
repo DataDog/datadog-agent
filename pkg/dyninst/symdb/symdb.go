@@ -14,8 +14,6 @@ import (
 	"fmt"
 	"iter"
 	"math"
-	"runtime/debug"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -37,14 +35,8 @@ var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
 // PackagesIterator returns an iterator over the packages in the binary.
 //
 // PackagesIterator can only be used if the packagesIterator was configured with
-// ExtractOptions.IncludeInlinedFunctions=false (i.e. if we're ignoring inlined
-// functions), since inlined functions can appear in different compile units
-// than their package.
+// ExtractOptions.AccumulateInlineInfoAcrossCompileUnits=false.
 func PackagesIterator(binaryPath string, loader object.Loader, opt ExtractOptions) (iter.Seq2[Package, error], error) {
-	if opt.IncludeInlinedFunctions {
-		return nil, fmt.Errorf("cannot overate over packages when IncludeInlinedFunctions is set")
-	}
-
 	bin, err := openBinary(binaryPath, loader, opt)
 	if err != nil {
 		return nil, err
@@ -64,13 +56,16 @@ func ExtractSymbols(binaryPath string, loader object.Loader, opt ExtractOptions)
 	b := newPackagesIterator(bin, opt)
 
 	packages := make(map[string]*Package)
-	for pkg, err := range b.iterator() {
+	it := b.iterator()
+	for pkg, err := range it {
 		if err != nil {
 			return Symbols{}, err
 		}
 		if existingPkg, ok := packages[pkg.Name]; ok {
 			existingPkg.Functions = append(existingPkg.Functions, pkg.Functions...)
-			existingPkg.Types = append(existingPkg.Types, pkg.Types...)
+			for name, t := range pkg.Types {
+				existingPkg.Types[name] = t
+			}
 		} else {
 			packages[pkg.Name] = &pkg
 		}
@@ -79,38 +74,6 @@ func ExtractSymbols(binaryPath string, loader object.Loader, opt ExtractOptions)
 	res := Symbols{
 		MainModule: b.mainModule,
 		Packages:   nil,
-	}
-	if b.options.IncludeInlinedFunctions {
-		err := b.addAbstractFunctions(packages)
-		if err != nil {
-			return Symbols{}, err
-		}
-	}
-
-	for pkgName, types := range b.types.packages {
-		anyNonEmpty := slices.ContainsFunc(types, func(t *Type) bool {
-			return len(t.Fields) > 0 || len(t.Methods) > 0
-		})
-		if !anyNonEmpty {
-			continue
-		}
-
-		pkg, ok := packages[pkgName]
-		if !ok {
-			pkg = &Package{
-				Name:      pkgName,
-				Functions: nil,
-				Types:     nil,
-			}
-			packages[pkgName] = pkg
-		}
-		for _, t := range types {
-			// Don't add empty types to the output.
-			if len(t.Fields) == 0 && len(t.Methods) == 0 {
-				continue
-			}
-			pkg.Types = append(pkg.Types, *t)
-		}
 	}
 	for _, pkg := range packages {
 		if len(pkg.Types) > 0 || len(pkg.Functions) > 0 {
@@ -139,7 +102,8 @@ type Package struct {
 	// receivers) are not represented here; they are represented on their
 	// receiver Type.
 	Functions []Function
-	Types     []Type
+	// The types in the package, indexed by fully-qualified name.
+	Types map[string]*Type
 }
 
 // PackageStats represents statistics about the symbols collected for a package.
@@ -240,15 +204,23 @@ func (s Symbols) Serialize(w StringWriter) {
 }
 
 // Serialize serializes the symbols in the package as a human-readable string.
-func (p Package) Serialize(w StringWriter) {
+func (p *Package) Serialize(w StringWriter) {
 	w.WriteString("Package: ")
 	w.WriteString(p.Name)
 	w.WriteString("\n")
+	// Serialize functions sorted by name for stable output.
+	sort.Slice(p.Functions, func(i, j int) bool { return p.Functions[i].Name < p.Functions[j].Name })
 	for _, fn := range p.Functions {
 		fn.Serialize(w, "\t")
 	}
-	for _, t := range p.Types {
-		t.Serialize(w, "\t")
+	// Serialize types sorted by name for stable output.
+	typeNames := make([]string, 0, len(p.Types))
+	for name := range p.Types {
+		typeNames = append(typeNames, name)
+	}
+	sort.Strings(typeNames)
+	for _, name := range typeNames {
+		p.Types[name].Serialize(w, "\t")
 	}
 }
 
@@ -374,7 +346,6 @@ const mainPackageName = "main"
 
 // packagesIterator walks the DWARF data for a binary, extracting symbols in the
 // SymDB format.
-// nolint:revive  // ignore stutter rule
 type packagesIterator struct {
 	// The DWARF data to extract symbols from.
 	dwarfData *dwarf.Data
@@ -397,9 +368,7 @@ type packagesIterator struct {
 	filesFilter []string
 
 	// The compile unit currently being processed by explore* functions.
-	currentCompileUnit        *dwarf.Entry
-	currentCompileUnitName    string
-	filesInCurrentCompileUnit []string
+	currentCompileUnit compileUnitInfo
 
 	abstractFunctions map[dwarf.Offset]*abstractFunction
 
@@ -415,6 +384,21 @@ type packagesIterator struct {
 
 	// cleanupFuncs holds functions to be called on Close() to clean up resources.
 	cleanupFuncs []func()
+
+	// Information about compile units, indexed by the unit's offset (the offset
+	// of the corresponding DIE).
+	offsetToUnit map[dwarf.Offset]dwarfutil.CompileUnitHeader
+}
+
+type compileUnitInfo struct {
+	entry *dwarf.Entry
+	name  string
+	// The length of the compile unit, not including the header.
+	length uint64
+	files  []string
+
+	// The Package being constructed based on the current compile unit's data.
+	outputPkg *Package
 }
 
 // abstractFunction aggregates data for an inlined function.
@@ -446,15 +430,6 @@ type typesCollection struct {
 	scopeFilter         ExtractScope
 	mainModule          string
 	firstPartyPkgPrefix string
-
-	// Map from the type's name, as it appears in DWARF, to the type info. Only
-	// some of the types from typesCache are to be exported to SymDB and thus
-	// are present here -- we ignore some types we don't support, and we
-	// dereference pointers. The map holds pointers to allow the Type's to
-	// change over time (in particular, they accumulate methods).
-	types map[string]*Type
-	// Map from package qualified name to the types in that package.
-	packages map[string][]*Type
 }
 
 func (b *packagesIterator) resolveType(offset dwarf.Offset) (typeInfo, error) {
@@ -483,15 +458,7 @@ func (b *packagesIterator) resolveType(offset dwarf.Offset) (typeInfo, error) {
 		break
 	}
 
-	pkgFilter := ""
-	if !b.options.IncludeInlinedFunctions {
-		// Only add types from the current package; we're accumulating types for
-		// the purpose of adding methods to them and, if we ignore inlined
-		// functions, this compile unit only contains methods for types in the
-		// current package.
-		pkgFilter = b.currentCompileUnitName
-	}
-	if err := b.types.maybeAddType(typ, pkgFilter); err != nil {
+	if err := b.currentCompileUnit.outputPkg.maybeAddType(typ); err != nil {
 		return typeInfo{}, err
 	}
 
@@ -501,21 +468,17 @@ func (b *packagesIterator) resolveType(offset dwarf.Offset) (typeInfo, error) {
 	}, nil
 }
 
-func (c *typesCollection) getType(name string) *Type {
-	return c.types[name]
-}
-
 // maybeAddType adds a type to the collection if it is not already present and
-// if it's from a package that's not filtered. Unsupported types are ignored and
-// no error is returned. If pkgFilter is not
-// empty, then only types from that package are added.
-func (c *typesCollection) maybeAddType(t godwarf.Type, pkgFilter string) error {
+// if the type belongs to the package. Unsupported types are ignored and no
+// error is returned.
+func (p *Package) maybeAddType(t godwarf.Type) error {
 	pkg, sym, wasEscaped, err := parseLinkFuncName(t.Common().Name)
 	if err != nil {
 		return fmt.Errorf("failed to split package for %s : %w", t.Common().Name, err)
 	}
 
-	if !interestingPackage(pkg, c.mainModule, c.firstPartyPkgPrefix, c.scopeFilter) {
+	// Ignore types from other packages.
+	if pkg != p.Name {
 		return nil
 	}
 
@@ -527,7 +490,7 @@ func (c *typesCollection) maybeAddType(t godwarf.Type, pkgFilter string) error {
 	}
 
 	// Check if the type is already present.
-	if _, ok := c.types[unescapedName]; ok {
+	if _, ok := p.Types[unescapedName]; ok {
 		return nil
 	}
 
@@ -550,10 +513,6 @@ func (c *typesCollection) maybeAddType(t godwarf.Type, pkgFilter string) error {
 		return nil
 	}
 
-	if pkgFilter != "" && pkg != pkgFilter {
-		return nil
-	}
-
 	typ := &Type{
 		Name:   unescapedName,
 		Fields: nil,
@@ -569,8 +528,7 @@ func (c *typesCollection) maybeAddType(t godwarf.Type, pkgFilter string) error {
 		}
 	}
 
-	c.types[unescapedName] = typ
-	c.packages[pkg] = append(c.packages[pkg], typ)
+	p.Types[unescapedName] = typ
 	return nil
 }
 
@@ -691,10 +649,12 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 			scopeFilter:         opt.Scope,
 			mainModule:          bin.mainModule,
 			firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
-			types:               make(map[string]*Type),
-			packages:            make(map[string][]*Type),
 		},
 		cleanupFuncs: []func(){func() { _ = bin.goDebugSections.Close() }, func() { _ = bin.obj.Close() }},
+		offsetToUnit: make(map[dwarf.Offset]dwarfutil.CompileUnitHeader), // filled in below
+	}
+	for _, h := range bin.obj.UnitHeaders() {
+		b.offsetToUnit[h.Offset] = h
 	}
 	return b
 }
@@ -768,6 +728,8 @@ func (b *packagesIterator) close() {
 // iterator returns a Go iterator that yields packages one by one. The returned
 // iterator takes ownership of the Elf file, so it must be called (or used in a
 // range loop) in order to eventually release resources.
+//
+// Packages with no types or functions not yielded.
 func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 	var err error
 	return func(yield func(pkg Package, err error) bool) {
@@ -787,60 +749,29 @@ func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 				continue
 			}
 
-			var pkg Package
+			var pkg *Package
 			pkg, err = b.exploreCompileUnit(entry, entryReader)
 			if err != nil {
 				break
 			}
-			if pkg.Name == "" {
+			if pkg == nil {
 				continue
 			}
 
-			// If we're not dealing with inlined functions, then move all
-			// accumulated types to the output package. If we are dealing with
-			// inlined functions, then this will happen later, once we've
-			// discovered all the abstract functions and their inlined
-			// instances, both of which can be in different compile units.
-			if !b.options.IncludeInlinedFunctions {
-				numPkgs := len(b.types.packages)
-				if numPkgs > 1 {
-					pkgNames := make([]string, 0, 2)
-					for k := range b.types.packages {
-						pkgNames = append(pkgNames, k)
-						if len(pkgNames) == 2 {
-							break
-						}
-					}
-					err = fmt.Errorf(
-						"types from multiple packages in compile unit %s (0x%x); examples: %v",
-						pkg.Name, entry.Offset, pkgNames)
+			// Move all accumulated abstract functions to the output package.
+			// Note that we may have discovered abstract functions belonging to
+			// different packages while exploring this compile unit; we pretend
+			// that they're part of this package since that seems better than
+			// the alternative (i.e. not reporting those functions to SymDB at
+			// all).
+			b.addAbstractFunctions(pkg)
+
+			// Yield the package if it's not empty.
+			pkgEmpty := len(pkg.Functions) == 0 && len(pkg.Types) == 0
+			if !pkgEmpty {
+				if !yield(*pkg, nil /* error */) {
 					break
 				}
-
-				var types []*Type
-				if pkg.Name != "main" {
-					types = b.types.packages[pkg.Name]
-				} else {
-					for _, v := range b.types.packages {
-						types = v
-						break
-					}
-				}
-				if numPkgs == 1 && len(types) == 0 {
-					err = fmt.Errorf(
-						"types from unexpected package in compile unit: 0x%x",
-						entry.Offset)
-					break
-				}
-				for _, t := range types {
-					pkg.Types = append(pkg.Types, *t)
-				}
-				clear(b.types.packages)
-				clear(b.types.types)
-			}
-
-			if !yield(pkg, nil) {
-				break
 			}
 		}
 		if err != nil {
@@ -869,18 +800,40 @@ func interestingPackage(pkgName string, mainModule string, firstPartyPkgPrefix s
 	}
 }
 
-// addAbstractFunctions takes the aggregated data about inlined functions and
-// adds the functions to the corresponding packages and types.
-func (b *packagesIterator) addAbstractFunctions(packages map[string]*Package) error {
+// addAbstractFunctions takes the aggregated data about inlined functions
+// accumulated in b.abstractFunctions and adds the functions to targetPackage
+// and methods to types in `b.types`. `b.abstractFunctions` is reset.
+//
+// targetPackage is the package in which all freestanding abstract functions
+// will go, regardless of the package they really belong to. Abstract *methods*
+// that don't belong to this single package are ignored: methods are added to
+// types, and we only ever report a type in the package that it belongs to -- we
+// don't move types to the a different package as we do with freestanding
+// functions. That's because types might not be complete yet (they might have
+// methods that can only be discovered when exploring other packages in which
+// they were inlined) and we don't want to report incomplete types or report a
+// type multiple times.
+func (b *packagesIterator) addAbstractFunctions(targetPackage *Package) {
 	// Sort abstract functions so that output is stable.
 	abstractFunctions := make([]*abstractFunction, 0, len(b.abstractFunctions))
 	for _, af := range b.abstractFunctions {
+		if !af.interesting {
+			continue
+		}
 		abstractFunctions = append(abstractFunctions, af)
 	}
+	// Reset the map.
+	clear(b.abstractFunctions)
 	sort.Slice(abstractFunctions, func(i, j int) bool {
 		return abstractFunctions[i].name < abstractFunctions[j].name
 	})
 	for _, af := range abstractFunctions {
+		// Ignore methods that don't belong to the target package; see function
+		// comment.
+		if af.pkg != targetPackage.Name && af.receiver != "" {
+			continue
+		}
+
 		variables := make([]Variable, 0, len(af.variables))
 		for _, v := range af.variables {
 			v.Variable.AvailableLineRanges = coalesceLineRanges(v.AvailableLineRanges)
@@ -902,27 +855,22 @@ func (b *packagesIterator) addAbstractFunctions(packages map[string]*Package) er
 			},
 		}
 		if af.receiver != "" {
-			t := b.types.getType(af.receiver)
-			if t == nil {
+			t, ok := targetPackage.Types[af.receiver]
+			if !ok {
 				// Some types are empty structures, and functions that
 				// use them as receivers don't actually have a parameter
-				// of the receiver type. Thus we end up without a type.
+				// of the receiver type. Thus, we end up without a type.
 				// Just make one up.
 				t = &Type{
 					Name: af.receiver,
 				}
-				b.types.types[af.receiver] = t
-				b.types.packages[af.pkg] = append(b.types.packages[af.pkg], t)
+				targetPackage.Types[af.receiver] = t
 			}
 			t.Methods = append(t.Methods, f)
 		} else {
-			p := packages[af.pkg]
-			if p != nil {
-				p.Functions = append(p.Functions, f)
-			}
+			targetPackage.Functions = append(targetPackage.Functions, f)
 		}
 	}
-	return nil
 }
 
 func (b *packagesIterator) currentBlock() codeBlock {
@@ -951,64 +899,69 @@ type typeInfo struct {
 // binary.
 type ExtractOptions struct {
 	Scope ExtractScope
-	// If set, abstract functions and their inlined instances are not explored.
-	// The produced
-	IncludeInlinedFunctions bool
 }
 
 // exploreCompileUnit processes a compile unit entry (entry's tag is
 // TagCompileUnit).
 //
-// Returns a zero value if the compile unit is not a Go package.
+// Returns (nil, nil) if the compile unit is not a Go package.
 func (b *packagesIterator) exploreCompileUnit(
 	entry *dwarf.Entry, reader *dwarf.Reader,
-) (Package, error) {
+) (*Package, error) {
 	if entry.Tag != dwarf.TagCompileUnit {
-		return Package{}, fmt.Errorf("expected TagCompileUnit, got %s", entry.Tag)
+		return nil, fmt.Errorf("expected TagCompileUnit, got %s", entry.Tag)
 	}
 
 	name, ok := entry.Val(dwarf.AttrName).(string)
 	if !ok {
-		return Package{}, errors.New("compile unit without name")
+		return nil, errors.New("compile unit without name")
 	}
 	if !interestingPackage(name, b.mainModule, b.firstPartyPkgPrefix, b.options.Scope) {
 		reader.SkipChildren()
-		return Package{}, nil
+		return nil, nil
 	}
 
 	// Filter out non-Go compile units.
 	langField := entry.AttrField(dwarf.AttrLanguage)
 	if langField == nil {
 		reader.SkipChildren()
-		return Package{}, nil
+		return nil, nil
 	}
 	langCode, ok := langField.Val.(int64)
 	if !ok || langCode != dwarf2.DW_LANG_Go {
 		reader.SkipChildren()
-		return Package{}, nil
+		return nil, nil
 	}
 
 	// Some compile units are empty; we ignore them (for example, compile units
 	// corresponding to assembly code).
 	if !entry.Children {
-		return Package{}, nil
+		return nil, nil
 	}
 
-	b.currentCompileUnit = entry
-	b.currentCompileUnitName = name
+	unitHeader, ok := b.offsetToUnit[entry.Offset]
+	if !ok {
+		return nil, fmt.Errorf("header missing for compile unit %s (0x%x)", name, entry.Offset)
+	}
+	b.currentCompileUnit = compileUnitInfo{
+		entry:  entry,
+		name:   name,
+		length: unitHeader.Length,
+		files:  nil, // filled in below
+	}
 	defer func() {
-		b.currentCompileUnit = nil
-		b.currentCompileUnitName = ""
-		b.filesInCurrentCompileUnit = nil
+		b.currentCompileUnit = compileUnitInfo{}
 	}()
 
-	var res Package
-	res.Name = name
+	b.currentCompileUnit.outputPkg = &Package{
+		Name:  name,
+		Types: make(map[string]*Type),
+	}
 	start := time.Now()
 
 	cuLineReader, err := b.dwarfData.LineReader(entry)
 	if err != nil {
-		return Package{}, fmt.Errorf("could not get file line reader for compile unit %s: %w", name, err)
+		return nil, fmt.Errorf("could not get file line reader for compile unit %s: %w", name, err)
 	}
 	var files []string
 	if cuLineReader != nil {
@@ -1019,7 +972,7 @@ func (b *packagesIterator) exploreCompileUnit(
 				// used as a sentinel by file references to indicate that the
 				// file is not known.
 				if i != 0 {
-					return Package{}, fmt.Errorf(
+					return nil, fmt.Errorf(
 						"compile unit %s has invalid nil file entry at index %d", name, i)
 				}
 				files = append(files, "")
@@ -1028,12 +981,12 @@ func (b *packagesIterator) exploreCompileUnit(
 			files = append(files, file.Name)
 		}
 	}
-	b.filesInCurrentCompileUnit = files
+	b.currentCompileUnit.files = files
 
 	// Go through the children, looking for subprograms.
 	for child, err := reader.Next(); child != nil; child, err = reader.Next() {
 		if err != nil {
-			return Package{}, err
+			return nil, err
 		}
 		if dwarfutil.IsEntryNull(child) {
 			break // End of children for this compile unit.
@@ -1043,10 +996,10 @@ func (b *packagesIterator) exploreCompileUnit(
 		case dwarf.TagSubprogram:
 			function, err := b.exploreSubprogram(child, reader)
 			if err != nil {
-				return Package{}, err
+				return nil, err
 			}
 			if !function.empty() {
-				res.Functions = append(res.Functions, function)
+				b.currentCompileUnit.outputPkg.Functions = append(b.currentCompileUnit.outputPkg.Functions, function)
 			}
 		default:
 			reader.SkipChildren()
@@ -1054,10 +1007,10 @@ func (b *packagesIterator) exploreCompileUnit(
 	}
 	duration := time.Since(start)
 	if duration > 5*time.Second {
-		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats())
+		log.Warnf("Processing package %s took %s: %s", name, duration, b.currentCompileUnit.outputPkg.Stats())
 	}
 
-	return res, nil
+	return b.currentCompileUnit.outputPkg, nil
 }
 
 // exploreSubprogram processes a subprogram entry, corresponding to a Go
@@ -1096,10 +1049,23 @@ func (b *packagesIterator) exploreSubprogram(
 		return earlyExit()
 	}
 
-	inline, ok := entry.Val(dwarf.AttrInline).(int64)
-	if ok && inline == dwarf2.DW_INL_inlined {
-		// Abstract function definition, nothing to do here, we parse
-		// them on-demand when encountering inlined instances.
+	inlineAttr, ok := entry.Val(dwarf.AttrInline).(int64)
+	// The attribute DW_AT_inline with a value of DW_INL_inlined means that
+	// this is an "abstract definition" of the function, which is then
+	// referenced by inlined instances (and also possibly by an out-of-line
+	// instance) through their AttrAbstractOrigin attribute which will point
+	// to this entry.
+	if abstractFunc := ok && inlineAttr == dwarf2.DW_INL_inlined; abstractFunc {
+		if _, ok := b.abstractFunctions[entry.Offset]; !ok {
+			af, err := b.parseAbstractFunction(entry.Offset)
+			if err != nil {
+				return Function{}, err
+			}
+			// Keep around information about this abstract function. It will be
+			// updated by every subsequent inlined instance of the function.
+			b.abstractFunctions[entry.Offset] = af
+		}
+
 		return earlyExit()
 	}
 
@@ -1129,13 +1095,13 @@ func (b *packagesIterator) exploreSubprogram(
 		// TODO: log if this ever happens. I haven't seen it.
 		return earlyExit()
 	}
-	if fileIdx < 0 || int(fileIdx) >= len(b.filesInCurrentCompileUnit) {
+	if fileIdx < 0 || int(fileIdx) >= len(b.currentCompileUnit.files) {
 		return Function{}, fmt.Errorf(
 			"subprogram at 0x%x has invalid file index %d, expected in range [0, %d)",
-			entry.Offset, fileIdx, len(b.filesInCurrentCompileUnit),
+			entry.Offset, fileIdx, len(b.currentCompileUnit.files),
 		)
 	}
-	fileName := b.filesInCurrentCompileUnit[fileIdx]
+	fileName := b.currentCompileUnit.files[fileIdx]
 	// If configured with a filter, check if the file should be ignored.
 	for _, filter := range b.filesFilter {
 		if strings.HasPrefix(fileName, filter) {
@@ -1221,23 +1187,29 @@ func (b *packagesIterator) exploreSubprogram(
 	// respective type instead of returning it as a stand-alone function.
 	if funcName.Type != "" {
 		typeQualifiedName := funcName.Package + "." + funcName.Type
-		// We expect the type of the receiver to have been populated by the
-		// exploreCode() call above.
-		typ := b.types.getType(typeQualifiedName)
-		if typ == nil {
-			return Function{}, fmt.Errorf(
-				"%s is a method of type %s, but that type is missing from the cache. DWARF offset: 0x%x",
-				funcQualifiedName, typeQualifiedName, entry.Offset,
-			)
+		// We generally expect the type of the receiver to have been populated
+		// by the exploreCode() call above.
+		t, ok := b.currentCompileUnit.outputPkg.Types[typeQualifiedName]
+		if !ok {
+			// Some types are empty structures, and functions that use them as
+			// receivers don't actually have a parameter of the receiver type.
+			// Thus, we end up without a type. Just make one up.
+			t = &Type{
+				Name: typeQualifiedName,
+			}
+			b.currentCompileUnit.outputPkg.Types[typeQualifiedName] = t
 		}
-		typ.Methods = append(typ.Methods, res)
+		t.Methods = append(t.Methods, res)
 		// We don't return a Function for methods.
 		return Function{}, nil
 	}
 	return res, nil
 }
 
-// Explores inlined instances of an abstract function (both InlinedSubroutines and out-of-line Subprogram instances).
+// Explores inlined instances of an abstract function (both InlinedSubroutines
+// and out-of-line Subprogram instances). Modify the data associated with the
+// abstract function definition based on the variable availability in this
+// instance.
 func (b *packagesIterator) exploreInlinedInstance(
 	entry *dwarf.Entry,
 	reader *dwarf.Reader,
@@ -1248,24 +1220,30 @@ func (b *packagesIterator) exploreInlinedInstance(
 		return nil
 	}
 
-	origin, ok := entry.Val(dwarf.AttrAbstractOrigin).(dwarf.Offset)
+	// Lookup the abstract function definition referenced by this inlined
+	// instance.
+	originOffset, ok := entry.Val(dwarf.AttrAbstractOrigin).(dwarf.Offset)
 	if !ok {
 		return fmt.Errorf("inlined instance without abstract origin at 0x%x", entry.Offset)
 	}
 
-	if !b.options.IncludeInlinedFunctions {
-		return earlyExit()
-	}
-
-	// Parse the abstract definition eagerly, and cache it.
-	af, ok := b.abstractFunctions[origin]
+	af, ok := b.abstractFunctions[originOffset]
 	if !ok {
+		// We only explore the abstract definition if it's in the current
+		// compilation unit; we don't accumulate data across compile units in
+		// b.abstractFunctions.
+		inCurrentUnit := originOffset >= b.currentCompileUnit.entry.Offset &&
+			uint64(originOffset) < uint64(b.currentCompileUnit.entry.Offset)+b.currentCompileUnit.length
+		if !inCurrentUnit {
+			return earlyExit()
+		}
+
 		var err error
-		af, err = b.parseAbstractFunction(origin)
+		af, err = b.parseAbstractFunction(originOffset)
 		if err != nil {
 			return err
 		}
-		b.abstractFunctions[origin] = af
+		b.abstractFunctions[originOffset] = af
 	}
 	if !af.interesting {
 		return earlyExit()
@@ -1319,7 +1297,7 @@ func (b *packagesIterator) exploreInlinedCode(
 				return fmt.Errorf("inlined variable with unknown abstract origin at 0x%x", child.Offset)
 			}
 			av.AvailableLineRanges, err = b.parseVariableLocations(
-				b.currentCompileUnit,
+				b.currentCompileUnit.entry,
 				b.currentBlock(),
 				child,
 				av.typeSize,
@@ -1430,7 +1408,7 @@ func (b *packagesIterator) exploreVariable(entry *dwarf.Entry, lines []gosym.Lin
 		return Variable{}, err
 	}
 	availableLineRanges, err := b.parseVariableLocations(
-		b.currentCompileUnit,
+		b.currentCompileUnit.entry,
 		b.currentBlock(),
 		entry,
 		uint32(typ.size),
@@ -1544,7 +1522,6 @@ func (b *packagesIterator) parseAbstractFunction(offset dwarf.Offset) (*abstract
 func (b *packagesIterator) parseAbstractVariable(entry *dwarf.Entry) (Variable, typeInfo, error) {
 	name, ok := entry.Val(dwarf.AttrName).(string)
 	if !ok {
-		debug.PrintStack()
 		return Variable{}, typeInfo{}, fmt.Errorf("variable without name at 0x%x", entry.Offset)
 	}
 	declLine, ok := entry.Val(dwarf.AttrDeclLine).(int64)
@@ -1654,7 +1631,7 @@ func (b *packagesIterator) processLocations(
 	if err != nil {
 		return nil, err
 	}
-	loclists, err := dwarfutil.ProcessLocations(locField, unit, b.loclistReader, pcRanges, totalSize, uint8(b.pointerSize))
+	loclists, err := loclist.ProcessLocations(locField, unit, b.loclistReader, pcRanges, totalSize, uint8(b.pointerSize))
 	if err != nil {
 		// Do not fail hard, just pretend the variable is not available.
 		if loclistErrorLogLimiter.Allow() {

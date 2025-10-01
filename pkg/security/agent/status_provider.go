@@ -9,7 +9,6 @@ package agent
 import (
 	"embed"
 	"io"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -76,31 +75,15 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 			}
 			base["policiesStatus"] = cfStatus.PoliciesStatus
 
-			var globals []*api.SECLVariableState
-			for _, global := range cfStatus.SECLVariables {
-				if !strings.Contains(global.Name, ".") {
-					globals = append(globals, global)
-				}
-			}
-			base["seclGlobalVariables"] = globals
+			base["seclGlobalVariables"] = cfStatus.GlobalVariables
 
 			scopedVariables := make(map[string]map[string][]*api.SECLVariableState)
-			for _, scoped := range cfStatus.SECLVariables {
-				split := strings.SplitN(scoped.Name, ".", 3)
-				if len(split) < 3 {
-					continue
+			for scope, scoped := range cfStatus.ScopedVariables {
+				scopeMap := make(map[string][]*api.SECLVariableState)
+				for key, value := range scoped.KeyValues {
+					scopeMap[key] = value.Variables
 				}
-				scope, name, key := split[0], split[1], split[2]
-				if scope != "" {
-					if _, found := scopedVariables[scope]; !found {
-						scopedVariables[scope] = make(map[string][]*api.SECLVariableState)
-					}
-
-					scopedVariables[scope][key] = append(scopedVariables[scope][key], &api.SECLVariableState{
-						Name:  name,
-						Value: scoped.Value,
-					})
-				}
+				scopedVariables[scope] = scopeMap
 			}
 			base["seclScopedVariables"] = scopedVariables
 		}

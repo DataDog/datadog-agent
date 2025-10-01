@@ -27,6 +27,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -2278,6 +2279,35 @@ func TestHandleContainer(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "resize policy",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				ResizePolicy: workloadmeta.ContainerResizePolicy{
+					CPURestartPolicy:    "NotRequired",
+					MemoryRestartPolicy: "RestartContainer",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"cpu_restart_policy:NotRequired",
+						"memory_restart_policy:RestartContainer",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2790,5 +2820,346 @@ func assertTagInfoListEqual(t *testing.T, expectedUpdates []*types.TagInfo, upda
 	require.Equal(t, len(expectedUpdates), len(updates))
 	for i := 0; i < len(expectedUpdates); i++ {
 		assertTagInfoEqual(t, expectedUpdates[i], updates[i])
+	}
+}
+
+func TestHandleProcess(t *testing.T) {
+	const (
+		pid               = "12345"
+		serviceNameFromDD = "my-service"
+		envFromDD         = "production"
+		versionFromDD     = "1.2.3"
+	)
+
+	collector := &WorkloadMetaCollector{}
+
+	tests := []struct {
+		name            string
+		process         *workloadmeta.Process
+		expectedTagInfo *types.TagInfo
+	}{
+		{
+			name: "process with complete UST service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+			},
+		},
+		{
+			name: "process with partial UST service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     "", // Empty env
+						Version: versionFromDD,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+			},
+		},
+		{
+			name: "process with no service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid:     12345,
+				Service: nil,
+			},
+		},
+		{
+			name: "process with empty service metadata",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					// All UST fields empty
+					UST: workloadmeta.UST{
+						Service: "",
+						Env:     "",
+						Version: "",
+					},
+				},
+			},
+		},
+		{
+			name: "process with both UST and ProcessTags",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+					TracerMetadata: []tracermetadata.TracerMetadata{
+						{
+							ProcessTags: "entrypoint.name:com.example.Main,service.type:tomcat",
+						},
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					"entrypoint.name:com.example.Main",
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"service.type:tomcat",
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+			},
+		},
+		{
+			name: "process with only ProcessTags (no UST)",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{}, // Empty UST
+					TracerMetadata: []tracermetadata.TracerMetadata{
+						{
+							ProcessTags: "entrypoint.workdir:app,service.framework:spring-boot",
+						},
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:               processSource,
+				EntityID:             types.NewEntityID(types.Process, pid),
+				LowCardTags:          []string{"entrypoint.workdir:app", "service.framework:spring-boot"},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags:         []string{},
+			},
+		},
+		{
+			name: "process with multiple TracerMetadata entries",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+					},
+					TracerMetadata: []tracermetadata.TracerMetadata{
+						{
+							ProcessTags: "entrypoint.name:com.myapp.Server1,service.runtime:openjdk-17",
+						},
+						{
+							ProcessTags: "entrypoint.name:com.myapp.Server2,service.runtime:openjdk-17,entrypoint.workdir:myapp,service.type:web-server",
+						},
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					"entrypoint.name:com.myapp.Server1",
+					"entrypoint.name:com.myapp.Server2",
+					"entrypoint.workdir:myapp",
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"service.runtime:openjdk-17",
+					"service.type:web-server",
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+				},
+			},
+		},
+		{
+			name: "process with mixed valid and invalid ProcessTags",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+					},
+					TracerMetadata: []tracermetadata.TracerMetadata{
+						{
+							ProcessTags: "entrypoint.name:my.package.Main,invalid_tag,service.framework:nodejs", // Contains invalid tag
+						},
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					"entrypoint.name:my.package.Main",
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"service.framework:nodejs",
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: tt.process,
+			}
+
+			result := collector.handleProcess(event)
+
+			if tt.expectedTagInfo == nil {
+				assert.Nil(t, result)
+			} else {
+				require.Len(t, result, 1)
+				assertTagInfoEqual(t, tt.expectedTagInfo, result[0])
+			}
+		})
+	}
+}
+
+func TestParseProcessTags(t *testing.T) {
+	tests := []struct {
+		name         string
+		processTags  string
+		expectedTags []string
+	}{
+		{
+			name:        "valid comma-separated tags",
+			processTags: "entrypoint.name:com.example.App,service.type:tomcat,service.framework:spring",
+			expectedTags: []string{
+				"entrypoint.name:com.example.App",
+				"service.framework:spring",
+				"service.type:tomcat",
+			},
+		},
+		{
+			name:        "single tag",
+			processTags: "entrypoint.workdir:app",
+			expectedTags: []string{
+				"entrypoint.workdir:app",
+			},
+		},
+		{
+			name:         "empty string",
+			processTags:  "",
+			expectedTags: []string{},
+		},
+		{
+			name:        "tags with spaces",
+			processTags: " service.runtime : java-17 , entrypoint.name : com.app.Main ",
+			expectedTags: []string{
+				"entrypoint.name:com.app.Main",
+				"service.runtime:java-17",
+			},
+		},
+		{
+			name:        "tag with colon in value",
+			processTags: "url:http://example.com:8080",
+			expectedTags: []string{
+				"url:http://example.com:8080",
+			},
+		},
+		{
+			name:         "malformed tag without colon",
+			processTags:  "invalid_tag,service.type:nginx",
+			expectedTags: []string{"service.type:nginx"},
+		},
+		{
+			name:         "tags with empty keys or values",
+			processTags:  ":value,key:,service.runtime:python3.9",
+			expectedTags: []string{"service.runtime:python3.9"},
+		},
+		{
+			name:         "empty tag entries",
+			processTags:  "service.framework:django,,entrypoint.name:manage.py,",
+			expectedTags: []string{"entrypoint.name:manage.py", "service.framework:django"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tagList := taglist.NewTagList()
+			parseProcessTags(tagList, tt.processTags)
+
+			low, _, _, _ := tagList.Compute()
+			sort.Strings(low)
+			sort.Strings(tt.expectedTags)
+			assert.Equal(t, tt.expectedTags, low)
+		})
 	}
 }

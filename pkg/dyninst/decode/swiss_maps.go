@@ -14,53 +14,62 @@ import (
 
 	"github.com/go-json-experiment/json/jsontext"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // encodeSwissMapTables traverses the table pointer slice and encodes the data items for each table.
 func (s *goSwissMapHeaderType) encodeSwissMapTables(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
-	tablePtrSliceDataItem output.DataItem,
+	tablePtrSliceDataItem []byte,
 ) (totalElementsEncoded int, err error) {
-	tablePointers := tablePtrSliceDataItem.Data()
 	addrs := []uint64{}
-	for i := range tablePtrSliceDataItem.Header().Length / 8 {
+	numPtrs := uint32(len(tablePtrSliceDataItem) / 8)
+	for i := range numPtrs {
 		startIdx := i * 8
 		endIdx := startIdx + 8
-		if endIdx > uint32(len(tablePointers)) {
-			return totalElementsEncoded, fmt.Errorf("table pointer %d extends beyond data bounds: need %d bytes, have %d",
-				i, endIdx, len(tablePointers))
+		if endIdx > uint32(len(tablePtrSliceDataItem)) {
+			return totalElementsEncoded, fmt.Errorf(
+				"table pointer %d extends beyond data bounds: need %d bytes, have %d",
+				i, endIdx, len(tablePtrSliceDataItem),
+			)
 		}
-		addrs = append(addrs, binary.NativeEndian.Uint64(tablePointers[startIdx:endIdx]))
+		addrs = append(addrs, binary.NativeEndian.Uint64(tablePtrSliceDataItem[startIdx:endIdx]))
 	}
 	// Deduplicate addrs by sorting and then removing duplicates.
 	// Go swiss maps may have multiple table pointers for the same group.
 	slices.Sort(addrs)
 	addrs = slices.Compact(addrs)
 	for _, addr := range addrs {
-		tableDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(s.tableTypeID),
-			addr:   addr,
-		}]
+		tableDataItem, ok := c.getPtr(addr, s.tableTypeID)
 		if !ok {
 			continue
 		}
-		groupData := tableDataItem.Data()[s.groupFieldOffset : s.groupFieldOffset+uint32(s.groupFieldSize)]
-		groupAddress := groupData[s.dataFieldOffset : s.dataFieldOffset+uint32(s.dataFieldSize)]
-		groupDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(s.groupSliceTypeID),
-			addr:   binary.NativeEndian.Uint64(groupAddress),
-		}]
+		tableData, ok := tableDataItem.Data()
 		if !ok {
-			log.Tracef("group data item not found for addr %x", binary.NativeEndian.Uint64(groupAddress))
+			// Should we tell the user about this fault?
 			continue
 		}
-		numberOfGroups := groupDataItem.Header().Length / s.elementTypeSize
+		groupsData := tableData[s.groupFieldOffset : s.groupFieldOffset+uint32(s.groupFieldSize)]
+		groupsPtrData := groupsData[s.dataFieldOffset : s.dataFieldOffset+uint32(s.dataFieldSize)]
+		groupsPtr := binary.NativeEndian.Uint64(groupsPtrData)
+		groupsArrayDataItem, ok := c.getPtr(groupsPtr, s.groupSliceTypeID)
+		if !ok {
+			if log.ShouldLog(log.TraceLvl) {
+				groupsPtr := groupsPtr
+				log.Tracef("group data item not found for addr %x", groupsPtr)
+			}
+			continue
+		}
+		groupsArrayData, ok := groupsArrayDataItem.Data()
+		if !ok {
+			// Should we tell the user about this fault?
+			continue
+		}
+		numberOfGroups := uint32(len(groupsArrayData)) / s.elementTypeSize
 		for i := range numberOfGroups {
-			singleGroupData := groupDataItem.Data()[s.elementTypeSize*i : s.elementTypeSize*(i+1)]
-			elementsEncoded, err := s.encodeSwissMapGroup(d, enc, singleGroupData)
+			singleGroupData := groupsArrayData[s.elementTypeSize*i : s.elementTypeSize*(i+1)]
+			elementsEncoded, err := s.encodeSwissMapGroup(c, enc, singleGroupData)
 			if err != nil {
 				return totalElementsEncoded, err
 			}
@@ -71,7 +80,7 @@ func (s *goSwissMapHeaderType) encodeSwissMapTables(
 }
 
 func (s *goSwissMapHeaderType) encodeSwissMapGroup(
-	d *Decoder,
+	c *encodingContext,
 	enc *jsontext.Encoder,
 	groupData []byte,
 ) (valuesEncoded int, err error) {
@@ -89,10 +98,14 @@ func (s *goSwissMapHeaderType) encodeSwissMapGroup(
 		if err := writeTokens(enc, jsontext.BeginArray); err != nil {
 			return valuesEncoded, err
 		}
-		if err := d.encodeValue(enc, s.keyTypeID, keyData, s.keyTypeName); err != nil {
+		if err := encodeValue(
+			c, enc, s.keyTypeID, keyData, s.keyTypeName,
+		); err != nil {
 			return valuesEncoded, err
 		}
-		if err := d.encodeValue(enc, s.valueTypeID, valueData, s.valueTypeName); err != nil {
+		if err := encodeValue(
+			c, enc, s.valueTypeID, valueData, s.valueTypeName,
+		); err != nil {
 			return valuesEncoded, err
 		}
 		if err := writeTokens(enc, jsontext.EndArray); err != nil {

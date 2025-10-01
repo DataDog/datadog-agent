@@ -130,6 +130,15 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	protocol := query.Get("protocol")
 	tcpMethod := query.Get("tcp_method")
 	tcpSynParisTracerouteMode := query.Get("tcp_syn_paris_traceroute_mode")
+	reverseDNS := query.Get("reverse_dns")
+	tracerouteQueries, err := parseUint(query, "traceroute_queries", 32)
+	if err != nil {
+		return tracerouteutil.Config{}, fmt.Errorf("invalid traceroute_queries: %s", err)
+	}
+	e2eQueries, err := parseUint(query, "e2e_queries", 32)
+	if err != nil {
+		return tracerouteutil.Config{}, fmt.Errorf("invalid e2e_queries: %s", err)
+	}
 
 	return tracerouteutil.Config{
 		DestHostname:              host,
@@ -139,6 +148,9 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 		Protocol:                  payload.Protocol(protocol),
 		TCPMethod:                 payload.TCPMethod(tcpMethod),
 		TCPSynParisTracerouteMode: tcpSynParisTracerouteMode == "true",
+		ReverseDNS:                reverseDNS == "true",
+		TracerouteQueries:         int(tracerouteQueries),
+		E2eQueries:                int(e2eQueries),
 	}, nil
 }
 

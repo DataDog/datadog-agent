@@ -41,7 +41,6 @@ import (
 	pkgerrors "github.com/pkg/errors"
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -49,7 +48,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
+var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+var invalidGoRuntimeTypeLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
 // TODO: This code creates a lot of allocations, but we could greatly reduce
 // the number of distinct allocations by using a batched allocation scheme.
@@ -112,7 +112,16 @@ func generateIR(
 	programID ir.ProgramID,
 	objFile object.FileWithDwarf,
 	probeDefs []ir.ProbeDefinition,
-) (_ *ir.Program, retErr error) {
+) (ret *ir.Program, retErr error) {
+	defer func() {
+		if retErr != nil {
+			return
+		}
+		if len(ret.Probes) == 0 {
+			retErr = &ir.NoSuccessfulProbesError{Issues: ret.Issues}
+		}
+	}()
+
 	// Ensure deterministic output.
 	slices.SortFunc(probeDefs, func(a, b ir.ProbeDefinition) int {
 		return cmp.Compare(a.GetID(), b.GetID())
@@ -177,37 +186,56 @@ func generateIR(
 	if err != nil {
 		return nil, err
 	}
-	// Find prologues need to determine injection points. We make an assumption
-	// that prologue, if function has a frame, should be contained within the
-	// first pc range of a subprogram. This simplifies the logic slightly.
-	prologueSearch := make([]prologueSeachParams, 0, len(processed.pendingSubprograms))
+
+	// Collect line information about subprograms. It's important for performance
+	// to batch analysis of each compilation unit, and do it in incremental
+	// pc order for each compilation unit.
+	lineSearchRanges := make([]lineSearchRange, 0, len(processed.pendingSubprograms))
 	for _, sp := range processed.pendingSubprograms {
-		if len(sp.outOfLinePCRanges) > 0 {
-			prologueSearch = append(prologueSearch, prologueSeachParams{
+		for _, pcRange := range sp.outOfLinePCRanges {
+			lineSearchRanges = append(lineSearchRanges, lineSearchRange{
 				unit:    sp.unit,
-				pcRange: sp.outOfLinePCRanges[0],
+				pcRange: pcRange,
 			})
 		}
 		for _, inlined := range sp.inlinePCRanges {
-			prologueSearch = append(prologueSearch, prologueSeachParams{
-				unit:    sp.unit,
-				pcRange: inlined.RootRanges[0],
-			})
+			for _, pcRange := range inlined.RootRanges {
+				lineSearchRanges = append(lineSearchRanges, lineSearchRange{
+					unit:    sp.unit,
+					pcRange: pcRange,
+				})
+			}
 		}
 	}
 
-	prologueLocs, err := findProloguesEnds(objFile, prologueSearch)
+	lineData, err := collectLineData(objFile, lineSearchRanges)
 	if err != nil {
 		return nil, err
 	}
 
-	typeCatalog := newTypeCatalog(
-		d, ptrSize, cfg.maxDynamicTypeSize, cfg.maxHashBucketsSize,
-	)
+	typeCatalog := newTypeCatalog(d, ptrSize)
+	var commonTypes ir.CommonTypes
 	for _, offset := range processed.interestingTypes {
-		if _, err := typeCatalog.addType(offset); err != nil {
+		t, err := typeCatalog.addType(offset)
+		if err != nil {
 			return nil, fmt.Errorf("failed to add type at offset %#x: %w", offset, err)
 		}
+		ok := true
+		switch t.GetName() {
+		case "runtime.g":
+			commonTypes.G, ok = t.(*ir.StructureType)
+		case "runtime.m":
+			commonTypes.M, ok = t.(*ir.StructureType)
+		}
+		if !ok {
+			return nil, fmt.Errorf("expected structure type for %q, got %T", t.GetName(), t)
+		}
+	}
+	if commonTypes.G == nil {
+		return nil, fmt.Errorf("runtime.g not found")
+	}
+	if commonTypes.M == nil {
+		return nil, fmt.Errorf("runtime.m not found")
 	}
 
 	// Materialize before creating probes so IR subprograms and vars exist.
@@ -234,7 +262,22 @@ func generateIR(
 	for tid := range typeIndex.allGoTypes() {
 		goType, err := typeTab.ParseGoType(tid)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse go type: %w", err)
+			if !invalidGoRuntimeTypeLogLimiter.Allow() {
+				continue
+			}
+			// We've seen situations where the GoRuntimeType values are bogus.
+			// That shouldn't prevent us from generating IR.
+			dwarfOffset, offsetOk := typeIndex.resolveDwarfOffset(tid)
+			irTypeID, idOk := typeCatalog.typesByDwarfType[dwarfOffset]
+			var typeName string
+			if t, ok := typeCatalog.typesByID[irTypeID]; offsetOk && idOk && ok {
+				typeName = t.GetName()
+			}
+			log.Warnf(
+				"invalid go runtime type id for %q (%d) (dwarf offset: %#x): %v",
+				typeName, irTypeID, dwarfOffset, err,
+			)
+			continue
 		}
 		methodBuf, err = goType.Methods(methodBuf[:0])
 		if err != nil {
@@ -273,7 +316,7 @@ func generateIR(
 	}
 	// Instantiate probes and gather any probe-related issues.
 	probes, subprograms, probeIssues, err := createProbes(
-		arch, processed.pendingSubprograms, prologueLocs, idToSub,
+		arch, processed.pendingSubprograms, lineData, idToSub,
 	)
 	if err != nil {
 		return nil, err
@@ -310,6 +353,7 @@ func generateIR(
 		MaxTypeID:        typeCatalog.idAlloc.alloc,
 		Issues:           issues,
 		GoModuledataInfo: processed.goModuledataInfo,
+		CommonTypes:      commonTypes,
 	}, nil
 }
 
@@ -394,6 +438,32 @@ func expandTypesWithBudgets(
 	processedBest := make(map[ir.TypeID]uint32)
 
 	q := newTypeQueue()
+
+	// Initialize the type queue with all types with a depth budget of 0 to make
+	// sure we properly explore every type. In general there's an invariant that
+	// every non-placeholder type be explored, and this ensures that.
+	for id, t := range tc.typesByID {
+		if _, ok := t.(*pointeePlaceholderType); ok {
+			continue
+		}
+		q.pos[id] = uint32(len(q.items))
+		q.items = append(q.items, typeQueueEntry{id: id, remaining: 0})
+	}
+
+	// Update the budgets from the subprogram variables to that of the
+	// corresponding subprogram.
+	for _, sp := range subprograms {
+		budget := budgets[sp.ID]
+		for _, v := range sp.Variables {
+			pos := q.pos[v.Type.GetID()]
+			item := &q.items[pos]
+			item.remaining = max(item.remaining, budget)
+		}
+	}
+
+	// Initialize the heap now that everything has been updated.
+	heap.Init(q)
+
 	// push enqueues (or improves) only if strictly better than any
 	// already processed or enqueued remaining budget.
 	push := func(t ir.Type, remaining uint32) {
@@ -410,17 +480,6 @@ func expandTypesWithBudgets(
 			return
 		}
 		q.push(typeQueueEntry{id: id, remaining: remaining})
-	}
-
-	// Seed from all parameter variables of all subprograms.
-	for _, sp := range subprograms {
-		budget := budgets[sp.ID]
-		for _, v := range sp.Variables {
-			if !v.IsParameter || v.IsReturn || v.Type == nil {
-				continue
-			}
-			push(v.Type, budget)
-		}
 	}
 
 	// Local helper to complete a just-added type ID.
@@ -624,8 +683,12 @@ func materializePending(
 			if parseLocs {
 				ranges = p.outOfLinePCRanges
 			}
+			isParameter := die.Tag == dwarf.TagFormalParameter
+			if !isParameter {
+				continue
+			}
 			v, err := processVariable(
-				p.unit, die, die.Tag == dwarf.TagFormalParameter,
+				p.unit, die, isParameter,
 				parseLocs, ranges,
 				loclistReader, pointerSize, tc,
 			)
@@ -644,6 +707,10 @@ func materializePending(
 				ranges = inl.inlinedPCRanges.Ranges
 			}
 			for _, inlVar := range inl.variables {
+				isParameter := inlVar.Tag == dwarf.TagFormalParameter
+				if !isParameter {
+					continue
+				}
 				abstractOrigin, ok, err := maybeGetAttr[dwarf.Offset](
 					inlVar, dwarf.AttrAbstractOrigin,
 				)
@@ -663,9 +730,10 @@ func materializePending(
 						baseVar.Locations = append(baseVar.Locations, locs...)
 					}
 				} else {
+
 					// Fully defined var in the inlined instance.
 					v, err := processVariable(
-						p.unit, inlVar, inlVar.Tag == dwarf.TagFormalParameter,
+						p.unit, inlVar, isParameter,
 						true /* parseLocations */, ranges,
 						loclistReader, pointerSize, tc,
 					)
@@ -682,46 +750,56 @@ func materializePending(
 	return subprograms, nil
 }
 
-type prologueSeachParams struct {
+type lineSearchRange struct {
 	unit    *dwarf.Entry
 	pcRange ir.PCRange
 }
 
-type prologueEndLocation struct {
-	err       error
-	frameless bool
-	// If not frameless, the pc of the prologue end, otherwise the first pc
-	// of the subprogram.
-	pc uint64
+type line struct {
+	pc          uint64
+	line        uint32
+	isStatement bool
 }
 
-// findPrologues searches for prologue for each given search param. Results
-// are indexed by the start of the pc range. Provided ranges must be non-overlapping
-// but may contain duplicates.
-func findProloguesEnds(
+type lineData struct {
+	err error
+	// PC of prologue end or 0 if no prologue end statement is found.
+	prologueEnd uint64
+	lines       []line
+}
+
+// collectLineData evaluates DWARF line programs to aggregate line data for given ranges.
+func collectLineData(
 	objFile object.Dwarf,
-	searchParams []prologueSeachParams,
-) (map[uint64]prologueEndLocation, error) {
-	if len(searchParams) == 0 {
-		return make(map[uint64]prologueEndLocation), nil
+	searchRanges []lineSearchRange,
+) (map[ir.PCRange]lineData, error) {
+	if len(searchRanges) == 0 {
+		return make(map[ir.PCRange]lineData), nil
 	}
-	slices.SortFunc(searchParams, func(a, b prologueSeachParams) int {
+	slices.SortFunc(searchRanges, func(a, b lineSearchRange) int {
 		return cmp.Compare(a.pcRange[0], b.pcRange[0])
 	})
 	// Remove duplicates.
 	i := 1
-	for j := 1; j < len(searchParams); j++ {
-		if searchParams[i-1].pcRange != searchParams[j].pcRange {
-			searchParams[i] = searchParams[j]
+	for j := 1; j < len(searchRanges); j++ {
+		if searchRanges[i-1].pcRange != searchRanges[j].pcRange {
+			if searchRanges[i-1].unit == searchRanges[j].unit &&
+				searchRanges[i-1].pcRange[1] > searchRanges[j].pcRange[0] {
+				return nil, fmt.Errorf("overlapping line search ranges in unit %#x: %#x and %#x",
+					searchRanges[i-1].unit.Offset,
+					searchRanges[i-1].pcRange,
+					searchRanges[j].pcRange)
+			}
+			searchRanges[i] = searchRanges[j]
 			i++
 		}
 	}
-	searchParams = searchParams[:i]
+	searchRanges = searchRanges[:i]
 
-	res := make(map[uint64]prologueEndLocation, len(searchParams))
+	res := make(map[ir.PCRange]lineData, len(searchRanges))
 	var prevUnit *dwarf.Entry
 	var lineReader *dwarf.LineReader
-	for _, sp := range searchParams {
+	for _, sp := range searchRanges {
 		if prevUnit != sp.unit {
 			prevUnit = sp.unit
 			lr, err := objFile.DwarfData().LineReader(prevUnit)
@@ -730,22 +808,7 @@ func findProloguesEnds(
 			}
 			lineReader = lr
 		}
-
-		pc, ok, err := findPrologueEnd(lineReader, sp.pcRange)
-		switch {
-		case err != nil:
-			res[sp.pcRange[0]] = prologueEndLocation{err: err}
-		case ok:
-			res[sp.pcRange[0]] = prologueEndLocation{
-				frameless: false,
-				pc:        pc,
-			}
-		default:
-			res[sp.pcRange[0]] = prologueEndLocation{
-				frameless: true,
-				pc:        sp.pcRange[0],
-			}
-		}
+		res[sp.pcRange] = collectLineDataForRange(lineReader, sp.pcRange)
 	}
 	return res, nil
 }
@@ -755,7 +818,7 @@ func findProloguesEnds(
 func createProbes(
 	arch object.Architecture,
 	pending []*pendingSubprogram,
-	prologueLocs map[uint64]prologueEndLocation,
+	lineData map[ir.PCRange]lineData,
 	idToSubprogram map[ir.SubprogramID]*ir.Subprogram,
 ) ([]*ir.Probe, []*ir.Subprogram, []ir.ProbeIssue, error) {
 	var (
@@ -776,7 +839,7 @@ func createProbes(
 		sp := idToSubprogram[p.id]
 		var haveProbe bool
 		for _, cfg := range p.probesCfgs {
-			probe, iss, err := newProbe(arch, cfg, sp, &eventIDAlloc, prologueLocs)
+			probe, iss, err := newProbe(arch, cfg, sp, &eventIDAlloc, lineData)
 			if err != nil {
 				return nil, nil, nil, err
 			}
@@ -1036,18 +1099,20 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 	}
 }
 
-func field(st *ir.StructureType, name string) (*ir.Field, error) {
+func field(tc *typeCatalog, st *ir.StructureType, name string) (*ir.Field, error) {
 	offset := slices.IndexFunc(st.RawFields, func(f ir.Field) bool {
 		return f.Name == name
 	})
 	if offset == -1 {
 		return nil, fmt.Errorf("type %q has no %s field", st.Name, name)
 	}
+	f := &st.RawFields[offset]
+	f.Type = tc.typesByID[f.Type.GetID()]
 	return &st.RawFields[offset], nil
 }
 
-func fieldType[T ir.Type](st *ir.StructureType, name string) (T, error) {
-	f, err := field(st, name)
+func fieldType[T ir.Type](tc *typeCatalog, st *ir.StructureType, name string) (T, error) {
+	f, err := field(tc, st, name)
 	if err != nil {
 		return *new(T), err
 	}
@@ -1068,6 +1133,7 @@ func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
 	if !ok {
 		return *new(T), fmt.Errorf("type %q is not a pointer type, got %T", t.GetName(), t)
 	}
+	ptrType.Pointee = tc.typesByID[ptrType.Pointee.GetID()]
 	if ppt, ok := ptrType.Pointee.(*pointeePlaceholderType); ok {
 		pointee, err := tc.addType(ppt.offset)
 		if err != nil {
@@ -1078,8 +1144,8 @@ func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
 	pointee, ok := ptrType.Pointee.(T)
 	if !ok {
 		return *new(T), fmt.Errorf(
-			"pointee type %q is not a %T, got %T",
-			ptrType.Pointee.GetName(), new(T), ptrType.Pointee,
+			"pointee type %d %q of %d (%q) is not a %T, got %T",
+			ptrType.ID, ptrType.Pointee.GetName(), ptrType.ID, ptrType.Name, new(T), ptrType.Pointee,
 		)
 	}
 	return pointee, nil
@@ -1090,7 +1156,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	var groupReferenceType *ir.StructureType
 	var groupType *ir.StructureType
 	{
-		dirPtrType, err := fieldType[*ir.PointerType](st, "dirPtr")
+		dirPtrType, err := fieldType[*ir.PointerType](tc, st, "dirPtr")
 		if err != nil {
 			return err
 		}
@@ -1102,11 +1168,11 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 		if err != nil {
 			return err
 		}
-		groupReferenceType, err = fieldType[*ir.StructureType](tableType, "groups")
+		groupReferenceType, err = fieldType[*ir.StructureType](tc, tableType, "groups")
 		if err != nil {
 			return err
 		}
-		groupPtrType, err := fieldType[*ir.PointerType](groupReferenceType, "data")
+		groupPtrType, err := fieldType[*ir.PointerType](tc, groupReferenceType, "data")
 		if err != nil {
 			return err
 		}
@@ -1118,9 +1184,10 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 
 	tablePtrSliceDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
-			ByteSize: tc.maxHashBucketsSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         tablePtrType.GetByteSize(),
 		},
 		Element: tablePtrType,
 	}
@@ -1128,9 +1195,10 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 
 	groupSliceType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", groupType.GetName()),
-			ByteSize: uint32(tc.maxDynamicTypeSize),
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", groupType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         groupType.GetByteSize(),
 		},
 		Element: groupType,
 	}
@@ -1153,7 +1221,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 }
 
 func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
-	bucketsField, err := field(st, "buckets")
+	bucketsField, err := field(tc, st, "buckets")
 	if err != nil {
 		return err
 	}
@@ -1161,12 +1229,12 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	if err != nil {
 		return err
 	}
-	keysArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "keys")
+	keysArrayType, err := fieldType[*ir.ArrayType](tc, bucketsStructType, "keys")
 	if err != nil {
 		return err
 	}
 	keyType := keysArrayType.Element
-	valuesArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "values")
+	valuesArrayType, err := fieldType[*ir.ArrayType](tc, bucketsStructType, "values")
 	if err != nil {
 		return err
 	}
@@ -1178,9 +1246,10 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	bucketsSliceDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("[]%s.array", bucketsType.GetName()),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", bucketsType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         bucketsType.GetByteSize(),
 		},
 		Element: bucketsType,
 	}
@@ -1196,15 +1265,16 @@ func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 }
 
 func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
-	strField, err := field(st, "str")
+	strField, err := field(tc, st, "str")
 	if err != nil {
 		return err
 	}
 	strDataType := &ir.GoStringDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("%s.str", st.Name),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("%s.str", st.Name),
+			DynamicSizeClass: ir.DynamicSizeString,
+			ByteSize:         1,
 		},
 	}
 	tc.typesByID[strDataType.ID] = strDataType
@@ -1227,7 +1297,7 @@ func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
 }
 
 func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
-	arrayField, err := field(st, "array")
+	arrayField, err := field(tc, st, "array")
 	if err != nil {
 		return err
 	}
@@ -1237,9 +1307,10 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 	}
 	arrayDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("%s.array", st.Name),
-			ByteSize: tc.maxDynamicTypeSize,
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("%s.array", st.Name),
+			DynamicSizeClass: ir.DynamicSizeSlice,
+			ByteSize:         elementType.GetByteSize(),
 		},
 		Element: elementType,
 	}
@@ -1305,6 +1376,7 @@ func populateEventExpressions(
 		expr := &ir.RootExpression{
 			Name:   variable.Name,
 			Offset: uint32(0),
+			Kind:   ir.RootExpressionKindArgument,
 			Expression: ir.Expression{
 				Type: variable.Type,
 				Operations: []ir.ExpressionOp{
@@ -1519,11 +1591,18 @@ func (v *unitChildVisitor) push(
 			}
 		}
 
-		nameWithoutStar := name
-		if entry.Tag == dwarf.TagPointerType {
-			nameWithoutStar = name[1:]
+		interesting := false
+		if entry.Tag != dwarf.TagTypedef && (name == "runtime.g" || name == "runtime.m") {
+			interesting = true
 		}
-		if primitiveTypeNameRegexp.MatchString(nameWithoutStar) {
+		if !interesting {
+			nameWithoutStar := name
+			if entry.Tag == dwarf.TagPointerType {
+				nameWithoutStar = name[1:]
+			}
+			interesting = primitiveTypeNameRegexp.MatchString(nameWithoutStar)
+		}
+		if interesting {
 			v.root.interestingTypes = append(v.root.interestingTypes, entry.Offset)
 		}
 		return nil, nil
@@ -1690,7 +1769,7 @@ func newProbe(
 	probeCfg ir.ProbeDefinition,
 	subprogram *ir.Subprogram,
 	eventIDAlloc *idAllocator[ir.EventID],
-	prologueLocs map[uint64]prologueEndLocation,
+	lineData map[ir.PCRange]lineData,
 ) (*ir.Probe, ir.Issue, error) {
 	kind := probeCfg.GetKind()
 	if !kind.IsValid() {
@@ -1708,10 +1787,10 @@ func newProbe(
 		}, nil
 	}
 	if subprogram.OutOfLinePCRanges != nil {
-		pc := subprogram.OutOfLinePCRanges[0][0]
-		loc, ok := prologueLocs[pc]
+		loc, ok := lineData[subprogram.OutOfLinePCRanges[0]]
 		if !ok {
-			return nil, ir.Issue{}, fmt.Errorf("missing prologue loc for: %d", pc)
+			return nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x]",
+				subprogram.OutOfLinePCRanges[0][0], subprogram.OutOfLinePCRanges[0][1])
 		}
 		if loc.err != nil {
 			return nil, ir.Issue{
@@ -1719,29 +1798,34 @@ func newProbe(
 				Message: loc.err.Error(),
 			}, nil
 		}
+		frameless := loc.prologueEnd == 0
+		injectionPC := loc.prologueEnd
+		if injectionPC == 0 {
+			injectionPC = subprogram.OutOfLinePCRanges[0][0]
+		}
 		switch arch {
 		case "amd64":
 			// Do nothing
 		case "arm64":
 			// On arm, the prologue end is marked before the stack allocation.
-			loc.frameless = true
+			frameless = true
 		default:
 			return nil, ir.Issue{}, fmt.Errorf("unsupported architecture: %s", arch)
 		}
 		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC:        loc.pc,
-			Frameless: loc.frameless,
+			PC:        injectionPC,
+			Frameless: frameless,
 		})
 	}
 	for _, inlined := range subprogram.InlinePCRanges {
-		pc := inlined.RootRanges[0][0]
-		loc, ok := prologueLocs[pc]
+		loc, ok := lineData[inlined.RootRanges[0]]
 		if !ok {
-			return nil, ir.Issue{}, fmt.Errorf("missing prologue loc for: %d", pc)
+			return nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x]",
+				inlined.RootRanges[0][0], inlined.RootRanges[0][1])
 		}
 		injectionPoints = append(injectionPoints, ir.InjectionPoint{
 			PC:        inlined.Ranges[0][0],
-			Frameless: loc.frameless,
+			Frameless: loc.prologueEnd == 0,
 		})
 	}
 
@@ -1764,9 +1848,9 @@ func newProbe(
 	return probe, ir.Issue{}, nil
 }
 
-func findPrologueEnd(
+func collectLineDataForRange(
 	lineReader *dwarf.LineReader, r ir.PCRange,
-) (injectionPC uint64, ok bool, err error) {
+) lineData {
 	var lineEntry dwarf.LineEntry
 	prevPos := lineReader.Tell()
 	// In general, SeekPC is not the function we're looking for.  We
@@ -1776,7 +1860,7 @@ func findPrologueEnd(
 	//
 	// TODO: Find a way to seek to the first entry in a range rather
 	// than just
-	err = lineReader.SeekPC(r[0], &lineEntry)
+	err := lineReader.SeekPC(r[0], &lineEntry)
 	// If we find that we have a hole, then we'll have our hands on
 	// a reader that's positioned after our PC. We can then seek to
 	// the instruction prior to that which should be in range of a
@@ -1798,30 +1882,27 @@ func findPrologueEnd(
 		// than starting from 0 for the next seek given the caller is exploring
 		// in PC order.
 		lineReader.Seek(prevPos)
-		return 0, false, err
+		return lineData{err: err}
 	}
-	// For whatever reason the entrypoint of a function is marked as a
-	// statement and then should come the prologue end. If we see two
-	// statements in a row then we're not going to find the prologue end.
-	stmtsSeen := 0
-	for lineEntry.Address < r[1] && stmtsSeen < 2 {
+	prologueEnd := uint64(0)
+	lines := []line{}
+	for lineEntry.Address < r[1] {
 		if lineEntry.PrologueEnd {
-			return lineEntry.Address, true, nil
+			prologueEnd = lineEntry.Address
 		}
-		if lineEntry.IsStmt {
-			stmtsSeen++
-		}
+		lines = append(lines, line{
+			pc:          lineEntry.Address,
+			line:        uint32(lineEntry.Line),
+			isStatement: lineEntry.IsStmt,
+		})
 		if err := lineReader.Next(&lineEntry); err != nil {
-			// Should this return an error?
-			//
-			// In general, if we don't have the proper prologue end
-			// and it's not a frameless subprogram, then we're going
-			// to have a problem on x86 because we won't know the
-			// real cfa. On ARM things may be better.
-			break
+			return lineData{err: err}
 		}
 	}
-	return 0, false, nil
+	return lineData{
+		prologueEnd: prologueEnd,
+		lines:       lines,
+	}
 }
 
 type subprogramChildVisitor struct {
@@ -2053,7 +2134,7 @@ func computeLocations(
 	// BUG: We shouldn't pass subprogramRanges below; we should take into
 	// consideration the ranges of the current block, not necessarily the ranges
 	// of the subprogram.
-	locations, err := dwarfutil.ProcessLocations(
+	locations, err := loclist.ProcessLocations(
 		locField, unit, loclistReader, subprogramRanges, typ.GetByteSize(), pointerSize)
 	if err != nil {
 		if loclistErrorLogLimiter.Allow() {

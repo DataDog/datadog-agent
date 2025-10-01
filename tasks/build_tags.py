@@ -58,6 +58,7 @@ ALL_TAGS = {
     "serverless",
     "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
     "systemd",
+    "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
     "trivy_no_javadb",
@@ -96,6 +97,7 @@ AGENT_TAGS = {
     "podman",
     "python",
     "systemd",
+    "systemprobechecks",
     "trivy",
     "trivy_no_javadb",
     "zk",
@@ -260,7 +262,12 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy"}
 
 # List of tags to always remove when building on Windows
-WINDOWS_EXCLUDE_TAGS = {"linux_bpf", "nvml", "requirefips"}
+WINDOWS_EXCLUDE_TAGS = {
+    "linux_bpf",
+    "nvml",
+    "requirefips",
+    "crio",
+}
 
 # List of tags to always remove when building on Darwin/macOS
 DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "no_dynamic_plugins", "nvml", "cri", "crio"}

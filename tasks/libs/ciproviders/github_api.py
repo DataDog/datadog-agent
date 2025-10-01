@@ -548,9 +548,9 @@ class GithubAPI:
             # retrieve it, given the other credentials (app id + key).
             integration = GithubIntegration(auth=appAuth)
             installations = integration.get_installations()
-            if len(installations) == 0:
+            if installations.totalCount == 0:
                 raise Exit(message='No usable installation found', code=1)
-            installation_id = installations[0]
+            installation_id = installations[0].id
         return appAuth.get_installation_auth(int(installation_id))
 
     @staticmethod

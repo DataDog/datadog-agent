@@ -11,6 +11,18 @@ import (
 	"path/filepath"
 )
 
+func isSameFile(file1, file2 string) bool {
+	stat1, err := os.Stat(file1)
+	if err != nil {
+		return false
+	}
+	stat2, err := os.Stat(file2)
+	if err != nil {
+		return false
+	}
+	return os.SameFile(stat1, stat2)
+}
+
 // replaceConfigDirectory replaces the contents of two directories.
 func replaceConfigDirectory(oldDir, newDir string) (err error) {
 	backupPath := filepath.Clean(oldDir) + ".bak"

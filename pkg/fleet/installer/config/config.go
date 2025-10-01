@@ -18,6 +18,8 @@ import (
 
 	patch "gopkg.in/evanphx/json-patch.v4"
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 )
 
 const (
@@ -50,13 +52,21 @@ type State struct {
 
 // GetState returns the state of the directories.
 func (d *Directories) GetState() (State, error) {
-	stableDeploymentID, err := os.ReadFile(filepath.Join(d.StablePath, deploymentIDFile))
+	stablePath := filepath.Join(d.StablePath, deploymentIDFile)
+	experimentPath := filepath.Join(d.ExperimentPath, deploymentIDFile)
+	stableDeploymentID, err := os.ReadFile(stablePath)
 	if err != nil && !os.IsNotExist(err) {
 		return State{}, err
 	}
-	experimentDeploymentID, err := os.ReadFile(filepath.Join(d.ExperimentPath, deploymentIDFile))
+	experimentDeploymentID, err := os.ReadFile(experimentPath)
 	if err != nil && !os.IsNotExist(err) {
 		return State{}, err
+	}
+	stableExists := len(stableDeploymentID) > 0
+	experimentExists := len(experimentDeploymentID) > 0
+	// If experiment is symlinked to stable, it means the experiment is not installed.
+	if stableExists && experimentExists && isSameFile(stablePath, experimentPath) {
+		experimentDeploymentID = nil
 	}
 	return State{
 		StableDeploymentID:     string(stableDeploymentID),
@@ -74,6 +84,9 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err != nil {
 		return err
 	}
+
+	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
+
 	err = operations.Apply(d.ExperimentPath)
 	if err != nil {
 		return err
@@ -98,6 +111,10 @@ func (d *Directories) PromoteExperiment(_ context.Context) error {
 // RemoveExperiment removes the experiment from the directories.
 func (d *Directories) RemoveExperiment(_ context.Context) error {
 	err := os.RemoveAll(d.ExperimentPath)
+	if err != nil {
+		return err
+	}
+	err = symlink.Set(d.ExperimentPath, d.StablePath)
 	if err != nil {
 		return err
 	}
@@ -247,9 +264,16 @@ var (
 		"/conf.d/*.yaml",
 		"/conf.d/*.d/*.yaml",
 	}
+
+	legacyPathPrefix = filepath.Join("managed", "datadog-agent", "stable")
 )
 
 func configNameAllowed(file string) bool {
+	// Matching everything under the legacy /managed directory
+	if strings.HasPrefix(file, "/managed") {
+		return true
+	}
+
 	for _, allowedFile := range allowedConfigFiles {
 		match, err := filepath.Match(allowedFile, file)
 		if err != nil {
@@ -260,4 +284,104 @@ func configNameAllowed(file string) bool {
 		}
 	}
 	return false
+}
+
+func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
+	var allOps []FileOperation
+
+	// /etc/datadog-agent/
+	realRootPath, err := filepath.EvalSymlinks(rootPath)
+	if err != nil {
+		return allOps
+	}
+
+	// Eval legacyPathPrefix symlink from rootPath
+	// /etc/datadog-agent/managed/datadog-agent/aaaa-bbbb-cccc
+	stableDirPath, err := filepath.EvalSymlinks(filepath.Join(realRootPath, legacyPathPrefix))
+	if err != nil {
+		return allOps
+	}
+
+	// managed/datadog-agent/aaaa-bbbb-cccc
+	managedDirSubPath, err := filepath.Rel(realRootPath, stableDirPath)
+	if err != nil {
+		return allOps
+	}
+
+	err = filepath.Walk(stableDirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		// Ignore application_monitoring.yaml as we need to keep it in the managed directory
+		if strings.HasSuffix(path, "application_monitoring.yaml") {
+			return nil
+		}
+
+		ops, err := buildOperationsFromLegacyConfigFile(path, realRootPath, managedDirSubPath)
+		if err != nil {
+			return err
+		}
+
+		allOps = append(allOps, ops...)
+		return nil
+	})
+	if err != nil {
+		return []FileOperation{}
+	}
+
+	return allOps
+}
+
+func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirSubPath string) ([]FileOperation, error) {
+	var ops []FileOperation
+
+	// Read the stable config file
+	stableDatadogYAML, err := os.ReadFile(fullFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ops, nil
+		}
+		return ops, err
+	}
+
+	// Since the config is YAML, we need to convert it to JSON
+	// 1. Parse the YAML in interface{}
+	// 2. Serialize the interface{} to JSON
+	var stableDatadogJSON interface{}
+	err = yaml.Unmarshal(stableDatadogYAML, &stableDatadogJSON)
+	if err != nil {
+		return ops, err
+	}
+	stableDatadogJSONBytes, err := json.Marshal(stableDatadogJSON)
+	if err != nil {
+		return ops, err
+	}
+
+	managedFilePath, err := filepath.Rel(fullRootPath, fullFilePath)
+	if err != nil {
+		return ops, err
+	}
+	fPath, err := filepath.Rel(managedDirSubPath, managedFilePath)
+	if err != nil {
+		return ops, err
+	}
+
+	// Add the merge patch operation
+	ops = append(ops, FileOperation{
+		FileOperationType: FileOperationType(FileOperationMergePatch),
+		FilePath:          "/" + strings.TrimPrefix(fPath, "/"),
+		Patch:             stableDatadogJSONBytes,
+	})
+
+	// Add the delete operation for the old file
+	ops = append(ops, FileOperation{
+		FileOperationType: FileOperationType(FileOperationDelete),
+		FilePath:          "/" + strings.TrimPrefix(managedFilePath, "/"),
+	})
+
+	return ops, nil
 }

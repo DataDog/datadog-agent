@@ -9,14 +9,18 @@ package rcscrape
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"slices"
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,11 +29,14 @@ import (
 // Scraper is a component that scrapes remote config files from processes.
 // It coalesces updates and reports them via the GetUpdates method.
 type Scraper struct {
-	tenant ActuatorTenant
-	mu     struct {
+	tenant      ActuatorTenant
+	loader      Loader
+	dispatcher  Dispatcher
+	irGenerator IRGenerator
+
+	mu struct {
 		sync.Mutex
 
-		sinks     map[ir.ProgramID]*scraperSink
 		processes map[actuator.ProcessID]*trackedProcess
 		debouncer debouncer
 	}
@@ -48,32 +55,52 @@ type trackedProcess struct {
 const defaultIdlePeriod = 250 * time.Millisecond
 
 // Actuator is an interface that enables the Scraper to create a new tenant.
-type Actuator[T ActuatorTenant] interface {
-	NewTenant(
-		name string,
-		reporter actuator.Reporter,
-		irGenerator actuator.IRGenerator,
-	) T
+type Actuator[AT ActuatorTenant] interface {
+	NewTenant(name string, runtime actuator.Runtime) AT
 }
 
-// ActuatorTenant is an interface that enables the Scraper to handle updates
+// ActuatorTenant is an interface that enables the Scraper to handle updates.
 type ActuatorTenant interface {
 	HandleUpdate(update actuator.ProcessesUpdate)
 }
 
+// Dispatcher is an interface that enables the Scraper to register and unregister
+// sinks.
+type Dispatcher interface {
+	RegisterSink(programID ir.ProgramID, sink dispatcher.Sink)
+	UnregisterSink(programID ir.ProgramID)
+}
+
+// Loader is an interface that enables the Scraper to load programs.
+type Loader interface {
+	Load(compiler.Program) (*loader.Program, error)
+}
+
+// IRGenerator is an interface that enables the Scraper to generate IR.
+type IRGenerator interface {
+	GenerateIR(
+		_ ir.ProgramID, executablePath string, _ []ir.ProbeDefinition,
+	) (*ir.Program, error)
+}
+
 // NewScraper creates a new Scraper.
-func NewScraper[A Actuator[T], T ActuatorTenant](
-	a A,
+func NewScraper[A Actuator[AT], AT ActuatorTenant](
+	a A, d Dispatcher, loader Loader,
 ) *Scraper {
-	v := &Scraper{}
-	v.mu.sinks = make(map[ir.ProgramID]*scraperSink)
+	return newScraper(a, d, loader, irGenerator{})
+}
+
+func newScraper[A Actuator[AT], AT ActuatorTenant](
+	a A, d Dispatcher, loader Loader, irGenerator IRGenerator,
+) *Scraper {
+	v := &Scraper{
+		dispatcher:  d,
+		loader:      loader,
+		irGenerator: irGenerator,
+	}
 	v.mu.debouncer = makeDebouncer(defaultIdlePeriod)
 	v.mu.processes = make(map[actuator.ProcessID]*trackedProcess)
-	v.tenant = a.NewTenant(
-		"rc-scrape",
-		(*scraperReporter)(v),
-		irGenerator{},
-	)
+	v.tenant = a.NewTenant("rc-scrape", (*scraperRuntime)(v))
 	return v
 }
 
@@ -150,7 +177,7 @@ func (s *Scraper) AddUpdate(
 
 // AddSymdbEnabled accumulates a SymDB enablement update for a process, to be
 // returned later by GetUpdates.
-func (s *Scraper) AddSymdbEnabled(
+func (s *Scraper) addSymdbEnabled(
 	now time.Time,
 	processID actuator.ProcessID,
 	runtimeID string,
@@ -211,16 +238,32 @@ func (h *procMonHandler) HandleUpdate(update procmon.ProcessesUpdate) {
 }
 
 type scraperSink struct {
-	// This is baking in on a deep level that the program is 1:1 with the
-	// process ID.
-	programID  ir.ProgramID
-	processID  actuator.ProcessID
-	executable actuator.Executable
-	scraper    *Scraper
-	decoder    *decoder
+	programID ir.ProgramID
+	processID actuator.ProcessID
+	scraper   *Scraper
+	decoder   *decoder
 }
 
-func (s *scraperSink) HandleEvent(ev output.Event) error {
+var sinkErrLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+
+func (s *scraperSink) HandleEvent(ev output.Event) (retErr error) {
+	// We don't want to fail out the actuator if we can't decode an event.
+	// Instead, we log the error and continue, but we'll make sure to clear
+	// the debouncer state for the process.
+	defer func() {
+		if retErr == nil {
+			return
+		}
+		if sinkErrLogLimiter.Allow() {
+			log.Errorf("rcscrape: error in HandleEvent: %v", retErr)
+		} else {
+			log.Debugf("rcscrape: error in HandleEvent: %v", retErr)
+		}
+		retErr = nil
+		s.scraper.mu.Lock()
+		defer s.scraper.mu.Unlock()
+		s.scraper.mu.debouncer.clear(s.processID)
+	}()
 	now := time.Now()
 	d, err := s.decoder.getEventDecoder(ev)
 	if err != nil {
@@ -239,7 +282,7 @@ func (s *scraperSink) HandleEvent(ev output.Event) error {
 		if err != nil {
 			return err
 		}
-		s.scraper.AddSymdbEnabled(now, s.processID, runtimeID, symdbEnabled)
+		s.scraper.addSymdbEnabled(now, s.processID, runtimeID, symdbEnabled)
 		return nil
 	default:
 		return fmt.Errorf("unknown event decoder: %T", d)
@@ -247,9 +290,6 @@ func (s *scraperSink) HandleEvent(ev output.Event) error {
 }
 
 func (s *scraperSink) Close() {
-	s.scraper.mu.Lock()
-	defer s.scraper.mu.Unlock()
-	delete(s.scraper.mu.sinks, s.programID)
 }
 
 func (s *Scraper) handleProcmonUpdates(update procmon.ProcessesUpdate) {
@@ -276,89 +316,3 @@ func (s *Scraper) untrackLocked(pid actuator.ProcessID) {
 	s.mu.debouncer.clear(pid)
 	delete(s.mu.processes, pid)
 }
-
-type scraperReporter Scraper
-
-// ReportAttached implements actuator.Reporter.
-func (s *scraperReporter) ReportAttached(
-	procID actuator.ProcessID,
-	_ *ir.Program,
-) {
-	log.Debugf("rcscrape: attached to process %v", procID)
-}
-
-// ReportAttachingFailed implements actuator.Reporter.
-func (s *scraperReporter) ReportAttachingFailed(
-	procID actuator.ProcessID,
-	_ *ir.Program,
-	err error,
-) {
-	log.Infof("rcscrape: failed to attach probes to process %v: %v", procID, err)
-	s.untrack(procID)
-}
-
-// ReportDetached implements actuator.Reporter.
-func (s *scraperReporter) ReportDetached(
-	procID actuator.ProcessID,
-	_ *ir.Program,
-) {
-	log.Tracef("rcscrape: detached from process %v", procID)
-	s.untrack(procID)
-}
-
-var noSuccessProbesError = &actuator.NoSuccessfulProbesError{}
-
-// ReportIRGenFailed implements actuator.Reporter.
-func (s *scraperReporter) ReportIRGenFailed(
-	processID actuator.ProcessID,
-	err error,
-	_ []ir.ProbeDefinition,
-) {
-	if errors.Is(err, noSuccessProbesError) {
-		log.Tracef(
-			"rcscrape: process %v has no successful probes, skipping", processID,
-		)
-	} else {
-		log.Errorf("rcscrape: failed to generate IR for process %v: %v", processID, err)
-	}
-	s.untrack(processID)
-}
-
-// ReportLoaded implements actuator.Reporter.
-func (s *scraperReporter) ReportLoaded(
-	processID actuator.ProcessID,
-	executable actuator.Executable,
-	program *ir.Program,
-) (actuator.Sink, error) {
-	decoder, err := newDecoder(program)
-	if err != nil {
-		return nil, err
-	}
-	sd := &scraperSink{
-		programID:  program.ID,
-		scraper:    (*Scraper)(s),
-		decoder:    decoder,
-		processID:  processID,
-		executable: executable,
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.mu.sinks[program.ID] = sd
-	return sd, nil
-}
-
-// ReportLoadingFailed implements actuator.Reporter.
-func (s *scraperReporter) ReportLoadingFailed(
-	processID actuator.ProcessID,
-	_ *ir.Program,
-	err error,
-) {
-	log.Errorf("rcscrape: failed to load program for process %v: %v", processID, err)
-	s.untrack(processID)
-}
-
-func (s *scraperReporter) untrack(processID actuator.ProcessID) {
-	((*Scraper)(s)).untrack(processID)
-}
-
-var _ actuator.Reporter = (*scraperReporter)(nil)

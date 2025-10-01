@@ -19,6 +19,7 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -470,7 +471,7 @@ type link struct {
 }
 
 func newLink(linkPath string) (*link, error) {
-	linkExists, err := linkExists(linkPath)
+	linkExists, err := symlink.Exist(linkPath)
 	if err != nil {
 		return nil, fmt.Errorf("could check if link exists: %w", err)
 	}
@@ -479,7 +480,7 @@ func newLink(linkPath string) (*link, error) {
 			linkPath: linkPath,
 		}, nil
 	}
-	packagePath, err := linkRead(linkPath)
+	packagePath, err := symlink.Read(linkPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not read link: %w", err)
 	}
@@ -510,7 +511,7 @@ func (l *link) Target() string {
 }
 
 func (l *link) Set(path string) error {
-	err := linkSet(l.linkPath, path)
+	err := symlink.Set(l.linkPath, path)
 	if err != nil {
 		return fmt.Errorf("could not set link: %w", err)
 	}
@@ -519,7 +520,7 @@ func (l *link) Set(path string) error {
 }
 
 func (l *link) Delete() error {
-	err := linkDelete(l.linkPath)
+	err := symlink.Delete(l.linkPath)
 	if err != nil {
 		return fmt.Errorf("could not delete link: %w", err)
 	}

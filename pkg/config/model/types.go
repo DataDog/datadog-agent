@@ -6,6 +6,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -14,14 +15,12 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-// ConfigFileNotFoundError wrapper error for when a config file is not found
-type ConfigFileNotFoundError struct {
-	Err error
-}
+// ErrConfigFileNotFound is an error for when the config file is not found
+var ErrConfigFileNotFound = errors.New("Config File Not Found")
 
-// Error returns the error message
-func (e ConfigFileNotFoundError) Error() string {
-	return fmt.Sprintf("Config File Not Found %v", e.Err.Error())
+// NewConfigFileNotFoundError returns a well known error for the config file missing
+func NewConfigFileNotFoundError(err error) error {
+	return fmt.Errorf("%w: %w", ErrConfigFileNotFound, err)
 }
 
 // Source stores what edits a setting as a string
@@ -147,6 +146,7 @@ type Reader interface {
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
+	GetSubfields(key string) []string
 
 	ConfigFileUsed() string
 	ExtraConfigFilesUsed() []string

@@ -531,7 +531,7 @@ func DatadogLogServerMock(overwriteHandlerFuncs ...OverwriteHandleFunc) *Datadog
 		// logs backend doesn't have validate endpoint
 		// but adding one here for ease of testing
 		"/api/v1/validate": validateAPIKeyEndpoint,
-		"/":                server.logsEndpoint,
+		"/{$}":             server.logsEndpoint,
 	}
 	for _, f := range overwriteHandlerFuncs {
 		p, hf := f()

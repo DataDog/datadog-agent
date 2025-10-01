@@ -73,10 +73,12 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 
 		if currData != nil {
 			aggr.processCurrentData(currData)
+			currData.releaseSpans()
 		}
 
 		if pastData != nil {
 			aggr.processPastData(pastData)
+			pastData.releaseSpans()
 		}
 	}
 
