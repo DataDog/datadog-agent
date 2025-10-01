@@ -414,28 +414,28 @@ func TestResolveTemplate(t *testing.T) {
 
 		tpl := integration.Config{
 			Name:        "service-check",
-			CELSelector: workloadfilter.Rules{KubeServices: []string{`service.name.matches("redis")`}},
+			CELSelector: workloadfilter.Rules{KubeServices: []string{`service.name.matches("redis") && service.namespace == "default"`}},
 		}
 		changes := ac.processNewConfig(tpl)
 		ac.applyChanges(changes)
-		assert.Equal(t, countLoadedConfigs(ac), 0)
+		assert.Equal(t, 0, countLoadedConfigs(ac))
 
 		// Test matching services
 		matchingService := listeners.CreateDummyKubeService("redis-service", "default", map[string]string{})
 		ac.processNewService(matchingService)
-		assert.Equal(t, countLoadedConfigs(ac), 1)
+		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		// Test non-matching services
 		service := listeners.CreateDummyKubeService("other-service", "default", map[string]string{})
 		ac.processNewService(service)
-		assert.Equal(t, countLoadedConfigs(ac), 1)
+		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		// Test service deletion
 		ac.processDelService(service)
-		assert.Equal(t, countLoadedConfigs(ac), 1)
+		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		ac.processDelService(matchingService)
-		assert.Equal(t, countLoadedConfigs(ac), 0)
+		assert.Equal(t, 0, countLoadedConfigs(ac))
 	})
 
 	t.Run("CEL Identifier on Kubernetes Endpoint", func(t *testing.T) {
@@ -447,29 +447,29 @@ func TestResolveTemplate(t *testing.T) {
 		}
 		changes := ac.processNewConfig(tpl)
 		ac.applyChanges(changes)
-		assert.Equal(t, countLoadedConfigs(ac), 0)
+		assert.Equal(t, 0, countLoadedConfigs(ac))
 
 		// Test matching endpoints
 		matchingService := listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{})
 		ac.processNewService(matchingService)
-		assert.Equal(t, countLoadedConfigs(ac), 1)
+		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		// Test non-matching endpoints
 		service := listeners.CreateDummyKubeEndpoint("name", "default", map[string]string{})
 		ac.processNewService(service)
-		assert.Equal(t, countLoadedConfigs(ac), 1)
+		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		service = listeners.CreateDummyKubeEndpoint("exclude-name", "include-ns", map[string]string{})
 		ac.processNewService(service)
-		assert.Equal(t, countLoadedConfigs(ac), 1)
+		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		service = listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{"team": "exclude"})
 		ac.processNewService(service)
-		assert.Equal(t, countLoadedConfigs(ac), 1)
+		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		// Test endpoint deletion
 		ac.processDelService(matchingService)
-		assert.Equal(t, countLoadedConfigs(ac), 0)
+		assert.Equal(t, 0, countLoadedConfigs(ac))
 	})
 
 	t.Run("CEL Identifier on Container", func(t *testing.T) {
@@ -484,7 +484,7 @@ func TestResolveTemplate(t *testing.T) {
 
 		service := listeners.CreateDummyContainerService(wmetaCtn, mockTagger, mockStore)
 		ac.processNewService(service)
-		assert.Equal(t, countLoadedConfigs(ac), 0)
+		assert.Equal(t, 0, countLoadedConfigs(ac))
 
 		// Container name and image matching
 		tpl := integration.Config{
@@ -493,15 +493,15 @@ func TestResolveTemplate(t *testing.T) {
 		}
 		changes := ac.processNewConfig(tpl)
 		ac.applyChanges(changes)
-		assert.Equal(t, countLoadedConfigs(ac), 1)
+		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		// Pod name and namespace matching
 		tpl = integration.Config{
 			Name:        "container-check-2",
-			CELSelector: workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name") && container.pod.namespace.matches("pod-ns")`}},
+			CELSelector: workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name") && container.pod.namespace.matches("pod-ns") && container.image != ""`}},
 		}
 		ac.applyChanges(ac.processNewConfig(tpl))
-		assert.Equal(t, countLoadedConfigs(ac), 2)
+		assert.Equal(t, 2, countLoadedConfigs(ac))
 
 		// AD Identifier + CEL matching
 		tpl = integration.Config{
@@ -510,23 +510,23 @@ func TestResolveTemplate(t *testing.T) {
 			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name")`}},
 		}
 		ac.applyChanges(ac.processNewConfig(tpl))
-		assert.Equal(t, countLoadedConfigs(ac), 3)
+		assert.Equal(t, 3, countLoadedConfigs(ac))
 
 		// Bad AD Identifier + CEL matching
 		tpl = integration.Config{
 			Name:          "container-check-4",
 			ADIdentifiers: []string{"not-container-image"},
-			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name")`}},
+			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name") && container.image != ""`}},
 		}
 		ac.applyChanges(ac.processNewConfig(tpl))
-		assert.Equal(t, countLoadedConfigs(ac), 3)
+		assert.Equal(t, 3, countLoadedConfigs(ac))
 
 		// Test service deletion
 		ac.processRemovedConfigs(changes.Schedule)
-		assert.Equal(t, countLoadedConfigs(ac), 2)
+		assert.Equal(t, 2, countLoadedConfigs(ac))
 
 		ac.processDelService(service)
-		assert.Equal(t, countLoadedConfigs(ac), 0)
+		assert.Equal(t, 0, countLoadedConfigs(ac))
 	})
 }
 

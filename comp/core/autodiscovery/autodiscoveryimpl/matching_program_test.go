@@ -42,8 +42,9 @@ func TestCreateMatchingProgram_EmptyRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			program, compileErr, recErr := createMatchingProgram(tt.rules)
+			program, celADID, compileErr, recErr := createMatchingProgram(tt.rules)
 			assert.Nil(t, program)
+			assert.Empty(t, celADID)
 			assert.NoError(t, compileErr)
 			assert.NoError(t, recErr)
 		})
@@ -59,21 +60,21 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 		{
 			name: "single defined rule",
 			rules: workloadfilter.Rules{
-				Containers: []string{`container.name == "nginx"`},
+				Containers: []string{`container.name == "nginx" && container.image == "nginx:latest"`},
 			},
 			expectedTarget: workloadfilter.ContainerType,
 		},
 		{
 			name: "service rules only",
 			rules: workloadfilter.Rules{
-				KubeServices: []string{`service.name == "api-service"`},
+				KubeServices: []string{`service.name.matches("api-service") && service.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.ServiceType,
 		},
 		{
 			name: "endpoint rules only",
 			rules: workloadfilter.Rules{
-				KubeEndpoints: []string{`endpoint.name == "api-endpoint"`},
+				KubeEndpoints: []string{`endpoint.name == "api-endpoint" && endpoint.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.EndpointType,
 		},
@@ -81,7 +82,7 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 			name: "multiple valid container rules",
 			rules: workloadfilter.Rules{
 				Containers: []string{
-					`container.name == "nginx"`,
+					`container.name == "nginx" && container.image == "nginx:latest"`,
 					`container.image.matches(".*redis.*")`,
 				},
 			},
@@ -101,9 +102,11 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			program, compileErr, _ := createMatchingProgram(tt.rules)
+			program, celADID, compileErr, recErr := createMatchingProgram(tt.rules)
 			assert.NotNil(t, program)
+			assert.NotEmpty(t, celADID)
 			assert.NoError(t, compileErr)
+			assert.NoError(t, recErr)
 			assert.Equal(t, tt.expectedTarget, program.GetTargetType())
 		})
 	}
@@ -160,7 +163,10 @@ func TestCreateMatchingProgram_RecommendationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, compileErr, recErr := createMatchingProgram(tt.rules)
+			program, celADID, compileErr, recErr := createMatchingProgram(tt.rules)
+			// The function should return a program but with a recommendation error
+			assert.NotNil(t, program)
+			assert.NotEmpty(t, celADID)
 			assert.NoError(t, compileErr)
 			assert.Error(t, recErr)
 		})
@@ -176,25 +182,25 @@ func TestCreateMatchingProgram_PriorityOrder(t *testing.T) {
 		{
 			name: "containers have priority over services",
 			rules: workloadfilter.Rules{
-				Containers:   []string{`container.name == "nginx"`},
-				KubeServices: []string{`service.name == "api"`},
+				Containers:   []string{`container.name == "nginx" && container.image == "nginx:latest"`},
+				KubeServices: []string{`service.name == "api" && service.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.ContainerType,
 		},
 		{
 			name: "services have priority over endpoints",
 			rules: workloadfilter.Rules{
-				KubeServices:  []string{`service.name == "api"`},
-				KubeEndpoints: []string{`endpoint.name == "api-endpoint"`},
+				KubeServices:  []string{`service.name == "api" && service.namespace == "default"`},
+				KubeEndpoints: []string{`endpoint.name == "api-endpoint" && endpoint.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.ServiceType,
 		},
 		{
 			name: "all types present - containers win",
 			rules: workloadfilter.Rules{
-				Containers:    []string{`container.name == "nginx"`},
-				KubeServices:  []string{`service.name == "api"`},
-				KubeEndpoints: []string{`endpoint.name == "api-endpoint"`},
+				Containers:    []string{`container.name == "nginx" && container.image == "nginx:latest"`},
+				KubeServices:  []string{`service.name == "api" && service.namespace == "default"`},
+				KubeEndpoints: []string{`endpoint.name == "api-endpoint" && endpoint.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.ContainerType,
 		},
@@ -202,9 +208,11 @@ func TestCreateMatchingProgram_PriorityOrder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			program, compileErr, _ := createMatchingProgram(tt.rules)
+			program, celADID, compileErr, recErr := createMatchingProgram(tt.rules)
 			assert.NotNil(t, program)
+			assert.NotEmpty(t, celADID)
 			assert.NoError(t, compileErr)
+			assert.NoError(t, recErr)
 			assert.Equal(t, tt.expectedTarget, program.GetTargetType())
 		})
 	}

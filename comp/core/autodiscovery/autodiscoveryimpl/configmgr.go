@@ -195,14 +195,6 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		log.Debugf("Config %s (digest %s) is already tracked by autodiscovery", config.Name, config.Digest())
 		return integration.ConfigChanges{}, changedIDsOfSecretsWithConfigs
 	}
-	prg, compileErr, recError := createMatchingProgram(config.CELSelector)
-	if compileErr != nil {
-		log.Warnf("Config %s (source %s) could not initialize: %v", config.Name, config.Source, compileErr)
-		return integration.ConfigChanges{}, changedIDsOfSecretsWithConfigs
-	} else if recError != nil {
-		log.Warnf("Config %s (source %s) does not have recommended configuration: %v", config.Name, config.Source, recError)
-	}
-	config.SetMatchingProgram(prg)
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
 	//

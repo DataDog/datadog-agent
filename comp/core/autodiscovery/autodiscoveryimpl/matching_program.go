@@ -97,21 +97,23 @@ func checkRuleRecommendations(rules string, celADID adtypes.CelIdentifier) error
 
 // createMatchingProgram creates a MatchingProgram from the given workloadfilter.Rules.
 // It returns nil if no rules are defined.
-func createMatchingProgram(rules workloadfilter.Rules) (program integration.MatchingProgram, compileError error, recError error) {
+func createMatchingProgram(rules workloadfilter.Rules) (program integration.MatchingProgram, celADID adtypes.CelIdentifier, compileErr error, recError error) {
 	ruleList, objectType, celADID := extractRuleMetadata(rules)
 	if len(ruleList) == 0 {
-		return nil, nil, nil
+		return nil, "", nil, nil
 	}
 
 	combinedRule := strings.Join(ruleList, " || ")
-	recError = checkRuleRecommendations(combinedRule, celADID)
-	celprg, compileError := celprogram.CreateCELProgram(combinedRule, objectType)
-	if compileError != nil {
-		return nil, compileError, recError
+
+	celprg, compileErr := celprogram.CreateCELProgram(combinedRule, objectType)
+	if compileErr != nil {
+		return nil, "", compileErr, nil
 	}
+
+	recError = checkRuleRecommendations(combinedRule, celADID)
 
 	return &matchingProgram{
 		program: celprg,
 		target:  objectType,
-	}, nil, recError
+	}, celADID, nil, recError
 }
