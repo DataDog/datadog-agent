@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -83,6 +84,8 @@ type cliParams struct {
 	// pidfilePath contains the value of the --pidfile flag.
 	pidfilePath string
 }
+
+const configSyncTimeout = 10 * time.Second
 
 // Commands returns a slice of subcommands for the 'system-probe' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -152,6 +155,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
 				remotehostnameimpl.Module(),
+				configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
 			)
 		},
 	}

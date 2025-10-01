@@ -15,4 +15,7 @@ package globalparams
 type GlobalParams struct {
 	// ConfFilePath holds the path to the host profiler configuration file.
 	ConfFilePath string
+
+	// CoreConfPath holds the path to the Datadog Agent config file.
+	CoreConfPath string
 }

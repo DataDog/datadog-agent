@@ -1,5 +1,8 @@
 receivers:
   profiling:
+processors:
+  infraattributes/default:
+    cardinality: 2 #HighCardinality
 exporters:
   debug: {}
   otlphttp:
@@ -11,5 +14,7 @@ service:
   pipelines:
     profiles:
       receivers: [profiling]
+      # infraattributes/default is automatically removed when the Agent Core is not available  
+      processors: [infraattributes/default]
       exporters: [otlphttp, debug]   
  

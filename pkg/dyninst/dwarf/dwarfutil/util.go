@@ -10,75 +10,15 @@ package dwarfutil
 
 import (
 	"debug/dwarf"
-	"fmt"
+	"encoding/binary"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 // PCRange corresponds to a range of program counters (PCs). Ranges are
 // inclusive of the start and exclusive of the end.
 type PCRange = [2]uint64
-
-// ProcessLocations processes a location field from a DWARF entry, parsing
-// location lists.
-//
-// unit is the DWARF compile unit entry that contains the location field.
-// blockRanges are the PC ranges of the lexical block containing the variable.
-// typeSize is the size, in bytes, of the type of the variable.
-func ProcessLocations(
-	locField *dwarf.Field,
-	unit *dwarf.Entry,
-	reader *loclist.Reader,
-	blockRanges []ir.PCRange,
-	typeSize uint32,
-	pointerSize uint8,
-) ([]ir.Location, error) {
-	var locations []ir.Location
-	switch locField.Class {
-	case dwarf.ClassLocListPtr:
-		offset, ok := locField.Val.(int64)
-		if !ok {
-			return nil, fmt.Errorf(
-				"unexpected location field type: %T", locField.Val,
-			)
-		}
-		loclist, err := reader.Read(unit, offset, typeSize)
-		if err != nil {
-			return nil, err
-		}
-		if len(loclist.Default) > 0 {
-			return nil, fmt.Errorf("unexpected default location pieces")
-		}
-		locations = loclist.Locations
-
-	case dwarf.ClassExprLoc:
-		instr, ok := locField.Val.([]byte)
-		if !ok {
-			return nil, fmt.Errorf(
-				"unexpected location field type: %T", locField.Val,
-			)
-		}
-		pieces, err := loclist.ParseInstructions(instr, pointerSize, typeSize)
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range blockRanges {
-			locations = append(locations, ir.Location{
-				Range:  r,
-				Pieces: pieces,
-			})
-		}
-	default:
-		return nil, fmt.Errorf(
-			"unexpected %s class: %s",
-			locField.Attr, locField.Class,
-		)
-	}
-
-	return locations, nil
-}
 
 // FilterIncompleteLocationLists filters out location lists that have missing pieces.
 func FilterIncompleteLocationLists(lists []ir.Location) []ir.Location {
@@ -145,3 +85,117 @@ func IsEntryNull(entry *dwarf.Entry) bool {
 		entry.Offset == 0 &&
 		entry.Tag == dwarf.Tag(0)
 }
+
+// CompileUnitHeader represents the header of a compile unit in the DWARF
+// debug_info section.
+type CompileUnitHeader struct {
+	// The offset of the compile unit DIE, which comes after the header.
+	Offset  dwarf.Offset
+	Version uint8
+	// Length of the compile unit, not including the header.
+	Length uint64
+}
+
+// ReadCompileUnitHeaders reads the headers of compile units from a debug_info
+// section.
+//
+// Inspired from https://github.com/go-delve/delve/blob/fa07b65188ae1293113e41fa9e44f47c061fb509/pkg/dwarf/parseutil.go#L109
+func ReadCompileUnitHeaders(data []byte) []CompileUnitHeader {
+	var headers []CompileUnitHeader
+	off := dwarf.Offset(0)
+	for len(data) > 0 {
+		length, dwarf64, version, _ := readCUHeaderInfo(data)
+
+		data = data[4:]
+		off += 4
+		secoffsz := uint64(4)
+		if dwarf64 {
+			off += 8
+			secoffsz = 8
+			data = data[8:]
+		}
+
+		var headerSize uint64
+
+		switch version {
+		case 2, 3, 4:
+			headerSize = 3 + secoffsz
+		default: // 5 and later?
+			unitType := data[2]
+
+			switch unitType {
+			case DW_UT_compile, DW_UT_partial:
+				headerSize = 4 + secoffsz
+
+			case DW_UT_skeleton, DW_UT_split_compile:
+				headerSize = 4 + secoffsz + 8
+
+			case DW_UT_type, DW_UT_split_type:
+				headerSize = 4 + secoffsz + 8 + secoffsz
+			}
+		}
+
+		headers = append(headers, CompileUnitHeader{
+			Offset:  off + dwarf.Offset(headerSize),
+			Version: version,
+			Length:  length - headerSize,
+		})
+
+		data = data[length:] // skip contents
+		off += dwarf.Offset(length)
+	}
+	return headers
+}
+
+// readCUHeaderInfo reads a some fields from a compile unit header.
+//
+// Inspired from https://github.com/go-delve/delve/blob/fa07b65188ae1293113e41fa9e44f47c061fb509/pkg/dwarf/parseutil.go#L58
+func readCUHeaderInfo(data []byte) (length uint64, dwarf64 bool, version uint8, byteOrder binary.ByteOrder) {
+	if len(data) < 4 {
+		return 0, false, 0, binary.LittleEndian
+	}
+
+	lengthfield := binary.LittleEndian.Uint32(data)
+	voff := 4
+	if lengthfield == ^uint32(0) {
+		dwarf64 = true
+		voff = 12
+	}
+
+	if voff+1 >= len(data) {
+		return 0, false, 0, binary.LittleEndian
+	}
+
+	byteOrder = binary.LittleEndian
+	x, y := data[voff], data[voff+1]
+	switch {
+	default:
+		fallthrough
+	case x == 0 && y == 0:
+		version = 0
+		byteOrder = binary.LittleEndian
+	case x == 0:
+		version = y
+		byteOrder = binary.BigEndian
+	case y == 0:
+		version = x
+		byteOrder = binary.LittleEndian
+	}
+
+	if dwarf64 {
+		length = byteOrder.Uint64(data[4:])
+	} else {
+		length = uint64(byteOrder.Uint32(data))
+	}
+
+	return length, dwarf64, version, byteOrder
+}
+
+const (
+	DW_UT_compile       = 0x1 + iota //nolint:revive
+	DW_UT_type                       //nolint:revive
+	DW_UT_partial                    //nolint:revive
+	DW_UT_skeleton                   //nolint:revive
+	DW_UT_split_compile              //nolint:revive
+	DW_UT_split_type                 //nolint:revive
+)

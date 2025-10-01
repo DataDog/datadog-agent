@@ -1,6 +1,5 @@
 Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
 Package: main
-	Function: noop (main.noop) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/busyloop/main.go [19:19]
 	Function: busyloop (main.busyloop) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/busyloop/main.go [21:56]
 		Arg: concurrency: int (declared at line 21, available: [21-56])
 		Arg: duration: time.Duration (declared at line 21, available: [21-56])
@@ -34,3 +33,4 @@ Package: main
 			Var: i: int (declared at line 83, available: [83-86], [88-88])
 		Scope: 90-93
 			Var: i: int (declared at line 90, available: [90-95])
+	Function: noop (main.noop) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/busyloop/main.go [19:19]

@@ -29,6 +29,8 @@ var (
 	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
 	// DefaultOTelAgentLogFile is the default otel-agent log file
 	DefaultOTelAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\otel-agent.log"
+	// DefaultHostProfilerLogFile is the default host-profiler log file
+	DefaultHostProfilerLogFile = "C:\\ProgramData\\Datadog\\logs\\host-profiler.log"
 	// DefaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	DefaultSystemProbeAddress = `\\.\pipe\dd_system_probe`
 	// defaultEventMonitorAddress is the default address to be used for connecting to the event monitor
@@ -57,6 +59,7 @@ func osinit() {
 		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
 		DefaultUpdaterLogFile = filepath.Join(pd, "logs", "updater.log")
 		DefaultOTelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
+		DefaultHostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
 	}
 
 	// Agent binary

@@ -17,18 +17,16 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Sink is an interface that abstracts the sink for the Actuator.
 type Sink interface {
-	// HandleEvent is called when an event is received from the kernel.
+	// HandleEvent is called when an message is received from the kernel.
 	//
-	// Note that the event must not be referenced after this call returns;
-	// the underlying memory is reused. If any of the data is needed after
-	// this call, it must be copied.
-	HandleEvent(output.Event) error
+	// Note that the caller may release the Message via its Release method for
+	// memory reuse.
+	HandleEvent(Message) error
 
 	// Close will be called when the sink is no longer needed.
 	Close()
@@ -149,8 +147,6 @@ func (d *Dispatcher) run(shuttingDown <-chan struct{}) (retErr error) {
 }
 
 func (d *Dispatcher) handleMessage(rec Message) error {
-	defer rec.Release()
-
 	ev := rec.Event()
 	evHeader, err := ev.Header()
 	if err != nil {
@@ -162,7 +158,7 @@ func (d *Dispatcher) handleMessage(rec Message) error {
 	if !ok {
 		return fmt.Errorf("no sink for program %d", progID)
 	}
-	if err := sink.HandleEvent(ev); err != nil {
+	if err := sink.HandleEvent(rec); err != nil {
 		return fmt.Errorf("error handling event: %w", err)
 	}
 	return nil

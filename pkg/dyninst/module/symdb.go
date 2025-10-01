@@ -316,10 +316,7 @@ func (m *symdbManager) performUpload(ctx context.Context, procID processKey, run
 	it, err := symdb.PackagesIterator(
 		executablePath,
 		m.objectLoader,
-		symdb.ExtractOptions{
-			Scope:                   symdb.ExtractScopeModulesFromSameOrg,
-			IncludeInlinedFunctions: false,
-		})
+		symdb.ExtractOptions{Scope: symdb.ExtractScopeModulesFromSameOrg})
 	if err != nil {
 		return fmt.Errorf("failed to read symbols for process %v (executable: %s): %w",
 			procID.pid, executablePath, err)

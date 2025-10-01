@@ -96,6 +96,9 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.RootExpressionKind) error {
 			return enc.WriteToken(jsontext.String(v.String()))
 		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.EventKind) error {
+			return enc.WriteToken(jsontext.String(v.String()))
+		}),
 	)
 	probeMarshalers := json.JoinMarshalers(
 		basicMarshalers,

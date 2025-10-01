@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func TestDeviceConfig_Validation(t *testing.T) {
+func TestDeviceInstance_Validation(t *testing.T) {
 	tests := []struct {
 		name        string
 		config      DeviceInstance
@@ -133,7 +133,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 	}
 }
 
-func TestDeviceConfig_YAML_Marshaling(t *testing.T) {
+func TestDeviceInstance_YAML_Marshaling(t *testing.T) {
 	config := DeviceInstance{
 		IPAddress: "10.100.1.1",
 		Auth: AuthCredentials{

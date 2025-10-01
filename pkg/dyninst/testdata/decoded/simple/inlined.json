@@ -75,7 +75,7 @@
           {
             "function": "main.inlined",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 77
+            "lineNumber": 79
           },
           {
             "function": "main.funcArg",
@@ -116,6 +116,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

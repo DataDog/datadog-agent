@@ -155,11 +155,14 @@ def update_go(_):
 
 # === PYTHON === #
 @task
-def python(ctx):
+def python(ctx, show_versions=False):
     """Lints Python files.
 
     See 'setup.cfg' and 'pyproject.toml' file for configuration. If
     running locally, you probably want to use the pre-commit instead.
+
+    Args:
+        show_versions: Show the versions of the linters that are being used.
     """
 
     print(
@@ -167,10 +170,15 @@ def python(ctx):
         "https://datadoghq.dev/datadog-agent/setup/optional/#pre-commit-hooks"
     )
 
+    if show_versions:
+        print(f"ruff version: {ctx.run('ruff --version', hide=True).stdout.strip()}")
+        print(f"vulture version: {ctx.run('vulture --version', hide=True).stdout.strip()}")
+        print(f"mypy version: {ctx.run('mypy --version', hide=True).stdout.strip()}")
+
     if running_in_ci():
         # We want to the CI to fail if there are any issues
-        ctx.run("ruff format --check .")
-        ctx.run("ruff check .")
+        ctx.run("ruff format --check --diff .")
+        ctx.run("ruff check --diff .")
     else:
         # Otherwise we just need to format the files
         ctx.run("ruff format .")

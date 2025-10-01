@@ -40,6 +40,7 @@ func main() {
 	t.MyMethod()
 	var it iterExample
 	it.rangeOverIterator()
+	lib.InlinedFunc()
 
 	// unsupported for MVP, should not cause failures
 	executeEsoteric()
