@@ -152,6 +152,13 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 	if ncr.Timeout != nil {
 		cfg.Timeout = time.Duration(*ncr.Timeout) * time.Second
 	}
+	if ncr.TracerouteCount != nil {
+		cfg.TracerouteQueries = *ncr.TracerouteCount
+	}
+	if ncr.ProbeCount != nil {
+		cfg.E2eQueries = *ncr.ProbeCount
+	}
+	cfg.ReverseDNS = true
 }
 
 // toNetpathConfig converts a SyntheticsTestConfig into a system-probe Config.
@@ -219,6 +226,7 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) erro
 	if err != nil {
 		return err
 	}
+	s.log.Debugf("resultId=%s", res.Result.ID)
 	payloadBytes, err := json.Marshal(res)
 	if err != nil {
 		return err
