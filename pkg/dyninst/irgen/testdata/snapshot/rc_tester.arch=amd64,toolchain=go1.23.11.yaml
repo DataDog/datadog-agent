@@ -11,8 +11,18 @@ Probes:
       subprogram: {subprogram: 1}
       events:
         - ID: 1
+          Kind: Entry
           Type: 188 EventRootType Probe[main.HandleHTTP]
           InjectionPoints: [{PC: "0xd597d3", Frameless: false}]
+          Condition: null
+        - ID: 2
+          Kind: Return
+          Type: 189 EventRootType Probe[main.HandleHTTP]Return
+          InjectionPoints:
+            - PC: "0xd59a14"
+              Frameless: false
+            - PC: "0xd59a2b"
+              Frameless: false
           Condition: null
     - id: look_at_the_request
       version: 0
@@ -24,9 +34,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
-        - ID: 2
-          Type: 189 EventRootType Probe[main.LookAtTheRequest]
+        - ID: 3
+          Kind: Entry
+          Type: 190 EventRootType Probe[main.LookAtTheRequest]
           InjectionPoints: [{PC: "0xd59b2e", Frameless: false}]
+          Condition: null
+        - ID: 4
+          Kind: Return
+          Type: 191 EventRootType Probe[main.LookAtTheRequest]Return
+          InjectionPoints: [{PC: "0xd59bbd", Frameless: false}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -513,6 +529,9 @@ Types:
                   ByteSize: 8
     - __kind: EventRootType
       ID: 189
+      Name: Probe[main.HandleHTTP]Return
+    - __kind: EventRootType
+      ID: 190
       Name: Probe[main.LookAtTheRequest]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -527,6 +546,9 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: path}
                   Offset: 0
                   ByteSize: 16
+    - __kind: EventRootType
+      ID: 191
+      Name: Probe[main.LookAtTheRequest]Return
     - __kind: ArrayType
       ID: 85
       Name: '[10]runtime.heldLockInfo'
@@ -2297,7 +2319,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 543392
       GoKind: 26
-MaxTypeID: 189
+MaxTypeID: 191
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x1804ac0", TypesOffset: 296}
 CommonTypes:

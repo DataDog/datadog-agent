@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -246,7 +245,9 @@ type scraperSink struct {
 
 var sinkErrLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
-func (s *scraperSink) HandleEvent(ev output.Event) (retErr error) {
+func (s *scraperSink) HandleEvent(msg dispatcher.Message) (retErr error) {
+	defer msg.Release()
+	ev := msg.Event()
 	// We don't want to fail out the actuator if we can't decode an event.
 	// Instead, we log the error and continue, but we'll make sure to clear
 	// the debouncer state for the process.

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -21,6 +22,7 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
@@ -377,8 +379,17 @@ func (l *Loader) loadData(
 	); err != nil {
 		return nil, fmt.Errorf("failed to set num_go_runtime_types: %w", err)
 	}
-	if err := setCommonConstants(spec, serialized); err != nil {
-		return nil, fmt.Errorf("failed to set common constants: %w", err)
+	// Allow a program to avoid setting common constants if it doesn't have
+	// any. This is something of a hack to allow for the rcscrape program to
+	// avoid needing constants, and corresponds to similar flexibility in the
+	// eBPF program.
+	//
+	// TODO: Remove this by either fully eliminating the rcscrape eBPF program
+	// or fully decoupling it from this program infrastructure.
+	if serialized.commonTypes != (ir.CommonTypes{}) {
+		if err := setCommonConstants(spec, serialized); err != nil {
+			return nil, fmt.Errorf("failed to set common constants: %w", err)
+		}
 	}
 
 	mapSpec, throttlerMap, err := makeArrayMap(
@@ -461,35 +472,46 @@ func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram
 	); err != nil {
 		return err
 	}
-	offset, err := serialized.commonTypes.G.FieldOffsetByName("goid")
-	if err != nil {
-		return err
+	g := serialized.commonTypes.G
+	m := serialized.commonTypes.M
+	stack, ok := g.FieldByName("stack")
+	if !ok {
+		return fmt.Errorf("stack field not found in runtime.g")
 	}
-	if err := setVariable(
-		spec, "OFFSET_runtime_dot_g__goid",
-		offset,
-	); err != nil {
-		return err
+	stackStruct, ok := stack.Type.(*ir.StructureType)
+	if !ok {
+		return fmt.Errorf("stack field of runtime.g is not a structure type, got %T", stack.Type)
 	}
-	offset, err = serialized.commonTypes.G.FieldOffsetByName("m")
-	if err != nil {
-		return err
-	}
-	if err := setVariable(
-		spec, "OFFSET_runtime_dot_g__m",
-		offset,
-	); err != nil {
-		return err
-	}
-	offset, err = serialized.commonTypes.M.FieldOffsetByName("curg")
-	if err != nil {
-		return err
-	}
-	if err := setVariable(
-		spec, "OFFSET_runtime_dot_m__curg",
-		offset,
-	); err != nil {
-		return err
+	for _, f := range []struct {
+		s            *ir.StructureType
+		fieldName    string
+		variableName string
+	}{
+		{m, "curg", "OFFSET_runtime_dot_m__curg"},
+		{g, "goid", "OFFSET_runtime_dot_g__goid"},
+		{g, "m", "OFFSET_runtime_dot_g__m"},
+		{g, "stack", "OFFSET_runtime_dot_g__stack"},
+		{stackStruct, "hi", "OFFSET_runtime_dot_stack__hi"},
+	} {
+		offset, err := f.s.FieldOffsetByName(f.fieldName)
+		if err != nil {
+			var fields []string
+			for field := range f.s.Fields() {
+				fields = append(fields, field.Name)
+			}
+			err = fmt.Errorf(
+				"failed to get field offset for %s in %s: %w (fields: %s)",
+				f.fieldName, f.s.Name, err, strings.Join(fields, ", "),
+			)
+			panic(err)
+		}
+
+		if err := setVariable(spec, f.variableName, offset); err != nil {
+			return fmt.Errorf(
+				"failed to set %s for %s in %s: %w",
+				f.variableName, f.fieldName, f.s.Name, err,
+			)
+		}
 	}
 	return nil
 }

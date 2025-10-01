@@ -145,8 +145,8 @@ func (f *FallbackConstantFetcher) AppendSizeofRequest(id, _ string) {
 	f.appendRequest(id)
 }
 
-// AppendOffsetofRequest appends an offset request
-func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, _ string, _ ...string) {
+// AppendOffsetofRequestWithFallbacks appends an offset request
+func (f *FallbackConstantFetcher) AppendOffsetofRequestWithFallbacks(id string, _ ...TypeFieldPair) {
 	f.appendRequest(id)
 }
 
@@ -1009,6 +1009,8 @@ func getFlowiProtoOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRockyKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15):
 		return 18
+	case kv.IsRH7Kernel():
+		fallthrough
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel5_18):
 		return 14
 	default:

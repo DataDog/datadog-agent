@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,14 @@ func TestHappyPathEndToEnd(t *testing.T) {
 	}
 }
 
+func makeFakeEvent(header output.EventHeader, data []byte) dispatcher.Message {
+	header.Data_byte_len = uint32(unsafe.Sizeof(header)) + uint32(len(data))
+	return dispatcher.MakeTestingMessage(append(
+		append(([]byte)(nil), unsafe.Slice((*byte)(unsafe.Pointer(&header)), unsafe.Sizeof(header))...),
+		data...,
+	))
+}
+
 // TestProgramLifecycleFlow tests the complete program lifecycle including
 // attachment, loading with metadata (git info, container info), and proper sink
 // creation with the correct uploader metadata.
@@ -105,7 +114,13 @@ func TestProgramLifecycleFlow(t *testing.T) {
 
 	decoder.probe = processUpdate.Probes[0]
 	decoder.output = `{"test": "data"}`
-	require.NoError(t, sink.HandleEvent(output.Event("event")))
+	header := output.EventHeader{
+		Goid:             1,
+		Stack_byte_depth: 2,
+		Probe_id:         3,
+	}
+	event := makeFakeEvent(header, []byte("event"))
+	require.NoError(t, sink.HandleEvent(event))
 	require.Len(t, decoder.decodeCalls, 1)
 
 	require.Equal(t, map[string]int{"probe-1": 1}, collectEmitting())
@@ -147,7 +162,7 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	require.Equal(t, map[string]int{"probe-1": 1}, collectEmitting())
 
 	decoder.probe = processUpdate.Probes[0]
-	require.NoError(t, sink2.HandleEvent(output.Event("event")))
+	require.NoError(t, sink2.HandleEvent(makeFakeEvent(header, []byte("event"))))
 	require.Equal(t, map[string]int{"probe-1": 2}, collectEmitting())
 
 	require.NoError(t, loaded2.Close())
@@ -300,7 +315,7 @@ func TestEventDecodingSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	decoder.probe = processUpdate.Probes[0]
-	event := output.Event([]byte("event"))
+	event := makeFakeEvent(output.EventHeader{}, []byte("event"))
 	require.NoError(t, sink.HandleEvent(event))
 	require.Len(t, decoder.decodeCalls, 1)
 
@@ -336,7 +351,7 @@ func TestEventDecodingFailure(t *testing.T) {
 	_, err = loaded.Attach(processUpdate.ProcessID, processUpdate.Executable)
 	require.NoError(t, err)
 
-	require.NoError(t, sink.HandleEvent(output.Event([]byte("event"))))
+	require.NoError(t, sink.HandleEvent(makeFakeEvent(output.EventHeader{}, []byte("event"))))
 
 	errorCount := 0
 	for _, msg := range deps.diagUploader.messages {
@@ -376,13 +391,13 @@ func TestDecoderErrorHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	decoder.probe = processUpdate.Probes[0]
-	require.NoError(t, sink.HandleEvent(output.Event([]byte("event-1"))))
+	require.NoError(t, sink.HandleEvent(makeFakeEvent(output.EventHeader{}, nil)))
 
 	errors := collectDiagnosticVersions(deps.diagUploader, uploader.StatusError)
 	require.Equal(t, map[string]int{"probe-1": 1}, errors)
 
 	decoder.probe = processUpdate.Probes[1]
-	require.NoError(t, sink.HandleEvent(output.Event([]byte("event-2"))))
+	require.NoError(t, sink.HandleEvent(makeFakeEvent(output.EventHeader{}, nil)))
 
 	emitting := collectDiagnosticVersions(deps.diagUploader, uploader.StatusEmitting)
 	require.Equal(t, map[string]int{"probe-2": 1}, emitting)

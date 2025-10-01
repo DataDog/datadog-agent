@@ -109,6 +109,11 @@ const (
 	// which is either true (dedicated CPUs) or false
 	KubeStaticCPUsTag = "kube_static_cpus"
 
+	// CPURestartPolicy is the tag for the container's CPU restart policy
+	CPURestartPolicy = "cpu_restart_policy"
+	// MemoryRestartPolicy is the tag for the container's memory restart policy
+	MemoryRestartPolicy = "memory_restart_policy"
+
 	// GPU related tags
 
 	// KubeGPUVendor the tag for the Kubernetes Resource GPU vendor (e.g., NVIDIA).

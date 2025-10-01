@@ -483,6 +483,26 @@ func (cr ContainerResources) String(bool) string {
 	return sb.String()
 }
 
+// ContainerResizePolicy represents a resize policy for a container
+type ContainerResizePolicy struct {
+	CPURestartPolicy    string
+	MemoryRestartPolicy string
+
+	// Currently, the only supported resourceName values are "cpu" and "memory"
+	// Additionally, these strings are always either "NotRequired" or "RestartContainer" (k8s docs)
+}
+
+func (crp ContainerResizePolicy) String() string {
+	var sb strings.Builder
+	if crp.CPURestartPolicy != "" {
+		_, _ = fmt.Fprintln(&sb, "RestartPolicy (CPU):", crp.CPURestartPolicy)
+	}
+	if crp.MemoryRestartPolicy != "" {
+		_, _ = fmt.Fprintln(&sb, "RestartPolicy (Memory):", crp.MemoryRestartPolicy)
+	}
+	return sb.String()
+}
+
 // ContainerAllocatedResource is a resource allocated to a container, consisting of a name and an ID.
 type ContainerAllocatedResource struct {
 	// Name is the name of the resource as defined in the pod spec (e.g. "nvidia.com/gpu").
@@ -596,6 +616,7 @@ type Container struct {
 	SecurityContext *ContainerSecurityContext
 	ReadinessProbe  *ContainerProbe
 	Resources       ContainerResources
+	ResizePolicy    ContainerResizePolicy
 
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
@@ -652,6 +673,11 @@ func (c Container) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Resize Policy -----------")
+		_, _ = fmt.Fprint(&sb, c.ResizePolicy.String())
+	}
 
 	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
 	for _, r := range c.ResolvedAllocatedResources {

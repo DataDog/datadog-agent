@@ -33,6 +33,7 @@
     *   [Using with External ("Alien") VMs](#using-with-external-alien-vms)
 *   [Troubleshooting](#troubleshooting)
     *   [macOS Network Issues](#macos-network-issues)
+    *   [Selfcheck](#selfcheck)
 
 ## Overview
 
@@ -591,3 +592,17 @@ dda inv -e kmt.test --packages=./pkg/ebpf --run=TestLockRanges/Hashmap --alien-v
 For macOS users, networking for local VMs may not work correctly unless **Internet Sharing** is enabled.
 
 You can enable it in `System Settings > General > Sharing`. The interface you share from does not matter, as long as the feature is active for your main internet connection. We would appreciate it if you reported any occurrences of this to the eBPF platform team, as it's not yet clear why this is sometimes required.
+
+### Selfcheck
+
+You can run the selfcheck command to check if the system is ready to run KMT.
+
+```bash
+dda inv kmt.selfcheck
+```
+
+This command will check all the requirements to run KMT. If you want to check only the requirements to launch remote VMs, you can use the `--remote-setup-only` flag.
+
+The result will be a list of requirements and their status (OK/FAIL). Each failed requirement will explain why it failed. Some of them are automatically fixable (search for the _fixable_ keyword), which means that running `dda inv kmt.selfcheck --fix` will fix the requirement.
+
+There is an additional flag to show extra information about the failures, `--show-flare-for-failures`. This can help you understand the failures better. It's also useful information to share with #ebpf-platform in case of a failure that requires debugging.

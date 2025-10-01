@@ -132,6 +132,8 @@ type Event struct {
 	// ID of the event. This is used to identify data produced by the event over
 	// the ring buffer.
 	ID EventID
+	// Kind is the kind of event.
+	Kind EventKind
 	// The datatype of the event.
 	Type *EventRootType
 	// The PC values at which the event should be injected.
@@ -146,4 +148,9 @@ type InjectionPoint struct {
 	PC uint64
 	// Whether the function at that PC is frameless.
 	Frameless bool
+	// HasAssociatedReturn is true if there is going to be a return associated
+	// with this call.
+	HasAssociatedReturn bool `json:"-"`
+	// TopPCOffset is the offset of the top PC from the entry PC.
+	TopPCOffset int8 `json:"-"`
 }
