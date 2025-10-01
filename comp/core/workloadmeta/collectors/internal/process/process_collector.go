@@ -524,6 +524,10 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 	// Convert InjectedPIDs to PidSet for efficient lookup
 	injectedPids := make(core.PidSet)
 	for _, pid := range resp.InjectedPIDs {
+		if c.injectedOnlyPids.Has(int32(pid)) {
+			continue
+		}
+
 		injectedPids.Add(int32(pid))
 	}
 
