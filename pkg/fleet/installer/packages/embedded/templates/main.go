@@ -88,20 +88,22 @@ func mustReadSystemdUnit(name string, data systemdTemplateData) []byte {
 
 func systemdUnits(stableData, expData, ddotStableData, ddotExpData systemdTemplateData, includeInstaller bool) map[string][]byte {
 	units := map[string][]byte{
-		"datadog-agent.service":               mustReadSystemdUnit("datadog-agent.service", stableData),
-		"datadog-agent-exp.service":           mustReadSystemdUnit("datadog-agent.service", expData),
-		"datadog-agent-installer.service":     mustReadSystemdUnit("datadog-agent-installer.service", stableData),
-		"datadog-agent-installer-exp.service": mustReadSystemdUnit("datadog-agent-installer.service", expData),
-		"datadog-agent-trace.service":         mustReadSystemdUnit("datadog-agent-trace.service", stableData),
-		"datadog-agent-trace-exp.service":     mustReadSystemdUnit("datadog-agent-trace.service", expData),
-		"datadog-agent-process.service":       mustReadSystemdUnit("datadog-agent-process.service", stableData),
-		"datadog-agent-process-exp.service":   mustReadSystemdUnit("datadog-agent-process.service", expData),
-		"datadog-agent-security.service":      mustReadSystemdUnit("datadog-agent-security.service", stableData),
-		"datadog-agent-security-exp.service":  mustReadSystemdUnit("datadog-agent-security.service", expData),
-		"datadog-agent-sysprobe.service":      mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData),
-		"datadog-agent-sysprobe-exp.service":  mustReadSystemdUnit("datadog-agent-sysprobe.service", expData),
-		"datadog-agent-ddot.service":          mustReadSystemdUnit("datadog-agent-ddot.service", ddotStableData),
-		"datadog-agent-ddot-exp.service":      mustReadSystemdUnit("datadog-agent-ddot.service", ddotExpData),
+		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData),
+		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData),
+		"datadog-agent-installer.service":      mustReadSystemdUnit("datadog-agent-installer.service", stableData),
+		"datadog-agent-installer-exp.service":  mustReadSystemdUnit("datadog-agent-installer.service", expData),
+		"datadog-agent-trace.service":          mustReadSystemdUnit("datadog-agent-trace.service", stableData),
+		"datadog-agent-trace-exp.service":      mustReadSystemdUnit("datadog-agent-trace.service", expData),
+		"datadog-agent-process.service":        mustReadSystemdUnit("datadog-agent-process.service", stableData),
+		"datadog-agent-process-exp.service":    mustReadSystemdUnit("datadog-agent-process.service", expData),
+		"datadog-agent-security.service":       mustReadSystemdUnit("datadog-agent-security.service", stableData),
+		"datadog-agent-security-exp.service":   mustReadSystemdUnit("datadog-agent-security.service", expData),
+		"datadog-agent-sysprobe.service":       mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData),
+		"datadog-agent-sysprobe-exp.service":   mustReadSystemdUnit("datadog-agent-sysprobe.service", expData),
+		"datadog-agent-data-plane.service":     mustReadSystemdUnit("datadog-agent-data-plane.service", stableData),
+		"datadog-agent-data-plane-exp.service": mustReadSystemdUnit("datadog-agent-data-plane.service", expData),
+		"datadog-agent-ddot.service":           mustReadSystemdUnit("datadog-agent-ddot.service", ddotStableData),
+		"datadog-agent-ddot-exp.service":       mustReadSystemdUnit("datadog-agent-ddot.service", ddotExpData),
 	}
 	if includeInstaller {
 		units["datadog-installer.service"] = mustReadSystemdUnit("datadog-installer.service", stableData)
