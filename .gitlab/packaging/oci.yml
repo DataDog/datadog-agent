@@ -113,6 +113,7 @@ celian_package_oci:
     - echo OK
   variables:
     OCI_PRODUCT: "datadog-installer"
+  needs: []
 
 ddot_oci:
   extends: .package_oci
