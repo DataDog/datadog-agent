@@ -57,6 +57,7 @@
     - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
     - export WINDOWS_DDPROCMON_DRIVER=${WINDOWS_DDPROCMON_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)}
   variables:
+    GIT_STRATEGY: "clone" # Needed because we use git merge-base
     DYNAMIC_TESTS_FLAG: "--impacted"
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi
