@@ -26,7 +26,7 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	configType := RUNNING
 	timestamp := now
 	tags := []string{"device_type:router", "vendor:cisco"}
-	content := "version 15.1\nhostname Router1"
+	content := []byte("version 15.1\nhostname Router1")
 
 	config := ToNetworkDeviceConfig(deviceID, deviceIP, configType, now, tags, content)
 
@@ -58,7 +58,7 @@ func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", tt.configType, 0, nil, "")
+			config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", tt.configType, 0, nil, []byte(""))
 			assert.Equal(t, tt.expected, config.ConfigType)
 		})
 	}
@@ -76,7 +76,7 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 			ConfigType: string(RUNNING),
 			Timestamp:  timestamp,
 			Tags:       []string{"device_type:router"},
-			Content:    "running config content",
+			Content:    []byte("running config content"),
 		},
 		{
 			DeviceID:   "default:10.0.0.1",
@@ -84,7 +84,7 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 			ConfigType: string(STARTUP),
 			Timestamp:  timestamp,
 			Tags:       []string{"device_type:router"},
-			Content:    "startup config content",
+			Content:    []byte("startup config content"),
 		},
 	}
 

@@ -41,7 +41,7 @@ type NetworkDeviceConfig struct {
 	ConfigType string   `json:"config_type"`
 	Timestamp  int64    `json:"timestamp"`
 	Tags       []string `json:"tags"`
-	Content    string   `json:"content"`
+	Content    []byte   `json:"content"`
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
@@ -55,7 +55,7 @@ func ToNCMPayload(namespace string, integration integrations.Integration, config
 }
 
 // ToNetworkDeviceConfig converts the given parameters into a NetworkDeviceConfig, representing a single device's configuration in a point in time.
-func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ConfigType, timestamp int64, tags []string, content string) NetworkDeviceConfig {
+func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ConfigType, timestamp int64, tags []string, content []byte) NetworkDeviceConfig {
 	return NetworkDeviceConfig{
 		DeviceID:   deviceID,
 		DeviceIP:   deviceIP,
@@ -67,12 +67,12 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ConfigType, tim
 }
 
 // RetrieveTimestampFromConfig extracts the last change timestamp if available
-func RetrieveTimestampFromConfig(config string) (int64, error) {
+func RetrieveTimestampFromConfig(config []byte) (int64, error) {
 	// TODO: Should this be part of processing in the Datadog backend instead?
 	// TODO: To load the respective validation/parsing regex/logic per vendor (within config or another command response)
 	// Currently only Cisco IOS is supported as a first step.
 	timeRegex := regexp.MustCompile(`Last configuration change at (.+)`)
-	match := timeRegex.FindStringSubmatch(config)
+	match := timeRegex.FindStringSubmatch(string(config))
 	if len(match) < 2 {
 		return -1, fmt.Errorf("unable to find last change timestamp in config")
 	}
