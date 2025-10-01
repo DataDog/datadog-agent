@@ -103,7 +103,10 @@ type FilterFunc func(integration.Config) bool
 var GetAll FilterFunc = func(_ integration.Config) bool { return true }
 
 // WithAdvancedADOnly makes ReadConfigFiles return the configurations with AdvancedADIdentifiers only.
-var WithAdvancedADOnly FilterFunc = func(c integration.Config) bool { return len(c.AdvancedADIdentifiers) > 0 }
+// This includes configurations with CEL selectors targeting kubernetes services or endpoints.
+var WithAdvancedADOnly FilterFunc = func(c integration.Config) bool {
+	return len(c.AdvancedADIdentifiers) > 0 || len(c.CELSelector.KubeServices) > 0 || len(c.CELSelector.KubeEndpoints) > 0
+}
 
 // WithoutAdvancedAD makes ReadConfigFiles return the all configurations except the ones with AdvancedADIdentifiers.
 var WithoutAdvancedAD FilterFunc = func(c integration.Config) bool { return len(c.AdvancedADIdentifiers) == 0 }
