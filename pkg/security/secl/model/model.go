@@ -310,7 +310,7 @@ type UserSessionContext struct {
 	// SSH User Session context
 	SSHUsername   string `field:"ssh_username,handler:ResolveSSHUsername"`      // SECLDoc[ssh_username] Definition:`SSH username of the user that executed the process`
 	SSHPort       int    `field:"ssh_port,handler:ResolveSSHPort"`              // SECLDoc[ssh_port] Definition:`SSH port of the user that executed the process`
-	SSHClientIP   string `field:"ssh_host_ip,handler:ResolveSSHClientIP"`       // SECLDoc[ssh_host_ip] Definition:`SSH client IP of the user that executed the process`
+	SSHClientIP   string `field:"ssh_client_ip,handler:ResolveSSHClientIP"`     // SECLDoc[ssh_client_ip] Definition:`SSH client IP of the user that executed the process`
 	SSHAuthMethod uint8  `field:"ssh_auth_method,handler:ResolveSSHAuthMethod"` // SECLDoc[ssh_auth_method] Definition:`SSH authentication method used by the user (password, publickey)`
 	SSHPublicKey  string `field:"ssh_public_key,handler:ResolveSSHPublicKey"`   // SECLDoc[ssh_public_key] Definition:`SSH public key used for authentication (if applicable)`
 }
