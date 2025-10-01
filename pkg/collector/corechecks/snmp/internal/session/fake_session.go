@@ -233,19 +233,13 @@ func (fs *FakeSession) GetNext(oids []string) (*gosnmp.SnmpPacket, error) {
 	}, nil
 }
 
-// GetSnmpGetCount returns the number of SNMPGET request that has been done
-func (fs *FakeSession) GetSnmpGetCount() uint32 {
-	return fs.snmpGetCount.Load()
-}
-
-// GetSnmpGetBulkCount returns the number of SNMP BULKGET request that has been done
-func (fs *FakeSession) GetSnmpGetBulkCount() uint32 {
-	return fs.snmpGetBulkCount.Load()
-}
-
-// GetSnmpGetNextCount returns the number of SNMP GETNEXT request that has been done
-func (fs *FakeSession) GetSnmpGetNextCount() uint32 {
-	return fs.snmpGetNextCount.Load()
+// GetSnmpRequestCounts returns the number SNMP requests that has been done for each request type
+func (fs *FakeSession) GetSnmpRequestCounts() SnmpRequestCounts {
+	return SnmpRequestCounts{
+		GetCount:     fs.snmpGetCount.Load(),
+		GetBulkCount: fs.snmpGetBulkCount.Load(),
+		GetNextCount: fs.snmpGetNextCount.Load(),
+	}
 }
 
 // SetByte adds an OctetString PDU with the given OID and value

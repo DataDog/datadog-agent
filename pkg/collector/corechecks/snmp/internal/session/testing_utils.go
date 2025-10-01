@@ -65,19 +65,13 @@ func (s *MockSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err err
 	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
 }
 
-// GetSnmpGetCount returns the number of SNMPGET request that has been done
-func (s *MockSession) GetSnmpGetCount() uint32 {
-	return s.snmpGetCount.Load()
-}
-
-// GetSnmpGetBulkCount returns the number of SNMP BULKGET request that has been done
-func (s *MockSession) GetSnmpGetBulkCount() uint32 {
-	return s.snmpGetBulkCount.Load()
-}
-
-// GetSnmpGetNextCount returns the number of SNMP GETNEXT request that has been done
-func (s *MockSession) GetSnmpGetNextCount() uint32 {
-	return s.snmpGetNextCount.Load()
+// GetSnmpRequestCounts returns the number SNMP requests that has been done for each request type
+func (s *MockSession) GetSnmpRequestCounts() SnmpRequestCounts {
+	return SnmpRequestCounts{
+		GetCount:     s.snmpGetCount.Load(),
+		GetBulkCount: s.snmpGetBulkCount.Load(),
+		GetNextCount: s.snmpGetNextCount.Load(),
+	}
 }
 
 // GetVersion returns the snmp version used

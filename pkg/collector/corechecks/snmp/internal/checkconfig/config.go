@@ -36,11 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 )
 
-// Using high oid batch size might lead to snmp calls timing out.
-// For some devices, the default oid_batch_size of 5 might be high (leads to timeouts),
-// and require manual setting oid_batch_size to a lower value.
-const defaultOidBatchSize = 5
-
 const defaultPort = uint16(161)
 const defaultRetries = 3
 const defaultTimeout = 2
@@ -55,6 +50,12 @@ const deviceNamespaceTagKey = "device_namespace"
 const snmpDeviceIPTagKey = "snmp_device"
 const deviceIPTagKey = "device_ip"
 const deviceIDTagKey = "device_id"
+
+// DefaultOidBatchSize is the default batch size
+// Using high oid batch size might lead to snmp calls timing out.
+// For some devices, the default oid_batch_size of 5 might be high (leads to timeouts),
+// and require manual setting oid_batch_size to a lower value.
+const DefaultOidBatchSize = 5
 
 // DefaultBulkMaxRepetitions is the default max rep
 // Using too high max repetitions might lead to tooBig SNMP error messages.
@@ -177,22 +178,23 @@ type CheckConfig struct {
 	// RequestedMetrics are the metrics explicitly requested by config.
 	RequestedMetrics []profiledefinition.MetricsConfig
 	// RequestedMetricTags are the tags explicitly requested by config.
-	RequestedMetricTags   []profiledefinition.MetricTagConfig
-	OidBatchSize          int
-	BulkMaxRepetitions    uint32
-	ProfileProvider       profile.Provider
-	ProfileName           string
-	ExtraTags             []string
-	InstanceTags          []string
-	CollectDeviceMetadata bool
-	CollectTopology       bool
-	CollectVPN            bool
-	UseDeviceIDAsHostname bool
-	DeviceID              string
-	DeviceIDTags          []string
-	ResolvedSubnetName    string
-	Namespace             string
-	MinCollectionInterval time.Duration
+	RequestedMetricTags       []profiledefinition.MetricTagConfig
+	OidBatchSize              int
+	IsUserDefinedOidBatchSize bool
+	BulkMaxRepetitions        uint32
+	ProfileProvider           profile.Provider
+	ProfileName               string
+	ExtraTags                 []string
+	InstanceTags              []string
+	CollectDeviceMetadata     bool
+	CollectTopology           bool
+	CollectVPN                bool
+	UseDeviceIDAsHostname     bool
+	DeviceID                  string
+	DeviceIDTags              []string
+	ResolvedSubnetName        string
+	Namespace                 string
+	MinCollectionInterval     time.Duration
 
 	Network                  string
 	DiscoveryWorkers         int
@@ -414,7 +416,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	} else if initConfig.OidBatchSize != 0 {
 		c.OidBatchSize = int(initConfig.OidBatchSize)
 	} else {
-		c.OidBatchSize = defaultOidBatchSize
+		c.OidBatchSize = DefaultOidBatchSize
+		c.IsUserDefinedOidBatchSize = true
 	}
 
 	var bulkMaxRepetitions int
@@ -618,6 +621,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.RequestedMetricTags = make([]profiledefinition.MetricTagConfig, len(c.RequestedMetricTags))
 	copy(newConfig.RequestedMetricTags, c.RequestedMetricTags)
 	newConfig.OidBatchSize = c.OidBatchSize
+	newConfig.IsUserDefinedOidBatchSize = c.IsUserDefinedOidBatchSize
 	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
 	newConfig.ProfileProvider = c.ProfileProvider
 	newConfig.ProfileName = c.ProfileName

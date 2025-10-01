@@ -19,10 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
-
-const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
 // Factory will create a new Session
 type Factory func(config *checkconfig.CheckConfig) (Session, error)
@@ -34,10 +31,14 @@ type Session interface {
 	Get(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error)
 	GetNext(oids []string) (result *gosnmp.SnmpPacket, err error)
-	GetSnmpGetCount() uint32
-	GetSnmpGetBulkCount() uint32
-	GetSnmpGetNextCount() uint32
+	GetSnmpRequestCounts() SnmpRequestCounts
 	GetVersion() gosnmp.SnmpVersion
+}
+
+type SnmpRequestCounts struct {
+	GetCount     uint32
+	GetBulkCount uint32
+	GetNextCount uint32
 }
 
 // GosnmpSession is used to connect to a snmp device
@@ -76,19 +77,13 @@ func (s *GosnmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err e
 	return s.gosnmpInst.GetNext(oids)
 }
 
-// GetSnmpGetCount returns the number of SNMPGET request that has been done
-func (s *GosnmpSession) GetSnmpGetCount() uint32 {
-	return s.snmpGetCount.Load()
-}
-
-// GetSnmpGetBulkCount returns the number of SNMP BULKGET request that has been done
-func (s *GosnmpSession) GetSnmpGetBulkCount() uint32 {
-	return s.snmpGetBulkCount.Load()
-}
-
-// GetSnmpGetNextCount returns the number of SNMP GETNEXT request that has been done
-func (s *GosnmpSession) GetSnmpGetNextCount() uint32 {
-	return s.snmpGetNextCount.Load()
+// GetSnmpRequestCounts returns the number SNMP requests that has been done for each request type
+func (s *GosnmpSession) GetSnmpRequestCounts() SnmpRequestCounts {
+	return SnmpRequestCounts{
+		GetCount:     s.snmpGetCount.Load(),
+		GetBulkCount: s.snmpGetBulkCount.Load(),
+		GetNextCount: s.snmpGetNextCount.Load(),
+	}
 }
 
 // GetVersion returns the snmp version used
@@ -172,30 +167,6 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 		}
 	}
 	return s, nil
-}
-
-// FetchSysObjectID fetches the sys object id from the device
-func FetchSysObjectID(session Session) (string, error) {
-	result, err := session.Get([]string{sysObjectIDOid})
-	if err != nil {
-		return "", fmt.Errorf("cannot get sysobjectid: %s", err)
-	}
-	if len(result.Variables) != 1 {
-		return "", fmt.Errorf("expected 1 value, but got %d: variables=%v", len(result.Variables), result.Variables)
-	}
-	pduVar := result.Variables[0]
-	oid, value, err := valuestore.GetResultValueFromPDU(pduVar)
-	if err != nil {
-		return "", fmt.Errorf("error getting value from pdu: %s", err)
-	}
-	if oid != sysObjectIDOid {
-		return "", fmt.Errorf("expect `%s` OID but got `%s` OID with value `%v`", sysObjectIDOid, oid, value)
-	}
-	strValue, err := value.ToString()
-	if err != nil {
-		return "", fmt.Errorf("error converting value (%#v) to string : %v", value, err)
-	}
-	return strValue, err
 }
 
 // FetchAllOIDsUsingGetNext fetches all available OIDs

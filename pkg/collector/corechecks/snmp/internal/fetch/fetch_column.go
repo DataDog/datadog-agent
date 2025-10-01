@@ -13,22 +13,21 @@ import (
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+func (f *Fetcher) fetchColumnOidsWithBatching(oids []string, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 
-	batches, err := common.CreateStringBatches(oids, oidBatchSize)
+	batches, err := common.CreateStringBatches(oids, f.oidBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
 	}
 
 	for _, batchColumnOids := range batches {
-		results, err := fetchColumnOids(sess, batchColumnOids, bulkMaxRepetitions, fetchStrategy)
+		results, err := f.fetchColumnOids(batchColumnOids, fetchStrategy)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch column oids: %s", err)
 		}
@@ -48,7 +47,7 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSi
 // bulkMaxRepetitions is the number of entries to request per OID per SNMP
 // request when fetchStrategy = useGetBulk; it is ignored when fetchStrategy is
 // useGetNext.
-func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+func (f *Fetcher) fetchColumnOids(oids []string, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	returnValues := make(valuestore.ColumnResultValuesType, len(oids))
 	alreadyProcessedOids := make(map[string]bool)
 	curOids := make(map[string]string, len(oids))
@@ -59,7 +58,7 @@ func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uin
 		if len(curOids) == 0 {
 			break
 		}
-		log.Debugf("fetch column: request oids (maxRep:%d,fetchStrategy:%s): %v", bulkMaxRepetitions, fetchStrategy, curOids)
+		log.Debugf("fetch column: request oids (maxRep:%d,fetchStrategy:%s): %v", f.bulkMaxRepetitions, fetchStrategy, curOids)
 		var columnOids, requestOids []string
 		for k, v := range curOids {
 			if alreadyProcessedOids[v] {
@@ -77,7 +76,7 @@ func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uin
 		sort.Strings(columnOids)
 		sort.Strings(requestOids)
 
-		results, err := getResults(sess, requestOids, bulkMaxRepetitions, fetchStrategy)
+		results, err := f.getResults(requestOids, fetchStrategy)
 		if err != nil {
 			return nil, err
 		}
@@ -88,11 +87,11 @@ func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uin
 	return returnValues, nil
 }
 
-func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (*gosnmp.SnmpPacket, error) {
+func (f *Fetcher) getResults(requestOids []string, fetchStrategy columnFetchStrategy) (*gosnmp.SnmpPacket, error) {
 	var results *gosnmp.SnmpPacket
-	if sess.GetVersion() == gosnmp.Version1 || fetchStrategy == useGetNext {
+	if f.session.GetVersion() == gosnmp.Version1 || fetchStrategy == useGetNext {
 		// snmp v1 doesn't support GetBulk
-		getNextResults, err := sess.GetNext(requestOids)
+		getNextResults, err := f.session.GetNext(requestOids)
 		if err != nil {
 			log.Debugf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
@@ -102,7 +101,7 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			log.Debugf("fetch column: GetNext results: %v", gosnmplib.PacketAsString(results))
 		}
 	} else {
-		getBulkResults, err := sess.GetBulk(requestOids, bulkMaxRepetitions)
+		getBulkResults, err := f.session.GetBulk(requestOids, f.bulkMaxRepetitions)
 		if err != nil {
 			log.Debugf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)
