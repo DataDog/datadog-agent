@@ -493,7 +493,7 @@ func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]in
 
 func (s *packageApmInjectSuite) assertSocketPath() {
 	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
-	_ = output // DD_INJECTION_ENABLED check removed as it's not reliable
+	assert.Contains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'") // this is an env var set by the injector
 }
 
 func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
@@ -506,7 +506,7 @@ func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
 		assert.NotContains(s.T(), string(content), injectDebPath)
 	}
 	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
-	_ = output // DD_INJECTION_ENABLED check removed as it's not reliable
+	assert.NotContains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'")
 }
 
 func (s *packageApmInjectSuite) assertDockerdInstrumented(path string) {
