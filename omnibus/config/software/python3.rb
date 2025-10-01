@@ -70,7 +70,6 @@ build do
   else
     dependency "vc_redist_14"
 
-
     ###############################
     # Setup openssl dependency... #
     ###############################
