@@ -105,10 +105,16 @@ func describeItem(serie *metrics.Serie) string {
 	return fmt.Sprintf("name %q, %d points", serie.Name, len(serie.Points))
 }
 
-// Pipeline represents a data processing pipeline that filters series and marks
+// Filterable defines the minimal interface needed for pipeline filtering. Both
+// Serie and SketchSeries implement this interface.
+type Filterable interface {
+	GetName() string
+}
+
+// Pipeline represents a data processing pipeline that filters metrics and marks
 // them for a specific destination
 type Pipeline struct {
-	FilterFunc  func(s *metrics.Serie) bool
+	FilterFunc  func(metric Filterable) bool
 	Destination transaction.Destination
 	UseV3       bool
 }

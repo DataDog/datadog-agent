@@ -10,8 +10,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 13}
       events:
-        - ID: 13
-          Type: 196 EventRootType Probe[main.PointerChainArg]
+        - ID: 24
+          Kind: Entry
+          Type: 207 EventRootType Probe[main.PointerChainArg]
           InjectionPoints: [{PC: "0xb7da0", Frameless: false}]
           Condition: null
     - id: PointerSmallChainArg
@@ -24,8 +25,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 14}
       events:
-        - ID: 14
-          Type: 197 EventRootType Probe[main.PointerSmallChainArg]
+        - ID: 25
+          Kind: Entry
+          Type: 208 EventRootType Probe[main.PointerSmallChainArg]
           InjectionPoints: [{PC: "0xb7dd4", Frameless: false}]
           Condition: null
     - id: bigMapArg
@@ -37,9 +39,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 9}
       events:
-        - ID: 9
-          Type: 192 EventRootType Probe[main.bigMapArg]
-          InjectionPoints: [{PC: "0xb8230", Frameless: true}]
+        - ID: 16
+          Kind: Entry
+          Type: 199 EventRootType Probe[main.bigMapArg]
+          InjectionPoints: [{PC: "0xb8240", Frameless: false}]
+          Condition: null
+        - ID: 17
+          Kind: Return
+          Type: 200 EventRootType Probe[main.bigMapArg]Return
+          InjectionPoints: [{PC: "0xb82b0", Frameless: false}]
           Condition: null
     - id: inlined
       version: 0
@@ -51,13 +59,19 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 12}
       events:
-        - ID: 12
-          Type: 195 EventRootType Probe[main.inlined]
+        - ID: 22
+          Kind: Entry
+          Type: 205 EventRootType Probe[main.inlined]
           InjectionPoints:
-            - PC: "0xb80fc"
-              Frameless: true
+            - PC: "0xb8108"
+              Frameless: false
             - PC: "0xb7bc8"
               Frameless: false
+          Condition: null
+        - ID: 23
+          Kind: Return
+          Type: 206 EventRootType Probe[main.inlined]Return
+          InjectionPoints: [{PC: "0xb813c", Frameless: false}]
           Condition: null
     - id: intArg
       version: 0
@@ -69,8 +83,14 @@ Probes:
       subprogram: {subprogram: 1}
       events:
         - ID: 1
+          Kind: Entry
           Type: 184 EventRootType Probe[main.intArg]
-          InjectionPoints: [{PC: "0xb7e2c", Frameless: true}]
+          InjectionPoints: [{PC: "0xb7e38", Frameless: false}]
+          Condition: null
+        - ID: 2
+          Kind: Return
+          Type: 185 EventRootType Probe[main.intArg]Return
+          InjectionPoints: [{PC: "0xb7e6c", Frameless: false}]
           Condition: null
     - id: intArrayArg
       version: 0
@@ -81,9 +101,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 4}
       events:
-        - ID: 4
-          Type: 187 EventRootType Probe[main.intArrayArg]
-          InjectionPoints: [{PC: "0xb7f8c", Frameless: true}]
+        - ID: 7
+          Kind: Entry
+          Type: 190 EventRootType Probe[main.intArrayArg]
+          InjectionPoints: [{PC: "0xb7f98", Frameless: false}]
+          Condition: null
+        - ID: 8
+          Kind: Return
+          Type: 191 EventRootType Probe[main.intArrayArg]Return
+          InjectionPoints: [{PC: "0xb7fd8", Frameless: false}]
           Condition: null
     - id: intArrayArgFrameless
       version: 0
@@ -94,8 +120,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 7}
       events:
-        - ID: 7
-          Type: 190 EventRootType Probe[main.stringArrayArgFrameless]
+        - ID: 13
+          Kind: Entry
+          Type: 196 EventRootType Probe[main.stringArrayArgFrameless]
           InjectionPoints: [{PC: "0xb80e0", Frameless: true}]
           Condition: null
     - id: intSliceArg
@@ -107,9 +134,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 3}
       events:
-        - ID: 3
-          Type: 186 EventRootType Probe[main.intSliceArg]
-          InjectionPoints: [{PC: "0xb7f0c", Frameless: true}]
+        - ID: 5
+          Kind: Entry
+          Type: 188 EventRootType Probe[main.intSliceArg]
+          InjectionPoints: [{PC: "0xb7f18", Frameless: false}]
+          Condition: null
+        - ID: 6
+          Kind: Return
+          Type: 189 EventRootType Probe[main.intSliceArg]Return
+          InjectionPoints: [{PC: "0xb7f50", Frameless: false}]
           Condition: null
     - id: mapArg
       version: 0
@@ -120,9 +153,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 8}
       events:
-        - ID: 8
-          Type: 191 EventRootType Probe[main.mapArg]
-          InjectionPoints: [{PC: "0xb81bc", Frameless: true}]
+        - ID: 14
+          Kind: Entry
+          Type: 197 EventRootType Probe[main.mapArg]
+          InjectionPoints: [{PC: "0xb81c8", Frameless: false}]
+          Condition: null
+        - ID: 15
+          Kind: Return
+          Type: 198 EventRootType Probe[main.mapArg]Return
+          InjectionPoints: [{PC: "0xb81f4", Frameless: false}]
           Condition: null
     - id: noArgs
       version: 0
@@ -133,9 +172,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 10}
       events:
-        - ID: 10
-          Type: 193 EventRootType Probe[main.noArgs]
-          InjectionPoints: [{PC: "0xb82dc", Frameless: true}]
+        - ID: 18
+          Kind: Entry
+          Type: 201 EventRootType Probe[main.noArgs]
+          InjectionPoints: [{PC: "0xb82e8", Frameless: false}]
+          Condition: null
+        - ID: 19
+          Kind: Return
+          Type: 202 EventRootType Probe[main.noArgs]Return
+          InjectionPoints: [{PC: "0xb831c", Frameless: false}]
           Condition: null
     - id: stringArg
       version: 0
@@ -146,9 +191,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
-        - ID: 2
-          Type: 185 EventRootType Probe[main.stringArg]
-          InjectionPoints: [{PC: "0xb7e9c", Frameless: true}]
+        - ID: 3
+          Kind: Entry
+          Type: 186 EventRootType Probe[main.stringArg]
+          InjectionPoints: [{PC: "0xb7ea8", Frameless: false}]
+          Condition: null
+        - ID: 4
+          Kind: Return
+          Type: 187 EventRootType Probe[main.stringArg]Return
+          InjectionPoints: [{PC: "0xb7ee0", Frameless: false}]
           Condition: null
     - id: stringArrayArg
       version: 0
@@ -159,9 +210,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 6}
       events:
-        - ID: 6
-          Type: 189 EventRootType Probe[main.stringArrayArg]
-          InjectionPoints: [{PC: "0xb807c", Frameless: true}]
+        - ID: 11
+          Kind: Entry
+          Type: 194 EventRootType Probe[main.stringArrayArg]
+          InjectionPoints: [{PC: "0xb8088", Frameless: false}]
+          Condition: null
+        - ID: 12
+          Kind: Return
+          Type: 195 EventRootType Probe[main.stringArrayArg]Return
+          InjectionPoints: [{PC: "0xb80c8", Frameless: false}]
           Condition: null
     - id: stringSliceArg
       version: 0
@@ -172,9 +229,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 5}
       events:
-        - ID: 5
-          Type: 188 EventRootType Probe[main.stringSliceArg]
-          InjectionPoints: [{PC: "0xb7ffc", Frameless: true}]
+        - ID: 9
+          Kind: Entry
+          Type: 192 EventRootType Probe[main.stringSliceArg]
+          InjectionPoints: [{PC: "0xb8008", Frameless: false}]
+          Condition: null
+        - ID: 10
+          Kind: Return
+          Type: 193 EventRootType Probe[main.stringSliceArg]Return
+          InjectionPoints: [{PC: "0xb8040", Frameless: false}]
           Condition: null
     - id: usesMapsOfMapsThatDoNotAppearAsArguments
       version: 0
@@ -186,9 +249,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 11}
       events:
-        - ID: 11
-          Type: 194 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
-          InjectionPoints: [{PC: "0xb8350", Frameless: true}]
+        - ID: 20
+          Kind: Entry
+          Type: 203 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
+          InjectionPoints: [{PC: "0xb8360", Frameless: false}]
+          Condition: null
+        - ID: 21
+          Kind: Return
+          Type: 204 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return
+          InjectionPoints: [{PC: "0xb84d8", Frameless: false}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -711,7 +780,7 @@ Types:
       GoKind: 22
       Pointee: 1 BaseType uintptr
     - __kind: EventRootType
-      ID: 196
+      ID: 207
       Name: Probe[main.PointerChainArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -727,7 +796,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 197
+      ID: 208
       Name: Probe[main.PointerSmallChainArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -743,7 +812,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 192
+      ID: 199
       Name: Probe[main.bigMapArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -759,7 +828,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 195
+      ID: 200
+      Name: Probe[main.bigMapArg]Return
+    - __kind: EventRootType
+      ID: 205
       Name: Probe[main.inlined]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -774,6 +846,9 @@ Types:
                   Variable: {subprogram: 12, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
+    - __kind: EventRootType
+      ID: 206
+      Name: Probe[main.inlined]Return
     - __kind: EventRootType
       ID: 184
       Name: Probe[main.intArg]
@@ -791,7 +866,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 187
+      ID: 185
+      Name: Probe[main.intArg]Return
+    - __kind: EventRootType
+      ID: 190
       Name: Probe[main.intArrayArg]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -807,7 +885,10 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 186
+      ID: 191
+      Name: Probe[main.intArrayArg]Return
+    - __kind: EventRootType
+      ID: 188
       Name: Probe[main.intSliceArg]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -823,7 +904,10 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 191
+      ID: 189
+      Name: Probe[main.intSliceArg]Return
+    - __kind: EventRootType
+      ID: 197
       Name: Probe[main.mapArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -839,10 +923,16 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 193
+      ID: 198
+      Name: Probe[main.mapArg]Return
+    - __kind: EventRootType
+      ID: 201
       Name: Probe[main.noArgs]
     - __kind: EventRootType
-      ID: 185
+      ID: 202
+      Name: Probe[main.noArgs]Return
+    - __kind: EventRootType
+      ID: 186
       Name: Probe[main.stringArg]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -858,7 +948,10 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 190
+      ID: 187
+      Name: Probe[main.stringArg]Return
+    - __kind: EventRootType
+      ID: 196
       Name: Probe[main.stringArrayArgFrameless]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -874,7 +967,7 @@ Types:
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
-      ID: 189
+      ID: 194
       Name: Probe[main.stringArrayArg]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -890,7 +983,10 @@ Types:
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
-      ID: 188
+      ID: 195
+      Name: Probe[main.stringArrayArg]Return
+    - __kind: EventRootType
+      ID: 192
       Name: Probe[main.stringSliceArg]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -906,8 +1002,27 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 194
+      ID: 193
+      Name: Probe[main.stringSliceArg]Return
+    - __kind: EventRootType
+      ID: 203
       Name: Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
+    - __kind: EventRootType
+      ID: 204
+      Name: Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: ~r0
+          Offset: 1
+          Kind: local
+          Expression:
+            Type: 121 GoMapType map[uint8]map[int]main.aStructNotUsedAsAnArgument
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 11, index: 0, name: ~r0}
+                  Offset: 0
+                  ByteSize: 8
     - __kind: ArrayType
       ID: 92
       Name: '[10]runtime.heldLockInfo'
@@ -2705,7 +2820,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 44640
       GoKind: 26
-MaxTypeID: 197
+MaxTypeID: 208
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x1a13a0", TypesOffset: 296}
 CommonTypes:
