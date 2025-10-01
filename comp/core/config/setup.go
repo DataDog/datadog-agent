@@ -17,6 +17,14 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
+// InstallPath is the default install path for the agent
+// It might be overridden at build time
+var InstallPath string
+
+func init() {
+	InstallPath = pkgconfigsetup.InstallPath
+}
+
 // setupConfig loads additional configuration data from yaml files, fleet policies, and command-line options
 func setupConfig(config pkgconfigmodel.BuildableConfig, deps configDependencies) (*pkgconfigmodel.Warnings, error) {
 	p := deps.getParams()
