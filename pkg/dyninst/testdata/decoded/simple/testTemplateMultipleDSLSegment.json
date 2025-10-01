@@ -1,10 +1,10 @@
 [
   {
-    "service": "sample",
+    "service": "simple",
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testUintPointer",
+      "method": "main.stringArg",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testUintPointer",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/pointers.go",
-            "lineNumber": 63
-          },
-          {
-            "function": "main.executePointerFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/pointers.go",
-            "lineNumber": 121
+            "function": "main.stringArg",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 51
           },
           {
             "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 35
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 20
           },
           {
             "function": "runtime.main",
@@ -42,18 +37,25 @@
           }
         ],
         "probe": {
-          "id": "testUintPointer",
+          "id": "testTemplateMultipleDSLSegment",
           "location": {
-            "method": "main.testUintPointer"
+            "method": "main.stringArg"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "x": {
-                "type": "*uint",
-                "address": "[addr]",
-                "value": "1"
+              "s": {
+                "type": "string",
+                "value": "d"
+              }
+            }
+          },
+          "return": {
+            "arguments": {
+              "s": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
               }
             }
           }
@@ -61,6 +63,7 @@
       }
     },
     "timestamp": "[ts]",
-    "message": "0x[addr]"
+    "duration": "[duration]",
+    "message": "dd"
   }
 ]

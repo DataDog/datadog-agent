@@ -81,11 +81,46 @@
                 }
               }
             }
+          },
+          "return": {
+            "arguments": {
+              "x": {
+                "type": "main.aStruct",
+                "fields": {
+                  "aBool": {
+                    "type": "bool",
+                    "value": "true"
+                  },
+                  "aString": {
+                    "type": "string",
+                    "value": "one"
+                  },
+                  "aNumber": {
+                    "type": "int",
+                    "value": "2"
+                  },
+                  "nested": {
+                    "type": "main.nestedStruct",
+                    "fields": {
+                      "anotherInt": {
+                        "type": "int",
+                        "value": "3"
+                      },
+                      "anotherString": {
+                        "type": "string",
+                        "value": "four"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "main.aStruct{ aBool = true aString = one aNumber = 2 nested = main.nestedStruct{ anotherInt = 3 anotherString = four } }"
   }
 ]

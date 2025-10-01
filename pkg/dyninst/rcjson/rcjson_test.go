@@ -80,9 +80,13 @@ var testCases = []testCase{
 					SnapshotsPerSecond: 1.0,
 				},
 				Template: "Hello {name}",
-				Segments: []json.RawMessage{
-					json.RawMessage(`{"str": "Hello "}`),
-					json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				Segments: SegmentList{
+					TemplateSegment{
+						StringSegment: newStringSegment("Hello "),
+					},
+					TemplateSegment{
+						JSONSegment: newJSONSegment(json.RawMessage(`{"ref": "name"}`), "name"),
+					},
 				},
 			},
 		},

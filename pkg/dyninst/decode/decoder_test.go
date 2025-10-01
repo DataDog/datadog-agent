@@ -905,7 +905,7 @@ func TestDecoderWithTemplate(t *testing.T) {
 			require.NoError(t, err)
 			input := tc.eventGenerator(t, irProg)
 			output, _, err := decoder.Decode(Event{
-				Entry:       output.Event(input),
+				EntryOrLine: output.Event(input),
 				ServiceName: "foo"},
 				&noopSymbolicator{},
 				[]byte{},
