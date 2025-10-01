@@ -8,7 +8,6 @@ package common
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -31,11 +30,6 @@ const (
 	configDir              = "/etc/datadog-agent"
 )
 
-var (
-	// ErrNoAPIKey is returned when no API key is provided.
-	ErrNoAPIKey = errors.New("no API key provided")
-)
-
 // Setup allows setup scripts to define packages and configurations to install.
 type Setup struct {
 	configDir string
@@ -51,6 +45,7 @@ type Setup struct {
 	Config                    config.Config
 	DdAgentAdditionalGroups   []string
 	DelayedAgentRestartConfig config.DelayedAgentRestartConfig
+	NoConfig                  bool
 }
 
 // NewSetup creates a new Setup structure with some default values.
@@ -61,9 +56,6 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	start := time.Now()
 	output := &Output{tty: logOutput}
 	output.WriteString(fmt.Sprintf(header, version.AgentVersion, flavor, version.Commit, flavorPath, start.Format(time.RFC3339)))
-	if env.APIKey == "" {
-		return nil, ErrNoAPIKey
-	}
 	installer, err := installer.NewInstaller(env)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create installer: %w", err)
@@ -124,9 +116,11 @@ func (s *Setup) Run() (err error) {
 		return fmt.Errorf("failed to stop services: %w", err)
 	}
 	s.Out.WriteString("Applying configurations...\n")
-	err = config.WriteConfigs(s.Config, s.configDir)
-	if err != nil {
-		return fmt.Errorf("failed to write configuration: %w", err)
+	if !s.NoConfig {
+		err = config.WriteConfigs(s.Config, s.configDir)
+		if err != nil {
+			return fmt.Errorf("failed to write configuration: %w", err)
+		}
 	}
 	err = installinfo.WriteInstallInfo(ctx, fmt.Sprintf("install-script-%s", s.flavor))
 	if err != nil {
