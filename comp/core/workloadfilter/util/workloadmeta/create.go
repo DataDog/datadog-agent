@@ -7,6 +7,8 @@
 package workloadmeta
 
 import (
+	"strings"
+
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -81,5 +83,22 @@ func CreatePod(pod *workloadmeta.KubernetesPod) *workloadfilter.Pod {
 			Namespace:   pod.Namespace,
 			Annotations: pod.Annotations,
 		},
+	}
+}
+
+// CreateProcess creates a Filterable Process object from a workloadmeta.Process.
+func CreateProcess(process *workloadmeta.Process) *workloadfilter.Process {
+	if process == nil {
+		return nil
+	}
+
+	p := &typedef.FilterProcess{
+		Name:    process.Name,
+		Cmdline: strings.Join(process.Cmdline, " "),
+		Args:    process.Cmdline,
+	}
+
+	return &workloadfilter.Process{
+		FilterProcess: p,
 	}
 }

@@ -88,7 +88,7 @@ type Subprogram struct {
 	// Name is the name of the subprogram.
 	Name string
 	// OutOfLinePCRanges are the ranges of PC values that will be probed for the
-	// out-of-line-instances of the subprogram. These are sorted by start PC.
+	// out-of-line instance of the subprogram. These are sorted by start PC.
 	// Some functions may be inlined only in certain callers, in which case
 	// both OutOfLinePCRanges and InlinedPCRanges will be non-empty.
 	OutOfLinePCRanges []PCRange
@@ -97,17 +97,6 @@ type Subprogram struct {
 	InlinePCRanges []InlinePCRanges
 	// Variables are the variables that are used in the subprogram.
 	Variables []*Variable
-}
-
-// SubprogramLine represents a line in the subprogram.
-type SubprogramLine struct {
-	PC              uint64
-	File            string
-	Line            uint32
-	Column          uint32
-	IsStatement     bool
-	IsPrologueEnd   bool
-	IsEpilogueStart bool
 }
 
 // Variable represents a variable or parameter in the subprogram.
@@ -143,6 +132,8 @@ type Event struct {
 	// ID of the event. This is used to identify data produced by the event over
 	// the ring buffer.
 	ID EventID
+	// Kind is the kind of event.
+	Kind EventKind
 	// The datatype of the event.
 	Type *EventRootType
 	// The PC values at which the event should be injected.
@@ -157,4 +148,9 @@ type InjectionPoint struct {
 	PC uint64
 	// Whether the function at that PC is frameless.
 	Frameless bool
+	// HasAssociatedReturn is true if there is going to be a return associated
+	// with this call.
+	HasAssociatedReturn bool `json:"-"`
+	// TopPCOffset is the offset of the top PC from the entry PC.
+	TopPCOffset int8 `json:"-"`
 }

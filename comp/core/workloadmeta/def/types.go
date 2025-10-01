@@ -45,6 +45,7 @@ const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
+	KindKubeletMetrics         Kind = "kubelet_metrics"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
@@ -452,6 +453,13 @@ type ContainerResources struct {
 	// The container is requesting to use entire core(s)
 	// e.g. 1000m or 1 -- NOT 1500m or 1.5
 	RequestedWholeCores *bool
+
+	// Raw resources. This duplicates some of the information in other fields,
+	// but it is needed by kubelet check because it needs to emit metrics for
+	// all resources. This includes the typical ones defined above (cpu, memory,
+	// gpu) but also custom resources.
+	RawRequests map[string]string
+	RawLimits   map[string]string
 }
 
 // String returns a string representation of ContainerPort.
@@ -471,6 +479,26 @@ func (cr ContainerResources) String(bool) string {
 	}
 	if cr.GPUVendorList != nil {
 		_, _ = fmt.Fprintln(&sb, "GPUVendor:", cr.GPUVendorList)
+	}
+	return sb.String()
+}
+
+// ContainerResizePolicy represents a resize policy for a container
+type ContainerResizePolicy struct {
+	CPURestartPolicy    string
+	MemoryRestartPolicy string
+
+	// Currently, the only supported resourceName values are "cpu" and "memory"
+	// Additionally, these strings are always either "NotRequired" or "RestartContainer" (k8s docs)
+}
+
+func (crp ContainerResizePolicy) String() string {
+	var sb strings.Builder
+	if crp.CPURestartPolicy != "" {
+		_, _ = fmt.Fprintln(&sb, "RestartPolicy (CPU):", crp.CPURestartPolicy)
+	}
+	if crp.MemoryRestartPolicy != "" {
+		_, _ = fmt.Fprintln(&sb, "RestartPolicy (Memory):", crp.MemoryRestartPolicy)
 	}
 	return sb.String()
 }
@@ -588,6 +616,7 @@ type Container struct {
 	SecurityContext *ContainerSecurityContext
 	ReadinessProbe  *ContainerProbe
 	Resources       ContainerResources
+	ResizePolicy    ContainerResizePolicy
 
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
@@ -644,6 +673,11 @@ func (c Container) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Resize Policy -----------")
+		_, _ = fmt.Fprint(&sb, c.ResizePolicy.String())
+	}
 
 	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
 	for _, r := range c.ResolvedAllocatedResources {
@@ -752,20 +786,22 @@ type KubernetesPod struct {
 	FinishedAt                 time.Time
 	SecurityContext            *PodSecurityContext
 
-	// The following fields are only needed for the KSM check when configured to
-	// emit pod metrics from the node agent. That means only the node agent
-	// needs them, so for now they're not added to the protobufs.
-	CreationTimestamp     time.Time
-	StartTime             *time.Time
-	NodeName              string
-	HostIP                string
-	HostNetwork           bool
-	InitContainerStatuses []KubernetesContainerStatus
-	ContainerStatuses     []KubernetesContainerStatus
-	Conditions            []KubernetesPodCondition
-	Volumes               []KubernetesPodVolume
-	Tolerations           []KubernetesPodToleration
-	Reason                string
+	// The following fields are only needed for the kubelet check or KSM check
+	// when configured to emit pod metrics from the node agent. That means only
+	// the node agent needs them, so for now they're not added to the protobufs.
+	CreationTimestamp          time.Time
+	DeletionTimestamp          *time.Time
+	StartTime                  *time.Time
+	NodeName                   string
+	HostIP                     string
+	HostNetwork                bool
+	InitContainerStatuses      []KubernetesContainerStatus
+	ContainerStatuses          []KubernetesContainerStatus
+	EphemeralContainerStatuses []KubernetesContainerStatus
+	Conditions                 []KubernetesPodCondition
+	Volumes                    []KubernetesPodVolume
+	Tolerations                []KubernetesPodToleration
+	Reason                     string
 }
 
 // GetID implements Entity#GetID.
@@ -1009,6 +1045,7 @@ func (t KubernetesPodToleration) String(_ bool) string {
 type KubernetesPodCondition struct {
 	Type   string
 	Status string
+	Reason string
 }
 
 // String returns a string representation of KubernetesPodCondition.
@@ -1111,6 +1148,42 @@ func (m *KubernetesMetadata) Merge(e Entity) error {
 	}
 
 	return merge(m, mm)
+}
+
+// KubeletMetrics contains collection-level metrics from the kubelet
+type KubeletMetrics struct {
+	EntityID
+	ExpiredPodCount int
+}
+
+// GetID implements Entity#GetID.
+func (km *KubeletMetrics) GetID() EntityID {
+	return km.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (km *KubeletMetrics) Merge(e Entity) error {
+	other, ok := e.(*KubeletMetrics)
+	if !ok {
+		return fmt.Errorf("cannot merge KubeletMetrics with different kind %T", e)
+	}
+
+	return merge(km, other)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (km KubeletMetrics) DeepCopy() Entity {
+	ckm := deepcopy.Copy(km).(KubeletMetrics)
+	return &ckm
+}
+
+// String implements Entity#String
+func (km *KubeletMetrics) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, km.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "Expired pods count:", km.ExpiredPodCount)
+	return sb.String()
 }
 
 // DeepCopy implements Entity#DeepCopy.

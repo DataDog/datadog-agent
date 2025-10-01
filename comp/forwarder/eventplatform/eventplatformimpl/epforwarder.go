@@ -224,6 +224,30 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		// payloads at once, so we need a large input channel size to avoid dropping
 		defaultInputChanSize: 1000,
 	},
+	{
+		eventType:                     eventplatform.EventTypeSoftwareInventory,
+		category:                      "EUDM",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "software_inventory.forwarder.",
+		hostnameEndpointPrefix:        "event-platform-intake.",
+		intakeTrackType:               "softinv",
+		defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+	},
+	{
+		eventType:                     eventplatform.EventTypeSynthetics,
+		category:                      "Synthetics",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "synthetics.forwarder.",
+		hostnameEndpointPrefix:        "http-synthetics.logs.",
+		intakeTrackType:               "synthetics",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+	},
 }
 
 type defaultEventPlatformForwarder struct {
@@ -460,7 +484,6 @@ func newHTTPPassthroughPipeline(
 			senderImpl.In(),
 			make(chan struct{}),
 			serverlessMeta,
-			sender.NewArraySerializer(),
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,

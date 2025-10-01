@@ -11,8 +11,18 @@ Probes:
       subprogram: {subprogram: 1}
       events:
         - ID: 1
+          Kind: Entry
           Type: 201 EventRootType Probe[main.HandleHTTP]
-          InjectionPoints: [{PC: "0x8a0ca0", Frameless: true}]
+          InjectionPoints: [{PC: "0x8a0cb0", Frameless: false}]
+          Condition: null
+        - ID: 2
+          Kind: Return
+          Type: 202 EventRootType Probe[main.HandleHTTP]Return
+          InjectionPoints:
+            - PC: "0x8a0e80"
+              Frameless: false
+            - PC: "0x8a0e98"
+              Frameless: false
           Condition: null
     - id: look_at_the_request
       version: 0
@@ -24,9 +34,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
-        - ID: 2
-          Type: 202 EventRootType Probe[main.LookAtTheRequest]
-          InjectionPoints: [{PC: "0x8a0f9c", Frameless: true}]
+        - ID: 3
+          Kind: Entry
+          Type: 203 EventRootType Probe[main.LookAtTheRequest]
+          InjectionPoints: [{PC: "0x8a0fa8", Frameless: false}]
+          Condition: null
+        - ID: 4
+          Kind: Return
+          Type: 204 EventRootType Probe[main.LookAtTheRequest]Return
+          InjectionPoints: [{PC: "0x8a101c", Frameless: false}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -513,6 +529,7 @@ Types:
       Expressions:
         - Name: w
           Offset: 1
+          Kind: argument
           Expression:
             Type: 107 GoInterfaceType net/http.ResponseWriter
             Operations:
@@ -522,6 +539,7 @@ Types:
                   ByteSize: 16
         - Name: r
           Offset: 17
+          Kind: argument
           Expression:
             Type: 108 PointerType *net/http.Request
             Operations:
@@ -531,12 +549,16 @@ Types:
                   ByteSize: 8
     - __kind: EventRootType
       ID: 202
+      Name: Probe[main.HandleHTTP]Return
+    - __kind: EventRootType
+      ID: 203
       Name: Probe[main.LookAtTheRequest]
       ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: path
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -544,6 +566,9 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: path}
                   Offset: 0
                   ByteSize: 16
+    - __kind: EventRootType
+      ID: 204
+      Name: Probe[main.LookAtTheRequest]Return
     - __kind: ArrayType
       ID: 92
       Name: '[0]uint8'
@@ -665,13 +690,13 @@ Types:
     - __kind: GoSliceDataType
       ID: 190
       Name: '[]noalg.map.group[string][]string.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 186 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
       ID: 200
       Name: '[]noalg.map.group[string]string.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 264
       Element: 196 StructureType noalg.map.group[string]string
     - __kind: UnresolvedPointeeType
@@ -2450,7 +2475,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 591264
       GoKind: 26
-MaxTypeID: 202
+MaxTypeID: 204
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x13dd6a0", TypesOffset: 296}
 CommonTypes:

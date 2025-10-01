@@ -18,7 +18,7 @@
           {
             "function": "main.stackC",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go",
-            "lineNumber": 24
+            "lineNumber": 25
           },
           {
             "function": "main.stackB",
@@ -58,12 +58,18 @@
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {}
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

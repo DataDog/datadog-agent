@@ -3054,3 +3054,245 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
 }
+
+func TestSecurityProfileNodeEviction(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             200,
+		activityDumpTracedCgroupsCount:      3,
+		activityDumpDuration:                3 * time.Minute,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		anomalyDetectionEventTypes:          []string{"exec", "syscalls", "dns", "open"},
+		enableSecurityProfile:               true,
+		enableAnomalyDetection:              true,
+		securityProfileDir:                  outputDir,
+		securityProfileWatchDir:             true,
+		securityProfileNodeEvictionTimeout:  5 * time.Second,
+		anomalyDetectionWarmupPeriod:        2 * time.Minute, // as we don't have the new lifecyle of the profiles in which we reinject the drift nodes, we need to be in warmup period to make sure that the new activities of child2 are reinjected
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("node-eviction-basic", func(t *testing.T) {
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		activities := [][]string{
+			{syscallTester, "sleep", "1"},
+			{"touch", "/tmp/test_file"},
+			{"nslookup", "example.com"},
+		}
+
+		for _, activity := range activities {
+			cmd := dockerInstance.Command(activity[0], activity[1:], []string{})
+			_, err = cmd.CombinedOutput()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		time.Sleep(1 * time.Second) // Let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var imageName string
+		// Verify profile was created with nodes
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
+			func(sp *profile.Profile) bool {
+				imageName, _ = sp.GetImageNameTag()
+				// Check that we have the activities are in the profile
+				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
+					for _, activity := range activities {
+						if node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == strings.Join(activity, " ") {
+							return true
+						}
+					}
+					return false
+				})
+
+				if len(nodes) != len(activities) {
+					t.Errorf("Expected %d process nodes found in profile, got %d", len(activities), len(nodes))
+					return false
+				}
+
+				return true
+			})
+
+		// Wait for eviction timeout + some buffer
+		// we need to wait at least twice the eviction timeout
+		// because at the worst case, a node can be touched right after an eviction tick
+		time.Sleep(10 * time.Second)
+
+		manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+		if err != nil {
+			t.Fatal(err)
+		}
+		profile := manager.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+		if profile == nil {
+			t.Fatal("profile is nil")
+		}
+
+		profile.Lock()
+		defer profile.Unlock()
+
+		// Verify that the nodes have been evicted
+		nodes := WalkActivityTree(profile.ActivityTree, func(node *ProcessNodeAndParent) bool {
+			for _, activity := range activities {
+				if node.Node.Process.Argv0+" "+strings.Join(node.Node.Process.Argv, " ") == strings.Join(activity, " ") {
+					return true
+				}
+			}
+			return false
+		})
+
+		if len(nodes) > 0 {
+			t.Errorf("Process nodes found in profile: %d", len(nodes))
+		}
+
+	})
+
+	t.Run("node-eviction-partial-children", func(t *testing.T) {
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		// Create parent process that spawns two child processes
+		// Use a simple approach: parent shell spawns two background children and waits
+		// child 1 does one operation and exits
+		// child 2 does keep doing operations
+		cmd := dockerInstance.Command("sh", []string{"-c", `
+		    echo "parent process started" >&2
+		    # Spawn child 1 in background - does one operation and exits
+		    touch /tmp/child1_file &
+		    child1_pid=$!
+		    # Spawn child 2 in background - does operation, sleeps, then does it again
+		    (for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do ls /tmp; sleep 1; done) &
+		    child2_pid=$!
+		    wait $child1_pid
+		    wait $child2_pid
+		    echo "parent process ended" >&2
+		`}, []string{})
+
+		err = cmd.Start()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(1 * time.Second) // Let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var imageName string
+		// Verify profile was created with nodes
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
+			func(sp *profile.Profile) bool {
+				imageName, _ = sp.GetImageNameTag()
+				nodes := WalkActivityTree(sp.ActivityTree, func(_ *ProcessNodeAndParent) bool {
+					return true
+				})
+
+				// We shoud have 4 nodes: the base sleep activity, the parent, the child 1 and the child 2
+				if len(nodes) != 4 {
+					t.Errorf("Expected 4 nodes, got %d", len(nodes))
+					return false
+				}
+
+				return true
+			})
+
+		// Child 2 will ls again after 7 seconds, so it should be kept
+		// Wait for child 1 to be evicted
+		time.Sleep(11 * time.Second)
+
+		manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+		profile := manager.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+		if profile == nil {
+			t.Fatal("profile is nil")
+		}
+
+		profile.Lock()
+		defer profile.Unlock()
+
+		// Count remaining nodes
+		allNodes := WalkActivityTree(profile.ActivityTree, func(_ *ProcessNodeAndParent) bool {
+			return true
+		})
+
+		// we should have 2 nodes left:  parent and child 2
+		if len(allNodes) != 2 {
+			t.Errorf("Expected 2 nodes left, got %d", len(allNodes))
+		}
+
+		var argv0s []string
+		for _, node := range allNodes {
+			argv0s = append(argv0s, node.Process.Argv0)
+		}
+
+		// check that parent is not evicted
+		if !slices.Contains(argv0s, "sh") {
+			t.Errorf("Parent should not have been evicted, got %v", argv0s)
+		}
+
+		// check that child 2 is not evicted
+		if !slices.Contains(argv0s, "ls") {
+			t.Errorf("Child 2 should not have been evicted, got %v", argv0s)
+		}
+
+		// check that child 1 is evicted
+		if slices.Contains(argv0s, "touch") {
+			t.Errorf("Child 1 should have been evicted, got %v", argv0s)
+		}
+
+		// Wait for the background process to complete
+		_ = cmd.Wait()
+		t.Cleanup(func() {
+			if cmd.Process != nil {
+				// stop the sleep process
+				cmd.Process.Kill()
+			}
+		})
+
+	})
+
+}

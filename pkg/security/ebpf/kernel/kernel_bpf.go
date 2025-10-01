@@ -97,6 +97,10 @@ func (k *Version) HasSKStorageInTracingPrograms() bool {
 // HasBPFForEachMapElemHelper returns true if the kernel support the bpf_for_each_map_elem helper
 // See https://github.com/torvalds/linux/commit/69c087ba6225b574afb6e505b72cb75242a3d844
 func (k *Version) HasBPFForEachMapElemHelper() bool {
+	if !k.HasJITBlindingSubprogsFix() {
+		return false
+	}
+
 	// because of https://lore.kernel.org/bpf/20211231151018.3781550-1-houtao1@huawei.com/
 	// we need a kernel 5.17 or higher on arm64 to use the bpf_for_each_map_elem helper
 	if runtime.GOARCH == "arm64" && k.Code < Kernel5_17 {
@@ -187,4 +191,35 @@ func (k *Version) HasBpfGetCurrentCgroupIDForSchedCLS() bool {
 // https://github.com/torvalds/linux/commit/c5dbb89fc2ac013afe67b9e4fcb3743c02b567cd
 func (k *Version) HasBpfGetSocketCookieForCgroupSocket() bool {
 	return features.HaveProgramHelper(ebpf.CGroupSock, asm.FnGetSocketCookie) == nil
+}
+
+// HasJITBlindingSubprogsFix returns true if the kernel has the following fix
+// https://github.com/torvalds/linux/commit/4b6313cf99b0d51b49aeaea98ec76ca8161ecb80
+// which was merged in mainline starting with 5.19-rc1 and backported to 5.17.13 and 5.18.2
+// This fixes kernel segfaults when running eBPF programs that call subprogs
+// (using the bpf_for_each_map_elem helper for instance).
+func (k *Version) HasJITBlindingSubprogsFix() bool {
+	if k.Code.Major() < 5 {
+		return false
+	}
+	if k.Code.Major() >= 6 {
+		return true
+	}
+
+	// https://github.com/torvalds/linux/commit/4b6313cf99b0d51b49aeaea98ec76ca8161ecb80
+	if k.Code.Minor() >= 19 {
+		return true
+	}
+
+	// https://github.com/torvalds/linux/commit/d106a3e96fca30e44081eae9c27aab28fc132a46
+	if k.Code.Minor() == 18 {
+		return k.Code.Patch() >= 2
+	}
+
+	// https://github.com/torvalds/linux/commit/a029b02b47dd5bb87a21550d9d9a80cb4dd3f714
+	if k.Code.Minor() == 17 {
+		return k.Code.Patch() >= 13
+	}
+
+	return false
 }

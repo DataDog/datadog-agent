@@ -77,13 +77,9 @@ type Decoder struct {
 	approximateBootTime  time.Time
 
 	// These fields are initialized and reset for each message.
-	snapshotMessage   snapshotMessage
-	dataItems         map[typeAndAddr]output.DataItem
-	currentlyEncoding map[typeAndAddr]struct{}
-	// skippedArgumentExpressions is a bitset of the indices of the arguments
-	// that should be skipped during encoding because they encountered an
-	// evaluation during a previous attempt.
-	skippedArgumentExpressions bitset
+	snapshotMessage snapshotMessage
+	entry           captureEvent
+	_return         captureEvent
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -101,10 +97,7 @@ func NewDecoder(
 		typeNameResolver:     typeNameResolver,
 		approximateBootTime:  approximateBootTime,
 
-		snapshotMessage:            snapshotMessage{},
-		dataItems:                  make(map[typeAndAddr]output.DataItem),
-		currentlyEncoding:          make(map[typeAndAddr]struct{}),
-		skippedArgumentExpressions: nil,
+		snapshotMessage: snapshotMessage{},
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -124,6 +117,20 @@ func NewDecoder(
 		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
 			decoder.typesByGoRuntimeType[goRuntimeType] = id
 		}
+	}
+	decoder.entry.encodingContext = encodingContext{
+		typesByID:            decoder.decoderTypes,
+		typesByGoRuntimeType: decoder.typesByGoRuntimeType,
+		typeResolver:         typeNameResolver,
+		dataItems:            make(map[typeAndAddr]output.DataItem),
+		currentlyEncoding:    make(map[typeAndAddr]struct{}),
+	}
+	decoder._return.encodingContext = encodingContext{
+		typesByID:            decoder.decoderTypes,
+		typesByGoRuntimeType: decoder.typesByGoRuntimeType,
+		typeResolver:         typeNameResolver,
+		dataItems:            make(map[typeAndAddr]output.DataItem),
+		currentlyEncoding:    make(map[typeAndAddr]struct{}),
 	}
 	return decoder, nil
 }
@@ -160,7 +167,7 @@ func (d *Decoder) Decode(
 	}
 	b := bytes.NewBuffer(buf)
 	enc := jsontext.NewEncoder(b)
-	numExpressions := len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.Arguments.rootType.Expressions)
+	numExpressions := len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.rootType.Expressions)
 	// We loop here because when evaluation errors occur, we reduce the amount of data we attempt
 	// to encode and then try again after resetting the buffer.
 	for range numExpressions + 1 { // +1 for the initial attempt
@@ -178,14 +185,17 @@ func (d *Decoder) Decode(
 }
 
 func (d *Decoder) resetForNextMessage() {
-	clear(d.dataItems)
+	clear(d.entry.dataItems)
+	d.entry.clear()
 	d.snapshotMessage = snapshotMessage{}
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
 // that are not present in the BPF program.
 type Event struct {
-	output.Event
+	Probe       *ir.Probe
+	Entry       output.Event
+	Return      output.Event
 	ServiceName string
 }
 
@@ -195,8 +205,7 @@ type snapshotMessage struct {
 	Logger    logger           `json:"logger"`
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
-
-	rootData []byte
+	Duration  uint64           `json:"duration,omitzero"`
 }
 
 func (s *snapshotMessage) init(
@@ -212,57 +221,54 @@ func (s *snapshotMessage) init(
 		},
 		EvaluationErrors: []string{},
 	}
-	var rootType *ir.EventRootType
-	var probe ir.ProbeDefinition
-
-	for item, err := range event.Event.DataItems() {
-		if err != nil {
-			return probe, fmt.Errorf("error getting data items: %w", err)
-		}
-		if rootType == nil {
-			var ok bool
-			s.rootData, ok = item.Data()
-			if !ok {
-				// This should never happen.
-				return probe, errors.New("root data item marked as a failed read")
-			}
-			rootTypeID := ir.TypeID(item.Type())
-			rootType, ok = decoder.program.Types[rootTypeID].(*ir.EventRootType)
-			if !ok {
-				return nil, errors.New("expected event of type root first")
-			}
-			irProbe, ok := decoder.probeEvents[rootTypeID]
-			if !ok {
-				return probe, fmt.Errorf("no probe found for root type %v", rootTypeID)
-			}
-			probe = irProbe.probe
-			continue
-		}
-		// We need to keep track of the address reference count for each data item.
-		// This is used to avoid infinite recursion when encoding pointers.
-		// We use a map to store the address reference count for each data item.
-		// The key is a type and address pair.
-		// The value is a data item with a counter of how many times it has been referenced.
-		// If the counter is greater than 1, we know that the data item is a pointer to another data item.
-		// We can then encode the pointer as a string and not as an object.
-		decoder.dataItems[typeAndAddr{
-			irType: uint32(item.Type()),
-			addr:   item.Header().Address,
-		}] = item
+	if event.Entry == nil {
+		return nil, fmt.Errorf("entry event is nil")
 	}
-	if rootType == nil {
-		return probe, errors.New("no root type found")
+	if err := decoder.entry.init(
+		event.Entry, decoder.program.Types, &s.Debugger.EvaluationErrors,
+	); err != nil {
+		return nil, err
 	}
-	header, err := event.Event.Header()
+	probeEvent := decoder.probeEvents[decoder.entry.rootType.ID]
+	probe := probeEvent.probe
+	header, err := event.Entry.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
-	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(time.Duration(header.Ktime_ns)).UnixMilli())
+	s.Debugger.Snapshot.Captures.Entry = &decoder.entry
+	var returnHeader *output.EventHeader
+	if event.Return != nil {
+		if err := decoder._return.init(
+			event.Return, decoder.program.Types, &s.Debugger.EvaluationErrors,
+		); err != nil {
+			return nil, fmt.Errorf("error initializing return event: %w", err)
+		}
+		returnProbeEvent := decoder.probeEvents[decoder._return.rootType.ID]
+		if returnProbeEvent.probe != probe {
+			return nil, fmt.Errorf("return probe event has different probe than entry probe")
+		}
+		returnHeader, err = event.Return.Header()
+		if err != nil {
+			return nil, fmt.Errorf("error getting return header %w", err)
+		}
+		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
+		s.Debugger.Snapshot.Captures.Return = &decoder._return
+	}
+
+	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(
+		time.Duration(header.Ktime_ns),
+	).UnixMilli())
 	s.Timestamp = s.Debugger.Snapshot.Timestamp
 
-	stackFrames, ok := decoder.stackFrames[header.Stack_hash]
+	stackHeader, stackEvent := header, event.Entry
+	if returnHeader != nil {
+		stackHeader, stackEvent = returnHeader, event.Return
+	}
+	stackFrames, ok := decoder.stackFrames[stackHeader.Stack_hash]
 	if !ok {
-		stackFrames, err = symbolicate(event, header.Stack_hash, symbolicator)
+		stackFrames, err = symbolicate(
+			stackEvent, stackHeader.Stack_hash, symbolicator,
+		)
 		if err != nil {
 			if symbolicateErrorLogLimiter.Allow() {
 				log.Errorf("error symbolicating stack: %v", err)
@@ -273,7 +279,7 @@ func (s *snapshotMessage) init(
 				fmt.Sprintf("error symbolicating stack: %v", err),
 			)
 		} else {
-			decoder.stackFrames[header.Stack_hash] = stackFrames
+			decoder.stackFrames[stackHeader.Stack_hash] = stackFrames
 		}
 	}
 	switch where := probe.GetWhere().(type) {
@@ -291,20 +297,14 @@ func (s *snapshotMessage) init(
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
-
-	decoder.skippedArgumentExpressions.reset(len(rootType.Expressions))
-	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
-		event:            event,
-		rootType:         rootType,
-		rootData:         s.rootData,
-		decoder:          decoder,
-		evaluationErrors: &s.Debugger.EvaluationErrors,
-		skippedIndices:   &decoder.skippedArgumentExpressions,
-	}
 	return probe, nil
 }
 
-func symbolicate(event Event, stackHash uint64, symbolicator symbol.Symbolicator) ([]symbol.StackFrame, error) {
+func symbolicate(
+	event output.Event,
+	stackHash uint64,
+	symbolicator symbol.Symbolicator,
+) ([]symbol.StackFrame, error) {
 	pcs, err := event.StackPCs()
 	if err != nil {
 		return nil, fmt.Errorf("error getting stack pcs: %w", err)
