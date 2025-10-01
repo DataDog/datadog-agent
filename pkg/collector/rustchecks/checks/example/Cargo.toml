@@ -7,6 +7,7 @@ edition = "2024"
 rust-check-core = { path = "../../core" }
 
 [dev-dependencies]
+# helper for testing the check implementation
 rust-check-core = { path = "../../core", features = ["test-utils"] }
 
 [lib]
