@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const limitNumSettingsToDump = 30
+
 type ConfigTemplateAnalyzer struct {
 	currSetting *setting
 	settingList []setting
@@ -80,6 +82,11 @@ func (c *ConfigTemplateAnalyzer) Run(content string) error {
 	return nil
 }
 
+// [ERORR] config setting DD_LOGS_CONFIG_LOGS_NO_SSL: unknown type: "optional"
+// [ERORR] config setting DD_SECRET_BACKEND_ARGUMENTS: unknown type: "space separated list of strings"
+// [ERORR] config setting kubernetes_ad_tags_disabled -- list of strings: unknown type: "optional"
+// [ERORR] config setting DD_KUBERNETES_AD_TAGS_DISABLED -- list of strings: unknown type: "optional"
+
 func (c *ConfigTemplateAnalyzer) validateType(data string) error {
 	knownTypes := []string{
 		"string", "boolean", "integer", "duration", "float",
@@ -89,11 +96,16 @@ func (c *ConfigTemplateAnalyzer) validateType(data string) error {
 		"list of strings",
 		"list of objects",
 		"map of strings",
+		"space separated list of strings",
+		"space-separated list of strings",
+		"comma separated list of strings",
 		"list of custom object",
 		"list of custom objects",
 		"list of key:value elements",
+		"list of key:value strings",
 		"List of custom object",
 		"list of comma separated strings",
+		"list of space separated strings",
 	}
 	if slices.Contains(knownTypes, data) {
 		return nil
@@ -147,8 +159,14 @@ func (c *ConfigTemplateAnalyzer) parseEnvDecl(data string) envDecl {
 			res.name = part
 			index += 1
 		case 1:
-			res.typ = part
-			index += 1
+			err := c.validateType(part)
+			if err == nil {
+				res.typ = part
+				index += 1
+			} else {
+				fmt.Printf("[ERORR] config setting %s: %s\n", res.name, err)
+				return res
+			}
 		case 2:
 			res.required = part
 			index += 2
@@ -202,7 +220,7 @@ func (c *ConfigTemplateAnalyzer) FlushElement() {
 
 func (c *ConfigTemplateAnalyzer) Dump() {
 	fmt.Printf("number of settings: %d\n", len(c.settingList))
-	for i := range 10 {
+	for i := range limitNumSettingsToDump {
 		fmt.Printf("------\n")
 		st := c.settingList[i]
 
@@ -214,9 +232,9 @@ func (c *ConfigTemplateAnalyzer) Dump() {
 			docs   []string
 		*/
 
-		fmt.Printf("- %d: name:%s param:{name:%s typ:%s def:%s req:%s} env:%v defs:%v docs:%v\n",
+		fmt.Printf("- %d: name:%s param:{name:%s typ:%s def:%s req:%s} env:%v defs:%v docs:...\n",
 			i, st.name, st.param.name, st.param.typ, st.param.defaultVal, st.param.required,
-			st.env, st.define, st.docs)
+			st.env, st.define)
 	}
 }
 
