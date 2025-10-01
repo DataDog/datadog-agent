@@ -21,6 +21,7 @@ import (
 	"unsafe"
 )
 
+// Flags needed by statmount
 const (
 	LSMTRoot = ^uint64(0)
 
