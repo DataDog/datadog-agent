@@ -9,14 +9,15 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // domainAPIKeyMap used by tests to get API keys from each domain resolver
@@ -45,7 +46,7 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 	}
 	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
 	require.NoError(t, err)
-	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
+	forwarder := NewDefaultForwarder(mockConfig, log, nil, forwarderOptions)
 
 	// API keys from the domain resolvers match
 	expectData := `{"example1.com":["api_key1","api_key2"],"example2.com":["api_key3"]}`
@@ -83,7 +84,7 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 	}
 	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
 	require.NoError(t, err)
-	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
+	forwarder := NewDefaultForwarder(mockConfig, log, nil, forwarderOptions)
 
 	// API keys from the domain resolvers match
 	expectData := `{"example1.com":["api_key1"],"example2.com":["api_key3"]}`
@@ -149,7 +150,7 @@ func TestPreaggregationPipelineTransactionCreation(t *testing.T) {
 
 			forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
 			require.NoError(t, err)
-			forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
+			forwarder := NewDefaultForwarder(mockConfig, log, nil, forwarderOptions)
 
 			// Create test payload with specified destination
 			payload := transaction.NewBytesPayloadWithoutMetaData([]byte(`{"test": "data"}`))
