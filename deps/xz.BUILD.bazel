@@ -68,6 +68,9 @@ cc_library(
         "@platforms//os:windows": ["LZMA_API_STATIC"],
         "//conditions:default": [],
     }),
+    local_defines = [
+        "TUKLIB_SYMBOL_PREFIX=lzma_",
+    ],
     linkopts = select({
         "@platforms//os:android": [],
         "//conditions:default": ["-lpthread"],
