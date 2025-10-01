@@ -51,6 +51,7 @@ type Setup struct {
 	Config                    config.Config
 	DdAgentAdditionalGroups   []string
 	DelayedAgentRestartConfig config.DelayedAgentRestartConfig
+	NoConfig                  bool
 }
 
 // NewSetup creates a new Setup structure with some default values.
@@ -129,9 +130,11 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("could not create config directory: %w", err)
 	}
-	err = config.WriteConfigs(s.Config, s.configDir)
-	if err != nil {
-		return fmt.Errorf("failed to write configuration: %w", err)
+	if !s.NoConfig {
+		err = config.WriteConfigs(s.Config, s.configDir)
+		if err != nil {
+			return fmt.Errorf("failed to write configuration: %w", err)
+		}
 	}
 	err = installinfo.WriteInstallInfo(ctx, fmt.Sprintf("install-script-%s", s.flavor))
 	if err != nil {
