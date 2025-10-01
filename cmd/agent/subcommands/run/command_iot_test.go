@@ -23,7 +23,7 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		IoTCommands(newGlobalParamsTest(t)),
 		[]string{"run"},
-		RunCore,
+		StartCore,
 		func(_ pidimpl.Params, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, true, secretParams.Enabled)
 		})
@@ -33,7 +33,7 @@ func TestCommandPidfile(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		IoTCommands(newGlobalParamsTest(t)),
 		[]string{"run", "--pidfile", "/pid/file"},
-		RunCore,
+		StartCore,
 		func(pidParams pidimpl.Params, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, "/pid/file", pidParams.PIDfilePath)
 			require.Equal(t, true, secretParams.Enabled)

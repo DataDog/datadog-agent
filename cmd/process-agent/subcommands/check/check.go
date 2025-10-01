@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -163,6 +164,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				// Tagger must be initialized after agent config has been setup
 				remoteTaggerfx.Module(tagger.NewRemoteParams()),
 				processComponent.Bundle(),
+				logscompressionfx.Module(),
 				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 				// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component

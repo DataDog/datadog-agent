@@ -66,7 +66,6 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
@@ -108,7 +107,6 @@ func getExtraFxOptions() fx.Option {
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) status.InformationProvider {
 			return status.NewInformationProvider(systemprobeStatus.GetProvider(sysprobeconfig))
 		}),
-		otelagentStatusfx.Module(),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		ndmtmp.Bundle(),
@@ -176,7 +174,7 @@ func run(
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
 ) error {
-	return runcmd.RunCore(
+	return runcmd.StartCore(
 		log,
 		cfg,
 		flare,

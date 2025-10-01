@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -57,7 +56,6 @@ func Bundle() fxutil.BundleOptions {
 
 		apiserver.Module(),
 		forwardersimpl.Module(),
-		logscompression.Module(),
 
 		gpusubscriber.Module(),
 	)

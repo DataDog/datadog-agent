@@ -124,11 +124,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -169,8 +171,9 @@ type cliParams struct {
 	pidfilePath string
 }
 
+// IoTCommands returns a slice of subcommands for the 'iot-agent' run command.
 func IoTCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	return Commands(globalParams, RunCore, fx.Options())
+	return Commands(globalParams, StartCore, fx.Options())
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -217,8 +220,8 @@ func Commands(globalParams *command.GlobalParams, runFunc interface{}, extraOpti
 	return []*cobra.Command{startCmd, runCmd}
 }
 
-// RunCore runs the core parts of the process (shared between agent and iot-agent)
-func RunCore(
+// StartCore runs the core parts of the process (shared between agent and iot-agent)
+func StartCore(
 	log log.Component,
 	cfg config.Component,
 	flare flare.Component,
@@ -380,6 +383,7 @@ func getCoreFxOption() fx.Option {
 				AgentVersion: version.AgentVersion,
 			},
 		),
+		otelagentStatusfx.Module(),
 		dogstatsdStatusimpl.Module(),
 		statsd.Module(),
 		statusimpl.Module(),
@@ -432,6 +436,7 @@ func getCoreFxOption() fx.Option {
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
+		logscompressionfx.Module(),
 
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.

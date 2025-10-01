@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -49,6 +50,7 @@ var mockCoreBundleParams = core.BundleParams{
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
+		logscompressionfx.Module(),
 		fx.Supply(mockCoreBundleParams),
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
@@ -121,6 +123,7 @@ func TestBundleOneShot(t *testing.T) {
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 		Bundle(),
+		logscompressionfx.Module(),
 	)
 	require.NoError(t, err)
 }
