@@ -2416,6 +2416,21 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 			},
 		},
 		{
+			name:                 "obfuscation without replace bind parameter",
+			query:                `SELECT * FROM users WHERE id = @P1 AND name = @P2`,
+			expected:             `SELECT * FROM users WHERE id = @P1 AND name = @P2`,
+			replaceBindParameter: false,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
 			name:     "PostgreSQL Select Only",
 			query:    `SELECT * FROM ONLY users WHERE id = 1`,
 			expected: `SELECT * FROM ONLY users WHERE id = ?`,
