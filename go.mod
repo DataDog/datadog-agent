@@ -127,12 +127,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.64.0-rc.12
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.67.0
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/proto v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.64.0-rc.12
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.67.0
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0
 	github.com/DataDog/datadog-agent/pkg/serializer v0.71.0-rc.1
@@ -177,9 +177,9 @@ require (
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c
 	github.com/DataDog/datadog-traceroute v0.1.25
-	github.com/DataDog/dd-trace-go/v2 v2.0.0
+	github.com/DataDog/dd-trace-go/v2 v2.2.2
 	github.com/DataDog/ebpf-manager v0.7.14
-	github.com/DataDog/go-libddwaf/v4 v4.3.0
+	github.com/DataDog/go-libddwaf/v4 v4.3.2
 	github.com/DataDog/go-sqllexer v0.1.8
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
@@ -187,7 +187,7 @@ require (
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
-	github.com/DataDog/zstd v1.5.6
+	github.com/DataDog/zstd v1.5.7
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -959,7 +959,9 @@ require (
 )
 
 require (
+	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251001104144-35a0daaf10ff // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
+	github.com/DataDog/jsonapi v0.12.0 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/elastic/go-freelru v0.16.0 // indirect
 	github.com/elastic/go-perf v0.0.0-20241029065020-30bec95324b8 // indirect
@@ -970,6 +972,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.136.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/urfave/cli/v3 v3.1.1 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 )
 
