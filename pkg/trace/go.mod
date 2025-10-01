@@ -53,7 +53,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
 	github.com/shirou/gopsutil/v4 v4.25.8
 	go.opentelemetry.io/collector/component/componenttest v0.136.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250929231259-57b25ae835d4
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250922171735-9219d122eba9
 )
 
 require go.opentelemetry.io/collector/processor v1.42.0 // indirect
@@ -100,7 +100,7 @@ require (
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
+	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.136.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumertest v0.136.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.136.0 // indirect

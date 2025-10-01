@@ -1,0 +1,29 @@
+name: wincrashdetect
+version: 1.0.0
+files:
+- name: wincrashdetect.yaml
+  options:
+  - template: instances
+    options:
+    - name: enabled
+      value:
+        type: boolean
+        example: true
+        default: true
+      description: |
+        Specify if the check should report Windows system crashes.
+        This requires system-probe.
+        And this requires the enabled flag in the windows_crash_detection section
+        of system-probe.yaml to be set to true.
+      required: false
+    - name: tags
+      value:
+        type: array
+        items:
+          type: string
+        example: ["<KEY_1>:<VALUE_1>", "<KEY_2>:<VALUE_2>"]
+      description: |
+        A list of tags to attach to every metric, event, and service check emitted by this instance.
+        
+        Learn more about tagging at https://docs.datadoghq.com/tagging
+      required: false
