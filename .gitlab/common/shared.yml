@@ -40,3 +40,6 @@
   - *get_artifactory_bypass_win
   - *get_artifactory_token_win
   - if (($Env:USE_CACHING_PROXY_PYTHON -eq "true") -and ($Env:ARTIFACTORY_BYPASS -eq "false")) { $PIP_INDEX_URL="https://${Env:ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${Env:ARTIFACTORY_URL}/${Env:ARTIFACTORY_PYPI_PATH}" }
+
+.install_authanywhere:
+  - source tools/ci/authanywhere.sh

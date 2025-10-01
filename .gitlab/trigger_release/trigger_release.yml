@@ -18,6 +18,7 @@
   script:
     # agent-release-management creates pipeline for Agent 6
     - source /root/.bashrc
+    - !reference [.install_authanywhere]
     - export RELEASE_VERSION=$(inv agent.version --major-version 6 --url-safe --omnibus-format)-1
     - 'inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "main"
       --variable ACTION

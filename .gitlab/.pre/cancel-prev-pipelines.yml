@@ -15,4 +15,5 @@ cancel-prev-pipelines:
     - when: on_success
   script:
     - source /root/.bashrc
+    - !reference [.install_authanywhere]
     - inv pipeline.auto-cancel-previous-pipelines

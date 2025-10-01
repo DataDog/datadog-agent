@@ -5,6 +5,7 @@ test_install_script:
   tags: ["arch:amd64"]
   script:
     - source /root/.bashrc
+    - !reference [.install_authanywhere]
     - set +x
     - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET/datadog-agent/pipeline-$CI_PIPELINE_ID-a6
     - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
