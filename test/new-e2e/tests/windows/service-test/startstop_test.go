@@ -707,6 +707,7 @@ func (s *baseStartStopSuite) assertServiceState(expected string, serviceName str
 			s.T().Logf("capturing live kernel dump, %s service state was %s but expected %s\n",
 				serviceName, status, expected)
 			s.captureLiveKernelDump(host, s.SessionOutputDir())
+			s.logHostDiagnostics()
 			return
 		}
 
@@ -737,7 +738,15 @@ func (s *baseStartStopSuite) stopAllServices() {
 			}
 		}, (2*s.timeoutScale)*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
 	}
+
+	// capture a live dump to help identify why one or more services are still running.
+	if s.T().Failed() {
+		s.T().Logf("capturing live kernel dump, one or more services failed to stop")
+		s.captureLiveKernelDump(host, s.SessionOutputDir())
+		s.logHostDiagnostics()
+	}
 }
+
 func (s *baseStartStopSuite) getInstalledUserServices() []string {
 	return []string{
 		"datadogagent",
@@ -849,6 +858,28 @@ func (s *baseStartStopSuite) collectSystemCrashDump() bool {
 	s.Assert().NoError(err, "should download system crash dump")
 
 	return systemDump != ""
+}
+
+// logHostDiagnostics captures diagnostics from the remote host to help troubleshoot timeouts.
+func (s *baseStartStopSuite) logHostDiagnostics() {
+	host := s.Env().RemoteHost
+
+	s.T().Logf("Querying I/O diagnostics")
+
+	out, err := queryProcessesWithActiveIo(host)
+	if err == nil {
+		s.T().Logf("Processes with active I/O:\n%s\n", out)
+	}
+
+	out, err = queryDiskQueueLength(host)
+	if err == nil {
+		s.T().Logf("Sampled disk queue length:\n%s\n", out)
+	}
+
+	out, err = queryAllHandleCounts(host)
+	if err == nil {
+		s.T().Logf("Handle count for all processes:\n%s\n", out)
+	}
 }
 
 // Driver verifier tests start
