@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultInjectorVersion = "0.40.0-1"
+	defaultInjectorVersion = "0"
 )
 
 var (

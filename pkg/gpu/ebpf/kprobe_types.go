@@ -26,6 +26,7 @@ type CudaMemEvent C.cuda_memory_event_t
 type CudaMemEventType C.cuda_memory_event_type_t
 
 type CudaSetDeviceEvent C.cuda_set_device_event_t
+type CudaSyncDeviceEvent C.cuda_sync_device_event_t
 
 type CudaVisibleDevicesSetEvent C.cuda_visible_devices_set_t
 
@@ -37,6 +38,7 @@ const CudaEventTypeMemory CudaEventType = C.cuda_memory_event
 const CudaEventTypeSync CudaEventType = C.cuda_sync
 const CudaEventTypeSetDevice CudaEventType = C.cuda_set_device
 const CudaEventTypeVisibleDevicesSet CudaEventType = C.cuda_visible_devices_set
+const CudaEventTypeSyncDevice CudaEventType = C.cuda_sync_device
 const CudaEventTypeCount CudaEventType = C.cuda_event_type_count
 
 const CudaMemAlloc = C.cudaMalloc
@@ -48,3 +50,4 @@ const SizeofCudaEventHeader = C.sizeof_cuda_event_header_t
 const SizeofCudaSync = C.sizeof_cuda_sync_t
 const SizeofCudaSetDeviceEvent = C.sizeof_cuda_set_device_event_t
 const SizeofCudaVisibleDevicesSetEvent = C.sizeof_cuda_visible_devices_set_t
+const SizeofCudaSyncDeviceEvent = C.sizeof_cuda_sync_device_event_t

@@ -47,6 +47,7 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
+from tasks.kernel_matrix_testing.setup import check_requirements, get_requirements
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_get_stack_or_exit, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.types import PlatformInfo, component_from_str
@@ -414,9 +415,19 @@ def ls(_, distro=True, custom=False):
         "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
         "all-images": "Download all available VM images for the current architecture.",
         "skip-ssh-setup": "Skip step to setup SSH files for interacting with remote AWS VMs",
+        "exclude-requirements": "Comma separated list of requirements to exclude. Refer to the output of `dda inv kmt.selfcheck` for the available requirements.",
+        "only-requirements": "Comma separated list of requirements to include, no other requirements will be checked. Refer to the output of `dda inv kmt.selfcheck` for the available requirements.",
     }
 )
-def init(ctx: Context, images: str | None = None, all_images=False, remote_setup_only=False, skip_ssh_setup=False):
+def init(
+    ctx: Context,
+    images: str | None = None,
+    all_images=False,
+    remote_setup_only=False,
+    skip_ssh_setup=False,
+    exclude_requirements: list[str] | None = None,
+    only_requirements: list[str] | None = None,
+):
     if not remote_setup_only and not all_images and images is None:
         if (
             ask(
@@ -432,7 +443,14 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
         info("[+] Use `dda inv kmt.update-resources --images=<list>` to download specific images for local use.")
 
     try:
-        init_kernel_matrix_testing_system(ctx, images, all_images, remote_setup_only)
+        init_kernel_matrix_testing_system(
+            ctx,
+            images,
+            all_images,
+            remote_setup_only,
+            exclude_requirements,
+            only_requirements,
+        )
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
@@ -443,6 +461,35 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
     info(
         "[+] Kernel matrix testing system initialized successfully. Refer to https://github.com/DataDog/datadog-agent/blob/main/tasks/kernel_matrix_testing/README.md for next steps."
     )
+
+
+@task
+def selfcheck(
+    ctx: Context,
+    remote_setup_only: bool = False,
+    fix: bool = False,
+    exclude_requirements: list[str] | None = None,
+    only_requirements: list[str] | None = None,
+    show_flare_for_failures: bool = False,
+):
+    requirements = get_requirements(remote_setup_only, exclude_requirements, only_requirements)
+    failed = check_requirements(
+        ctx,
+        requirements,
+        fix=fix,
+        echo=True,
+        verbose=ctx.config["run"]["echo"],
+        show_flare_for_failures=show_flare_for_failures,
+    )
+
+    # flush stdout to ensure formatting is correct
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    if failed:
+        raise Exit("[-] KMT setup incorrect")
+    else:
+        info("[+] KMT setup correct")
 
 
 @task
