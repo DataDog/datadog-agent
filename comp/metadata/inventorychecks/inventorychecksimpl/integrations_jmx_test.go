@@ -45,6 +45,7 @@ func Test_inventorychecksImpl_getJMXChecksMetadata(t *testing.T) {
 			"runtime_version": "1.2.3",
 		},
 	})
+	t.Cleanup(jmx.ClearStatus)
 
 	// When I get the JMX checks metatdata
 	jmxMetadata := ic.getJMXChecksMetadata()

@@ -72,5 +72,5 @@ use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
-    dev_dependency = True,
+    "//bazel/toolchains/mingw:mingw_cc_toolchain",
 )

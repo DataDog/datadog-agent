@@ -452,6 +452,7 @@ func parsePodContainers(
 		var env map[string]string
 		var ports []workloadmeta.ContainerPort
 		var resources workloadmeta.ContainerResources
+		var resizePolicy workloadmeta.ContainerResizePolicy
 
 		// When running on docker, the image ID contains a prefix that's not
 		// included in other runtimes. Remove it for consistency.
@@ -482,6 +483,7 @@ func parsePodContainers(
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
 			resources = extractResources(containerSpec)
+			resizePolicy = extractResizePolicy(containerSpec)
 
 			podContainer.Image, err = workloadmeta.NewContainerImage(imageID, containerSpec.Image)
 			if err != nil {
@@ -556,6 +558,7 @@ func parsePodContainers(
 				State:                      containerState,
 				Owner:                      parent,
 				Resources:                  resources,
+				ResizePolicy:               resizePolicy,
 				ResolvedAllocatedResources: allocatedResources,
 			},
 		})
@@ -747,6 +750,26 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	}
 
 	return resources
+}
+
+func extractResizePolicy(spec *kubelet.ContainerSpec) workloadmeta.ContainerResizePolicy {
+	policy := workloadmeta.ContainerResizePolicy{}
+
+	if spec.ResizePolicy == nil {
+		return policy
+	}
+
+	for _, rule := range spec.ResizePolicy {
+		if rule.ResourceName == kubelet.ResourceCPU {
+			policy.CPURestartPolicy = string(rule.RestartPolicy)
+		}
+
+		if rule.ResourceName == kubelet.ResourceMemory {
+			policy.MemoryRestartPolicy = string(rule.RestartPolicy)
+		}
+	}
+
+	return policy
 }
 
 func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.ContainerSpec {
