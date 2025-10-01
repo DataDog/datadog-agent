@@ -32,7 +32,8 @@ exports_files([
 copy_file(
     name = "copy_config",
     src = selects.with_or({
-        "@platforms//os:linux": "generated/config.lzma-linux.h",
+        "@//:linux_arm64": "generated/config.lzma-linux-arm64.h",
+        "@//:linux_x86_64": "generated/config.lzma-linux-x86_64.h",
         "@//:macos_arm64": "generated/config.lzma-osx-arm64.h",
         "@//:macos_x86_64": "generated/config.lzma-osx-x86_64.h",
         "@platforms//os:windows": "generated/config.lzma-windows.h",
