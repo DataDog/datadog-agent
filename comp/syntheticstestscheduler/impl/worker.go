@@ -226,7 +226,7 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) erro
 	if err != nil {
 		return err
 	}
-	s.log.Debugf("resultId=%s", res.Result.ID)
+
 	payloadBytes, err := json.Marshal(res)
 	if err != nil {
 		return err
