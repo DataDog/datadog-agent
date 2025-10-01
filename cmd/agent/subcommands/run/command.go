@@ -33,10 +33,8 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
-	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
@@ -47,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent"
 	// core components
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
@@ -70,7 +67,6 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
@@ -112,8 +108,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
-	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -127,35 +121,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
-	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp"
-	"github.com/DataDog/datadog-agent/comp/netflow"
-	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
-	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
-	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
-	"github.com/DataDog/datadog-agent/comp/process"
-	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
-	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
-	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	"github.com/DataDog/datadog-agent/comp/snmptraps"
-	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
-	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
-	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
-	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -163,14 +141,10 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
-	hostSbom "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httpproxyStatus "github.com/DataDog/datadog-agent/pkg/status/httpproxy"
-	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
-	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
@@ -195,15 +169,19 @@ type cliParams struct {
 	pidfilePath string
 }
 
+func IoTCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	return Commands(globalParams, RunCore, fx.Options())
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, runFunc interface{}, extraOptions fx.Option) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
 	runE := func(*cobra.Command, []string) error {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
-		return fxutil.OneShot(run,
+		return fxutil.OneShot(runFunc,
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
 			}),
@@ -215,7 +193,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
-			getSharedFxOption(),
+			extraOptions,
+			getCoreFxOption(),
 			getPlatformModules(),
 		)
 	}
@@ -238,8 +217,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd, runCmd}
 }
 
-// run starts the main loop.
-func run(log log.Component,
+// RunCore runs the core parts of the process (shared between agent and iot-agent)
+func RunCore(
+	log log.Component,
 	cfg config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
@@ -257,7 +237,6 @@ func run(log log.Component,
 	_ serializer.MetricSerializer,
 	_ option.Option[logsAgent.Component],
 	_ statsd.Component,
-	_ processAgent.Component,
 	_ otelcollector.Component,
 	_ host.Component,
 	_ inventoryagent.Component,
@@ -267,16 +246,10 @@ func run(log log.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
-	_ netflowServer.Component,
-	_ snmptrapsServer.Component,
-	_ langDetectionCl.Component,
 	_ internalAPI.Component,
 	_ packagesigning.Component,
-	_ systemprobemetadata.Component,
-	_ securityagentmetadata.Component,
 	_ status.Component,
 	collector collector.Component,
-	_ cloudfoundrycontainer.Component,
 	_ expvarserver.Component,
 	_ pid.Component,
 	jmxlogger jmxlogger.Component,
@@ -372,7 +345,8 @@ func run(log log.Component,
 	return <-stopCh
 }
 
-func getSharedFxOption() fx.Option {
+// options common to both core-agent and iot-agent
+func getCoreFxOption() fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
@@ -384,9 +358,6 @@ func getSharedFxOption() fx.Option {
 		)),
 		core.Bundle(),
 		flareprofiler.Module(),
-		fx.Provide(func() flaretypes.Provider {
-			return flaretypes.NewProvider(hostSbom.FlareProvider)
-		}),
 		lsof.Module(),
 		// Enable core agent specific features like persistence-to-disk
 		forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
@@ -398,16 +369,8 @@ func getSharedFxOption() fx.Option {
 				PythonVersionGetFunc: python.GetPythonVersion,
 			},
 			status.NewHeaderInformationProvider(net.Provider{}),
-			status.NewInformationProvider(jmxStatus.Provider{}),
 			status.NewInformationProvider(endpointsStatus.Provider{}),
-			status.NewInformationProvider(profileStatus.Provider{}),
 		),
-		fx.Provide(func(config config.Component) status.InformationProvider {
-			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
-		}),
-		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) status.InformationProvider {
-			return status.NewInformationProvider(systemprobeStatus.GetProvider(sysprobeconfig))
-		}),
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
 		}),
@@ -417,9 +380,6 @@ func getSharedFxOption() fx.Option {
 				AgentVersion: version.AgentVersion,
 			},
 		),
-		otelagentStatusfx.Module(),
-		traceagentStatusImpl.Module(),
-		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
 		statsd.Module(),
 		statusimpl.Module(),
@@ -468,7 +428,6 @@ func getSharedFxOption() fx.Option {
 			})
 		}),
 		logs.Bundle(),
-		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
@@ -482,16 +441,10 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(ms serializer.MetricSerializer) option.Option[serializer.MetricSerializer] {
 			return option.New[serializer.MetricSerializer](ms)
 		}),
-		ndmtmp.Bundle(),
-		netflow.Bundle(),
-		rdnsquerierfx.Module(),
-		snmptraps.Bundle(),
-		snmpscanfx.Module(),
 		collectorimpl.Module(),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
 		}),
-		process.Bundle(),
 		guiimpl.Module(),
 		agent.Bundle(jmxloggerimpl.NewDefaultParams()),
 		fx.Provide(func(config config.Component) healthprobe.Options {
@@ -523,14 +476,11 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsimpl.Module(),
 		agenttelemetryfx.Module(),
-		networkpath.Bundle(),
-		syntheticsTestsfx.Module(),
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
-		ssistatusfx.Module(),
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
