@@ -551,7 +551,7 @@ func (m *goMapType) encodeValueFields(
 	data []byte,
 ) error {
 	const encodeAddress = false
-	return encodePointer(c, data, encodeAddress, (*ir.GoMapType)(m).HeaderType.GetID(), enc)
+	return encodePointer(c, data, encodeAddress, m.HeaderType.GetID(), enc)
 }
 
 func (h *goHMapHeaderType) irType() ir.Type { return h.GoHMapHeaderType }
@@ -836,9 +836,9 @@ func (p *pointerType) encodeValueFields(
 	//
 	// For things like map buckets or channel internals, which we encode as pointers, we won't
 	// find a go kind.
-	goKind, ok := (*ir.PointerType)(p).Pointee.GetGoKind()
+	goKind, ok := p.Pointee.GetGoKind()
 	writeAddress := ok && goKind != reflect.Pointer
-	return encodePointer(c, data, writeAddress, (*ir.PointerType)(p).Pointee.GetID(), enc)
+	return encodePointer(c, data, writeAddress, p.Pointee.GetID(), enc)
 }
 
 func encodePointer(
@@ -965,8 +965,8 @@ func (a *arrayType) encodeValueFields(
 	data []byte,
 ) error {
 	var err error
-	elementSize := int((*ir.ArrayType)(a).Element.GetByteSize())
-	numElements := int((*ir.ArrayType)(a).Count)
+	elementSize := int(a.Element.GetByteSize())
+	numElements := int(a.Count)
 	if err = writeTokens(enc,
 		jsontext.String("size"),
 		jsontext.String(strconv.FormatInt(int64(numElements), 10)),
@@ -976,8 +976,8 @@ func (a *arrayType) encodeValueFields(
 	}
 
 	var notCaptured = false
-	elementID := (*ir.ArrayType)(a).Element.GetID()
-	elementName := (*ir.ArrayType)(a).Element.GetName()
+	elementID := a.Element.GetID()
+	elementName := a.Element.GetName()
 	for i := range numElements {
 		offset := i * elementSize
 		endIdx := offset + elementSize
@@ -1007,7 +1007,7 @@ func (s *goSliceHeaderType) irType() ir.Type { return (*ir.GoSliceHeaderType)(s)
 func (s *goSliceHeaderType) encodeValueFields(
 	c *encodingContext, enc *jsontext.Encoder, data []byte,
 ) error {
-	if len(data) < int((*ir.GoSliceHeaderType)(s).ByteSize) {
+	if len(data) < int(s.ByteSize) {
 		return writeTokens(enc,
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonPruned,
@@ -1040,8 +1040,8 @@ func (s *goSliceHeaderType) encodeValueFields(
 		return err
 	}
 
-	elementSize := int((*ir.GoSliceHeaderType)(s).Data.Element.GetByteSize())
-	sliceDataItem, ok := c.getPtr(address, (*ir.GoSliceHeaderType)(s).Data.GetID())
+	elementSize := int(s.Data.Element.GetByteSize())
+	sliceDataItem, ok := c.getPtr(address, s.Data.GetID())
 	if !ok {
 		return writeTokens(enc,
 			tokenNotCapturedReason,
@@ -1061,9 +1061,9 @@ func (s *goSliceHeaderType) encodeValueFields(
 		)
 	}
 	sliceLength := int(len(sliceData)) / elementSize
-	elementByteSize := int((*ir.GoSliceHeaderType)(s).Data.Element.GetByteSize())
-	elementName := (*ir.GoSliceHeaderType)(s).Data.Element.GetName()
-	elementID := (*ir.GoSliceHeaderType)(s).Data.Element.GetID()
+	elementByteSize := int(s.Data.Element.GetByteSize())
+	elementName := s.Data.Element.GetName()
+	elementID := s.Data.Element.GetID()
 	for i := range int(sliceLength) {
 		elementData := sliceData[i*elementByteSize : (i+1)*elementByteSize]
 		if err := encodeValue(

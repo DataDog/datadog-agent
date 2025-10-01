@@ -278,7 +278,7 @@ func (ce *captureEvent) extractExpressionRawValue(sb *strings.Builder, expressio
 	return extractRawValue(sb, decoderType, &ce.encodingContext, parameterData)
 }
 
-// extractRawValue converts binary data to raw string representation
+// extractRawValue converts binary data to raw string representation and writes it to the builder
 func extractRawValue(sb *strings.Builder, dt decoderType, c *encodingContext, data []byte) error {
 	switch t := dt.(type) {
 	case *baseType:
@@ -332,7 +332,7 @@ func extractStructureTypeValue(sb *strings.Builder, s *structureType, c *encodin
 
 		// Extract the raw value for this field
 		// Format as "fieldName = value"
-		_, err = sb.WriteString(fmt.Sprintf("%s = ", field.Name))
+		_, err = sb.WriteString(fmt.Sprintf(" %s = ", field.Name))
 		if err != nil {
 			return err
 		}
@@ -347,7 +347,7 @@ func extractStructureTypeValue(sb *strings.Builder, s *structureType, c *encodin
 		}
 
 	}
-	_, err = sb.WriteString("}")
+	_, err = sb.WriteString(" }")
 	if err != nil {
 		return err
 	}
