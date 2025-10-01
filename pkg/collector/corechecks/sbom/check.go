@@ -154,7 +154,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	c.sender = sender
-	sender.SetNoIndex(true)
 
 	if c.processor, err = newProcessor(
 		c.workloadmetaStore,
