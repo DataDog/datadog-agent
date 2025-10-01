@@ -6,5 +6,8 @@ edition = "2024"
 [dependencies]
 rust-check-core = { path = "../../core" }
 
+[dev-dependencies]
+rust-check-core = { path = "../../core", features = ["test-utils"] }
+
 [lib]
 crate-type = ["cdylib"]

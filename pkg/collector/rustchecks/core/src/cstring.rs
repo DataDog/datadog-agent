@@ -50,5 +50,10 @@ pub fn free_cstring_array(ptr: *mut *mut c_char) {
             drop(CString::from_raw(*current));
             current = current.add(1);
         }
+
+        // Free the array itself by reconstructing the Vec
+        let len = (current as usize - ptr as usize) / std::mem::size_of::<*mut c_char>();
+        let capacity = len + 1; // +1 for the null terminator
+        drop(Vec::from_raw_parts(ptr, len, capacity));
     }
 }

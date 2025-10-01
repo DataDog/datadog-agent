@@ -17,7 +17,7 @@ pub enum MetricType {
 }
 
 /// Replica of the Agent service check status
-#[repr(i32)]
+#[repr(C)]
 pub enum ServiceCheckStatus {
     OK = 0,
     WARNING = 1,
@@ -66,6 +66,7 @@ type SubmitEvent = extern "C" fn(
     *mut c_char,        // check_id
     *const Event,       // event
 );
+
 /// Signature of the submit histogram bucket function
 type SubmitHistogramBucket = extern "C" fn(
     *mut c_char,        // check_id
@@ -151,7 +152,7 @@ impl Aggregator {
         Ok(())
     }
 
-    pub fn submit_service_check(&self, check_id: &str, name: &str, status: i32, tags: &[String], hostname: &str, message: &str) -> Result<(), Box<dyn Error>> {
+    pub fn submit_service_check(&self, check_id: &str, name: &str, status: ServiceCheckStatus, tags: &[String], hostname: &str, message: &str) -> Result<(), Box<dyn Error>> {
         // create the C strings
         let cstr_check_id = to_cstring(check_id)?;
         let cstr_name = to_cstring(name)?;
@@ -163,7 +164,7 @@ impl Aggregator {
         (self.cb_submit_service_check)(
             cstr_check_id,
             cstr_name,
-            status,
+            status as c_int,
             cstr_tags,
             cstr_hostname,
             cstr_message,
@@ -179,22 +180,55 @@ impl Aggregator {
         Ok(())
 
     }
-
-    pub fn submit_event(&self, check_id: &str, event: &Event) -> Result<(), Box<dyn Error>> {
+    pub fn submit_event(&self, check_id: &str, title: &str, text: &str, timestamp: c_long, priority: &str, host: &str, tags: &[String], alert_type: &str, aggregation_key: &str, source_type_name: &str, event_type: &str) -> Result<(), Box<dyn Error>> {
         // create the C strings
         let cstr_check_id = to_cstring(check_id)?;
+        
+        let cstr_title = to_cstring(title)?;
+        let cstr_text = to_cstring(text)?;
+        let cstr_priority = to_cstring(priority)?;
+        let cstr_host = to_cstring(host)?;
+        let cstr_tags = to_cstring_array(tags)?;
+        let cstr_alert_type = to_cstring(alert_type)?;
+        let cstr_aggregation_key = to_cstring(aggregation_key)?;
+        let cstr_source_type_name = to_cstring(source_type_name)?;
+        let cstr_event_type = to_cstring(event_type)?;
 
-        // submit the service check
+        let event = Event {
+            title: cstr_title,
+            text: cstr_text,
+            timestamp,
+            priority: cstr_priority,
+            host: cstr_host,
+            tags: cstr_tags,
+            alert_type: cstr_alert_type,
+            aggregation_key: cstr_aggregation_key,
+            source_type_name: cstr_source_type_name,
+            event_type: cstr_event_type,
+        };
+
+        // submit the event
         (self.cb_submit_event)(
             cstr_check_id,
-            event,
+            &event,
         );
 
         // free every allocated C string
         free_cstring(cstr_check_id);
+        
+        free_cstring(cstr_title);
+        free_cstring(cstr_text);
+        free_cstring(cstr_priority);
+        free_cstring(cstr_host);
+        free_cstring_array(cstr_tags);
+        free_cstring(cstr_alert_type);
+        free_cstring(cstr_aggregation_key);
+        free_cstring(cstr_source_type_name);
+        free_cstring(cstr_event_type);
 
         Ok(())
     }
+
     pub fn submit_histogram_bucket(&self, check_id: &str, metric_name: &str, value: c_longlong, lower_bound: f32, upper_bound: f32, monotonic: c_int, hostname: &str, tags: &[String], flush_first_value: bool) -> Result<(), Box<dyn Error>> {
         // create the C strings
         let cstr_check_id = to_cstring(check_id)?;

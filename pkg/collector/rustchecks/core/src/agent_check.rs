@@ -1,7 +1,8 @@
-use crate::aggregator::{Aggregator, MetricType, ServiceCheckStatus, Event};
+use crate::aggregator::{Aggregator, MetricType, ServiceCheckStatus};
 use crate::config::Config;
 
 use std::error::Error;
+use std::ffi::{c_int, c_long};
 
 pub struct AgentCheck {
     check_id: String,           // corresponding id in the Agent
@@ -60,21 +61,21 @@ impl AgentCheck {
 
     /// Send Servive Check
     pub fn service_check(&self, name: &str, status: ServiceCheckStatus, tags: &[String], hostname: &str, message: &str) -> Result<(), Box<dyn Error>> {
-        self.aggregator.submit_service_check(&self.check_id, name, status as i32, tags, hostname, message)
+        self.aggregator.submit_service_check(&self.check_id, name, status, tags, hostname, message)
     }
 
     /// Send Event
-    pub fn event(&self, event: &Event) -> Result<(), Box<dyn Error>> {
-        self.aggregator.submit_event(&self.check_id, event)
+    pub fn event(&self, title: &str, text: &str, timestamp: c_long, priority: &str, host: &str, tags: &[String], alert_type: &str, aggregation_key: &str, source_type_name: &str, event_type: &str) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_event(&self.check_id, title, text, timestamp, priority, host, tags, alert_type, aggregation_key, source_type_name, event_type)
     }
 
     /// Send Histogram Bucket
-    pub fn submit_histogram_bucket(&self, metric_name: &str, value: i64, lower_bound: f32, upper_bound: f32, monotonic: i32, hostname: &str, tags: &[String], flush_first_value: bool) -> Result<(), Box<dyn Error>> {
+    pub fn submit_histogram_bucket(&self, metric_name: &str, value: i64, lower_bound: f32, upper_bound: f32, monotonic: c_int, hostname: &str, tags: &[String], flush_first_value: bool) -> Result<(), Box<dyn Error>> {
         self.aggregator.submit_histogram_bucket(&self.check_id, metric_name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value)
     }
 
-    /// Send Event Platform Evemt
-    pub fn submit_event_platform_event(&self, raw_event_pointer: &str, raw_event_size: i32, event_type: &str) -> Result<(), Box<dyn Error>> {
+    /// Send Event Platform Event
+    pub fn submit_event_platform_event(&self, raw_event_pointer: &str, raw_event_size: c_int, event_type: &str) -> Result<(), Box<dyn Error>> {
         self.aggregator.submit_event_platform_event(&self.check_id, raw_event_pointer, raw_event_size, event_type)
     }
 }

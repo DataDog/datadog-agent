@@ -1,4 +1,4 @@
-use crate::aggregator::*;
+use crate::aggregator::{Aggregator, MetricType, Event};
 use crate::AgentCheck;
 
 use std::ffi::{c_char, c_double, c_float, c_longlong, c_int, CStr};
@@ -15,7 +15,7 @@ fn c_str_to_string(ptr: *mut c_char) -> String {
     }
 }
 
-/// Helper function to print C string array (tags)
+/// Helper function to print C string array
 fn c_str_array_to_vec(ptr: *mut *mut c_char) -> Vec<String> {
     if ptr.is_null() {
         return vec!["NULL".to_string()];
