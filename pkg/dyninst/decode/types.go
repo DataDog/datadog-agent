@@ -1040,11 +1040,11 @@ func (s *goSliceHeaderType) encodeValueFields(
 		return err
 	}
 
-	elementSize := int(s.Data.Element.GetByteSize())
+	elementSize := int((*ir.GoSliceHeaderType)(s).Data.Element.GetByteSize())
 	var sliceData []byte
 	var sliceLength int
 	if elementSize > 0 {
-		sliceDataItem, ok := c.getPtr(address, s.Data.GetID())
+		sliceDataItem, ok := c.getPtr(address, (*ir.GoSliceHeaderType)(s).Data.GetID())
 		if !ok {
 			return writeTokens(enc,
 				tokenNotCapturedReason,
@@ -1067,9 +1067,9 @@ func (s *goSliceHeaderType) encodeValueFields(
 		jsontext.BeginArray); err != nil {
 		return err
 	}
-	elementByteSize := int(s.Data.Element.GetByteSize())
-	elementName := s.Data.Element.GetName()
-	elementID := s.Data.Element.GetID()
+	elementByteSize := int((*ir.GoSliceHeaderType)(s).Data.Element.GetByteSize())
+	elementName := (*ir.GoSliceHeaderType)(s).Data.Element.GetName()
+	elementID := (*ir.GoSliceHeaderType)(s).Data.Element.GetID()
 	for i := range int(sliceLength) {
 		var elementData []byte
 		if elementSize > 0 {

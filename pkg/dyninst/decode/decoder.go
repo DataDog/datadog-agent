@@ -326,10 +326,15 @@ func (s *snapshotMessage) init(
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
-	s.Debugger.Snapshot.Captures.Entry = &decoder.entry
-	s.Message = message{
-		probe:        probe,
-		captureEvent: s.Debugger.Snapshot.Captures.Entry,
+
+	s.Message = message{probe: probe}
+	switch probeEvent.event.Kind {
+	case ir.EventKindEntry:
+		s.Message.captureEvent = s.Debugger.Snapshot.Captures.Entry
+	case ir.EventKindLine:
+		s.Message.captureEvent = s.Debugger.Snapshot.Captures.Lines.capture
+	case ir.EventKindReturn:
+		s.Message.captureEvent = s.Debugger.Snapshot.Captures.Return
 	}
 	return probe, nil
 }

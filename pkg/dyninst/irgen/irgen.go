@@ -2424,7 +2424,7 @@ func newProbe(
 	if returnEvent != nil {
 		events = append(events, returnEvent)
 	}
-	segments := make([]ir.TemplateSegment, 0)
+	segments := []ir.TemplateSegment{}
 	probeTemplate := probeCfg.GetTemplate()
 	for seg := range probeTemplate.GetSegments() {
 		if s, ok := seg.(rcjson.TemplateSegment); ok && (s.JSONSegment != nil || s.StringSegment != nil) {
@@ -2435,6 +2435,11 @@ func newProbe(
 				})
 			} else if s.StringSegment != nil {
 				segments = append(segments, ir.StringSegment{Value: string(*s.StringSegment)})
+			} else {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindInvalidProbeDefinition,
+					Message: fmt.Sprintf("invalid template segment: %T", seg),
+				}, nil
 			}
 		}
 	}
@@ -3185,12 +3190,12 @@ func collectSegmentVariables(msg json.RawMessage, subprogram *ir.Subprogram) ([]
 	if len(varNames) == 0 {
 		return nil, nil
 	}
-	variables := make([]*ir.Variable, 0, len(varNames))
+	variables := []*ir.Variable{}
 	for _, varName := range varNames {
 		// Validate that the referenced variable exists as a parameter in the subprogram
 		varIndex := validateVariableReference(varName, subprogram)
 		if varIndex == -1 {
-			return nil, fmt.Errorf("referenced variable '%s' is not a parameter in the subprogram", varName)
+			return nil, fmt.Errorf("referenced variable '%s' is not in the subprogram", varName)
 		}
 		variables = append(variables, subprogram.Variables[varIndex])
 	}
