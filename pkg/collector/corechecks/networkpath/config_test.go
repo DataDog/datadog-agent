@@ -481,6 +481,8 @@ disable_windows_driver: true
 				Protocol:              payload.ProtocolTCP,
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				TracerouteQueries:     setup.DefaultNetworkPathStaticPathTracerouteQueries,
+				E2eQueries:            setup.DefaultNetworkPathStaticPathE2eQueries,
 				DisableWindowsDriver:  true,
 			},
 		},

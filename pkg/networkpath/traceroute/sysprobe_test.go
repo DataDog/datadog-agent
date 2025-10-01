@@ -73,6 +73,7 @@ func TestGetTracerouteURL(t *testing.T) {
 				"reverse_dns":                   "true",
 				"traceroute_queries":            "3",
 				"e2e_queries":                   "50",
+				"disable_windows_driver":        "false",
 			},
 		},
 	}
