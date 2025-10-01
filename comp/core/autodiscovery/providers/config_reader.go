@@ -23,6 +23,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	cache "github.com/patrickmn/go-cache"
 	"gopkg.in/yaml.v2"
@@ -156,12 +157,16 @@ func ReadConfigFiles(keep FilterFunc) ([]integration.Config, map[string]string, 
 
 // ReadConfigFormats returns the config formats read from config files
 func ReadConfigFormats() []ConfigFormatWrapper {
+	if reader == nil {
+		return []ConfigFormatWrapper{}
+	}
+
 	cachedFormats, found := reader.cache.Get("configFormats")
 	if found {
 		return cachedFormats.([]ConfigFormatWrapper)
 	}
 
-	return nil
+	return []ConfigFormatWrapper{}
 }
 
 func filterConfigs(configs []integration.Config, keep FilterFunc) []integration.Config {
@@ -411,6 +416,10 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 	if err != nil {
 		return conf, ConfigFormatWrapper{}, err
 	}
+	scrubbedConfigFormat, err := scrubber.ScrubYamlString(string(serializedConfigFormat))
+	if err != nil {
+		return conf, ConfigFormatWrapper{}, err
+	}
 
 	// If no valid instances were found & this is neither a metrics file, nor a logs file
 	// this is not a valid configuration file
@@ -482,9 +491,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 	}
 
 	conf.Source = "file:" + fpath
-	hash := sha256.Sum256(yamlFile)
+	hash := sha256.Sum256([]byte(scrubbedConfigFormat))
 
-	return conf, ConfigFormatWrapper{ConfigFormat: string(serializedConfigFormat), Filename: fpath, Hash: hex.EncodeToString(hash[:])}, err
+	return conf, ConfigFormatWrapper{ConfigFormat: scrubbedConfigFormat, Filename: fpath, Hash: hex.EncodeToString(hash[:])}, err
 }
 
 func containsString(slice []string, str string) bool {
