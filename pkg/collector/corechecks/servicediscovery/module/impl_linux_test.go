@@ -346,7 +346,11 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 
 		createTracerMemfd(t, data)
 
-		info, err := discovery.getServiceInfo(int32(self))
+		buf := make([]byte, readlinkBufferSize)
+		openFiles, err := getOpenFilesInfo(int32(self), buf)
+		require.NoError(t, err)
+
+		info, err := discovery.getServiceInfo(int32(self), openFiles)
 		require.NoError(t, err)
 		require.Equal(t, language.CPlusPlus, language.Language(info.Language))
 		require.Equal(t, apm.Provided, apm.Instrumentation(info.APMInstrumentation))
@@ -355,7 +359,11 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 	t.Run("invalid metadata", func(t *testing.T) {
 		createTracerMemfd(t, []byte("invalid data"))
 
-		info, err := discovery.getServiceInfo(int32(self))
+		buf := make([]byte, readlinkBufferSize)
+		openFiles, err := getOpenFilesInfo(int32(self), buf)
+		require.NoError(t, err)
+
+		info, err := discovery.getServiceInfo(int32(self), openFiles)
 		require.NoError(t, err)
 		require.Equal(t, apm.None, apm.Instrumentation(info.APMInstrumentation))
 	})

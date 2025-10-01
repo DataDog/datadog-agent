@@ -6,9 +6,6 @@
 package sender
 
 import (
-	"errors"
-	"io"
-	"sync"
 	"testing"
 	"time"
 
@@ -21,64 +18,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
-type MockSerializer struct {
-	arraySerializer    Serializer
-	mu                 sync.Mutex
-	failOnNthSerialize int
-	serializeCallCount int
-	failOnNthFinish    int
-	finishCallCount    int
-}
-
-// NewMockSerializer creates a new MockSerializer
-func NewMockSerializer(failOnNthSerialize int, failOnNthFinish int) *MockSerializer {
-	return &MockSerializer{
-		arraySerializer:    NewArraySerializer(),
-		failOnNthSerialize: failOnNthSerialize,
-		failOnNthFinish:    failOnNthFinish,
-		serializeCallCount: 0,
-		finishCallCount:    0,
-	}
-}
-
-// Serialize transforms all messages into a array string allowing failures.
-func (s *MockSerializer) Serialize(message *message.Message, writer io.Writer) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.serializeCallCount++
-	if s.failOnNthSerialize > 0 && s.serializeCallCount == s.failOnNthSerialize {
-		return errors.New("mock Nth Serialize failure")
-	}
-
-	return s.arraySerializer.Serialize(message, writer)
-}
-
-// Finish writes the closing bracket for JSON array allowing failures.
-func (s *MockSerializer) Finish(writer io.Writer) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.finishCallCount++
-
-	if s.failOnNthFinish > 0 && s.finishCallCount == s.failOnNthFinish {
-		return errors.New("mock Nth Finish failure")
-	}
-
-	return s.arraySerializer.Finish(writer)
-}
-
-// Reset resets the serializer to its initial state
-func (s *MockSerializer) Reset() {
-	s.arraySerializer.Reset()
-}
-
 func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), NewArraySerializer(), 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""), "test")
+	s := NewBatchStrategy(
+		input,
+		output,
+		flushChan,
+		NewMockServerlessMeta(false),
+		100*time.Millisecond,
+		2,
+		2,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
 	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
@@ -103,37 +59,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	}
 }
 
-func TestBatchStrategyOverflowsOnTooLargeMessage(t *testing.T) {
-	input := make(chan *message.Message)
-	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
-
-	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), NewArraySerializer(), 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""), "test")
-	s.Start()
-
-	message1 := message.NewMessage([]byte("a"), nil, "", 0)
-	input <- message1
-
-	// message2 will overflow the first payload causing message1 to flush, but then also fail to be added to the buffer
-	// because it's too big on it's own. message2 is dropped.
-	message2 := message.NewMessage([]byte("bbbbbb"), nil, "", 0)
-	input <- message2
-
-	expectedPayload := &message.Payload{
-		MessageMetas:  []*message.MessageMetadata{&message1.MessageMetadata},
-		Encoded:       []byte(`[a]`),
-		Encoding:      "identity",
-		UnencodedSize: 3,
-	}
-
-	// expect payload to be sent because buffer is full
-	assert.Equal(t, expectedPayload, <-output)
-	s.Stop()
-
-	if _, isOpen := <-input; isOpen {
-		assert.Fail(t, "input should be closed")
-	}
-}
+// Test removed - batch overflow logic now tested in batch_test.go
 
 func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	input := make(chan *message.Message)
@@ -142,7 +68,19 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	timerInterval := 100 * time.Millisecond
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, flushChan, NewMockServerlessMeta(false), NewArraySerializer(), timerInterval, 100, 100, "test", clk, compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""), "test")
+	s := newBatchStrategyWithClock(
+		input,
+		output,
+		flushChan,
+		NewMockServerlessMeta(false),
+		timerInterval,
+		100,
+		100,
+		"test",
+		clk,
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
 	s.Start()
 
 	for round := 0; round < 3; round++ {
@@ -167,7 +105,19 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	flushChan := make(chan struct{})
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, flushChan, NewMockServerlessMeta(false), NewArraySerializer(), 100*time.Millisecond, 2, 2, "test", clk, compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""), "test")
+	s := newBatchStrategyWithClock(
+		input,
+		output,
+		flushChan,
+		NewMockServerlessMeta(false),
+		100*time.Millisecond,
+		2,
+		2,
+		"test",
+		clk,
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
 	s.Start()
 
 	message := message.NewMessage([]byte("a"), nil, "", 0)
@@ -192,7 +142,17 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), NewArraySerializer(), 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""), "test")
+	s := NewBatchStrategy(input,
+		output,
+		flushChan,
+		NewMockServerlessMeta(false),
+		100*time.Millisecond,
+		2,
+		2,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
 	s.Start()
 	message := message.NewMessage([]byte{}, nil, "", 0)
 
@@ -216,7 +176,17 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), NewArraySerializer(), time.Hour, 100, 100, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""), "test")
+	strategy := NewBatchStrategy(input,
+		output,
+		flushChan,
+		NewMockServerlessMeta(false),
+		time.Hour,
+		100,
+		100,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -264,7 +234,18 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), NewArraySerializer(), time.Hour, 100, 100, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""), "test")
+	strategy := NewBatchStrategy(
+		input,
+		output,
+		flushChan,
+		NewMockServerlessMeta(false),
+		time.Hour,
+		100,
+		100,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -306,83 +287,53 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 	if _, isOpen := <-input; isOpen {
 		assert.Fail(t, "input should be closed")
 	}
-
 }
 
-func TestBatchStrategyDiscardsPayloadWhenSerializerFails(t *testing.T) {
+func TestBatchStrategyMRFRouting(t *testing.T) {
 	input := make(chan *message.Message)
-	output := make(chan *message.Payload, 1) // Ensure output is buffered if test sends multiple payloads before asserting
+	output := make(chan *message.Payload, 2) // Buffer for two payloads
 	flushChan := make(chan struct{})
-	// Fail on the 2nd call to Serialize, never fail Finish.
-	serializer := NewMockSerializer(2, 0)
-	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), serializer, 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""), "test")
-	s.Start()
+	var batchSize = 100
+	var contentSize = 100
 
-	message1 := message.NewMessage([]byte("a"), nil, "", 0)
-	input <- message1 // 1st Serialize call, should succeed.
+	strategy := NewBatchStrategy(
+		input,
+		output,
+		flushChan,
+		NewMockServerlessMeta(false),
+		100*time.Millisecond,
+		batchSize,
+		contentSize,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
+	strategy.Start()
+	normalMessage := message.NewMessage([]byte("normal message"), nil, "", 0)
 
-	// This message's serialization is intended to fail.
-	message2 := message.NewMessage([]byte("b"), nil, "", 0)
-	input <- message2 // 2nd Serialize call, should fail.
+	mrfMessage := message.NewMessage([]byte("mrf message"), nil, "", 0)
+	mrfMessage.IsMRFAllow = true
 
-	message3 := message.NewMessage([]byte("c"), nil, "", 0)
-	input <- message3
+	input <- normalMessage
+	input <- mrfMessage
 
-	message4 := message.NewMessage([]byte("d"), nil, "", 0)
-	input <- message4
+	flushChan <- struct{}{}
 
-	expectedPayload := &message.Payload{
-		MessageMetas:  []*message.MessageMetadata{&message3.MessageMetadata, &message4.MessageMetadata},
-		Encoded:       []byte(`[c,d]`),
-		Encoding:      "identity",
-		UnencodedSize: 5,
+	// Should receive two payloads: main and MRF
+	payloads := make([]*message.Payload, 2)
+	payloads[0] = <-output
+	payloads[1] = <-output
+
+	var hasNormal, hasMRF bool
+	for _, payload := range payloads {
+		if payload.IsMRF() {
+			hasMRF = true
+		} else {
+			hasNormal = true
+		}
 	}
+	assert.True(t, hasNormal, "Should have received normal payload")
+	assert.True(t, hasMRF, "Should have received MRF payload")
 
-	actualPayload := <-output
-	assert.Equal(t, expectedPayload, actualPayload)
-
-	s.Stop()
-
-	if _, isOpen := <-input; isOpen {
-		assert.Fail(t, "input should be closed")
-	}
-}
-
-func TestBatchStrategyDiscardsPayloadWhenSerializerFailsOnFinish(t *testing.T) {
-	input := make(chan *message.Message)
-	output := make(chan *message.Payload, 1) // Ensure output is buffered if test sends multiple payloads before asserting
-	flushChan := make(chan struct{})
-	// Fail on the 1st call to Finish, never fail Serialize.
-	serializer := NewMockSerializer(0, 1)
-	s := NewBatchStrategy(input, output, flushChan, NewMockServerlessMeta(false), serializer, 100*time.Millisecond, 2, 2, "test", compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1), metrics.NewNoopPipelineMonitor(""), "test")
-	s.Start()
-
-	message1 := message.NewMessage([]byte("a"), nil, "", 0)
-	input <- message1 // 1st Serialize call, should succeed.
-
-	message2 := message.NewMessage([]byte("b"), nil, "", 0)
-	input <- message2 // 2nd Serialize call, should fail.
-	// 1st Finish call, should fail.
-
-	message3 := message.NewMessage([]byte("c"), nil, "", 0)
-	input <- message3
-
-	message4 := message.NewMessage([]byte("d"), nil, "", 0)
-	input <- message4
-
-	expectedPayload := &message.Payload{
-		MessageMetas:  []*message.MessageMetadata{&message3.MessageMetadata, &message4.MessageMetadata},
-		Encoded:       []byte(`[c,d]`),
-		Encoding:      "identity",
-		UnencodedSize: 5,
-	}
-
-	actualPayload := <-output
-	assert.Equal(t, expectedPayload, actualPayload)
-
-	s.Stop()
-
-	if _, isOpen := <-input; isOpen {
-		assert.Fail(t, "input should be closed")
-	}
+	strategy.Stop()
 }

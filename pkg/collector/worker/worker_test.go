@@ -162,6 +162,9 @@ func TestWorkerInit(t *testing.T) {
 }
 
 func TestWorkerInitExpvarStats(t *testing.T) {
+	// Reset expvars before test
+	expvars.Reset()
+
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
 	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
