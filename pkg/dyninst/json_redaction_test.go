@@ -213,6 +213,10 @@ var defaultRedactors = []jsonRedactor{
 		replacement(`"[ts]"`),
 	),
 	redactor(
+		exactMatcher(`/duration`),
+		replacerFunc(redactNonZeroDuration),
+	),
+	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/address"},
 		replacerFunc(redactNonZeroAddress),
 	),
@@ -249,6 +253,24 @@ func redactGoID(v jsontext.Value) jsontext.Value {
 		return v
 	}
 	buf, err := json.Marshal("[goid]")
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
+}
+
+func redactNonZeroDuration(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '0' {
+		return v
+	}
+	var duration int64
+	if err := json.Unmarshal(v, &duration); err != nil {
+		return v
+	}
+	if duration == 0 {
+		return v
+	}
+	buf, err := json.Marshal("[duration]")
 	if err != nil {
 		return v
 	}

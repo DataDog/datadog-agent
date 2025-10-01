@@ -29,6 +29,7 @@ type FuzzSQLConfig struct {
 	KeepTrailingSemicolon         bool
 	KeepIdentifierQuotation       bool
 	KeepJSONPath                  bool
+	ReplaceBindParameter          bool
 }
 
 func fuzzConfigToSQLConfig(fc FuzzSQLConfig) SQLConfig {
@@ -57,6 +58,7 @@ func fuzzConfigToSQLConfig(fc FuzzSQLConfig) SQLConfig {
 		KeepTrailingSemicolon:         fc.KeepTrailingSemicolon,
 		KeepIdentifierQuotation:       fc.KeepIdentifierQuotation,
 		KeepJSONPath:                  fc.KeepJSONPath,
+		ReplaceBindParameter:          fc.ReplaceBindParameter,
 	}
 }
 
@@ -190,6 +192,7 @@ func FuzzObfuscateSQLWithConfig(f *testing.F) {
 				KeepTrailingSemicolon:         true,
 				KeepIdentifierQuotation:       true,
 				KeepJSONPath:                  true,
+				ReplaceBindParameter:          true,
 			},
 		},
 	}
@@ -220,7 +223,7 @@ func FuzzObfuscateSQLWithConfig(f *testing.F) {
 			tc.config.KeepSQLAlias, tc.config.DollarQuotedFunc, tc.config.ObfuscationMode,
 			tc.config.RemoveSpaceBetweenParentheses, tc.config.KeepNull, tc.config.KeepBoolean,
 			tc.config.KeepPositionalParameter, tc.config.KeepTrailingSemicolon,
-			tc.config.KeepIdentifierQuotation, tc.config.KeepJSONPath)
+			tc.config.KeepIdentifierQuotation, tc.config.KeepJSONPath, tc.config.ReplaceBindParameter)
 	}
 
 	o := NewObfuscator(Config{})
@@ -228,7 +231,7 @@ func FuzzObfuscateSQLWithConfig(f *testing.F) {
 	f.Fuzz(func(t *testing.T, query string, dbms uint8, tableNames, collectCommands,
 		collectComments, collectProcedures, replaceDigits, keepSQLAlias, dollarQuotedFunc bool,
 		obfuscationMode uint8, removeSpaceBetweenParentheses, keepNull, keepBoolean,
-		keepPositionalParameter, keepTrailingSemicolon, keepIdentifierQuotation, keepJSONPath bool) {
+		keepPositionalParameter, keepTrailingSemicolon, keepIdentifierQuotation, keepJSONPath, replaceBindParameter bool) {
 
 		fuzzConfig := FuzzSQLConfig{
 			DBMS:                          dbms,
@@ -247,6 +250,7 @@ func FuzzObfuscateSQLWithConfig(f *testing.F) {
 			KeepTrailingSemicolon:         keepTrailingSemicolon,
 			KeepIdentifierQuotation:       keepIdentifierQuotation,
 			KeepJSONPath:                  keepJSONPath,
+			ReplaceBindParameter:          replaceBindParameter,
 		}
 
 		sqlConfig := fuzzConfigToSQLConfig(fuzzConfig)
