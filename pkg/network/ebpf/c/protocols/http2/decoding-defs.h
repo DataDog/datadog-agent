@@ -94,6 +94,15 @@
 #define MAX_FRAME_SIZE 16384
 
 typedef enum {
+    kUnknownType = 0,
+    kPathType,
+    kMethodType,
+    kStatusCodeType,
+
+    __MAX_DYNAMIC_VALUE_TYPE = 8,
+} __attribute__((packed)) value_type_t;
+
+typedef enum {
     kGET = 2,
     kPOST = 3,
     kEmptyPath = 4,
@@ -111,7 +120,7 @@ typedef enum {
 
 typedef struct {
     char buffer[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
-    __u32 original_index;
+    value_type_t value_type;
     __u8 string_len;
     bool is_huffman_encoded;
 } dynamic_table_entry_t;
@@ -187,10 +196,10 @@ typedef enum {
 } __attribute__((packed)) http2_header_type_t;
 
 typedef struct {
-    __u32 original_index;
     __u32 index;
     __u32 new_dynamic_value_offset;
     __u32 new_dynamic_value_size;
+    value_type_t value_type;
     http2_header_type_t type;
     bool is_huffman_encoded;
 } http2_header_t;

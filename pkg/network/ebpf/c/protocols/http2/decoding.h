@@ -145,13 +145,14 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
         goto end;
     }
 
+    value_type_t value_type = get_value_type(index);
     // Path headers in HTTP2 that are not "/" or "/index.html"  are represented
     // with an indexed name, literal value, reusing the index 4 and 5 in the
     // static table. A different index means that the header is not a path, so
     // we skip it.
-    if (is_path_index(index)) {
+    if (kPathType == value_type) {
         update_path_size_telemetry(http2_tel, str_len);
-    } else if ((!is_status_index(index)) && (!is_method_index(index))) {
+    } else if (kUnknownType == value_type) {
         goto end;
     }
 
@@ -174,7 +175,7 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
     } else {
         headers_to_process->type = kNewDynamicHeaderNotIndexed;
     }
-    headers_to_process->original_index = index;
+    headers_to_process->value_type = value_type;
     headers_to_process->new_dynamic_value_offset = pktbuf_data_offset(pkt);
     headers_to_process->new_dynamic_value_size = str_len;
     headers_to_process->is_huffman_encoded = is_huffman_encoded;
@@ -334,16 +335,18 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
         current_header = &headers_to_process[iteration];
 
         if (current_header->type == kStaticHeader) {
-            if (is_method_index(current_header->index)) {
+            value_type_t value_type = get_value_type(current_header->index);
+
+            if (kMethodType == value_type) {
                 // TODO: mark request
                 current_stream->request_method.static_table_entry = current_header->index;
                 current_stream->request_method.finalized = true;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
-            } else if (is_status_index(current_header->index)) {
+            } else if (kStatusCodeType == value_type) {
                 current_stream->status_code.static_table_entry = current_header->index;
                 current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
-            } else if (is_path_index(current_header->index)) {
+            } else if (kPathType == value_type) {
                 current_stream->path.static_table_entry = current_header->index;
                 current_stream->path.finalized = true;
             }
@@ -356,16 +359,16 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
             if (dynamic_value == NULL) {
                 break;
             }
-            if (is_path_index(dynamic_value->original_index)) {
+            if (kPathType == dynamic_value->value_type) {
                 current_stream->path.length = dynamic_value->string_len;
                 current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->path.finalized = true;
                 bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
-            } else if (is_status_index(dynamic_value->original_index)) {
+            } else if (kStatusCodeType == dynamic_value->value_type) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
-            } else if (is_method_index(dynamic_value->original_index)) {
+            } else if (kMethodType == dynamic_value->value_type) {
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->request_method.length = dynamic_value->string_len;
@@ -378,19 +381,19 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
             if (current_header->type == kNewDynamicHeader) {
                 dynamic_value.string_len = current_header->new_dynamic_value_size;
                 dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
-                dynamic_value.original_index = current_header->original_index;
+                dynamic_value.value_type = current_header->value_type;
                 bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             }
-            if (is_path_index(current_header->original_index)) {
+            if (kPathType == current_header->value_type) {
                 current_stream->path.length = current_header->new_dynamic_value_size;
                 current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->path.finalized = true;
                 bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
-            } else if (is_status_index(current_header->original_index)) {
+            } else if (kStatusCodeType == current_header->value_type) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
-            } else if (is_method_index(current_header->original_index)) {
+            } else if (kMethodType == current_header->value_type) {
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->request_method.length = current_header->new_dynamic_value_size;

@@ -33,10 +33,10 @@ type HTTP2DynamicTableIndex struct {
 }
 type HTTP2DynamicTableEntry struct {
 	Buffer             [160]int8
-	Original_index     uint32
+	Value_type         uint8
 	String_len         uint8
 	Is_huffman_encoded bool
-	Pad_cgo_0          [2]byte
+	Pad_cgo_0          [5]byte
 }
 type HTTP2StreamKey struct {
 	Tup       ConnTuple
