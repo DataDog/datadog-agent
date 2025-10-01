@@ -734,6 +734,17 @@ api_key:
 #
 # cmd_port: 5001
 
+## @param agent_ipc - custom object - optional
+## Configure how the different processes composing the Agent communicate.
+#
+# agent_ipc:
+#
+#   # @param port - integer - optional - default: 5009
+#   # @env DD_AGENT_IPC_PORT - integer - optional - default: 5009
+#   # Set the port used by the Agent for IPC. Setting this setting to 0 disable IPC.
+#
+#   port: 5009
+
 ## @param GUI_port - integer - optional
 ## @env DD_GUI_PORT - integer - optional
 ## The port for the browser GUI to be served.
