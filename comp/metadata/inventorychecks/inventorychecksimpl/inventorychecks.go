@@ -21,7 +21,6 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -57,7 +56,7 @@ type Payload struct {
 	Timestamp     int64                 `json:"timestamp"`
 	Metadata      map[string][]metadata `json:"check_metadata"`
 	LogsMetadata  map[string][]metadata `json:"logs_metadata"`
-	FilesMetadata metadata              `json:"files_metadata"`
+	FilesMetadata map[string]metadata   `json:"files_metadata"`
 	UUID          string                `json:"uuid"`
 }
 
@@ -86,6 +85,8 @@ type inventorychecksImpl struct {
 	m sync.Mutex
 	// data is a map of instanceID to metadata
 	data map[string]instanceMetadata
+	// configFiles is a map of filename to config format
+	configFiles map[string]metadata
 
 	log      log.Component
 	conf     config.Component
@@ -117,12 +118,13 @@ type provides struct {
 func newInventoryChecksProvider(deps dependencies) provides {
 	hname, _ := deps.Hostname.Get(context.Background())
 	ic := &inventorychecksImpl{
-		conf:     deps.Config,
-		log:      deps.Log,
-		coll:     deps.Coll,
-		sources:  option.None[*sources.LogSources](),
-		hostname: hname,
-		data:     map[string]instanceMetadata{},
+		conf:        deps.Config,
+		log:         deps.Log,
+		coll:        deps.Coll,
+		sources:     option.None[*sources.LogSources](),
+		hostname:    hname,
+		data:        map[string]instanceMetadata{},
+		configFiles: map[string]metadata{},
 	}
 	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayloadWithConfigs, "checks.json")
 
@@ -276,7 +278,11 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 		payloadData[checkName] = append(payloadData[checkName], checks...)
 	}
 
-	filesMetadata := ic.getFilesMetadata()
+	// Sort the filesMetadata by filename
+	filesMetadata := make(map[string]metadata)
+	for filename, metadata := range ic.configFiles {
+		filesMetadata[filename] = metadata
+	}
 
 	return &Payload{
 		Hostname:      ic.hostname,
@@ -298,21 +304,11 @@ func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http
 	w.Write(scrubbed)
 }
 
-func (ic *inventorychecksImpl) getFilesMetadata() metadata {
-	configFiles := providers.ReadConfigFormats()
-	if len(configFiles) == 0 {
-		ic.log.Errorf("could not read files metadata")
-		return metadata{}
+// SetConfigFileMetadata sets the metadata for a config file
+func (ic *inventorychecksImpl) SetConfigFileMetadata(filename string, hash string, configFormat string) {
+	// Use the filename as key
+	ic.configFiles[filename] = metadata{
+		"hash":          hash,
+		"config_format": configFormat,
 	}
-
-	filesMetadata := metadata{}
-	for _, configFile := range configFiles {
-		// Use the filename as key
-		filesMetadata[configFile.Filename] = metadata{
-			"raw_config": configFile.ConfigFormat, // convert to string
-			"hash":       configFile.Hash,
-		}
-	}
-
-	return filesMetadata
 }

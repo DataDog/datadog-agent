@@ -21,7 +21,8 @@ type MockProvides struct {
 
 // InventorychecksMock mocks methods for the inventorychecks components for testing
 type InventorychecksMock struct {
-	metadata map[string]map[string]interface{}
+	metadata    map[string]map[string]interface{}
+	configFiles map[string]metadata
 }
 
 // NewMock returns a new InventorychecksMock.
@@ -41,6 +42,14 @@ func (m *InventorychecksMock) Set(instanceID string, key string, value interface
 		m.metadata[instanceID] = map[string]interface{}{}
 	}
 	m.metadata[instanceID][key] = value
+}
+
+// SetConfigFileMetadata sets the metadata for a config file
+func (m *InventorychecksMock) SetConfigFileMetadata(filename string, hash string, configFormat string) {
+	m.configFiles[filename] = metadata{
+		"hash":          hash,
+		"config_format": configFormat,
+	}
 }
 
 // Refresh is a empty method for the inventorychecks mock

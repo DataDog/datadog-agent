@@ -15,6 +15,8 @@ package inventorychecks
 type Component interface {
 	// Set sets a metadata value for one check instance
 	Set(instanceID string, key string, value interface{})
+	// SetConfigFileMetadata sets the metadata for a config file
+	SetConfigFileMetadata(filename string, hash string, configFormat string)
 	// GetInstanceMetadata returns metadata for a specific check instance
 	GetInstanceMetadata(instanceID string) map[string]interface{}
 	// Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
