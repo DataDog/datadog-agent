@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -13,10 +14,25 @@ type ConfigTemplateAnalyzer struct {
 }
 
 type setting struct {
-	name string
-	metadata []string
+	name   string
 	define []string
-	// TODO: name, env var, type, default, docs
+	env    []envDecl
+	param  paramDecl
+	docs   []string
+}
+
+type envDecl struct {
+	name       string
+	typ        string
+	defaultVal string
+	required   string
+}
+
+type paramDecl struct {
+	name       string
+	typ        string
+	defaultVal string
+	required   string
 }
 
 func newConfigTemplateAnalyzer() *ConfigTemplateAnalyzer {
@@ -64,11 +80,104 @@ func (c *ConfigTemplateAnalyzer) Run(content string) error {
 	return nil
 }
 
+func (c *ConfigTemplateAnalyzer) validateType(data string) error {
+	knownTypes := []string{
+		"string", "boolean", "integer", "duration", "float",
+		"number", "int", "bool",
+		"list", "json", "map", "custom", "object",
+		"custom object",
+		"list of strings",
+		"list of objects",
+		"map of strings",
+		"list of custom object",
+		"list of custom objects",
+		"list of key:value elements",
+		"List of custom object",
+		"list of comma separated strings",
+	}
+	if slices.Contains(knownTypes, data) {
+		return nil
+	}
+	return fmt.Errorf("unknown type: %q", data)
+}
+
+func (c *ConfigTemplateAnalyzer) parseParamDecl(data string) paramDecl {
+	res := paramDecl{}
+	parts := strings.Split(data, " - ")
+	index := 0
+
+	for _, part := range parts {
+		// TODO: validate each part
+		part = strings.Trim(part, " ")
+		switch index {
+		case 0:
+			res.name = part
+			index += 1
+		case 1:
+			err := c.validateType(part)
+			if err == nil {
+				res.typ = part
+				index += 1
+			} else {
+				fmt.Printf("[ERORR] config setting %s: %s\n", res.name, err)
+				return res
+			}
+		case 2:
+			res.required = part
+			index += 2
+		case 3:
+			res.defaultVal = part
+			index += 1
+		}
+	}
+
+	return res
+}
+
+func (c *ConfigTemplateAnalyzer) parseEnvDecl(data string) envDecl {
+	res := envDecl{}
+	parts := strings.Split(data, " - ")
+	index := 0
+
+	for _, part := range parts {
+		// TODO: validate each part
+		part = strings.Trim(part, " ")
+		switch index {
+		case 0:
+			res.name = part
+			index += 1
+		case 1:
+			res.typ = part
+			index += 1
+		case 2:
+			res.required = part
+			index += 2
+		case 3:
+			res.defaultVal = part
+			index += 1
+		}
+	}
+	return res
+}
+
+// AddMetadata adds metadata that appears above a setting. It defines the name and type
+// Example:
+// ## @param min_tls_version - string - optional - default: "tlsv1.2"
+// ## @env DD_MIN_TLS_VERSION - string - optional - default: "tlsv1.2"
 func (c *ConfigTemplateAnalyzer) AddMetadata(data string) {
 	if c.currSetting == nil {
 		c.currSetting = &setting{}
 	}
-	c.currSetting.metadata = append(c.currSetting.metadata, data)
+	if remain, has := strings.CutPrefix(data, "@param"); has {
+		info := c.parseParamDecl(remain)
+		c.currSetting.param = info
+	} else if remain, has := strings.CutPrefix(data, "@env"); has {
+		info := c.parseEnvDecl(remain)
+		c.currSetting.env = append(c.currSetting.env, info)
+	} else {
+		c.currSetting.docs = append(c.currSetting.docs, data)
+	}
+	//	c.currSetting.metadata = append(c.currSetting.metadata, data)
 }
 
 func (c *ConfigTemplateAnalyzer) AddDefine(data string) {
@@ -94,7 +203,20 @@ func (c *ConfigTemplateAnalyzer) FlushElement() {
 func (c *ConfigTemplateAnalyzer) Dump() {
 	fmt.Printf("number of settings: %d\n", len(c.settingList))
 	for i := range 10 {
-		fmt.Printf("------\n- %d: %v\n", i, c.settingList[i])
+		fmt.Printf("------\n")
+		st := c.settingList[i]
+
+		/*
+			name   string
+			define []string
+			env    []envDecl
+			param  paramDecl
+			docs   []string
+		*/
+
+		fmt.Printf("- %d: name:%s param:{name:%s typ:%s def:%s req:%s} env:%v defs:%v docs:%v\n",
+			i, st.name, st.param.name, st.param.typ, st.param.defaultVal, st.param.required,
+			st.env, st.define, st.docs)
 	}
 }
 
