@@ -9,6 +9,7 @@ package containerd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -52,7 +53,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	errs := c.filterSBOMContainers.GetErrors()
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to create container filter: %v", errs)
+		return fmt.Errorf("failed to create container filter: %w", errors.Join(errs...))
 	}
 
 	resultChan := scanner.Channel()

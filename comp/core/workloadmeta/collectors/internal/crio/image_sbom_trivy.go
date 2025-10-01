@@ -9,6 +9,7 @@ package crio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -55,7 +56,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	errs := c.sbomFilter.GetErrors()
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to create container filter: %v", errs)
+		return fmt.Errorf("failed to create container filter: %w", errors.Join(errs...))
 	}
 
 	go c.handleImageEvents(ctx, imgEventsCh, c.sbomFilter)

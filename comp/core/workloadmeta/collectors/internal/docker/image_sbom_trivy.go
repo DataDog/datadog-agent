@@ -9,6 +9,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -62,7 +63,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	errs := c.filterSBOMContainers.GetErrors()
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to create container filter: %v", errs)
+		return fmt.Errorf("failed to create container filter: %w", errors.Join(errs...))
 	}
 
 	go func() {

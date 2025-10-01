@@ -152,7 +152,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	errs := c.filterPausedContainers.GetErrors()
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to create container filter: %v", errs)
+		return fmt.Errorf("failed to create container filter: %w", errors.Join(errs...))
 	}
 
 	eventsCtx, cancelEvents := context.WithCancel(ctx)
