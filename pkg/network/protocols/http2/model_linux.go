@@ -27,6 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type eventWrapper struct {
+	EbpfTx
+	dt *DynamicTable
+}
+
 var oversizedLogLimit = log.NewLogLimit(10, time.Minute*10)
 
 // validatePath validates the given path.
@@ -90,82 +95,61 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8, output []byte) ([]b
 }
 
 // Path returns the URL from the request fragment captured in eBPF.
-func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
-	if tx.Stream.Path.Static_table_entry != 0 {
-		value, ok := pathStaticTable[tx.Stream.Path.Static_table_entry]
+func (ev *eventWrapper) Path(buffer []byte) ([]byte, bool) {
+	if ev.EbpfTx.Stream.Path.Static_table_index != 0 {
+		value, ok := pathStaticTable[ev.EbpfTx.Stream.Path.Static_table_index]
 		if !ok {
 			return nil, false
 		}
 		return []byte(value.Get()), true
 	}
 
-	var err error
-	if tx.Stream.Path.Is_huffman_encoded {
-		buffer, err = decodeHTTP2Path(tx.Stream.Path.Raw_buffer, tx.Stream.Path.Length, buffer)
-		if err != nil {
-			if oversizedLogLimit.ShouldLog() {
-				log.Warnf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length], err)
-			}
-			return nil, false
+	value, ok := ev.dt.resolveDynamicEntry(HTTP2DynamicTableIndex{
+		Index: ev.EbpfTx.Stream.Path.Dynamic_table_index,
+		Tup:   ev.Tuple,
+	})
+	if !ok {
+		if oversizedLogLimit.ShouldLog() {
+			log.Warn("unknown path key")
 		}
-	} else {
-		if tx.Stream.Path.Length == 0 {
-			if oversizedLogLimit.ShouldLog() {
-				log.Warn("path size: 0 is invalid")
-			}
-			return nil, false
-		} else if int(tx.Stream.Path.Length) > len(tx.Stream.Path.Raw_buffer) {
-			if oversizedLogLimit.ShouldLog() {
-				log.Warnf("Truncating as path size: %d is greater than the buffer size: %d", tx.Stream.Path.Length, len(buffer))
-			}
-			tx.Stream.Path.Length = uint8(len(tx.Stream.Path.Raw_buffer))
-		}
-		n := copy(buffer, tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length])
-		// Truncating exceeding nulls.
-		buffer = buffer[:n]
-		if err = validatePath(buffer); err != nil {
-			if oversizedLogLimit.ShouldLog() {
-				// The error already contains the path, so we don't need to log it again.
-				log.Warn(err)
-			}
-			return nil, false
-		}
+		return nil, false
 	}
 
-	// Ignore query parameters
-	queryStart := bytes.IndexByte(buffer, byte('?'))
-	if queryStart == -1 {
-		queryStart = len(buffer)
+	strValue := value.Get()
+	n := len(strValue)
+	if n > len(buffer) {
+		n = len(buffer)
 	}
-	return buffer[:queryStart], true
+	copy(buffer[:n], strValue)
+	return buffer, true
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
-func (tx *EbpfTx) RequestLatency() float64 {
-	if tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 {
+func (ev *eventWrapper) RequestLatency() float64 {
+	if ev.EbpfTx.Stream.Request_started == 0 || ev.EbpfTx.Stream.Response_last_seen == 0 {
 		return 0
 	}
-	if tx.Stream.Response_last_seen < tx.Stream.Request_started {
+	if ev.EbpfTx.Stream.Response_last_seen < ev.EbpfTx.Stream.Request_started {
 		return 0
 	}
-	return protocols.NSTimestampToFloat(tx.Stream.Response_last_seen - tx.Stream.Request_started)
+	return protocols.NSTimestampToFloat(ev.EbpfTx.Stream.Response_last_seen - ev.EbpfTx.Stream.Request_started)
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
-func (tx *EbpfTx) Incomplete() bool {
-	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || tx.StatusCode() == 0 || !tx.Stream.Path.Finalized || tx.Method() == http.MethodUnknown
+func (ev *eventWrapper) Incomplete() bool {
+	return ev.EbpfTx.Stream.Request_started == 0 || ev.EbpfTx.Stream.Response_last_seen == 0 || ev.StatusCode() == 0 || !ev.EbpfTx.Stream.Path.Finalized || ev.Method() == http.MethodUnknown
 }
 
 // ConnTuple returns the connections tuple of the transaction.
-func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
+func (ev *eventWrapper) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
-		SrcIPHigh: tx.Tuple.Saddr_h,
-		SrcIPLow:  tx.Tuple.Saddr_l,
-		DstIPHigh: tx.Tuple.Daddr_h,
-		DstIPLow:  tx.Tuple.Daddr_l,
-		SrcPort:   tx.Tuple.Sport,
-		DstPort:   tx.Tuple.Dport,
+		SrcIPHigh: ev.EbpfTx.Tuple.Saddr_h,
+		SrcIPLow:  ev.EbpfTx.Tuple.Saddr_l,
+		DstIPHigh: ev.EbpfTx.Tuple.Daddr_h,
+		DstIPLow:  ev.EbpfTx.Tuple.Daddr_l,
+		SrcPort:   ev.EbpfTx.Tuple.Sport,
+		DstPort:   ev.EbpfTx.Tuple.Dport,
 	}
 }
 
@@ -197,38 +181,27 @@ func stringToHTTPMethod(method string) (http.Method, error) {
 }
 
 // Method returns the HTTP method of the transaction.
-func (tx *EbpfTx) Method() http.Method {
-	var method string
-	var err error
-
+func (ev *eventWrapper) Method() http.Method {
 	// Case which the method is indexed.
-	if tx.Stream.Request_method.Static_table_entry != 0 {
-		value, ok := methodStaticTable[tx.Stream.Request_method.Static_table_entry]
+	if ev.EbpfTx.Stream.Request_method.Static_table_index != 0 {
+		value, ok := methodStaticTable[ev.EbpfTx.Stream.Request_method.Static_table_index]
 		if ok {
 			return value
 		}
 		return http.MethodUnknown
 	}
 
-	// if the length of the method is greater than the buffer, then we return 0.
-	if int(tx.Stream.Request_method.Length) > len(tx.Stream.Request_method.Raw_buffer) || tx.Stream.Request_method.Length == 0 {
+	value, ok := ev.dt.resolveDynamicEntry(HTTP2DynamicTableIndex{
+		Index: ev.EbpfTx.Stream.Request_method.Dynamic_table_index,
+		Tup:   ev.Tuple,
+	})
+	if !ok {
 		if oversizedLogLimit.ShouldLog() {
-			log.Warnf("method length %d is longer than the size buffer: %v and is huffman encoded: %v",
-				tx.Stream.Request_method.Length, tx.Stream.Request_method.Raw_buffer, tx.Stream.Request_method.Is_huffman_encoded)
+			log.Warn("unknown method key")
 		}
 		return http.MethodUnknown
 	}
-
-	// Case which the method is literal.
-	if tx.Stream.Request_method.Is_huffman_encoded {
-		method, err = hpack.HuffmanDecodeToString(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
-		if err != nil {
-			return http.MethodUnknown
-		}
-	} else {
-		method = string(tx.Stream.Request_method.Raw_buffer[:tx.Stream.Request_method.Length])
-	}
-	http2Method, err := stringToHTTPMethod(method)
+	http2Method, err := stringToHTTPMethod(value.Get())
 	if err != nil {
 		return http.MethodUnknown
 	}
@@ -239,29 +212,28 @@ func (tx *EbpfTx) Method() http.Method {
 // If the status code is indexed, then we return the corresponding value.
 // Otherwise, f the status code is huffman encoded, then we decode it and convert it from string to int.
 // Otherwise, we convert the status code from byte array to int.
-func (tx *EbpfTx) StatusCode() uint16 {
-	if tx.Stream.Status_code.Static_table_entry != 0 {
-		value, ok := statusStaticTable[tx.Stream.Status_code.Static_table_entry]
+func (ev *eventWrapper) StatusCode() uint16 {
+	if ev.EbpfTx.Stream.Status_code.Static_table_index != 0 {
+		value, ok := statusStaticTable[ev.EbpfTx.Stream.Status_code.Static_table_index]
 		if ok {
 			return value
 		}
 		return 0
 	}
 
-	if tx.Stream.Status_code.Is_huffman_encoded {
-		// The final form of the status code is 3 characters.
-		statusCode, err := hpack.HuffmanDecodeToString(tx.Stream.Status_code.Raw_buffer[:http2RawStatusCodeMaxLength-1])
-		if err != nil {
-			return 0
+	// TODO: Should be integer as well
+	value, ok := ev.dt.resolveDynamicEntry(HTTP2DynamicTableIndex{
+		Index: ev.EbpfTx.Stream.Status_code.Dynamic_table_index,
+		Tup:   ev.Tuple,
+	})
+	if !ok {
+		if oversizedLogLimit.ShouldLog() {
+			log.Warn("unknown status code key")
 		}
-		code, err := strconv.Atoi(statusCode)
-		if err != nil {
-			return 0
-		}
-		return uint16(code)
+		return 0
 	}
 
-	code, err := strconv.Atoi(string(tx.Stream.Status_code.Raw_buffer[:]))
+	code, err := strconv.Atoi(value.Get())
 	if err != nil {
 		return 0
 	}
@@ -269,94 +241,94 @@ func (tx *EbpfTx) StatusCode() uint16 {
 }
 
 // SetStatusCode sets the HTTP status code of the transaction.
-func (tx *EbpfTx) SetStatusCode(code uint16) {
+func (ev *eventWrapper) SetStatusCode(code uint16) {
 	val := strconv.Itoa(int(code))
 	if len(val) > http2RawStatusCodeMaxLength {
 		return
 	}
-	copy(tx.Stream.Status_code.Raw_buffer[:], val)
+	// copy(ev.EbpfTx.Stream.Status_code.Raw_buffer[:], val)
 }
 
 // ResponseLastSeen returns the last seen response.
-func (tx *EbpfTx) ResponseLastSeen() uint64 {
-	return tx.Stream.Response_last_seen
+func (ev *eventWrapper) ResponseLastSeen() uint64 {
+	return ev.EbpfTx.Stream.Response_last_seen
 }
 
 // SetResponseLastSeen sets the last seen response.
-func (tx *EbpfTx) SetResponseLastSeen(lastSeen uint64) {
-	tx.Stream.Response_last_seen = lastSeen
+func (ev *eventWrapper) SetResponseLastSeen(lastSeen uint64) {
+	ev.EbpfTx.Stream.Response_last_seen = lastSeen
 
 }
 
 // RequestStarted returns the timestamp of the request start.
-func (tx *EbpfTx) RequestStarted() uint64 {
-	return tx.Stream.Request_started
+func (ev *eventWrapper) RequestStarted() uint64 {
+	return ev.EbpfTx.Stream.Request_started
 }
 
 // SetRequestMethod sets the HTTP method of the transaction.
-func (tx *EbpfTx) SetRequestMethod(_ http.Method) {
-	// if we set Static_table_entry to be different from 0, and no indexed value, it will default to 0 which is "UNKNOWN"
-	tx.Stream.Request_method.Static_table_entry = 1
+func (ev *eventWrapper) SetRequestMethod(_ http.Method) {
+	// if we set Static_table_index to be different from 0, and no indexed value, it will default to 0 which is "UNKNOWN"
+	ev.EbpfTx.Stream.Request_method.Static_table_index = 1
 }
 
 // StaticTags returns the static tags of the transaction.
-func (tx *EbpfTx) StaticTags() uint64 {
-	return uint64(tx.Stream.Tags)
+func (ev *eventWrapper) StaticTags() uint64 {
+	return uint64(ev.EbpfTx.Stream.Tags)
 }
 
 // DynamicTags returns the dynamic tags of the transaction.
-func (tx *EbpfTx) DynamicTags() []string {
+func (ev *eventWrapper) DynamicTags() []string {
 	return nil
 }
 
 // String returns a string representation of the transaction.
-func (tx *EbpfTx) String() string {
+func (ev *eventWrapper) String() string {
 	var output strings.Builder
 	output.WriteString("http2.ebpfTx{")
-	output.WriteString(fmt.Sprintf("[%s] [%s ⇄ %s] ", tx.family(), tx.sourceEndpoint(), tx.destEndpoint()))
-	output.WriteString(" Method: '" + tx.Method().String() + "', ")
-	fullBufferSize := len(tx.Stream.Path.Raw_buffer)
-	if tx.Stream.Path.Is_huffman_encoded {
-		// If the path is huffman encoded, then the path is compressed (with an upper bound to compressed size of maxHTTP2Path)
-		// thus, we need more room for the decompressed path, therefore using 2*maxHTTP2Path.
-		fullBufferSize = 2 * maxHTTP2Path
-	}
-	buf := make([]byte, fullBufferSize)
-	path, ok := tx.Path(buf)
-	if ok {
-		output.WriteString("Path: '" + string(path) + "'")
-	}
+	output.WriteString(fmt.Sprintf("[%s] [%s ⇄ %s] ", ev.family(), ev.sourceEndpoint(), ev.destEndpoint()))
+	output.WriteString(" Method: '" + ev.Method().String() + "', ")
+	// fullBufferSize := len(ev.EbpfTx.Stream.Path.Raw_buffer)
+	// if ev.EbpfTx.Stream.Path.Is_huffman_encoded {
+	// If the path is huffman encoded, then the path is compressed (with an upper bound to compressed size of maxHTTP2Path)
+	// thus, we need more room for the decompressed path, therefore using 2*maxHTTP2Path.
+	// fullBufferSize = 2 * maxHTTP2Path
+	// }
+	// buf := make([]byte, fullBufferSize)
+	// path, ok := ev.Path(buf)
+	// if ok {
+	// 	output.WriteString("Path: '" + string(path) + "'")
+	// }
 	output.WriteString("}")
 	return output.String()
 }
 
-func (tx *EbpfTx) family() ebpf.ConnFamily {
-	if tx.Tuple.Metadata&uint32(ebpf.IPv6) != 0 {
+func (ev *eventWrapper) family() ebpf.ConnFamily {
+	if ev.EbpfTx.Tuple.Metadata&uint32(ebpf.IPv6) != 0 {
 		return ebpf.IPv6
 	}
 	return ebpf.IPv4
 }
 
-func (tx *EbpfTx) sourceAddress() util.Address {
-	if tx.family() == ebpf.IPv4 {
-		return util.V4Address(uint32(tx.Tuple.Saddr_l))
+func (ev *eventWrapper) sourceAddress() util.Address {
+	if ev.family() == ebpf.IPv4 {
+		return util.V4Address(uint32(ev.EbpfTx.Tuple.Saddr_l))
 	}
-	return util.V6Address(tx.Tuple.Saddr_l, tx.Tuple.Saddr_h)
+	return util.V6Address(ev.EbpfTx.Tuple.Saddr_l, ev.EbpfTx.Tuple.Saddr_h)
 }
 
-func (tx *EbpfTx) sourceEndpoint() string {
-	return net.JoinHostPort(tx.sourceAddress().String(), strconv.Itoa(int(tx.Tuple.Sport)))
+func (ev *eventWrapper) sourceEndpoint() string {
+	return net.JoinHostPort(ev.sourceAddress().String(), strconv.Itoa(int(ev.EbpfTx.Tuple.Sport)))
 }
 
-func (tx *EbpfTx) destAddress() util.Address {
-	if tx.family() == ebpf.IPv4 {
-		return util.V4Address(uint32(tx.Tuple.Daddr_l))
+func (ev *eventWrapper) destAddress() util.Address {
+	if ev.family() == ebpf.IPv4 {
+		return util.V4Address(uint32(ev.EbpfTx.Tuple.Daddr_l))
 	}
-	return util.V6Address(tx.Tuple.Daddr_l, tx.Tuple.Daddr_h)
+	return util.V6Address(ev.EbpfTx.Tuple.Daddr_l, ev.EbpfTx.Tuple.Daddr_h)
 }
 
-func (tx *EbpfTx) destEndpoint() string {
-	return net.JoinHostPort(tx.destAddress().String(), strconv.Itoa(int(tx.Tuple.Dport)))
+func (ev *eventWrapper) destEndpoint() string {
+	return net.JoinHostPort(ev.destAddress().String(), strconv.Itoa(int(ev.EbpfTx.Tuple.Dport)))
 }
 
 func (t HTTP2StreamKey) family() ebpf.ConnFamily {

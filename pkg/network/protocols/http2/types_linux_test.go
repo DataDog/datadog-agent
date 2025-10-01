@@ -20,16 +20,8 @@ func TestCgoAlignment_HTTP2StreamKey(t *testing.T) {
 	ebpftest.TestCgoAlignment[HTTP2StreamKey](t)
 }
 
-func TestCgoAlignment_http2StatusCode(t *testing.T) {
-	ebpftest.TestCgoAlignment[http2StatusCode](t)
-}
-
-func TestCgoAlignment_http2requestMethod(t *testing.T) {
-	ebpftest.TestCgoAlignment[http2requestMethod](t)
-}
-
-func TestCgoAlignment_http2Path(t *testing.T) {
-	ebpftest.TestCgoAlignment[http2Path](t)
+func TestCgoAlignment_interestingValue(t *testing.T) {
+	ebpftest.TestCgoAlignment[interestingValue](t)
 }
 
 func TestCgoAlignment_HTTP2Stream(t *testing.T) {

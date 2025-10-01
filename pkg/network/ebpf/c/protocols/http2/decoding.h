@@ -324,8 +324,7 @@ static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *
 // looking for requests path, status code, and method.
 static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel) {
     http2_header_t *current_header;
-    dynamic_table_entry_t dynamic_value = {};
-
+    value_type_t value_type;
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
     for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
         if (iteration >= interesting_headers) {
@@ -334,20 +333,21 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
 
         current_header = &headers_to_process[iteration];
 
+        value_type = current_header->value_type;
         if (current_header->type == kStaticHeader) {
-            value_type_t value_type = get_value_type(current_header->index);
+            value_type = get_value_type(current_header->index);
 
             if (kMethodType == value_type) {
                 // TODO: mark request
-                current_stream->request_method.static_table_entry = current_header->index;
+                current_stream->request_method.static_table_index = current_header->index;
                 current_stream->request_method.finalized = true;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (kStatusCodeType == value_type) {
-                current_stream->status_code.static_table_entry = current_header->index;
+                current_stream->status_code.static_table_index = current_header->index;
                 current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (kPathType == value_type) {
-                current_stream->path.static_table_entry = current_header->index;
+                current_stream->path.static_table_index = current_header->index;
                 current_stream->path.finalized = true;
             }
             continue;
@@ -359,46 +359,17 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
             if (dynamic_value == NULL) {
                 break;
             }
-            if (kPathType == dynamic_value->value_type) {
-                current_stream->path.length = dynamic_value->string_len;
-                current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->path.finalized = true;
-                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
-            } else if (kStatusCodeType == dynamic_value->value_type) {
-                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
-                current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->status_code.finalized = true;
-            } else if (kMethodType == dynamic_value->value_type) {
-                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
-                current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->request_method.length = dynamic_value->string_len;
-                current_stream->request_method.finalized = true;
-            }
-        } else {
-            // create the new dynamic value which will be added to the internal table.
-            pktbuf_read_into_buffer_path(dynamic_value.buffer, pkt, current_header->new_dynamic_value_offset);
-            // If the value is indexed - add it to the dynamic table.
-            if (current_header->type == kNewDynamicHeader) {
-                dynamic_value.string_len = current_header->new_dynamic_value_size;
-                dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
-                dynamic_value.value_type = current_header->value_type;
-                bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
-            }
-            if (kPathType == current_header->value_type) {
-                current_stream->path.length = current_header->new_dynamic_value_size;
-                current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->path.finalized = true;
-                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
-            } else if (kStatusCodeType == current_header->value_type) {
-                bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
-                current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->status_code.finalized = true;
-            } else if (kMethodType == current_header->value_type) {
-                bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
-                current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;
-                current_stream->request_method.length = current_header->new_dynamic_value_size;
-                current_stream->request_method.finalized = true;
-            }
+            value_type = dynamic_value->value_type;
+        }
+        if (kPathType == value_type) {
+            current_stream->path.dynamic_table_index = current_header->index;
+            current_stream->path.finalized = true;
+        } else if (kStatusCodeType == value_type) {
+            current_stream->status_code.dynamic_table_index = current_header->index;
+            current_stream->status_code.finalized = true;
+        } else if (kMethodType == value_type) {
+            current_stream->request_method.dynamic_table_index = current_header->index;
+            current_stream->request_method.finalized = true;
         }
     }
 }
@@ -969,7 +940,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         push_dynamic_values(pkt, tup, headers_to_process, interesting_headers);
         // Temporarily disabling this method, as it is going to be completely changed, and currently the pressure
         // on the stack is high.
-        // pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
+         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
