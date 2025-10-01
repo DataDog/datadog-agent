@@ -42,7 +42,10 @@ The payload is a JSON dict with the following fields
     - `service` - **string**: the service name of the log source.
     - `source` - **string**: the log source name.
     - `tags` - **list of string**: a list of tags attached to the log source.
-- `files_metadata` - **dict of string to object**: the list of files path to content of integrations
+- `files_metadata` - **dict of string to object**: the list of files path to content of integrations. The key is the filename.
+  Each object is composed of:
+    - `raw_config` - **string**: the scrubbed configuration file.
+    - `hash` - **string**: sha256 of the scrubbed file.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -145,7 +148,13 @@ Here an example of an inventory payload:
                 "tags": []
             }
         ]
-    }
+    },
+    "files_metadata": {
+        "/opt/datadog-agent/etc/conf.d/hello.yaml": {
+            "hash": "1f212c68ca3118a626bbd6b2263e4a2148b9d25671cbcac73f601c02e2af24bd",
+            "raw_config": "init_config: {}\ninstances:\n- min_collection_interval: 15\n"
+        },
+    },
     "hostname": "my-host",
     "timestamp": 1631281754507358895
 }
