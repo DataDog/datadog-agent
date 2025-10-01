@@ -257,6 +257,8 @@ type options struct {
 	clientTTL                      time.Duration
 	disableConfigPollLoop          bool
 	orgStatusRefreshInterval       time.Duration
+	// for mocking creating db instance in test
+	uptaneFactory func(md *uptane.Metadata) (coreAgentUptaneClient, error)
 }
 
 var defaultOptions = options{
@@ -411,6 +413,11 @@ func WithAgentPollLoopDisabled() func(s *options) {
 	}
 }
 
+// WithUptaneFactory
+func WithUptaneFactory(f func(md *uptane.Metadata) (coreAgentUptaneClient, error)) Option {
+	return func(o *options) { o.uptaneFactory = f }
+}
+
 // NewService instantiates a new remote configuration management service
 func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGetter func() []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*CoreAgentService, error) {
 	options := defaultOptions
@@ -470,11 +477,18 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	if authKeys.rcKeySet {
 		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
 	}
-	uptaneClient, err := uptane.NewCoreAgentClienWithNewTransactionalStore(
-		dbMetadata,
-		newRCBackendOrgUUIDProvider(http),
-		opt...,
-	)
+
+	var uptaneClient coreAgentUptaneClient
+	if options.uptaneFactory != nil {
+		// this allows us to create an uptane client without opening real bolt db for tests
+		uptaneClient, err = options.uptaneFactory(dbMetadata)
+	} else {
+		uptaneClient, err = uptane.NewCoreAgentClientWithNewTransactionalStore(
+			dbMetadata,
+			newRCBackendOrgUUIDProvider(http),
+			opt...,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1091,7 +1105,7 @@ func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, e
 		uptane.WithConfigRootOverride(s.site, s.configRoot),
 		uptane.WithDirectorRootOverride(s.site, s.directorRoot),
 	}
-	uptaneClient, err := uptane.NewCoreAgentClienWithRecreatedTransactionalStore(
+	uptaneClient, err := uptane.NewCoreAgentClientWithRecreatedTransactionalStore(
 		metadata,
 		newRCBackendOrgUUIDProvider(s.api),
 		opt...,

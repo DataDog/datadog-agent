@@ -130,8 +130,8 @@ func newCoreAgentClient(transactionalStore *transactionalStore, orgUUIDProvider 
 	return c, nil
 }
 
-// NewCoreAgentClienWithNewTransactionalStore creates a new uptane client with a new transactional store
-func NewCoreAgentClienWithNewTransactionalStore(dbMetadata *Metadata, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
+// NewCoreAgentClientWithNewTransactionalStore creates a new uptane client with a new transactional store
+func NewCoreAgentClientWithNewTransactionalStore(dbMetadata *Metadata, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
 	transactionalStore, err := newTransactionalStore(dbMetadata)
 	if err != nil {
 		return nil, err
@@ -140,8 +140,8 @@ func NewCoreAgentClienWithNewTransactionalStore(dbMetadata *Metadata, orgUUIDPro
 	return newCoreAgentClient(transactionalStore, orgUUIDProvider, options...)
 }
 
-// NewCoreAgentClienWithRecreatedTransactionalStore creates a new uptane client with a recreated transactional store
-func NewCoreAgentClienWithRecreatedTransactionalStore(dbMetadata *Metadata, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
+// NewCoreAgentClientWithRecreatedTransactionalStore creates a new uptane client with a recreated transactional store
+func NewCoreAgentClientWithRecreatedTransactionalStore(dbMetadata *Metadata, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
 	transactionalStore, err := recreateTransactionalStore(dbMetadata)
 	if err != nil {
 		return nil, err

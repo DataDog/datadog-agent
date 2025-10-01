@@ -158,7 +158,8 @@ func (m *mockUptane) TimestampExpires() (time.Time, error) {
 }
 
 func (m *mockUptane) Close() error {
-	return m.Close()
+	args := m.Called()
+	return args.Error(0)
 }
 
 func (m *mockUptane) GetTransactionalStoreMetadata() (*uptane.Metadata, error) {
@@ -191,7 +192,7 @@ var testRCKey = msgpgo.RemoteConfigKey{
 	Datacenter: "dd.com",
 }
 
-func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clock clock.Clock) *CoreAgentService {
+func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUptane, clock clock.Clock) *CoreAgentService {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("hostname", "test-hostname")
 
@@ -207,13 +208,16 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clo
 		WithDatabaseFileName("test.db"),
 		WithTraceAgentEnv(traceAgentEnv),
 		WithAPIKey("abc"),
+		WithUptaneFactory(func(_ *uptane.Metadata) (coreAgentUptaneClient, error) {
+			return coreAgentUptane, nil // no DB opened in tests
+		}),
 	}
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
 	service.api = api
 	service.clock = clock
-	service.uptane = uptane
+	service.uptane = coreAgentUptane
 	return service
 }
 
