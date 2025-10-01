@@ -241,7 +241,7 @@ func ConvertPackageToScope(pkg symdb.Package) Scope {
 
 	// Add types as struct scopes
 	for _, typ := range pkg.Types {
-		typeScope := convertTypeToScope(typ)
+		typeScope := convertTypeToScope(*typ)
 		scope.Scopes = append(scope.Scopes, typeScope)
 	}
 
