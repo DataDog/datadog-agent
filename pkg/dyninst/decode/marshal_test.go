@@ -29,7 +29,9 @@ type mockUnsupportedSegment struct {
 func createMockUnsupportedSegment() ir.TemplateSegment {
 	return &mockUnsupportedSegment{
 		JSONSegment: ir.JSONSegment{
-			ExpressionIndex: 0,
+			RootTypeExpressionIndicies: map[ir.TypeID]int{
+				0: 0,
+			},
 		},
 	}
 }
@@ -45,8 +47,11 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 			name: "extractExpressionRawValue_index_out_of_bounds",
 			setupMessage: func() *message {
 				evaluationErrors := make([]string, 0)
-				captureEvent := &captureEvent{
+				capEvent := &captureEvent{
 					rootType: &ir.EventRootType{
+						TypeCommon: ir.TypeCommon{
+							ID: 0,
+						},
 						Expressions: make([]*ir.RootExpression, 0), // empty expressions
 					},
 					evaluationErrors: &evaluationErrors,
@@ -55,14 +60,17 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 				probe := &ir.Probe{
 					Template: &ir.Template{
 						Segments: []ir.TemplateSegment{
-							ir.JSONSegment{ExpressionIndex: 0}, // index 0 but no expressions
+							ir.JSONSegment{RootTypeExpressionIndicies: map[ir.TypeID]int{0: 0}}, // index 0 but no expressions
 						},
 					},
 				}
 
 				return &message{
-					probe:        probe,
-					captureEvent: captureEvent,
+					probe: probe,
+					captureMap: map[ir.TypeID]*captureEvent{
+						0: capEvent,
+					},
+					evaluationErrors: &evaluationErrors,
 				}
 			},
 			expectedErrors:  []string{"expression index 0 out of bounds"},
@@ -72,8 +80,11 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 			name: "extractExpressionRawValue_expression_skipped",
 			setupMessage: func() *message {
 				evaluationErrors := make([]string, 0)
-				captureEvent := &captureEvent{
+				capEvent := &captureEvent{
 					rootType: &ir.EventRootType{
+						TypeCommon: ir.TypeCommon{
+							ID: 0,
+						},
 						Expressions: []*ir.RootExpression{
 							{
 								Name: "arg1",
@@ -92,20 +103,21 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 					evaluationErrors: &evaluationErrors,
 				}
 				// Mark expression as skipped
-				captureEvent.skippedIndices.reset(1)
-				captureEvent.skippedIndices.set(0)
+				capEvent.skippedIndices.reset(1)
+				capEvent.skippedIndices.set(0)
 
 				probe := &ir.Probe{
 					Template: &ir.Template{
 						Segments: []ir.TemplateSegment{
-							ir.JSONSegment{ExpressionIndex: 0},
+							ir.JSONSegment{RootTypeExpressionIndicies: map[ir.TypeID]int{0: 0}},
 						},
 					},
 				}
 
 				return &message{
-					probe:        probe,
-					captureEvent: captureEvent,
+					probe:            probe,
+					captureMap:       map[ir.TypeID]*captureEvent{0: capEvent},
+					evaluationErrors: &evaluationErrors,
 				}
 			},
 			expectedErrors:  []string{"expression skipped"},
@@ -115,8 +127,11 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 			name: "extractExpressionRawValue_length_mismatch",
 			setupMessage: func() *message {
 				evaluationErrors := make([]string, 0)
-				captureEvent := &captureEvent{
+				capEvent := &captureEvent{
 					rootType: &ir.EventRootType{
+						TypeCommon: ir.TypeCommon{
+							ID: 0,
+						},
 						Expressions: []*ir.RootExpression{
 							{
 								Name: "arg1",
@@ -136,19 +151,20 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 					rootData:         make([]byte, 5), // Not enough data
 					evaluationErrors: &evaluationErrors,
 				}
-				captureEvent.skippedIndices.reset(1)
+				capEvent.skippedIndices.reset(1)
 
 				probe := &ir.Probe{
 					Template: &ir.Template{
 						Segments: []ir.TemplateSegment{
-							ir.JSONSegment{ExpressionIndex: 0},
+							ir.JSONSegment{RootTypeExpressionIndicies: map[ir.TypeID]int{0: 0}},
 						},
 					},
 				}
 
 				return &message{
-					probe:        probe,
-					captureEvent: captureEvent,
+					probe:            probe,
+					captureMap:       map[ir.TypeID]*captureEvent{0: capEvent},
+					evaluationErrors: &evaluationErrors,
 				}
 			},
 			expectedErrors:  []string{"could not read parameter data from root data, length mismatch"},
@@ -158,8 +174,11 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 			name: "extractExpressionRawValue_expression_not_captured",
 			setupMessage: func() *message {
 				evaluationErrors := make([]string, 0)
-				captureEvent := &captureEvent{
+				capEvent := &captureEvent{
 					rootType: &ir.EventRootType{
+						TypeCommon: ir.TypeCommon{
+							ID: 0,
+						},
 						Expressions: []*ir.RootExpression{
 							{
 								Name: "arg1",
@@ -181,20 +200,23 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 					evaluationErrors: &evaluationErrors,
 				}
 				// Set presence bitset to indicate expression not captured (bit 0 = false)
-				captureEvent.rootData[0] = 0x00
-				captureEvent.skippedIndices.reset(1)
+				capEvent.rootData[0] = 0x00
+				capEvent.skippedIndices.reset(1)
 
 				probe := &ir.Probe{
 					Template: &ir.Template{
 						Segments: []ir.TemplateSegment{
-							ir.JSONSegment{ExpressionIndex: 0},
+							ir.JSONSegment{RootTypeExpressionIndicies: map[ir.TypeID]int{0: 0}},
 						},
 					},
 				}
 
 				return &message{
-					probe:        probe,
-					captureEvent: captureEvent,
+					probe: probe,
+					captureMap: map[ir.TypeID]*captureEvent{
+						0: capEvent,
+					},
+					evaluationErrors: &evaluationErrors,
 				}
 			},
 			expectedErrors:  []string{"expression not captured"},
@@ -204,11 +226,14 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 			name: "extractExpressionRawValue_no_decoder_type",
 			setupMessage: func() *message {
 				evaluationErrors := make([]string, 0)
-				captureEvent := &captureEvent{
+				capEvent := &captureEvent{
 					encodingContext: encodingContext{
 						typesByID: make(map[ir.TypeID]decoderType), // empty, so type won't be found
 					},
 					rootType: &ir.EventRootType{
+						TypeCommon: ir.TypeCommon{
+							ID: 0,
+						},
 						Expressions: []*ir.RootExpression{
 							{
 								Name: "arg1",
@@ -230,20 +255,25 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 					evaluationErrors: &evaluationErrors,
 				}
 				// Set presence bitset to indicate expression captured (bit 0 = true)
-				captureEvent.rootData[0] = 0x01
-				captureEvent.skippedIndices.reset(1)
+				capEvent.rootData[0] = 0x01
+				capEvent.skippedIndices.reset(1)
 
 				probe := &ir.Probe{
 					Template: &ir.Template{
 						Segments: []ir.TemplateSegment{
-							ir.JSONSegment{ExpressionIndex: 0},
+							ir.JSONSegment{
+								RootTypeExpressionIndicies: map[ir.TypeID]int{0: 0},
+							},
 						},
 					},
 				}
 
 				return &message{
-					probe:        probe,
-					captureEvent: captureEvent,
+					probe: probe,
+					captureMap: map[ir.TypeID]*captureEvent{
+						0: capEvent,
+					},
+					evaluationErrors: &evaluationErrors,
 				}
 			},
 			expectedErrors:  []string{"no decoder type found for type unknown_type"},
@@ -253,7 +283,7 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 			name: "string_segment_writestring_error",
 			setupMessage: func() *message {
 				evaluationErrors := make([]string, 0)
-				captureEvent := &captureEvent{
+				capEvent := &captureEvent{
 					evaluationErrors: &evaluationErrors,
 				}
 				// Create a string segment with a normal value since strings.Builder.WriteString rarely fails
@@ -268,8 +298,11 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 				}
 
 				return &message{
-					probe:        probe,
-					captureEvent: captureEvent,
+					probe: probe,
+					captureMap: map[ir.TypeID]*captureEvent{
+						0: capEvent,
+					},
+					evaluationErrors: &evaluationErrors,
 				}
 			},
 			expectedErrors:  []string{}, // WriteString unlikely to fail, but test the path
@@ -279,7 +312,7 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 			name: "unsupported_segment_type",
 			setupMessage: func() *message {
 				evaluationErrors := make([]string, 0)
-				captureEvent := &captureEvent{
+				capEvent := &captureEvent{
 					evaluationErrors: &evaluationErrors,
 				}
 
@@ -296,8 +329,11 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 				}
 
 				return &message{
-					probe:        probe,
-					captureEvent: captureEvent,
+					probe: probe,
+					captureMap: map[ir.TypeID]*captureEvent{
+						0: capEvent,
+					},
+					evaluationErrors: &evaluationErrors,
 				}
 			},
 			expectedErrors:  []string{"unsupported segment type: *decode.mockUnsupportedSegment"},
@@ -307,8 +343,11 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 			name: "multiple_errors_mixed",
 			setupMessage: func() *message {
 				evaluationErrors := make([]string, 0)
-				captureEvent := &captureEvent{
+				capEvent := &captureEvent{
 					rootType: &ir.EventRootType{
+						TypeCommon: ir.TypeCommon{
+							ID: 0,
+						},
 						Expressions: []*ir.RootExpression{
 							{
 								Name: "arg1",
@@ -328,22 +367,25 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 					rootData:         make([]byte, 5), // Not enough data
 					evaluationErrors: &evaluationErrors,
 				}
-				captureEvent.skippedIndices.reset(1)
+				capEvent.skippedIndices.reset(1)
 
 				probe := &ir.Probe{
 					Template: &ir.Template{
 						Segments: []ir.TemplateSegment{
-							ir.JSONSegment{ExpressionIndex: 0}, // Will fail with length mismatch
-							ir.StringSegment{Value: "test"},    // Should succeed
-							createMockUnsupportedSegment(),     // Will fail with unsupported type
-							ir.JSONSegment{ExpressionIndex: 1}, // Will fail with out of bounds
+							ir.JSONSegment{RootTypeExpressionIndicies: map[ir.TypeID]int{0: 0}}, // Will fail with length mismatch
+							ir.StringSegment{Value: "test"},                                     // Should succeed
+							createMockUnsupportedSegment(),                                      // Will fail with unsupported type
+							ir.JSONSegment{RootTypeExpressionIndicies: map[ir.TypeID]int{0: 1}}, // Will fail with out of bounds
 						},
 					},
 				}
 
 				return &message{
-					probe:        probe,
-					captureEvent: captureEvent,
+					probe: probe,
+					captureMap: map[ir.TypeID]*captureEvent{
+						0: capEvent,
+					},
+					evaluationErrors: &evaluationErrors,
 				}
 			},
 			expectedErrors: []string{
@@ -372,8 +414,8 @@ func TestMessageMarshalJSONToErrorPaths(t *testing.T) {
 			}
 
 			// Check that expected errors were added to evaluationErrors
-			require.NotNil(t, message.captureEvent.evaluationErrors)
-			actualErrors := *message.captureEvent.evaluationErrors
+			require.NotNil(t, message.evaluationErrors)
+			actualErrors := *message.evaluationErrors
 
 			assert.Len(t, actualErrors, len(tt.expectedErrors), "Number of evaluation errors should match")
 
@@ -419,13 +461,16 @@ func TestMessageMarshalJSONToSuccessPath(t *testing.T) {
 	}
 	baseTypeDecoder := (*baseType)(&irBaseType)
 
-	captureEvent := &captureEvent{
+	capEvent := &captureEvent{
 		encodingContext: encodingContext{
 			typesByID: map[ir.TypeID]decoderType{
 				1: baseTypeDecoder,
 			},
 		},
 		rootType: &ir.EventRootType{
+			TypeCommon: ir.TypeCommon{
+				ID: 1,
+			},
 			Expressions: []*ir.RootExpression{
 				{
 					Name: "arg1",
@@ -450,24 +495,27 @@ func TestMessageMarshalJSONToSuccessPath(t *testing.T) {
 		evaluationErrors: &evaluationErrors,
 	}
 	// Set presence bitset to indicate expression captured (bit 0 = true)
-	captureEvent.rootData[0] = 0x01
+	capEvent.rootData[0] = 0x01
 	// Set the int64 value at offset 8 (little endian)
-	captureEvent.rootData[8] = 42
-	captureEvent.skippedIndices.reset(1)
+	capEvent.rootData[8] = 42
+	capEvent.skippedIndices.reset(1)
 
 	probe := &ir.Probe{
 		Template: &ir.Template{
 			Segments: []ir.TemplateSegment{
 				ir.StringSegment{Value: "Value: "},
-				ir.JSONSegment{ExpressionIndex: 0},
+				ir.JSONSegment{RootTypeExpressionIndicies: map[ir.TypeID]int{1: 0}},
 				ir.StringSegment{Value: " (end)"},
 			},
 		},
 	}
 
 	message := &message{
-		probe:        probe,
-		captureEvent: captureEvent,
+		probe: probe,
+		captureMap: map[ir.TypeID]*captureEvent{
+			1: capEvent,
+		},
+		evaluationErrors: &evaluationErrors,
 	}
 
 	var buf strings.Builder

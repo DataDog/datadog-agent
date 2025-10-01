@@ -327,15 +327,17 @@ func (s *snapshotMessage) init(
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
 
-	s.Message = message{probe: probe}
-	switch probeEvent.event.Kind {
-	case ir.EventKindEntry:
-		s.Message.captureEvent = s.Debugger.Snapshot.Captures.Entry
-	case ir.EventKindLine:
-		s.Message.captureEvent = s.Debugger.Snapshot.Captures.Lines.capture
-	case ir.EventKindReturn:
-		s.Message.captureEvent = s.Debugger.Snapshot.Captures.Return
+	s.Message = message{
+		probe:            probe,
+		captureMap:       make(map[ir.TypeID]*captureEvent),
+		evaluationErrors: &s.Debugger.EvaluationErrors,
 	}
+
+	s.Message.captureMap[decoder.entry.rootType.ID] = &decoder.entry
+	if event.Return != nil {
+		s.Message.captureMap[decoder._return.rootType.ID] = &decoder._return
+	}
+
 	return probe, nil
 }
 

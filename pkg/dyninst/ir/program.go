@@ -161,7 +161,9 @@ type JSONSegment struct {
 	// DSL is the raw expression language segment.
 	DSL string
 	// ExpressionIndex is the index of the root expression that corresponds to this segment.
-	ExpressionIndex int
+	RootTypeExpressionIndicies map[TypeID]int
+	// ExpressionKind is the kind of expression that corresponds to this segment.
+	ExpressionKind EventKind
 }
 
 func (s JSONSegment) templateSegment() {}
