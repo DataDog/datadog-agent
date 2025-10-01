@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"path"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	def "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -249,11 +251,14 @@ type DefaultForwarder struct {
 	agentName                       string
 	queueDurationCapacity           *retry.QueueDurationCapacity
 	retryQueueDurationCapacityMutex sync.Mutex
+
+	// secrets component for API key refresh on failure
+	secrets def.Component
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
 // TODO: (components) Remove this method and other exported methods in comp/forwarder.
-func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
+func NewDefaultForwarder(config config.Component, log log.Component, secrets def.Component, options *Options) *DefaultForwarder {
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		config:           config,
@@ -268,10 +273,12 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
+			secrets:               secrets,
 		},
 		completionHandler: options.CompletionHandler,
 		agentName:         agentName,
 		localForwarder:    nil,
+		secrets:           secrets,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.GetInt64("forwarder_storage_max_size_in_bytes")
@@ -793,4 +800,16 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 	}()
 
 	return results, f.sendHTTPTransactions(transactions)
+}
+
+// TriggerSecretRefresh triggers secret refresh if secrets component is available
+func (f *DefaultForwarder) TriggerSecretRefresh(reason string) {
+	if f.secrets != nil {
+		f.secrets.TriggerRefreshOnAPIKeyFailure(reason)
+	}
+}
+
+// CreateTransactionContext adds forwarder to context for transaction access
+func (f *DefaultForwarder) CreateTransactionContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, "forwarder", f)
 }
