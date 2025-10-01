@@ -523,7 +523,7 @@ workflow:
   - <<: *if_installer_tests
   - <<: *if_auto_e2e_tests
     variables:
-      E2E_OSVERS: $E2E_BRANCH_OSVERS
+      E2E_DESCRIPTORS: $E2E_BRANCH_DESCRIPTORS
 
 .security_agent_change_paths: &security_agent_change_paths
   - pkg/ebpf/**/*
