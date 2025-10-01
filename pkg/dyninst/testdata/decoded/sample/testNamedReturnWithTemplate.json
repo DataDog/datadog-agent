@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testSliceEmptyStructs",
+      "method": "main.testNamedReturn",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,19 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testSliceEmptyStructs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
-            "lineNumber": 69
+            "function": "main.testNamedReturn",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 68
           },
           {
-            "function": "main.executeSliceFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
-            "lineNumber": 96
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 104
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 31
+            "lineNumber": 50
           },
           {
             "function": "runtime.main",
@@ -42,27 +42,29 @@
           }
         ],
         "probe": {
-          "id": "testSliceEmptyStructs",
+          "id": "testNamedReturnWithTemplate",
           "location": {
-            "method": "main.testSliceEmptyStructs"
+            "method": "main.testNamedReturn"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "xs": {
-                "type": "[]struct {}",
-                "size": "2",
-                "elements": [
-                  {
-                    "type": "struct {}",
-                    "fields": {}
-                  },
-                  {
-                    "type": "struct {}",
-                    "fields": {}
-                  }
-                ]
+              "i": {
+                "type": "int",
+                "value": "40"
+              },
+              "result": {
+                "type": "int",
+                "notCapturedReason": "unavailable"
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "result": {
+                "type": "int",
+                "notCapturedReason": "unavailable"
               }
             }
           }
@@ -70,6 +72,7 @@
       }
     },
     "timestamp": "[ts]",
+    "duration": "[duration]",
     "message": ""
   }
 ]

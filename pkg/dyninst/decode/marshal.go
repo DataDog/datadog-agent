@@ -39,8 +39,10 @@ type debuggerData struct {
 }
 
 type message struct {
-	probe        *ir.Probe
-	captureEvent *captureEvent
+	probe            *ir.Probe
+	captureData      *captureData
+	captureMap       map[ir.TypeID]*captureEvent
+	evaluationErrors *[]string
 }
 
 // MarshalJSONTo is used to marshal the expression template of the user specified probe
@@ -63,19 +65,28 @@ func (m *message) MarshalJSONTo(enc *jsontext.Encoder) error {
 	for _, seg := range m.probe.Template.Segments {
 		switch segTyped := seg.(type) {
 		case ir.JSONSegment:
-			// Extract raw value from expression (no JSON encoding)
-			err := m.captureEvent.extractExpressionRawValue(&sb, segTyped.ExpressionIndex)
-			if err != nil {
-				*m.captureEvent.evaluationErrors = append(*m.captureEvent.evaluationErrors, err.Error())
-				continue
+			found := false
+			for k, v := range m.captureMap {
+				if _, ok := segTyped.RootTypeExpressionIndicies[k]; ok {
+					found = true
+					err := v.extractExpressionRawValue(&sb, segTyped.RootTypeExpressionIndicies[k])
+					if err != nil {
+						*v.evaluationErrors = append(*v.evaluationErrors, err.Error())
+						continue
+					}
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("no capture event found for segment %T", seg)
 			}
 		case ir.StringSegment:
 			if _, err := sb.WriteString(segTyped.Value); err != nil {
-				*m.captureEvent.evaluationErrors = append(*m.captureEvent.evaluationErrors, err.Error())
+				*m.evaluationErrors = append(*m.evaluationErrors, err.Error())
 				continue
 			}
 		default:
-			*m.captureEvent.evaluationErrors = append(*m.captureEvent.evaluationErrors, fmt.Sprintf("unsupported segment type: %T", seg))
+			*m.evaluationErrors = append(*m.evaluationErrors, fmt.Sprintf("unsupported segment type: %T", seg))
 		}
 	}
 	return enc.WriteToken(jsontext.String(sb.String()))
@@ -207,7 +218,7 @@ func (ce *captureEvent) processExpression(
 	enc *jsontext.Encoder,
 	expr *ir.RootExpression,
 	presenceBitSet bitset,
-	expressionIndex int,
+	expressionIndex int, // Index within the root type expressions
 ) error {
 	parameterType := expr.Expression.Type
 	parameterSize := parameterType.GetByteSize()

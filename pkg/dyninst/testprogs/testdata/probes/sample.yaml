@@ -976,6 +976,16 @@ probes:
     where:
       methodName: main.testNamedReturn
     captureSnapshot: true
+  - id: testNamedReturnWithTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testNamedReturn
+    message: "hello {result}"
+    segments:
+      - json: 
+          ref: "result"
+        dsl: "result"
+    captureSnapshot: true
   - id: testMultipleNamedReturn
     type: LOG_PROBE
     where:

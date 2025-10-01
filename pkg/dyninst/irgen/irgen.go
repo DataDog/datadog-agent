@@ -1822,6 +1822,7 @@ func populateEventExpressions(
 		}
 	}
 
+	// Collect segment variables and add them to expressions before calculating sizes
 	for i := range probe.Template.Segments {
 		segment, ok := (probe.Template.Segments[i]).(ir.JSONSegment)
 		if !ok {
@@ -1835,16 +1836,11 @@ func populateEventExpressions(
 			}
 		}
 		for _, variable := range relevantVariables {
-			if expressionIndex, ok := variableExpressionSet[variable.Name]; ok {
-				segment.ExpressionIndex = expressionIndex
-			} else {
+			if _, ok := variableExpressionSet[variable.Name]; !ok {
 				expr := createVariableExpression(variable, ir.RootExpressionKindArgument)
 				expressions = append(expressions, expr)
-				expressionIndex := len(expressions) - 1
-				variableExpressionSet[variable.Name] = expressionIndex
-				segment.ExpressionIndex = expressionIndex
+				variableExpressionSet[variable.Name] = len(expressions) - 1
 			}
-			probe.Template.Segments[i] = segment
 			break
 		}
 	}
@@ -1875,6 +1871,28 @@ func populateEventExpressions(
 		Expressions:        expressions,
 	}
 	typeCatalog.typesByID[event.Type.ID] = event.Type
+
+	// map segments to their expression indices
+	for i := range probe.Template.Segments {
+		segment, ok := (probe.Template.Segments[i]).(ir.JSONSegment)
+		if !ok {
+			continue
+		}
+		relevantVariables, err := collectSegmentVariables(segment.JSON, probe.Subprogram)
+		if err != nil {
+			return ir.Issue{
+				Kind:    ir.IssueKindUnsupportedFeature,
+				Message: fmt.Sprintf("failed to collect segment variables: %v", err),
+			}
+		}
+		for _, variable := range relevantVariables {
+			if expressionIndex, ok := variableExpressionSet[variable.Name]; ok {
+				segment.RootTypeExpressionIndicies[event.Type.ID] = expressionIndex
+			}
+			probe.Template.Segments[i] = segment
+			break
+		}
+	}
 	return ir.Issue{}
 }
 
@@ -2430,8 +2448,9 @@ func newProbe(
 		if s, ok := seg.(rcjson.TemplateSegment); ok && (s.JSONSegment != nil || s.StringSegment != nil) {
 			if s.JSONSegment != nil {
 				segments = append(segments, ir.JSONSegment{
-					JSON: s.JSONSegment.JSON,
-					DSL:  s.JSONSegment.DSL,
+					JSON:                       s.JSONSegment.JSON,
+					DSL:                        s.JSONSegment.DSL,
+					RootTypeExpressionIndicies: make(map[ir.TypeID]int),
 				})
 			} else if s.StringSegment != nil {
 				segments = append(segments, ir.StringSegment{Value: string(*s.StringSegment)})
