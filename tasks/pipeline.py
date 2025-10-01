@@ -340,6 +340,8 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
 
     # Use the CI_JOB_TOKEN which is passed from gitlab
     token = None if follow else os.environ['CI_JOB_TOKEN']
+    print(f"[PIPELINE DEBUG] trigger_child_pipeline: follow={follow}, using token={'None (will generate new)' if token is None else 'CI_JOB_TOKEN'}")
+    print(f"[PIPELINE DEBUG] Calling get_gitlab_repo for project={project_name}")
     repo = get_gitlab_repo(project_name, token=token)
 
     # Fill the environment variables to pass to the child pipeline.
