@@ -11,13 +11,13 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
-	go.opentelemetry.io/collector/component/componenttest v0.135.0
-	go.opentelemetry.io/collector/pdata v1.41.0
+	go.opentelemetry.io/collector/component/componenttest v0.136.0
+	go.opentelemetry.io/collector/pdata v1.42.0
 	go.opentelemetry.io/otel/metric v1.38.0
 	google.golang.org/protobuf v1.36.9
 )
 
-require go.opentelemetry.io/collector/component v1.41.0 // indirect
+require go.opentelemetry.io/collector/component v1.42.0 // indirect
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7 // indirect
@@ -66,8 +66,8 @@ require (
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.41.0 // indirect
-	go.opentelemetry.io/collector/internal/telemetry v0.135.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.42.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.136.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.12.0 // indirect
 	go.opentelemetry.io/otel v1.38.0 // indirect
 	go.opentelemetry.io/otel/log v0.14.0 // indirect
@@ -77,21 +77,18 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/net v0.44.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
-	google.golang.org/grpc v1.75.0 // indirect
+	google.golang.org/grpc v1.75.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 // github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
 replace github.com/golang/mock => github.com/golang/mock v1.6.0
-
-// Pin github.com/stretchr/testify to v1.10.0 while waiting for https://github.com/DataDog/datadog-agent/pull/40182
-replace github.com/stretchr/testify => github.com/stretchr/testify v1.10.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
@@ -194,6 +191,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../pkg/metrics
+	github.com/DataDog/datadog-agent/pkg/network/driver => ../../../../pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../pkg/network/payload
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ../../../../pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ../../../../pkg/networkpath/payload

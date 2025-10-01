@@ -42,11 +42,7 @@
             "method": "main.usesMapsOfMapsThatDoNotAppearAsArguments"
           }
         },
-        "captures": {
-          "entry": {
-            "arguments": {}
-          }
-        }
+        "captures": {}
       }
     },
     "timestamp": "[ts]"
