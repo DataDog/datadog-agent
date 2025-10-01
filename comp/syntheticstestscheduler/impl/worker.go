@@ -263,6 +263,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	w.tracerouteResult.TestConfigID = w.testCfg.cfg.PublicID
 	w.tracerouteResult.TestResultID = testResultID
 	w.tracerouteResult.Origin = "synthetics"
+	w.tracerouteResult.Timestamp = w.finishedAt.UnixMilli()
 
 	result := common.Result{
 		ID:              testResultID,

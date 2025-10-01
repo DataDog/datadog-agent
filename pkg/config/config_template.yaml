@@ -942,6 +942,53 @@ api_key:
 ## add a line break when exporting secrets through files.
 #
 # secret_backend_remove_trailing_line_break: false
+
+## @param secret_scope_integration_to_their_k8s_namespace - boolean - optional - default: false
+## @env DD_SECRET_SCOPE_INTEGRATION_TO_THEIR_NAMESPACE - boolean - optional - default: false
+## When using `k8s_secret@` notation to pull secrets from Kubernetes, you can limit integration to only be able to access
+## their own namespace by setting this setting to true.
+## The limitation will only apply integration's config and secret using `k8s_secret@` secrets.
+##
+## This setting is incompatible with 'secret_allowed_k8s_namespace' and 'secret_image_to_handle'
+##
+## See https://docs.datadoghq.com/agent/configuration/secrets-management for more information on using Kubernetes
+## secrets in your configuration.
+#
+# secret_scope_integration_to_their_k8s_namespace: false
+
+## @param secret_allowed_k8s_namespace - list of strings - optiona - default: []
+## @env DD_SECRET_ALLOWED_K8S_NAMESPACE - list of strings - optional - default: []
+## When using `k8s_secret@` notation to pull secrets from Kubernetes, you can limit all integrations to only be able to access
+## a list of specific namespace.
+## The limitation will only apply integration's config and secret using `k8s_secret@` secrets.
+##
+## This setting is incompatible with 'secret_scope_integration_to_their_k8s_namespace' and 'secret_image_to_handle'
+##
+## See https://docs.datadoghq.com/agent/configuration/secrets-management for more information on using Kubernetes
+## secrets in your configuration.
+#
+# secret_allowed_k8s_namespace: []
+
+## @param secret_image_to_handle - map of list of strings - optiona - default:  {}
+## @env DD_SECRET_IMAGE_TO_HANDLE - map of list of strings - optional - default: {}
+## When using `k8s_secret@` notation to pull secrets from Kubernetes, you can fully control which Kubernetes secret can
+## be access by which image. Any secrets using the `k8s_secret@` prefix not listed for the image being monitored will
+## not be resolved.
+## The limitation will only apply integration's config and secret using `k8s_secret@` secrets.
+##
+## This setting is incompatible with 'secret_scope_integration_to_their_k8s_namespace' and 'secret_image_to_handle'
+##
+## See https://docs.datadoghq.com/agent/configuration/secrets-management for more information on using Kubernetes
+## secrets in your configuration.
+#
+# secret_image_to_handle:
+#   webserver:
+#     - "k8s_secret@prod/weserver/db_password"
+#     - "k8s_secret@prod/weserver/db_password"
+#   <Kubernetes image name>:
+#     - "<full secret handle>"
+#     - ...
+#
 {{ if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.
@@ -1892,6 +1939,41 @@ api_key:
 {{ end -}}
 {{ end -}}
 {{ end -}}
+
+{{ if .Synthetics -}}
+########################################
+## Synthetics Configuration           ##
+########################################
+
+## @param synthetics - custom object - optional
+## Enter specific configuration for Synthetics tests.
+# synthetics:
+
+#   # @param collector - custom object - optional
+#   # Configuration related to run Synthetics tests.
+#
+#   collector:
+
+#     # @param enabled - bool - optional - default: false
+#     # @env DD_SYNTHETICS_COLLECTOR_ENABLED - bool - optional - default: false
+#     # [Preview] Enables Synthetics tests.
+#
+#     enabled: false
+
+#     # @param workers - integer - optional - default: 4
+#     # @env DD_SYNTHETICS_COLLECTOR_WORKERS - integer - optional - default: 4
+#     # The `workers` refers to the number of concurrent workers available for synthetics tests execution.
+#
+#     workers: 4
+
+#     # @param flush_interval - integer - optional - default: 10s
+#     # @env DD_SYNTHETICS_COLLECTOR_FLUSH_INTERVAL - integer - optional - default: 10s
+#     # The `flush_interval` refers to the synthetics run interval for tests execution.
+#
+#     flush_interval: 10s
+
+{{ end -}}
+
 {{ if .Compliance -}}
 #############################################
 ## Security Agent Compliance Configuration ##
