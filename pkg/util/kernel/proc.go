@@ -113,14 +113,9 @@ func GetProcessEnvVariable(pid int, procRoot string, envVar string) (string, err
 // found for a given process.
 var ErrMemFdFileNotFound = errors.New("memfd file not found")
 
-// GetProcessMemFdFile reads a maximum amount of bytes from the
-// memFdFileName if it was found.
-func GetProcessMemFdFile(pid int, procRoot string, memFdFileName string, memFdMaxSize int) ([]byte, error) {
-	path, found := findMemFdFilePath(pid, procRoot, memFdFileName)
-	if !found {
-		return nil, ErrMemFdFileNotFound
-	}
-
+// ReadMemFdFile reads a maximum amount of bytes from the memfd file at the given path.
+// The path should be a full path to an fd (e.g., /proc/1234/fd/5).
+func ReadMemFdFile(path string, memFdMaxSize int) ([]byte, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -133,7 +128,7 @@ func GetProcessMemFdFile(pid int, procRoot string, memFdFileName string, memFdMa
 	}
 
 	if !fileInfo.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s: not a regular file", memFdFileName)
+		return nil, fmt.Errorf("%s: not a regular file", path)
 	}
 
 	data, err := io.ReadAll(io.LimitReader(file, int64(memFdMaxSize+1)))
@@ -146,6 +141,17 @@ func GetProcessMemFdFile(pid int, procRoot string, memFdFileName string, memFdMa
 	}
 
 	return data, nil
+}
+
+// GetProcessMemFdFile reads a maximum amount of bytes from the
+// memFdFileName if it was found.
+func GetProcessMemFdFile(pid int, procRoot string, memFdFileName string, memFdMaxSize int) ([]byte, error) {
+	path, found := findMemFdFilePath(pid, procRoot, memFdFileName)
+	if !found {
+		return nil, ErrMemFdFileNotFound
+	}
+
+	return ReadMemFdFile(path, memFdMaxSize)
 }
 
 // findMemfdFilePath searches for the file in the process open file descriptors.

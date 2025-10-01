@@ -348,7 +348,7 @@ func newParsingContext() parsingContext {
 
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
-func (s *discovery) getServiceInfo(pid int32) (*model.Service, error) {
+func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.Service, error) {
 	proc := &process.Process{
 		Pid: pid,
 	}
@@ -366,11 +366,14 @@ func (s *discovery) getServiceInfo(pid int32) (*model.Service, error) {
 	var tracerMetadataArr []tracermetadata.TracerMetadata
 	var firstMetadata *tracermetadata.TracerMetadata
 
-	tracerMetadata, err := tracermetadata.GetTracerMetadata(int(pid), kernel.ProcFSRoot())
-	if err == nil {
-		// Currently we only get the first tracer metadata
-		tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
-		firstMetadata = &tracerMetadata
+	if openFiles.tracerMemfdFd != "" {
+		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", openFiles.tracerMemfdFd)
+		tracerMetadata, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
+		if err == nil {
+			// Currently we only get the first tracer metadata
+			tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
+			firstMetadata = &tracerMetadata
+		}
 	}
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
@@ -572,7 +575,7 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 		return nil
 	}
 
-	service, err := s.getServiceInfo(pid)
+	service, err := s.getServiceInfo(pid, openFileInfo)
 	if err != nil {
 		log.Tracef("[pid: %d] could not get service info: %v", pid, err)
 		return nil

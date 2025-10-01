@@ -608,6 +608,7 @@
 /pkg/network/ebpf/c/runtime/shared-libraries*   @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/shared-libraries/           @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/protocols/tls       @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring
 /pkg/network/encoding/marshal/*usm*     @DataDog/universal-service-monitoring
 /pkg/network/encoding/marshal/*_windows*.go  @DataDog/windows-products
 /pkg/network/go/                        @DataDog/universal-service-monitoring
