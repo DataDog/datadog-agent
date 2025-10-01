@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Fix remote agent management configuration changes on Windows.
+    Fix Remote Agent management configuration changes on Windows.
 
