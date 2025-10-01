@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build hostprofiler
+//go:build linux
 
 // host-profiler is a standalone binary that runs the Host Profiler.
 package main

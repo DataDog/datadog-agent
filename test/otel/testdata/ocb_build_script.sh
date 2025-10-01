@@ -65,10 +65,13 @@ dd_mods=$(find . -type f -name "go.mod" -exec dirname {} \; | sort | sed 's/.//'
 	for mod in $dd_mods; do
 		echo "- github.com/DataDog/datadog-agent$mod => $current_dir$mod"
 	done
+	# to be removed in v0.137.0
+    echo "- github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter => github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.136.1-0.20250924124118-d5b415b0878f"
+	echo "- github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog => github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.136.1-0.20250924124118-d5b415b0878f"
 } >>"$WORK_DIR/builder-config.yaml"
 
 # Install and configure OCB
-OCB_VERSION="0.135.0"
+OCB_VERSION="0.136.0"
 CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" \
 	go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
 mv -v "$(go env GOPATH)/bin/builder" "$WORK_DIR/ocb"

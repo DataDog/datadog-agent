@@ -12,7 +12,6 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -80,7 +79,7 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 
 	cardinality := input[prefix+checkTagCardinality]
 
-	return BuildTemplates(key, checkNames, initConfigs, instances, ignoreAdTags, cardinality), nil
+	return BuildTemplates(key, checkNames, initConfigs, instances, ignoreAdTags, cardinality)
 }
 
 // extractLogsTemplatesFromMap returns the logs configuration from a given map,
@@ -171,20 +170,19 @@ func ParseJSONValue(value string) ([][]integration.Data, error) {
 // BuildTemplates returns check configurations configured according to the
 // passed in AD identifier, check names, init, instance configs and their
 // `ignoreAutoDiscoveryTags`, `CheckTagCardinality` fields.
-func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][]integration.Data, ignoreAutodiscoveryTags bool, checkCard string) []integration.Config {
+func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][]integration.Data, ignoreAutodiscoveryTags bool, checkCard string) ([]integration.Config, error) {
 	templates := make([]integration.Config, 0)
 
 	// sanity checks
 	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
-		log.Errorf("Template entries in entity with ID %q don't all have the same length. "+
-			"checkNames: %d, initConfigs: %d, instances: %d. Not using them.",
+		errorMsg := fmt.Errorf("template entries in entity with ID %q don't all have the same length. "+
+			"checkNames: %d, initConfigs: %d, instances: %d",
 			adID, len(checkNames), len(initConfigs), len(instances))
-		return templates
+		return templates, errorMsg
 	}
 	for idx := range initConfigs {
 		if len(initConfigs[idx]) != 1 {
-			log.Errorf("Templates init Configs list in entity with ID %q is not valid, not using Templates entries", adID)
-			return templates
+			return templates, fmt.Errorf("templates init Configs list in entity with ID %q is not valid", adID)
 		}
 	}
 
@@ -200,7 +198,7 @@ func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][
 			})
 		}
 	}
-	return templates
+	return templates, nil
 }
 
 func parseJSONObjToData(r interface{}) (integration.Data, error) {
