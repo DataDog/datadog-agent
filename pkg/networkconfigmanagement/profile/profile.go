@@ -17,6 +17,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"gopkg.in/yaml.v2"
 )
 
@@ -34,8 +35,9 @@ const (
 
 // Commands is a sub-section within `DeviceProfile` that details the specific commands needed to do an intended action
 type Commands struct {
-	CommandType CommandType `json:"type" yaml:"type"`
-	Values      []string    `json:"values" yaml:"values"`
+	CommandType     CommandType     `json:"type" yaml:"type"`
+	Values          []string        `json:"values" yaml:"values"`
+	ProcessingRules ProcessingRules `json:"processingRules" yaml:"processingRules"`
 }
 
 // Map represents the mapping profile name to profiles from the loaded directory
@@ -67,7 +69,8 @@ type NCMProfileRaw struct {
 // NCMProfile represents the profile with transformed variables such as the commands map for easy access to commands
 type NCMProfile struct {
 	BaseProfile
-	Commands map[CommandType][]string
+	Commands map[CommandType]Commands
+	Scrubber *scrubber.Scrubber
 }
 
 // ParseProfileFromFile is a base function to easily unmarshal YAML for any type T given a file path
@@ -94,7 +97,7 @@ func ParseProfileFromFile[T Definition[T]](filePath string) (T, error) {
 	return profile, nil
 }
 
-// ParseNCMProfileFromFile does extra work to unmarshal the YAML, transforming the list of commands into a map
+// ParseNCMProfileFromFile does extra work to unmarshal the YAML, transforming the list of commands into a map for ease of retrieval
 func ParseNCMProfileFromFile(filePath string) (*NCMProfile, error) {
 	path := resolveNCMProfileDefinitionPath(filePath)
 	ncmRawProfile, err := ParseProfileFromFile[*NCMProfileRaw](path)
@@ -102,20 +105,21 @@ func ParseNCMProfileFromFile(filePath string) (*NCMProfile, error) {
 		return nil, err
 	}
 	var np NCMProfile
-	np.Commands = make(map[CommandType][]string)
+	np.Commands = make(map[CommandType]Commands)
 	for _, cmd := range ncmRawProfile.Commands {
-		np.Commands[cmd.CommandType] = cmd.Values
+		np.Commands[cmd.CommandType] = cmd
 	}
+	np.Scrubber = scrubber.New()
 	return &np, nil
 }
 
 // GetCommandValues retrieves the list of CLI commands corresponding to the main command (e.g. running) intended for the device
 func (np *NCMProfile) GetCommandValues(command CommandType) ([]string, error) {
-	values, ok := np.Commands[command]
+	cmds, ok := np.Commands[command]
 	if !ok {
 		return nil, fmt.Errorf("could not find values for the command from the profile %s: %s", np.Name, command)
 	}
-	return values, nil
+	return cmds.Values, nil
 }
 
 // GetProfileMap retrieves the map of profiles loaded from the profile folder path given

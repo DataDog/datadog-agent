@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,27 +35,48 @@ func Test_GetProfileMap(t *testing.T) {
 					BaseProfile: BaseProfile{
 						Name: "_base",
 					},
-					Commands: map[CommandType][]string{},
+					Commands: map[CommandType]Commands{},
+					Scrubber: scrubber.New(),
 				},
 				"p1": &NCMProfile{
 					BaseProfile: BaseProfile{
 						Name: "p1",
 					},
-					Commands: map[CommandType][]string{
-						Running: {"show running-config"},
-						Startup: {"show startup-config"},
-						Version: {"show version"},
+					Commands: map[CommandType]Commands{
+						Running: {
+							CommandType: Running,
+							Values:      []string{"show run"},
+						},
+						Startup: {
+							CommandType: Startup,
+							Values:      []string{"show start"},
+						},
+						Version: {
+							CommandType: Version,
+							Values:      []string{"show ver"},
+						},
 					},
+					Scrubber: scrubber.New(),
 				},
 				"p2": &NCMProfile{
 					BaseProfile: BaseProfile{
 						Name: "p2",
 					},
-					Commands: map[CommandType][]string{
-						Running: {"show running-config"},
-						Startup: {"show startup-config"},
-						Version: {"show version"},
+					Commands: map[CommandType]Commands{
+						Running: {
+							CommandType: Running,
+							Values:      []string{"show running-config"},
+						},
+						Startup: {
+							CommandType: Startup,
+							Values:      []string{"show startup-config"},
+						},
+						Version: {
+							CommandType: Version,
+							Values:      []string{"show version"},
+						},
 					},
+					Scrubber: scrubber.New(),
 				},
 			},
 		},
@@ -75,8 +97,10 @@ func Test_GetCommandValues(t *testing.T) {
 		BaseProfile: BaseProfile{
 			Name: "test-profile",
 		},
-		Commands: map[CommandType][]string{
-			Running: {"show running-config"},
+		Commands: map[CommandType]Commands{
+			Running: {
+				CommandType: Running,
+				Values:      []string{"show running-config"}},
 		},
 	}
 	tests := []struct {
@@ -163,22 +187,42 @@ func Test_ParseNCMProfileFromFile(t *testing.T) {
 			name:        "read NCM json profile successful",
 			profileFile: p1,
 			expectedDeviceProfile: &NCMProfile{
-				Commands: map[CommandType][]string{
-					Running: {"show running-config"},
-					Startup: {"show startup-config"},
-					Version: {"show version"},
+				Commands: map[CommandType]Commands{
+					Running: {
+						CommandType: Running,
+						Values:      []string{"show run"},
+					},
+					Startup: {
+						CommandType: Startup,
+						Values:      []string{"show start"},
+					},
+					Version: {
+						CommandType: Version,
+						Values:      []string{"show ver"},
+					},
 				},
+				Scrubber: scrubber.New(),
 			},
 		},
 		{
 			name:        "read NCM YAML profile successful",
 			profileFile: p2,
 			expectedDeviceProfile: &NCMProfile{
-				Commands: map[CommandType][]string{
-					Running: {"show running-config"},
-					Startup: {"show startup-config"},
-					Version: {"show version"},
+				Commands: map[CommandType]Commands{
+					Running: {
+						CommandType: Running,
+						Values:      []string{"show running-config"},
+					},
+					Startup: {
+						CommandType: Startup,
+						Values:      []string{"show startup-config"},
+					},
+					Version: {
+						CommandType: Version,
+						Values:      []string{"show version"},
+					},
 				},
+				Scrubber: scrubber.New(),
 			},
 		},
 	}
