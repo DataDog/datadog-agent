@@ -1,0 +1,6 @@
+ad_identifiers:
+  - postgres
+discovery:
+  log_source: postgresql
+init_config: {}
+instances: []
