@@ -743,7 +743,10 @@ Package haagent handles states for HA Agent feature.
 
 *Datadog Team*: agent-health
 
-Package healthplatform ... /* TODO: detailed doc comment for the component */
+Package healthplatform provides the interface for the health platform component.
+This component collects and reports health information from the host system,
+sending it to the Datadog backend with hostname, host ID, organization ID,
+and a list of issues.
 
 ### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
 
