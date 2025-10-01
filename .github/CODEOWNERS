@@ -124,6 +124,7 @@
 /.gitlab/source_test/notify.yml                      @DataDog/agent-devx
 /.gitlab/source_test/slack.yml                       @DataDog/agent-devx
 /.gitlab/source_test/tooling_unit_tests.yml          @DataDog/agent-devx
+/.gitlab/source_test/kmt_tasks.yml                   @DataDog/ebpf-platform
 
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/agent-integrations @DataDog/agent-build
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build
@@ -214,6 +215,7 @@
 /cmd/agent/subcommands/streamep         @DataDog/container-integrations
 /cmd/agent/subcommands/taggerlist       @DataDog/container-platform
 /cmd/agent/subcommands/workloadlist     @DataDog/container-platform
+/cmd/agent/subcommands/run/             @DataDog/agent-runtimes
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-platform
 /cmd/agent/windows                      @DataDog/windows-products
 /cmd/agent/windows_resources            @DataDog/windows-products
@@ -350,10 +352,10 @@
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/container-app
 /comp/metadata/clusteragent @DataDog/container-platform
+/comp/metadata/clusterchecks @DataDog/container-platform
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
-/comp/metadata/softwareinventory @DataDog/windows-products
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring
 /comp/trace/etwtracer @DataDog/windows-products
 /comp/updater/daemonchecker @DataDog/fleet
@@ -369,6 +371,7 @@
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
 /comp/snmpscan @DataDog/ndm-core
+/comp/softwareinventory @DataDog/windows-products
 /comp/syntheticstestscheduler @DataDog/synthetics-executing
 # END COMPONENTS
 

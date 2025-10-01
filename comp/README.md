@@ -356,6 +356,12 @@ by the Agent.
 
 Package clusteragent is the metadata provider for datadog-cluster-agent process
 
+### [comp/metadata/clusterchecks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/clusterchecks)
+
+*Datadog Team*: container-platform
+
+Package clusterchecks provides the clusterchecks metadata component
+
 ### [comp/metadata/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/haagent)
 
 *Datadog Team*: ndm-core
@@ -405,15 +411,6 @@ Package runner implements a component to generate metadata payload at the right 
 ### [comp/metadata/securityagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/securityagent)
 
 Package securityagent is the metadata provider for security-agent process
-
-### [comp/metadata/softwareinventory](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/softwareinventory)
-
-*Datadog Team*: windows-products
-
-Package softwareinventory defines the interface for the inventory software component.
-This component collects and reports software inventory information from the host system.
-It provides metadata about installed software applications, including their names,
-versions, installation dates, and other relevant details for inventory tracking.
 
 ### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
 
@@ -777,6 +774,15 @@ Package metricscompression provides the component for metrics compression
 *Datadog Team*: ndm-core
 
 Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device
+
+### [comp/softwareinventory](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/softwareinventory)
+
+*Datadog Team*: windows-products
+
+Package softwareinventory defines the interface for the inventory software component.
+This component collects and reports software inventory information from the host system.
+It provides metadata about installed software applications, including their names,
+versions, installation dates, and other relevant details for inventory tracking.
 
 ### [comp/syntheticstestscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/syntheticstestscheduler)
 
