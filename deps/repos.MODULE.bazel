@@ -17,6 +17,7 @@ http_archive(
     sha256 = "87947679abcf77cc509d8d1b474218fd16b72281e2797360e909deaee1ac9d05",
     strip_prefix = "xz-5.4.2",
     url = "https://tukaani.org/xz/xz-5.4.2.tar.gz",
+    # working branch is located here: https://github.com/chouquette/xz/tree/chouquette/bazel
     patches = ["//deps:xz/0001-add-generated-config.h-files-for-the-platforms-we-ta.patch"],
     patch_args = ["-p1"],
 )
