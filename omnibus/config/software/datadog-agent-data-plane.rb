@@ -35,7 +35,7 @@ if linux_target?
     source url: "#{source_url_base}/#{base_package_name}-linux-arm64.tar.gz"
   else
     # Linux AMD64 build
-    psource sha256: adp_hashes["linux/amd64"]
+    source sha256: adp_hashes["linux/amd64"]
     source url: "#{source_url_base}/#{base_package_name}-linux-amd64.tar.gz"
   end
 end
