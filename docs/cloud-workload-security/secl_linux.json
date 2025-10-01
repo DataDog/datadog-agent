@@ -588,9 +588,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "process.ancestors.user_session.ssh_host_ip",
+          "name": "process.ancestors.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "process.ancestors.user_session.ssh_port",
@@ -1548,9 +1548,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "process.parent.user_session.ssh_host_ip",
+          "name": "process.parent.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "process.parent.user_session.ssh_port",
@@ -1628,9 +1628,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "process.user_session.ssh_host_ip",
+          "name": "process.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "process.user_session.ssh_port",
@@ -3181,9 +3181,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "exec.user_session.ssh_host_ip",
+          "name": "exec.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "exec.user_session.ssh_port",
@@ -3720,9 +3720,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "exit.user_session.ssh_host_ip",
+          "name": "exit.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "exit.user_session.ssh_port",
@@ -5673,9 +5673,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "ptrace.tracee.ancestors.user_session.ssh_host_ip",
+          "name": "ptrace.tracee.ancestors.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.user_session.ssh_port",
@@ -6633,9 +6633,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "ptrace.tracee.parent.user_session.ssh_host_ip",
+          "name": "ptrace.tracee.parent.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "ptrace.tracee.parent.user_session.ssh_port",
@@ -6713,9 +6713,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "ptrace.tracee.user_session.ssh_host_ip",
+          "name": "ptrace.tracee.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "ptrace.tracee.user_session.ssh_port",
@@ -7942,9 +7942,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "setrlimit.target.ancestors.user_session.ssh_host_ip",
+          "name": "setrlimit.target.ancestors.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "setrlimit.target.ancestors.user_session.ssh_port",
@@ -8902,9 +8902,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "setrlimit.target.parent.user_session.ssh_host_ip",
+          "name": "setrlimit.target.parent.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "setrlimit.target.parent.user_session.ssh_port",
@@ -8982,9 +8982,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "setrlimit.target.user_session.ssh_host_ip",
+          "name": "setrlimit.target.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "setrlimit.target.user_session.ssh_port",
@@ -9788,9 +9788,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "signal.target.ancestors.user_session.ssh_host_ip",
+          "name": "signal.target.ancestors.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "signal.target.ancestors.user_session.ssh_port",
@@ -10748,9 +10748,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "signal.target.parent.user_session.ssh_host_ip",
+          "name": "signal.target.parent.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "signal.target.parent.user_session.ssh_port",
@@ -10828,9 +10828,9 @@
           "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
         },
         {
-          "name": "signal.target.user_session.ssh_host_ip",
+          "name": "signal.target.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_host_ip-doc"
+          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
         },
         {
           "name": "signal.target.user_session.ssh_port",
@@ -14087,8 +14087,8 @@
       "examples": []
     },
     {
-      "name": "*.ssh_host_ip",
-      "link": "common-usersessioncontext-ssh_host_ip-doc",
+      "name": "*.ssh_client_ip",
+      "link": "common-usersessioncontext-ssh_client_ip-doc",
       "type": "string",
       "definition": "SSH client IP of the user that executed the process",
       "prefixes": [
