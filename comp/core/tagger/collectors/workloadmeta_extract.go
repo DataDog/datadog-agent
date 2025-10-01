@@ -250,6 +250,15 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
+	// resize policy tags
+	if container.ResizePolicy.CPURestartPolicy != "" {
+		tagList.AddLow(tags.CPURestartPolicy, container.ResizePolicy.CPURestartPolicy)
+	}
+
+	if container.ResizePolicy.MemoryRestartPolicy != "" {
+		tagList.AddLow(tags.MemoryRestartPolicy, container.ResizePolicy.MemoryRestartPolicy)
+	}
+
 	low, orch, high, standard := tagList.Compute()
 	return []*types.TagInfo{
 		{
