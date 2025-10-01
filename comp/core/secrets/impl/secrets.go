@@ -125,8 +125,8 @@ type secretResolver struct {
 	tlmSecretResolveError   telemetry.Counter
 
 	// Secret Api Key Expiry Refresh
-	secretRefreshOnApiKeyFailure bool
-	lastApiKeyFailureRefresh     time.Time
+	secretRefreshOnAPIKeyFailure bool
+	lastAPIKeyFailureRefresh     time.Time
 	apiKeyFailureRefreshMutex    sync.Mutex
 }
 
@@ -315,7 +315,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.allowedNamespace = params.AllowedNamespace
 	r.imageToHandle = params.ImageToHandle
 
-	r.secretRefreshOnApiKeyFailure = params.RefreshOnApiKeyFailure
+	r.secretRefreshOnAPIKeyFailure = params.RefreshOnAPIKeyFailure
 }
 
 func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
@@ -849,8 +849,8 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 	return stats
 }
 
-func (r *secretResolver) TriggerRefreshOnError(reason string) {
-	if !r.secretRefreshOnApiKeyFailure {
+func (r *secretResolver) TriggerRefreshOnAPIKeyFailure(reason string) {
+	if !r.secretRefreshOnAPIKeyFailure {
 		log.Debug("secret_refresh_on_api_key_failure disabled, skipping refresh")
 		return
 	}
@@ -860,7 +860,7 @@ func (r *secretResolver) TriggerRefreshOnError(reason string) {
 
 	// throttle
 	const throttleSeconds = 300
-	timeSinceLastRefresh := time.Since(r.lastApiKeyFailureRefresh)
+	timeSinceLastRefresh := time.Since(r.lastAPIKeyFailureRefresh)
 	throttleDuration := time.Duration(throttleSeconds) * time.Second
 
 	if timeSinceLastRefresh < throttleDuration {
@@ -868,7 +868,7 @@ func (r *secretResolver) TriggerRefreshOnError(reason string) {
 		return
 	}
 
-	r.lastApiKeyFailureRefresh = time.Now()
+	r.lastAPIKeyFailureRefresh = time.Now()
 	log.Infof("Triggering secret refresh due to: %s", reason)
 
 	// avoid blocking
