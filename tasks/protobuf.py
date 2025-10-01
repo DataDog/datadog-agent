@@ -20,6 +20,7 @@ PROTO_PKGS = {
     'languagedetection': False,
     'remoteagent': False,
     'autodiscovery': False,
+    'privateactionrunner': False,
     'trace/idx': False,
 }
 
