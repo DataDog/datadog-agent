@@ -182,6 +182,10 @@ func filterConfigs(configs []integration.Config, keep FilterFunc) []integration.
 
 func (r *configFilesReader) readAndCacheAll() ([]integration.Config, map[string]string) {
 	configs, configFormats, errors := r.read(GetAll)
+	for _, config := range configs {
+		log.Errorf("[FA] pre-config: %v", config)
+	}
+
 	reader.cache.SetDefault("configs", configs)
 	reader.cache.SetDefault("errors", errors)
 	reader.cache.SetDefault("configFormats", configFormats)
@@ -228,13 +232,16 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 			}
 			var entry configEntry
 			entry, integrationErrors = collectEntry(fileEntry, path, "", integrationErrors)
+			log.Errorf("[FA] entry: %v", entry)
 			// we don't collect metric files from the root dir (which check is it for? that's nonsensical!)
 			if entry.err != nil || entry.isMetric {
 				// logging is handled in collectEntry
+				log.Errorf("[FA] entry not kept: %v", entry)
 				continue
 			}
 
 			if !keep(entry.conf) {
+				log.Errorf("[FA] entry not kept: %v", entry)
 				continue
 			}
 
@@ -251,6 +258,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 			}
 
 			configFormats = append(configFormats, entry.cfgFormat)
+			log.Errorf("[FA] entry cfgFormat: %v", entry.cfgFormat)
 		}
 	}
 
@@ -331,6 +339,8 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 		entry.isLogsOnly = true
 	}
 
+	log.Errorf("[FA] post-config: %v", entry.cfgFormat)
+
 	delete(integrationErrors, integrationName) // noop if entry is nonexistant
 	log.Debug("Found valid configuration in file:", absPath)
 	return entry, integrationErrors
@@ -367,6 +377,7 @@ func collectDir(parentPath string, folder os.DirEntry, integrationErrors map[str
 			entry, integrationErrors = collectEntry(sEntry, dirPath, integrationName, integrationErrors)
 			if entry.err != nil {
 				// logging already done in collectEntry
+				log.Errorf("[FA] entry error: %v", entry.err)
 				continue
 			}
 			// determine if a check has to be run by default by
@@ -380,6 +391,7 @@ func collectDir(parentPath string, folder os.DirEntry, integrationErrors map[str
 			}
 
 			cfgFormats = append(cfgFormats, entry.cfgFormat)
+			log.Errorf("[FA] entry cfgFormat: %v", entry.cfgFormat)
 		}
 	}
 
