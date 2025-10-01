@@ -18,7 +18,7 @@
           {
             "function": "main.testReturnsInterface",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 55
+            "lineNumber": 58
           },
           {
             "function": "main.executeReturns",
@@ -60,11 +60,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "main.behavior",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -85,7 +94,7 @@
           {
             "function": "main.testReturnsInterface",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 55
+            "lineNumber": 61
           },
           {
             "function": "main.executeReturns",
@@ -132,11 +141,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "main.behavior",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -157,7 +175,7 @@
           {
             "function": "main.testReturnsInterface",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 55
+            "lineNumber": 61
           },
           {
             "function": "main.executeReturns",
@@ -205,10 +223,19 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "main.behavior",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]
