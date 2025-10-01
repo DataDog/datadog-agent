@@ -54,7 +54,7 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
         res = requests.get(url, headers={'Authorization': infra_token}, timeout=10)
         print(f"[GITLAB DEBUG] BTI API response status: {res.status_code}")
     except requests.exceptions.Timeout:
-        print(f"[GITLAB DEBUG] BTI API request timed out after 10 seconds")
+        print("[GITLAB DEBUG] BTI API request timed out after 10 seconds")
         raise
     except Exception as e:
         print(f"[GITLAB DEBUG] BTI API request failed with exception: {e}")
@@ -70,7 +70,7 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
         print('Got Gitlab token, extra information:', {k: v for k, v in token_info.items() if k != 'token'})
 
     token = token_info['token']
-    print(f"[GITLAB DEBUG] Successfully retrieved Gitlab token")
+    print("[GITLAB DEBUG] Successfully retrieved Gitlab token")
 
     return token
 
@@ -85,9 +85,9 @@ def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
     print(f"[GITLAB DEBUG] get_gitlab_api called with token={'<provided>' if token else 'None'}, repo={repo}")
 
     if token:
-        print(f"[GITLAB DEBUG] Using provided token (bypassing BTI API)")
+        print("[GITLAB DEBUG] Using provided token (bypassing BTI API)")
     else:
-        print(f"[GITLAB DEBUG] No token provided, will call get_gitlab_token")
+        print("[GITLAB DEBUG] No token provided, will call get_gitlab_token")
 
     token = token or get_gitlab_token(Context(), repo=repo)
 
