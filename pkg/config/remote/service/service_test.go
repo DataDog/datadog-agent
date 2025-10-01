@@ -158,7 +158,7 @@ func (m *mockUptane) TimestampExpires() (time.Time, error) {
 }
 
 func (m *mockUptane) Close() error {
-	return nil
+	return m.Close()
 }
 
 func (m *mockUptane) GetTransactionalStoreMetadata() (*uptane.Metadata, error) {
@@ -202,6 +202,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clo
 	baseRawURL := "https://localhost"
 	traceAgentEnv := testEnv
 	mockTelemetryReporter := newMockRcTelemetryReporter()
+
 	options := []Option{
 		WithDatabaseFileName("test.db"),
 		WithTraceAgentEnv(traceAgentEnv),
