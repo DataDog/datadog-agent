@@ -22,16 +22,16 @@ var TimeNow = time.Now
 const (
 	Unblocked = iota
 	HalfBlocked
-	HalfBlockedTest
 	Blocked
 )
 
-type CircuitBreaker = int
+type circuitBreakerState = int
 
 type block struct {
 	nbError int
 	until   time.Time
-	state   CircuitBreaker
+	state   circuitBreakerState
+	m       sync.Mutex
 }
 
 type blockedEndpoints struct {
@@ -73,26 +73,24 @@ func newBlockedEndpoints(config config.Component, log log.Component) *blockedEnd
 	}
 }
 
-func printState(prefix string, state CircuitBreaker) {
+func printState(prefix string, state circuitBreakerState) {
 	switch state {
 	case Unblocked:
 		fmt.Println("\033[035m", prefix, "unblocked", "\033[0m")
 	case HalfBlocked:
 		fmt.Println("\033[035m", prefix, "half blocked", "\033[0m")
-	case HalfBlockedTest:
-		fmt.Println("\033[035m", prefix, "half blocked test", "\033[0m")
 	case Blocked:
 		fmt.Println("\033[035m", prefix, "blocked", "\033[0m")
 	}
 
 }
 
-func (e *block) setState(state CircuitBreaker) {
+func (e *block) setState(state circuitBreakerState) {
 	e.state = state
 	printState("new state", e.state)
 }
 
-func (e *blockedEndpoints) getState(endpoint string) (bool, CircuitBreaker) {
+func (e *blockedEndpoints) getState(endpoint string) (bool, circuitBreakerState) {
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
 		return true, b.state
 	}
@@ -120,7 +118,6 @@ func (e *blockedEndpoints) close(endpoint string) {
 		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
 		b.setState(Blocked)
 	case HalfBlocked:
-	case HalfBlockedTest:
 		// There is a risk that this transaction was sent before the circuit breaker was
 		// moved to half open. Currently this assumes that it wasn't and we need to work
 		// out a way to solve this....
@@ -153,7 +150,6 @@ func (e *blockedEndpoints) recover(endpoint string) {
 	case Unblocked:
 		// Nothing to do, we are already closed and running smoothly.
 	case HalfBlocked:
-	case HalfBlockedTest:
 		// The test worked, we can ease off
 		b.nbError = e.backoffPolicy.DecError(b.nbError)
 		if b.nbError == 0 {
@@ -173,41 +169,33 @@ func (e *blockedEndpoints) recover(endpoint string) {
 
 func (e *blockedEndpoints) isBlock(endpoint string) bool {
 	e.m.RLock()
+	defer e.m.RUnlock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
 
 		printState("current state", b.state)
 		switch b.state {
-		case HalfBlockedTest:
-			// We have already sent the single transactions to test if the endpoint is now up
-			e.m.RUnlock()
-			return true
 		case HalfBlocked:
-			e.m.RUnlock()
-			e.m.Lock()
-			// Send a single transaction to test the endpoint.
-			b.setState(HalfBlockedTest)
-			e.m.Unlock()
-			return false
+			// We have already sent the single transactions to test if the endpoint is now up
+			return true
 		case Blocked:
 			if TimeNow().Before(b.until) {
-				e.m.RUnlock()
 				return true
 			} else {
 				// Upgrade to a full lock so we can move
 				// to HalfOpen and send this transaction
 				// to test the endpoint.
-				e.m.RUnlock()
-				e.m.Lock()
-				b.setState(HalfBlockedTest)
-				e.m.Unlock()
+				b.m.Lock()
+				defer b.m.Unlock()
+				if b.state == Blocked {
+					b.setState(HalfBlocked)
+				}
 
 				return false
 			}
 		}
 	}
 
-	e.m.RUnlock()
 	return false
 }
 

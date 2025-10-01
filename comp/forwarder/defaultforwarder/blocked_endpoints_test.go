@@ -12,12 +12,10 @@
 package defaultforwarder
 
 import (
-	"math"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -226,7 +224,7 @@ func TestMaxBlock(t *testing.T) {
 
 	e.close("test")
 	e.errorPerEndpoint["test"].nbError = 1000000
-	e.errorPerEndpoint["test"].state = HalfBlockedTest
+	e.errorPerEndpoint["test"].state = HalfBlocked
 
 	e.close("test")
 	now := time.Now()
@@ -242,7 +240,7 @@ func TestMaxBlock(t *testing.T) {
 		now.Add(maxBackoffDuration).Equal(e.errorPerEndpoint["test"].until))
 }
 
-func assertState(t *testing.T, e *blockedEndpoints, endpoint string, expected CircuitBreaker) {
+func assertState(t *testing.T, e *blockedEndpoints, endpoint string, expected circuitBreakerState) {
 	exists, state := e.getState("test")
 	assert.True(t, exists)
 	assert.Equal(t, expected, state)
@@ -285,7 +283,7 @@ func TestIsblockEndpointStaysClosedAfterFailedTest(t *testing.T) {
 	mocktime = mocktime.Add(2 * time.Second)
 	assert.False(t, e.isBlock("test"))
 	assert.True(t, e.isBlock("test"))
-	assertState(t, e, "test", HalfBlockedTest)
+	assertState(t, e, "test", HalfBlocked)
 }
 
 func TestIsblockEndpointReopensAfterSuccessfulTest(t *testing.T) {
