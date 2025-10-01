@@ -34,6 +34,9 @@ var agentConfigStr string
 //go:embed testdata/config/system_probe_config.yaml
 var systemProbeConfigStr string
 
+//go:embed testdata/config/system_probe_config_privileged_logs.yaml
+var systemProbeConfigPrivilegedLogsStr string
+
 //go:embed testdata/config/agent_process_config.yaml
 var agentProcessConfigStr string
 
@@ -47,7 +50,6 @@ type linuxTestSuite struct {
 var services = []string{
 	"python-svc",
 	"python-instrumented",
-	"python-restricted",
 	"node-json-server",
 	"node-instrumented",
 	"rails-svc",
@@ -78,6 +80,13 @@ func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryProcessCollectionDisabled() {
 	s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfigStr)
+}
+
+func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryPrivilegedLogs() {
+	servicesWithRestricted := []string{
+		"python-restricted",
+	}
+	s.testProcessCheckWithServiceDiscoveryPrivilegedLogs(agentProcessConfigStr, systemProbeConfigPrivilegedLogsStr, servicesWithRestricted)
 }
 
 func (s *linuxTestSuite) testLogs(t *testing.T) {
@@ -302,6 +311,53 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 	}
 }
 
+func (s *linuxTestSuite) testProcessCheckWithServiceDiscoveryPrivilegedLogs(agentConfigStr string, systemProbeConfigStr string, servicesToStart []string) {
+	t := s.T()
+	s.startServicesFromList(servicesToStart)
+	defer s.stopServicesFromList(servicesToStart)
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
+		agentparams.WithAgentConfig(agentConfigStr),
+		agentparams.WithSystemProbeConfig(systemProbeConfigStr))),
+	)
+	client := s.Env().FakeIntake.Client()
+	err := client.FlushServerAndResetAggregators()
+	require.NoError(t, err)
+
+	// Trigger log generation in the restricted service
+	s.Env().RemoteHost.MustExecute("curl -s http://localhost:8086/test")
+
+	ok := assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs, err := s.Env().FakeIntake.Client().FilterLogs("python-restricted-dd")
+		assert.NoError(c, err, "failed to get logs from fakeintake")
+
+		assert.NotEmpty(c, logs, "Expected to find logs from python-restricted-dd service")
+
+		foundStartupLog := false
+		foundRequestLog := false
+
+		for _, log := range logs {
+			t.Logf("Log: %+v", log)
+			assert.Equal(c, "python-restricted-dd", log.Service, "Log service should match")
+			assert.Equal(c, "python", log.Source, "Log source should match")
+
+			if log.Message == "Server is running on http://0.0.0.0:8086" {
+				foundStartupLog = true
+			}
+			if log.Message == "GET /test" {
+				foundRequestLog = true
+			}
+		}
+
+		assert.True(c, foundStartupLog, "Should find startup log message")
+		assert.True(c, foundRequestLog, "Should find request log message")
+		// Wait for more time than the normal test since here we don't wait for the process collection first.
+	}, 4*time.Minute, 10*time.Second)
+
+	if !ok {
+		s.dumpDebugInfo(t)
+	}
+}
+
 type checkStatus struct {
 	CheckID           string   `json:"CheckID"`
 	CheckName         string   `json:"CheckName"`
@@ -475,14 +531,22 @@ func (s *linuxTestSuite) provisionServer() {
 }
 
 func (s *linuxTestSuite) startServices() {
-	for _, service := range services {
+	s.startServicesFromList(services)
+}
+
+func (s *linuxTestSuite) stopServices() {
+	s.stopServicesFromList(services)
+}
+
+func (s *linuxTestSuite) startServicesFromList(servicesList []string) {
+	for _, service := range servicesList {
 		s.Env().RemoteHost.MustExecute("sudo systemctl start " + service)
 	}
 }
 
-func (s *linuxTestSuite) stopServices() {
-	for i := len(services) - 1; i >= 0; i-- {
-		service := services[i]
+func (s *linuxTestSuite) stopServicesFromList(servicesList []string) {
+	for i := len(servicesList) - 1; i >= 0; i-- {
+		service := servicesList[i]
 		s.Env().RemoteHost.MustExecute("sudo systemctl stop " + service)
 	}
 }

@@ -1,0 +1,5 @@
+log_level: 'debug'
+discovery:
+  enabled: true
+privileged_logs:
+  enabled: true
