@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"net"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -113,6 +114,7 @@ func (l *UDPListener) LocalAddr() string {
 	return l.conn.LocalAddr().String()
 }
 
+/*
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDPListener) Listen() {
 	l.listenWg.Add(1)
@@ -122,12 +124,32 @@ func (l *UDPListener) Listen() {
 		l.listen()
 	}()
 }
+*/
+
+// Listen runs the intake loop. Should be called in its own goroutine
+func (l *UDPListener) Listen() {
+	l.listenWg.Add(1)
+
+	go func() {
+		log.Infof("dogstatsd-udp: listen starting")
+		defer func() {
+			if r := recover(); r != nil {
+				log.Errorf("dogstatsd-udp: listen panicked: %v\n%s", r, debug.Stack())
+			}
+			log.Infof("dogstatsd-udp: listen stopped")
+			l.listenWg.Done()
+		}()
+		l.listen()
+	}()
+}
 
 func (l *UDPListener) listen() {
 	var t1, t2 time.Time
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
 		n, _, err := l.conn.ReadFrom(l.buffer)
+		// log.Debugf("dogstatsd-udp: read %d bytes", n)
+
 		t1 = time.Now()
 		udpPackets.Add(1)
 
@@ -144,8 +166,10 @@ func (l *UDPListener) listen() {
 			l.telemetryStore.tlmUDPPackets.Inc("ok")
 
 			udpBytes.Add(int64(n))
+			// log.Debugf("dogstatsd-udp: total udpBytes (%d bytes)", udpBytes.Value())
 			l.telemetryStore.tlmUDPPacketsBytes.Add(float64(n))
 
+			// log.Debugf("dogstatsd-udp: adding message to assembler (%d bytes)", n)
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
 			l.packetAssembler.AddMessage(l.buffer[:n])
 		}

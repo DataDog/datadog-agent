@@ -748,6 +748,7 @@ func (s *server) errLog(format string, params ...interface{}) {
 // workers are running this function in their goroutine
 func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *utilstrings.Matcher) metrics.MetricSampleBatch {
 	for _, packet := range packets {
+		s.log.Debugf("Dogstatsd receive packet of size %d bytes", len(packet.Contents))
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
 			message := nextMessage(&packet.Contents, s.eolEnabled(packet.Source))
@@ -764,16 +765,16 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 
 			switch messageType {
 			case serviceCheckType:
-				s.log.Info("serviceCheckType")
-				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, packet.ProcessID)
-				if err != nil {
-					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
-					s.log.Errorf("Dogstatsd: error parsing service check '%q': %s", message, err)
-					continue
-				}
-				batcher.appendServiceCheck(serviceCheck)
+				s.log.Debug("DogStatsd: serviceCheckType")
+				// serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, packet.ProcessID)
+				// if err != nil {
+				// 	s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
+				// 	s.log.Errorf("Dogstatsd: error parsing service check '%q': %s", message, err)
+				// 	continue
+				// }
+				// batcher.appendServiceCheck(serviceCheck)
 			case eventType:
-				s.log.Info("eventType")
+				s.log.Debug("DogStatsd: eventType")
 				event, err := s.parseEventMessage(parser, message, packet.Origin, packet.ProcessID)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
@@ -782,12 +783,14 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 				}
 				batcher.appendEvent(event)
 			case metricSampleType:
-				s.log.Info("metricSampleType")
+				s.log.Debug("DogStatsd: metricSampleType")
 				var err error
 
 				samples = samples[0:0]
 
 				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry, filterList)
+				s.log.Debug("DogStatsd: after parseMetricMessage")
+
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					s.log.Errorf("Dogstatsd: error parsing metric message '%q': %s", message, err)
@@ -798,8 +801,10 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 					s.Debug.StoreMetricStats(samples[idx])
 
 					if samples[idx].Timestamp > 0.0 {
+						s.log.Debug("DogStatsd: appendLateSample")
 						batcher.appendLateSample(samples[idx])
 					} else {
+						s.log.Debug("DogStatsd: appendSample")
 						batcher.appendSample(samples[idx])
 					}
 
@@ -807,13 +812,16 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 						distSample := samples[idx].Copy()
 						distSample.Name = s.histToDistPrefix + distSample.Name
 						distSample.Mtype = metrics.DistributionType
+						s.log.Debug("DogStatsd: distribution appendSample")
 						batcher.appendSample(*distSample)
 					}
 				}
 			}
 		}
+		s.log.Debug("DogStatsd: sharedPacketPoolManager.Put")
 		s.sharedPacketPoolManager.Put(packet)
 	}
+	s.log.Debug("DogStatsd: flushing in parsePackets")
 	batcher.flush()
 	return samples
 }

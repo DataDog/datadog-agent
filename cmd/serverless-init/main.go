@@ -230,9 +230,21 @@ func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Co
 
 func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
 	log.Infof("starting flushMetricsAgent")
+
 	for range time.Tick(3 * time.Second) {
 		log.Infof("periodic flush in flushMetricsAgent")
-		metricAgent.Flush()
+
+		done := make(chan struct{})
+		go func() {
+			metricAgent.Flush()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(60 * time.Second):
+			log.Errorf("flush timed out after 60s in flushMetricsAgent")
+		}
 	}
 }
 

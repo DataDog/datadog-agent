@@ -122,6 +122,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 }
 
 func (d *ServerlessDemultiplexer) forceFlushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {
+	d.log.Info("forceFlushToSerializer")
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 

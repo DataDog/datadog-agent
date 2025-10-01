@@ -68,12 +68,15 @@ func (p *Assembler) flushLoop() {
 func (p *Assembler) AddMessage(message []byte) {
 	p.Lock()
 	if p.packetLength == 0 {
+		log.Debug("dogstatsd: assembler packetLength is 0")
 		p.packetLength = copy(p.packet.Buffer, message)
 	} else if len(p.packet.Buffer) >= len(message)+p.packetLength+1 {
+		log.Debugf("dogstatsd: assembler adding to buffer, message length=%d, buffer length=%d, packetLength=%d", len(message), len(p.packet.Buffer), p.packetLength+1)
 		p.packet.Buffer[p.packetLength] = messageSeparator
 		n := copy(p.packet.Buffer[p.packetLength+1:], message)
 		p.packetLength += n + 1
 	} else {
+		log.Debugf("dogstatsd: assembler flush, message length=%d, buffer length=%d, packetLength=%d", len(message), len(p.packet.Buffer), p.packetLength+1)
 		p.flush()
 		p.packetLength = copy(p.packet.Buffer, message)
 	}

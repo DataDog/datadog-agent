@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -69,6 +70,7 @@ func (w *worker) run() {
 		case filterList := <-w.FilterListUpdate:
 			w.filterList = filterList
 		case ps := <-w.server.packetsIn:
+			log.Info("dogstatsd: packetsIn")
 			w.packetsTelemetry.TelemetryUntrackPackets(ps)
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended

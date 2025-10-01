@@ -259,9 +259,7 @@ func (b *batcher) flush() {
 	b.flushSamplesWithTs()
 
 	// flush events
-	log.Infof("there are %d events\n", len(b.events))
 	if len(b.events) > 0 {
-		log.Infof("flushing %d events\n", len(b.events))
 		t1 := time.Now()
 		b.choutEvents <- b.events
 		t2 := time.Now()
@@ -271,9 +269,7 @@ func (b *batcher) flush() {
 	}
 
 	// flush service checks
-	log.Infof("there are %d service checks\n", len(b.serviceChecks))
 	if len(b.serviceChecks) > 0 {
-		log.Infof("flushing %d service checks\n", len(b.serviceChecks))
 		t1 := time.Now()
 		b.choutServiceChecks <- b.serviceChecks
 		t2 := time.Now()

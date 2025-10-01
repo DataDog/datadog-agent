@@ -47,11 +47,13 @@ func (pb *Buffer) flushLoop() {
 		select {
 		case <-pb.flushTimer.C:
 			pb.m.Lock()
+			// log.Debug("dogstatsd: buffer flushTimer")
 			pb.flush()
 			pb.telemetryStore.tlmBufferFlushedTimer.Inc(pb.listenerID)
 			pb.m.Unlock()
 		case <-pb.closeChannel:
 			pb.m.Lock()
+			log.Debug("dogstatsd: buffer closeChannel")
 			pb.flush()
 			pb.m.Unlock()
 			close(pb.doneChannel)
@@ -62,6 +64,7 @@ func (pb *Buffer) flushLoop() {
 
 // Append appends a packet to the packet buffer and flushes if the buffer size is to be exceeded.
 func (pb *Buffer) Append(packet *Packet) {
+	log.Debug("dogstatsd: Buffer Append")
 	pb.m.Lock()
 	defer pb.m.Unlock()
 
@@ -72,6 +75,7 @@ func (pb *Buffer) Append(packet *Packet) {
 
 	pb.telemetryStore.tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerID)
 
+	log.Debugf("dogstatsd: Buffer flush from Append, pb.packets=%d, pb.bufferSize=%d", len(pb.packets), pb.bufferSize)
 	if uint(len(pb.packets)) >= pb.bufferSize {
 		pb.flush()
 		pb.telemetryStore.tlmBufferFlushedFull.Inc(pb.listenerID)
@@ -79,6 +83,7 @@ func (pb *Buffer) Append(packet *Packet) {
 }
 
 func (pb *Buffer) flush() {
+	// log.Debugf("dogstatsd: Buffer flush, pb.packets=%d", len(pb.packets))
 	if len(pb.packets) > 0 {
 		t1 := time.Now()
 
