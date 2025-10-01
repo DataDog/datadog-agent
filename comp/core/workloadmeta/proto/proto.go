@@ -514,6 +514,8 @@ func toProtoLaunchType(launchType workloadmeta.ECSLaunchType) (pb.ECSLaunchType,
 		return pb.ECSLaunchType_EC2, nil
 	case workloadmeta.ECSLaunchTypeFargate:
 		return pb.ECSLaunchType_FARGATE, nil
+	case workloadmeta.ECSLaunchTypeManagedInstance:
+		return pb.ECSLaunchType_MANAGED_INSTANCE, nil
 	}
 
 	return pb.ECSLaunchType_EC2, fmt.Errorf("unknown launch type: %s", launchType)

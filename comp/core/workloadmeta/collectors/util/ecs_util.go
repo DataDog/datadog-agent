@@ -82,8 +82,12 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 
 	source := workloadmeta.SourceNodeOrchestrator
 	entity.LaunchType = workloadmeta.ECSLaunchTypeEC2
-	if strings.ToUpper(task.LaunchType) == "FARGATE" {
+	launchTypeUpper := strings.ToUpper(task.LaunchType)
+	if launchTypeUpper == "FARGATE" {
 		entity.LaunchType = workloadmeta.ECSLaunchTypeFargate
+		source = workloadmeta.SourceRuntime
+	} else if launchTypeUpper == "MANAGED_INSTANCE" {
+		entity.LaunchType = workloadmeta.ECSLaunchTypeManagedInstance
 		source = workloadmeta.SourceRuntime
 	}
 
@@ -226,11 +230,17 @@ func ParseV4TaskContainers(
 		// it's correct. This is the same case explained in
 		// comp/core/workloadmeta/collectors/internal/ecs/v1parser.go
 		containerEvent.Runtime = ""
-		if task.LaunchType == "FARGATE" {
+		taskLaunchTypeUpper := strings.ToUpper(task.LaunchType)
+		if taskLaunchTypeUpper == "FARGATE" {
 			source = workloadmeta.SourceRuntime
 			// Unlike in the case above, it is OK to set the runtime here, as
 			// the logs agent does not collect logs in ECS Fargate.
 			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSFargate
+		} else if taskLaunchTypeUpper == "MANAGED_INSTANCE" {
+			source = workloadmeta.SourceRuntime
+			// TODO: When daemon scheduling is available for managed instances,
+			// this should be revisited to behave more like EC2
+			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSManagedInstance
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{

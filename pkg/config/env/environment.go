@@ -47,6 +47,10 @@ func IsECS() bool {
 		return false
 	}
 
+	if IsECSManagedInstance() {
+		return false
+	}
+
 	if os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") != "" ||
 		os.Getenv("ECS_CONTAINER_METADATA_URI") != "" ||
 		os.Getenv("ECS_CONTAINER_METADATA_URI_V4") != "" {
@@ -63,6 +67,11 @@ func IsECS() bool {
 // IsECSFargate returns whether the Agent is running in ECS Fargate
 func IsECSFargate() bool {
 	return os.Getenv("ECS_FARGATE") != "" || os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_FARGATE"
+}
+
+// IsECSManagedInstance returns whether the Agent is running in ECS Managed Instance
+func IsECSManagedInstance() bool {
+	return os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_MANAGED_INSTANCES"
 }
 
 // IsHostProcAvailable returns whether host proc is available or not
