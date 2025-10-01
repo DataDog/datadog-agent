@@ -8,6 +8,7 @@
 package apiserver
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -38,6 +39,7 @@ type ResourceTypeCache struct {
 	discoveryClient discovery.DiscoveryInterface
 	refreshing      int32
 	refreshDone     chan struct{}
+	refreshErr      error
 }
 
 // InitializeGlobalResourceTypeCache initializes the global cache if it hasn't been already.
@@ -119,7 +121,10 @@ func (r *ResourceTypeCache) getResourceType(kind, apiGroup string) (string, erro
 	}
 
 	// repopulating the cache on miss.
-	err := r.refreshCacheOnMiss()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := r.refreshCache(ctx)
 
 	if err != nil {
 		return "", err
@@ -149,7 +154,11 @@ func (r *ResourceTypeCache) getResourceKind(resource, apiGroup string) (string, 
 	}
 
 	// repopulating the cache on miss.
-	err := r.refreshCacheOnMiss()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := r.refreshCache(ctx)
+
 	if err != nil {
 		return "", err
 	}
@@ -164,28 +173,42 @@ func (r *ResourceTypeCache) getResourceKind(resource, apiGroup string) (string, 
 	return "", fmt.Errorf("resource kind not found for resource %q and group %q after refresh", resource, apiGroup)
 }
 
-func (r *ResourceTypeCache) refreshCacheOnMiss() error {
-	// check if refreshing process is in progress
+func (r *ResourceTypeCache) refreshCache(ctx context.Context) error {
+	// check if refresh process is in progress
 	if atomic.LoadInt32(&r.refreshing) == 0 {
 		// the first go routine to perform CAS will become the leader
 		if atomic.CompareAndSwapInt32(&r.refreshing, 0, 1) {
 
 			done := make(chan struct{})
+
+			// Protect setting refreshDone and clearing refreshErr
+			r.lock.Lock()
 			r.setRefreshDone(done)
+			r.refreshErr = nil
+			r.lock.Unlock()
 
 			defer func() {
-				close(done) // release followers
+
+				close(done)
+				r.lock.Lock()
 				r.setRefreshDone(nil)
-				atomic.StoreInt32(&r.refreshing, 0) // mark idle
+				r.lock.Unlock()
+				atomic.StoreInt32(&r.refreshing, 0)
 			}()
 
 			var refreshRetrier retry.Retrier
 			err := refreshRetrier.SetupRetrier(&retry.Config{
 				Name: "ResourceTypeCache_refresh_on_miss",
 				AttemptMethod: func() error {
+
 					err := r.prepopulateCache()
 					if err != nil {
-						return fmt.Errorf("failed to prepopulate resource type cache: %w", err)
+						cacheErr := fmt.Errorf("failed to refresh resource type cache: %w", err)
+
+						r.lock.Lock()
+						r.refreshErr = cacheErr
+						r.lock.Unlock()
+						return cacheErr
 					}
 					return nil
 				},
@@ -194,37 +217,83 @@ func (r *ResourceTypeCache) refreshCacheOnMiss() error {
 				MaxRetryDelay:     2 * time.Second,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to initialize refresh retrier: %w", err)
+				cacheErr := fmt.Errorf("failed to initialize refresh retrier: %w", err)
+				r.lock.Lock()
+				r.refreshErr = cacheErr
+				r.lock.Unlock()
+				return cacheErr
 			}
 
-			const maxAttempts = 3
-			for attempt := 1; attempt <= maxAttempts; attempt++ {
-				if err := refreshRetrier.TriggerRetry(); err == nil {
+			for {
+				_ = refreshRetrier.TriggerRetry()
+
+				switch refreshRetrier.RetryStatus() {
+				case retry.OK:
+
+					r.lock.Lock()
+					r.refreshErr = nil
+					r.lock.Unlock()
 					return nil
-				}
-				if refreshRetrier.RetryStatus() == retry.FailWillRetry {
-					if wait := time.Until(refreshRetrier.NextRetry()); wait > 0 {
-						time.Sleep(wait)
+
+				case retry.PermaFail:
+
+					var finalErr error
+					if le := refreshRetrier.LastError(); le != nil {
+						finalErr = le.Unwrap()
+					} else {
+						finalErr = fmt.Errorf("permanent failure while refreshing cache")
 					}
-					continue
+					r.lock.Lock()
+					r.refreshErr = finalErr
+					r.lock.Unlock()
+					return finalErr
+
+				default:
+
+					sleepFor := time.Until(refreshRetrier.NextRetry())
+					if sleepFor < 0 {
+						sleepFor = 0
+					}
+					select {
+					case <-ctx.Done():
+						finalErr := fmt.Errorf("context deadline reached while waiting to repopulate: %w", ctx.Err())
+						r.lock.Lock()
+						r.refreshErr = finalErr
+						r.lock.Unlock()
+						return finalErr
+					case <-time.After(sleepFor):
+
+					}
 				}
 			}
-
-			if le := refreshRetrier.LastError(); le != nil {
-				return le.Unwrap()
-			}
-			return nil
-
 		}
 	}
 
-	for {
-		if ch := r.getRefreshDone(); ch != nil {
-			<-ch
-			return nil
+	r.lock.RLock()
+	ch := r.getRefreshDone()
+	r.lock.RUnlock()
+
+	if ch == nil {
+		// small window where leader hasn't set channel yet or already cleared it.
+
+		r.lock.RLock()
+		err := r.refreshErr
+		r.lock.RUnlock()
+		if err != nil {
+			return err
 		}
-		time.Sleep(10 * time.Millisecond)
+		return nil
 	}
+
+	// Wait for leader to finish, then read the same outcome
+	<-ch
+	r.lock.RLock()
+	err := r.refreshErr
+	r.lock.RUnlock()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *ResourceTypeCache) getRefreshDone() chan struct{} {
