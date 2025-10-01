@@ -185,6 +185,8 @@ func (r *configFilesReader) readAndCacheAll() ([]integration.Config, map[string]
 	reader.cache.SetDefault("configs", configs)
 	reader.cache.SetDefault("errors", errors)
 	reader.cache.SetDefault("configFormats", configFormats)
+
+	log.Errorf("[FA] configFormats: %v", configFormats)
 	return configs, errors
 }
 
@@ -416,10 +418,12 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 	if err != nil {
 		return conf, ConfigFormatWrapper{}, err
 	}
+	log.Errorf("[FA] serializedConfigFormat before scrubbing: %s", string(serializedConfigFormat))
 	scrubbedConfigFormat, err := scrubber.ScrubYamlString(string(serializedConfigFormat))
 	if err != nil {
 		return conf, ConfigFormatWrapper{}, err
 	}
+	log.Errorf("[FA] serializedConfigFormat after scrubbing: %s", string(scrubbedConfigFormat))
 
 	// If no valid instances were found & this is neither a metrics file, nor a logs file
 	// this is not a valid configuration file

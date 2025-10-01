@@ -314,5 +314,7 @@ func (ic *inventorychecksImpl) getFilesMetadata() metadata {
 		}
 	}
 
+	ic.log.Errorf("[FA] files metadata: %v", filesMetadata)
+
 	return filesMetadata
 }
