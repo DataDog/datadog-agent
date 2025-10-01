@@ -261,3 +261,8 @@ func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 // FilterTemplates does nothing.
 func (d *DBMAuroraService) FilterTemplates(_ map[string]integration.Config) {
 }
+
+// GetImageName does nothing
+func (d *DBMAuroraService) GetImageName() string {
+	return ""
+}

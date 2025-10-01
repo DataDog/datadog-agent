@@ -56,6 +56,7 @@ type KubeServiceService struct {
 	ports           []ContainerPort
 	metricsExcluded bool
 	globalExcluded  bool
+	namespace       string
 }
 
 // Make sure KubeServiceService implements the Service interface
@@ -249,7 +250,8 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 
 func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *KubeServiceService {
 	svc := &KubeServiceService{
-		entity: apiserver.EntityForService(ksvc),
+		entity:    apiserver.EntityForService(ksvc),
+		namespace: ksvc.Namespace,
 	}
 
 	svc.metadata = workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations())
@@ -380,7 +382,11 @@ func (s *KubeServiceService) HasFilter(fs workloadfilter.Scope) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeServiceService) GetExtraConfig(_ string) (string, error) {
+func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
+	switch key {
+	case "namespace":
+		return s.namespace, nil
+	}
 	return "", ErrNotSupported
 }
 
@@ -392,4 +398,9 @@ func (s *KubeServiceService) FilterTemplates(configs map[string]integration.Conf
 // GetFilterableEntity returns the filterable entity of the service
 func (s *KubeServiceService) GetFilterableEntity() workloadfilter.Filterable {
 	return s.metadata
+}
+
+// GetImageName does nothing
+func (s *KubeServiceService) GetImageName() string {
+	return ""
 }

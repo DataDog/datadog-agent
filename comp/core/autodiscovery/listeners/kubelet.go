@@ -180,6 +180,7 @@ func (l *KubeletListener) createContainerService(
 		metricsExcluded: l.metricsFilter.IsExcluded(filterableContainer) || !container.State.Running,
 		logsExcluded:    l.logsFilter.IsExcluded(filterableContainer),
 		tagger:          l.tagger,
+		imageName:       containerImg.ShortName,
 		wmeta:           l.Store(),
 	}
 

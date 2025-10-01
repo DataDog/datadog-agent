@@ -264,3 +264,8 @@ func (s *CloudFoundryService) GetExtraConfig(_ string) (string, error) {
 // FilterTemplates does nothing.
 func (s *CloudFoundryService) FilterTemplates(_ map[string]integration.Config) {
 }
+
+// GetImageName does nothing.
+func (s *CloudFoundryService) GetImageName() string {
+	return ""
+}

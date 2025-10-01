@@ -113,6 +113,12 @@ type Config struct {
 	// LogsExcluded is whether logs collection is disabled (set by container
 	// listeners only)
 	LogsExcluded bool `json:"logs_excluded"` // (include in digest: false)
+
+	// PodNamespace is the k8s namespace for the container being monitored if any
+	PodNamespace string `json:"pod_namespace"` // (include in digest: false)
+
+	// ImageName is the container image name if any
+	ImageName string `json:"image_name"` // (include in digest: false)
 }
 
 // MatchingProgram is an interface for matching objects against filter rules.

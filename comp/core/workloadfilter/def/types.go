@@ -97,8 +97,8 @@ type ResourceType string
 const (
 	ContainerType ResourceType = "container"
 	PodType       ResourceType = "pod"
-	ServiceType   ResourceType = "service"
-	EndpointType  ResourceType = "endpoint"
+	ServiceType   ResourceType = "kube_service"
+	EndpointType  ResourceType = "kube_endpoint"
 	ImageType     ResourceType = "image"
 	ProcessType   ResourceType = "process"
 )

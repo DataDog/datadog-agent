@@ -41,6 +41,7 @@ type WorkloadService struct {
 	logsExcluded    bool
 	tagger          tagger.Component
 	wmeta           workloadmeta.Component
+	imageName       string
 }
 
 var _ Service = &WorkloadService{}
@@ -238,4 +239,9 @@ func (s *WorkloadService) GetExtraConfig(key string) (string, error) {
 	}
 
 	return result, nil
+}
+
+// GetImageName returns the image name for the monitored container
+func (s *WorkloadService) GetImageName() string {
+	return s.imageName
 }

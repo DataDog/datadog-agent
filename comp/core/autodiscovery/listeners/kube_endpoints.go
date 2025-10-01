@@ -60,6 +60,7 @@ type KubeEndpointService struct {
 	ports           []ContainerPort
 	metricsExcluded bool
 	globalExcluded  bool
+	namespace       string
 }
 
 // Make sure KubeEndpointService implements the Service interface
@@ -358,6 +359,7 @@ func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilt
 				},
 				metricsExcluded: metricsExcluded,
 				globalExcluded:  globalExcluded,
+				namespace:       kep.Namespace,
 			}
 			ep.tags = append(ep.tags, tags...)
 			eps = append(eps, ep)
@@ -497,7 +499,11 @@ func (s *KubeEndpointService) HasFilter(fs workloadfilter.Scope) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeEndpointService) GetExtraConfig(_ string) (string, error) {
+func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
+	switch key {
+	case "namespace":
+		return s.namespace, nil
+	}
 	return "", ErrNotSupported
 }
 
@@ -509,4 +515,9 @@ func (s *KubeEndpointService) FilterTemplates(configs map[string]integration.Con
 // GetFilterableEntity returns the filterable entity of the service
 func (s *KubeEndpointService) GetFilterableEntity() workloadfilter.Filterable {
 	return s.metadata
+}
+
+// GetImageName does nothing
+func (s *KubeEndpointService) GetImageName() string {
+	return ""
 }
