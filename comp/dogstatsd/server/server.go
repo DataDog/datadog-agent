@@ -766,13 +766,13 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 			switch messageType {
 			case serviceCheckType:
 				s.log.Debug("DogStatsd: serviceCheckType")
-				// serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, packet.ProcessID)
-				// if err != nil {
-				// 	s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
-				// 	s.log.Errorf("Dogstatsd: error parsing service check '%q': %s", message, err)
-				// 	continue
-				// }
-				// batcher.appendServiceCheck(serviceCheck)
+				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, packet.ProcessID)
+				if err != nil {
+					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
+					s.log.Errorf("Dogstatsd: error parsing service check '%q': %s", message, err)
+					continue
+				}
+				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
 				s.log.Debug("DogStatsd: eventType")
 				event, err := s.parseEventMessage(parser, message, packet.Origin, packet.ProcessID)

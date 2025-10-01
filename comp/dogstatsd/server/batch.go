@@ -270,11 +270,14 @@ func (b *batcher) flush() {
 
 	// flush service checks
 	if len(b.serviceChecks) > 0 {
-		t1 := time.Now()
-		b.choutServiceChecks <- b.serviceChecks
-		t2 := time.Now()
-		b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "service_checks")
-
+		if b.choutServiceChecks != nil {
+			t1 := time.Now()
+			b.choutServiceChecks <- b.serviceChecks
+			t2 := time.Now()
+			b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "service_checks")
+		} else {
+			log.Debugf("Serverless: skipping service check flush")
+		}
 		b.serviceChecks = []*servicecheck.ServiceCheck{}
 	}
 }
