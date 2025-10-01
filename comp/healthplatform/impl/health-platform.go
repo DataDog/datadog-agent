@@ -37,18 +37,30 @@ type Provides struct {
 }
 
 // healthPlatformImpl implements the health platform component
+// It manages a collection of health checks that run periodically and tracks
+// any issues they detect. The component provides methods to register checks,
+// retrieve issues, and manage the health monitoring lifecycle.
 type healthPlatformImpl struct {
-	log       log.Component
-	telemetry telemetry.Component
-	ticker    *time.Ticker
-	stopCh    chan struct{}
-	ctx       context.Context
-	cancel    context.CancelFunc
-	checks    map[string]healthplatform.CheckConfig
-	checksMux sync.RWMutex
-	issues    map[string][]healthplatform.Issue
-	issuesMux sync.RWMutex
-	metrics   telemetryMetrics
+	// Core dependencies
+	log       log.Component       // Logger for health platform operations
+	telemetry telemetry.Component // Telemetry component for metrics collection
+
+	// Lifecycle management
+	ticker *time.Ticker       // Periodic ticker for running health checks
+	stopCh chan struct{}      // Channel to signal component shutdown
+	ctx    context.Context    // Context for managing component lifecycle
+	cancel context.CancelFunc // Cancel function for the context
+
+	// Health check management
+	checks    map[string]healthplatform.CheckConfig // Registered health checks by ID
+	checksMux sync.RWMutex                          // Mutex for thread-safe access to checks
+
+	// Issue tracking
+	issues    map[string][]healthplatform.Issue // Issues detected by check ID
+	issuesMux sync.RWMutex                      // Mutex for thread-safe access to issues
+
+	// Metrics
+	metrics telemetryMetrics // Telemetry metrics for health platform
 }
 
 type telemetryMetrics struct {
@@ -56,35 +68,55 @@ type telemetryMetrics struct {
 }
 
 // NewComponent creates a new health-platform component
+// It initializes the component with its dependencies, sets up lifecycle management,
+// configures telemetry metrics, and registers default health checks.
 func NewComponent(reqs Requires) (Provides, error) {
 	reqs.Log.Info("Creating health platform component")
+
+	// Create context for component lifecycle management
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
+		// Core dependencies
 		log:       reqs.Log,
 		telemetry: reqs.Telemetry,
-		ticker:    time.NewTicker(tickerInterval),
-		stopCh:    make(chan struct{}),
-		ctx:       ctx,
-		cancel:    cancel,
-		checks:    make(map[string]healthplatform.CheckConfig),
-		checksMux: sync.RWMutex{},
-		issues:    make(map[string][]healthplatform.Issue),
-		issuesMux: sync.RWMutex{},
+
+		// Lifecycle management
+		ticker: time.NewTicker(tickerInterval), // Start periodic ticker
+		stopCh: make(chan struct{}),            // Create shutdown channel
+		ctx:    ctx,                            // Set lifecycle context
+		cancel: cancel,                         // Set context cancel function
+
+		// Health check management
+		checks:    make(map[string]healthplatform.CheckConfig), // Initialize checks map
+		checksMux: sync.RWMutex{},                              // Initialize checks mutex
+
+		// Issue tracking
+		issues:    make(map[string][]healthplatform.Issue), // Initialize issues map
+		issuesMux: sync.RWMutex{},                          // Initialize issues mutex
 	}
 
-	// Register lifecycle hooks
+	// Register lifecycle hooks for component start/stop
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: comp.start,
 		OnStop:  comp.stop,
 	})
 
+	// Initialize telemetry metrics
 	comp.metrics = telemetryMetrics{
-		issuesCounter: reqs.Telemetry.NewCounter("health_platform", "issues_detected", []string{"health_check_id"}, "Number of health issues detected"),
+		issuesCounter: reqs.Telemetry.NewCounter(
+			"health_platform",
+			"issues_detected",
+			[]string{"health_check_id"},
+			"Number of health issues detected",
+		),
 	}
 
+	// Register default health checks
 	comp.RegisterDefaultChecks()
 
+	// Return the component wrapped in Provides
 	provides := Provides{Comp: comp}
 	return provides, nil
 }
@@ -294,8 +326,44 @@ func (h *healthPlatformImpl) ClearAllIssues() {
 	h.log.Info("Cleared all issues")
 }
 
-// Run runs the health checks and reports the issues
-func (h *healthPlatformImpl) Run(_ context.Context) (*healthplatform.HealthReport, error) {
-	// TODO: Implement actual health checks
-	return nil, nil
+// runHealthChecksSync runs health checks synchronously (useful for testing)
+func (h *healthPlatformImpl) runHealthChecksSync() {
+	h.checksMux.RLock()
+	defer h.checksMux.RUnlock()
+
+	if len(h.checks) == 0 {
+		h.log.Debug("No health checks registered")
+		return
+	}
+
+	// Check which checks already have issues
+	h.issuesMux.RLock()
+	checksToRun := make([]healthplatform.CheckConfig, 0)
+	for _, check := range h.checks {
+		issues, exists := h.issues[check.CheckID]
+		if !exists {
+			// Never run - should run
+			checksToRun = append(checksToRun, check)
+		} else if len(issues) == 0 {
+			// Run but found no issues - should run again
+			checksToRun = append(checksToRun, check)
+		}
+		// If len(issues) > 0, skip (has issues)
+	}
+	h.issuesMux.RUnlock()
+
+	if len(checksToRun) == 0 {
+		h.log.Debug("All health checks already have issues detected, skipping execution")
+		return
+	}
+
+	h.log.Debug("Running " + fmt.Sprintf("%d", len(checksToRun)) + " health checks synchronously (skipping " + fmt.Sprintf("%d", len(h.checks)-len(checksToRun)) + " with existing issues)")
+	for _, check := range checksToRun {
+		h.executeCheck(check)
+	}
+}
+
+// RunHealthChecksNow manually triggers health check execution (useful for testing)
+func (h *healthPlatformImpl) RunHealthChecksNow() {
+	h.runHealthChecksSync()
 }

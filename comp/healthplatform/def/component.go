@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package healthplatform ... /* TODO: detailed doc comment for the component */
+// Package healthplatform provides the interface for the health platform component.
+// This component collects and reports health information from the host system,
+// sending it to the Datadog backend with hostname, host ID, organization ID,
+// and a list of issues.
 package healthplatform
-
-import (
-	"context"
-)
 
 // team: agent-health
 
@@ -109,17 +108,26 @@ type CheckConfig struct {
 	Callback func() ([]Issue, error)
 }
 
-// HealthRecommendation is an interface for a health recommendation
-type HealthRecommendation interface {
-	RegisterCheck(check CheckConfig) error
-}
-
 // Component is the health platform component interface
 type Component interface {
-	/* ================================
-		Scheduler Functions:
-	=============================== */
+	// RegisterCheck registers a health check with the platform
+	RegisterCheck(check CheckConfig) error
 
-	// Run runs the health checks and reports the issues
-	Run(ctx context.Context) (*HealthReport, error)
+	// GetAllIssues returns all issues from all checks
+	GetAllIssues() map[string][]Issue
+
+	// GetIssuesForCheck returns issues for a specific check
+	GetIssuesForCheck(checkID string) []Issue
+
+	// GetTotalIssueCount returns the total number of issues across all checks
+	GetTotalIssueCount() int
+
+	// ClearIssuesForCheck clears issues for a specific check (useful when issues are resolved)
+	ClearIssuesForCheck(checkID string)
+
+	// ClearAllIssues clears all issues (useful for testing or when all issues are resolved)
+	ClearAllIssues()
+
+	// RunHealthChecksNow manually triggers health check execution (useful for testing)
+	RunHealthChecksNow()
 }
