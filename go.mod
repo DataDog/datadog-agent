@@ -123,7 +123,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/network/driver v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/network/driver v0.0.0-20250930180617-1968b85a8a3b
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
@@ -176,7 +176,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c
-	github.com/DataDog/datadog-traceroute v0.1.25
+	github.com/DataDog/datadog-traceroute v0.1.26
 	github.com/DataDog/dd-trace-go/v2 v2.0.0
 	github.com/DataDog/ebpf-manager v0.7.14
 	github.com/DataDog/go-libddwaf/v4 v4.3.0

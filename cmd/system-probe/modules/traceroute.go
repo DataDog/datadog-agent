@@ -54,6 +54,11 @@ func (t *traceroute) GetStats() map[string]interface{} {
 }
 
 func (t *traceroute) Register(httpMux *module.Router) error {
+	// Start platform-specific driver (Windows only, no-op on other platforms)
+	if err := startPlatformDriver(); err != nil {
+		return fmt.Errorf("failed to start platform driver: %w", err)
+	}
+
 	var runCounter atomic.Uint64
 
 	// TODO: what other config should be passed as part of this request?
@@ -130,6 +135,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	protocol := query.Get("protocol")
 	tcpMethod := query.Get("tcp_method")
 	tcpSynParisTracerouteMode := query.Get("tcp_syn_paris_traceroute_mode")
+	disableWindowsDriver := query.Get("disable_windows_driver")
 	reverseDNS := query.Get("reverse_dns")
 	tracerouteQueries, err := parseUint(query, "traceroute_queries", 32)
 	if err != nil {
@@ -148,6 +154,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 		Protocol:                  payload.Protocol(protocol),
 		TCPMethod:                 payload.TCPMethod(tcpMethod),
 		TCPSynParisTracerouteMode: tcpSynParisTracerouteMode == "true",
+		DisableWindowsDriver:      disableWindowsDriver == "true",
 		ReverseDNS:                reverseDNS == "true",
 		TracerouteQueries:         int(tracerouteQueries),
 		E2eQueries:                int(e2eQueries),

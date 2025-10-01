@@ -93,6 +93,7 @@ func TestGetTracerouteURL(t *testing.T) {
 				tt.protocol,
 				tt.tcpMethod,
 				tt.tcpSynParisTracerouteMode,
+				tt.disableWindowsDriver,
 				tt.reverseDNS,
 				tt.maxTTL,
 				tt.timeout,

@@ -16,3 +16,9 @@ var Traceroute = &module.Factory{
 	ConfigNamespaces: tracerouteConfigNamespaces,
 	Fn:               createTracerouteModule,
 }
+
+// startPlatformDriver is a no-op on Darwin
+func startPlatformDriver() error {
+	// No driver needed on Darwin
+	return nil
+}

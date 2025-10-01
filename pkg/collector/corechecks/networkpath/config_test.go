@@ -466,6 +466,24 @@ e2e_queries: 20
 				E2eQueries:            20,
 			},
 		},
+		{
+			name: "Disabling Windows driver",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+disable_windows_driver: true
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolTCP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+				DisableWindowsDriver:  true,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
