@@ -200,6 +200,7 @@ var defaultRedactors = []jsonRedactor{
 		matchRegexp(`/debugger/snapshot/stack/[[:digit:]]+$`),
 		replacerFunc(redactStackFrame),
 	),
+
 	redactor(
 		exactMatcher(`/debugger/snapshot/id`),
 		replacement(`"[id]"`),
@@ -211,6 +212,13 @@ var defaultRedactors = []jsonRedactor{
 	redactor(
 		exactMatcher(`/timestamp`),
 		replacement(`"[ts]"`),
+	),
+	redactor(
+		exactMatcher(`/message`),
+		regexpStringReplacer(
+			`^0x[[:xdigit:]]+$`,
+			`0x[addr]`,
+		),
 	),
 	redactor(
 		exactMatcher(`/duration`),
