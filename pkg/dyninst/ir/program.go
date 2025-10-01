@@ -138,6 +138,8 @@ type Event struct {
 	ID EventID
 	// Kind is the kind of event.
 	Kind EventKind
+	// SourceLine for line events, empty otherwise.
+	SourceLine string
 	// The datatype of the event.
 	Type *EventRootType
 	// The PC values at which the event should be injected. Sorted by PC.

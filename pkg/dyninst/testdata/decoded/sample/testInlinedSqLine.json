@@ -55,11 +55,13 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "x": {
-                "type": "int",
-                "value": "10"
+          "lines": {
+            "75": {
+              "locals": {
+                "x": {
+                  "type": "int",
+                  "value": "10"
+                }
               }
             }
           }

@@ -1898,11 +1898,13 @@ func newProbe(
 		return cmp.Compare(a.PC, b.PC)
 	})
 	var eventKind ir.EventKind
-	switch probeCfg.GetWhere().(type) {
+	var sourceLine string
+	switch where := probeCfg.GetWhere().(type) {
 	case ir.FunctionWhere:
 		eventKind = ir.EventKindEntry
 	case ir.LineWhere:
 		eventKind = ir.EventKindLine
+		_, _, sourceLine = where.Line()
 	}
 	events := []*ir.Event{
 		{
@@ -1910,6 +1912,7 @@ func newProbe(
 			InjectionPoints: injectionPoints,
 			Condition:       nil,
 			Kind:            eventKind,
+			SourceLine:      sourceLine,
 			// Will be populated after all the types have been resolved
 			// and placeholders have been filled in.
 			Type: nil,

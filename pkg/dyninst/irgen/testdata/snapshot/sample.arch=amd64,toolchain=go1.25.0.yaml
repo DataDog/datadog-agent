@@ -12,11 +12,13 @@ Probes:
       events:
         - ID: 136
           Kind: Entry
+          SourceLine: ""
           Type: 1400 EventRootType Probe[main.stackC]
           InjectionPoints: [{PC: "0xcde40a", Frameless: false}]
           Condition: null
         - ID: 135
           Kind: Return
+          SourceLine: ""
           Type: 1401 EventRootType Probe[main.stackC]Return
           InjectionPoints: [{PC: "0xcde445", Frameless: false}]
           Condition: null
@@ -32,11 +34,13 @@ Probes:
       events:
         - ID: 67
           Kind: Entry
+          SourceLine: ""
           Type: 1331 EventRootType Probe[main.testAny]
           InjectionPoints: [{PC: "0xcda9aa", Frameless: false}]
           Condition: null
         - ID: 66
           Kind: Return
+          SourceLine: ""
           Type: 1332 EventRootType Probe[main.testAny]Return
           InjectionPoints: [{PC: "0xcda9e5", Frameless: false}]
           Condition: null
@@ -52,11 +56,13 @@ Probes:
       events:
         - ID: 70
           Kind: Entry
+          SourceLine: ""
           Type: 1334 EventRootType Probe[main.testAnyPtr]
           InjectionPoints: [{PC: "0xcdaa4a", Frameless: false}]
           Condition: null
         - ID: 69
           Kind: Return
+          SourceLine: ""
           Type: 1335 EventRootType Probe[main.testAnyPtr]Return
           InjectionPoints: [{PC: "0xcdaa7d", Frameless: false}]
           Condition: null
@@ -72,6 +78,7 @@ Probes:
       events:
         - ID: 15
           Kind: Entry
+          SourceLine: ""
           Type: 1280 EventRootType Probe[main.testArrayOfArrays]
           InjectionPoints: [{PC: "0xcd8bc0", Frameless: true}]
           Condition: null
@@ -87,6 +94,7 @@ Probes:
       events:
         - ID: 17
           Kind: Entry
+          SourceLine: ""
           Type: 1282 EventRootType Probe[main.testArrayOfArraysOfArrays]
           InjectionPoints: [{PC: "0xcd8c00", Frameless: true}]
           Condition: null
@@ -102,6 +110,7 @@ Probes:
       events:
         - ID: 78
           Kind: Entry
+          SourceLine: ""
           Type: 1343 EventRootType Probe[main.testArrayOfMaps]
           InjectionPoints: [{PC: "0xcdb160", Frameless: true}]
           Condition: null
@@ -117,6 +126,7 @@ Probes:
       events:
         - ID: 16
           Kind: Entry
+          SourceLine: ""
           Type: 1281 EventRootType Probe[main.testArrayOfStrings]
           InjectionPoints: [{PC: "0xcd8be0", Frameless: true}]
           Condition: null
@@ -132,11 +142,13 @@ Probes:
       events:
         - ID: 36
           Kind: Entry
+          SourceLine: ""
           Type: 1300 EventRootType Probe[main.testBigStruct]
           InjectionPoints: [{PC: "0xcd9320", Frameless: true}]
           Condition: null
         - ID: 35
           Kind: Return
+          SourceLine: ""
           Type: 1301 EventRootType Probe[main.testBigStruct]Return
           InjectionPoints: [{PC: "0xcd933e", Frameless: true}]
           Condition: null
@@ -152,6 +164,7 @@ Probes:
       events:
         - ID: 4
           Kind: Entry
+          SourceLine: ""
           Type: 1269 EventRootType Probe[main.testBoolArray]
           InjectionPoints: [{PC: "0xcd8a60", Frameless: true}]
           Condition: null
@@ -167,6 +180,7 @@ Probes:
       events:
         - ID: 1
           Kind: Entry
+          SourceLine: ""
           Type: 1266 EventRootType Probe[main.testByteArray]
           InjectionPoints: [{PC: "0xcd8a00", Frameless: true}]
           Condition: null
@@ -182,6 +196,7 @@ Probes:
       events:
         - ID: 95
           Kind: Entry
+          SourceLine: ""
           Type: 1360 EventRootType Probe[main.testChannel]
           InjectionPoints: [{PC: "0xcdce20", Frameless: true}]
           Condition: null
@@ -197,6 +212,7 @@ Probes:
       events:
         - ID: 93
           Kind: Entry
+          SourceLine: ""
           Type: 1358 EventRootType Probe[main.testCombinedByte]
           InjectionPoints: [{PC: "0xcdca40", Frameless: true}]
           Condition: null
@@ -212,6 +228,7 @@ Probes:
       events:
         - ID: 103
           Kind: Entry
+          SourceLine: ""
           Type: 1368 EventRootType Probe[main.testCycle]
           InjectionPoints: [{PC: "0xcdd1c0", Frameless: true}]
           Condition: null
@@ -227,6 +244,7 @@ Probes:
       events:
         - ID: 41
           Kind: Entry
+          SourceLine: ""
           Type: 1306 EventRootType Probe[main.testDeepMap1]
           InjectionPoints: [{PC: "0xcd9700", Frameless: true}]
           Condition: null
@@ -242,6 +260,7 @@ Probes:
       events:
         - ID: 42
           Kind: Entry
+          SourceLine: ""
           Type: 1307 EventRootType Probe[main.testDeepMap7]
           InjectionPoints: [{PC: "0xcd9720", Frameless: true}]
           Condition: null
@@ -257,6 +276,7 @@ Probes:
       events:
         - ID: 37
           Kind: Entry
+          SourceLine: ""
           Type: 1302 EventRootType Probe[main.testDeepPtr1]
           InjectionPoints: [{PC: "0xcd93e0", Frameless: true}]
           Condition: null
@@ -272,6 +292,7 @@ Probes:
       events:
         - ID: 38
           Kind: Entry
+          SourceLine: ""
           Type: 1303 EventRootType Probe[main.testDeepPtr7]
           InjectionPoints: [{PC: "0xcd9400", Frameless: true}]
           Condition: null
@@ -287,6 +308,7 @@ Probes:
       events:
         - ID: 39
           Kind: Entry
+          SourceLine: ""
           Type: 1304 EventRootType Probe[main.testDeepSlice1]
           InjectionPoints: [{PC: "0xcd9580", Frameless: true}]
           Condition: null
@@ -302,6 +324,7 @@ Probes:
       events:
         - ID: 40
           Kind: Entry
+          SourceLine: ""
           Type: 1305 EventRootType Probe[main.testDeepSlice7]
           InjectionPoints: [{PC: "0xcd95a0", Frameless: true}]
           Condition: null
@@ -317,6 +340,7 @@ Probes:
       events:
         - ID: 125
           Kind: Entry
+          SourceLine: ""
           Type: 1390 EventRootType Probe[main.testEmptySlice]
           InjectionPoints: [{PC: "0xcddfc0", Frameless: true}]
           Condition: null
@@ -332,6 +356,7 @@ Probes:
       events:
         - ID: 128
           Kind: Entry
+          SourceLine: ""
           Type: 1393 EventRootType Probe[main.testEmptySliceOfStructs]
           InjectionPoints: [{PC: "0xcde020", Frameless: true}]
           Condition: null
@@ -348,6 +373,7 @@ Probes:
       events:
         - ID: 146
           Kind: Entry
+          SourceLine: ""
           Type: 1411 EventRootType Probe[main.testEmptyString]
           InjectionPoints: [{PC: "0xcde540", Frameless: true}]
           Condition: null
@@ -363,6 +389,7 @@ Probes:
       events:
         - ID: 152
           Kind: Entry
+          SourceLine: ""
           Type: 1417 EventRootType Probe[main.testEmptyStruct]
           InjectionPoints: [{PC: "0xcde980", Frameless: true}]
           Condition: null
@@ -377,6 +404,7 @@ Probes:
       events:
         - ID: 153
           Kind: Entry
+          SourceLine: ""
           Type: 1418 EventRootType Probe[main.testEmptyStructPointer]
           InjectionPoints: [{PC: "0xcde9a0", Frameless: true}]
           Condition: null
@@ -392,6 +420,7 @@ Probes:
       events:
         - ID: 68
           Kind: Entry
+          SourceLine: ""
           Type: 1333 EventRootType Probe[main.testError]
           InjectionPoints: [{PC: "0xcdaa20", Frameless: true}]
           Condition: null
@@ -407,11 +436,13 @@ Probes:
       events:
         - ID: 51
           Kind: Entry
+          SourceLine: ""
           Type: 1315 EventRootType Probe[main.testEsotericHeap]
           InjectionPoints: [{PC: "0xcd9f2a", Frameless: false}]
           Condition: null
         - ID: 50
           Kind: Return
+          SourceLine: ""
           Type: 1316 EventRootType Probe[main.testEsotericHeap]Return
           InjectionPoints: [{PC: "0xcd9f6c", Frameless: false}]
           Condition: null
@@ -427,11 +458,13 @@ Probes:
       events:
         - ID: 49
           Kind: Entry
+          SourceLine: ""
           Type: 1313 EventRootType Probe[main.testEsotericStack]
           InjectionPoints: [{PC: "0xcd9e0e", Frameless: false}]
           Condition: null
         - ID: 48
           Kind: Return
+          SourceLine: ""
           Type: 1314 EventRootType Probe[main.testEsotericStack]Return
           InjectionPoints: [{PC: "0xcd9e9b", Frameless: false}]
           Condition: null
@@ -447,11 +480,13 @@ Probes:
       events:
         - ID: 61
           Kind: Entry
+          SourceLine: ""
           Type: 1325 EventRootType Probe[main.testFrameless]
           InjectionPoints: [{PC: "0xcda680", Frameless: true}]
           Condition: null
         - ID: 60
           Kind: Return
+          SourceLine: ""
           Type: 1326 EventRootType Probe[main.testFrameless]Return
           InjectionPoints: [{PC: "0xcda685", Frameless: true}]
           Condition: null
@@ -467,11 +502,13 @@ Probes:
       events:
         - ID: 63
           Kind: Entry
+          SourceLine: ""
           Type: 1327 EventRootType Probe[main.testFramelessArray]
           InjectionPoints: [{PC: "0xcda6a4", Frameless: false}]
           Condition: null
         - ID: 62
           Kind: Return
+          SourceLine: ""
           Type: 1328 EventRootType Probe[main.testFramelessArray]Return
           InjectionPoints: [{PC: "0xcda6dd", Frameless: false}]
           Condition: null
@@ -489,8 +526,9 @@ Probes:
       subprogram: {subprogram: 52}
       events:
         - ID: 64
-          Kind: EventKind(3)
-          Type: 1329 EventRootType Probe[main.testFramelessArray]EventKind(3)
+          Kind: Line
+          SourceLine: "93"
+          Type: 1329 EventRootType Probe[main.testFramelessArray]Line
           InjectionPoints: [{PC: "0xcda6a8", Frameless: false}]
           Condition: null
     - id: testInlinedBA
@@ -505,11 +543,13 @@ Probes:
       events:
         - ID: 53
           Kind: Entry
+          SourceLine: ""
           Type: 1317 EventRootType Probe[main.testInlinedBA]
           InjectionPoints: [{PC: "0xcda36a", Frameless: false}]
           Condition: null
         - ID: 52
           Kind: Return
+          SourceLine: ""
           Type: 1318 EventRootType Probe[main.testInlinedBA]Return
           InjectionPoints: [{PC: "0xcda3ce", Frameless: false}]
           Condition: null
@@ -525,11 +565,13 @@ Probes:
       events:
         - ID: 55
           Kind: Entry
+          SourceLine: ""
           Type: 1319 EventRootType Probe[main.testInlinedBB]
           InjectionPoints: [{PC: "0xcda40e", Frameless: false}]
           Condition: null
         - ID: 54
           Kind: Return
+          SourceLine: ""
           Type: 1320 EventRootType Probe[main.testInlinedBB]Return
           InjectionPoints: [{PC: "0xcda49e", Frameless: false}]
           Condition: null
@@ -545,11 +587,13 @@ Probes:
       events:
         - ID: 57
           Kind: Entry
+          SourceLine: ""
           Type: 1321 EventRootType Probe[main.testInlinedBBA]
           InjectionPoints: [{PC: "0xcda4ea", Frameless: false}]
           Condition: null
         - ID: 56
           Kind: Return
+          SourceLine: ""
           Type: 1322 EventRootType Probe[main.testInlinedBBA]Return
           InjectionPoints: [{PC: "0xcda52b", Frameless: false}]
           Condition: null
@@ -565,6 +609,7 @@ Probes:
       events:
         - ID: 157
           Kind: Entry
+          SourceLine: ""
           Type: 1422 EventRootType Probe[main.testInlinedBBB]
           InjectionPoints: [{PC: "0xcda466", Frameless: false}]
           Condition: null
@@ -580,11 +625,13 @@ Probes:
       events:
         - ID: 59
           Kind: Entry
+          SourceLine: ""
           Type: 1323 EventRootType Probe[main.testInlinedBC]
           InjectionPoints: [{PC: "0xcda56e", Frameless: false}]
           Condition: null
         - ID: 58
           Kind: Return
+          SourceLine: ""
           Type: 1324 EventRootType Probe[main.testInlinedBC]Return
           InjectionPoints: [{PC: "0xcda653", Frameless: false}]
           Condition: null
@@ -600,6 +647,7 @@ Probes:
       events:
         - ID: 158
           Kind: Entry
+          SourceLine: ""
           Type: 1423 EventRootType Probe[main.testInlinedBCA]
           InjectionPoints: [{PC: "0xcda573", Frameless: false}]
           Condition: null
@@ -617,8 +665,9 @@ Probes:
       subprogram: {subprogram: 125}
       events:
         - ID: 159
-          Kind: EventKind(3)
-          Type: 1424 EventRootType Probe[main.testInlinedBCA]EventKind(3)
+          Kind: Line
+          SourceLine: "63"
+          Type: 1424 EventRootType Probe[main.testInlinedBCA]Line
           InjectionPoints: [{PC: "0xcda573", Frameless: false}]
           Condition: null
     - id: testInlinedBCB
@@ -633,6 +682,7 @@ Probes:
       events:
         - ID: 160
           Kind: Entry
+          SourceLine: ""
           Type: 1425 EventRootType Probe[main.testInlinedBCB]
           InjectionPoints: [{PC: "0xcda61b", Frameless: false}]
           Condition: null
@@ -650,8 +700,9 @@ Probes:
       subprogram: {subprogram: 126}
       events:
         - ID: 161
-          Kind: EventKind(3)
-          Type: 1426 EventRootType Probe[main.testInlinedBCB]EventKind(3)
+          Kind: Line
+          SourceLine: "67"
+          Type: 1426 EventRootType Probe[main.testInlinedBCB]Line
           InjectionPoints: [{PC: "0xcda61b", Frameless: false}]
           Condition: null
     - id: testInlinedPrint
@@ -667,6 +718,7 @@ Probes:
       events:
         - ID: 155
           Kind: Entry
+          SourceLine: ""
           Type: 1419 EventRootType Probe[main.testInlinedPrint]
           InjectionPoints:
             - PC: "0xcda1ca"
@@ -682,6 +734,7 @@ Probes:
           Condition: null
         - ID: 154
           Kind: Return
+          SourceLine: ""
           Type: 1420 EventRootType Probe[main.testInlinedPrint]Return
           InjectionPoints: [{PC: "0xcda20a", Frameless: false}]
           Condition: null
@@ -699,8 +752,9 @@ Probes:
       subprogram: {subprogram: 123}
       events:
         - ID: 156
-          Kind: EventKind(3)
-          Type: 1421 EventRootType Probe[main.testInlinedPrint]EventKind(3)
+          Kind: Line
+          SourceLine: "14"
+          Type: 1421 EventRootType Probe[main.testInlinedPrint]Line
           InjectionPoints:
             - PC: "0xcda1ce"
               Frameless: false
@@ -725,6 +779,7 @@ Probes:
       events:
         - ID: 162
           Kind: Entry
+          SourceLine: ""
           Type: 1427 EventRootType Probe[main.testInlinedSq]
           InjectionPoints: [{PC: "0xcda681", Frameless: true}]
           Condition: null
@@ -742,8 +797,9 @@ Probes:
       subprogram: {subprogram: 127}
       events:
         - ID: 163
-          Kind: EventKind(3)
-          Type: 1428 EventRootType Probe[main.testInlinedSq]EventKind(3)
+          Kind: Line
+          SourceLine: "75"
+          Type: 1428 EventRootType Probe[main.testInlinedSq]Line
           InjectionPoints: [{PC: "0xcda681", Frameless: true}]
           Condition: null
     - id: testInlinedSumArray
@@ -759,6 +815,7 @@ Probes:
       events:
         - ID: 164
           Kind: Entry
+          SourceLine: ""
           Type: 1429 EventRootType Probe[main.testInlinedSumArray]
           InjectionPoints:
             - PC: "0xcda6c5"
@@ -778,6 +835,7 @@ Probes:
       events:
         - ID: 7
           Kind: Entry
+          SourceLine: ""
           Type: 1272 EventRootType Probe[main.testInt16Array]
           InjectionPoints: [{PC: "0xcd8ac0", Frameless: true}]
           Condition: null
@@ -793,6 +851,7 @@ Probes:
       events:
         - ID: 8
           Kind: Entry
+          SourceLine: ""
           Type: 1273 EventRootType Probe[main.testInt32Array]
           InjectionPoints: [{PC: "0xcd8ae0", Frameless: true}]
           Condition: null
@@ -808,6 +867,7 @@ Probes:
       events:
         - ID: 9
           Kind: Entry
+          SourceLine: ""
           Type: 1274 EventRootType Probe[main.testInt64Array]
           InjectionPoints: [{PC: "0xcd8b00", Frameless: true}]
           Condition: null
@@ -823,6 +883,7 @@ Probes:
       events:
         - ID: 6
           Kind: Entry
+          SourceLine: ""
           Type: 1271 EventRootType Probe[main.testInt8Array]
           InjectionPoints: [{PC: "0xcd8aa0", Frameless: true}]
           Condition: null
@@ -838,6 +899,7 @@ Probes:
       events:
         - ID: 5
           Kind: Entry
+          SourceLine: ""
           Type: 1270 EventRootType Probe[main.testIntArray]
           InjectionPoints: [{PC: "0xcd8a80", Frameless: true}]
           Condition: null
@@ -853,6 +915,7 @@ Probes:
       events:
         - ID: 65
           Kind: Entry
+          SourceLine: ""
           Type: 1330 EventRootType Probe[main.testInterface]
           InjectionPoints: [{PC: "0xcda980", Frameless: true}]
           Condition: null
@@ -868,6 +931,7 @@ Probes:
       events:
         - ID: 97
           Kind: Entry
+          SourceLine: ""
           Type: 1362 EventRootType Probe[main.testLinkedList]
           InjectionPoints: [{PC: "0xcdcfe0", Frameless: true}]
           Condition: null
@@ -885,8 +949,9 @@ Probes:
       subprogram: {subprogram: 44}
       events:
         - ID: 45
-          Kind: EventKind(3)
-          Type: 1310 EventRootType Probe[main.testLongFunctionWithChangingState]EventKind(3)
+          Kind: Line
+          SourceLine: "208"
+          Type: 1310 EventRootType Probe[main.testLongFunctionWithChangingState]Line
           InjectionPoints: [{PC: "0xcd979a", Frameless: false}]
           Condition: null
     - id: testLongFunctionWithChangingStateLineB
@@ -903,8 +968,9 @@ Probes:
       subprogram: {subprogram: 44}
       events:
         - ID: 46
-          Kind: EventKind(3)
-          Type: 1311 EventRootType Probe[main.testLongFunctionWithChangingState]EventKind(3)
+          Kind: Line
+          SourceLine: "215"
+          Type: 1311 EventRootType Probe[main.testLongFunctionWithChangingState]Line
           InjectionPoints: [{PC: "0xcd984d", Frameless: false}]
           Condition: null
     - id: testLongFunctionWithChangingStateLineC
@@ -921,8 +987,9 @@ Probes:
       subprogram: {subprogram: 44}
       events:
         - ID: 47
-          Kind: EventKind(3)
-          Type: 1312 EventRootType Probe[main.testLongFunctionWithChangingState]EventKind(3)
+          Kind: Line
+          SourceLine: "220"
+          Type: 1312 EventRootType Probe[main.testLongFunctionWithChangingState]Line
           InjectionPoints: [{PC: "0xcd9914", Frameless: false}]
           Condition: null
     - id: testMapArrayToArray
@@ -937,6 +1004,7 @@ Probes:
       events:
         - ID: 76
           Kind: Entry
+          SourceLine: ""
           Type: 1341 EventRootType Probe[main.testMapArrayToArray]
           InjectionPoints: [{PC: "0xcdb120", Frameless: true}]
           Condition: null
@@ -952,6 +1020,7 @@ Probes:
       events:
         - ID: 83
           Kind: Entry
+          SourceLine: ""
           Type: 1348 EventRootType Probe[main.testMapEmbeddedMaps]
           InjectionPoints: [{PC: "0xcdb1e0", Frameless: true}]
           Condition: null
@@ -967,6 +1036,7 @@ Probes:
       events:
         - ID: 80
           Kind: Entry
+          SourceLine: ""
           Type: 1345 EventRootType Probe[main.testMapIntToInt]
           InjectionPoints: [{PC: "0xcdb1a0", Frameless: true}]
           Condition: null
@@ -982,6 +1052,7 @@ Probes:
       events:
         - ID: 92
           Kind: Entry
+          SourceLine: ""
           Type: 1357 EventRootType Probe[main.testMapLargeKeyLargeValue]
           InjectionPoints: [{PC: "0xcdb300", Frameless: true}]
           Condition: null
@@ -997,6 +1068,7 @@ Probes:
       events:
         - ID: 91
           Kind: Entry
+          SourceLine: ""
           Type: 1356 EventRootType Probe[main.testMapLargeKeySmallValue]
           InjectionPoints: [{PC: "0xcdb2e0", Frameless: true}]
           Condition: null
@@ -1012,6 +1084,7 @@ Probes:
       events:
         - ID: 81
           Kind: Entry
+          SourceLine: ""
           Type: 1346 EventRootType Probe[main.testMapMassive]
           InjectionPoints: [{PC: "0xcdb1c0", Frameless: true}]
           Condition: null
@@ -1027,6 +1100,7 @@ Probes:
       events:
         - ID: 82
           Kind: Entry
+          SourceLine: ""
           Type: 1347 EventRootType Probe[main.testMapMassive]
           InjectionPoints: [{PC: "0xcdb1c0", Frameless: true}]
           Condition: null
@@ -1042,6 +1116,7 @@ Probes:
       events:
         - ID: 90
           Kind: Entry
+          SourceLine: ""
           Type: 1355 EventRootType Probe[main.testMapSmallKeyLargeValue]
           InjectionPoints: [{PC: "0xcdb2c0", Frameless: true}]
           Condition: null
@@ -1057,6 +1132,7 @@ Probes:
       events:
         - ID: 89
           Kind: Entry
+          SourceLine: ""
           Type: 1354 EventRootType Probe[main.testMapSmallKeySmallValue]
           InjectionPoints: [{PC: "0xcdb2a0", Frameless: true}]
           Condition: null
@@ -1072,6 +1148,7 @@ Probes:
       events:
         - ID: 74
           Kind: Entry
+          SourceLine: ""
           Type: 1339 EventRootType Probe[main.testMapStringToInt]
           InjectionPoints: [{PC: "0xcdb0e0", Frameless: true}]
           Condition: null
@@ -1087,6 +1164,7 @@ Probes:
       events:
         - ID: 75
           Kind: Entry
+          SourceLine: ""
           Type: 1340 EventRootType Probe[main.testMapStringToSlice]
           InjectionPoints: [{PC: "0xcdb100", Frameless: true}]
           Condition: null
@@ -1102,6 +1180,7 @@ Probes:
       events:
         - ID: 73
           Kind: Entry
+          SourceLine: ""
           Type: 1338 EventRootType Probe[main.testMapStringToStruct]
           InjectionPoints: [{PC: "0xcdb0c0", Frameless: true}]
           Condition: null
@@ -1117,6 +1196,7 @@ Probes:
       events:
         - ID: 84
           Kind: Entry
+          SourceLine: ""
           Type: 1349 EventRootType Probe[main.testMapWithLinkedList]
           InjectionPoints: [{PC: "0xcdb200", Frameless: true}]
           Condition: null
@@ -1132,6 +1212,7 @@ Probes:
       events:
         - ID: 87
           Kind: Entry
+          SourceLine: ""
           Type: 1352 EventRootType Probe[main.testMapWithSmallKeyAndValue]
           InjectionPoints: [{PC: "0xcdb260", Frameless: true}]
           Condition: null
@@ -1147,6 +1228,7 @@ Probes:
       events:
         - ID: 88
           Kind: Entry
+          SourceLine: ""
           Type: 1353 EventRootType Probe[main.testMapWithSmallKeyAndValueMassive]
           InjectionPoints: [{PC: "0xcdb280", Frameless: true}]
           Condition: null
@@ -1162,6 +1244,7 @@ Probes:
       events:
         - ID: 85
           Kind: Entry
+          SourceLine: ""
           Type: 1350 EventRootType Probe[main.testMapWithSmallValue]
           InjectionPoints: [{PC: "0xcdb220", Frameless: true}]
           Condition: null
@@ -1177,6 +1260,7 @@ Probes:
       events:
         - ID: 86
           Kind: Entry
+          SourceLine: ""
           Type: 1351 EventRootType Probe[main.testMapWithSmallValueMassive]
           InjectionPoints: [{PC: "0xcdb240", Frameless: true}]
           Condition: null
@@ -1192,6 +1276,7 @@ Probes:
       events:
         - ID: 143
           Kind: Entry
+          SourceLine: ""
           Type: 1408 EventRootType Probe[main.testMassiveString]
           InjectionPoints: [{PC: "0xcde500", Frameless: true}]
           Condition: null
@@ -1208,6 +1293,7 @@ Probes:
       events:
         - ID: 144
           Kind: Entry
+          SourceLine: ""
           Type: 1409 EventRootType Probe[main.testMassiveString]
           InjectionPoints: [{PC: "0xcde500", Frameless: true}]
           Condition: null
@@ -1222,11 +1308,13 @@ Probes:
       events:
         - ID: 121
           Kind: Entry
+          SourceLine: ""
           Type: 1385 EventRootType Probe[main.testMultipleNamedReturn]
           InjectionPoints: [{PC: "0xcddb4e", Frameless: false}]
           Condition: null
         - ID: 120
           Kind: Return
+          SourceLine: ""
           Type: 1386 EventRootType Probe[main.testMultipleNamedReturn]Return
           InjectionPoints: [{PC: "0xcddbde", Frameless: false}]
           Condition: null
@@ -1242,6 +1330,7 @@ Probes:
       events:
         - ID: 94
           Kind: Entry
+          SourceLine: ""
           Type: 1359 EventRootType Probe[main.testMultipleSimpleParams]
           InjectionPoints: [{PC: "0xcdcc00", Frameless: true}]
           Condition: null
@@ -1256,11 +1345,13 @@ Probes:
       events:
         - ID: 119
           Kind: Entry
+          SourceLine: ""
           Type: 1383 EventRootType Probe[main.testNamedReturn]
           InjectionPoints: [{PC: "0xcddaaa", Frameless: false}]
           Condition: null
         - ID: 118
           Kind: Return
+          SourceLine: ""
           Type: 1384 EventRootType Probe[main.testNamedReturn]Return
           InjectionPoints: [{PC: "0xcddb12", Frameless: false}]
           Condition: null
@@ -1276,6 +1367,7 @@ Probes:
       events:
         - ID: 102
           Kind: Entry
+          SourceLine: ""
           Type: 1367 EventRootType Probe[main.testNilPointer]
           InjectionPoints: [{PC: "0xcdd180", Frameless: true}]
           Condition: null
@@ -1291,6 +1383,7 @@ Probes:
       events:
         - ID: 132
           Kind: Entry
+          SourceLine: ""
           Type: 1397 EventRootType Probe[main.testNilSlice]
           InjectionPoints: [{PC: "0xcde0a0", Frameless: true}]
           Condition: null
@@ -1306,6 +1399,7 @@ Probes:
       events:
         - ID: 129
           Kind: Entry
+          SourceLine: ""
           Type: 1394 EventRootType Probe[main.testNilSliceOfStructs]
           InjectionPoints: [{PC: "0xcde040", Frameless: true}]
           Condition: null
@@ -1321,6 +1415,7 @@ Probes:
       events:
         - ID: 131
           Kind: Entry
+          SourceLine: ""
           Type: 1396 EventRootType Probe[main.testNilSliceWithOtherParams]
           InjectionPoints: [{PC: "0xcde080", Frameless: true}]
           Condition: null
@@ -1336,6 +1431,7 @@ Probes:
       events:
         - ID: 142
           Kind: Entry
+          SourceLine: ""
           Type: 1407 EventRootType Probe[main.testOneStringInStructPointer]
           InjectionPoints: [{PC: "0xcde4e0", Frameless: true}]
           Condition: null
@@ -1351,6 +1447,7 @@ Probes:
       events:
         - ID: 98
           Kind: Entry
+          SourceLine: ""
           Type: 1363 EventRootType Probe[main.testPointerLoop]
           InjectionPoints: [{PC: "0xcdd000", Frameless: true}]
           Condition: null
@@ -1366,6 +1463,7 @@ Probes:
       events:
         - ID: 79
           Kind: Entry
+          SourceLine: ""
           Type: 1344 EventRootType Probe[main.testPointerToMap]
           InjectionPoints: [{PC: "0xcdb180", Frameless: true}]
           Condition: null
@@ -1381,6 +1479,7 @@ Probes:
       events:
         - ID: 96
           Kind: Entry
+          SourceLine: ""
           Type: 1361 EventRootType Probe[main.testPointerToSimpleStruct]
           InjectionPoints: [{PC: "0xcdcfc0", Frameless: true}]
           Condition: null
@@ -1396,11 +1495,13 @@ Probes:
       events:
         - ID: 115
           Kind: Entry
+          SourceLine: ""
           Type: 1379 EventRootType Probe[main.testReturnsAny]
           InjectionPoints: [{PC: "0xcdd8ea", Frameless: false}]
           Condition: null
         - ID: 114
           Kind: Return
+          SourceLine: ""
           Type: 1380 EventRootType Probe[main.testReturnsAny]Return
           InjectionPoints: [{PC: "0xcdd944", Frameless: false}]
           Condition: null
@@ -1416,11 +1517,13 @@ Probes:
       events:
         - ID: 113
           Kind: Entry
+          SourceLine: ""
           Type: 1377 EventRootType Probe[main.testReturnsAnyAndError]
           InjectionPoints: [{PC: "0xcdd86a", Frameless: false}]
           Condition: null
         - ID: 112
           Kind: Return
+          SourceLine: ""
           Type: 1378 EventRootType Probe[main.testReturnsAnyAndError]Return
           InjectionPoints:
             - PC: "0xcdd8a8"
@@ -1440,11 +1543,13 @@ Probes:
       events:
         - ID: 111
           Kind: Entry
+          SourceLine: ""
           Type: 1375 EventRootType Probe[main.testReturnsError]
           InjectionPoints: [{PC: "0xcdd80a", Frameless: false}]
           Condition: null
         - ID: 110
           Kind: Return
+          SourceLine: ""
           Type: 1376 EventRootType Probe[main.testReturnsError]Return
           InjectionPoints:
             - PC: "0xcdd83a"
@@ -1463,11 +1568,13 @@ Probes:
       events:
         - ID: 105
           Kind: Entry
+          SourceLine: ""
           Type: 1369 EventRootType Probe[main.testReturnsInt]
           InjectionPoints: [{PC: "0xcdd60a", Frameless: false}]
           Condition: null
         - ID: 104
           Kind: Return
+          SourceLine: ""
           Type: 1370 EventRootType Probe[main.testReturnsInt]Return
           InjectionPoints: [{PC: "0xcdd654", Frameless: false}]
           Condition: null
@@ -1482,11 +1589,13 @@ Probes:
       events:
         - ID: 109
           Kind: Entry
+          SourceLine: ""
           Type: 1373 EventRootType Probe[main.testReturnsIntAndFloat]
           InjectionPoints: [{PC: "0xcdd72e", Frameless: false}]
           Condition: null
         - ID: 108
           Kind: Return
+          SourceLine: ""
           Type: 1374 EventRootType Probe[main.testReturnsIntAndFloat]Return
           InjectionPoints: [{PC: "0xcdd7d1", Frameless: false}]
           Condition: null
@@ -1501,11 +1610,13 @@ Probes:
       events:
         - ID: 107
           Kind: Entry
+          SourceLine: ""
           Type: 1371 EventRootType Probe[main.testReturnsIntPointer]
           InjectionPoints: [{PC: "0xcdd68a", Frameless: false}]
           Condition: null
         - ID: 106
           Kind: Return
+          SourceLine: ""
           Type: 1372 EventRootType Probe[main.testReturnsIntPointer]Return
           InjectionPoints: [{PC: "0xcdd6f0", Frameless: false}]
           Condition: null
@@ -1521,11 +1632,13 @@ Probes:
       events:
         - ID: 117
           Kind: Entry
+          SourceLine: ""
           Type: 1381 EventRootType Probe[main.testReturnsInterface]
           InjectionPoints: [{PC: "0xcdd98e", Frameless: false}]
           Condition: null
         - ID: 116
           Kind: Return
+          SourceLine: ""
           Type: 1382 EventRootType Probe[main.testReturnsInterface]Return
           InjectionPoints:
             - PC: "0xcdda22"
@@ -1545,6 +1658,7 @@ Probes:
       events:
         - ID: 2
           Kind: Entry
+          SourceLine: ""
           Type: 1267 EventRootType Probe[main.testRuneArray]
           InjectionPoints: [{PC: "0xcd8a20", Frameless: true}]
           Condition: null
@@ -1560,6 +1674,7 @@ Probes:
       events:
         - ID: 21
           Kind: Entry
+          SourceLine: ""
           Type: 1286 EventRootType Probe[main.testSingleBool]
           InjectionPoints: [{PC: "0xcd9020", Frameless: true}]
           Condition: null
@@ -1575,6 +1690,7 @@ Probes:
       events:
         - ID: 19
           Kind: Entry
+          SourceLine: ""
           Type: 1284 EventRootType Probe[main.testSingleByte]
           InjectionPoints: [{PC: "0xcd8fe0", Frameless: true}]
           Condition: null
@@ -1590,6 +1706,7 @@ Probes:
       events:
         - ID: 32
           Kind: Entry
+          SourceLine: ""
           Type: 1297 EventRootType Probe[main.testSingleFloat32]
           InjectionPoints: [{PC: "0xcd9180", Frameless: true}]
           Condition: null
@@ -1605,6 +1722,7 @@ Probes:
       events:
         - ID: 33
           Kind: Entry
+          SourceLine: ""
           Type: 1298 EventRootType Probe[main.testSingleFloat64]
           InjectionPoints: [{PC: "0xcd91a0", Frameless: true}]
           Condition: null
@@ -1620,6 +1738,7 @@ Probes:
       events:
         - ID: 22
           Kind: Entry
+          SourceLine: ""
           Type: 1287 EventRootType Probe[main.testSingleInt]
           InjectionPoints: [{PC: "0xcd9040", Frameless: true}]
           Condition: null
@@ -1635,6 +1754,7 @@ Probes:
       events:
         - ID: 24
           Kind: Entry
+          SourceLine: ""
           Type: 1289 EventRootType Probe[main.testSingleInt16]
           InjectionPoints: [{PC: "0xcd9080", Frameless: true}]
           Condition: null
@@ -1650,6 +1770,7 @@ Probes:
       events:
         - ID: 25
           Kind: Entry
+          SourceLine: ""
           Type: 1290 EventRootType Probe[main.testSingleInt32]
           InjectionPoints: [{PC: "0xcd90a0", Frameless: true}]
           Condition: null
@@ -1665,6 +1786,7 @@ Probes:
       events:
         - ID: 26
           Kind: Entry
+          SourceLine: ""
           Type: 1291 EventRootType Probe[main.testSingleInt64]
           InjectionPoints: [{PC: "0xcd90c0", Frameless: true}]
           Condition: null
@@ -1680,6 +1802,7 @@ Probes:
       events:
         - ID: 23
           Kind: Entry
+          SourceLine: ""
           Type: 1288 EventRootType Probe[main.testSingleInt8]
           InjectionPoints: [{PC: "0xcd9060", Frameless: true}]
           Condition: null
@@ -1695,6 +1818,7 @@ Probes:
       events:
         - ID: 20
           Kind: Entry
+          SourceLine: ""
           Type: 1285 EventRootType Probe[main.testSingleRune]
           InjectionPoints: [{PC: "0xcd9000", Frameless: true}]
           Condition: null
@@ -1710,6 +1834,7 @@ Probes:
       events:
         - ID: 137
           Kind: Entry
+          SourceLine: ""
           Type: 1402 EventRootType Probe[main.testSingleString]
           InjectionPoints: [{PC: "0xcde460", Frameless: true}]
           Condition: null
@@ -1725,6 +1850,7 @@ Probes:
       events:
         - ID: 27
           Kind: Entry
+          SourceLine: ""
           Type: 1292 EventRootType Probe[main.testSingleUint]
           InjectionPoints: [{PC: "0xcd90e0", Frameless: true}]
           Condition: null
@@ -1740,6 +1866,7 @@ Probes:
       events:
         - ID: 29
           Kind: Entry
+          SourceLine: ""
           Type: 1294 EventRootType Probe[main.testSingleUint16]
           InjectionPoints: [{PC: "0xcd9120", Frameless: true}]
           Condition: null
@@ -1755,6 +1882,7 @@ Probes:
       events:
         - ID: 30
           Kind: Entry
+          SourceLine: ""
           Type: 1295 EventRootType Probe[main.testSingleUint32]
           InjectionPoints: [{PC: "0xcd9140", Frameless: true}]
           Condition: null
@@ -1770,6 +1898,7 @@ Probes:
       events:
         - ID: 31
           Kind: Entry
+          SourceLine: ""
           Type: 1296 EventRootType Probe[main.testSingleUint64]
           InjectionPoints: [{PC: "0xcd9160", Frameless: true}]
           Condition: null
@@ -1785,6 +1914,7 @@ Probes:
       events:
         - ID: 28
           Kind: Entry
+          SourceLine: ""
           Type: 1293 EventRootType Probe[main.testSingleUint8]
           InjectionPoints: [{PC: "0xcd9100", Frameless: true}]
           Condition: null
@@ -1800,6 +1930,7 @@ Probes:
       events:
         - ID: 126
           Kind: Entry
+          SourceLine: ""
           Type: 1391 EventRootType Probe[main.testSliceOfSlices]
           InjectionPoints: [{PC: "0xcddfe0", Frameless: true}]
           Condition: null
@@ -1815,6 +1946,7 @@ Probes:
       events:
         - ID: 77
           Kind: Entry
+          SourceLine: ""
           Type: 1342 EventRootType Probe[main.testSmallMap]
           InjectionPoints: [{PC: "0xcdb140", Frameless: true}]
           Condition: null
@@ -1829,11 +1961,13 @@ Probes:
       events:
         - ID: 123
           Kind: Entry
+          SourceLine: ""
           Type: 1387 EventRootType Probe[main.testSomeNamedReturn]
           InjectionPoints: [{PC: "0xcddc0e", Frameless: false}]
           Condition: null
         - ID: 122
           Kind: Return
+          SourceLine: ""
           Type: 1388 EventRootType Probe[main.testSomeNamedReturn]Return
           InjectionPoints: [{PC: "0xcddc9b", Frameless: false}]
           Condition: null
@@ -1849,6 +1983,7 @@ Probes:
       events:
         - ID: 3
           Kind: Entry
+          SourceLine: ""
           Type: 1268 EventRootType Probe[main.testStringArray]
           InjectionPoints: [{PC: "0xcd8a40", Frameless: true}]
           Condition: null
@@ -1864,6 +1999,7 @@ Probes:
       events:
         - ID: 101
           Kind: Entry
+          SourceLine: ""
           Type: 1366 EventRootType Probe[main.testStringPointer]
           InjectionPoints: [{PC: "0xcdd140", Frameless: true}]
           Condition: null
@@ -1879,6 +2015,7 @@ Probes:
       events:
         - ID: 130
           Kind: Entry
+          SourceLine: ""
           Type: 1395 EventRootType Probe[main.testStringSlice]
           InjectionPoints: [{PC: "0xcde060", Frameless: true}]
           Condition: null
@@ -1894,6 +2031,7 @@ Probes:
       events:
         - ID: 43
           Kind: Entry
+          SourceLine: ""
           Type: 1308 EventRootType Probe[main.testStringType1]
           InjectionPoints: [{PC: "0xcd9740", Frameless: true}]
           Condition: null
@@ -1909,6 +2047,7 @@ Probes:
       events:
         - ID: 44
           Kind: Entry
+          SourceLine: ""
           Type: 1309 EventRootType Probe[main.testStringType2]
           InjectionPoints: [{PC: "0xcd9760", Frameless: true}]
           Condition: null
@@ -1924,11 +2063,13 @@ Probes:
       events:
         - ID: 151
           Kind: Entry
+          SourceLine: ""
           Type: 1415 EventRootType Probe[main.testStruct]
           InjectionPoints: [{PC: "0xcde800", Frameless: true}]
           Condition: null
         - ID: 150
           Kind: Return
+          SourceLine: ""
           Type: 1416 EventRootType Probe[main.testStruct]Return
           InjectionPoints: [{PC: "0xcde822", Frameless: true}]
           Condition: null
@@ -1944,6 +2085,7 @@ Probes:
       events:
         - ID: 127
           Kind: Entry
+          SourceLine: ""
           Type: 1392 EventRootType Probe[main.testStructSlice]
           InjectionPoints: [{PC: "0xcde000", Frameless: true}]
           Condition: null
@@ -1959,6 +2101,7 @@ Probes:
       events:
         - ID: 71
           Kind: Entry
+          SourceLine: ""
           Type: 1336 EventRootType Probe[main.testStructWithAny]
           InjectionPoints: [{PC: "0xcdaaa0", Frameless: true}]
           Condition: null
@@ -1973,11 +2116,13 @@ Probes:
       events:
         - ID: 149
           Kind: Entry
+          SourceLine: ""
           Type: 1413 EventRootType Probe[main.testStructWithCyclicMaps]
           InjectionPoints: [{PC: "0xcde6c0", Frameless: true}]
           Condition: null
         - ID: 148
           Kind: Return
+          SourceLine: ""
           Type: 1414 EventRootType Probe[main.testStructWithCyclicMaps]Return
           InjectionPoints: [{PC: "0xcde6de", Frameless: true}]
           Condition: null
@@ -1992,6 +2137,7 @@ Probes:
       events:
         - ID: 147
           Kind: Entry
+          SourceLine: ""
           Type: 1412 EventRootType Probe[main.testStructWithCyclicSlices]
           InjectionPoints: [{PC: "0xcde6a0", Frameless: true}]
           Condition: null
@@ -2007,6 +2153,7 @@ Probes:
       events:
         - ID: 72
           Kind: Entry
+          SourceLine: ""
           Type: 1337 EventRootType Probe[main.testStructWithMap]
           InjectionPoints: [{PC: "0xcdb0a0", Frameless: true}]
           Condition: null
@@ -2022,6 +2169,7 @@ Probes:
       events:
         - ID: 138
           Kind: Entry
+          SourceLine: ""
           Type: 1403 EventRootType Probe[main.testThreeStrings]
           InjectionPoints: [{PC: "0xcde480", Frameless: true}]
           Condition: null
@@ -2037,11 +2185,13 @@ Probes:
       events:
         - ID: 140
           Kind: Entry
+          SourceLine: ""
           Type: 1404 EventRootType Probe[main.testThreeStringsInStruct]
           InjectionPoints: [{PC: "0xcde4a0", Frameless: true}]
           Condition: null
         - ID: 139
           Kind: Return
+          SourceLine: ""
           Type: 1405 EventRootType Probe[main.testThreeStringsInStruct]Return
           InjectionPoints: [{PC: "0xcde4be", Frameless: true}]
           Condition: null
@@ -2057,6 +2207,7 @@ Probes:
       events:
         - ID: 141
           Kind: Entry
+          SourceLine: ""
           Type: 1406 EventRootType Probe[main.testThreeStringsInStructPointer]
           InjectionPoints: [{PC: "0xcde4c0", Frameless: true}]
           Condition: null
@@ -2072,6 +2223,7 @@ Probes:
       events:
         - ID: 34
           Kind: Entry
+          SourceLine: ""
           Type: 1299 EventRootType Probe[main.testTypeAlias]
           InjectionPoints: [{PC: "0xcd91c0", Frameless: true}]
           Condition: null
@@ -2087,6 +2239,7 @@ Probes:
       events:
         - ID: 12
           Kind: Entry
+          SourceLine: ""
           Type: 1277 EventRootType Probe[main.testUint16Array]
           InjectionPoints: [{PC: "0xcd8b60", Frameless: true}]
           Condition: null
@@ -2102,6 +2255,7 @@ Probes:
       events:
         - ID: 13
           Kind: Entry
+          SourceLine: ""
           Type: 1278 EventRootType Probe[main.testUint32Array]
           InjectionPoints: [{PC: "0xcd8b80", Frameless: true}]
           Condition: null
@@ -2117,6 +2271,7 @@ Probes:
       events:
         - ID: 14
           Kind: Entry
+          SourceLine: ""
           Type: 1279 EventRootType Probe[main.testUint64Array]
           InjectionPoints: [{PC: "0xcd8ba0", Frameless: true}]
           Condition: null
@@ -2132,6 +2287,7 @@ Probes:
       events:
         - ID: 11
           Kind: Entry
+          SourceLine: ""
           Type: 1276 EventRootType Probe[main.testUint8Array]
           InjectionPoints: [{PC: "0xcd8b40", Frameless: true}]
           Condition: null
@@ -2147,6 +2303,7 @@ Probes:
       events:
         - ID: 10
           Kind: Entry
+          SourceLine: ""
           Type: 1275 EventRootType Probe[main.testUintArray]
           InjectionPoints: [{PC: "0xcd8b20", Frameless: true}]
           Condition: null
@@ -2162,6 +2319,7 @@ Probes:
       events:
         - ID: 100
           Kind: Entry
+          SourceLine: ""
           Type: 1365 EventRootType Probe[main.testUintPointer]
           InjectionPoints: [{PC: "0xcdd060", Frameless: true}]
           Condition: null
@@ -2177,6 +2335,7 @@ Probes:
       events:
         - ID: 124
           Kind: Entry
+          SourceLine: ""
           Type: 1389 EventRootType Probe[main.testUintSlice]
           InjectionPoints: [{PC: "0xcddfa0", Frameless: true}]
           Condition: null
@@ -2192,6 +2351,7 @@ Probes:
       events:
         - ID: 145
           Kind: Entry
+          SourceLine: ""
           Type: 1410 EventRootType Probe[main.testUnitializedString]
           InjectionPoints: [{PC: "0xcde520", Frameless: true}]
           Condition: null
@@ -2207,6 +2367,7 @@ Probes:
       events:
         - ID: 99
           Kind: Entry
+          SourceLine: ""
           Type: 1364 EventRootType Probe[main.testUnsafePointer]
           InjectionPoints: [{PC: "0xcdd020", Frameless: true}]
           Condition: null
@@ -2222,6 +2383,7 @@ Probes:
       events:
         - ID: 18
           Kind: Entry
+          SourceLine: ""
           Type: 1283 EventRootType Probe[main.testVeryLargeArray]
           InjectionPoints: [{PC: "0xcd8c60", Frameless: true}]
           Condition: null
@@ -2237,6 +2399,7 @@ Probes:
       events:
         - ID: 133
           Kind: Entry
+          SourceLine: ""
           Type: 1398 EventRootType Probe[main.testVeryLargeSlice]
           InjectionPoints: [{PC: "0xcde0c0", Frameless: true}]
           Condition: null
@@ -2252,6 +2415,7 @@ Probes:
       events:
         - ID: 134
           Kind: Entry
+          SourceLine: ""
           Type: 1399 EventRootType Probe[main.testVeryLargeSlice]
           InjectionPoints: [{PC: "0xcde0c0", Frameless: true}]
           Condition: null
@@ -8173,7 +8337,7 @@ Types:
                   ByteSize: 40
     - __kind: EventRootType
       ID: 1329
-      Name: Probe[main.testFramelessArray]EventKind(3)
+      Name: Probe[main.testFramelessArray]Line
       ByteSize: 49
       PresenceBitsetSize: 1
       Expressions:
@@ -8320,13 +8484,13 @@ Types:
       Name: Probe[main.testInlinedBCA]
     - __kind: EventRootType
       ID: 1424
-      Name: Probe[main.testInlinedBCA]EventKind(3)
+      Name: Probe[main.testInlinedBCA]Line
     - __kind: EventRootType
       ID: 1425
       Name: Probe[main.testInlinedBCB]
     - __kind: EventRootType
       ID: 1426
-      Name: Probe[main.testInlinedBCB]EventKind(3)
+      Name: Probe[main.testInlinedBCB]Line
     - __kind: EventRootType
       ID: 1323
       Name: Probe[main.testInlinedBC]
@@ -8351,7 +8515,7 @@ Types:
                   ByteSize: 8
     - __kind: EventRootType
       ID: 1421
-      Name: Probe[main.testInlinedPrint]EventKind(3)
+      Name: Probe[main.testInlinedPrint]Line
       ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
@@ -8386,7 +8550,7 @@ Types:
                   ByteSize: 8
     - __kind: EventRootType
       ID: 1428
-      Name: Probe[main.testInlinedSq]EventKind(3)
+      Name: Probe[main.testInlinedSq]Line
       ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
@@ -8530,10 +8694,10 @@ Types:
                   ByteSize: 16
     - __kind: EventRootType
       ID: 1310
-      Name: Probe[main.testLongFunctionWithChangingState]EventKind(3)
+      Name: Probe[main.testLongFunctionWithChangingState]Line
     - __kind: EventRootType
       ID: 1311
-      Name: Probe[main.testLongFunctionWithChangingState]EventKind(3)
+      Name: Probe[main.testLongFunctionWithChangingState]Line
       ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
@@ -8559,7 +8723,7 @@ Types:
                   ByteSize: 8
     - __kind: EventRootType
       ID: 1312
-      Name: Probe[main.testLongFunctionWithChangingState]EventKind(3)
+      Name: Probe[main.testLongFunctionWithChangingState]Line
       ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:

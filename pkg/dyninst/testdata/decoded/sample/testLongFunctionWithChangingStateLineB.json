@@ -50,15 +50,17 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "a": {
-                "type": "int",
-                "value": "1"
-              },
-              "b": {
-                "type": "int",
-                "value": "1"
+          "lines": {
+            "215": {
+              "locals": {
+                "a": {
+                  "type": "int",
+                  "value": "1"
+                },
+                "b": {
+                  "type": "int",
+                  "value": "1"
+                }
               }
             }
           }
@@ -118,15 +120,17 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "a": {
-                "type": "int",
-                "value": "1"
-              },
-              "b": {
-                "type": "int",
-                "value": "1"
+          "lines": {
+            "215": {
+              "locals": {
+                "a": {
+                  "type": "int",
+                  "value": "1"
+                },
+                "b": {
+                  "type": "int",
+                  "value": "1"
+                }
               }
             }
           }
@@ -186,15 +190,17 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "a": {
-                "type": "int",
-                "value": "2"
-              },
-              "b": {
-                "type": "int",
-                "value": "2"
+          "lines": {
+            "215": {
+              "locals": {
+                "a": {
+                  "type": "int",
+                  "value": "2"
+                },
+                "b": {
+                  "type": "int",
+                  "value": "2"
+                }
               }
             }
           }
@@ -254,15 +260,17 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "a": {
-                "type": "int",
-                "value": "3"
-              },
-              "b": {
-                "type": "int",
-                "value": "3"
+          "lines": {
+            "215": {
+              "locals": {
+                "a": {
+                  "type": "int",
+                  "value": "3"
+                },
+                "b": {
+                  "type": "int",
+                  "value": "3"
+                }
               }
             }
           }
@@ -322,15 +330,17 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "a": {
-                "type": "int",
-                "value": "5"
-              },
-              "b": {
-                "type": "int",
-                "value": "5"
+          "lines": {
+            "215": {
+              "locals": {
+                "a": {
+                  "type": "int",
+                  "value": "5"
+                },
+                "b": {
+                  "type": "int",
+                  "value": "5"
+                }
               }
             }
           }
@@ -390,15 +400,17 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "a": {
-                "type": "int",
-                "value": "8"
-              },
-              "b": {
-                "type": "int",
-                "value": "8"
+          "lines": {
+            "215": {
+              "locals": {
+                "a": {
+                  "type": "int",
+                  "value": "8"
+                },
+                "b": {
+                  "type": "int",
+                  "value": "8"
+                }
               }
             }
           }
@@ -458,15 +470,17 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "a": {
-                "type": "int",
-                "value": "13"
-              },
-              "b": {
-                "type": "int",
-                "value": "13"
+          "lines": {
+            "215": {
+              "locals": {
+                "a": {
+                  "type": "int",
+                  "value": "13"
+                },
+                "b": {
+                  "type": "int",
+                  "value": "13"
+                }
               }
             }
           }
@@ -526,15 +540,17 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "a": {
-                "type": "int",
-                "value": "21"
-              },
-              "b": {
-                "type": "int",
-                "value": "21"
+          "lines": {
+            "215": {
+              "locals": {
+                "a": {
+                  "type": "int",
+                  "value": "21"
+                },
+                "b": {
+                  "type": "int",
+                  "value": "21"
+                }
               }
             }
           }
@@ -594,15 +610,17 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "a": {
-                "type": "int",
-                "value": "34"
-              },
-              "b": {
-                "type": "int",
-                "value": "34"
+          "lines": {
+            "215": {
+              "locals": {
+                "a": {
+                  "type": "int",
+                  "value": "34"
+                },
+                "b": {
+                  "type": "int",
+                  "value": "34"
+                }
               }
             }
           }
@@ -662,15 +680,17 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "a": {
-                "type": "int",
-                "value": "55"
-              },
-              "b": {
-                "type": "int",
-                "value": "55"
+          "lines": {
+            "215": {
+              "locals": {
+                "a": {
+                  "type": "int",
+                  "value": "55"
+                },
+                "b": {
+                  "type": "int",
+                  "value": "55"
+                }
               }
             }
           }

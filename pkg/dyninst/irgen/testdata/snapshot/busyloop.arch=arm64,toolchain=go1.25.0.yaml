@@ -11,6 +11,7 @@ Probes:
       events:
         - ID: 1
           Kind: Entry
+          SourceLine: ""
           Type: 116 EventRootType Probe[main.noop]
           InjectionPoints: [{PC: "0xb7d10", Frameless: true}]
           Condition: null

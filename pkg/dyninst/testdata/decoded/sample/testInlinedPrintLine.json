@@ -55,11 +55,13 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "x": {
-                "type": "int",
-                "value": "25"
+          "lines": {
+            "14": {
+              "locals": {
+                "x": {
+                  "type": "int",
+                  "value": "25"
+                }
               }
             }
           }
@@ -129,11 +131,13 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "x": {
-                "type": "int",
-                "value": "3"
+          "lines": {
+            "14": {
+              "locals": {
+                "x": {
+                  "type": "int",
+                  "value": "3"
+                }
               }
             }
           }
@@ -203,11 +207,13 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "x": {
-                "type": "int",
-                "value": "150"
+          "lines": {
+            "14": {
+              "locals": {
+                "x": {
+                  "type": "int",
+                  "value": "150"
+                }
               }
             }
           }
@@ -282,11 +288,13 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "x": {
-                "type": "int",
-                "value": "150"
+          "lines": {
+            "14": {
+              "locals": {
+                "x": {
+                  "type": "int",
+                  "value": "150"
+                }
               }
             }
           }
@@ -351,11 +359,13 @@
           }
         },
         "captures": {
-          "entry": {
-            "locals": {
-              "x": {
-                "type": "int",
-                "value": "1"
+          "lines": {
+            "14": {
+              "locals": {
+                "x": {
+                  "type": "int",
+                  "value": "1"
+                }
               }
             }
           }

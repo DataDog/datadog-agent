@@ -59,7 +59,11 @@
             "line": 67
           }
         },
-        "captures": {}
+        "captures": {
+          "lines": {
+            "67": {}
+          }
+        }
       }
     },
     "timestamp": "[ts]"
