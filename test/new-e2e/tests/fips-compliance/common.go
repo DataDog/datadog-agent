@@ -104,7 +104,10 @@ var (
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", want: false},
 		{cert: "rsa", cipher: "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA", want: false},
 		{cert: "rsa", cipher: "TLS_AES_128_GCM_SHA256", tlsMin: "1.3", tlsMax: "1.3", want: true},
-		{cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMin: "1.3", tlsMax: "1.3", want: true},
+		// NOTE: TLS_AES_256_GCM_SHA384 is a supported TLS 1.3 cipher but we cannot test it with the E2E test because
+		//       Go does not allow configuration of TLS 1.3 cipher suites (see: https://github.com/golang/go/issues/29349)
+		//       so the fake endpoint we use for testing cannot restrict use to the AES 256 and AES 128 gets negotiated
+		// {cert: "rsa", cipher: "TLS_AES_256_GCM_SHA384", tlsMin: "1.3", tlsMax: "1.3", want: true},
 	}
 	//go:embed fixtures/e2e_fips_test.py
 	fipsTestCheck string
