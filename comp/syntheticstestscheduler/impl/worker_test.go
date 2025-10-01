@@ -35,6 +35,9 @@ func TestToNetpathConfig(t *testing.T) {
 	icmpTTL := 5
 	icmpTimeout := 2
 
+	tracerouteCount := 3
+	probeCount := 50
+
 	tests := []struct {
 		name        string
 		input       common.SyntheticsTestConfig
@@ -56,6 +59,8 @@ func TestToNetpathConfig(t *testing.T) {
 							DestinationService: &dst,
 							MaxTTL:             &udpTTL,
 							Timeout:            &udpTimeout,
+							ProbeCount:         &probeCount,
+							TracerouteCount:    &tracerouteCount,
 						},
 					},
 				},
@@ -68,6 +73,9 @@ func TestToNetpathConfig(t *testing.T) {
 				Timeout:            time.Duration(udpTimeout) * time.Second,
 				SourceService:      src,
 				DestinationService: dst,
+				ReverseDNS:         true,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},
@@ -87,6 +95,8 @@ func TestToNetpathConfig(t *testing.T) {
 							DestinationService: &dst,
 							MaxTTL:             &tcpTTL,
 							Timeout:            &tcpTimeout,
+							ProbeCount:         &probeCount,
+							TracerouteCount:    &tracerouteCount,
 						},
 					},
 				},
@@ -100,6 +110,9 @@ func TestToNetpathConfig(t *testing.T) {
 				TCPMethod:          payload.TCPConfigSYN,
 				SourceService:      src,
 				DestinationService: dst,
+				ReverseDNS:         true,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},
@@ -117,6 +130,8 @@ func TestToNetpathConfig(t *testing.T) {
 							DestinationService: &dst,
 							MaxTTL:             &icmpTTL,
 							Timeout:            &icmpTimeout,
+							ProbeCount:         &probeCount,
+							TracerouteCount:    &tracerouteCount,
 						},
 					},
 				},
@@ -128,6 +143,9 @@ func TestToNetpathConfig(t *testing.T) {
 				Timeout:            time.Duration(icmpTimeout) * time.Second,
 				SourceService:      src,
 				DestinationService: dst,
+				ReverseDNS:         true,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},
