@@ -23,9 +23,6 @@ def datadog_infra(ctx, audience, datacenter="us1.ddbuild.io"):
 def gitlab(ctx, repo='datadog-agent', verbose=False):
     """Get a gitlab token."""
 
-    if running_in_ci():
-        raise Exit(message='This task is meant to be run locally, not in CI', code=1)
-
     if "GITLAB_TOKEN" in os.environ:
         print(os.environ["GITLAB_TOKEN"])
     else:

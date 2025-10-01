@@ -18,7 +18,8 @@
     - ls -l $OMNIBUS_PACKAGE_DIR
     - dda self dep sync -f legacy-tasks
     - set +x
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - gitlabtoken="$(dda inv auth.gitlab --repo datadog-package)" || exit $?
+    - git config --global url."https://gitlab-ci-token:${gitlabtoken}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
     - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
     - OUTPUT_DIR="/tmp/oci_output"
@@ -97,6 +98,19 @@ installer_oci:
       "installer-amd64-oci",
       "go_tools_deps",
     ]
+  variables:
+    OCI_PRODUCT: "datadog-installer"
+
+celian_package_oci:
+  extends: .package_oci
+  script:
+    - dda self dep sync -f legacy-tasks
+    - set +x
+    - gitlabtoken="$(dda inv auth.gitlab --repo datadog-package)" || exit $?
+    - git config --global url."https://gitlab-ci-token:${gitlabtoken}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - go env -w GOPRIVATE="github.com/DataDog/*"
+    - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
+    - echo OK
   variables:
     OCI_PRODUCT: "datadog-installer"
 
