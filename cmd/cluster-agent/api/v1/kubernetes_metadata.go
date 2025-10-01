@@ -10,10 +10,11 @@ package v1
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"net/http"
 	"strings"
+
+	"github.com/gorilla/mux"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -39,6 +40,7 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
+	r.HandleFunc("/uid/node/{nodeName}", api.WithTelemetryWrapper("getNodeUID", func(w http.ResponseWriter, r *http.Request) { getNodeUID(w, r, wmeta) })).Methods("GET")
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
@@ -105,6 +107,12 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 
 func getNodeLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Labels }, "labels", nil)
+}
+
+func getNodeUID(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string {
+		return map[string]string{"uid": string(km.UID)}
+	}, "uid", nil)
 }
 
 func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {

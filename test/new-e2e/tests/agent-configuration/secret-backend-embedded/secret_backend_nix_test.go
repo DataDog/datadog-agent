@@ -47,8 +47,8 @@ secret_backend_config:
 		),
 	))
 
-	assert.EventuallyWithT(v.T(), func(_ *assert.CollectT) {
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		secretOutput := v.Env().Agent.Client.Secret()
-		require.Contains(v.T(), secretOutput, "fake_yaml_key")
+		require.Contains(t, secretOutput, "fake_yaml_key")
 	}, 30*time.Second, 2*time.Second)
 }

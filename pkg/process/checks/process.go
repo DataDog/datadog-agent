@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/cpu"
 
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -47,7 +50,7 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface, grpcServerTLSConfig *tls.Config) *ProcessCheck {
+func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface, grpcServerTLSConfig *tls.Config, tagger taggerdef.Component) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
@@ -61,6 +64,7 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		gpuSubscriber:       gpuSubscriber,
 		statsd:              statsd,
 		grpcServerTLSConfig: grpcServerTLSConfig,
+		tagger:              tagger,
 		clock:               clock.New(),
 	}
 
@@ -141,6 +145,8 @@ type ProcessCheck struct {
 	gpuSubscriber gpusubscriber.Component
 
 	grpcServerTLSConfig *tls.Config
+
+	tagger taggerdef.Component
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -313,7 +319,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, time.Now())
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, time.Now())
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -485,6 +491,7 @@ func fmtProcesses(
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
 	pidToGPUTags map[int32][]string,
+	tagger taggerdef.Component,
 	now time.Time,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
@@ -520,6 +527,13 @@ func fmtProcesses(
 		if tags, ok := pidToGPUTags[fp.Pid]; ok {
 			log.Debugf("Detected GPU, and process is in activePids, adding GPU tags to pid: %d, tags: %v", fp.Pid, tags)
 			proc.Tags = append(proc.Tags, tags...)
+		}
+
+		if tagger != nil {
+			processEntityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(fp.Pid)))
+			if processTags, err := tagger.Tag(processEntityID, taggertypes.HighCardinality); err == nil && len(processTags) > 0 {
+				proc.Tags = append(proc.Tags, processTags...)
+			}
 		}
 
 		_, ok := procsByCtr[proc.ContainerId]

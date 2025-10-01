@@ -9,17 +9,32 @@
 package module
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 // NewPrivilegedLogsModule creates a new instance of the privileged logs module.
 var NewPrivilegedLogsModule = func() module.Module {
-	return &privilegedLogsModule{}
+	cache, err := simplelru.NewLRU[string, struct{}](128, nil)
+	if err != nil {
+		log.Errorf("Failed to create LRU cache for privileged logs module: %v", err)
+		cache = nil
+	}
+
+	return &privilegedLogsModule{
+		informedPaths: cache,
+	}
 }
 
 var _ module.Module = &privilegedLogsModule{}
 
-type privilegedLogsModule struct{}
+type privilegedLogsModule struct {
+	informedPaths *simplelru.LRU[string, struct{}]
+	mu            sync.RWMutex
+}
 
 // GetStats returns stats for the module
 func (f *privilegedLogsModule) GetStats() map[string]interface{} {

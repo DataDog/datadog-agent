@@ -42,8 +42,10 @@ func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
 
 	// Now configure the cgroup device allow, depending on the cgroup version
 	if cgroupMode == cgroups.Legacy {
+		log.Infof("Configuring PID %d cgroupv1 device allow, cgroup path %s", pid, cgroupPath)
 		err = configureCgroupV1DeviceAllow(hostRoot, cgroupPath, nvidiaDeviceMajor)
 	} else {
+		log.Infof("Configuring PID %d cgroupv2 device programs, cgroup path %s", pid, cgroupPath)
 		err = detachAllDeviceCgroupPrograms(hostRoot, cgroupPath)
 	}
 
