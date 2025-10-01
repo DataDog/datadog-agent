@@ -37,7 +37,7 @@
           }
         ],
         "probe": {
-          "id": "stringArg",
+          "id": "testTemplateMultipleStringSegments",
           "location": {
             "method": "main.stringArg"
           }
@@ -56,6 +56,6 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": ""
+    "message": "hello world!"
   }
 ]

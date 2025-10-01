@@ -37,7 +37,7 @@
           }
         ],
         "probe": {
-          "id": "stringArg",
+          "id": "testTemplateMultipleDSLSegment",
           "location": {
             "method": "main.stringArg"
           }
@@ -50,12 +50,20 @@
                 "value": "d"
               }
             }
+          },
+          "return": {
+            "arguments": {
+              "s": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": ""
+    "message": "dd"
   }
 ]
