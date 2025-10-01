@@ -374,23 +374,30 @@ func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.S
 
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
+	originalRuleID := rule.Def.ID
+	groupRuleID := rule.Def.ID
+	if rule.Def.GroupID != "" {
+		groupRuleID = rule.Def.GroupID
+	}
+
 	backendEvent := events.BackendEvent{
 		Title: rule.Def.Description,
 		AgentContext: events.AgentContext{
-			RuleID:        rule.Def.ID,
-			RuleVersion:   rule.Def.Version,
-			Version:       version.AgentVersion,
-			OS:            runtime.GOOS,
-			Arch:          utils.RuntimeArch(),
-			Origin:        a.probe.Origin(),
-			KernelVersion: a.kernelVersion,
-			Distribution:  a.distribution,
-			PolicyName:    rule.Policy.Name,
-			PolicyVersion: rule.Policy.Version,
+			RuleID:         groupRuleID,
+			OriginalRuleID: originalRuleID,
+			RuleVersion:    rule.Def.Version,
+			Version:        version.AgentVersion,
+			OS:             runtime.GOOS,
+			Arch:           utils.RuntimeArch(),
+			Origin:         a.probe.Origin(),
+			KernelVersion:  a.kernelVersion,
+			Distribution:   a.distribution,
+			PolicyName:     rule.Policy.Name,
+			PolicyVersion:  rule.Policy.Version,
 		},
 	}
 
-	seclog.Tracef("Prepare event message for rule `%s`", rule.ID)
+	seclog.Tracef("Prepare event message for rule `%s`", groupRuleID)
 
 	// no retention if there is no ext tags to resolve
 	retention := a.retention
@@ -398,15 +405,11 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		retention = 0
 	}
 
-	ruleID := rule.Def.ID
-	if rule.Def.GroupID != "" {
-		ruleID = rule.Def.GroupID
-	}
-
 	// get type tags + container tags if already resolved, see ResolveContainerTags
 	eventTags := event.GetTags()
 
-	tags := []string{"rule_id:" + ruleID}
+	tags := []string{"rule_id:" + groupRuleID}
+	tags = append(tags, "source_rule_id:"+originalRuleID)
 	tags = append(tags, rule.Tags...)
 	tags = append(tags, eventTags...)
 	tags = append(tags, common.QueryAccountIDTag())
@@ -428,7 +431,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		}
 
 		msg := &pendingMsg{
-			ruleID:          ruleID,
+			ruleID:          groupRuleID,
 			backendEvent:    backendEvent,
 			eventSerializer: serializers.NewEventSerializer(ev, rule),
 			extTagsCb:       extTagsCb,
@@ -469,17 +472,18 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			return
 		}
 
-		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", ruleID, string(data))
+		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", groupRuleID, string(data))
 
 		// for custom events, we can use the current time as timestamp
 		timestamp := time.Now()
 
 		m := &api.SecurityEventMessage{
-			RuleID:    ruleID,
-			Data:      data,
-			Service:   service,
-			Tags:      tags,
-			Timestamp: timestamppb.New(timestamp),
+			RuleID:         groupRuleID,
+			OriginalRuleID: originalRuleID,
+			Data:           data,
+			Service:        service,
+			Tags:           tags,
+			Timestamp:      timestamppb.New(timestamp),
 		}
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
