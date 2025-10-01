@@ -739,6 +739,12 @@ Package fleetstatus implements the core status component information provider in
 
 Package haagent handles states for HA Agent feature.
 
+### [comp/healthplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform)
+
+*Datadog Team*: agent-health
+
+Package healthplatform ... /* TODO: detailed doc comment for the component */
+
 ### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
 
 *Datadog Team*: container-platform
