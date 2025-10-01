@@ -60,6 +60,11 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("error retrieving global docker scanner channel")
 	}
 
+	errs := c.filterSBOMContainers.GetErrors()
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to create container filter: %v", errs)
+	}
+
 	go func() {
 		for {
 			select {

@@ -50,6 +50,11 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("error retrieving global containerd scanner")
 	}
 
+	errs := c.filterSBOMContainers.GetErrors()
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to create container filter: %v", errs)
+	}
+
 	resultChan := scanner.Channel()
 	if resultChan == nil {
 		return fmt.Errorf("error retrieving global containerd scanner channel")

@@ -53,6 +53,11 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("failed to retrieve scanner result channel")
 	}
 
+	errs := c.sbomFilter.GetErrors()
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to create container filter: %v", errs)
+	}
+
 	go c.handleImageEvents(ctx, imgEventsCh, c.sbomFilter)
 	go c.startScanResultHandler(ctx, resultChan)
 	return nil
