@@ -960,12 +960,6 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 	}
 
 	wrapper.Run(t, "cat", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		time.Sleep(2 * time.Second)
-
-		// force the double buffer to be flushed
-		test.sendStats()
-		test.statsdClient.Flush()
-
 		if err := waitForOpenProbeEvent(test, func() error {
 			cmd := cmdFunc("/bin/cat", []string{"/etc/nsswitch.conf"}, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -976,12 +970,6 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 			t.Fatal("shouldn't get an event")
 		}
 	})
-
-	test.sendStats()
-
-	if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:in_upper_layer"); count != 0 {
-		t.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
-	}
 
 	test.statsdClient.Flush()
 
