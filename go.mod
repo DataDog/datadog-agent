@@ -176,7 +176,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c
-	github.com/DataDog/datadog-traceroute v0.1.21
+	github.com/DataDog/datadog-traceroute v0.1.25
 	github.com/DataDog/dd-trace-go/v2 v2.0.0
 	github.com/DataDog/ebpf-manager v0.7.14
 	github.com/DataDog/go-libddwaf/v4 v4.3.0
@@ -285,7 +285,7 @@ require (
 	github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993
 	github.com/klauspost/compress v1.18.0
 	github.com/knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23
-	github.com/knqyf263/go-rpmdb v0.1.2-0.20241125135340-7670f0f23c16
+	github.com/knqyf263/go-rpmdb v0.1.2-0.20250519070707-7e39c901d1c4
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/kr/pretty v0.3.1
 	github.com/kraken-hpc/go-fork v0.1.1
@@ -951,7 +951,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
 )
 
-require go.opentelemetry.io/ebpf-profiler v0.0.202539
+require (
+	github.com/google/btree v1.1.3
+	go.opentelemetry.io/ebpf-profiler v0.0.202539
+)
 
 require (
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.44.0 // indirect
