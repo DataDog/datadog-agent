@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
-	core "k8s.io/client-go/testing"
+	k8stesting "k8s.io/client-go/testing"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
@@ -43,13 +43,15 @@ type ControllerFixture struct {
 	ctx                  context.Context
 	createControllerFunc CreateControllerFunc
 	gvr                  schema.GroupVersionResource
+	// client to use for the controller.
+	client *fake.FakeDynamicClient
 
-	// Client to use for the controller.
-	Client *fake.FakeDynamicClient
+	// Fake client custom hook
+	FakeClientCustomHook func(*fake.FakeDynamicClient)
 	// Objects to preload into the informer lister.
 	InformerObjects []*unstructured.Unstructured
 	// Actions expected to happen on the client.
-	Actions []core.Action
+	Actions []k8stesting.Action
 	// Objects from here preloaded into Fake client.
 	Objects []runtime.Object
 }
@@ -71,10 +73,13 @@ func NewFixture(t *testing.T, gvr schema.GroupVersionResource, newController Cre
 }
 
 func (f *ControllerFixture) newController(leader bool) (*Controller, dynamicinformer.DynamicSharedInformerFactory) {
-	f.Client = fake.NewSimpleDynamicClient(scheme, f.Objects...)
-	informer := dynamicinformer.NewDynamicSharedInformerFactory(f.Client, noResyncPeriodFunc())
+	f.client = fake.NewSimpleDynamicClient(scheme, f.Objects...)
+	informer := dynamicinformer.NewDynamicSharedInformerFactory(f.client, noResyncPeriodFunc())
+	if f.FakeClientCustomHook != nil {
+		f.FakeClientCustomHook(f.client)
+	}
 
-	c, err := f.createControllerFunc(f.Client, informer, getIsLeaderFunction(leader))
+	c, err := f.createControllerFunc(f.client, informer, getIsLeaderFunction(leader))
 	if err != nil {
 		return nil, nil
 	}
@@ -101,7 +106,7 @@ func (f *ControllerFixture) RunControllerSync(leader bool, objectID string) {
 	controller.Workqueue.Add(objectID)
 	assert.True(f.t, controller.process())
 
-	actions := FilterInformerActions(f.Client.Actions(), f.gvr.Resource)
+	actions := FilterInformerActions(f.client.Actions(), f.gvr.Resource)
 	for i, action := range actions {
 		if len(f.Actions) < i+1 {
 			f.t.Errorf("%d unexpected actions: %+v", len(actions)-len(f.Actions), actions[i:])
@@ -119,25 +124,25 @@ func (f *ControllerFixture) RunControllerSync(leader bool, objectID string) {
 
 // ExpectCreateAction adds an expected create action.
 func (f *ControllerFixture) ExpectCreateAction(obj *unstructured.Unstructured) {
-	action := core.NewCreateAction(f.gvr, obj.GetNamespace(), obj)
+	action := k8stesting.NewCreateAction(f.gvr, obj.GetNamespace(), obj)
 	f.Actions = append(f.Actions, action)
 }
 
 // ExpectDeleteAction adds an expected delete action.
 func (f *ControllerFixture) ExpectDeleteAction(ns, name string) {
-	action := core.NewDeleteAction(f.gvr, ns, name)
+	action := k8stesting.NewDeleteAction(f.gvr, ns, name)
 	f.Actions = append(f.Actions, action)
 }
 
 // ExpectUpdateAction adds an expected update action.
 func (f *ControllerFixture) ExpectUpdateAction(obj *unstructured.Unstructured) {
-	action := core.NewUpdateAction(f.gvr, obj.GetNamespace(), obj)
+	action := k8stesting.NewUpdateAction(f.gvr, obj.GetNamespace(), obj)
 	f.Actions = append(f.Actions, action)
 }
 
 // ExpectUpdateStatusAction adds an expected update status action.
 func (f *ControllerFixture) ExpectUpdateStatusAction(obj *unstructured.Unstructured) {
-	action := core.NewUpdateSubresourceAction(f.gvr, "status", obj.GetNamespace(), obj)
+	action := k8stesting.NewUpdateSubresourceAction(f.gvr, "status", obj.GetNamespace(), obj)
 	f.Actions = append(f.Actions, action)
 }
 
