@@ -84,9 +84,6 @@ type bookmark struct {
 type publisherMetadata struct {
 	handle      evtapi.EventPublisherMetadataHandle
 	publisherID string
-	// Fake publisher metadata properties
-	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_publisher_metadata_property_id
-	properties map[uint]string
 	// For testing - allows simulating invalid handles
 	isValid bool
 }
