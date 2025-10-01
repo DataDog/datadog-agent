@@ -136,7 +136,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 			OrchestratorCardTags: entity.OrchestratorCardinalityTags,
 			LowCardTags:          entity.LowCardinalityTags,
 			StandardTags:         entity.StandardTags,
-			ExpiryDate:           time.Now().Add(3 * time.Minute),
+			ExpiryDate:           time.Now().Add(time.Duration(req.Duration) * time.Millisecond * 2),
 		})
 	}
 
