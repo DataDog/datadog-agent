@@ -206,6 +206,7 @@ var defaultProfiles = `
             - check_name
             - state
         - name: pymem.inuse
+        - name: health_platform.issues_detected
     schedule:
       start_after: 30
       iterations: 0

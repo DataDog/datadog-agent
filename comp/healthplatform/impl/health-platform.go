@@ -13,6 +13,7 @@ import (
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	healthcheck "github.com/DataDog/datadog-agent/comp/healthplatform/impl/health-check"
@@ -27,6 +28,7 @@ const (
 type Requires struct {
 	Lifecycle compdef.Lifecycle
 	Log       log.Component
+	Telemetry telemetry.Component
 }
 
 // Provides defines the output of the health-platform component
@@ -37,6 +39,7 @@ type Provides struct {
 // healthPlatformImpl implements the health platform component
 type healthPlatformImpl struct {
 	log       log.Component
+	telemetry telemetry.Component
 	ticker    *time.Ticker
 	stopCh    chan struct{}
 	ctx       context.Context
@@ -45,6 +48,11 @@ type healthPlatformImpl struct {
 	checksMux sync.RWMutex
 	issues    map[string][]healthplatform.Issue
 	issuesMux sync.RWMutex
+	metrics   telemetryMetrics
+}
+
+type telemetryMetrics struct {
+	issuesCounter telemetry.Counter
 }
 
 // NewComponent creates a new health-platform component
@@ -54,6 +62,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	comp := &healthPlatformImpl{
 		log:       reqs.Log,
+		telemetry: reqs.Telemetry,
 		ticker:    time.NewTicker(tickerInterval),
 		stopCh:    make(chan struct{}),
 		ctx:       ctx,
@@ -69,6 +78,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		OnStart: comp.start,
 		OnStop:  comp.stop,
 	})
+
+	comp.metrics = telemetryMetrics{
+		issuesCounter: reqs.Telemetry.NewCounter("health_platform", "issues_detected", []string{"health_check_id"}, "Number of health issues detected"),
+	}
 
 	comp.RegisterDefaultChecks()
 
@@ -214,6 +227,10 @@ func (h *healthPlatformImpl) storeIssues(checkID string, issues []healthplatform
 	}
 
 	h.issues[checkID] = issues
+
+	if len(issues) > 0 {
+		h.metrics.issuesCounter.Add(1, checkID)
+	}
 }
 
 // GetAllIssues returns all issues from all checks

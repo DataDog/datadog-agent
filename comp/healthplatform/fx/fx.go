@@ -7,6 +7,7 @@
 package fx
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -19,5 +20,6 @@ func Module() fxutil.Module {
 			healthplatformimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[healthplatform.Component](),
+		fxutil.ProvideOptional[telemetry.Component](),
 	)
 }
