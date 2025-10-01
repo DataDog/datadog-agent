@@ -40,6 +40,7 @@ func TestGetTracerouteURL(t *testing.T) {
 		protocol                  payload.Protocol
 		tcpMethod                 payload.TCPMethod
 		tcpSynParisTracerouteMode bool
+		disableWindowsDriver      bool
 		reverseDNS                bool
 		maxTTL                    uint8
 		timeout                   time.Duration
@@ -55,6 +56,7 @@ func TestGetTracerouteURL(t *testing.T) {
 			protocol:                  payload.ProtocolTCP,
 			tcpMethod:                 payload.TCPConfigPreferSACK,
 			tcpSynParisTracerouteMode: true,
+			disableWindowsDriver:      false,
 			reverseDNS:                true,
 			maxTTL:                    30,
 			timeout:                   5 * time.Second,
