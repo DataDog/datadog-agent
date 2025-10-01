@@ -222,6 +222,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 					configs = append(configs, dirConfigs.confs...)
 					configNames[dirConfigs.confs[0].Name] = struct{}{}
 				}
+				configFormats = append(configFormats, dirConfigs.cfgFormats...)
 				continue
 			}
 			var entry configEntry
