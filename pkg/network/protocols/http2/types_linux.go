@@ -43,35 +43,21 @@ type HTTP2StreamKey struct {
 	Id        uint32
 	Pad_cgo_0 [4]byte
 }
-type http2StatusCode struct {
-	Raw_buffer         [3]uint8
-	Is_huffman_encoded bool
-	Static_table_entry uint8
-	Finalized          bool
-}
-type http2requestMethod struct {
-	Raw_buffer         [7]uint8
-	Is_huffman_encoded bool
-	Static_table_entry uint8
-	Length             uint8
-	Finalized          bool
-}
-type http2Path struct {
-	Raw_buffer         [160]uint8
-	Is_huffman_encoded bool
-	Static_table_entry uint8
-	Length             uint8
-	Finalized          bool
+type interestingValue struct {
+	Dynamic_table_index uint64
+	Static_table_index  uint8
+	Finalized           bool
+	Pad_cgo_0           [6]byte
 }
 type HTTP2Stream struct {
 	Response_last_seen uint64
 	Request_started    uint64
+	Status_code        interestingValue
+	Request_method     interestingValue
+	Path               interestingValue
 	Tags               uint8
-	Status_code        http2StatusCode
-	Request_method     http2requestMethod
-	Path               http2Path
 	End_of_stream_seen bool
-	Pad_cgo_0          [1]byte
+	Pad_cgo_0          [6]byte
 }
 type EbpfTx struct {
 	Tuple  ConnTuple

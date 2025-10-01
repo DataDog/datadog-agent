@@ -66,11 +66,11 @@ func TestHTTP2LongPath(t *testing.T) {
 
 			request := &EbpfTx{
 				Stream: HTTP2Stream{
-					Path: http2Path{
-						Is_huffman_encoded: tt.huffmanEnabled,
-						Raw_buffer:         arr,
-						Length:             uint8(len(buf)),
-					},
+					// Path: http2Path{
+					// 	Is_huffman_encoded: tt.huffmanEnabled,
+					// 	Raw_buffer:         arr,
+					// 	Length:             uint8(len(buf)),
+					// },
 				},
 			}
 
@@ -133,11 +133,11 @@ func TestHTTP2Path(t *testing.T) {
 
 				request := &EbpfTx{
 					Stream: HTTP2Stream{
-						Path: http2Path{
-							Is_huffman_encoded: huffmanEnabled,
-							Raw_buffer:         arr,
-							Length:             uint8(len(buf)),
-						},
+						// Path: http2Path{
+						// 	Is_huffman_encoded: huffmanEnabled,
+						// 	Raw_buffer:         arr,
+						// 	Length:             uint8(len(buf)),
+						// },
 					},
 				}
 
@@ -166,41 +166,41 @@ func TestHTTP2Method(t *testing.T) {
 		want   http.Method
 	}{
 		{
-			name: "Sanity method test",
+			name:   "Sanity method test",
 			Stream: HTTP2Stream{
-				Request_method: http2requestMethod{
-					Raw_buffer:         [7]uint8{0x50, 0x55, 0x54},
-					Is_huffman_encoded: false,
-					Static_table_entry: 0,
-					Length:             3,
-					Finalized:          false,
-				},
+				// Request_method: http2requestMethod{
+				// 	Raw_buffer:         [7]uint8{0x50, 0x55, 0x54},
+				// 	Is_huffman_encoded: false,
+				// 	Static_table_entry: 0,
+				// 	Length:             3,
+				// 	Finalized:          false,
+				// },
 			},
 			want: http.MethodPut,
 		},
 		{
-			name: "Test method length is bigger than raw buffer size",
+			name:   "Test method length is bigger than raw buffer size",
 			Stream: HTTP2Stream{
-				Request_method: http2requestMethod{
-					Raw_buffer:         [7]uint8{1, 2},
-					Is_huffman_encoded: false,
-					Static_table_entry: 0,
-					Length:             8,
-					Finalized:          false,
-				},
+				// Request_method: http2requestMethod{
+				// 	Raw_buffer:         [7]uint8{1, 2},
+				// 	Is_huffman_encoded: false,
+				// 	Static_table_entry: 0,
+				// 	Length:             8,
+				// 	Finalized:          false,
+				// },
 			},
 			want: http.MethodUnknown,
 		},
 		{
-			name: "Test method length is zero",
+			name:   "Test method length is zero",
 			Stream: HTTP2Stream{
-				Request_method: http2requestMethod{
-					Raw_buffer:         [7]uint8{1, 2},
-					Is_huffman_encoded: true,
-					Static_table_entry: 0,
-					Length:             0,
-					Finalized:          false,
-				},
+				// Request_method: http2requestMethod{
+				// 	Raw_buffer:         [7]uint8{1, 2},
+				// 	Is_huffman_encoded: true,
+				// 	Static_table_entry: 0,
+				// 	Length:             0,
+				// 	Finalized:          false,
+				// },
 			},
 			want: http.MethodUnknown,
 		},

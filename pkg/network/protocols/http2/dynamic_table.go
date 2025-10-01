@@ -36,6 +36,7 @@ type DynamicTable struct {
 	cfg *config.Config
 
 	dynamicTableEventsConsumer *events.Consumer[DynamicTableValue]
+	dynamicTableMutex          sync.Mutex
 	dynamicTable               *lru.LRU[HTTP2DynamicTableIndex, *intern.StringValue]
 	interner                   *intern.StringInterner
 
@@ -203,7 +204,8 @@ func (dt *DynamicTable) addDynamicTableToCache(v DynamicTableValue) error {
 		if err := validatePath(tmpBuffer.Bytes()); err != nil {
 			return err
 		}
-
+		dt.dynamicTableMutex.Lock()
+		defer dt.dynamicTableMutex.Unlock()
 		dt.dynamicTable.Add(v.Key, dt.interner.Get(tmpBuffer.Bytes()[:n]))
 		return nil
 	}
@@ -221,6 +223,8 @@ func (dt *DynamicTable) addDynamicTableToCache(v DynamicTableValue) error {
 	if err := validatePath(v.Value.Buffer[:v.Value.String_len]); err != nil {
 		return err
 	}
+	dt.dynamicTableMutex.Lock()
+	defer dt.dynamicTableMutex.Unlock()
 	dt.dynamicTable.Add(v.Key, dt.interner.Get(v.Value.Buffer[:v.Value.String_len]))
 	return nil
 }

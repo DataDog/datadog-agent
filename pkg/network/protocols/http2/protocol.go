@@ -49,6 +49,7 @@ const (
 	InFlightMap               = "http2_in_flight"
 	incompleteFramesTable     = "http2_incomplete_frames"
 	dynamicTable              = "http2_dynamic_table"
+	dynamicValueType          = "http2_dynamic_value_type"
 	dynamicTableCounter       = "http2_dynamic_counter_table"
 	http2IterationsTable      = "http2_iterations"
 	tlsHTTP2IterationsTable   = "tls_http2_iterations"
@@ -80,6 +81,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: dynamicTable,
+		},
+		{
+			Name: dynamicValueType,
 		},
 		{
 			Name: dynamicTableCounter,
@@ -259,6 +263,10 @@ func (p *Protocol) ConfigureOptions(opts *manager.Options) {
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[dynamicValueType] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}

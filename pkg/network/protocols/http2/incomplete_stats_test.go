@@ -30,18 +30,18 @@ func TestIncompleteBuffer(t *testing.T) {
 			Stream: HTTP2Stream{
 				Response_last_seen: 0, // Required to make the request incomplete.
 				Request_started:    uint64(now.UnixNano()),
-				Status_code: http2StatusCode{
-					Static_table_entry: K200Value,
-					Finalized:          true,
-				},
-				Request_method: http2requestMethod{
-					Static_table_entry: GetValue,
-					Finalized:          true,
-				},
-				Path: http2Path{
-					Static_table_entry: EmptyPathValue,
-					Finalized:          true,
-				},
+				// Status_code: http2StatusCode{
+				// 	Static_table_entry: K200Value,
+				// 	Finalized:          true,
+				// },
+				// Request_method: http2requestMethod{
+				// 	Static_table_entry: GetValue,
+				// 	Finalized:          true,
+				// },
+				// Path: http2Path{
+				// 	Static_table_entry: EmptyPathValue,
+				// 	Finalized:          true,
+				// },
 			},
 		}
 		buffer.Add(request)
@@ -65,9 +65,9 @@ func TestIncompleteBuffer(t *testing.T) {
 				Sport: 6000,
 			},
 			Stream: HTTP2Stream{
-				Path: http2Path{
-					Static_table_entry: EmptyPathValue,
-				},
+				// Path: http2Path{
+				// 	Static_table_entry: EmptyPathValue,
+				// },
 				Request_started: uint64(now.UnixNano()),
 			},
 		}

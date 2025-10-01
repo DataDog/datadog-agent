@@ -142,39 +142,19 @@ typedef struct {
 #define HTTP2_METHOD_MAX_LEN 7
 
 typedef struct {
-    __u8 raw_buffer[HTTP2_STATUS_CODE_MAX_LEN];
-    bool is_huffman_encoded;
-
-    __u8 static_table_entry;
+    __u64 dynamic_table_index;
+    __u8 static_table_index;
     bool finalized;
-} status_code_t;
-
-typedef struct {
-    __u8 raw_buffer[HTTP2_METHOD_MAX_LEN];
-    bool is_huffman_encoded;
-
-    __u8 static_table_entry;
-    __u8 length;
-    bool finalized;
-} method_t;
-
-typedef struct {
-    __u8 raw_buffer[HTTP2_MAX_PATH_LEN];
-    bool is_huffman_encoded;
-
-    __u8 static_table_entry;
-    __u8 length;
-    bool finalized;
-} path_t;
+} interesting_value_t;
 
 typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
-    __u8 tags;
 
-    status_code_t status_code;
-    method_t request_method;
-    path_t path;
+    interesting_value_t status_code;
+    interesting_value_t request_method;
+    interesting_value_t path;
+    __u8 tags;
     bool end_of_stream_seen;
 } http2_stream_t;
 
