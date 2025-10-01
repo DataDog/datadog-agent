@@ -8,7 +8,6 @@ package common
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -29,11 +28,6 @@ import (
 const (
 	commandTimeoutDuration = 10 * time.Second
 	configDir              = "/etc/datadog-agent"
-)
-
-var (
-	// ErrNoAPIKey is returned when no API key is provided.
-	ErrNoAPIKey = errors.New("no API key provided")
 )
 
 // Setup allows setup scripts to define packages and configurations to install.
@@ -62,9 +56,6 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	start := time.Now()
 	output := &Output{tty: logOutput}
 	output.WriteString(fmt.Sprintf(header, version.AgentVersion, flavor, version.Commit, flavorPath, start.Format(time.RFC3339)))
-	if env.APIKey == "" {
-		return nil, ErrNoAPIKey
-	}
 	installer, err := installer.NewInstaller(env)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create installer: %w", err)
