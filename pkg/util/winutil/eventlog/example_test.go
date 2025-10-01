@@ -154,12 +154,6 @@ func printEventValues(api evtapi.API, event *evtapi.EventRecord) error {
 	}
 	defer evtapi.EvtClosePublisherMetadata(api, pm)
 
-	guid, err := api.EvtGetPublisherMetadataProperty(pm, evtapi.EvtPublisherMetadataPublisherGuid)
-	if err != nil {
-		return fmt.Errorf("failed to get publisher guid: %w", err)
-	}
-	fmt.Printf("publisher guid: %s\n", guid)
-
 	message, err := api.EvtFormatMessage(pm, event.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
 	if err != nil {
 		return fmt.Errorf("failed to format event message: %w", err)

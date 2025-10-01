@@ -463,12 +463,8 @@ func (api *API) EvtOpenPublisherMetadata(
 
 	publisher := &publisherMetadata{
 		publisherID: PublisherID,
-		properties:  make(map[uint]string),
 		isValid:     true, // Start as valid
 	}
-
-	// Only need to set guid for now
-	publisher.properties[evtapi.EvtPublisherMetadataPublisherGuid] = "12345678"
 
 	api.addPublisherMetadata(publisher)
 
@@ -485,30 +481,6 @@ func (api *API) EvtFormatMessage(
 	_ evtapi.EvtVariantValues,
 	_ uint) (string, error) {
 	return "", fmt.Errorf("not implemented")
-}
-
-// EvtGetPublisherMetadataProperty fake
-// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtgetpublishermetadataproperty
-func (api *API) EvtGetPublisherMetadataProperty(
-	PublisherMetadata evtapi.EventPublisherMetadataHandle,
-	PropertyID uint) (string, error) {
-
-	publisher, err := api.getPublisherMetadataByHandle(PublisherMetadata)
-	if err != nil {
-		return "", err
-	}
-
-	// Check if handle is valid (for testing invalid handle scenarios)
-	if !publisher.isValid {
-		return "", fmt.Errorf("invalid handle")
-	}
-
-	property, ok := publisher.properties[PropertyID]
-	if !ok {
-		return "", fmt.Errorf("Property ID %d not found for publisher %s", PropertyID, publisher.publisherID)
-	}
-
-	return property, nil
 }
 
 // EvtOpenSession fake

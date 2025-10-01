@@ -110,41 +110,6 @@ const (
 	EvtFormatMessageXml
 )
 
-// EVT_PUBLISHER_METADATA_PROPERTY_ID
-// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_publisher_metadata_property_id
-const (
-	EvtPublisherMetadataPublisherGuid = iota
-	EvtPublisherMetadataResourceFilePath
-	EvtPublisherMetadataParameterFilePath
-	EvtPublisherMetadataMessageFilePath
-	EvtPublisherMetadataHelpLink
-	EvtPublisherMetadataPublisherMessageID
-	EvtPublisherMetadataChannelReferences
-	EvtPublisherMetadataChannelReferencePath
-	EvtPublisherMetadataChannelReferenceIndex
-	EvtPublisherMetadataChannelReferenceID
-	EvtPublisherMetadataChannelReferenceFlags
-	EvtPublisherMetadataChannelReferenceMessageID
-	EvtPublisherMetadataLevels
-	EvtPublisherMetadataLevelName
-	EvtPublisherMetadataLevelValue
-	EvtPublisherMetadataLevelMessageID
-	EvtPublisherMetadataTasks
-	EvtPublisherMetadataTaskName
-	EvtPublisherMetadataTaskEventGuid
-	EvtPublisherMetadataTaskValue
-	EvtPublisherMetadataTaskMessageID
-	EvtPublisherMetadataOpcodes
-	EvtPublisherMetadataOpcodeName
-	EvtPublisherMetadataOpcodeValue
-	EvtPublisherMetadataOpcodeMessageID
-	EvtPublisherMetadataKeywords
-	EvtPublisherMetadataKeywordName
-	EvtPublisherMetadataKeywordValue
-	EvtPublisherMetadataKeywordMessageID
-	EvtPublisherMetadataPropertyIdEND
-)
-
 // EVT_RPC_LOGIN_FLAGS
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_rpc_login_flags
 const (
@@ -240,10 +205,6 @@ type API interface {
 		MessageID uint,
 		Values EvtVariantValues,
 		Flags uint) (string, error)
-
-	EvtGetPublisherMetadataProperty(
-		PublisherMetadata EventPublisherMetadataHandle,
-		PropertyID uint) (string, error)
 
 	EvtOpenSession(
 		Server string,
