@@ -622,7 +622,16 @@ def check_supports_python_version(check_dir, python):
         if 'requires-python' not in project_metadata:
             return True
 
-        specifier = SpecifierSet(project_metadata['requires-python'])
+        requires_python = project_metadata['requires-python']
+        # Handle malformed requires-python values (e.g., just ">=" without version)
+        if not requires_python or requires_python.strip() in ['>=', '>', '<=', '<', '==', '!=', '~=', '===']:
+            return True
+
+        try:
+            specifier = SpecifierSet(requires_python)
+        except Exception:
+            # If the specifier is malformed, assume it supports the Python version
+            return True
         # It might be e.g. `>=3.8` which would not immediatelly contain `3`
         for minor_version in range(100):
             if specifier.contains(f'{python}.{minor_version}'):

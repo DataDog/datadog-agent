@@ -32,6 +32,8 @@ type InitConfig struct {
 	MinCollectionInterval int64 `yaml:"min_collection_interval"`
 	TimeoutMs             int64 `yaml:"timeout"`
 	MaxTTL                uint8 `yaml:"max_ttl"`
+	TracerouteQueries     int   `yaml:"traceroute_queries"`
+	E2eQueries            int   `yaml:"e2e_queries"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -54,6 +56,9 @@ type InstanceConfig struct {
 
 	MinCollectionInterval int `yaml:"min_collection_interval"`
 
+	TracerouteQueries int `yaml:"traceroute_queries"`
+	E2eQueries        int `yaml:"e2e_queries"`
+
 	Tags []string `yaml:"tags"`
 }
 
@@ -71,6 +76,8 @@ type CheckConfig struct {
 	TCPSynParisTracerouteMode bool
 	Timeout                   time.Duration
 	MinCollectionInterval     time.Duration
+	TracerouteQueries         int
+	E2eQueries                int
 	Tags                      []string
 	Namespace                 string
 }
@@ -122,6 +129,18 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		instance.MaxTTL,
 		initConfig.MaxTTL,
 		setup.DefaultNetworkPathMaxTTL,
+	)
+
+	c.TracerouteQueries = firstNonZero(
+		instance.TracerouteQueries,
+		initConfig.TracerouteQueries,
+		setup.DefaultNetworkPathStaticPathTracerouteQueries,
+	)
+
+	c.E2eQueries = firstNonZero(
+		instance.E2eQueries,
+		initConfig.E2eQueries,
+		setup.DefaultNetworkPathStaticPathE2eQueries,
 	)
 
 	c.Tags = instance.Tags

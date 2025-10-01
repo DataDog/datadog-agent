@@ -333,7 +333,7 @@ func (pts *propertyTestState) completeRandomEffect() event {
 			return eventProgramLoaded{
 				programID: eff.programID,
 				loaded: &loadedProgram{
-					ir: &ir.Program{ID: eff.programID},
+					programID: eff.programID,
 				},
 			}
 		} else {
@@ -347,8 +347,10 @@ func (pts *propertyTestState) completeRandomEffect() event {
 		if success {
 			return eventProgramAttached{
 				program: &attachedProgram{
-					ir:     &ir.Program{ID: eff.programID},
-					procID: eff.processID,
+					loadedProgram: &loadedProgram{
+						programID: eff.programID,
+					},
+					processID: eff.processID,
 				},
 			}
 		} else {
