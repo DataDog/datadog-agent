@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -101,21 +102,20 @@ func (c *CloudRunJobs) Init() error {
 	return nil
 }
 
-// Shutdown submits the task duration metric for CloudRunJobs
-func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent) {
-	metricName := fmt.Sprintf("%s.enhanced.task.duration", cloudRunJobsPrefix)
+// Shutdown submits the task duration and shutdown metrics for CloudRunJobs
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error) {
+	durationMetricName := fmt.Sprintf("%s.enhanced.task.duration", cloudRunJobsPrefix)
 	duration := float64(time.Since(c.startTime).Milliseconds())
-	metric.Add(metricName, duration, c.GetSource(), metricAgent)
+	metric.Add(durationMetricName, duration, c.GetSource(), metricAgent)
+
+	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	exitCode := exitcode.From(runErr)
+	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, fmt.Sprintf("exit_code:%d", exitCode))
 }
 
 // GetStartMetricName returns the metric name for container start events
 func (c *CloudRunJobs) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.task.started", cloudRunJobsPrefix)
-}
-
-// GetShutdownMetricName returns the metric name for container shutdown events
-func (c *CloudRunJobs) GetShutdownMetricName() string {
-	return fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.

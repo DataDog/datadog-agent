@@ -37,12 +37,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	di_module "github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
@@ -65,7 +64,6 @@ type testState struct {
 
 	module     *di_module.Module
 	subscriber *mockSubscriber
-	actuator   *interceptingActuator
 	serviceCmd *exec.Cmd
 	servicePID uint32
 
@@ -96,6 +94,7 @@ var expectations embed.FS
 func TestEndToEnd(t *testing.T) {
 	t.Parallel()
 	dyninsttest.SkipIfKernelNotSupported(t)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	idx := slices.IndexFunc(cfgs, func(c testprogs.Config) bool {
 		return c.GOARCH == runtime.GOARCH
@@ -191,7 +190,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	ts.initializeModule(t)
 	symdbProcStates := make(map[procmon.ProcessID]bool)
 	if cfg.addSymdb {
-		ts.module.Controller().SetScraperUpdatesCallback(
+		ts.module.SetScraperUpdatesCallback(
 			func(updates []rcscrape.ProcessUpdate) {
 				u := updates[0]
 				symdbProcStates[u.ProcessID] = u.ShouldUploadSymDB
@@ -205,13 +204,22 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		makeTargetStatus(uploader.StatusInstalled, expectedProbeIDs...),
 	)
 
+	assertSymdb := func(c *assert.CollectT, expEnabled bool) {
+		assert.Len(c, symdbProcStates, 1)
+		var procID procmon.ProcessID
+		var enabled bool
+		for procID, enabled = range symdbProcStates {
+			break
+		}
+		assert.Equal(c, ts.servicePID, uint32(procID.PID))
+		assert.Equal(c, expEnabled, enabled)
+	}
+
 	// If we added symdb, make sure we detect that it's enabled.
 	if cfg.addSymdb {
-		updates := ts.takeProcessesUpdates()
-		require.Len(t, updates, 1)
-		require.True(t, symdbProcStates[updates[0].Processes[0].ProcessID])
-		require.Eventually(t, func() bool {
-			return symDBRequests.Load() > 0
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			assertSymdb(c, true)
+			assert.Greater(c, symDBRequests.Load(), uint64(0))
 		}, 10*time.Second, 100*time.Millisecond, "SymDB server should be hit")
 	}
 
@@ -228,18 +236,10 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	// Clear the remote config.
 	ts.rc.UpdateRemoteConfig(nil)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		updates := ts.takeProcessesUpdates()
-		if !assert.NotEmpty(c, updates) {
-			return
-		}
-		require.Len(t, updates, 1)
-		proc := updates[0].Processes[0]
-		// Assert that we've removed the probes.
-		assert.Empty(c, proc.Probes)
 		// If we previously added the SymDB key, make sure we detect that it's
 		// gone.
 		if cfg.addSymdb {
-			assert.False(t, symdbProcStates[proc.ProcessID])
+			assertSymdb(c, false)
 		}
 	}, 10*time.Second, 100*time.Millisecond, "probes should be removed")
 
@@ -252,12 +252,12 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 				"http_handler":        {"received", "installed", "emitted"},
 			},
 		},
-		slices.Collect(maps.Values(ts.module.Controller().DiagnosticsStates())),
+		slices.Collect(maps.Values(ts.module.DiagnosticsStates())),
 	)
 	require.NoError(t, ts.serviceCmd.Process.Signal(os.Interrupt))
 	require.NoError(t, ts.serviceCmd.Wait())
 	ts.subscriber.NotifyExit(ts.servicePID)
-	require.Empty(t, ts.module.Controller().DiagnosticsStates())
+	require.Empty(t, ts.module.DiagnosticsStates())
 }
 
 func makeRemoteConfigUpdate(t *testing.T, probes []ir.ProbeDefinition, addSymdb bool) map[string][]byte {
@@ -273,17 +273,6 @@ func makeRemoteConfigUpdate(t *testing.T, probes []ir.ProbeDefinition, addSymdb 
 		rcs[p] = payload
 	}
 	return rcs
-}
-
-func (ts *testState) takeProcessesUpdates() []actuator.ProcessesUpdate {
-	ts.actuator.mu.Lock()
-	defer ts.actuator.mu.Unlock()
-	tenant := ts.actuator.mu.tenants["dyninst"]
-	tenant.mu.Lock()
-	defer tenant.mu.Unlock()
-	var updates []actuator.ProcessesUpdate
-	updates, tenant.mu.updates = tenant.mu.updates, nil
-	return updates
 }
 
 func setSnapshotsPerSecond(
@@ -558,75 +547,20 @@ func waitForServicePort(t *testing.T, stdoutPath string) int {
 	}
 }
 
-type interceptingActuator struct {
-	inner *actuator.Actuator
-	mu    struct {
-		sync.Mutex
-		tenants map[string]*interceptingTenant
-		updates []actuator.ProcessesUpdate
-	}
-}
-
-func (a *interceptingActuator) Shutdown() error {
-	return a.inner.Shutdown()
-}
-
-type interceptingTenant struct {
-	inner *actuator.Tenant
-	mu    struct {
-		sync.Mutex
-		updates []actuator.ProcessesUpdate
-	}
-}
-
-func (a *interceptingActuator) NewTenant(
-	name string,
-	reporter actuator.Reporter,
-	irGenerator actuator.IRGenerator,
-) di_module.ActuatorTenant {
-	t := a.inner.NewTenant(name, reporter, irGenerator)
-	it := &interceptingTenant{inner: t}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.mu.tenants[name] = it
-	return it
-}
-
-func (it *interceptingTenant) HandleUpdate(update actuator.ProcessesUpdate) {
-	it.mu.Lock()
-	defer it.mu.Unlock()
-	it.mu.updates = append(it.mu.updates, cloneUpdate(update))
-	it.inner.HandleUpdate(update)
-}
-
-func cloneUpdate(update actuator.ProcessesUpdate) actuator.ProcessesUpdate {
-	clone := update
-	clone.Processes = make([]actuator.ProcessUpdate, len(update.Processes))
-	copy(clone.Processes, update.Processes)
-	clone.Removals = make([]actuator.ProcessID, len(update.Removals))
-	copy(clone.Removals, update.Removals)
-	return clone
-}
-
 func (ts *testState) initializeModule(t *testing.T) {
 	ts.subscriber = &mockSubscriber{}
-	cfg, err := di_module.NewConfig(nil, di_module.WithActuatorConstructor(
-		func(t *loader.Loader) *interceptingActuator {
-			actuator := actuator.NewActuator(t)
-			ts.actuator = &interceptingActuator{inner: actuator}
-			ts.actuator.mu.tenants = make(map[string]*interceptingTenant)
-			return ts.actuator
-		},
-	))
+	cfg, err := di_module.NewConfig(nil)
 	require.NoError(t, err)
 
 	cfg.SymDBUploadEnabled = true
 	cfg.LogUploaderURL = ts.backendServer.URL + "/logs"
 	cfg.DiagsUploaderURL = ts.backendServer.URL + "/diags"
 	cfg.SymDBUploaderURL = ts.symdbURL
+	cfg.ProcessSyncDisabled = true
 
 	ts.module, err = di_module.NewModule(cfg, ts.subscriber)
 	require.NoError(t, err)
+	t.Cleanup(ts.module.Close)
 }
 
 func sendTestRequests(t *testing.T, serverPort int, numRequests int) {

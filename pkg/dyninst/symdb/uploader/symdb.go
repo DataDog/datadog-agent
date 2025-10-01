@@ -91,6 +91,7 @@ type SymDBUploader struct {
 	service   string
 	version   string
 	runtimeID string
+	headers   [][2]string
 }
 
 // NewSymDBUploader returns a new SymDBUploader.
@@ -99,12 +100,14 @@ func NewSymDBUploader(
 	service string,
 	version string,
 	runtimeID string,
+	headers ...[2]string,
 ) *SymDBUploader {
 	return &SymDBUploader{
 		url:       urlStr,
 		service:   service,
 		version:   version,
 		runtimeID: runtimeID,
+		headers:   headers,
 	}
 }
 
@@ -184,6 +187,9 @@ func (s *SymDBUploader) uploadInner(ctx context.Context, symdbData []byte) error
 		return fmt.Errorf("failed to build request: %w", err)
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	for _, keyVal := range s.headers {
+		req.Header.Set(keyVal[0], keyVal[1])
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -235,7 +241,7 @@ func ConvertPackageToScope(pkg symdb.Package) Scope {
 
 	// Add types as struct scopes
 	for _, typ := range pkg.Types {
-		typeScope := convertTypeToScope(typ)
+		typeScope := convertTypeToScope(*typ)
 		scope.Scopes = append(scope.Scopes, typeScope)
 	}
 
