@@ -8,7 +8,6 @@ package healthplatform
 
 import (
 	"context"
-	"time"
 )
 
 // team: agent-health
@@ -104,9 +103,8 @@ type JSONAPIMeta struct {
 
 // CheckConfig is a configuration for a health check
 type CheckConfig struct {
-	CheckName     string
-	CheckID       string
-	CheckInterval time.Duration
+	CheckName string
+	CheckID   string
 
 	Callback func() ([]Issue, error)
 }
