@@ -53,7 +53,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
 	github.com/shirou/gopsutil/v4 v4.25.8
 	go.opentelemetry.io/collector/component/componenttest v0.136.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250929231259-57b25ae835d4
 )
 
 require go.opentelemetry.io/collector/processor v1.42.0 // indirect
