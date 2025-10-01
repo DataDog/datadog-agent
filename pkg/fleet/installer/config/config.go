@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	patch "gopkg.in/evanphx/json-patch.v4"
@@ -76,6 +77,10 @@ func (d *Directories) GetState() (State, error) {
 
 // WriteExperiment writes the experiment to the directories.
 func (d *Directories) WriteExperiment(ctx context.Context, operations Operations) error {
+	if runtime.GOOS == "windows" {
+		// On windows, experiments are not supported yet for configuration.
+		return operations.Apply(d.StablePath)
+	}
 	err := os.RemoveAll(d.ExperimentPath)
 	if err != nil {
 		return err
@@ -96,6 +101,10 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 
 // PromoteExperiment promotes the experiment to the stable.
 func (d *Directories) PromoteExperiment(_ context.Context) error {
+	if runtime.GOOS == "windows" {
+		// On windows, experiments are not supported yet for configuration.
+		return nil
+	}
 	// check if experiment path exists using os
 	_, err := os.Stat(d.ExperimentPath)
 	if err != nil {
@@ -110,6 +119,10 @@ func (d *Directories) PromoteExperiment(_ context.Context) error {
 
 // RemoveExperiment removes the experiment from the directories.
 func (d *Directories) RemoveExperiment(_ context.Context) error {
+	if runtime.GOOS == "windows" {
+		// On windows, experiments are not supported yet for configuration.
+		return nil
+	}
 	err := os.RemoveAll(d.ExperimentPath)
 	if err != nil {
 		return err
