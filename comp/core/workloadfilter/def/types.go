@@ -12,12 +12,6 @@ import (
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 )
 
-// ProductRules defines the rules for filtering a group of products
-type ProductRules struct {
-	Products []string
-	Rules    Rules
-}
-
 // Rules defines the rules for filtering different resource types.
 type Rules struct {
 	Containers    []string `yaml:"containers" json:"containers"`
