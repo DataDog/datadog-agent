@@ -2,6 +2,7 @@ import unittest
 from itertools import cycle
 from unittest import mock
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
@@ -50,7 +51,7 @@ class SideEffect:
 class TestStatusCode5XX(unittest.TestCase):
     @mock.patch('requests.get', side_effect=SideEffect(mocked_502_gitlab_requests, mocked_gitlab_project_request))
     def test_gitlab_one_fail_one_success(self, _):
-        gitlab = Gitlab(api_token=get_gitlab_token())
+        gitlab = Gitlab(api_token=get_gitlab_token(Context()))
         gitlab.requests_sleep_time = 0
         gitlab.test_project_found()
 
@@ -65,7 +66,7 @@ class TestStatusCode5XX(unittest.TestCase):
         ),
     )
     def test_gitlab_last_one_success(self, _):
-        gitlab = Gitlab(api_token=get_gitlab_token())
+        gitlab = Gitlab(api_token=get_gitlab_token(Context()))
         gitlab.requests_sleep_time = 0
         gitlab.test_project_found()
 
@@ -73,7 +74,7 @@ class TestStatusCode5XX(unittest.TestCase):
     def test_gitlab_full_fail(self, _):
         failed = False
         try:
-            gitlab = Gitlab(api_token=get_gitlab_token())
+            gitlab = Gitlab(api_token=get_gitlab_token(Context()))
             gitlab.requests_sleep_time = 0
             gitlab.test_project_found()
         except Exit:
@@ -85,7 +86,7 @@ class TestStatusCode5XX(unittest.TestCase):
     def test_gitlab_real_fail(self, _):
         failed = False
         try:
-            gitlab = Gitlab(api_token=get_gitlab_token())
+            gitlab = Gitlab(api_token=get_gitlab_token(Context()))
             gitlab.requests_sleep_time = 0
             gitlab.test_project_found()
         except APIError:
