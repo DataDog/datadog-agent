@@ -19,7 +19,6 @@ func CreateContainer(container *workloadmeta.Container, owner workloadfilter.Fil
 	if container == nil {
 		return nil
 	}
-
 	return workloadfilter.CreateContainer(container.ID, container.Name, container.Image.RawName, owner)
 }
 
@@ -28,7 +27,6 @@ func CreateContainerFromOrch(container *workloadmeta.OrchestratorContainer, owne
 	if container == nil {
 		return nil
 	}
-
 	return workloadfilter.CreateContainer(container.ID, container.Name, container.Image.RawName, owner)
 }
 
