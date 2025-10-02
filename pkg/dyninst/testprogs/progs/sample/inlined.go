@@ -52,7 +52,7 @@ func testInlinedBBB() {
 func testInlinedBC() {
 	testInlinedBCA()
 	s := 0
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		s += rand.Intn(100)
 	}
 	fmt.Println(s)

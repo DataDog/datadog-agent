@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -56,4 +57,19 @@ func IsCoreAgentEnabled(cfg pkgconfigmodel.Reader) bool {
 func IsAPMEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.GetBool("apm_config.enabled") ||
 		cfg.GetBool("apm_config.error_tracking_standalone.enabled")
+}
+
+// IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
+func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
+	// Disable Remote Config for GovCloud if it's not explicitly enabled
+	if IsFed(cfg) && !cfg.IsConfigured("remote_configuration.enabled") {
+		return false
+	}
+	return cfg.GetBool("remote_configuration.enabled")
+}
+
+// IsFed returns true if the Agent is running in a gov environment
+func IsFed(cfg pkgconfigmodel.Reader) bool {
+	isFipsAgent, _ := pkgfips.Enabled()
+	return cfg.GetBool("fips.enabled") || isFipsAgent || cfg.GetString("site") == "ddog-gov.com" || cfg.GetString("dd_url") == "https://app.ddog-gov.com"
 }
