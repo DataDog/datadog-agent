@@ -8,6 +8,7 @@
 package publishermetadatacacheimpl
 
 import (
+	"sync"
 	"testing"
 
 	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
@@ -30,14 +31,14 @@ func TestPublisherMetadataCache_Get(t *testing.T) {
 	assert.NotEqual(t, publishermetadatacache.InvalidHandle, handle2)
 
 	// Verify item is in cache
-	cachedValue, found := cache.GetCache().Get(publisherName1)
+	cachedValue, found := cache.GetCache().Load(publisherName1)
 	assert.True(t, found)
-	assert.Equal(t, handle1, cachedValue.(evtapi.EventPublisherMetadataHandle))
+	assert.Equal(t, handle1, cachedValue.(publishermetadatacache.CacheEntry).Handle)
 
 	// Verify item is in cache
-	cachedValue, found = cache.GetCache().Get(publisherName2)
+	cachedValue, found = cache.GetCache().Load(publisherName2)
 	assert.True(t, found)
-	assert.Equal(t, handle2, cachedValue.(evtapi.EventPublisherMetadataHandle))
+	assert.Equal(t, handle2, cachedValue.(publishermetadatacache.CacheEntry).Handle)
 }
 
 func TestPublisherMetadataCache_FormatMessage_InvalidHandle_RecreatesCache(t *testing.T) {
@@ -59,7 +60,7 @@ func TestPublisherMetadataCache_FormatMessage_InvalidHandle_RecreatesCache(t *te
 	assert.Empty(t, message) // Should return empty string when handle is invalid
 
 	// Verify cache entry was removed
-	_, found := cache.GetCache().Get(publisherName)
+	_, found := cache.GetCache().Load(publisherName)
 	assert.False(t, found)
 
 	// Next Get call should create a new handle
@@ -75,19 +76,18 @@ func TestPublisherMetadataCache_Close_CleansUpAllHandles(t *testing.T) {
 	cache.Get("Publisher2")
 
 	// Verify items are in cache before closing
-	_, found1 := cache.GetCache().Get("Publisher1")
+	_, found1 := cache.GetCache().Load("Publisher1")
 	assert.True(t, found1)
-	_, found2 := cache.GetCache().Get("Publisher2")
+	_, found2 := cache.GetCache().Load("Publisher2")
 	assert.True(t, found2)
 
 	cache.Flush()
 
 	// Verify cache is empty after close
-	_, found1 = cache.GetCache().Get("Publisher1")
+	_, found1 = cache.GetCache().Load("Publisher1")
 	assert.False(t, found1)
-	_, found2 = cache.GetCache().Get("Publisher2")
+	_, found2 = cache.GetCache().Load("Publisher2")
 	assert.False(t, found2)
-	assert.Equal(t, 0, cache.GetCache().ItemCount())
 }
 
 func TestPublisherMetadataCache_FormatMessage_FakeImplementation(t *testing.T) {
@@ -101,15 +101,40 @@ func TestPublisherMetadataCache_FormatMessage_FakeImplementation(t *testing.T) {
 	assert.NotEqual(t, publishermetadatacache.InvalidHandle, handle)
 
 	// Verify handle was cached
-	cachedValue, found := cache.GetCache().Get(publisherName)
+	cachedValue, found := cache.GetCache().Load(publisherName)
 	assert.True(t, found)
-	assert.Equal(t, handle, cachedValue.(evtapi.EventPublisherMetadataHandle))
+	assert.Equal(t, handle, cachedValue.(publishermetadatacache.CacheEntry).Handle)
 
 	// FormatMessage will fail with fake API (not implemented) and remove cache entry
 	message := cache.FormatMessage(publisherName, eventHandle, 0)
 	assert.Empty(t, message) // Fake API returns empty string on error
 
 	// Verify cache entry was removed due to FormatMessage error
-	_, found = cache.GetCache().Get(publisherName)
+	_, found = cache.GetCache().Load(publisherName)
 	assert.False(t, found)
+}
+
+func TestPublisherMetadataCache_FormatMessage_Concurrency(_ *testing.T) {
+	cache := publishermetadatacache.New(fakeevtapi.New())
+
+	publishers := []string{"Publisher1", "Publisher2", "Publisher3", "Publisher4", "Publisher5"}
+	eventHandle := evtapi.EventRecordHandle(100)
+	numGoroutinesPerPublisher := 5
+
+	var wg sync.WaitGroup
+
+	// Launch multiple goroutines for each publisher
+	for _, publisher := range publishers {
+		for range numGoroutinesPerPublisher {
+			wg.Add(1)
+			go func(pub string) {
+				defer wg.Done()
+				for range 100 {
+					cache.FormatMessage(pub, eventHandle, 0)
+				}
+			}(publisher)
+		}
+	}
+
+	wg.Wait()
 }
