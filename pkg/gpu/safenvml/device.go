@@ -93,8 +93,6 @@ type SafeDevice interface {
 	GpmSampleGet(sample nvml.GpmSample) error
 	// IsMigDeviceHandle returns true if the device is a MIG device or false for a physical device
 	IsMigDeviceHandle() (bool, error)
-	// GetVirtualizationMode returns the virtualization mode of the device
-	GetVirtualizationMode() (nvml.GpuVirtualizationMode, error)
 }
 
 // DeviceInfo holds common cached properties for a GPU device

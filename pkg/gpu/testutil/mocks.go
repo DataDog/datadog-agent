@@ -172,9 +172,6 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 		GpmQueryDeviceSupportFunc: func() (nvml.GpmSupport, nvml.Return) {
 			return nvml.GpmSupport{IsSupportedDevice: 1}, nvml.SUCCESS
 		},
-		GetVirtualizationModeFunc: func() (nvml.GpuVirtualizationMode, nvml.Return) {
-			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
-		},
 	}
 
 	for _, opt := range opts {

@@ -77,7 +77,6 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetTotalEnergyConsumption"),
 		toNativeName("GetUtilizationRates"),
 		toNativeName("IsMigDeviceHandle"),
-		toNativeName("GetVirtualizationMode"),
 	}
 }
 
