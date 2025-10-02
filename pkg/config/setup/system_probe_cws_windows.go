@@ -22,5 +22,5 @@ func platformCWSConfig(cfg pkgconfigmodel.Setup) {
 		cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", "c:\\programdata\\datadog\\runtime-security.d")
 	}
 	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3335")
-	cfg.BindEnvAndSetDefault("runtime_security_config.cmd_socket", "localhost:3336")
+	cfg.SetKnown("runtime_security_config.cmd_socket")
 }

@@ -8,7 +8,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"runtime"
 	"time"
@@ -162,22 +161,25 @@ func (c *RuntimeSecurityClient) Close() {
 
 // NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
 func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
-	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.cmd_socket")
-	if socketPath == "" {
-		return nil, errors.New("runtime_security_config.cmd_socket must be set")
+	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
+	cmdSocketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.cmd_socket")
+
+	cmdSocketPath, err := common.GetCmdSocketPath(socketPath, cmdSocketPath)
+	if err != nil {
+		return nil, err
 	}
 
-	family := common.GetFamilyAddress(socketPath)
+	family := common.GetFamilyAddress(cmdSocketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("unix sockets are not supported on Windows")
 		}
 
-		socketPath = fmt.Sprintf("unix://%s", socketPath)
+		cmdSocketPath = fmt.Sprintf("unix://%s", cmdSocketPath)
 	}
 
 	conn, err := grpc.NewClient(
-		socketPath,
+		cmdSocketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithConnectParams(grpc.ConnectParams{
