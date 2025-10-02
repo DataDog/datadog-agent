@@ -11,4 +11,4 @@ features:
     Adds support for UDP, ICMP, and TCP Network Path for Windows Client OSes using ddnpm driver.
 enhancements:
   - |
-    Allows NetPath on windows without local firewall changes.
+    Allows NetPath on Windows without local firewall changes.
