@@ -309,7 +309,7 @@ func (ic *inventorychecksImpl) getFilesMetadata() metadata {
 	for _, configFile := range configFiles {
 		// Use the filename as key
 		filesMetadata[configFile.Filename] = metadata{
-			"raw_config": configFile.ConfigFormat, // convert to string
+			"raw_config": configFile.ConfigFormat,
 			"hash":       configFile.Hash,
 		}
 	}
