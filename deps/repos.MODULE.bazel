@@ -43,6 +43,14 @@ http_archive(
     url = "https://www.openssl.org/source/openssl-3.5.2.tar.gz",
 )
 
+http_archive(
+    name = "libffi",
+    build_file = "//deps:libffi.BUILD.bazel",
+    sha256 = "bc9842a18898bfacb0ed1252c4febcc7e78fa139fd27fdc7a3e30d9d9356119b",
+    strip_prefix = "libffi-3.4.8",
+    url = "https://github.com/libffi/libffi/releases/download/v3.4.8/libffi-3.4.8.tar.gz",
+)
+
 bazel_dep(name = "gcc_toolchain")
 git_override(
     module_name = "gcc_toolchain",
