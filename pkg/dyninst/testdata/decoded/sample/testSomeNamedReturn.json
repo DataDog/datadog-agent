@@ -18,7 +18,7 @@
           {
             "function": "main.testSomeNamedReturn",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 80
+            "lineNumber": 82
           },
           {
             "function": "main.executeReturns",
@@ -55,10 +55,27 @@
                 "value": "42"
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "int",
+                "notCapturedReason": "unavailable"
+              },
+              "result2": {
+                "type": "int",
+                "notCapturedReason": "unavailable"
+              },
+              "~r2": {
+                "type": "int",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

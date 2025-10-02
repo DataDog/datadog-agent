@@ -128,6 +128,8 @@ const (
 	KubeGPUUUID = "gpu_uuid"
 	// GPUDriverVersion is the tag for the GPU driver version
 	GPUDriverVersion = "gpu_driver_version"
+	// GPUVirtualizationMode is the tag for the GPU virtualization mode
+	GPUVirtualizationMode = "gpu_virtualization_mode"
 
 	// KubeArgoRollout is the tag for the Argo Rollout name
 	KubeArgoRollout = "kube_argo_rollout"

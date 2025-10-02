@@ -9,12 +9,37 @@ package tracermetadata
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const memfdTracerFileName = "datadog-tracer-info-"
 const memFdTracerMaxSize = 1 << 16
+
+// IsTracerMemfdPath checks if the given readlink path is a tracer memfd file.
+// The linkTarget should be the result of reading a symlink from /proc/PID/fd/.
+func IsTracerMemfdPath(linkTarget string) bool {
+	return strings.HasPrefix(linkTarget, "/memfd:"+memfdTracerFileName)
+}
+
+func parseData(data []byte) (TracerMetadata, error) {
+	var trMeta TracerMetadata
+	if _, err := trMeta.UnmarshalMsg(data); err != nil {
+		return TracerMetadata{}, fmt.Errorf("error parsing tracer metadata: %s", err)
+	}
+	return trMeta, nil
+}
+
+// GetTracerMetadataFromPath reads and parses tracer metadata from a known fd path.
+// The fdPath should be the full path to the fd (e.g., /proc/1234/fd/5).
+func GetTracerMetadataFromPath(fdPath string) (TracerMetadata, error) {
+	data, err := kernel.ReadMemFdFile(fdPath, memFdTracerMaxSize)
+	if err != nil {
+		return TracerMetadata{}, err
+	}
+	return parseData(data)
+}
 
 // GetTracerMetadata parses the tracer-generated metadata
 // according to
@@ -29,9 +54,5 @@ func GetTracerMetadata(pid int, procRoot string) (TracerMetadata, error) {
 	if err != nil {
 		return TracerMetadata{}, err
 	}
-	var trMeta TracerMetadata
-	if _, err := trMeta.UnmarshalMsg(data); err != nil {
-		return TracerMetadata{}, fmt.Errorf("error parsing tracer metadata: %s", err)
-	}
-	return trMeta, nil
+	return parseData(data)
 }
