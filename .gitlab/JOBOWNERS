@@ -73,11 +73,13 @@ iot_agent_deb*                       @DataDog/agent-build
 iot_agent_suse*                      @DataDog/agent-build
 dogstatsd_suse*                      @DataDog/agent-build
 agent_oci*                           @DataDog/agent-build
+agent_win_oci                        @DataDog/windows-products
 installer_oci*                       @DataDog/agent-build
 ddot_oci*                            @DataDog/agent-build
 ddot_deb*                            @DataDog/agent-build
 ddot_rpm*                            @DataDog/agent-build
 ddot_suse_rpm*                       @DataDog/agent-build
+ddot_win_oci*                        @DataDog/windows-products
 check_pkg_size                       @DataDog/agent-build
 
 # Testing package deploy

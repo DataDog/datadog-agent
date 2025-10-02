@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/docker/docker/api/types/events"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 func TestProcessContainerEvent(t *testing.T) {
@@ -26,10 +26,10 @@ func TestProcessContainerEvent(t *testing.T) {
 	timestamp := time.Now().Truncate(10 * time.Millisecond)
 
 	// Container filter
-	filter, err := containers.NewFilter(containers.GlobalFilter, []string{},
-		[]string{"name:excluded_name", "image:excluded_image"})
-
-	assert.Nil(err)
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_exclude", []string{"name:excluded_name", "image:excluded_image"})
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+	filter := mockFilterStore.GetContainerSharedMetricFilters()
 
 	dockerUtil := &DockerUtil{
 		cfg: &Config{},
