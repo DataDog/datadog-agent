@@ -2279,6 +2279,35 @@ func TestHandleContainer(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "resize policy",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				ResizePolicy: workloadmeta.ContainerResizePolicy{
+					CPURestartPolicy:    "NotRequired",
+					MemoryRestartPolicy: "RestartContainer",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"cpu_restart_policy:NotRequired",
+						"memory_restart_policy:RestartContainer",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -3039,6 +3068,70 @@ func TestHandleProcess(t *testing.T) {
 				HighCardTags:         []string{},
 				StandardTags: []string{
 					fmt.Sprintf("service:%s", serviceNameFromDD),
+				},
+			},
+		},
+		{
+			name: "process with TracerMetadata service tags and multiple entries",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+					TracerMetadata: []tracermetadata.TracerMetadata{
+						{
+							ServiceName:    "first-tracer-service",
+							ServiceEnv:     "dev",
+							ServiceVersion: "1.0.0",
+							ProcessTags:    "framework:express",
+						},
+						{
+							ServiceEnv: "test",
+						},
+						{
+							ServiceName:    "second-tracer-service",
+							ServiceEnv:     envFromDD,
+							ServiceVersion: "2.0.0",
+							ProcessTags:    "runtime:nodejs",
+						},
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					"env:dev",
+					"env:test",
+					"framework:express",
+					"runtime:nodejs",
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"service:first-tracer-service",
+					"service:second-tracer-service",
+					fmt.Sprintf("version:%s", versionFromDD),
+					"version:1.0.0",
+					"version:2.0.0",
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					"env:dev",
+					"env:test",
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"service:first-tracer-service",
+					"service:second-tracer-service",
+					fmt.Sprintf("version:%s", versionFromDD),
+					"version:1.0.0",
+					"version:2.0.0",
 				},
 			},
 		},

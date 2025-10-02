@@ -138,6 +138,12 @@ const (
 
 	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
 	DefaultNetworkPathMaxTTL = 30
+
+	// DefaultNetworkPathStaticPathTracerouteQueries defines the default number of traceroute queries for static path
+	DefaultNetworkPathStaticPathTracerouteQueries = 3
+
+	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
+	DefaultNetworkPathStaticPathE2eQueries = 50
 )
 
 var (
@@ -380,6 +386,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
 	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
+	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
+	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
+	config.BindEnvAndSetDefault("secret_image_to_handle", map[string]string{})
 	config.SetDefault("secret_audit_file_max_size", 0)
 
 	// IPC API server timeout
@@ -517,6 +526,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.tcp_method", "")
 	config.BindEnvAndSetDefault("network_path.collector.icmp_mode", "")
 	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
+	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", DefaultNetworkPathStaticPathTracerouteQueries)
+	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -1167,6 +1178,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Config Stream
 	config.BindEnvAndSetDefault("config_stream.sleep_interval", 3*time.Second)
+
+	// Data Plane
+	config.BindEnvAndSetDefault("data_plane.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1233,6 +1248,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("inventories_diagnostics_enabled", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
+	config.BindEnvAndSetDefault("check_runner_utilization_threshold", 0.95)
+	config.BindEnvAndSetDefault("check_runner_utilization_monitor_interval", 60*time.Second)
+	config.BindEnvAndSetDefault("check_runner_utilization_warning_cooldown", 10*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_timeout", 60*time.Second)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
@@ -2422,18 +2440,21 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
-		Type:                   config.GetString("secret_backend_type"),
-		Config:                 config.GetStringMap("secret_backend_config"),
-		Command:                config.GetString("secret_backend_command"),
-		Arguments:              config.GetStringSlice("secret_backend_arguments"),
-		Timeout:                config.GetInt("secret_backend_timeout"),
-		MaxSize:                config.GetInt("secret_backend_output_max_size"),
-		RefreshInterval:        config.GetInt("secret_refresh_interval"),
-		RefreshIntervalScatter: config.GetBool("secret_refresh_scatter"),
-		GroupExecPerm:          config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		RemoveLinebreak:        config.GetBool("secret_backend_remove_trailing_line_break"),
-		RunPath:                config.GetString("run_path"),
-		AuditFileMaxSize:       config.GetInt("secret_audit_file_max_size"),
+		Type:                        config.GetString("secret_backend_type"),
+		Config:                      config.GetStringMap("secret_backend_config"),
+		Command:                     config.GetString("secret_backend_command"),
+		Arguments:                   config.GetStringSlice("secret_backend_arguments"),
+		Timeout:                     config.GetInt("secret_backend_timeout"),
+		MaxSize:                     config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:             config.GetInt("secret_refresh_interval"),
+		RefreshIntervalScatter:      config.GetBool("secret_refresh_scatter"),
+		GroupExecPerm:               config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:             config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:                     config.GetString("run_path"),
+		AuditFileMaxSize:            config.GetInt("secret_audit_file_max_size"),
+		ScopeIntegrationToNamespace: config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
+		AllowedNamespace:            config.GetStringSlice("secret_allowed_k8s_namespace"),
+		ImageToHandle:               config.GetStringMapStringSlice("secret_image_to_handle"),
 	})
 
 	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
@@ -2454,7 +2475,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 				log.Errorf("Could not assign new value of secret %s (%+q) to config: %s", handle, settingPath, err)
 			}
 		})
-		if _, err = secretResolver.Resolve(yamlConf, origin); err != nil {
+		if _, err = secretResolver.Resolve(yamlConf, origin, "", ""); err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}
 	}

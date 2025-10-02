@@ -11,11 +11,10 @@ import (
 	"context"
 	"time"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // MockClient is a mock implementation of docker.Client interface
@@ -79,6 +78,6 @@ func (d *MockClient) CountVolumes(ctx context.Context) (int, int, error) {
 // LatestContainerEvents is a mock method
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (d *MockClient) LatestContainerEvents(ctx context.Context, since time.Time, filter *containers.Filter) ([]*ContainerEvent, time.Time, error) {
+func (d *MockClient) LatestContainerEvents(ctx context.Context, since time.Time, filter workloadfilter.FilterBundle) ([]*ContainerEvent, time.Time, error) {
 	return d.FakeContainerEvents, d.FakeLastContainerEventTimestamp, d.FakeError
 }

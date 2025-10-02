@@ -88,6 +88,9 @@ func NewModule(
 	return m, nil
 }
 
+// TODO: make this configurable.
+const bufferedMessagesByteLimit = 512 << 10
+
 func newUnstartedModule(deps dependencies) *Module {
 	// A zero-value symdbManager is valid and disabled.
 	if deps.symdbManager == nil {
@@ -96,6 +99,7 @@ func newUnstartedModule(deps dependencies) *Module {
 	store := newProcessStore()
 	logsUploader := logsUploaderFactoryImpl[LogsUploader]{factory: deps.LogsFactory}
 	diagnostics := newDiagnosticsManager(deps.DiagnosticsUploader)
+	bufferedMessagesTracker := newBufferedMessageTracker(bufferedMessagesByteLimit)
 	runtime := &runtimeImpl{
 		store:                    store,
 		diagnostics:              diagnostics,
@@ -107,6 +111,7 @@ func newUnstartedModule(deps dependencies) *Module {
 		dispatcher:               deps.Dispatcher,
 		logsFactory:              logsUploader,
 		procRuntimeIDbyProgramID: &sync.Map{},
+		bufferedMessageTracker:   bufferedMessagesTracker,
 	}
 	tenant := deps.Actuator.NewTenant("dyninst", runtime)
 

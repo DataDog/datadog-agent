@@ -218,7 +218,26 @@ some:
 			},
 		},
 	}
+
+	testSecretFiltering = []byte(`instances:
+- some_obj:
+  - ENC[non_k8s_value]
+  - ENC[k8s_secret@namespace1/sec1/key1]
+  - ENC[k8s_secret@default/sec1/key1]
+`)
 )
+
+func newResolver(_ *testing.T, params secrets.ConfigParams) *secretResolver {
+	resolver := NewComponent(
+		Requires{
+			Telemetry: nooptelemetry.GetCompatComponent(),
+			Params:    secrets.Params{Enabled: true},
+		},
+	).Comp.(*secretResolver)
+
+	resolver.Configure(params)
+	return resolver
+}
 
 func TestResolveNoCommand(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
@@ -228,7 +247,7 @@ func TestResolveNoCommand(t *testing.T) {
 	}
 
 	// since we didn't set any command this should return without any error
-	resConf, err := resolver.Resolve(testConf, "test")
+	resConf, err := resolver.Resolve(testConf, "test", "", "")
 	require.NoError(t, err)
 	assert.Equal(t, testConf, resConf)
 }
@@ -242,7 +261,7 @@ func TestResolveSecretError(t *testing.T) {
 		return nil, fmt.Errorf("some error")
 	}
 
-	_, err := resolver.Resolve(testConf, "test")
+	_, err := resolver.Resolve(testConf, "test", "", "")
 	require.NotNil(t, err)
 }
 
@@ -262,7 +281,7 @@ func TestResolveDoestSendDuplicates(t *testing.T) {
 	}
 
 	// test configuration should still resolve correctly even though handle appears more than once
-	resolved, err := resolver.Resolve(testMultiUsageConf, "test")
+	resolved, err := resolver.Resolve(testMultiUsageConf, "test", "", "")
 	require.NoError(t, err)
 	require.Equal(t, testMultiUsageConfResolved, string(resolved))
 }
@@ -451,7 +470,7 @@ func TestResolve(t *testing.T) {
 			scrubbedKey := []string{}
 			resolver.scrubHookFunc = func(k []string) { scrubbedKey = append(scrubbedKey, k[0]) }
 
-			newConf, err := resolver.Resolve(tc.testConf, "test")
+			newConf, err := resolver.Resolve(tc.testConf, "test", "", "")
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.resolvedConf, string(newConf))
@@ -492,7 +511,7 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 			assert.Fail(t, "unknown yaml path: %s", path)
 		}
 	})
-	_, err := resolver.Resolve(testConfNestedMultiple, "test")
+	_, err := resolver.Resolve(testConfNestedMultiple, "test", "", "")
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, topLevelResolved, "'top_level' secret was not resolved or resolved multiple times")
@@ -520,7 +539,7 @@ func TestResolveCached(t *testing.T) {
 	resolver.SubscribeToChanges(func(handle, _ string, _ []string, _, _ any) {
 		totalResolved = append(totalResolved, handle)
 	})
-	_, err := resolver.Resolve(testConfNested, "test")
+	_, err := resolver.Resolve(testConfNested, "test", "", "")
 
 	// Resolve doesn't need to fetch because value is cached, but subscription is still called
 	require.NoError(t, err)
@@ -561,7 +580,7 @@ func TestResolveThenRefresh(t *testing.T) {
 	}
 
 	// resolve the secrets the first time
-	_, err := resolver.Resolve(testConfNestedMultiple, "test")
+	_, err := resolver.Resolve(testConfNestedMultiple, "test", "", "")
 	require.NoError(t, err)
 	slices.Sort(keysResolved)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
@@ -669,7 +688,7 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 	}
 
 	// test configuration resolves, the secret appears at two setting paths
-	resolved, err := resolver.Resolve(testMultiUsageConf, "test")
+	resolved, err := resolver.Resolve(testMultiUsageConf, "test", "", "")
 	require.NoError(t, err)
 	require.Equal(t, testMultiUsageConfResolved, string(resolved))
 
@@ -1017,4 +1036,92 @@ func TestBackendTypeWithValidVaultConfig(t *testing.T) {
 	assert.Equal(t, "aws", vaultSession["vault_auth_type"])
 	assert.Equal(t, "rahul_role", vaultSession["vault_aws_role"])
 	assert.Equal(t, "us-east-1", vaultSession["aws_region"])
+}
+
+func TestSecretFiltering(t *testing.T) {
+	type testCase struct {
+		name         string
+		params       secrets.ConfigParams
+		expectedConf string
+	}
+
+	tests := []testCase{
+		{
+			name: "ScopeIntegrationToNamespace",
+			params: secrets.ConfigParams{
+				ScopeIntegrationToNamespace: true,
+			},
+			expectedConf: `instances:
+- some_obj:
+  - value1
+  - value2
+  - ENC[k8s_secret@default/sec1/key1]
+`,
+		},
+		{
+			name: "AllowedNamespace",
+			params: secrets.ConfigParams{
+				AllowedNamespace: []string{"namespace1", "namespace2"},
+			},
+			expectedConf: `instances:
+- some_obj:
+  - value1
+  - value2
+  - ENC[k8s_secret@default/sec1/key1]
+`,
+		},
+		{
+			name: "ImageToHandle",
+			params: secrets.ConfigParams{
+				ImageToHandle: map[string][]string{
+					"image1": {"non_k8s_value", "k8s_secret@default/sec1/key1"},
+					"image2": {"sev1"},
+				},
+			},
+			expectedConf: `instances:
+- some_obj:
+  - value1
+  - ENC[k8s_secret@namespace1/sec1/key1]
+  - value3
+`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.params.Command = "some_command"
+			resolver := newResolver(t, test.params)
+			resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+				return map[string]string{
+					"non_k8s_value":                   "value1",
+					"k8s_secret@namespace1/sec1/key1": "value2",
+					"k8s_secret@default/sec1/key1":    "value3",
+				}, nil
+			}
+
+			var resolvedConf []byte
+			var err error
+
+			// Some source might have a namespace but not a image name or the opposite
+			if test.params.ImageToHandle == nil {
+				resolvedConf, err = resolver.Resolve(testSecretFiltering, "container:123", "", "namespace1")
+			} else {
+				resolvedConf, err = resolver.Resolve(testSecretFiltering, "container:123", "image1", "")
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, test.expectedConf, string(resolvedConf))
+
+			// This test verify that any secrets from non-container sources can still be resolved. Non-container
+			// configuration are datadog.yaml, system-probe.yaml, integrations from files, ...
+			expectedConf := `instances:
+- some_obj:
+  - value1
+  - value2
+  - value3
+`
+			resolvedConf, err = resolver.Resolve(testSecretFiltering, "datadog.yaml", "", "")
+			assert.NoError(t, err)
+			assert.Equal(t, expectedConf, string(resolvedConf))
+		})
+	}
 }

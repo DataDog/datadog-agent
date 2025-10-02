@@ -167,6 +167,11 @@ func (f *workloadfilterStore) GetContainerSharedMetricFilters() workloadfilter.F
 	return f.GetContainerFilters(f.selection.GetContainerSharedMetricFilters())
 }
 
+// GetContainerPausedFilters returns the pre-computed container paused filters
+func (f *workloadfilterStore) GetContainerPausedFilters() workloadfilter.FilterBundle {
+	return f.GetContainerFilters(f.selection.GetContainerPausedFilters())
+}
+
 // GetPodSharedMetricFilters returns the pre-computed pod shared metric filters
 func (f *workloadfilterStore) GetPodSharedMetricFilters() workloadfilter.FilterBundle {
 	return f.GetPodFilters(f.selection.GetPodSharedMetricFilters())
