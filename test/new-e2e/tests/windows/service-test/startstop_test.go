@@ -71,7 +71,7 @@ const systemCrashDumpFile = `C:\Windows\MEMORY.DMP`
 const systemCrashDumpOutFileName = `SystemCrash.DMP`
 
 // Default scaling of timeouts based on present E2E flakiness. Adjust this as necessary.
-const defaultTimeoutScale = 3
+const defaultTimeoutScale = 1
 
 // Default scaling of timeouts for tests with driver verifier. This needs to be generous.
 const driverVerifierTimeoutScale = 10
@@ -734,9 +734,7 @@ func (s *baseStartStopSuite) stopAllServices() {
 				return err
 			}
 			if status != "Stopped" {
-				// In original code err := windowsCommon.StopService(host, serviceName)
-				// Not sure if it's a good idea to send a stop command at this point
-				return fmt.Errorf("%s should be stopped", serviceName)
+				return windowsCommon.StopService(host, serviceName)
 			}
 			return nil
 		}, (2*s.timeoutScale)*time.Minute, 60*time.Second, "%s should be in the expected state", serviceName)
