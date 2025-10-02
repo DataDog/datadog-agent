@@ -84,16 +84,16 @@ func TestColumn(t *testing.T) {
 
 	var combined []byte
 	for i := 0; i < len(cc.columns); i++ {
-		if cc.Len(i) > 0 {
-			col, err := cs.Decompress(cc.Bytes(i))
+		if cc.UncompressedLen(i) > 0 {
+			col, err := cs.Decompress(cc.CompressedBytes(i))
 			assert.NoError(t, err)
 			combined = append(combined, col...)
 		}
 
 		if i > 0 && i <= 3 {
-			assert.Equal(t, cc.Len(i), 18)
+			assert.Equal(t, cc.UncompressedLen(i), 18)
 		} else {
-			assert.Equal(t, cc.Len(i), 0)
+			assert.Equal(t, cc.UncompressedLen(i), 0)
 		}
 	}
 
@@ -112,9 +112,9 @@ func TestColumn(t *testing.T) {
 
 	for i := 0; i < len(cc.columns); i++ {
 		if i == 1 {
-			assert.Equal(t, cc.Len(i), 1)
+			assert.Equal(t, cc.UncompressedLen(i), 1)
 		} else {
-			assert.Equal(t, cc.Len(i), 0)
+			assert.Equal(t, cc.UncompressedLen(i), 0)
 		}
 	}
 }

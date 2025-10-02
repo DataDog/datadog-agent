@@ -163,9 +163,9 @@ func newPayloadsBuilderV3(
 	maxPointsPerPayload int,
 	compression compression.Component,
 ) (*payloadsBuilderV3, error) {
-	payloadHeaderSize := fieldHeaderLen(payloadFieldMetricData, maxUncompressedSize)
+	payloadHeaderSize := protobufFieldHeaderLen(payloadFieldMetricData, maxUncompressedSize)
 	payloadHeaderSizeBound := compression.CompressBound(payloadHeaderSize)
-	columnHeaderSize := fieldHeaderLen(numberOfColumns-1, maxUncompressedSize)
+	columnHeaderSize := protobufFieldHeaderLen(numberOfColumns-1, maxUncompressedSize)
 	columnHeaderSizeBound := compression.CompressBound(columnHeaderSize)
 	reservedCompressedSize := payloadHeaderSizeBound + columnHeaderSizeBound*numberOfColumns
 	reservedUncompressedSize := payloadHeaderSize + columnHeaderSize*numberOfColumns
@@ -212,44 +212,42 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 			return err
 		}
 
-		compressedSize := pb.payloadHeaderSizeBound
-		metricDataSize := 0
+		compressedPayloadSize := pb.payloadHeaderSizeBound
+		uncompressedMetricDataSize := 0
 		for i := 0; i < numberOfColumns; i++ {
-			columnLen := pb.compressor.Len(i)
-			columnData := pb.compressor.Bytes(i)
+			uncompressedLen := pb.compressor.UncompressedLen(i)
+			compressedBytes := pb.compressor.CompressedBytes(i)
 
-			if columnLen == 0 {
+			if uncompressedLen == 0 {
 				continue
 			}
 
-			compressedSize += pb.columnHeaderSizeBound + len(columnData)
+			compressedPayloadSize += pb.columnHeaderSizeBound + len(compressedBytes)
+			uncompressedMetricDataSize += protobufFieldHeaderLen(i, uncompressedLen) + uncompressedLen
 
-			colSize := pb.compressor.Len(i)
-			metricDataSize += fieldHeaderLen(i, colSize) + colSize
-
-			tlmColumnSize.Add(float64(len(columnData)), columnNames[i], "compressed")
-			tlmColumnSize.Add(float64(columnLen), columnNames[i], "uncompressed")
+			tlmColumnSize.Add(float64(len(compressedBytes)), columnNames[i], "compressed")
+			tlmColumnSize.Add(float64(uncompressedLen), columnNames[i], "uncompressed")
 		}
 
-		payload := make([]byte, 0, compressedSize)
-		payload, err = pb.appendProtobufField(payload, payloadFieldMetricData, metricDataSize)
+		payload := make([]byte, 0, compressedPayloadSize)
+		payload, err = pb.appendProtobufFieldHeader(payload, payloadFieldMetricData, uncompressedMetricDataSize)
 		if err != nil {
 			return err
 		}
 
 		for i := 0; i < numberOfColumns; i++ {
-			columnLen := pb.compressor.Len(i)
-			columnData := pb.compressor.Bytes(i)
+			uncompressedLen := pb.compressor.UncompressedLen(i)
+			compressedBytes := pb.compressor.CompressedBytes(i)
 
-			if columnLen == 0 {
+			if uncompressedLen == 0 {
 				continue
 			}
 
-			payload, err = pb.appendProtobufField(payload, i, columnLen)
+			payload, err = pb.appendProtobufFieldHeader(payload, i, uncompressedLen)
 			if err != nil {
 				return err
 			}
-			payload = append(payload, columnData...)
+			payload = append(payload, compressedBytes...)
 		}
 
 		pb.payloads = append(pb.payloads,
@@ -261,7 +259,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 	return nil
 }
 
-func (pb *payloadsBuilderV3) appendProtobufField(dst []byte, id int, len int) ([]byte, error) {
+func (pb *payloadsBuilderV3) appendProtobufFieldHeader(dst []byte, id int, len int) ([]byte, error) {
 	n := binary.PutUvarint(pb.scratchBuf[0:], protobufFieldID(id, pbTypeBytes))
 	n += binary.PutUvarint(pb.scratchBuf[n:], uint64(len))
 	header, err := pb.compression.Compress(pb.scratchBuf[:n])
@@ -690,7 +688,7 @@ func varintLen(v int) int {
 	return int(n)
 }
 
-func fieldHeaderLen(id int, len int) int {
+func protobufFieldHeaderLen(id int, len int) int {
 	return varintLen(id<<3) + varintLen(len)
 }
 
