@@ -31,7 +31,7 @@ type block struct {
 	nbError int
 	until   time.Time
 	state   circuitBreakerState
-	m       sync.Mutex
+	m       sync.RWMutex
 }
 
 type blockedEndpoints struct {
@@ -174,17 +174,21 @@ func (e *blockedEndpoints) isBlock(endpoint string) bool {
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
 
 		printState("current state", b.state)
+		b.m.RLock()
 		switch b.state {
 		case HalfBlocked:
 			// We have already sent the single transactions to test if the endpoint is now up
+			b.m.RUnlock()
 			return true
 		case Blocked:
 			if TimeNow().Before(b.until) {
+				b.m.RUnlock()
 				return true
 			} else {
 				// Upgrade to a full lock so we can move
 				// to HalfOpen and send this transaction
 				// to test the endpoint.
+				b.m.RUnlock()
 				b.m.Lock()
 				defer b.m.Unlock()
 				if b.state == Blocked {
@@ -194,6 +198,8 @@ func (e *blockedEndpoints) isBlock(endpoint string) bool {
 				return false
 			}
 		}
+
+		b.m.RUnlock()
 	}
 
 	return false
