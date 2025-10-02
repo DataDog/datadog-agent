@@ -115,8 +115,8 @@ func (c *Check) ensureInitDeviceCache() error {
 
 	c.deviceCache = ddnvml.NewDeviceCache()
 
-	if c.deviceCache.EnsureInit() != nil {
-		return fmt.Errorf("failed to initialize device cache: %w", c.deviceCache.EnsureInit())
+	if err := c.deviceCache.EnsureInit(); err != nil {
+		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
 	return nil
