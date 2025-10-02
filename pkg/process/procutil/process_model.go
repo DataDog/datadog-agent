@@ -15,7 +15,7 @@ import (
 )
 
 // InjectionState represents the APM injection state of a process
-type InjectionState uint
+type InjectionState int
 
 const (
 	// InjectionUnknown means we haven't determined the injection status yet
