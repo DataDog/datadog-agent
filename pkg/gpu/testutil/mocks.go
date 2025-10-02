@@ -11,8 +11,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"go.uber.org/fx"
 
@@ -175,6 +177,9 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 		GetVirtualizationModeFunc: func() (nvml.GpuVirtualizationMode, nvml.Return) {
 			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
 		},
+		GetSupportedEventTypesFunc: func() (uint64, nvml.Return) {
+			return nvml.EventTypeAll, nvml.SUCCESS
+		},
 	}
 
 	for _, opt := range opts {
@@ -255,6 +260,26 @@ func WithMIGDisabled() NvmlMockOption {
 	}
 }
 
+// WithDeviceCount influences the return value of DeviceGetCount for the nvml mock
+func WithDeviceCount(count int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.libOptions = append(o.libOptions, func(lib *nvmlmock.Interface) {
+			lib.DeviceGetCountFunc = func() (int, nvml.Return) {
+				return count, nvml.SUCCESS
+			}
+		})
+	}
+}
+
+// WithEventSetCreate influences the definition of EventSetCreateFunc
+func WithEventSetCreate(eventSetCreate func() (nvml.EventSet, nvml.Return)) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.libOptions = append(o.libOptions, func(lib *nvmlmock.Interface) {
+			lib.EventSetCreateFunc = eventSetCreate
+		})
+	}
+}
+
 // GetBasicNvmlMock returns a mock of the nvml.Interface with a single device with 10 cores,
 // useful for basic tests that need only the basic interaction with NVML to be working.
 func GetBasicNvmlMock() *nvmlmock.Interface {
@@ -284,6 +309,23 @@ func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface 
 		},
 		SystemGetDriverVersionFunc: func() (string, nvml.Return) {
 			return DefaultNvidiaDriverVersion, nvml.SUCCESS
+		},
+		EventSetCreateFunc: func() (nvml.EventSet, nvml.Return) {
+			return &mock.EventSet{
+				FreeFunc: func() nvml.Return {
+					return nvml.SUCCESS
+				},
+				WaitFunc: func(v uint32) (nvml.EventData, nvml.Return) {
+					time.Sleep(time.Duration(v) * time.Millisecond)
+					return nvml.EventData{}, nvml.ERROR_TIMEOUT
+				},
+			}, nvml.SUCCESS
+		},
+		EventSetFreeFunc: func(eventSet nvml.EventSet) nvml.Return {
+			return eventSet.Free()
+		},
+		EventSetWaitFunc: func(eventSet nvml.EventSet, v uint32) (nvml.EventData, nvml.Return) {
+			return eventSet.Wait(v)
 		},
 		ExtensionsFunc: opts.extensionsFunc,
 	}
