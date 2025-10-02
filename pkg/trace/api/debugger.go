@@ -14,9 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/google/uuid"
 )
 
 const (
@@ -103,7 +104,9 @@ func getDirector(hostTags string, cidProvider IDProvider, containerTags func(str
 		q := req.URL.Query()
 		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
 		tags := hostTags
-		if ctags := getContainerTags(containerTags, containerID); ctags != "" {
+		ctags := getContainerTags(containerTags, containerID)
+		log.Infof("DEBUG: adding container tags for container %s: %s", containerID, ctags)
+		if ctags != "" {
 			tags = fmt.Sprintf("%s,%s", tags, ctags)
 		}
 		if htags := req.Header.Get("X-Datadog-Additional-Tags"); htags != "" {
