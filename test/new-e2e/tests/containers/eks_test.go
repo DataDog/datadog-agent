@@ -210,7 +210,7 @@ func (suite *eksSuite) TestNginxFargate() {
 			Name: "network.http.response_time",
 			Tags: []string{
 				`^kube_namespace:workload-nginx-fargate$`,
-				`^kube_cloud_provider:.*`,
+				`^kube_cloud_provider:`,
 			},
 		},
 		Expect: testMetricExpectArgs{
