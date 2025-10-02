@@ -23,46 +23,46 @@ import (
 
 func TestGetIntegrationConfig(t *testing.T) {
 	// file does not exist
-	_, err := GetIntegrationConfigFromFile("foo", "")
+	_, _, err := GetIntegrationConfigFromFile("foo", "")
 	assert.NotNil(t, err)
 
 	// file contains invalid Yaml
-	_, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
+	_, _, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
 	assert.NotNil(t, err)
 
 	// valid yaml but not a valid integration configuration
-	config, err := GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
+	config, _, err := GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 
 	// empty file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/empty.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/empty.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, err.Error(), emptyFileError)
 	assert.Equal(t, len(config.Instances), 0)
 
 	// valid yaml with a stub integration instance
-	config, err = GetIntegrationConfigFromFile("foo", "tests/stub.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/stub.yaml")
 	assert.Nil(t, err)
 	assert.Equal(t, len(config.Instances), 1)
 
 	// valid yaml, instances array is null
-	config, err = GetIntegrationConfigFromFile("foo", "tests/null_instances.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/null_instances.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 
 	// valid metric file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/metrics.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/metrics.yaml")
 	assert.Nil(t, err)
 	assert.NotNil(t, config.MetricConfig)
 
 	// valid logs-agent file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/logs-agent_only.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/logs-agent_only.yaml")
 	assert.Nil(t, err)
 	assert.NotNil(t, config.LogsConfig)
 
 	// valid configuration file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/testcheck.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/testcheck.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.Name, "foo")
 	assert.Equal(t, []byte(config.InitConfig), []byte("- test: 21\n"))
@@ -74,17 +74,17 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.Nil(t, config.LogsConfig)
 
 	// autodiscovery
-	config, err = GetIntegrationConfigFromFile("foo", "tests/ad.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/ad.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.ADIdentifiers, []string{"foo_id", "bar_id"})
 
 	// advanced autodiscovery
-	config, err = GetIntegrationConfigFromFile("foo", "tests/advanced_ad.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/advanced_ad.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.AdvancedADIdentifiers, []integration.AdvancedADIdentifier{{KubeService: integration.KubeNamespacedName{Name: "svc-name", Namespace: "svc-ns"}}})
 
 	// advanced autodiscovery kube_endpoints
-	config, err = GetIntegrationConfigFromFile("foo", "tests/advanced_ad_kube_endpoints.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/advanced_ad_kube_endpoints.yaml")
 	require.Nil(t, err)
 	assert.Equal(t,
 		[]integration.AdvancedADIdentifier{
@@ -102,7 +102,7 @@ func TestGetIntegrationConfig(t *testing.T) {
 	)
 
 	// advanced autodiscovery: cel_selector
-	config, err = GetIntegrationConfigFromFile("foo", "tests/cel_selector.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/cel_selector.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, "file:tests/cel_selector.yaml", config.Source)
 	expectedRules := workloadfilter.Rules{Containers: []string{"ctn1.rule1", "ctn2.rule2"}}
@@ -110,13 +110,13 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.Len(t, config.ADIdentifiers, 0)
 
 	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
-	config, err = GetIntegrationConfigFromFile("foo", "tests/ad_deprecated.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/ad_deprecated.yaml")
 	assert.NotNil(t, err)
 
 	// autodiscovery: check that the service ID is ignored when set explicitly.
 	// Service ID is not meant to be set in configs provided by users. It's set
 	// automatically when needed.
-	config, err = GetIntegrationConfigFromFile("foo", "tests/ad_with_service_id.yaml")
+	config, _, err = GetIntegrationConfigFromFile("foo", "tests/ad_with_service_id.yaml")
 	assert.Nil(t, err)
 	assert.Empty(t, config.ServiceID)
 }

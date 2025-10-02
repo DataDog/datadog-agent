@@ -414,7 +414,7 @@ func TestResolveTemplate(t *testing.T) {
 
 		tpl := integration.Config{
 			Name:        "service-check",
-			CELSelector: workloadfilter.Rules{KubeServices: []string{`service.name.matches("redis") && service.namespace == "default"`}},
+			CELSelector: workloadfilter.Rules{KubeServices: []string{`kube_service.name.matches("redis") && kube_service.namespace == "default"`}},
 		}
 		changes := ac.processNewConfig(tpl)
 		ac.applyChanges(changes)
@@ -443,7 +443,7 @@ func TestResolveTemplate(t *testing.T) {
 
 		tpl := integration.Config{
 			Name:        "endpoint-check",
-			CELSelector: workloadfilter.Rules{KubeEndpoints: []string{`endpoint.namespace.matches("include-ns") && !endpoint.name.matches("exclude-name") && !("team" in endpoint.annotations && endpoint.annotations["team"].matches("exclude"))`}},
+			CELSelector: workloadfilter.Rules{KubeEndpoints: []string{`kube_endpoint.namespace.matches("include-ns") && !kube_endpoint.name.matches("exclude-name") && !("team" in kube_endpoint.annotations && kube_endpoint.annotations["team"].matches("exclude"))`}},
 		}
 		changes := ac.processNewConfig(tpl)
 		ac.applyChanges(changes)
