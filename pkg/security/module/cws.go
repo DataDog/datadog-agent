@@ -88,7 +88,12 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		}
 	}
 
-	family := common.GetFamilyAddress(cfg.CmdSocketPath)
+	cmdSocketPath, err := common.GetCmdSocketPath(cfg.SocketPath, cfg.CmdSocketPath)
+	if err != nil {
+		return nil, err
+	}
+
+	family := common.GetFamilyAddress(cmdSocketPath)
 
 	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
 	if err != nil {
@@ -107,7 +112,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		apiServer:     apiServer,
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
-		grpcServer:    grpcutils.NewServer(family, cfg.CmdSocketPath),
+		grpcServer:    grpcutils.NewServer(family, cmdSocketPath),
 		selfTester:    selfTester,
 		reloader:      NewReloader(),
 		crtelemetry:   crtelemetry,
