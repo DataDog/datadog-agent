@@ -103,6 +103,7 @@ func SetupDefaultScript(s *common.Setup) error {
 		return fmt.Errorf("failed to setup APM SSI script: %w", err)
 	}
 
+	s.NoConfig = false
 	return nil
 }
 
