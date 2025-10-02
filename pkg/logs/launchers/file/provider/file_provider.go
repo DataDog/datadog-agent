@@ -178,13 +178,13 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 		wildcardSources := make([]*sources.LogSource, 0, len(inputSources))
 
 		// First pass - collect all wildcard sources and add files for non-wildcard sources
-		for i := 0; i < len(inputSources); i++ {
+		for _, inputSource := range inputSources {
 			select {
 			case <-ctx.Done():
 				log.Debugf("FileProvider context cancelled, not collecting files.")
 				return nil
 			default:
-				source := inputSources[i]
+				source := inputSource
 				isWildcardSource := config.ContainsWildcard(source.Config.Path)
 				if isWildcardSource {
 					wildcardSources = append(wildcardSources, source)
