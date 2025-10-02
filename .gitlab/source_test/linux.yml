@@ -27,7 +27,6 @@
     TEST_OUTPUT_FILE: test_output.json
   script:
     - !reference [.retrieve_linux_go_tools_deps]
-    - !reference [.install_authanywhere]
     - inv -e install-tools
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - inv -e invoke-unit-tests

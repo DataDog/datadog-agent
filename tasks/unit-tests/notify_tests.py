@@ -13,6 +13,7 @@ from tasks import notify
 class TestSendStats(unittest.TestCase):
     @patch("requests.get")
     @patch("tasks.notify.create_count", new=MagicMock())
+    @patch("tasks.libs.common.gitlab.datadog_infra_token", new=MagicMock())
     def test_nominal(self, get_mock):
         with open("tasks/unit-tests/testdata/jobs.json") as f:
             jobs = json.load(f)
@@ -29,6 +30,7 @@ class TestSendStats(unittest.TestCase):
 
 
 class TestCheckConsistentFailures(unittest.TestCase):
+    @patch("tasks.libs.common.gitlab.datadog_infra_token", new=MagicMock())
     @patch("requests.get")
     def test_nominal(self, get_mock):
         os.environ["CI_PIPELINE_ID"] = "456"
