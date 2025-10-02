@@ -741,7 +741,7 @@ api_key:
 #
 #   # @param port - integer - optional - default: 5009
 #   # @env DD_AGENT_IPC_PORT - integer - optional - default: 5009
-#   # Set the port used by the Agent for IPC. Setting this setting to 0 disable IPC.
+#   # Set the port used by the Agent for IPC. Setting this to 0 disables IPC.
 #
 #   port: 5009
 
