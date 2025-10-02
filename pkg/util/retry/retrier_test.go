@@ -341,3 +341,57 @@ func TestLastError(t *testing.T) {
 	err = mocked.LastError()
 	assert.Nil(t, err)
 }
+
+func TestResetInactive(t *testing.T) {
+	mocked := &DummyLogic{}
+	mocked.Reset()
+	assert.Equalf(t, mocked.RetryStatus(), NeedSetup, "Reset should be ineffective if retrier needs setup")
+
+	config := &Config{
+		Name:          "mocked",
+		AttemptMethod: mocked.Attempt,
+		Strategy:      RetryCount,
+		RetryCount:    2,
+		RetryDelay:    10 * time.Millisecond,
+	}
+	err := mocked.SetupRetrier(config)
+	assert.Nil(t, err)
+
+	mocked.Reset()
+	assert.Equalf(t, mocked.RetryStatus(), Idle, "Reset should be ineffective if retrier is idle")
+}
+
+func TestResetActive(t *testing.T) {
+	// first successful attempt
+	mocked := &DummyLogic{}
+	mocked.On("Attempt").Return(errors.New("Nope"))
+	config := &Config{
+		Name:          "mocked",
+		AttemptMethod: mocked.Attempt,
+		Strategy:      RetryCount,
+		RetryCount:    2,
+		RetryDelay:    10 * time.Millisecond,
+	}
+	err := mocked.SetupRetrier(config)
+	assert.Nil(t, err)
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrWillRetry(err))
+
+	mocked.Reset()
+	assert.Equalf(t, mocked.status, Idle, "Status should be 'Idle' after reset")
+	assert.Zerof(t, mocked.tryCount, "Try count should be reset to 0")
+
+	// try twice: should be possible because we already reset the retrier
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrWillRetry(err))
+	time.Sleep(10 * time.Millisecond) // make sure delay has elapsed
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrPermaFail(err))
+
+	// reset retrier
+	assert.NotZerof(t, mocked.NextRetry(), "Next retry should not be 0 before reset")
+	mocked.Reset()
+	assert.Equalf(t, mocked.RetryStatus(), Idle, "Status should be idle after reset")
+	assert.Zerof(t, mocked.tryCount, "Try count should be reset to 0")
+	assert.Zerof(t, mocked.NextRetry(), "Next retry should be 0 after reset")
+}

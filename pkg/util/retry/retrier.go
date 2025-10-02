@@ -105,6 +105,19 @@ func (r *Retrier) TriggerRetry() *Error {
 	}
 }
 
+// Reset resets the status to Idle and the previous retry results while keeping the existing setup configuration
+func (r *Retrier) Reset() {
+	if r.status == NeedSetup || r.status == Idle {
+		// nothing to reset
+		return
+	}
+
+	r.status = Idle
+	r.nextTry = time.Time{}
+	r.tryCount = 0
+	r.lastTryError = nil
+}
+
 func (r *Retrier) doTry() *Error {
 	r.RLock()
 	if !r.nextTry.IsZero() && r.cfg.now().Before(r.nextTry) {

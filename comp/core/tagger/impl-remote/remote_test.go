@@ -6,6 +6,7 @@
 package remoteimpl
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,11 +25,13 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // TestNewComponent tests that the Remote Tagger can be instantiated and started.
@@ -171,4 +175,44 @@ func TestNewComponentWithOverride(t *testing.T) {
 		assert.GreaterOrEqual(t, elapsed, 10*time.Second, "Should wait at least 10s before failing")
 		assert.Less(t, elapsed, 15*time.Second, "Should not wait excessively long")
 	})
+}
+
+type fakeStream struct {
+	recvFunc func() (*pb.StreamTagsResponse, error)
+}
+
+func (f *fakeStream) Recv() (*pb.StreamTagsResponse, error) {
+	return f.recvFunc()
+}
+
+func (f *fakeStream) CloseSend() error { return nil }
+
+func TestRemoteTaggerRunRetriesAndRecovers(t *testing.T) {
+	rt := &remoteTagger{
+		ctx:             context.Background(),
+		cancel:          func() {},
+		telemetryTicker: time.NewTicker(time.Millisecond * 10),
+		telemetryStore:  telemetry.NewStore(nooptelemetry.GetCompatComponent()),
+		log:             logmock.New(t),
+	}
+	rt.store = newTagStore(rt.telemetryStore)
+
+	// Fake stream that fails a few times, then succeeds
+	var calls int32
+	rt.stream = &fakeStream{
+		recvFunc: func() (*pb.StreamTagsResponse, error) {
+			n := atomic.AddInt32(&calls, 1)
+			if n < 3 {
+				return nil, fmt.Errorf("temporary error")
+			}
+			return &pb.StreamTagsResponse{}, nil
+		},
+	}
+
+	go rt.run()
+	defer rt.cancel()
+
+	require.Eventually(t, func() bool {
+		return int(atomic.LoadInt32(&calls)) >= 3
+	}, 5*time.Second, 50*time.Millisecond, "should have retried at least 3 times")
 }
