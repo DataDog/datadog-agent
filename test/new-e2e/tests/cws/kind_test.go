@@ -28,7 +28,7 @@ const (
 	k8sHostnamePrefix = "cws-e2e-kind-node"
 	osPlatform        = "ubuntu"
 	osArch            = "x86_64"
-	osVersion         = "ubuntu-22-04"
+	osVersion         = "22-04"
 )
 
 // Depending on the pulumi version used to run these tests, the following values may not be properly merged with the default values defined in the test-infra-definitions repository.
