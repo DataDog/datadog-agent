@@ -1182,6 +1182,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
+
+	// Agent Workload Filtering config
+	config.BindEnvAndSetDefault("cel_workload_exclude", "")
 }
 
 func agent(config pkgconfigmodel.Setup) {
