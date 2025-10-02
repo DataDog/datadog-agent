@@ -38,12 +38,6 @@ const FlareServiceName = "datadog.remoteagent.FlareProvider"
 // TelemetryServiceName is the service name for remote agent telemetry provider
 const TelemetryServiceName = "datadog.remoteagent.TelemetryProvider"
 
-var remoteAgentServices = map[remoteAgentServiceName]struct{}{
-	StatusServiceName:    {},
-	FlareServiceName:     {},
-	TelemetryServiceName: {},
-}
-
 type remoteAgentClient struct {
 	// agent variables
 	remoteagentregistry.RegisteredAgent
@@ -89,7 +83,7 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 	}
 
 	// retrieve remote Agent exposed services via gRPC reflection
-	services, err := client.fetchSupportedServices()
+	services, err := client.fetchSupportedServices(ra.remoteAgentServices)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create remoteAgent client: %w", err)
 	}
@@ -98,7 +92,7 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 	return client, nil
 }
 
-func (rac *remoteAgentClient) fetchSupportedServices() ([]remoteAgentServiceName, error) {
+func (rac *remoteAgentClient) fetchSupportedServices(remoteAgentServices map[remoteAgentServiceName]struct{}) ([]remoteAgentServiceName, error) {
 	// Initialize the reflection
 	streamCtx, streamCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer streamCancel()

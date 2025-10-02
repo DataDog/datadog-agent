@@ -80,10 +80,10 @@ func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) erro
 		}
 
 		for fileName, fileData := range flareData.Files {
-			err := builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegisteredAgent.String(), registryutil.SanitizeFileName(fileName)), fileData)
-			if err != nil {
-				return fmt.Errorf("failed to add file '%s' from remote agent '%s' to flare: %w", fileName, flareData.RegisteredAgent.String(), err)
-			}
+			// The flare builder already logs errors, so we can ignore them here.
+			// an error here should not prevent the flare from being created.
+			//nolint:errcheck
+			builder.AddFile(fmt.Sprintf("%s/%s", flareData.RegisteredAgent.String(), registryutil.SanitizeFileName(fileName)), fileData)
 		}
 	}
 

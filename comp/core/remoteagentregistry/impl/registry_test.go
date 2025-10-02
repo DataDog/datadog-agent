@@ -30,7 +30,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -119,7 +118,7 @@ func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Comp
 
 func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle, telemetry.Component, ipc.Component) {
 	lc := compdef.NewTestLifecycle(t)
-	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetry := telemetryimpl.NewMock(t)
 	ipc := ipcmock.New(t)
 	reqs := Requires{
 		Config:    config,
