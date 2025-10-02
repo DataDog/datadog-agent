@@ -693,6 +693,7 @@ def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
         deploy=True,
         rc_build=True,
         rc_k8s_deployments=k8s_deployments,
+        deploy_installer=True,
     )
 
 
