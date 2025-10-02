@@ -358,7 +358,6 @@
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring
 /comp/trace/etwtracer @DataDog/windows-products
-/comp/trace-telemetry @DataDog/agent-runtimes
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
 /comp/autoscaling/datadogclient @DataDog/container-integrations

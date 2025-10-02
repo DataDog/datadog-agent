@@ -150,7 +150,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
-	tracetelemetryfx "github.com/DataDog/datadog-agent/comp/trace-telemetry/fx"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -536,7 +535,6 @@ func getSharedFxOption() fx.Option {
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
-		tracetelemetryfx.Module(),
 	)
 }
 
