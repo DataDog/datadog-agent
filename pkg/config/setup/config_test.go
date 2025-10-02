@@ -702,6 +702,7 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
+	assert.Equal(t, false, config.GetBool("network_path.collector.disable_windows_driver"))
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -1008,21 +1009,6 @@ func TestComputeStatsBySpanKindEnv(t *testing.T) {
 	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "true")
 	testConfig = newTestConf(t)
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
-}
-
-func TestIsRemoteConfigEnabled(t *testing.T) {
-	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
-	testConfig := newTestConf(t)
-	require.True(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_FIPS_ENABLED", "true")
-	testConfig = newTestConf(t)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_FIPS_ENABLED", "false")
-	t.Setenv("DD_SITE", "ddog-gov.com")
-	testConfig = newTestConf(t)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
 }
 
 func TestGetRemoteConfigurationAllowedIntegrations(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,9 +51,14 @@ func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtypes
 			continue
 		}
 
-		// sadly, we need to escape the root here :(
-		rpmdbFullPath := filepath.Join(root.Name(), rpmdbPath)
-		db, err := rpmdb.Open(rpmdbFullPath)
+		// copy the rpmdb to a temp file because rpmdb.Open() requires a file path
+		tempFilePath, err := writeFileToTemp(root, rpmdbPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to write rpmdb to temp file: %w", err)
+		}
+		defer os.RemoveAll(tempFilePath)
+
+		db, err := rpmdb.Open(tempFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open rpmdb at path %s: %w", rpmdbPath, err)
 		}
@@ -133,4 +139,33 @@ func splitFileName(filename string) (name, ver, rel string, err error) {
 
 	name = filename[:verIndex]
 	return name, ver, rel, nil
+}
+
+func writeFileToTemp(root *os.Root, path string) (string, error) {
+	srcFile, err := root.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to open source file %s: %w", path, err)
+	}
+	defer srcFile.Close()
+
+	tmpFile, err := os.CreateTemp("", "rpmdb-")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer tmpFile.Close()
+
+	if _, err := io.Copy(tmpFile, srcFile); err != nil {
+		return "", fmt.Errorf("failed to copy source file %s to temp file: %w", path, err)
+	}
+
+	// important to handle close errors when writing to a file
+	if err := tmpFile.Sync(); err != nil {
+		return "", fmt.Errorf("failed to sync temp file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return "", fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	return tmpFile.Name(), nil
 }

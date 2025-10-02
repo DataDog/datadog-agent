@@ -92,8 +92,8 @@ func resourceDDName(resource string, allowedResources map[string]struct{}) (ddna
 // defaultMetricTransformers returns a map that contains KSM metric names and their corresponding transformer functions
 // These metrics require more than a name translation to generate Datadog metrics, as opposed to the metrics in defaultMetricNamesMapper
 // For reference see METRIC_TRANSFORMERS in KSM check V1
-func defaultMetricTransformers() map[string]metricTransformerFunc {
-	return map[string]metricTransformerFunc{
+func defaultMetricTransformers(k *KSMCheck) map[string]metricTransformerFunc {
+	transformers := map[string]metricTransformerFunc{
 		"kube_pod_created":                                podCreationTransformer,
 		"kube_pod_start_time":                             podStartTimeTransformer,
 		"kube_pod_status_phase":                           podPhaseTransformer,
@@ -127,8 +127,15 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_persistentvolume_status_phase":              pvPhaseTransformer,
 		"kube_service_spec_type":                          serviceTypeTransformer,
 		"kube_ingress_tls":                                removeSecretTransformer,
-		"kube_deployment_ongoing_rollout_duration":        deploymentRolloutDurationTransformer,
 	}
+
+	// Only add rollout transformers if k is not nil (skip in tests)
+	if k != nil {
+		transformers["kube_deployment_ongoing_rollout_duration"] = k.transformKubeDeploymentRolloutDurationWithTracker
+		transformers["kube_statefulset_ongoing_rollout_duration"] = k.transformKubeStatefulSetRolloutDurationWithTracker
+	}
+
+	return transformers
 }
 
 // nodeConditionTransformer generates service checks based on the metric kube_node_status_condition
@@ -606,8 +613,9 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 	s.Gauge(ksmMetricPrefix+"ingress.tls", metric.Val, hostname, tags)
 }
 
-// deploymentRolloutDurationTransformer calculates deployment rollout duration using stored ReplicaSet data
-func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+// transformKubeDeploymentRolloutDurationWithTracker transforms rollout duration metrics using instance rollout tracker
+// func transformKubeDeploymentRolloutDurationWithTracker(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time, rolloutTracker crs.RolloutOperations) {
+func (k *KSMCheck) transformKubeDeploymentRolloutDurationWithTracker(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	// Only process ongoing rollouts (value 1), not completed ones (value 0)
 	if metric.Val != 1.0 {
 		return
@@ -620,8 +628,26 @@ func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksms
 		return
 	}
 
-	// Calculate actual rollout duration using stored ReplicaSet data
-	duration := crs.GetDeploymentRolloutDurationFromMaps(namespace, deploymentName)
-
+	// Calculate actual rollout duration using instance rollout tracker
+	duration := k.rolloutTracker.GetRolloutDuration(namespace, deploymentName)
 	s.Gauge(ksmMetricPrefix+"deployment.rollout_duration", duration, hostname, tags)
+}
+
+// transformKubeStatefulSetRolloutDurationWithTracker transforms StatefulSet rollout duration metrics using instance rollout tracker
+func (k *KSMCheck) transformKubeStatefulSetRolloutDurationWithTracker(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	// Only process ongoing rollouts (value 1), not completed ones (value 0)
+	if metric.Val != 1.0 {
+		return
+	}
+
+	namespace, hasNamespace := metric.Labels["namespace"]
+	statefulSetName, hasStatefulSet := metric.Labels["statefulset"]
+
+	if !hasNamespace || !hasStatefulSet {
+		return
+	}
+
+	// Calculate actual rollout duration using instance rollout tracker
+	duration := k.rolloutTracker.GetStatefulSetRolloutDuration(namespace, statefulSetName)
+	s.Gauge(ksmMetricPrefix+"statefulset.rollout_duration", duration, hostname, tags)
 }
