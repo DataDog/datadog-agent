@@ -13,6 +13,8 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ReplicaSetInfo holds information about a ReplicaSet for Deployment rollout tracking
@@ -265,6 +267,8 @@ func (rt *RolloutTracker) GetStatefulSetRolloutDuration(namespace, statefulSetNa
 	}
 
 	if newestCR != nil {
+		log.Infof("ROLLOUT-DEBUG Using ControllerRevision %s (revision %d) creation time %v as start time for StatefulSet %s/%s rollout",
+			newestCR.Name, newestCR.Revision, newestCR.CreationTime, namespace, statefulSetName)
 		startTime = newestCR.CreationTime
 	} else {
 		// Fall back to StatefulSet start time
@@ -314,9 +318,14 @@ func (rt *RolloutTracker) CleanupStatefulSet(namespace, name string) {
 	removedControllerRevisions := 0
 	for crKey, crInfo := range rt.controllerRevisionMap {
 		if crInfo.Namespace == namespace && crInfo.OwnerName == name {
+			log.Infof("ROLLOUT-DEBUG Removing ControllerRevision %s (revision %d) for deleted StatefulSet %s/%s",
+				crInfo.Name, crInfo.Revision, namespace, name)
 			delete(rt.controllerRevisionMap, crKey)
 			removedControllerRevisions++
 		}
+	}
+	if removedControllerRevisions > 0 {
+		log.Infof("ROLLOUT-DEBUG Removed %d ControllerRevisions for StatefulSet %s/%s", removedControllerRevisions, namespace, name)
 	}
 }
 
@@ -327,6 +336,10 @@ func (rt *RolloutTracker) CleanupControllerRevision(namespace, name string) {
 
 	key := namespace + "/" + name
 
+	if crInfo, exists := rt.controllerRevisionMap[key]; exists {
+		log.Infof("ROLLOUT-DEBUG Deleting ControllerRevision %s/%s (revision %d, owner: %s)",
+			namespace, name, crInfo.Revision, crInfo.OwnerName)
+	}
 	delete(rt.controllerRevisionMap, key)
 }
 

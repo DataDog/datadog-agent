@@ -40,7 +40,7 @@ type controllerRevisionRolloutFactory struct {
 }
 
 func (f *controllerRevisionRolloutFactory) Name() string {
-	return "controllerrevisions_extended"
+	return "controllerrevisions"
 }
 
 func (f *controllerRevisionRolloutFactory) CreateClient(_ *rest.Config) (interface{}, error) {

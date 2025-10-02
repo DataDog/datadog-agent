@@ -71,13 +71,12 @@ const (
 )
 
 var extendedCollectors = map[string]string{
-	"deployments":         "apps/v1, Resource=deployments_extended",
-	"replicasets":         "apps/v1, Resource=replicasets_extended",
-	"statefulsets":        "apps/v1, Resource=statefulsets_extended",
-	"controllerrevisions": "apps/v1, Resource=controllerrevisions_extended",
-	"jobs":                "batch/v1, Resource=jobs_extended",
-	"nodes":               "core/v1, Resource=nodes_extended",
-	"pods":                "core/v1, Resource=pods_extended",
+	"deployments":  "apps/v1, Resource=deployments_extended",
+	"replicasets":  "apps/v1, Resource=replicasets_extended",
+	"statefulsets": "apps/v1, Resource=statefulsets_extended",
+	"jobs":         "batch/v1, Resource=jobs_extended",
+	"nodes":        "core/v1, Resource=nodes_extended",
+	"pods":         "core/v1, Resource=pods_extended",
 }
 
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
@@ -88,6 +87,8 @@ var collectorNameReplacement = map[string]string{
 	// verticalpodautoscalers were removed from the built-in KSM metrics in KSM 2.9, and the changes made to
 	// the KSM builder in KSM 2.9 result in the detected custom resource store name being different.
 	"verticalpodautoscalers": "autoscaling.k8s.io/v1, Resource=verticalpodautoscalers",
+	// controllerrevisions are not natively supported by KSM as a collector, so we register it as a custom resource
+	"controllerrevisions": "apps/v1, Resource=controllerrevisions",
 }
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
@@ -658,29 +659,29 @@ func (k *KSMCheck) Run() error {
 	// If KSM is running in the node agent, and it's configured to collect only
 	// pods and from the node agent, we don't need to run leader election,
 	// because each node agent is responsible for collecting its own pods.
-	//podsFromKubeletInNodeAgent := k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection
+	podsFromKubeletInNodeAgent := k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection
 
-	//// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
-	//// we also do a safety check for dedicated runners to avoid trying the leader election
-	//if (!k.isCLCRunner || !k.instance.LeaderSkip) && !podsFromKubeletInNodeAgent {
-	//	// Only run if Leader Election is enabled.
-	//	if !pkgconfigsetup.Datadog().GetBool("leader_election") {
-	//		return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
-	//	}
+	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
+	// we also do a safety check for dedicated runners to avoid trying the leader election
+	if (!k.isCLCRunner || !k.instance.LeaderSkip) && !podsFromKubeletInNodeAgent {
+		// Only run if Leader Election is enabled.
+		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
+			return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
+		}
 
-	//	leader, errLeader := cluster.RunLeaderElection()
-	//	if errLeader != nil {
-	//		if errLeader == apiserver.ErrNotLeader {
-	//			log.Debugf("Not leader (leader is %q). Skipping the kube-state-metrics core check", leader)
-	//			return nil
-	//		}
+		leader, errLeader := cluster.RunLeaderElection()
+		if errLeader != nil {
+			if errLeader == apiserver.ErrNotLeader {
+				log.Debugf("Not leader (leader is %q). Skipping the kube-state-metrics core check", leader)
+				return nil
+			}
 
-	//		_ = k.Warn("Leader Election error. Not running the kube-state-metrics core check.")
-	//		return err
-	//	}
+			_ = k.Warn("Leader Election error. Not running the kube-state-metrics core check.")
+			return err
+		}
 
-	//	log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
-	//}
+		log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
+	}
 
 	defer sender.Commit()
 
@@ -1135,7 +1136,6 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 		metricNamesMapper:    defaultMetricNamesMapper(),
 		metricAggregators:    defaultMetricAggregators(),
-		metricTransformers:   defaultMetricTransformers(),
 		workloadmetaStore:    wmeta,
 		rolloutTracker:       customresources.NewRolloutTracker(),
 
@@ -1144,21 +1144,10 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		metadataMetricsRegex: regexp.MustCompile(".*_(info|labels|status_reason)"),
 	}
 
-	// Setup instance-specific transformers that need rollout tracker
-	k.setupInstanceSpecificTransformers()
+	// Initialize metricTransformers after k is created since it needs a reference to k
+	k.metricTransformers = defaultMetricTransformers(k)
 
 	return k
-}
-
-// setupInstanceSpecificTransformers creates transformers that need instance state
-func (k *KSMCheck) setupInstanceSpecificTransformers() {
-	k.metricTransformers["kube_deployment_ongoing_rollout_duration"] = func(sender sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, now time.Time) {
-		transformKubeDeploymentRolloutDurationWithTracker(sender, name, metric, hostname, tags, now, k.rolloutTracker)
-	}
-
-	k.metricTransformers["kube_statefulset_ongoing_rollout_duration"] = func(sender sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, now time.Time) {
-		transformKubeStatefulSetRolloutDurationWithTracker(sender, name, metric, hostname, tags, now, k.rolloutTracker)
-	}
 }
 
 // mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping
