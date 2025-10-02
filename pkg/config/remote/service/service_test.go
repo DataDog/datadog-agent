@@ -158,8 +158,7 @@ func (m *mockUptane) TimestampExpires() (time.Time, error) {
 }
 
 func (m *mockUptane) Close() error {
-	args := m.Called()
-	return args.Error(0)
+	return nil
 }
 
 func (m *mockUptane) GetTransactionalStoreMetadata() (*uptane.Metadata, error) {
@@ -217,7 +216,6 @@ func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUp
 	t.Cleanup(func() { service.Stop() })
 	service.api = api
 	service.clock = clock
-	coreAgentUptane.On("Close").Return(nil)
 	service.uptane = coreAgentUptane
 	return service
 }
