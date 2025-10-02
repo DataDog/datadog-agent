@@ -10,9 +10,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 1
+        - ID: 2
+          Kind: Entry
           Type: 106 EventRootType Probe[main.callMe]
-          InjectionPoints: [{PC: "0xb74fc", Frameless: true}]
+          InjectionPoints: [{PC: "0xb7508", Frameless: false}]
+          Condition: null
+        - ID: 1
+          Kind: Return
+          Type: 107 EventRootType Probe[main.callMe]Return
+          InjectionPoints: [{PC: "0xb7588", Frameless: false}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -277,6 +283,9 @@ Types:
                   Variable: {subprogram: 1, index: 2, name: i}
                   Offset: 0
                   ByteSize: 8
+    - __kind: EventRootType
+      ID: 107
+      Name: Probe[main.callMe]Return
     - __kind: ArrayType
       ID: 85
       Name: '[10]runtime.heldLockInfo'
@@ -1378,7 +1387,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 38240
       GoKind: 26
-MaxTypeID: 106
+MaxTypeID: 107
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x191240", TypesOffset: 296}
 CommonTypes:

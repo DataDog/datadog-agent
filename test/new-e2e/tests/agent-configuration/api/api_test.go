@@ -21,12 +21,14 @@ import (
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
@@ -622,4 +624,92 @@ log_level: debug
 
 		assert.NotEmpty(ct, have.Entities, "%s %s returned: %s, expected workload entities to be present", e.method, e.endpoint, body)
 	}, 2*time.Minute, 10*time.Second)
+}
+
+func (v *apiSuite) TestMetadataV5CanonicalCloudResourceID_IMDSVariants() {
+	tests := []struct {
+		name            string
+		ec2PreferIMDSv2 bool
+		withIMDSv1Off   bool
+	}{
+		{
+			name:            "WithIMDSv1",
+			ec2PreferIMDSv2: false,
+			withIMDSv1Off:   false,
+		},
+		{
+			name:            "WithIMDSv2",
+			ec2PreferIMDSv2: true,
+			withIMDSv1Off:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		v.T().Run(tt.name, func(t *testing.T) {
+			agentConfig := fmt.Sprintf(`ec2_prefer_imdsv2: %t`, tt.ec2PreferIMDSv2)
+			opts := []awshost.ProvisionerOption{
+				awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
+			}
+			if tt.withIMDSv1Off {
+				opts = append(opts, awshost.WithEC2InstanceOptions(ec2.WithIMDSv1Disable()))
+			}
+			v.UpdateEnv(awshost.ProvisionerNoFakeIntake(opts...))
+
+			e := agentEndpointInfo{
+				scheme:   "https",
+				port:     agentCmdPort,
+				endpoint: "/agent/metadata/v5",
+				method:   "GET",
+				data:     "",
+			}
+
+			authTokenFilePath := "/etc/datadog-agent/auth_token"
+			authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
+			authtoken := strings.TrimSpace(authtokenContent)
+
+			req, err := e.httpRequest(authtoken)
+			require.NoError(t, err, "failed to create request")
+
+			hostHTTPClient := v.Env().RemoteHost.NewHTTPClient()
+
+			// Build expected ARN from metadata
+			ec2Client := client.NewEC2Metadata(t, v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
+			instanceID := ec2Client.Get("instance-id")
+			region := ec2Client.Get("placement/region")
+
+			// identity-credentials/ec2/info contains accountId JSON
+			type identityInfo struct {
+				AccountID string `json:"AccountId"`
+			}
+			var info identityInfo
+			if err := json.Unmarshal([]byte(ec2Client.Get("identity-credentials/ec2/info")), &info); err != nil {
+				t.Fatalf("failed to parse account info from IMDS: %v", err)
+			}
+			expectedARN := fmt.Sprintf("arn:aws:ec2:%s:%s:instance/%s", region, info.AccountID, instanceID)
+
+			require.EventuallyWithT(t, func(ct *assert.CollectT) {
+				type Meta struct {
+					CCRID string `json:"ccrid"`
+				}
+				type Metadata struct {
+					Meta Meta `json:"meta"`
+				}
+
+				var have Metadata
+				resp, err := hostHTTPClient.Do(req)
+				assert.NoError(ct, err, "failed to send request")
+
+				body, err := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
+				assert.NoError(ct, err)
+
+				assert.Equal(ct, expectedARN, have.Meta.CCRID,
+					"%s %s returned: %s, expected ccrid=%s",
+					e.method, e.endpoint, string(body), expectedARN)
+			}, 2*time.Minute, 10*time.Second)
+		})
+	}
 }

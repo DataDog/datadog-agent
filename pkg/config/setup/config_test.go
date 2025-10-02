@@ -1010,21 +1010,6 @@ func TestComputeStatsBySpanKindEnv(t *testing.T) {
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 }
 
-func TestIsRemoteConfigEnabled(t *testing.T) {
-	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
-	testConfig := newTestConf(t)
-	require.True(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_FIPS_ENABLED", "true")
-	testConfig = newTestConf(t)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_FIPS_ENABLED", "false")
-	t.Setenv("DD_SITE", "ddog-gov.com")
-	testConfig = newTestConf(t)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-}
-
 func TestGetRemoteConfigurationAllowedIntegrations(t *testing.T) {
 	// EMPTY configuration
 	testConfig := newTestConf(t)
@@ -1410,7 +1395,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver to modify a 2nd config with a different origin
-	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test")
+	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test", "", "")
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
@@ -1420,7 +1405,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver again, but with the original origin now
-	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test")
+	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test", "", "")
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
