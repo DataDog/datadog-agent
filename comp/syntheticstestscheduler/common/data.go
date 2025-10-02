@@ -78,6 +78,7 @@ type SyntheticsTestConfig struct {
 	OrgID    int    `json:"orgID"`
 	MainDC   string `json:"mainDC"`
 	PublicID string `json:"publicID"`
+	RunType  string `json:"runType"`
 }
 
 // Operator represents a comparison operator for assertions.
@@ -147,6 +148,7 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 		OrgID    int    `json:"orgID"`
 		MainDC   string `json:"mainDC"`
 		PublicID string `json:"publicID"`
+		RunType  string `json:"runType"`
 	}
 
 	var tmp rawConfig
@@ -159,6 +161,7 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 	c.OrgID = tmp.OrgID
 	c.MainDC = tmp.MainDC
 	c.PublicID = tmp.PublicID
+	c.RunType = tmp.RunType
 	c.Config.Assertions = tmp.Config.Assertions
 
 	switch payload.Protocol(tmp.Subtype) {
