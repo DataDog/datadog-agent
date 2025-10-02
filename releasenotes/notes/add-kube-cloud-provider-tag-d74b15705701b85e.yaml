@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Emit kube_cloud_provider tag based on labels for managed k8s installations.
+    The Agent now emits the `kube_cloud_provider` tag based on labels in managed Kubernetes installations.
