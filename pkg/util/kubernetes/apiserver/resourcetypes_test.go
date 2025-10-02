@@ -215,8 +215,8 @@ func TestPrepopulateCache(t *testing.T) {
 
 type blockingDiscovery struct {
 	*fakediscovery.FakeDiscovery
-	gate  chan struct{} // a channel used as a “gate” to block/unblock
-	calls int32         // counts how many times discovery is called
+	gate  chan struct{}
+	calls int32 // counts how many times discovery is called
 }
 
 func newBlockingDiscovery(fakediscovery *fakediscovery.FakeDiscovery) *blockingDiscovery {
