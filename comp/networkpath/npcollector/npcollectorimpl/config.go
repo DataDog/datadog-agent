@@ -13,6 +13,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
+const (
+	// defaultNetworkPathDynamicPathTracerouteQueries defines the default number of traceroute queries for dynamic path
+	defaultNetworkPathDynamicPathTracerouteQueries = 1
+
+	// defaultNetworkPathDynamicPathE2eQueries defines the default number of end-to-end queries for dynamic path
+	defaultNetworkPathDynamicPathE2eQueries = 10
+)
+
 type collectorConfigs struct {
 	connectionsMonitoringEnabled bool
 	workers                      int
@@ -31,6 +39,9 @@ type collectorConfigs struct {
 	tcpMethod                    payload.TCPMethod
 	icmpMode                     payload.ICMPMode
 	tcpSynParisTracerouteMode    bool
+	tracerouteQueries            int
+	e2eQueries                   int
+	disableWindowsDriver         bool
 	monitorIPWithoutDomain       bool
 }
 
@@ -58,6 +69,9 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		tcpMethod:                 payload.MakeTCPMethod(agentConfig.GetString("network_path.collector.tcp_method")),
 		icmpMode:                  payload.MakeICMPMode(agentConfig.GetString("network_path.collector.icmp_mode")),
 		tcpSynParisTracerouteMode: agentConfig.GetBool("network_path.collector.tcp_syn_paris_traceroute_mode"),
+		tracerouteQueries:         defaultNetworkPathDynamicPathTracerouteQueries,
+		e2eQueries:                defaultNetworkPathDynamicPathE2eQueries,
+		disableWindowsDriver:      agentConfig.GetBool("network_path.collector.disable_windows_driver"),
 		monitorIPWithoutDomain:    agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 	}
