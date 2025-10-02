@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.12.11"
+default_version "3.13.7"
 
 unless windows?
   dependency "libxcrypt"
@@ -14,16 +14,13 @@ end
 dependency "openssl3"
 
 source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "7b8d59af8216044d2313de8120bfc2cc00a9bd2e542f15795e1d616c51faf3d6"
+       :sha256 => "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2"
 
 relative_path "Python-#{version}"
 
 build do
   # 2.0 is the license version here, not the python version
   license "Python-2.0"
-
-  # Apply CVE-2025-8194 patch to fix tarfile module vulnerability
-  patch source: "CVE-2025-8194-tarfile.patch"
 
   unless windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
@@ -72,9 +69,6 @@ build do
     end
   else
     dependency "vc_redist_14"
-
-    # Apply CVE-2025-6965 patch to upgrade SQLite to 3.50.4
-    patch source: "CVE-2025-6965-sqlite-3.50.4.patch"
 
     ###############################
     # Setup openssl dependency... #

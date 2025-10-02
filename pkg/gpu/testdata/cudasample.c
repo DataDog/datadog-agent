@@ -7,55 +7,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
-
-typedef struct {
-    uint32_t x, y, z;
-} dim3;
-
-typedef int cudaError_t;
-typedef uint64_t cudaStream_t;
-typedef uint64_t cudaEvent_t;
-
-cudaError_t cudaLaunchKernel(const void *func, dim3 gridDim, dim3 blockDim, void **args, size_t sharedMem, cudaStream_t stream) {
-    return 0;
-}
-
-cudaError_t cudaMalloc(void **devPtr, size_t size) {
-    *devPtr = (void *)0xdeadbeef;
-    return 0;
-}
-
-cudaError_t cudaFree(void *devPtr) {
-    return 0;
-}
-
-cudaError_t cudaStreamSynchronize(cudaStream_t stream) {
-    return 0;
-}
-
-cudaError_t cudaSetDevice(int device) {
-    return 0;
-}
-
-cudaError_t cudaEventRecord(cudaEvent_t event, cudaStream_t stream) {
-    return 0;
-}
-
-cudaError_t cudaEventQuery(cudaEvent_t event) {
-    return 0;
-}
-
-cudaError_t cudaEventSynchronize(cudaEvent_t event) {
-    return 0;
-}
-
-cudaError_t cudaEventDestroy(cudaEvent_t event) {
-    return 0;
-}
-
-cudaError_t cudaMemcpy(void *dst, const void *src, size_t count, int kind) {
-    return 0;
-}
+#include "common_functions.h"
 
 cudaError_t cudaDeviceSynchronize() {
     return 0;

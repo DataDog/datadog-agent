@@ -77,6 +77,7 @@ type ContainerSpec struct {
 	Env             []EnvVar                      `json:"env,omitempty"`
 	SecurityContext *ContainerSecurityContextSpec `json:"securityContext,omitempty"`
 	Resources       *ContainerResourcesSpec       `json:"resources,omitempty"`
+	ResizePolicy    []ContainerResizePolicySpec   `json:"resizePolicy,omitempty"`
 }
 
 // Toleration contains fields for unmarshalling a Pod.Spec.Tolerations
@@ -106,6 +107,15 @@ const (
 	ResourceEphemeralStorage ResourceName = "ephemeral-storage"
 )
 
+// RestartPolicyName is the type for the allowed restart policies
+type RestartPolicyName string
+
+// Restart policies
+const (
+	RestartPolicyNotRequired      RestartPolicyName = "NotRequired"
+	RestartPolicyRestartContainer RestartPolicyName = "RestartContainer"
+)
+
 // GetGPUResourceNames returns the list of GPU resource names
 func GetGPUResourceNames() []ResourceName {
 	return []ResourceName{ResourcePrefixNvidiaMIG, ResourceGenericNvidiaGPU, ResourcePrefixIntelGPU, ResourcePrefixAMDGPU}
@@ -118,6 +128,12 @@ type ResourceList map[ResourceName]resource.Quantity
 type ContainerResourcesSpec struct {
 	Requests ResourceList `json:"requests,omitempty"`
 	Limits   ResourceList `json:"limits,omitempty"`
+}
+
+// ContainerResizePolicySpec contains fields for unmarshalling a Pod.Spec.Containers.ResizePolicy
+type ContainerResizePolicySpec struct {
+	ResourceName  ResourceName      `json:"resourceName,omitempty"`
+	RestartPolicy RestartPolicyName `json:"restartPolicy,omitempty"`
 }
 
 // ContainerPortSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
