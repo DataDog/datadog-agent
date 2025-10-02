@@ -63,6 +63,7 @@ The payload is a JSON dict with the following fields
     `network_config.enabled` config option in `system-probe.yaml`).
   - `feature_traceroute_enabled` - **bool**: True if the Traceroute module is enabled in the System Probe (see: `traceroute.enabled` config option in `system-probe.yaml`).
   - `feature_oom_kill_enabled` - **bool**: True if the OOM Kill check is enabled for System Probe (see: `system_probe_config.enable_oom_kill` config option in `system-probe.yaml`).
+  - `feature_synthetics_collector_enabled` - **bool**: True if Synthetics Test module is enabled.
   - `feature_tcp_queue_length_enabled` - **bool**: True if TCP Queue Length check is enabled in System Probe (see: `system_probe_config.enable_tcp_queue_length` config option in `system-probe.yaml`).
   - `system_probe_telemetry_enabled` - **bool**: True if Telemetry is enabled in the System Probe (see: `system_probe_config.telemetry_enabled` config option in `system-probe.yaml`).
   - `system_probe_core_enabled` - **bool**: True if CO-RE is enabled in the System Probe (see: `system_probe_config.enable_co_re` config option in `system-probe.yaml`).
@@ -160,6 +161,7 @@ Here an example of an inventory payload:
         "feature_logs_enabled": true,
         "feature_networks_enabled": false,
         "feature_traceroute_enabled": false,
+        "feature_synthetics_collector_enabled": false,
         "feature_process_enabled": false,
         "feature_remote_configuration_enabled": false,
         "flavor": "agent",

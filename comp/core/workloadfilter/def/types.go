@@ -176,6 +176,18 @@ func (p *Pod) Type() ResourceType {
 	return PodType
 }
 
+// CreatePod creates a Filterable Pod object.
+func CreatePod(id, name, namespace string, annotations map[string]string) *Pod {
+	return &Pod{
+		FilterPod: &typedef.FilterPod{
+			Id:          id,
+			Name:        name,
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+	}
+}
+
 // PodFilter defines the type of pod filter.
 type PodFilter int
 

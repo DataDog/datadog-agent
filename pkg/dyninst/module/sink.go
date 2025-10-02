@@ -107,7 +107,7 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 		return fmt.Errorf("unknown event pairing expectation: %d", evHeader.Event_pairing_expectation)
 	}
 	decodedBytes, probe, err = s.decoder.Decode(decode.Event{
-		Entry:       entryEvent,
+		EntryOrLine: entryEvent,
 		Return:      returnEvent,
 		ServiceName: s.service,
 	}, s.symbolicator, decodedBytes)

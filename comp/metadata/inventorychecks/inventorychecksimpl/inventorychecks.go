@@ -21,6 +21,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -52,11 +53,12 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname     string                `json:"hostname"`
-	Timestamp    int64                 `json:"timestamp"`
-	Metadata     map[string][]metadata `json:"check_metadata"`
-	LogsMetadata map[string][]metadata `json:"logs_metadata"`
-	UUID         string                `json:"uuid"`
+	Hostname      string                `json:"hostname"`
+	Timestamp     int64                 `json:"timestamp"`
+	Metadata      map[string][]metadata `json:"check_metadata"`
+	LogsMetadata  map[string][]metadata `json:"logs_metadata"`
+	FilesMetadata metadata              `json:"files_metadata"`
+	UUID          string                `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -274,12 +276,15 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 		payloadData[checkName] = append(payloadData[checkName], checks...)
 	}
 
+	filesMetadata := ic.getFilesMetadata()
+
 	return &Payload{
-		Hostname:     ic.hostname,
-		Timestamp:    time.Now().UnixNano(),
-		Metadata:     payloadData,
-		LogsMetadata: logsMetadata,
-		UUID:         uuid.GetUUID(),
+		Hostname:      ic.hostname,
+		Timestamp:     time.Now().UnixNano(),
+		Metadata:      payloadData,
+		LogsMetadata:  logsMetadata,
+		FilesMetadata: filesMetadata,
+		UUID:          uuid.GetUUID(),
 	}
 }
 
@@ -291,4 +296,23 @@ func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http
 		return
 	}
 	w.Write(scrubbed)
+}
+
+func (ic *inventorychecksImpl) getFilesMetadata() metadata {
+	configFiles := providers.ReadConfigFormats()
+	if len(configFiles) == 0 {
+		ic.log.Errorf("could not read files metadata")
+		return metadata{}
+	}
+
+	filesMetadata := metadata{}
+	for _, configFile := range configFiles {
+		// Use the filename as key
+		filesMetadata[configFile.Filename] = metadata{
+			"raw_config": configFile.ConfigFormat,
+			"hash":       configFile.Hash,
+		}
+	}
+
+	return filesMetadata
 }

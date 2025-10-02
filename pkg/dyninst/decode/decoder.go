@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"strconv"
 	"time"
 
 	"github.com/go-json-experiment/json"
@@ -80,6 +81,7 @@ type Decoder struct {
 	snapshotMessage snapshotMessage
 	entry           captureEvent
 	_return         captureEvent
+	line            lineCaptureData
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -167,7 +169,15 @@ func (d *Decoder) Decode(
 	}
 	b := bytes.NewBuffer(buf)
 	enc := jsontext.NewEncoder(b)
-	numExpressions := len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.rootType.Expressions)
+	var numExpressions int
+	if d.snapshotMessage.Debugger.Snapshot.Captures.Entry != nil {
+		numExpressions = len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.rootType.Expressions)
+		if d.snapshotMessage.Debugger.Snapshot.Captures.Return != nil {
+			numExpressions += len(d.snapshotMessage.Debugger.Snapshot.Captures.Return.rootType.Expressions)
+		}
+	} else if d.snapshotMessage.Debugger.Snapshot.Captures.Lines != nil {
+		numExpressions = len(d.snapshotMessage.Debugger.Snapshot.Captures.Lines.capture.rootType.Expressions)
+	}
 	// We loop here because when evaluation errors occur, we reduce the amount of data we attempt
 	// to encode and then try again after resetting the buffer.
 	for range numExpressions + 1 { // +1 for the initial attempt
@@ -187,6 +197,8 @@ func (d *Decoder) Decode(
 func (d *Decoder) resetForNextMessage() {
 	clear(d.entry.dataItems)
 	d.entry.clear()
+	d.line.clear()
+	d._return.clear()
 	d.snapshotMessage = snapshotMessage{}
 }
 
@@ -194,7 +206,7 @@ func (d *Decoder) resetForNextMessage() {
 // that are not present in the BPF program.
 type Event struct {
 	Probe       *ir.Probe
-	Entry       output.Event
+	EntryOrLine output.Event
 	Return      output.Event
 	ServiceName string
 }
@@ -221,21 +233,28 @@ func (s *snapshotMessage) init(
 		},
 		EvaluationErrors: []string{},
 	}
-	if event.Entry == nil {
+	if event.EntryOrLine == nil {
 		return nil, fmt.Errorf("entry event is nil")
 	}
 	if err := decoder.entry.init(
-		event.Entry, decoder.program.Types, &s.Debugger.EvaluationErrors,
+		event.EntryOrLine, decoder.program.Types, &s.Debugger.EvaluationErrors,
 	); err != nil {
 		return nil, err
 	}
 	probeEvent := decoder.probeEvents[decoder.entry.rootType.ID]
 	probe := probeEvent.probe
-	header, err := event.Entry.Header()
+	header, err := event.EntryOrLine.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
-	s.Debugger.Snapshot.Captures.Entry = &decoder.entry
+	switch probeEvent.event.Kind {
+	case ir.EventKindEntry:
+		s.Debugger.Snapshot.Captures.Entry = &decoder.entry
+	case ir.EventKindLine:
+		decoder.line.sourceLine = probeEvent.event.SourceLine
+		decoder.line.capture = &decoder.entry
+		s.Debugger.Snapshot.Captures.Lines = &decoder.line
+	}
 	var returnHeader *output.EventHeader
 	if event.Return != nil {
 		if err := decoder._return.init(
@@ -260,7 +279,7 @@ func (s *snapshotMessage) init(
 	).UnixMilli())
 	s.Timestamp = s.Debugger.Snapshot.Timestamp
 
-	stackHeader, stackEvent := header, event.Entry
+	stackHeader, stackEvent := header, event.EntryOrLine
 	if returnHeader != nil {
 		stackHeader, stackEvent = returnHeader, event.Return
 	}
@@ -286,6 +305,16 @@ func (s *snapshotMessage) init(
 	case ir.FunctionWhere:
 		s.Debugger.Snapshot.Probe.Location.Method = where.Location()
 		s.Logger.Method = where.Location()
+	case ir.LineWhere:
+		function, file, lineStr := where.Line()
+		line, err := strconv.Atoi(lineStr)
+		if err != nil {
+			return probe, fmt.Errorf("invalid line number: %v", lineStr)
+		}
+		s.Debugger.Snapshot.Probe.Location.Method = function
+		s.Debugger.Snapshot.Probe.Location.File = file
+		s.Debugger.Snapshot.Probe.Location.Line = line
+		s.Logger.Method = function
 	default:
 		return probe, fmt.Errorf(
 			"probe %s is not on a supported location: %T",

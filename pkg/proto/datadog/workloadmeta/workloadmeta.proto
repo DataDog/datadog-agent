@@ -203,6 +203,12 @@ message Language {
   string version = 2;
 }
 
+enum InjectionState {
+	INJECTION_UNKNOWN = 0;
+	INJECTION_INJECTED = 1;
+	INJECTION_NOT_INJECTED = 2;
+}
+
 message Process {
   WorkloadmetaEntityId entityId = 1;
   int32 pid = 2;
@@ -220,6 +226,7 @@ message Process {
   Language language = 14;
   WorkloadmetaEntityId owner = 15;
   Service service = 16;
+  InjectionState injectionState = 17;
 }
 
 message WorkloadmetaEvent {

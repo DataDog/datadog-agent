@@ -135,8 +135,8 @@ github.com/CycloneDX/cyclonedx-go v0.9.2 h1:688QHn2X/5nRezKe2ueIVCt+NRqf7fl3AVQk
 github.com/CycloneDX/cyclonedx-go v0.9.2/go.mod h1:vcK6pKgO1WanCdd61qx4bFnSsDJQ6SbM2ZuMIgq86Jg=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
-github.com/DataDog/agent-payload/v5 v5.0.165 h1:0+OuMtmpTBtRStC1wCFjmxZ8EIjj/QPw2gG8Cr3/WdM=
-github.com/DataDog/agent-payload/v5 v5.0.165/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/agent-payload/v5 v5.0.166 h1:wX4saxV2oNsrplCgtdJL3E6QA6h2bEbzziG1hHZrK6Y=
+github.com/DataDog/agent-payload/v5 v5.0.166/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
 github.com/DataDog/appsec-internal-go v1.14.0 h1:MIEZ015kdpeSZSFYBQteSmg8f7zkQTWbMDHbSL9zBx8=
 github.com/DataDog/appsec-internal-go v1.14.0/go.mod h1:9YppRCpElfGX+emXOKruShFYsdPq7WEPq/Fen4tYYpk=
 github.com/DataDog/aptly v1.5.3 h1:oLsRvjuXSVM4ia0N83dU3KiQeiJ6BaszYbTZOkSfDlw=
@@ -148,8 +148,8 @@ github.com/DataDog/datadog-api-client-go/v2 v2.46.0/go.mod h1:d3tOEgUd2kfsr9uuHQ
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEUqFvRDw=
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
-github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c h1:UdSg3w7eOx2gZJemeb0aj6vepiFn1bxnaye8BZW+kNI=
-github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c/go.mod h1:E+dFku5SVIXDUj6apiBdDAzrUOR3xLz1bMgUOGjRAVQ=
+github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f h1:O+Ls4K2v4lQpGum7yYWM3aRZ3vJ/Ibvk/Ma/NqXwtWI=
+github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f/go.mod h1:E+dFku5SVIXDUj6apiBdDAzrUOR3xLz1bMgUOGjRAVQ=
 github.com/DataDog/datadog-traceroute v0.1.25 h1:2dsZrWJ0Il3TP3cBvwG0NUm3EpvsBxTghpDmkz7QmyA=
 github.com/DataDog/datadog-traceroute v0.1.25/go.mod h1:w5sW46QA2+i5VfzRM0Mx3JKPkcMiFpeVGAdXglIS5zE=
 github.com/DataDog/dd-trace-go/v2 v2.0.0 h1:cHMEzD0Wcgtu+Rec9d1GuVgpIN5f+4vCaNzuFHJ0v+Y=

@@ -35,6 +35,9 @@ func TestToNetpathConfig(t *testing.T) {
 	icmpTTL := 5
 	icmpTimeout := 2
 
+	tracerouteCount := 3
+	probeCount := 50
+
 	tests := []struct {
 		name        string
 		input       common.SyntheticsTestConfig
@@ -56,6 +59,8 @@ func TestToNetpathConfig(t *testing.T) {
 							DestinationService: &dst,
 							MaxTTL:             &udpTTL,
 							Timeout:            &udpTimeout,
+							ProbeCount:         &probeCount,
+							TracerouteCount:    &tracerouteCount,
 						},
 					},
 				},
@@ -65,9 +70,12 @@ func TestToNetpathConfig(t *testing.T) {
 				DestHostname:       "dns.example.com",
 				DestPort:           uint16(udpPort),
 				MaxTTL:             uint8(udpTTL),
-				Timeout:            time.Duration(udpTimeout) * time.Second,
+				Timeout:            time.Duration(float64(udpTimeout) * 0.9 / float64(udpTTL) * float64(time.Second)),
 				SourceService:      src,
 				DestinationService: dst,
+				ReverseDNS:         true,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},
@@ -87,6 +95,8 @@ func TestToNetpathConfig(t *testing.T) {
 							DestinationService: &dst,
 							MaxTTL:             &tcpTTL,
 							Timeout:            &tcpTimeout,
+							ProbeCount:         &probeCount,
+							TracerouteCount:    &tracerouteCount,
 						},
 					},
 				},
@@ -96,10 +106,13 @@ func TestToNetpathConfig(t *testing.T) {
 				DestHostname:       "web.example.com",
 				DestPort:           uint16(tcpPort),
 				MaxTTL:             uint8(tcpTTL),
-				Timeout:            time.Duration(tcpTimeout) * time.Second,
+				Timeout:            time.Duration(float64(tcpTimeout) * 0.9 / float64(tcpTTL) * float64(time.Second)),
 				TCPMethod:          payload.TCPConfigSYN,
 				SourceService:      src,
 				DestinationService: dst,
+				ReverseDNS:         true,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},
@@ -117,6 +130,8 @@ func TestToNetpathConfig(t *testing.T) {
 							DestinationService: &dst,
 							MaxTTL:             &icmpTTL,
 							Timeout:            &icmpTimeout,
+							ProbeCount:         &probeCount,
+							TracerouteCount:    &tracerouteCount,
 						},
 					},
 				},
@@ -125,9 +140,12 @@ func TestToNetpathConfig(t *testing.T) {
 				Protocol:           payload.ProtocolICMP,
 				DestHostname:       "8.8.8.8",
 				MaxTTL:             uint8(icmpTTL),
-				Timeout:            time.Duration(icmpTimeout) * time.Second,
+				Timeout:            time.Duration(float64(icmpTimeout) * 0.9 / float64(icmpTTL) * float64(time.Second)),
 				SourceService:      src,
 				DestinationService: dst,
+				ReverseDNS:         true,
+				TracerouteQueries:  tracerouteCount,
+				E2eQueries:         probeCount,
 			},
 			expectError: false,
 		},

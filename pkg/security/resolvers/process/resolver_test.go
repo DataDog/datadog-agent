@@ -97,6 +97,8 @@ func newFakeForkEvent(ppid, pid int, inode uint64, resolver *EBPFResolver) *mode
 	e.ProcessCacheEntry.PPid = uint32(ppid)
 	e.ProcessCacheEntry.Pid = uint32(pid)
 	e.ProcessCacheEntry.FileEvent.Inode = inode
+	e.ProcessCacheEntry.CGroup.CGroupID = "FakeCgroupID"
+	e.ProcessCacheEntry.CGroup.CGroupFile.Inode = 4242
 	return e
 }
 
@@ -110,6 +112,8 @@ func newFakeExecEvent(ppid, pid int, inode uint64, resolver *EBPFResolver) *mode
 	e.ProcessCacheEntry.PPid = uint32(ppid)
 	e.ProcessCacheEntry.Pid = uint32(pid)
 	e.ProcessCacheEntry.FileEvent.Inode = inode
+	e.ProcessCacheEntry.CGroup.CGroupID = "FakeCgroupID"
+	e.ProcessCacheEntry.CGroup.CGroupFile.Inode = 4242
 	return e
 }
 
@@ -883,6 +887,9 @@ func TestCGroupContext(t *testing.T) {
 
 		resolver.UpdateProcessCGroupContext(node.ProcessCacheEntry.Pid, &model.CGroupContext{
 			CGroupID: cgroupID,
+			CGroupFile: model.PathKey{
+				Inode: 4242,
+			},
 		}, nil)
 
 		assert.Equal(t, cgroupID, node.ProcessCacheEntry.CGroup.CGroupID)

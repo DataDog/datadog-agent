@@ -8,13 +8,8 @@
 package pod
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
-	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -33,8 +28,10 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -43,79 +40,16 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// dummyKubelet allows tests to mock a kubelet's responses
-type dummyKubelet struct {
-	sync.Mutex
-	PodsBody []byte
-}
-
-func newDummyKubelet() *dummyKubelet {
-	return &dummyKubelet{}
-}
-
-func (d *dummyKubelet) loadPodList(podListJSONPath string) error {
-	d.Lock()
-	defer d.Unlock()
-	podList, err := os.ReadFile(podListJSONPath)
-	if err != nil {
-		return err
-	}
-	d.PodsBody = podList
-	return nil
-}
-
-func (d *dummyKubelet) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	d.Lock()
-	defer d.Unlock()
-	switch r.URL.Path {
-	case "/pods":
-		if d.PodsBody == nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		s, err := w.Write(d.PodsBody)
-		log.Debugf("dummyKubelet wrote %d bytes, err: %v", s, err)
-
-	default:
-		w.WriteHeader(http.StatusNotFound)
-	}
-}
-
-func (d *dummyKubelet) parsePort(ts *httptest.Server) (*httptest.Server, int, error) {
-	kubeletURL, err := url.Parse(ts.URL)
-	if err != nil {
-		return nil, 0, err
-	}
-	kubeletPort, err := strconv.Atoi(kubeletURL.Port())
-	if err != nil {
-		return nil, 0, err
-	}
-	log.Debugf("Starting on port %d", kubeletPort)
-	return ts, kubeletPort, nil
-}
-
-func (d *dummyKubelet) Start() (*httptest.Server, int, error) {
-	ts := httptest.NewServer(d)
-	return d.parsePort(ts)
-}
 
 type ProviderTestSuite struct {
 	suite.Suite
-	provider     *Provider
-	dummyKubelet *dummyKubelet
-	testServer   *httptest.Server
-	mockSender   *mocksender.MockSender
-	kubeUtil     kubelet.KubeUtilInterface
-	tagger       tagger.Component
+	provider   *Provider
+	mockSender *mocksender.MockSender
+	tagger     tagger.Component
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
-	kubelet.ResetGlobalKubeUtil()
-	kubelet.ResetCache()
-
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 
 	mockConfig := configmock.New(suite.T())
@@ -132,21 +66,6 @@ func (suite *ProviderTestSuite) SetupTest() {
 		fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 	}
 
-	suite.dummyKubelet = newDummyKubelet()
-	ts, kubeletPort, err := suite.dummyKubelet.Start()
-	require.Nil(suite.T(), err)
-	suite.testServer = ts
-
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
-
-	kubeutil, _ := kubelet.GetKubeUtilWithRetrier()
-	require.NotNil(suite.T(), kubeutil)
-	suite.kubeUtil = kubeutil
-
 	config := &common.KubeletConfig{
 		OpenmetricsInstance: types.OpenmetricsInstance{
 			Tags:    []string{"instance_tag:something"},
@@ -162,7 +81,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	// So instead of that, we're going to configure workloadmeta with the
 	// kubelet collector.
 	env.SetFeatures(suite.T(), env.Kubernetes) // Required to enable the "kubelet" collector
-	wmeta := fxutil.Test[workloadmeta.Component](suite.T(), fx.Options(
+	wmeta := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		workloadfilterfxmock.MockModule(),
@@ -178,23 +97,18 @@ func (suite *ProviderTestSuite) SetupTest() {
 	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger)
 }
 
-func (suite *ProviderTestSuite) TearDownTest() {
-	suite.testServer.Close()
-}
-
 func TestProviderTestSuite(t *testing.T) {
 	suite.Run(t, new(ProviderTestSuite))
 }
 
 func (suite *ProviderTestSuite) TestTransformRunningPods() {
-	testDataFile := "../../testdata/pods.json"
-	err := suite.dummyKubelet.loadPodList(testDataFile)
-	require.Nil(suite.T(), err)
 	config := suite.provider.config
 
-	suite.waitForPodsInWorkloadMeta(testDataFile)
+	testDataFile := "../../testdata/pods.json"
+	err := suite.fillWorkloadmetaStore(testDataFile)
+	require.Nil(suite.T(), err)
 
-	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
+	err = suite.provider.Provide(nil, suite.mockSender)
 	require.Nil(suite.T(), err)
 
 	suite.mockSender.AssertNumberOfCalls(suite.T(), "Gauge", 36)
@@ -260,14 +174,13 @@ func (suite *ProviderTestSuite) TestTransformRunningPods() {
 }
 
 func (suite *ProviderTestSuite) TestTransformCrashedPods() {
-	testDataFile := "../../testdata/pods_crashed.json"
-	err := suite.dummyKubelet.loadPodList(testDataFile)
-	require.Nil(suite.T(), err)
 	config := suite.provider.config
 
-	suite.waitForPodsInWorkloadMeta(testDataFile)
+	testDataFile := "../../testdata/pods_crashed.json"
+	err := suite.fillWorkloadmetaStore(testDataFile)
+	require.Nil(suite.T(), err)
 
-	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
+	err = suite.provider.Provide(nil, suite.mockSender)
 	require.Nil(suite.T(), err)
 
 	// container state metrics
@@ -308,14 +221,13 @@ func (suite *ProviderTestSuite) TestTransformCrashedPods() {
 }
 
 func (suite *ProviderTestSuite) TestTransformPodsRequestsLimits() {
-	testDataFile := "../../testdata/pods_requests_limits.json"
-	err := suite.dummyKubelet.loadPodList(testDataFile)
-	require.Nil(suite.T(), err)
 	config := suite.provider.config
 
-	suite.waitForPodsInWorkloadMeta(testDataFile)
+	testDataFile := "../../testdata/pods_requests_limits.json"
+	err := suite.fillWorkloadmetaStore(testDataFile)
+	require.Nil(suite.T(), err)
 
-	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
+	err = suite.provider.Provide(nil, suite.mockSender)
 	require.Nil(suite.T(), err)
 
 	// container resource metrics
@@ -328,14 +240,13 @@ func (suite *ProviderTestSuite) TestTransformPodsRequestsLimits() {
 }
 
 func (suite *ProviderTestSuite) TestNoMetricNoKubeletData() {
-	testDataFile := "../../testdata/pod_list_with_no_kube_tags.json"
-	err := suite.dummyKubelet.loadPodList(testDataFile)
-	require.Nil(suite.T(), err)
 	config := suite.provider.config
 
-	suite.waitForPodsInWorkloadMeta(testDataFile)
+	testDataFile := "../../testdata/pod_list_with_no_kube_tags.json"
+	err := suite.fillWorkloadmetaStore(testDataFile)
+	require.Nil(suite.T(), err)
 
-	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
+	err = suite.provider.Provide(nil, suite.mockSender)
 	require.Nil(suite.T(), err)
 	// ensure that metrics are not emitted when there are no kubelet tags
 	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.running", append(config.Tags, "kube_container_name:prometheus-to-sd-exporter-no-namespace", "kube_deployment:fluentd-gcp-v2.0.10"))
@@ -344,54 +255,51 @@ func (suite *ProviderTestSuite) TestNoMetricNoKubeletData() {
 }
 
 func (suite *ProviderTestSuite) TestNoPodMetricsIfDurationIsNegative() {
-	// termination time: 2018-02-14T14:57:17Z
-	testDataFile := "../../testdata/pods_termination.json"
-	err := suite.dummyKubelet.loadPodList(testDataFile)
-	require.Nil(suite.T(), err)
 	config := suite.provider.config
 
-	suite.waitForPodsInWorkloadMeta(testDataFile)
+	// termination time: 2018-02-14T14:57:17Z
+	testDataFile := "../../testdata/pods_termination.json"
+	err := suite.fillWorkloadmetaStore(testDataFile)
+	require.Nil(suite.T(), err)
 
 	suite.provider.now = func() time.Time {
 		t, _ := time.Parse(time.RFC3339, "2018-02-14T10:57:17Z")
 		return t
 	}
 
-	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
+	err = suite.provider.Provide(nil, suite.mockSender)
 	require.Nil(suite.T(), err)
 	// ensure that metrics are not emitted when there are no kubelet tags
 	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.terminating.duration", config.Tags)
 }
 
 func (suite *ProviderTestSuite) TestPodMetricsIfDurationIsPositive() {
-	// termination time: 2018-02-14T14:57:17Z
-	testDataFile := "../../testdata/pods_termination.json"
-	err := suite.dummyKubelet.loadPodList(testDataFile)
-	require.Nil(suite.T(), err)
 	config := suite.provider.config
 
-	suite.waitForPodsInWorkloadMeta(testDataFile)
+	// termination time: 2018-02-14T14:57:17Z
+	testDataFile := "../../testdata/pods_termination.json"
+	err := suite.fillWorkloadmetaStore(testDataFile)
+	require.Nil(suite.T(), err)
 
 	suite.provider.now = func() time.Time {
 		t, _ := time.Parse(time.RFC3339, "2018-02-15T14:57:17Z")
 		return t
 	}
 
-	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
+	err = suite.provider.Provide(nil, suite.mockSender)
 	require.Nil(suite.T(), err)
 	// ensure that metrics are not emitted when there are no kubelet tags
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.terminating.duration", 86400, "", config.Tags)
 }
 
 func (suite *ProviderTestSuite) TestPodResizeMetrics() {
-	testDataFile := "../../testdata/pods_pending.json"
-	err := suite.dummyKubelet.loadPodList(testDataFile)
-	require.Nil(suite.T(), err)
 	config := suite.provider.config
 
-	suite.waitForPodsInWorkloadMeta(testDataFile)
+	testDataFile := "../../testdata/pods_pending.json"
+	err := suite.fillWorkloadmetaStore(testDataFile)
+	require.Nil(suite.T(), err)
 
-	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
+	err = suite.provider.Provide(nil, suite.mockSender)
 	require.Nil(suite.T(), err)
 
 	// ensure that metrics are not emitted when there are no kubelet tags
@@ -399,30 +307,32 @@ func (suite *ProviderTestSuite) TestPodResizeMetrics() {
 	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"pod.resize.pending", append(config.Tags, "reason:deferred"))
 }
 
-func (suite *ProviderTestSuite) waitForPodsInWorkloadMeta(testDataFile string) {
-	podCount, err := getPodCountFromTestData(testDataFile)
-	require.NoError(suite.T(), err)
-
-	require.Eventually(
-		suite.T(),
-		func() bool {
-			return len(suite.provider.store.ListKubernetesPods()) == podCount
-		},
-		10*time.Second,
-		10*time.Millisecond,
-	)
-}
-
-func getPodCountFromTestData(jsonFilePath string) (int, error) {
-	data, err := os.ReadFile(jsonFilePath)
+func (suite *ProviderTestSuite) fillWorkloadmetaStore(testDataFile string) error {
+	data, err := os.ReadFile(testDataFile)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	var podList kubelet.PodList
 	if err := jsoniter.Unmarshal(data, &podList); err != nil {
-		return 0, err
+		return err
 	}
 
-	return len(podList.Items), nil
+	wmetaEvents := util.ParseKubeletPods(podList.Items, true)
+
+	wmetaEvents = append(wmetaEvents, workloadmeta.CollectorEvent{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubeletMetrics{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubeletMetrics,
+				ID:   "kubelet-metrics",
+			},
+			ExpiredPodCount: podList.ExpiredCount,
+		},
+	})
+
+	// The Notify function in the mock handles events synchronously
+	suite.provider.store.(workloadmetamock.Mock).Notify(wmetaEvents)
+
+	return nil
 }

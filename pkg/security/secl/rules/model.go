@@ -7,6 +7,7 @@
 package rules
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -462,5 +463,35 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 	}
 }
 
+// MarshalJSON marshals a duration to a human readable format
+func (d *HumanReadableDuration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.String())
+}
+
+// UnmarshalJSON unmarshals a duration from a human readable format or from an integer
+func (d *HumanReadableDuration) UnmarshalJSON(data []byte) error {
+	var v interface{}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	switch value := v.(type) {
+	case float64:
+		// JSON numbers are unmarshaled as float64 by default
+		d.Duration = time.Duration(value)
+		return nil
+	case string:
+		var err error
+		d.Duration, err = time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+		return nil
+	default:
+		return fmt.Errorf("invalid duration: (json type: %T)", v)
+	}
+}
+
 var _ yaml.Marshaler = (*HumanReadableDuration)(nil)
 var _ yaml.Unmarshaler = (*HumanReadableDuration)(nil)
+var _ json.Marshaler = (*HumanReadableDuration)(nil)
+var _ json.Unmarshaler = (*HumanReadableDuration)(nil)
