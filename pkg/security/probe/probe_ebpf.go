@@ -1064,7 +1064,7 @@ func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEn
 	return cgroupContext, nil
 }
 
-// Interface used to unmarshal binary data
+// BinaryUnmarshaler is the interface used to unmarshal binary data
 type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
 }
@@ -1159,7 +1159,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// handle regular events
-	ok = p.handleRegularEvent(eventType, event, offset, dataLen, data, newEntryCb, read)
+	ok = p.handleRegularEvent(eventType, event, offset, dataLen, data, newEntryCb)
 	if !ok {
 		return
 	}
@@ -1182,8 +1182,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	p.fileHasher.FlushPendingReports()
 }
 
-func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error), read int) bool {
+func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
+	var read int
 	switch eventType {
 
 	case model.FileMountEventType, model.FileMoveMountEventType:
