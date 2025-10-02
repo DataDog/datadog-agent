@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"testing"
 
-	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
@@ -242,8 +242,8 @@ func BenchmarkTestFormatEventMessage(b *testing.B) {
 				createLog(b, ti, channel, eventSource)
 				err := ti.GenerateEvents(eventSource, v)
 				require.NoError(b, err)
-				b.ResetTimer()
 				cache := publishermetadatacache.New(ti.API())
+				b.ResetTimer()
 
 				for i := 0; i < b.N; i++ {
 					sub, err := startSubscription(b, ti, channel,

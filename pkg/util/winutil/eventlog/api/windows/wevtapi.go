@@ -21,19 +21,19 @@ import (
 var (
 	// New Event Log API
 	// https://learn.microsoft.com/en-us/windows/win32/wes/using-windows-event-log
-	wevtapi                         = windows.NewLazySystemDLL("wevtapi.dll")
-	evtSubscribe                    = wevtapi.NewProc("EvtSubscribe")
-	evtClose                        = wevtapi.NewProc("EvtClose")
-	evtNext                         = wevtapi.NewProc("EvtNext")
-	evtQuery                        = wevtapi.NewProc("EvtQuery")
-	evtCreateBookmark               = wevtapi.NewProc("EvtCreateBookmark")
-	evtUpdateBookmark               = wevtapi.NewProc("EvtUpdateBookmark")
-	evtCreateRenderContext          = wevtapi.NewProc("EvtCreateRenderContext")
-	evtRender                       = wevtapi.NewProc("EvtRender")
-	evtClearLog                     = wevtapi.NewProc("EvtClearLog")
-	evtOpenPublisherMetadata        = wevtapi.NewProc("EvtOpenPublisherMetadata")
-	evtFormatMessage                = wevtapi.NewProc("EvtFormatMessage")
-	evtOpenSession                  = wevtapi.NewProc("EvtOpenSession")
+	wevtapi                  = windows.NewLazySystemDLL("wevtapi.dll")
+	evtSubscribe             = wevtapi.NewProc("EvtSubscribe")
+	evtClose                 = wevtapi.NewProc("EvtClose")
+	evtNext                  = wevtapi.NewProc("EvtNext")
+	evtQuery                 = wevtapi.NewProc("EvtQuery")
+	evtCreateBookmark        = wevtapi.NewProc("EvtCreateBookmark")
+	evtUpdateBookmark        = wevtapi.NewProc("EvtUpdateBookmark")
+	evtCreateRenderContext   = wevtapi.NewProc("EvtCreateRenderContext")
+	evtRender                = wevtapi.NewProc("EvtRender")
+	evtClearLog              = wevtapi.NewProc("EvtClearLog")
+	evtOpenPublisherMetadata = wevtapi.NewProc("EvtOpenPublisherMetadata")
+	evtFormatMessage         = wevtapi.NewProc("EvtFormatMessage")
+	evtOpenSession           = wevtapi.NewProc("EvtOpenSession")
 
 	// Legacy Event Logging API
 	// https://learn.microsoft.com/en-us/windows/win32/eventlog/using-event-logging
