@@ -67,14 +67,14 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 		{
 			name: "service rules only",
 			rules: workloadfilter.Rules{
-				KubeServices: []string{`service.name.matches("api-service") && service.namespace == "default"`},
+				KubeServices: []string{`kube_service.name.matches("api-service") && kube_service.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.ServiceType,
 		},
 		{
 			name: "endpoint rules only",
 			rules: workloadfilter.Rules{
-				KubeEndpoints: []string{`endpoint.name == "api-endpoint" && endpoint.namespace == "default"`},
+				KubeEndpoints: []string{`kube_endpoint.name == "api-endpoint" && kube_endpoint.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.EndpointType,
 		},
@@ -92,8 +92,8 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 			name: "complex valid rules",
 			rules: workloadfilter.Rules{
 				KubeServices: []string{
-					`service.name.matches("api-.*") && service.namespace == "production"`,
-					`service.annotations["version"] == "v2"`,
+					`kube_service.name.matches("api-.*") && kube_service.namespace == "production"`,
+					`kube_service.annotations["version"] == "v2"`,
 				},
 			},
 			expectedTarget: workloadfilter.ServiceType,
@@ -126,37 +126,37 @@ func TestCreateMatchingProgram_RecommendationErrors(t *testing.T) {
 		{
 			name: "service missing name field",
 			rules: workloadfilter.Rules{
-				KubeServices: []string{`service.namespace == "production"`},
+				KubeServices: []string{`kube_service.namespace == "production"`},
 			},
 		},
 		{
 			name: "service missing namespace field",
 			rules: workloadfilter.Rules{
-				KubeServices: []string{`service.name == "api"`},
+				KubeServices: []string{`kube_service.name == "api"`},
 			},
 		},
 		{
 			name: "service missing both name and namespace fields",
 			rules: workloadfilter.Rules{
-				KubeServices: []string{`service.annotations["version"] == "v1"`},
+				KubeServices: []string{`kube_service.annotations["version"] == "v1"`},
 			},
 		},
 		{
 			name: "endpoint missing name field",
 			rules: workloadfilter.Rules{
-				KubeEndpoints: []string{`endpoint.namespace == "production"`},
+				KubeEndpoints: []string{`kube_endpoint.namespace == "production"`},
 			},
 		},
 		{
 			name: "endpoint missing namespace field",
 			rules: workloadfilter.Rules{
-				KubeEndpoints: []string{`endpoint.name == "api-endpoint"`},
+				KubeEndpoints: []string{`kube_endpoint.name == "api-endpoint"`},
 			},
 		},
 		{
 			name: "endpoint missing both fields",
 			rules: workloadfilter.Rules{
-				KubeEndpoints: []string{`endpoint.annotations["monitor"] == "true"`},
+				KubeEndpoints: []string{`kube_endpoint.annotations["monitor"] == "true"`},
 			},
 		},
 	}
@@ -183,15 +183,15 @@ func TestCreateMatchingProgram_PriorityOrder(t *testing.T) {
 			name: "containers have priority over services",
 			rules: workloadfilter.Rules{
 				Containers:   []string{`container.name == "nginx" && container.image == "nginx:latest"`},
-				KubeServices: []string{`service.name == "api" && service.namespace == "default"`},
+				KubeServices: []string{`kube_service.name == "api" && kube_service.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.ContainerType,
 		},
 		{
 			name: "services have priority over endpoints",
 			rules: workloadfilter.Rules{
-				KubeServices:  []string{`service.name == "api" && service.namespace == "default"`},
-				KubeEndpoints: []string{`endpoint.name == "api-endpoint" && endpoint.namespace == "default"`},
+				KubeServices:  []string{`kube_service.name == "api" && kube_service.namespace == "default"`},
+				KubeEndpoints: []string{`kube_endpoint.name == "api-endpoint" && kube_endpoint.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.ServiceType,
 		},
@@ -199,8 +199,8 @@ func TestCreateMatchingProgram_PriorityOrder(t *testing.T) {
 			name: "all types present - containers win",
 			rules: workloadfilter.Rules{
 				Containers:    []string{`container.name == "nginx" && container.image == "nginx:latest"`},
-				KubeServices:  []string{`service.name == "api" && service.namespace == "default"`},
-				KubeEndpoints: []string{`endpoint.name == "api-endpoint" && endpoint.namespace == "default"`},
+				KubeServices:  []string{`kube_service.name == "api" && kube_service.namespace == "default"`},
+				KubeEndpoints: []string{`kube_endpoint.name == "api-endpoint" && kube_endpoint.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.ContainerType,
 		},
