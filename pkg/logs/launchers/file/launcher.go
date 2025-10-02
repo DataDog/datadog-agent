@@ -143,6 +143,7 @@ func (s *Launcher) run() {
 			go func() {
 				s.filesChan <- s.fileProvider.FilesToTail(s.ctx, s.validatePodContainerID, activeSourcesCopy, s.registry)
 			}()
+			scanTicker.Reset(s.scanPeriod)
 		case files := <-s.filesChan:
 			s.cleanUpRotatedTailers()
 
