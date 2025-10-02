@@ -164,7 +164,6 @@ func (suite *eksSuite) TestDogstatsdFargate() {
 }
 
 func (suite *eksSuite) TestNginxFargate() {
-
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
 	suite.testMetric(&testMetricArgs{
@@ -211,6 +210,7 @@ func (suite *eksSuite) TestNginxFargate() {
 			Name: "network.http.response_time",
 			Tags: []string{
 				`^kube_namespace:workload-nginx-fargate$`,
+				`^kube_cloud_provider:.*`,
 			},
 		},
 		Expect: testMetricExpectArgs{

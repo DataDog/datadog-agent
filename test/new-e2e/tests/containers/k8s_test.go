@@ -379,7 +379,7 @@ func (suite *k8sSuite) testAgentCLI() {
 }
 
 func (suite *k8sSuite) testClusterAgentCLI() {
-	leaderDcaPodName := suite.testDCALeaderElection(false) //check cluster agent leaderelection without restart
+	leaderDcaPodName := suite.testDCALeaderElection(false) // check cluster agent leaderelection without restart
 	suite.Require().NotEmpty(leaderDcaPodName, "Leader DCA pod name should not be empty")
 
 	suite.Run("cluster-agent status", func() {
@@ -608,6 +608,7 @@ func (suite *k8sSuite) TestNginx() {
 			Name: "network.http.response_time",
 			Tags: []string{
 				`^kube_namespace:workload-nginx$`,
+				`^kube_cloud_provider:.*`,
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -630,6 +631,7 @@ func (suite *k8sSuite) TestNginx() {
 			Tags: []string{
 				"^kube_deployment:nginx$",
 				"^kube_namespace:workload-nginx$",
+				`^kube_cloud_provider:.*`,
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -736,6 +738,7 @@ func (suite *k8sSuite) TestRedis() {
 			Tags: []string{
 				"^kube_deployment:redis$",
 				"^kube_namespace:workload-redis$",
+				`^kube_cloud_provider:.*`,
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -959,6 +962,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
+				`^kube_cloud_provider:.*`,
 				`^kube_namespace:workload-nginx$`,
 				`^org:agent-org$`,
 				`^team:contp$`,
@@ -986,6 +990,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
+				`^kube_cloud_provider:.*`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
@@ -1006,6 +1011,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
+				`^kube_cloud_provider:.*`,
 				`^customresource_group:datadoghq.com$`,
 				`^customresource_version:v1alpha1$`,
 				`^customresource_kind:DatadogMetric`,
@@ -1308,7 +1314,6 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			}, volumeMounts["datadog-auto-instrumentation"])
 		}
 	}
-
 }
 
 func (suite *k8sSuite) TestContainerImage() {
