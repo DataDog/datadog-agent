@@ -150,7 +150,7 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 		cfg.MaxTTL = uint8(*ncr.MaxTTL)
 	}
 	if ncr.Timeout != nil {
-		cfg.Timeout = time.Duration(*ncr.Timeout) * time.Second
+		cfg.Timeout = time.Duration(float64(*ncr.Timeout)*0.9/float64(cfg.MaxTTL)) * time.Second
 	}
 	if ncr.TracerouteCount != nil {
 		cfg.TracerouteQueries = *ncr.TracerouteCount
