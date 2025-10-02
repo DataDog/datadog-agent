@@ -5,7 +5,7 @@ go 1.24.0
 require github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.166-0.20250930093144-9b34f292df2f // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.166 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3 // indirect

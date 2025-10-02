@@ -32,7 +32,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.2
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.166-0.20250930093144-9b34f292df2f
+	github.com/DataDog/agent-payload/v5 v5.0.166
 	github.com/DataDog/appsec-internal-go v1.14.0
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.71.0-rc.1
