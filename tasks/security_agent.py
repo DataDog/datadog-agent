@@ -21,7 +21,7 @@ from tasks.agent import generate_config
 from tasks.build_tags import add_fips_tags, get_default_build_tags
 from tasks.go import run_golangci_lint
 from tasks.libs.build.ninja import NinjaWriter
-from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -221,20 +221,16 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
     )
 
 
-def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
+def build_go_syscall_tester(ctx, build_dir):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
-    arch = Arch.from_str(arch)
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, static=True)
 
     go_build(
         ctx,
         f"{syscall_tester_go_dir}/syscall_go_tester.go",
         build_tags=["syscalltesters", "osusergo", "netgo"],
-        ldflags=ldflags,
-        gcflags=gcflags,
+        ldflags="-extldflags=-static",
         bin_path=syscall_tester_exe_file,
-        env=env,
     )
     return syscall_tester_exe_file
 
@@ -306,7 +302,7 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
-    build_go_syscall_tester(ctx, build_dir, arch=arch)
+    build_go_syscall_tester(ctx, build_dir)
 
 
 @task
@@ -337,14 +333,13 @@ def build_functional_tests(
                 debug=debug,
                 bundle_ebpf=bundle_ebpf,
             )
-        build_embed_syscall_tester(
-            ctx,
-            compiler=syscall_tester_compiler,
-            arch=arch,
-        )
+        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler)
 
     arch = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
+    common_ancestor = get_common_ancestor(ctx, "HEAD")
+    print(f"Using git ref {common_ancestor} as common ancestor between HEAD and main branch")
+    ldflags += f"-X {REPO_PATH}/{srcpath}.GitAncestorOnMain={common_ancestor} "
 
     env["CGO_ENABLED"] = "1"
 

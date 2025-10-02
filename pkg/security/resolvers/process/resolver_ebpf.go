@@ -592,7 +592,7 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64
 	// the count will be decremented once the entry is released
 	p.processCacheEntryCount.Inc()
 
-	if newPid && p.cgroupResolver != nil && entry.CGroup.CGroupID != "" {
+	if newPid && p.cgroupResolver != nil {
 		// add the new PID in the right cgroup_resolver bucket
 		p.cgroupResolver.AddPID(entry)
 	}

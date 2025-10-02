@@ -13,6 +13,7 @@ import (
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -27,7 +28,7 @@ import (
 const (
 	validSubdomainSymbols       = "_-."
 	validPathSymbols            = "/_-+"
-	validPathQueryStringSymbols = "/_-+@?&=.:\""
+	validPathQueryStringSymbols = "/_-+@?&=.:\"[]"
 )
 
 // EvpProxyAllowedHeaders contains the headers that the proxy will forward. All others will be cleared.
@@ -254,7 +255,12 @@ func isValidPath(s string) bool {
 }
 
 func isValidQueryString(s string) bool {
-	for _, c := range s {
+	decoded, err := url.QueryUnescape(s)
+	if err != nil {
+		log.Debugf("failed to unescape query string: %v", err)
+		return false
+	}
+	for _, c := range decoded {
 		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(validPathQueryStringSymbols, c) {
 			return false
 		}

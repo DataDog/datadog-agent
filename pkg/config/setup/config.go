@@ -528,6 +528,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
 	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", DefaultNetworkPathStaticPathTracerouteQueries)
 	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
+	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -2809,16 +2810,6 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string, config pkgconf
 		return pipelineURL, nil
 	}
 	return "", nil
-}
-
-// IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
-func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
-	// Disable Remote Config for GovCloud
-	isFipsAgent, _ := pkgfips.Enabled()
-	if cfg.GetBool("fips.enabled") || isFipsAgent || cfg.GetString("site") == "ddog-gov.com" {
-		return false
-	}
-	return cfg.GetBool("remote_configuration.enabled")
 }
 
 // GetRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
