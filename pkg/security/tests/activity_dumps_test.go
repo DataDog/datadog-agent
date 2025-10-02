@@ -90,10 +90,11 @@ func TestActivityDumps(t *testing.T) {
 
 		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
 		cmd := dockerInstance.Command(goSyscallTester, []string{"-setup-and-run-imds-test"}, []string{})
-		_, err = cmd.CombinedOutput()
+		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Logf("syscall go tester output: %s", string(out))
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
 		err = test.StopActivityDump(ad.Name)
