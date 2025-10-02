@@ -132,6 +132,7 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 	}
 
 	if opts.fatbinParsingEnabled {
+		// TODO: Refactor this so that the kernel cache accepts a smVersionSet that can change over time
 		smVersionSet, err := ctx.deviceCache.SMVersionSet()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get SM version set: %w", err)
