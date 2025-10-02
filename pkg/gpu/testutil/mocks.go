@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"go.uber.org/fx"
 
@@ -311,7 +310,7 @@ func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface 
 			return DefaultNvidiaDriverVersion, nvml.SUCCESS
 		},
 		EventSetCreateFunc: func() (nvml.EventSet, nvml.Return) {
-			return &mock.EventSet{
+			return &nvmlmock.EventSet{
 				FreeFunc: func() nvml.Return {
 					return nvml.SUCCESS
 				},

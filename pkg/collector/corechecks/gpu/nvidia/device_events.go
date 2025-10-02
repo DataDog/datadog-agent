@@ -130,6 +130,7 @@ type deviceEventsEventsCache struct {
 	pendingEvents chan ddnvml.DeviceEventData
 }
 
+// DeviceEventsGatherer asynchronously collects nvidia device events through the nvmlEventSetWait api
 type DeviceEventsGatherer struct {
 	running    atomic.Bool
 	wg         sync.WaitGroup
@@ -140,6 +141,7 @@ type DeviceEventsGatherer struct {
 	devices    map[string]*deviceEventsEventsCache // uuid -> cache
 }
 
+// Start initializes the gatherer and starts event collection
 func (c *DeviceEventsGatherer) Start() error {
 	if c.running.Load() {
 		return nil
@@ -160,6 +162,7 @@ func (c *DeviceEventsGatherer) Start() error {
 	return nil
 }
 
+// Stop deinitializes the gatherer and stops event collection
 func (c *DeviceEventsGatherer) Stop() error {
 	if !c.running.Load() {
 		return nil
@@ -195,6 +198,7 @@ func (c *DeviceEventsGatherer) getDeviceCache(deviceUUID string) *deviceEventsEv
 	return nil
 }
 
+// GetRegisteredDeviceUUIDs returns the list of device UUIDs registered for event collection
 func (c *DeviceEventsGatherer) GetRegisteredDeviceUUIDs() []string {
 	c.devicesMtx.Lock()
 	defer c.devicesMtx.Unlock()
@@ -204,6 +208,10 @@ func (c *DeviceEventsGatherer) GetRegisteredDeviceUUIDs() []string {
 	return uuids
 }
 
+// Refresh consumes the pending events (gathered in async) and populates the cache
+// of latest events for each device, retrievable through GetEvents. In case
+// there is no event pending since the last invocation of Refresh, GetEvents will
+// return an empty event slice.
 func (c *DeviceEventsGatherer) Refresh() error {
 	for _, uuid := range c.GetRegisteredDeviceUUIDs() {
 		cache := c.getDeviceCache(uuid)
@@ -220,7 +228,8 @@ func (c *DeviceEventsGatherer) Refresh() error {
 	return nil
 }
 
-// GetEvents returns the latest batch of cached events for the given device UUID
+// GetEvents returns the latest batch of cached events for the given device UUID.
+// Calls to GetEvents are idempotent up until the next invocation of Refresh.
 func (c *DeviceEventsGatherer) GetEvents(deviceUUID string) ([]ddnvml.DeviceEventData, error) {
 	if cache := c.getDeviceCache(deviceUUID); cache != nil {
 		return c.getDeviceCache(deviceUUID).latestEvents, nil
@@ -229,6 +238,7 @@ func (c *DeviceEventsGatherer) GetEvents(deviceUUID string) ([]ddnvml.DeviceEven
 	return nil, nil
 }
 
+// RegisterDevice registers a device for event collection
 func (c *DeviceEventsGatherer) RegisterDevice(device ddnvml.Device) error {
 	evtTypes, err := device.GetSupportedEventTypes()
 	if err != nil {

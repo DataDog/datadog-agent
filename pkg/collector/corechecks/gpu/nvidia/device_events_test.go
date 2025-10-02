@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -137,12 +136,12 @@ type mockDeviceEventsCollectorCache struct {
 	err    error
 }
 
-func (m *mockDeviceEventsCollectorCache) RegisterDevice(device ddnvml.Device) error {
+func (m *mockDeviceEventsCollectorCache) RegisterDevice(device safenvml.Device) error {
 	m.uuids = append(m.uuids, device.GetDeviceInfo().UUID)
 	return nil
 }
 
-func (m *mockDeviceEventsCollectorCache) GetEvents(deviceUUID string) ([]safenvml.DeviceEventData, error) {
+func (m *mockDeviceEventsCollectorCache) GetEvents(_ string) ([]safenvml.DeviceEventData, error) {
 	return m.events, m.err
 }
 
@@ -166,7 +165,7 @@ func TestDeviceEventsCollector(t *testing.T) {
 	require.Empty(t, mm)
 
 	// make sure non-xid events are ignored
-	cache.events = []ddnvml.DeviceEventData{
+	cache.events = []safenvml.DeviceEventData{
 		{
 			DeviceUUID: uuid,
 			EventType:  nvml.EventMigConfigChange,
@@ -180,7 +179,7 @@ func TestDeviceEventsCollector(t *testing.T) {
 	// since we don't change events between subsequent calls, we check
 	// that the counter is increased
 	xidErrorsMetricName := "errors.xid.total"
-	cache.events = []ddnvml.DeviceEventData{
+	cache.events = []safenvml.DeviceEventData{
 		{
 			DeviceUUID: uuid,
 			EventType:  nvml.EventTypeXidCriticalError,
@@ -204,7 +203,7 @@ func TestDeviceEventsCollector(t *testing.T) {
 	assert.Equal(t, float64(2), mm[0].Value)
 
 	// make sure different xid errors produce distinct metric contexts
-	cache.events = []ddnvml.DeviceEventData{
+	cache.events = []safenvml.DeviceEventData{
 		{
 			DeviceUUID: uuid,
 			EventType:  nvml.EventTypeXidCriticalError,

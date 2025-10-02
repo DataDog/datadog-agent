@@ -202,25 +202,25 @@ func (s *safeNvml) GpmMetricsGet(metrics *nvml.GpmMetricsGetType) error {
 	return NewNvmlAPIErrorOrNil("GpmMetricsGet", ret)
 }
 
-func (d *safeNvml) EventSetCreate() (nvml.EventSet, error) {
-	if err := d.lookup("nvmlEventSetCreate"); err != nil {
+func (s *safeNvml) EventSetCreate() (nvml.EventSet, error) {
+	if err := s.lookup("nvmlEventSetCreate"); err != nil {
 		return nil, err
 	}
-	evtSet, ret := d.lib.EventSetCreate()
+	evtSet, ret := s.lib.EventSetCreate()
 	return evtSet, NewNvmlAPIErrorOrNil("nvmlEventSetCreate", ret)
 }
 
-func (d *safeNvml) EventSetFree(evtSet nvml.EventSet) error {
-	if err := d.lookup("nvmlEventSetFree"); err != nil {
+func (s *safeNvml) EventSetFree(evtSet nvml.EventSet) error {
+	if err := s.lookup("nvmlEventSetFree"); err != nil {
 		return err
 	}
-	ret := d.lib.EventSetFree(evtSet)
+	ret := s.lib.EventSetFree(evtSet)
 	return NewNvmlAPIErrorOrNil("nvmlEventSetFree", ret)
 }
 
-func (d *safeNvml) EventSetWait(evtSet nvml.EventSet, timeout time.Duration) (DeviceEventData, error) {
-	v1Err := errors.Join(d.lookup("nvmlEventSetWait_v1"))
-	v2Err := errors.Join(d.lookup("nvmlEventSetWait_v2"))
+func (s *safeNvml) EventSetWait(evtSet nvml.EventSet, timeout time.Duration) (DeviceEventData, error) {
+	v1Err := errors.Join(s.lookup("nvmlEventSetWait_v1"))
+	v2Err := errors.Join(s.lookup("nvmlEventSetWait_v2"))
 	if v1Err != nil && v2Err != nil {
 		return DeviceEventData{}, errors.Join(v1Err, v2Err)
 	}
@@ -228,7 +228,7 @@ func (d *safeNvml) EventSetWait(evtSet nvml.EventSet, timeout time.Duration) (De
 		return DeviceEventData{}, errors.New("can't use sub-millisecond timeout in EventSetWait")
 	}
 
-	data, ret := d.lib.EventSetWait(evtSet, uint32(timeout.Milliseconds()))
+	data, ret := s.lib.EventSetWait(evtSet, uint32(timeout.Milliseconds()))
 	retErr := NewNvmlAPIErrorOrNil("nvmlEventSetWait", ret)
 	safeData := DeviceEventData{
 		EventType:         data.EventType,
@@ -239,7 +239,7 @@ func (d *safeNvml) EventSetWait(evtSet nvml.EventSet, timeout time.Duration) (De
 
 	// attempt safe resolution of device UUID
 	if data.Device != nil {
-		uuid, err := (&safeDeviceImpl{nvmlDevice: data.Device, lib: d}).GetUUID()
+		uuid, err := (&safeDeviceImpl{nvmlDevice: data.Device, lib: s}).GetUUID()
 		if err != nil {
 			err = fmt.Errorf("can't retrieve device UUID: %w", err)
 			return DeviceEventData{}, errors.Join(err, retErr)
