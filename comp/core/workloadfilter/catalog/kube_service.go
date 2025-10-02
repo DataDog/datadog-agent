@@ -16,32 +16,14 @@ import (
 // LegacyServiceMetricsProgram creates a program for filtering service metrics
 func LegacyServiceMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyServiceMetricsProgram"
-	var initErrors []error
-
-	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.ServiceType)
-	if includeErr != nil {
-		initErrors = append(initErrors, includeErr)
-		logger.Warnf("error creating include program for %s: %v", programName, includeErr)
-	}
-
-	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.ServiceType)
-	if excludeErr != nil {
-		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Include:              includeProgram,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
+	include := config.GetStringSlice("container_include_metrics")
+	exclude := config.GetStringSlice("container_exclude_metrics")
+	return createFromOldFilters(programName, include, exclude, workloadfilter.ServiceType, logger)
 }
 
 // LegacyServiceGlobalProgram creates a program for filtering services globally
 func LegacyServiceGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyServiceGlobalProgram"
-	var initErrors []error
 
 	includeList := config.GetStringSlice("container_include")
 	excludeList := config.GetStringSlice("container_exclude")
@@ -53,23 +35,5 @@ func LegacyServiceGlobalProgram(config config.Component, logger log.Component) p
 		// fallback and support legacy "ac_exclude" config
 		excludeList = config.GetStringSlice("ac_exclude")
 	}
-
-	includeProgram, includeErr := createProgramFromOldFilters(includeList, workloadfilter.ServiceType)
-	if includeErr != nil {
-		initErrors = append(initErrors, includeErr)
-		logger.Warnf("error creating include program for %s: %v", programName, includeErr)
-	}
-
-	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.ServiceType)
-	if excludeErr != nil {
-		initErrors = append(initErrors, excludeErr)
-		logger.Warnf("error creating exclude program for %s: %v", programName, excludeErr)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Include:              includeProgram,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
+	return createFromOldFilters(programName, includeList, excludeList, workloadfilter.ServiceType, logger)
 }
