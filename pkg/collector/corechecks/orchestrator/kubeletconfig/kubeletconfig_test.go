@@ -8,6 +8,7 @@
 package kubeletconfig
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -18,6 +19,8 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
@@ -25,14 +28,19 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
-	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+
+	stypes "github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var testHostName = "test-host"
@@ -44,8 +52,49 @@ type fakeSender struct {
 	manifests []process.MessageBody
 }
 
+type fakeDCAClient struct{}
+
+func (f *fakeDCAClient) Version(withRefresh bool) version.Version                 { panic("not used") }
+func (f *fakeDCAClient) ClusterAgentAPIEndpoint() string                          { panic("not used") }
+func (f *fakeDCAClient) GetNodeLabels(nodeName string) (map[string]string, error) { panic("not used") }
+func (f *fakeDCAClient) GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error) {
+	panic("not used")
+}
+func (f *fakeDCAClient) GetNodeUID(nodeName string) (string, error) {
+	return "uid-test-123", nil
+}
+func (f *fakeDCAClient) GetNamespaceLabels(nsName string) (map[string]string, error) {
+	panic("not used")
+}
+func (f *fakeDCAClient) GetNamespaceMetadata(nsName string) (*clusteragent.Metadata, error) {
+	panic("not used")
+}
+func (f *fakeDCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error) {
+	panic("not used")
+}
+func (f *fakeDCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error) {
+	panic("not used")
+}
+func (f *fakeDCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
+	panic("not used")
+}
+func (f *fakeDCAClient) PostClusterCheckStatus(ctx context.Context, nodeName string, status types.NodeStatus) (types.StatusResponse, error) {
+	panic("not used")
+}
+func (f *fakeDCAClient) GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
+	panic("not used")
+}
+func (f *fakeDCAClient) GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
+	panic("not used")
+}
+func (f *fakeDCAClient) GetKubernetesClusterID() (string, error) { panic("not used") }
+func (f *fakeDCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error {
+	panic("not used")
+}
+func (f *fakeDCAClient) SupportsNamespaceMetadataCollection() bool { panic("not used") }
+
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (s *fakeSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string) {
+func (s *fakeSender) OrchestratorManifest(msgs []stypes.ProcessMessageBody, clusterID string) {
 	s.manifests = append(s.manifests, msgs...)
 }
 
@@ -96,6 +145,11 @@ func (suite *KubeletConfigTestSuite) SetupSuite() {
 		tagger:   fakeTagger,
 		store:    mockStore,
 	}
+
+	getClusterAgentClient = func() (clusteragent.DCAClientInterface, error) {
+		return &fakeDCAClient{}, nil
+	}
+
 }
 
 func (suite *KubeletConfigTestSuite) TearDownSuite() {

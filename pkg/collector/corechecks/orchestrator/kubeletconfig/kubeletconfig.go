@@ -43,6 +43,8 @@ const CheckName = "orchestrator_kubelet_config"
 const kubeletVirtualKind = "KubeletConfiguration"
 const kubeletVirtualAPIVersion = "virtual.datadoghq.com/v1"
 
+var getClusterAgentClient = clusteragent.GetClusterAgentClient
+
 var groupID atomic.Int32
 
 func nextGroupID() int32 {
@@ -206,7 +208,7 @@ func (c *Check) Run() error {
 
 func getNodeUID(nodeName string) (string, error) {
 	if pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") {
-		cl, err := clusteragent.GetClusterAgentClient()
+		cl, err := getClusterAgentClient()
 		if err != nil {
 			return "", err
 		}
