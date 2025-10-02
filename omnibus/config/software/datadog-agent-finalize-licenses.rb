@@ -5,12 +5,13 @@
 
 name "datadog-agent-finalize-licenses"
 description "steps required to remove licenses"
-
+skip_transitive_dependency_licensing true
 always_build true
 
 build do
-  if linux_target?
-    command "tar -czf #{install_dir}/LICENSES.tar.gz #{install_dir}/LICENSES"
-    delete "#{install_dir}/LICENSES"
+  # compress separately each license file in the install dir
+  Dir.glob("#{install_dir}/LICENSES/*").each do |license_file|
+    command "tar -czf #{license_file}.tar.gz #{license_file}"
+    delete "#{license_file}"
   end
 end
