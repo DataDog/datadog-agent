@@ -721,7 +721,7 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: defaultMetricTransformers(),
+			metricTransformers: defaultMetricTransformers(nil),
 			expected: []metricsExpected{
 				{
 					name: "kubernetes_state_customresource.metric_info",
