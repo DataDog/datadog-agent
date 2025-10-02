@@ -127,11 +127,11 @@ type Tailer struct {
 
 	// Partial fingerprint buffering fields
 	// When a file starts empty, we accumulate data in a buffer until we have enough to compute a fingerprint
-	fingerprintBuffer         []byte
-	fingerprintBufferOffset   int
-	fingerprintBufferSize     int
-	fingerprintBytesToSkip    int
-	isPartialFingerprintState *atomic.Bool
+	fingerprintBuffer       []byte
+	fingerprintBufferOffset int
+	fingerprintBufferSize   int
+	fingerprintBytesToSkip  int
+	isPartialFingerprint    *atomic.Bool
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -180,35 +180,35 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	opts.Info.Register(movingSum)
 
 	t := &Tailer{
-		file:                      opts.File,
-		outputChan:                opts.OutputChan,
-		decoder:                   opts.Decoder,
-		tagProvider:               tagProvider,
-		lastReadOffset:            atomic.NewInt64(0),
-		decodedOffset:             atomic.NewInt64(0),
-		sleepDuration:             opts.SleepDuration,
-		closeTimeout:              closeTimeout,
-		windowsOpenFileTimeout:    windowsOpenFileTimeout,
-		stop:                      make(chan struct{}, 1),
-		done:                      make(chan struct{}, 1),
-		forwardContext:            forwardContext,
-		stopForward:               stopForward,
-		isFinished:                atomic.NewBool(false),
-		didFileRotate:             atomic.NewBool(false),
-		info:                      opts.Info,
-		bytesRead:                 bytesRead,
-		movingSum:                 movingSum,
-		fingerprint:               opts.Fingerprint,
-		CapacityMonitor:           opts.CapacityMonitor,
-		registry:                  opts.Registry,
-		isPartialFingerprintState: atomic.NewBool(false),
+		file:                   opts.File,
+		outputChan:             opts.OutputChan,
+		decoder:                opts.Decoder,
+		tagProvider:            tagProvider,
+		lastReadOffset:         atomic.NewInt64(0),
+		decodedOffset:          atomic.NewInt64(0),
+		sleepDuration:          opts.SleepDuration,
+		closeTimeout:           closeTimeout,
+		windowsOpenFileTimeout: windowsOpenFileTimeout,
+		stop:                   make(chan struct{}, 1),
+		done:                   make(chan struct{}, 1),
+		forwardContext:         forwardContext,
+		stopForward:            stopForward,
+		isFinished:             atomic.NewBool(false),
+		didFileRotate:          atomic.NewBool(false),
+		info:                   opts.Info,
+		bytesRead:              bytesRead,
+		movingSum:              movingSum,
+		fingerprint:            opts.Fingerprint,
+		CapacityMonitor:        opts.CapacityMonitor,
+		registry:               opts.Registry,
+		isPartialFingerprint:   atomic.NewBool(false),
 	}
 
 	// Initialize partial fingerprint buffering if we have an invalid fingerprint (e.g., empty file)
 	if opts.Fingerprint == nil || !opts.Fingerprint.IsValidFingerprint() {
 		fingerprintConfig := opts.File.Source.Config().FingerprintConfig
 		if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == logstypes.FingerprintStrategyByteChecksum { // TODO: this is only byte-based fingerprinting ...
-			t.isPartialFingerprintState.Store(true)
+			t.isPartialFingerprint.Store(true)
 			t.fingerprintBufferSize = fingerprintConfig.Count
 			t.fingerprintBytesToSkip = fingerprintConfig.CountToSkip
 			t.fingerprintBuffer = make([]byte, fingerprintConfig.Count)
@@ -332,7 +332,7 @@ func (t *Tailer) StopAfterFileRotation() {
 
 // accumulateForFingerprint accumulates data in the fingerprint buffer until we have enough to compute a fingerprint
 func (t *Tailer) accumulateForFingerprint(data []byte) {
-	if !t.isPartialFingerprintState.Load() {
+	if !t.isPartialFingerprint.Load() {
 		return
 	}
 
@@ -365,7 +365,7 @@ func (t *Tailer) accumulateForFingerprint(data []byte) {
 // computeFingerprintFromBuffer computes the final fingerprint from the accumulated buffer and exits partial state
 // This is ONLY called when the buffer is full (reached target size)
 func (t *Tailer) computeFingerprintFromBuffer() {
-	if !t.isPartialFingerprintState.Load() {
+	if !t.isPartialFingerprint.Load() {
 		return
 	}
 
@@ -392,7 +392,7 @@ func (t *Tailer) computeFingerprintFromBuffer() {
 
 	// Update the tailer's fingerprint and exit partial state
 	t.fingerprint = newFingerprint
-	t.isPartialFingerprintState.Store(false)
+	t.isPartialFingerprint.Store(false)
 	t.fingerprintBuffer = nil
 
 	log.Infof("Computed full fingerprint 0x%x from accumulated buffer for %s (%d bytes)",
@@ -402,7 +402,7 @@ func (t *Tailer) computeFingerprintFromBuffer() {
 // getPartialFingerprintFromBuffer computes a temporary fingerprint from the current buffer without clearing it
 // This is used for rotation detection while still accumulating data
 func (t *Tailer) getPartialFingerprintFromBuffer() *logstypes.Fingerprint {
-	if !t.isPartialFingerprintState.Load() {
+	if !t.isPartialFingerprint.Load() {
 		return nil
 	}
 

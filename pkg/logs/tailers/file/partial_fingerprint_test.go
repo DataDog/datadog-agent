@@ -78,7 +78,7 @@ func (suite *PartialFingerprintTestSuite) TestTailerStartsInPartialFingerprintSt
 	tailer := NewTailer(opts)
 
 	// Verify tailer is in partial fingerprint state
-	suite.True(tailer.isPartialFingerprintState.Load(), "Tailer should start in partial fingerprint state")
+	suite.True(tailer.isPartialFingerprint.Load(), "Tailer should start in partial fingerprint state")
 	suite.NotNil(tailer.fingerprintBuffer, "Fingerprint buffer should be allocated")
 	suite.Equal(1024, tailer.fingerprintBufferSize, "Buffer size should match config")
 	suite.Equal(0, tailer.fingerprintBytesToSkip, "Bytes to skip should match config")
@@ -115,7 +115,7 @@ func (suite *PartialFingerprintTestSuite) TestAccumulateDataInBuffer() {
 	// Verify data was accumulated
 	suite.Equal(len(testData), tailer.fingerprintBufferOffset, "Buffer offset should advance")
 	suite.Equal(testData, tailer.fingerprintBuffer[:len(testData)], "Data should be stored in buffer")
-	suite.True(tailer.isPartialFingerprintState.Load(), "Should still be in partial state")
+	suite.True(tailer.isPartialFingerprint.Load(), "Should still be in partial state")
 }
 
 // TestComputeFingerprintWhenBufferFull tests that fingerprint is computed when buffer is full
@@ -149,7 +149,7 @@ func (suite *PartialFingerprintTestSuite) TestComputeFingerprintWhenBufferFull()
 	tailer.accumulateForFingerprint(data)
 
 	// Verify fingerprint was computed and buffer cleared
-	suite.False(tailer.isPartialFingerprintState.Load(), "Should exit partial state when buffer full")
+	suite.False(tailer.isPartialFingerprint.Load(), "Should exit partial state when buffer full")
 	suite.Nil(tailer.fingerprintBuffer, "Buffer should be cleared")
 	suite.NotNil(tailer.fingerprint, "Fingerprint should be set")
 	suite.Equal(1024, tailer.fingerprint.BytesUsed, "Should use full buffer")
@@ -193,7 +193,7 @@ func (suite *PartialFingerprintTestSuite) TestGetPartialFingerprintFromBuffer() 
 	suite.NotEqual(uint64(0), partialFP.Value, "Should have non-zero checksum")
 
 	// Verify buffer is NOT cleared and state is unchanged
-	suite.True(tailer.isPartialFingerprintState.Load(), "Should still be in partial state")
+	suite.True(tailer.isPartialFingerprint.Load(), "Should still be in partial state")
 	suite.NotNil(tailer.fingerprintBuffer, "Buffer should NOT be cleared")
 	suite.Equal(len(testData), tailer.fingerprintBufferOffset, "Buffer offset should be unchanged")
 }

@@ -260,14 +260,20 @@ func (s *Launcher) scan() {
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
 			// Skip files with invalid fingerprints (Value == 0)
-			if (fingerprint != nil && !fingerprint.IsValidFingerprint()) || err != nil {
-				// If fingerprint is invalid, persist the old info back into the map for future attempts
-				if hasOldInfo {
-					s.oldInfoMap[scanKey] = oldInfo
-				}
+
+			// // testingkjdskfljdsf
+			// if (fingerprint != nil && !fingerprint.IsValidFingerprint()) || err != nil {
+			// 	// If fingerprint is invalid, persist the old info back into the map for future attempts
+			// 	if hasOldInfo {
+			// 		s.oldInfoMap[scanKey] = oldInfo
+			// 	}
+			// 	continue  // ← BUG! This skips empty files!
+			// }
+			if err != nil {
+				// Skip on errors
 				continue
 			}
-
+			// Allow tailing with invalid fingerprints (empty files) to capture partial fingerprints when written
 		}
 
 		if hasOldInfo {
@@ -355,7 +361,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 				continue
 			}
 			// Allow tailing with invalid fingerprints (empty files) to capture partial fingerprints when written
-			// TODO: distinctions btw types of invalid fingerprints (empty files, invalid fingerprints, etc.)? 
+			// TODO: distinctions btw types of invalid fingerprints (empty files, invalid fingerprints, etc.)?
 		}
 
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)

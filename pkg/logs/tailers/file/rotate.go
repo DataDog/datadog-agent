@@ -42,7 +42,7 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, er
 // If still buffering, returns a temporary partial fingerprint without clearing the buffer
 func (t *Tailer) getCurrentFingerprintForComparison() *logstypes.Fingerprint {
 	// If still accumulating data, get temporary partial fingerprint
-	if t.isPartialFingerprintState != nil && t.isPartialFingerprintState.Load() {
+	if t.isPartialFingerprint != nil && t.isPartialFingerprint.Load() {
 		log.Debugf("Still accumulating fingerprint buffer for %s, getting temporary partial fingerprint", t.file.Path)
 		partialFingerprint := t.getPartialFingerprintFromBuffer()
 		if partialFingerprint != nil && partialFingerprint.IsValidFingerprint() {
