@@ -16,6 +16,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -55,9 +56,10 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 				tags = append(tags, clusterTagNamePrefix+cluster)
 			}
 		}
-		clusterIDValue, _ := clustername.GetClusterID()
-		if clusterIDValue != "" {
-			tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
+
+		clusterAgentStaticTags, err := clusterinfo.GetClusterAgentStaticTagsWithRetry()
+		if err != nil {
+			tags = append(tags, clusterAgentStaticTags...)
 		}
 	}
 
