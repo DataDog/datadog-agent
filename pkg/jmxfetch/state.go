@@ -128,8 +128,6 @@ func GetIntegrations() (map[string]interface{}, error) {
 		integration.ConfigSourceToMetadataMap(config.Source, c)
 		c["instances"] = instances
 		c["check_name"] = config.Name
-		c["config.source"] = config.Source
-		c["config.provider"] = config.Provider
 
 		configs[name] = c
 	}

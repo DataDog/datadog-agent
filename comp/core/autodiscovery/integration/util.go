@@ -25,7 +25,7 @@ func ConfigSourceToMetadataMap(source string, instance map[string]interface{}) {
 	if len(splitSource) > 1 {
 		instance["config.source"] = splitSource[1]
 	} else {
-		instance["config.source"] = "unknown"
+		instance["config.source"] = source
 	}
 }
 
