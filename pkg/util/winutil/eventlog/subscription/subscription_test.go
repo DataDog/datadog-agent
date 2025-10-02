@@ -177,7 +177,10 @@ func formatEventMessage(api evtapi.API, cache *publishermetadatacache.PublisherM
 	}
 
 	// Format Message
-	message := cache.FormatMessage(provider, event.EventRecordHandle, evtapi.EvtFormatMessageEvent)
+	message, err := cache.FormatMessage(provider, event.EventRecordHandle, evtapi.EvtFormatMessageEvent)
+	if err != nil {
+		return "", fmt.Errorf("failed to format message: %w", err)
+	}
 
 	return message, nil
 }
