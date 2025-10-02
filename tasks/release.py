@@ -928,35 +928,35 @@ def cleanup(ctx, release_branch):
             raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
 
         version = _create_version_from_match(match)
-        current_milestone = _update_last_stable(ctx, version, major_version=major_version)
+        # current_milestone = _update_last_stable(ctx, version, major_version=major_version)
 
-        # create pull request to update last stable version
-        cleanup_branch = f"release/{version}-cleanup"
-        ctx.run(f"git checkout -b {cleanup_branch}")
-        ctx.run("git add release.json")
+        # # create pull request to update last stable version
+        # cleanup_branch = f"release/{version}-cleanup"
+        # ctx.run(f"git checkout -b {cleanup_branch}")
+        # ctx.run("git add release.json")
 
-        commit_message = f"Update last_stable to {version}"
-        set_gitconfig_in_ci(ctx)
-        ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {cleanup_branch} branch and then open a PR against {main_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
+        # commit_message = f"Update last_stable to {version}"
+        # set_gitconfig_in_ci(ctx)
+        # ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
+        # if not ok:
+        #     raise Exit(
+        #         color_message(
+        #             f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {cleanup_branch} branch and then open a PR against {main_branch}.",
+        #             "red",
+        #         ),
+        #         code=1,
+        #     )
 
-        if not ctx.run(f"git push --set-upstream origin {cleanup_branch}", warn=True):
-            raise Exit(
-                color_message(
-                    f"Could not push branch {cleanup_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
+        # if not ctx.run(f"git push --set-upstream origin {cleanup_branch}", warn=True):
+        #     raise Exit(
+        #         color_message(
+        #             f"Could not push branch {cleanup_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
+        #             "red",
+        #         ),
+        #         code=1,
+        #     )
 
-        create_release_pr(commit_message, main_branch, cleanup_branch, version, milestone=current_milestone)
+        # create_release_pr(commit_message, main_branch, cleanup_branch, version, milestone=current_milestone)
 
     if major_version != 6:
         edit_schedule(ctx, 2555, ref=version.branch())
