@@ -7,7 +7,14 @@ typedef struct probe_params {
   uint32_t throttler_idx;
   uint32_t stack_machine_pc;
   uint32_t pointer_chasing_limit;
+  uint32_t collection_size_limit;
+  uint32_t string_size_limit;
+  uint32_t probe_id;
   bool frameless;
+  bool has_associated_return;
+  char kind; // actually an event_kind_t
+  char top_pc_offset;
+  char __padding[4];
 } probe_params_t;
 
 typedef struct throttler_params {
@@ -15,10 +22,26 @@ typedef struct throttler_params {
   int64_t budget;
 } throttler_params_t;
 
+typedef enum dynamic_size_class {
+  DYNAMIC_SIZE_CLASS_STATIC = 0,
+  DYNAMIC_SIZE_CLASS_SLICE = 1,
+  DYNAMIC_SIZE_CLASS_STRING = 2,
+  DYNAMIC_SIZE_CLASS_HASHMAP = 3,
+} dynamic_size_class_t;
+
 typedef struct type_info {
+  dynamic_size_class_t dynamic_size_class;
   uint32_t byte_len;
   uint32_t enqueue_pc;
+  uint32_t __padding;
 } type_info_t;
+
+// To be kept in sync with the ir/event_kind.go file.
+typedef enum event_kind {
+  EVENT_KIND_INVALID = 0,
+  EVENT_KIND_ENTRY = 1,
+  EVENT_KIND_RETURN = 2,
+} event_kind_t;
 
 typedef enum sm_opcode {
   SM_OP_INVALID = 0,
@@ -54,30 +77,54 @@ typedef enum sm_opcode {
 #ifdef DYNINST_DEBUG
 static const char* op_code_name(sm_opcode_t op_code) {
   switch (op_code) {
-  case SM_OP_INVALID: return "INVALID";
-  case SM_OP_CALL: return "CALL";
-  case SM_OP_RETURN: return "RETURN";
-  case SM_OP_ILLEGAL: return "ILLEGAL";
-  case SM_OP_INCREMENT_OUTPUT_OFFSET: return "INCREMENT_OUTPUT_OFFSET";
-  case SM_OP_EXPR_PREPARE: return "EXPR_PREPARE";
-  case SM_OP_EXPR_SAVE: return "EXPR_SAVE";
-  case SM_OP_EXPR_DEREFERENCE_CFA: return "EXPR_DEREFERENCE_CFA";
-  case SM_OP_EXPR_READ_REGISTER: return "EXPR_READ_REGISTER";
-  case SM_OP_EXPR_DEREFERENCE_PTR: return "EXPR_DEREFERENCE_PTR";
-  case SM_OP_PROCESS_POINTER: return "PROCESS_POINTER";
-  case SM_OP_PROCESS_SLICE: return "PROCESS_SLICE";
-  case SM_OP_PROCESS_ARRAY_DATA_PREP: return "PROCESS_ARRAY_DATA_PREP";
-  case SM_OP_PROCESS_SLICE_DATA_PREP: return "PROCESS_SLICE_DATA_PREP";
-  case SM_OP_PROCESS_SLICE_DATA_REPEAT: return "PROCESS_SLICE_DATA_REPEAT";
-  case SM_OP_PROCESS_STRING: return "PROCESS_STRING";
-  case SM_OP_PROCESS_GO_EMPTY_INTERFACE: return "PROCESS_GO_EMPTY_INTERFACE";
-  case SM_OP_PROCESS_GO_INTERFACE: return "PROCESS_GO_INTERFACE";
-  case SM_OP_PROCESS_GO_HMAP: return "PROCESS_GO_HMAP";
-  case SM_OP_PROCESS_GO_SWISS_MAP: return "PROCESS_GO_SWISS_MAP";
-  case SM_OP_PROCESS_GO_SWISS_MAP_GROUPS: return "PROCESS_GO_SWISS_MAP_GROUPS";
-  case SM_OP_CHASE_POINTERS: return "CHASE_POINTERS";
-  case SM_OP_PREPARE_EVENT_ROOT: return "PREPARE_EVENT_ROOT";
-  default: break;
+  case SM_OP_INVALID:
+    return "INVALID";
+  case SM_OP_CALL:
+    return "CALL";
+  case SM_OP_RETURN:
+    return "RETURN";
+  case SM_OP_ILLEGAL:
+    return "ILLEGAL";
+  case SM_OP_INCREMENT_OUTPUT_OFFSET:
+    return "INCREMENT_OUTPUT_OFFSET";
+  case SM_OP_EXPR_PREPARE:
+    return "EXPR_PREPARE";
+  case SM_OP_EXPR_SAVE:
+    return "EXPR_SAVE";
+  case SM_OP_EXPR_DEREFERENCE_CFA:
+    return "EXPR_DEREFERENCE_CFA";
+  case SM_OP_EXPR_READ_REGISTER:
+    return "EXPR_READ_REGISTER";
+  case SM_OP_EXPR_DEREFERENCE_PTR:
+    return "EXPR_DEREFERENCE_PTR";
+  case SM_OP_PROCESS_POINTER:
+    return "PROCESS_POINTER";
+  case SM_OP_PROCESS_SLICE:
+    return "PROCESS_SLICE";
+  case SM_OP_PROCESS_ARRAY_DATA_PREP:
+    return "PROCESS_ARRAY_DATA_PREP";
+  case SM_OP_PROCESS_SLICE_DATA_PREP:
+    return "PROCESS_SLICE_DATA_PREP";
+  case SM_OP_PROCESS_SLICE_DATA_REPEAT:
+    return "PROCESS_SLICE_DATA_REPEAT";
+  case SM_OP_PROCESS_STRING:
+    return "PROCESS_STRING";
+  case SM_OP_PROCESS_GO_EMPTY_INTERFACE:
+    return "PROCESS_GO_EMPTY_INTERFACE";
+  case SM_OP_PROCESS_GO_INTERFACE:
+    return "PROCESS_GO_INTERFACE";
+  case SM_OP_PROCESS_GO_HMAP:
+    return "PROCESS_GO_HMAP";
+  case SM_OP_PROCESS_GO_SWISS_MAP:
+    return "PROCESS_GO_SWISS_MAP";
+  case SM_OP_PROCESS_GO_SWISS_MAP_GROUPS:
+    return "PROCESS_GO_SWISS_MAP_GROUPS";
+  case SM_OP_CHASE_POINTERS:
+    return "CHASE_POINTERS";
+  case SM_OP_PREPARE_EVENT_ROOT:
+    return "PREPARE_EVENT_ROOT";
+  default:
+    break;
   }
   return "UNKNOWN";
 }

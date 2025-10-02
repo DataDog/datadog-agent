@@ -22,6 +22,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -192,18 +193,54 @@ func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	} else {
 		cr.hostWorkloads.Add(process.CGroup.CGroupID, newCGroup)
 	}
-	cr.cgroups.Add(process.CGroup.CGroupFile.Inode, &process.CGroup)
+	// Cache a copy instead of a pointer to avoid race conditions
+	cgroupCopy := process.CGroup
+	cr.cgroups.Add(process.CGroup.CGroupFile.Inode, &cgroupCopy)
 
 	cr.NotifyListeners(CGroupCreated, newCGroup)
 }
 
 // AddPID update the cgroup cache to associates a cgroup and a pid
+// Returns true if the kernel maps need to be synced (if we update somehow the process)
 func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	found := false
+	if process.CGroup.CGroupID == "" || process.CGroup.CGroupFile.Inode == 0 {
+		// it should not happen, but we have to fallback in this case
+		cid, cgroup, _, err := cr.cgroupFS.FindCGroupContext(process.Pid, process.Pid)
+		if err == nil {
+			process.CGroup.CGroupFile.MountID = cgroup.CGroupFileMountID
+			process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
+			process.CGroup.CGroupID = cgroup.CGroupID
+			process.ContainerID = cid
+			seclog.Infof("Fallback to resolve cgroup for pid %d: %s", process.Pid, cgroup.CGroupID)
+		} else {
+			// fallback can fail for short lived processes, in this case we assign the parent cgroup
+			// first we look for its parent cgroup
+			found := false
+			cr.iterate(func(entry *cgroupModel.CacheEntry) bool {
+				_, exist := entry.PIDs[process.PPid]
+				if exist {
+					process.CGroup.CGroupFile.MountID = entry.CGroupFile.MountID
+					process.CGroup.CGroupFile.Inode = entry.CGroupFile.Inode
+					process.CGroup.CGroupID = entry.CGroupID
+					process.ContainerID = entry.ContainerID
+					found = true
+					seclog.Infof("Fallback to resolve cgroup for pid from parent %d: %s", process.Pid, cgroup.CGroupID)
+					return true
+				}
+				return false
+			})
+			// if still not found, just return
+			if !found {
+				seclog.Errorf("Failed to add pid %d, error on fallback to resolve its cgroup: %v", process.Pid, err)
+				return
+			}
+		}
+	}
 
+	found := false
 	for _, cgroup := range cr.hostWorkloads.Values() {
 		cgroup.Lock()
 		if cgroup.CGroupFile == process.CGroup.CGroupFile {
@@ -242,19 +279,31 @@ func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (*model.CGroupCon
 	cr.Lock()
 	defer cr.Unlock()
 
-	return cr.cgroups.Get(cgroupPath.Inode)
+	if cgroupContext, found := cr.cgroups.Get(cgroupPath.Inode); found {
+		// Return a copy to avoid race conditions when dereferencing the shared pointer
+		cgroupContextCopy := *cgroupContext
+		return &cgroupContextCopy, true
+	}
+	return nil, false
 }
 
-// Iterate iterates on all cached cgroups
-func (cr *Resolver) Iterate(cb func(*cgroupModel.CacheEntry)) {
+// Iterate iterates on all cached cgroups, callback may return 'true' to break iteration
+func (cr *Resolver) Iterate(cb func(*cgroupModel.CacheEntry) bool) {
 	cr.Lock()
 	defer cr.Unlock()
+	cr.iterate(cb)
+}
 
+func (cr *Resolver) iterate(cb func(*cgroupModel.CacheEntry) bool) {
 	for _, cgroup := range cr.hostWorkloads.Values() {
-		cb(cgroup)
+		if cb(cgroup) {
+			return
+		}
 	}
 	for _, cgroup := range cr.containerWorkloads.Values() {
-		cb(cgroup)
+		if cb(cgroup) {
+			return
+		}
 	}
 }
 

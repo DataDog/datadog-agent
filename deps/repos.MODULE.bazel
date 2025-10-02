@@ -1,7 +1,6 @@
 # 3rd party dependencies
 
-# Defines a "bz2" target for the lib, "bzip2" for the CLI tool
-bazel_dep(name = "bzip2", version = "1.0.8.bcr.2")
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 # Defines a "libyaml" target for the lib
 bazel_dep(name = "libyaml", version = "0.2.5")
@@ -15,22 +14,33 @@ bazel_dep(name = "sqlite3", version = "3.46.1")
 # Defines a "lzma" target for the lib, "xz" for the CLI tools
 bazel_dep(name = "xz", version = "5.4.5.bcr.5")
 
-# Defines a "zlib" target for the lib
-bazel_dep(name = "zlib", version = "1.3.1.bcr.3")
+http_archive(
+    name = "zlib",
+    build_file = "//deps:zlib.BUILD.bazel",
+    sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+    strip_prefix = "zlib-1.3.1",
+    url = "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
+)
+
+http_archive(
+    name = "bzip2",
+    build_file = "//deps:bzip2.BUILD.bazel",
+    sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+    strip_prefix = "bzip2-1.0.8",
+    # The canonical source is in https://sourceware.org/pub/bzip2/, but the Bazel
+    # team mirror is more reliable.
+    url = "https://mirror.bazel.build/sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+)
 
 # Defines a "rules_foreign_cc" target to build openssl
 bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
 http_archive(
     name = "openssl",
     build_file = "//deps:openssl.BUILD.bazel",
-    patch_args = ["-p1"],
-    patches = ["//omnibus/config/patches/openssl3:0001-fix-preprocessor-concatenation.patch"],
-    sha256 = "002a2d6b30b58bf4bea46c43bdd96365aaf8daa6c428782aa4feee06da197df3",
-    strip_prefix = "openssl-3.4.1",
-    url = "https://www.openssl.org/source/openssl-3.4.1.tar.gz",
+    sha256 = "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99",
+    strip_prefix = "openssl-3.5.4",
+    url = "https://www.openssl.org/source/openssl-3.5.4.tar.gz",
 )
 
 bazel_dep(name = "gcc_toolchain")
@@ -62,5 +72,5 @@ use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
-    dev_dependency = True,
+    "//bazel/toolchains/mingw:mingw_cc_toolchain",
 )

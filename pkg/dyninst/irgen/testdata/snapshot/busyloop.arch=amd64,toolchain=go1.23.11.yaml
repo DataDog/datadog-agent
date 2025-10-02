@@ -10,6 +10,7 @@ Probes:
       subprogram: {subprogram: 1}
       events:
         - ID: 1
+          Kind: Entry
           Type: 105 EventRootType Probe[main.noop]
           InjectionPoints: [{PC: "0x4a5f60", Frameless: true}]
           Condition: null
@@ -320,7 +321,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 101
       Name: '[]uint8.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 1
       Element: 3 BaseType uint8
     - __kind: GoSliceHeaderType
       ID: 43
@@ -342,7 +344,8 @@ Types:
     - __kind: GoSliceDataType
       ID: 103
       Name: '[]uintptr.array'
-      ByteSize: 2048
+      DynamicSizeClass: slice
+      ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: BaseType
       ID: 4
@@ -1255,7 +1258,8 @@ Types:
     - __kind: GoStringDataType
       ID: 99
       Name: string.str
-      ByteSize: 2048
+      DynamicSizeClass: string
+      ByteSize: 1
     - __kind: BaseType
       ID: 15
       Name: uint

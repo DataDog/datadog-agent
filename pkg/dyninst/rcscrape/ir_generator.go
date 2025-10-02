@@ -26,7 +26,15 @@ func (irGenerator) GenerateIR(
 	programID ir.ProgramID,
 	binaryPath string,
 	probes []ir.ProbeDefinition,
-) (*ir.Program, error) {
+) (ret *ir.Program, retErr error) {
+	defer func() {
+		if retErr != nil {
+			return
+		}
+		if len(ret.Probes) == 0 {
+			retErr = &ir.NoSuccessfulProbesError{Issues: ret.Issues}
+		}
+	}()
 	var v1Def, v2Def, symdbDef ir.ProbeDefinition
 	for _, probe := range probes {
 		switch id := probe.GetID(); id {
@@ -129,27 +137,6 @@ func (irGenerator) GenerateIR(
 	}
 	if symdb != nil {
 		addSymdbProbe(regs, program, symdbDef, symdb)
-	}
-	program.CommonTypes.G = &ir.StructureType{
-		TypeCommon: ir.TypeCommon{
-			ID:       program.MaxTypeID,
-			Name:     "runtime.g",
-			ByteSize: 0,
-		},
-		RawFields: []ir.Field{
-			{Name: "m", Offset: 0x30, Type: intType},
-			{Name: "goid", Offset: 0x98, Type: intType},
-		},
-	}
-	program.CommonTypes.M = &ir.StructureType{
-		TypeCommon: ir.TypeCommon{
-			ID:       program.MaxTypeID,
-			Name:     "runtime.m",
-			ByteSize: 0,
-		},
-		RawFields: []ir.Field{
-			{Name: "curg", Offset: 0xb8, Type: intType},
-		},
 	}
 	return program, nil
 }

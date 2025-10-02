@@ -32,6 +32,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-dogstatsd"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -136,6 +137,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		// workloadmeta setup
+		workloadfilterfx.Module(),
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
@@ -240,7 +242,7 @@ func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Compone
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if !config.IsSet("api_key") {
+	if !config.IsConfigured("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return
 	}

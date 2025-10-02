@@ -97,7 +97,11 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 			// and the extra messages shouldn't be too noisy.
 			t.Logf("Log: %+v", log)
 			assert.Equal(c, "python-svc-dd", log.Service, "Log service should match")
-			assert.Equal(c, "python.server", log.Source, "Log source should match")
+			assert.Equal(c, "python", log.Source, "Log source should match")
+
+			assert.Contains(c, log.Tags, "service:python-svc-dd")
+			assert.Contains(c, log.Tags, "version:2.1")
+			assert.Contains(c, log.Tags, "env:prod")
 
 			if log.Message == "Server is running on http://0.0.0.0:8082" {
 				foundStartupLog = true

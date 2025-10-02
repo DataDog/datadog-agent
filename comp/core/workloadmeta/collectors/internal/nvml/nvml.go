@@ -112,6 +112,15 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	} else {
 		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
 	}
+
+	virtMode, err := device.GetVirtualizationMode()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
+		}
+	} else {
+		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
+	}
 }
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
@@ -229,5 +238,21 @@ func gpuArchToString(nvmlArch nvml.DeviceArchitecture) string {
 		// to add a new case for a new architecture.
 		return "invalid"
 	}
+}
 
+func gpuVirtModeToString(nvmlVirtMode nvml.GpuVirtualizationMode) string {
+	switch nvmlVirtMode {
+	case nvml.GPU_VIRTUALIZATION_MODE_NONE:
+		return "none"
+	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU:
+		return "host_vgpu"
+	case nvml.GPU_VIRTUALIZATION_MODE_PASSTHROUGH:
+		return "passthrough"
+	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VSGA:
+		return "host_vsga"
+	case nvml.GPU_VIRTUALIZATION_MODE_VGPU:
+		return "vgpu"
+	default:
+		return "unknown"
+	}
 }

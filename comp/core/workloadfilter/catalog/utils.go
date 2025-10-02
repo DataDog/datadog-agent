@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build cel
+
 // Package catalog contains the implementation of the filtering catalogs.
 package catalog
 
@@ -11,11 +13,36 @@ import (
 	"strconv"
 	"strings"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	"github.com/google/cel-go/cel"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	legacyFilter "github.com/DataDog/datadog-agent/pkg/util/containers"
 )
+
+func createFromOldFilters(name string, oldInclude, oldExclude []string, objectType workloadfilter.ResourceType, logger log.Component) program.FilterProgram {
+	var initErrors []error
+
+	includeProgram, includeErr := createProgramFromOldFilters(oldInclude, objectType)
+	if includeErr != nil {
+		initErrors = append(initErrors, includeErr)
+		logger.Warnf("error creating include program for %s: %v", name, includeErr)
+	}
+
+	excludeProgram, excludeErr := createProgramFromOldFilters(oldExclude, objectType)
+	if excludeErr != nil {
+		initErrors = append(initErrors, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", name, excludeErr)
+	}
+
+	return program.CELProgram{
+		Name:                 name,
+		Include:              includeProgram,
+		Exclude:              excludeProgram,
+		InitializationErrors: initErrors,
+	}
+}
 
 // createProgramFromOldFilters handles the conversion of old filters to new filters and creates a CEL program.
 // Returns both the program and any errors encountered during creation.
@@ -38,7 +65,7 @@ func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 		return nil, nil
 	}
 	env, err := cel.NewEnv(
-		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}),
+		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}, &workloadfilter.Process{}),
 		cel.Variable(string(objectType), cel.ObjectType(convertTypeToProtoType(objectType))),
 	)
 	if err != nil {
@@ -138,6 +165,8 @@ func convertTypeToProtoType(key workloadfilter.ResourceType) string {
 		return "datadog.filter.FilterKubeEndpoint"
 	case workloadfilter.ImageType:
 		return "datadog.filter.FilterImage"
+	case workloadfilter.ProcessType:
+		return "datadog.filter.FilterProcess"
 	default:
 		return ""
 	}

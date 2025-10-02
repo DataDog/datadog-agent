@@ -64,6 +64,15 @@ func TestStaticTagsSlice(t *testing.T) {
 	mockConfig.SetWithoutSource("kubernetes_kubelet_nodename", "eksnode")
 	defer mockConfig.SetWithoutSource("kubernetes_kubelet_nodename", "")
 
+	// this test must be kept BEFORE setting eks fargate to test the scenario without EKS fargate set
+	t.Run("provider_kind tag without fargate", func(t *testing.T) {
+		mockConfig.SetWithoutSource("provider_kind", "gke-autopilot")
+		defer mockConfig.SetWithoutSource("provider_kind", "")
+
+		staticTags := GetStaticTagsSlice(context.Background(), mockConfig)
+		assert.ElementsMatch(t, []string{"provider_kind:gke-autopilot"}, staticTags)
+	})
+
 	env.SetFeatures(t, env.EKSFargate)
 
 	t.Run("just tags", func(t *testing.T) {

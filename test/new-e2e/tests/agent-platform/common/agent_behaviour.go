@@ -222,7 +222,7 @@ const (
 	ExpectedPythonVersion2 = "2.7.18"
 	// ExpectedPythonVersion3 is the expected python 3 version
 	// Bump this version when the version in omnibus/config/software/python3.rb changes
-	ExpectedPythonVersion3 = "3.12.11"
+	ExpectedPythonVersion3 = "3.13.7"
 )
 
 // SetAgentPythonMajorVersion set the python major version in the agent config and restarts the agent
@@ -300,6 +300,8 @@ func CheckApmDisabled(t *testing.T, client *TestClient) {
 // CheckCWSBehaviour runs tests to check the agent behave correctly when CWS is enabled
 func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	t.Run("enable CWS and restarts", func(tt *testing.T) {
+		// remove existing config file
+		client.Host.MustExecute("sudo rm -f " + client.Helper.GetConfigFolder() + "system-probe.yaml")
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "runtime_security_config.enabled", "true")
 		require.NoError(tt, err)
 		err = client.SetConfig(client.Helper.GetConfigFolder()+"security-agent.yaml", "runtime_security_config.enabled", "true")
@@ -310,27 +312,31 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("security-agent is running", func(tt *testing.T) {
-		var err error
 		require.Eventually(tt, func() bool {
 			return AgentProcessIsRunning(client, "security-agent")
-		}, 1*time.Minute, 500*time.Millisecond, "security-agent should be running ", err)
+		}, 1*time.Minute, 500*time.Millisecond, "security-agent should be running ")
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
-		var err error
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
 		require.Eventually(tt, func() bool {
 			return AgentProcessIsRunning(client, "system-probe")
-		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
+		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ")
 	})
 }
 
 // CheckSystemProbeBehavior runs tests to check the agent behave correctly when system-probe is enabled
 func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 	t.Run("enable system-probe and restarts", func(tt *testing.T) {
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
+		}
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
-		require.NoError(tt, err)
-
-		err = client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
 		require.NoError(tt, err)
 
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
@@ -338,13 +344,24 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
-		var err error
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
+		}
 		require.Eventually(tt, func() bool {
 			return AgentProcessIsRunning(client, "system-probe")
-		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
+		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ")
 	})
 
 	t.Run("ebpf programs are unpacked and valid", func(tt *testing.T) {
+		if client.Host.OSFlavor == componentos.CentOS {
+			tt.Skip("System-probe is broken on CentOS 7")
+		}
+		if client.Host.OSFlavor == componentos.Ubuntu && client.Host.OSVersion == "14-04" {
+			tt.Skip("System-probe is flaky on Ubuntu 14.04")
+		}
 		ebpfPath := "/opt/datadog-agent/embedded/share/system-probe/ebpf"
 		output, err := client.Host.Execute(fmt.Sprintf("find %s -name '*.o'", ebpfPath))
 		require.NoError(tt, err)

@@ -228,7 +228,7 @@ func TestIsCloudProviderEnabled(t *testing.T) {
 
 func TestEnvNestedConfig(t *testing.T) {
 	config := newTestConf(t)
-	config.BindEnv("foo.bar.nested")
+	config.BindEnv("foo.bar.nested") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	t.Setenv("DD_FOO_BAR_NESTED", "baz")
 
 	assert.Equal(t, "baz", config.GetString("foo.bar.nested"))
@@ -1010,21 +1010,6 @@ func TestComputeStatsBySpanKindEnv(t *testing.T) {
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 }
 
-func TestIsRemoteConfigEnabled(t *testing.T) {
-	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
-	testConfig := newTestConf(t)
-	require.True(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_FIPS_ENABLED", "true")
-	testConfig = newTestConf(t)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_FIPS_ENABLED", "false")
-	t.Setenv("DD_SITE", "ddog-gov.com")
-	testConfig = newTestConf(t)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-}
-
 func TestGetRemoteConfigurationAllowedIntegrations(t *testing.T) {
 	// EMPTY configuration
 	testConfig := newTestConf(t)
@@ -1410,7 +1395,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver to modify a 2nd config with a different origin
-	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test")
+	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test", "", "")
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
@@ -1420,7 +1405,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver again, but with the original origin now
-	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test")
+	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test", "", "")
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
@@ -1588,9 +1573,9 @@ yet_another_key: "********"`
 
 func TestLoadProxyFromEnv(t *testing.T) {
 	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.SetKnown("proxy.http")
-	cfg.SetKnown("proxy.https")
-	cfg.SetKnown("proxy.no_proxy")
+	cfg.SetKnown("proxy.http")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetKnown("proxy.https")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetKnown("proxy.no_proxy") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	t.Setenv("DD_PROXY_HTTP", "http://www.example.com/")
 	cfg.BuildSchema()
 

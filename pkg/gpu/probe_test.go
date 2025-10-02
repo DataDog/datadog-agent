@@ -8,9 +8,15 @@
 package gpu
 
 import (
+	"os"
+	"runtime"
+	"strconv"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/exp/maps"
@@ -24,6 +30,12 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
+
+// TestMain defined to run initialization before any test is run
+func TestMain(m *testing.M) {
+	memPools.ensureInitNoTelemetry()
+	os.Exit(m.Run())
+}
 
 type probeTestSuite struct {
 	suite.Suite
@@ -49,6 +61,9 @@ func (s *probeTestSuite) getProbe() *Probe {
 
 	// Enable fatbin parsing in tests so we can validate it runs
 	cfg.EnableFatbinParsing = true
+
+	// Ensure we flush quickly, so that we don't have to wait as much for the pending events to be processed.
+	cfg.RingBufferFlushInterval = 500 * time.Millisecond
 
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	deps := ProbeDependencies{
@@ -100,30 +115,33 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
 	require.True(t, ok)
 
-	eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
-	require.NoError(t, err)
-
-	actualEvents := make(map[string]int)
-	for _, m := range eventMetrics {
-		if evType, ok := m.Tags()["event_type"]; ok {
-			actualEvents[evType] = int(m.Value())
-		}
-	}
-
 	expectedEvents := map[string]int{
-		ebpf.CudaEventTypeKernelLaunch.String():      1,
+		ebpf.CudaEventTypeKernelLaunch.String():      2,
 		ebpf.CudaEventTypeSetDevice.String():         1,
 		ebpf.CudaEventTypeMemory.String():            2,
 		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
 		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
+		ebpf.CudaEventTypeSyncDevice.String():        1,
 	}
 
-	for evName, value := range expectedEvents {
-		require.Equal(t, value, actualEvents[evName], "event %s count mismatch", evName)
-		delete(actualEvents, evName)
-	}
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
+		assert.NoError(c, err)
 
-	require.Empty(t, actualEvents, "unexpected events: %v", actualEvents)
+		actualEvents := make(map[string]int)
+		for _, m := range eventMetrics {
+			if evType, ok := m.Tags()["event_type"]; ok {
+				actualEvents[evType] = int(m.Value())
+			}
+		}
+
+		for evName, value := range expectedEvents {
+			assert.Equal(c, value, actualEvents[evName], "event %s count mismatch", evName)
+			delete(actualEvents, evName)
+		}
+
+		assert.Empty(c, actualEvents, "unexpected events: %v", actualEvents)
+	}, 3*time.Second, 100*time.Millisecond, "events not found")
 
 	// Check device assignments
 	require.Contains(t, probe.consumer.sysCtx.selectedDeviceByPIDAndTID, cmd.Process.Pid)
@@ -133,11 +151,13 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 
 	streamPastData := handlerStream.getPastData()
 	require.NotNil(t, streamPastData)
-	require.Equal(t, 1, len(streamPastData.kernels))
-	span := streamPastData.kernels[0]
-	require.Equal(t, uint64(1), span.numKernels)
-	require.Equal(t, uint64(1*2*3*4*5*6), span.avgThreadCount)
-	require.Greater(t, span.endKtime, span.startKtime)
+	require.Equal(t, 2, len(streamPastData.kernels))
+	for i := range 2 {
+		span := streamPastData.kernels[i]
+		require.Equal(t, uint64(1), span.numKernels)
+		require.Equal(t, uint64(1*2*3*4*5*6), span.avgThreadCount)
+		require.Greater(t, span.endKtime, span.startKtime)
+	}
 
 	globalPastData := handlerGlobal.getPastData()
 	require.NotNil(t, globalPastData)
@@ -173,11 +193,12 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.NoError(t, err)
 
 	expectedEvents := map[string]int{
-		ebpf.CudaEventTypeKernelLaunch.String():      1,
+		ebpf.CudaEventTypeKernelLaunch.String():      2,
 		ebpf.CudaEventTypeSetDevice.String():         1,
 		ebpf.CudaEventTypeMemory.String():            2,
 		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
 		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
+		ebpf.CudaEventTypeSyncDevice.String():        1,
 	}
 
 	actualEvents := make(map[string]int)
@@ -208,7 +229,7 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 
 	probe := s.getProbe()
 
-	sampleArgs := testutil.SampleArgs{
+	sampleArgs := &testutil.CudaSampleArgs{
 		StartWaitTimeSec:      6, // default wait time for WaitForProgramsToBeTraced is 5 seconds, give margin to attach manually to avoid flakes
 		CudaVisibleDevicesEnv: "1,2",
 		SelectedDevice:        1,
@@ -241,24 +262,190 @@ func (s *probeTestSuite) TestDetectsContainer() {
 
 	probe := s.getProbe()
 
+	// note: after starting, the program will wait ~5s before making any CUDA call
 	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 
+	require.Eventually(t, func() bool {
+		return probe.streamHandlers.allStreamsCount() > 0
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 1, got: %d", probe.streamHandlers.allStreamsCount())
+
 	// Check that the stream handlers have the correct container ID assigned
-	for _, handler := range probe.streamHandlers.allStreams() {
-		if handler.metadata.pid == uint32(pid) {
-			require.Equal(t, cid, handler.metadata.containerID)
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		nStreamsFound := 0
+		for _, handler := range probe.streamHandlers.allStreams() {
+			if handler.metadata.pid == uint32(pid) {
+				nStreamsFound++
+				require.Equal(c, cid, handler.metadata.containerID)
+			}
 		}
+		require.NotZero(c, nStreamsFound)
+	}, 6*time.Second, 100*time.Millisecond)
+
+	// Check that stats are properly collected
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := probe.GetAndFlush()
+		require.NoError(c, err)
+		require.NotNil(c, stats)
+
+		key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
+		pidStats := getMetricsEntry(key, stats)
+		require.NotNil(c, pidStats)
+
+		// core usage depends on the time this took to run, so it's not deterministic
+		require.Greater(c, pidStats.UsedCores, 0.0)
+		require.Equal(c, pidStats.Memory.MaxBytes, uint64(110))
+	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// cpuUsage represents CPU usage metrics
+type cpuUsage struct {
+	userTime   time.Duration
+	systemTime time.Duration
+}
+
+// getCPUUsage reads CPU usage from /proc/self/stat
+func getCPUUsage() (cpuUsage, error) {
+	data, err := os.ReadFile("/proc/self/stat")
+	if err != nil {
+		return cpuUsage{}, err
 	}
 
-	stats, err := probe.GetAndFlush()
-	key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
-	require.NoError(t, err)
-	require.NotNil(t, stats)
-	pidStats := getMetricsEntry(key, stats)
-	require.NotNil(t, pidStats)
+	fields := strings.Fields(string(data))
+	if len(fields) < 15 {
+		return cpuUsage{}, syscall.EINVAL
+	}
 
-	require.Greater(t, pidStats.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
+	// Fields 13 and 14 are utime and stime in clock ticks
+	utime, err := strconv.ParseUint(fields[13], 10, 64)
+	if err != nil {
+		return cpuUsage{}, err
+	}
+
+	stime, err := strconv.ParseUint(fields[14], 10, 64)
+	if err != nil {
+		return cpuUsage{}, err
+	}
+
+	// Convert clock ticks to nanoseconds
+	// Linux typically uses 100 Hz (100 clock ticks per second)
+	clockTick := time.Second / 100
+
+	return cpuUsage{
+		userTime:   time.Duration(utime) * clockTick,
+		systemTime: time.Duration(stime) * clockTick,
+	}, nil
+}
+
+// getCPUPercent calculates CPU percentage usage between two measurements
+func getCPUPercent(start, end cpuUsage, elapsed time.Duration) float64 {
+	if elapsed <= 0 {
+		return 0
+	}
+
+	totalCPUTime := (end.userTime + end.systemTime) - (start.userTime + start.systemTime)
+	maxPossibleCPU := elapsed * time.Duration(runtime.NumCPU())
+
+	if maxPossibleCPU <= 0 {
+		return 0
+	}
+
+	return float64(totalCPUTime) / float64(maxPossibleCPU) * 100.0
+}
+
+func BenchmarkProbeEventProcessing(b *testing.B) {
+	if err := config.CheckGPUSupported(); err != nil {
+		b.Skipf("minimum kernel version not met, %v", err)
+	}
+
+	// Use CO-RE mode for the benchmark
+	for k, v := range ebpftest.CORE.Env() {
+		b.Setenv(k, v)
+	}
+
+	cfg := config.New()
+	cfg.InitialProcessSync = false
+	cfg.EnableFatbinParsing = false
+	cfg.AttacherDetailedLogs = false
+
+	ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	deps := ProbeDependencies{
+		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(b),
+		WorkloadMeta:   testutil.GetWorkloadMetaMock(b),
+		Telemetry:      testutil.GetTelemetryMock(b),
+	}
+	probe, err := NewProbe(cfg, deps)
+	require.NoError(b, err)
+	require.NotNil(b, probe)
+	b.Cleanup(probe.Close)
+
+	// Configure rate sample args for high throughput
+	rateArgs := &testutil.RateSampleArgs{
+		StartWaitTimeSec: 2,
+		SelectedDevice:   0,
+		CallsPerSecond:   50000,
+		ExecutionTimeSec: 50,
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		// Measure CPU usage for this iteration
+		startCPU, err := getCPUUsage()
+		require.NoError(b, err)
+		startTime := time.Now()
+
+		// Run the rate sample
+		cmd, err := testutil.RunSampleWithArgs(b, testutil.RateSample, rateArgs)
+		require.NoError(b, err)
+
+		// Ensure that we have streams for the process
+		require.Eventually(b, func() bool {
+			for _, handler := range probe.streamHandlers.allStreams() {
+				if handler.metadata.pid == uint32(cmd.Process.Pid) {
+					return true
+				}
+			}
+			return false
+		}, 10*time.Second, 100*time.Millisecond, "stream handlers not created")
+
+		// Get and flush stats to process events
+		_, err = probe.GetAndFlush()
+		require.NoError(b, err)
+
+		// Measure CPU usage after processing
+		endCPU, err := getCPUUsage()
+		require.NoError(b, err)
+		elapsed := time.Since(startTime)
+
+		// Check telemetry for event counts
+		telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
+		require.True(b, ok)
+
+		eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
+		require.NoError(b, err)
+
+		totalEvents := 0
+		for _, m := range eventMetrics {
+			totalEvents += int(m.Value())
+		}
+
+		require.NotZero(b, totalEvents)
+
+		// Calculate and report metrics
+		cpuPercent := getCPUPercent(startCPU, endCPU, elapsed)
+		if totalEvents > 0 {
+			b.ReportMetric(float64(totalEvents), "events/op")
+		}
+		b.ReportMetric(cpuPercent, "cpu_percent")
+		b.ReportMetric(float64(endCPU.userTime-startCPU.userTime)/float64(time.Millisecond), "user_cpu_ms/op")
+		b.ReportMetric(float64(endCPU.systemTime-startCPU.systemTime)/float64(time.Millisecond), "system_cpu_ms/op")
+
+		// Clean up process
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}
+	}
 }
 
 func TestCudaLibraryAttacherRule(t *testing.T) {

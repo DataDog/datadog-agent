@@ -63,6 +63,7 @@ type DCAClientInterface interface {
 
 	GetNodeLabels(nodeName string) (map[string]string, error)
 	GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error)
+	GetNodeUID(nodeName string) (string, error)
 	GetNamespaceLabels(nsName string) (map[string]string, error)
 	GetNamespaceMetadata(nsName string) (*Metadata, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
@@ -356,6 +357,20 @@ func (c *DCAClient) GetNamespaceLabels(nsName string) (map[string]string, error)
 	var result map[string]string
 	err := c.doJSONQuery(context.TODO(), "api/v1/tags/namespace/"+nsName, "GET", nil, &result, false)
 	return result, err
+}
+
+// GetNodeUID returns the node UID from the Cluster Agent.
+func (c *DCAClient) GetNodeUID(nodeName string) (string, error) {
+	var result map[string]string
+
+	err := c.doJSONQuery(context.TODO(), "api/v1/uid/node/"+nodeName, "GET", nil, &result, false)
+	log.Debugf("GetNodeUID from DCA for node '%s': %v", nodeName, result)
+
+	if err != nil {
+		log.Debugf("Error getting node UID from DCA: %v", err)
+		return "", err
+	}
+	return result["uid"], nil
 }
 
 // GetNamespaceMetadata returns the namespace metadata from the Cluster Agent.

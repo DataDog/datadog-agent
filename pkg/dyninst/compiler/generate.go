@@ -74,14 +74,16 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		return Program{}, err
 	}
 	throttlers := make([]Throttler, 0, len(program.Probes))
-	for _, probe := range program.Probes {
+	for idx, probe := range program.Probes {
 		for _, event := range probe.Events {
 			for _, injectionPoint := range event.InjectionPoints {
 				err := g.addEventHandler(
 					injectionPoint,
 					len(throttlers),
-					probe.GetCaptureConfig().GetMaxReferenceDepth(),
+					probe.GetCaptureConfig(),
+					uint32(idx),
 					event.Type,
+					event.Kind,
 				)
 				if err != nil {
 					return Program{}, err
@@ -153,14 +155,22 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 func (g *generator) addEventHandler(
 	injectionPoint ir.InjectionPoint,
 	throttlerIdx int,
-	pointerChasingLimit uint32,
+	captureConfig ir.CaptureConfig,
+	probeID uint32,
 	rootType *ir.EventRootType,
+	eventKind ir.EventKind,
 ) error {
 	id := ProcessEvent{
 		InjectionPC:         injectionPoint.PC,
 		ThrottlerIdx:        throttlerIdx,
-		PointerChasingLimit: pointerChasingLimit,
+		PointerChasingLimit: captureConfig.GetMaxReferenceDepth(),
+		CollectionSizeLimit: captureConfig.GetMaxCollectionSize(),
+		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
+		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,
+		TopPCOffset:         injectionPoint.TopPCOffset,
+		ProbeID:             probeID,
+		EventKind:           eventKind,
 		EventRootType:       rootType,
 	}
 	ops := make([]Op, 0, 2+len(rootType.Expressions))

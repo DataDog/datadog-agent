@@ -622,6 +622,13 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	return factories
 }
 
+func (k *KSMCheck) shouldDropForMetadata(name string) bool {
+	if strings.HasPrefix(name, "kube_customresource") {
+		return false
+	}
+	return k.metadataMetricsRegex.MatchString(name)
+}
+
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
 	if err := k.initRetry.TriggerRetry(); err != nil {
@@ -754,9 +761,9 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if _, found := k.metricAggregators[metricFamily.Name]; found {
 				continue
 			}
-			if k.metadataMetricsRegex.MatchString(metricFamily.Name) {
+			if k.shouldDropForMetadata(metricFamily.Name) {
 				// metadata metrics are only used by the check for label joins
-				// they shouldn't be forwarded to Datadog
+				// they shouldn't be forwarded to Datadog unless they're customresource metrics
 				continue
 			}
 			// ignore the metric if it doesn't have a transformer

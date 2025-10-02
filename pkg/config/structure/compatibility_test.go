@@ -18,12 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
-type IntPermutation struct {
-	ToInt   int   `mapstructure:"to_int"`
-	ToInt32 int32 `mapstructure:"to_int32"`
-	ToInt64 int64 `mapstructure:"to_int64"`
-}
-
 func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(model.Setup)) (model.Config, model.Config) {
 	viperConf := viperconfig.NewViperConfig("datadog", "DD", strings.NewReplacer(".", "_"))    // nolint: forbidigo // legit use case
 	ntmConf := nodetreemodel.NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
@@ -52,6 +46,8 @@ func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(mod
 }
 
 func TestCompareWrongType(t *testing.T) {
+	// NOTE: network_devices.autodiscovery.works should be an int, this config
+	// file contains the wrong type
 	dataYaml := `
 network_devices:
   autodiscovery:
@@ -61,7 +57,7 @@ network_devices:
         12
 `
 	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("network_devices.autodiscovery.workers")
+		cfg.SetKnown("network_devices.autodiscovery.workers") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		cfg.SetDefault("network_devices.autodiscovery.workers", 5)
 	})
 
@@ -78,7 +74,13 @@ network_devices:
 	num = ntmConf.GetInt("network_devices.autodiscovery.workers")
 	assert.Equal(t, 0, num)
 
+	// no error from UnmarshalKey because the shape mismatch is below the top-level setting
 	err := viperConf.UnmarshalKey("network_devices.autodiscovery", &cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, cfg.Workers)
+
+	// same behavior using reflection based UnmarshalKey
+	err = unmarshalKeyReflection(viperConf, "network_devices.autodiscovery", &cfg)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, cfg.Workers)
 
@@ -94,7 +96,7 @@ network_devices:
     - workers: 10
 `
 	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
-		cfg.SetKnown("network_devices.autodiscovery.workers")
+		cfg.SetKnown("network_devices.autodiscovery.workers") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	})
 
 	warnings := viperConf.Warnings()
@@ -150,6 +152,12 @@ func TestCompareTimeDuration(t *testing.T) {
 	assert.Equal(t, 5*time.Second, mp2.Interval)
 }
 
+type IntPermutation struct {
+	ToInt   int   `mapstructure:"to_int"`
+	ToInt32 int32 `mapstructure:"to_int32"`
+	ToInt64 int64 `mapstructure:"to_int64"`
+}
+
 func TestUnmarshalIntPermutations(t *testing.T) {
 	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
 		// All source values set with a mismatched integer type
@@ -200,4 +208,45 @@ func TestUnmarshalIntPermutations(t *testing.T) {
 
 	assert.Equal(t, IntPermutation{ToInt: 40, ToInt32: 50, ToInt64: 60}, viper2)
 	assert.Equal(t, IntPermutation{ToInt: 40, ToInt32: 50, ToInt64: 60}, ntm2)
+}
+
+type MyFeature struct {
+	Name    string
+	Workers uint32
+	Small   int8
+	Count   uint8
+	Large   uint64
+}
+
+func TestCompareNegativeNumber(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.SetDefault("my_feature.name", "foo")
+		cfg.SetDefault("my_feature.workers", -5)
+		cfg.SetDefault("my_feature.small", -777)
+		cfg.SetDefault("my_feature.count", -777)
+		cfg.SetDefault("my_feature.large", -777)
+	})
+
+	var mf1 MyFeature
+	var mf2 MyFeature
+
+	err := viperConf.UnmarshalKey("my_feature", &mf1)
+	assert.NoError(t, err)
+	err = unmarshalKeyReflection(ntmConf, "my_feature", &mf2)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "foo", mf1.Name)
+	assert.Equal(t, "foo", mf2.Name)
+
+	assert.Equal(t, uint32(0xfffffffb), mf1.Workers)
+	assert.Equal(t, uint32(0xfffffffb), mf2.Workers)
+
+	assert.Equal(t, int8(-9), mf1.Small) // 777 % 256 = 9
+	assert.Equal(t, int8(-9), mf2.Small)
+
+	assert.Equal(t, uint8(0xf7), mf1.Count)
+	assert.Equal(t, uint8(0xf7), mf2.Count)
+
+	assert.Equal(t, uint64(0xfffffffffffffcf7), mf1.Large)
+	assert.Equal(t, uint64(0xfffffffffffffcf7), mf2.Large)
 }

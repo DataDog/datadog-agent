@@ -45,6 +45,7 @@ const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
+	KindKubeletMetrics         Kind = "kubelet_metrics"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
@@ -257,6 +258,7 @@ type EntityMeta struct {
 	Namespace   string
 	Annotations map[string]string
 	Labels      map[string]string
+	UID         string
 }
 
 // String returns a string representation of EntityMeta.
@@ -452,6 +454,13 @@ type ContainerResources struct {
 	// The container is requesting to use entire core(s)
 	// e.g. 1000m or 1 -- NOT 1500m or 1.5
 	RequestedWholeCores *bool
+
+	// Raw resources. This duplicates some of the information in other fields,
+	// but it is needed by kubelet check because it needs to emit metrics for
+	// all resources. This includes the typical ones defined above (cpu, memory,
+	// gpu) but also custom resources.
+	RawRequests map[string]string
+	RawLimits   map[string]string
 }
 
 // String returns a string representation of ContainerPort.
@@ -471,6 +480,26 @@ func (cr ContainerResources) String(bool) string {
 	}
 	if cr.GPUVendorList != nil {
 		_, _ = fmt.Fprintln(&sb, "GPUVendor:", cr.GPUVendorList)
+	}
+	return sb.String()
+}
+
+// ContainerResizePolicy represents a resize policy for a container
+type ContainerResizePolicy struct {
+	CPURestartPolicy    string
+	MemoryRestartPolicy string
+
+	// Currently, the only supported resourceName values are "cpu" and "memory"
+	// Additionally, these strings are always either "NotRequired" or "RestartContainer" (k8s docs)
+}
+
+func (crp ContainerResizePolicy) String() string {
+	var sb strings.Builder
+	if crp.CPURestartPolicy != "" {
+		_, _ = fmt.Fprintln(&sb, "RestartPolicy (CPU):", crp.CPURestartPolicy)
+	}
+	if crp.MemoryRestartPolicy != "" {
+		_, _ = fmt.Fprintln(&sb, "RestartPolicy (Memory):", crp.MemoryRestartPolicy)
 	}
 	return sb.String()
 }
@@ -588,6 +617,7 @@ type Container struct {
 	SecurityContext *ContainerSecurityContext
 	ReadinessProbe  *ContainerProbe
 	Resources       ContainerResources
+	ResizePolicy    ContainerResizePolicy
 
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
@@ -644,6 +674,11 @@ func (c Container) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Resize Policy -----------")
+		_, _ = fmt.Fprint(&sb, c.ResizePolicy.String())
+	}
 
 	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
 	for _, r := range c.ResolvedAllocatedResources {
@@ -752,20 +787,22 @@ type KubernetesPod struct {
 	FinishedAt                 time.Time
 	SecurityContext            *PodSecurityContext
 
-	// The following fields are only needed for the KSM check when configured to
-	// emit pod metrics from the node agent. That means only the node agent
-	// needs them, so for now they're not added to the protobufs.
-	CreationTimestamp     time.Time
-	StartTime             *time.Time
-	NodeName              string
-	HostIP                string
-	HostNetwork           bool
-	InitContainerStatuses []KubernetesContainerStatus
-	ContainerStatuses     []KubernetesContainerStatus
-	Conditions            []KubernetesPodCondition
-	Volumes               []KubernetesPodVolume
-	Tolerations           []KubernetesPodToleration
-	Reason                string
+	// The following fields are only needed for the kubelet check or KSM check
+	// when configured to emit pod metrics from the node agent. That means only
+	// the node agent needs them, so for now they're not added to the protobufs.
+	CreationTimestamp          time.Time
+	DeletionTimestamp          *time.Time
+	StartTime                  *time.Time
+	NodeName                   string
+	HostIP                     string
+	HostNetwork                bool
+	InitContainerStatuses      []KubernetesContainerStatus
+	ContainerStatuses          []KubernetesContainerStatus
+	EphemeralContainerStatuses []KubernetesContainerStatus
+	Conditions                 []KubernetesPodCondition
+	Volumes                    []KubernetesPodVolume
+	Tolerations                []KubernetesPodToleration
+	Reason                     string
 }
 
 // GetID implements Entity#GetID.
@@ -1009,6 +1046,7 @@ func (t KubernetesPodToleration) String(_ bool) string {
 type KubernetesPodCondition struct {
 	Type   string
 	Status string
+	Reason string
 }
 
 // String returns a string representation of KubernetesPodCondition.
@@ -1111,6 +1149,42 @@ func (m *KubernetesMetadata) Merge(e Entity) error {
 	}
 
 	return merge(m, mm)
+}
+
+// KubeletMetrics contains collection-level metrics from the kubelet
+type KubeletMetrics struct {
+	EntityID
+	ExpiredPodCount int
+}
+
+// GetID implements Entity#GetID.
+func (km *KubeletMetrics) GetID() EntityID {
+	return km.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (km *KubeletMetrics) Merge(e Entity) error {
+	other, ok := e.(*KubeletMetrics)
+	if !ok {
+		return fmt.Errorf("cannot merge KubeletMetrics with different kind %T", e)
+	}
+
+	return merge(km, other)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (km KubeletMetrics) DeepCopy() Entity {
+	ckm := deepcopy.Copy(km).(KubeletMetrics)
+	return &ckm
+}
+
+// String implements Entity#String
+func (km *KubeletMetrics) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprint(&sb, km.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "Expired pods count:", km.ExpiredPodCount)
+	return sb.String()
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -1553,15 +1627,6 @@ type Service struct {
 	// TracerMetadata contains APM tracer metadata
 	TracerMetadata []tracermetadata.TracerMetadata
 
-	// DDService is a service name currently based on either the DD_SERVICE
-	// environment variable, the DD_TAGS environment variable, or other
-	// parsing of framework-specific tracer configuration of service names, such
-	// as Java tracer properties on the command line.
-	//
-	// The UST.Service field on the other hand contains the raw value of the
-	// DD_SERVICE environment variable.
-	DDService string
-
 	// UST contains Unified Service Tagging environment variables
 	UST UST
 
@@ -1596,23 +1661,48 @@ func (u UST) String() string {
 	return sb.String()
 }
 
+// InjectionState represents the APM injection state of a process
+type InjectionState int
+
+const (
+	// InjectionUnknown means we haven't determined the injection status yet
+	InjectionUnknown InjectionState = 0
+	// InjectionInjected means the process has APM auto-injection enabled
+	InjectionInjected InjectionState = 1
+	// InjectionNotInjected means the process does not have APM auto-injection
+	InjectionNotInjected InjectionState = 2
+)
+
+// String returns a string representation of InjectionState
+func (i InjectionState) String() string {
+	switch i {
+	case InjectionInjected:
+		return "injected"
+	case InjectionNotInjected:
+		return "not_injected"
+	default:
+		return "unknown"
+	}
+}
+
 // Process is an Entity that represents a process
 type Process struct {
 	EntityID // EntityID.ID is the PID
 
-	Pid          int32    // Process ID -- /proc/[pid]
-	NsPid        int32    // Namespace PID -- /proc/[pid]/status
-	Ppid         int32    // Parent Process ID -- /proc/[pid]/stat
-	Name         string   // Name -- /proc/[pid]/status
-	Cwd          string   // Current Working Directory -- /proc/[pid]/cwd
-	Exe          string   // Exceutable Path -- /proc[pid]/exe
-	Comm         string   // Short Command Name -- /proc/[pid]/comm
-	Cmdline      []string // Command Line -- /proc/[pid]/cmdline
-	Uids         []int32  // User IDs -- /proc/[pid]/status
-	Gids         []int32  // Group IDs -- /proc/[pid]/status
-	ContainerID  string
-	CreationTime time.Time // Process Start Time -- /proc/[pid]/stat
-	Language     *languagemodels.Language
+	Pid            int32    // Process ID -- /proc/[pid]
+	NsPid          int32    // Namespace PID -- /proc/[pid]/status
+	Ppid           int32    // Parent Process ID -- /proc/[pid]/stat
+	Name           string   // Name -- /proc/[pid]/status
+	Cwd            string   // Current Working Directory -- /proc/[pid]/cwd
+	Exe            string   // Exceutable Path -- /proc[pid]/exe
+	Comm           string   // Short Command Name -- /proc/[pid]/comm
+	Cmdline        []string // Command Line -- /proc/[pid]/cmdline
+	Uids           []int32  // User IDs -- /proc/[pid]/status
+	Gids           []int32  // Group IDs -- /proc/[pid]/status
+	ContainerID    string
+	CreationTime   time.Time // Process Start Time -- /proc/[pid]/stat
+	Language       *languagemodels.Language
+	InjectionState InjectionState // APM auto-injector detection status
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
@@ -1646,6 +1736,11 @@ func (p *Process) Merge(e Entity) error {
 		p.Service = nil
 	}
 
+	// Handle InjectionState merge: only update if going from Unknown to a known state
+	if otherProcess.InjectionState == InjectionUnknown && p.InjectionState != InjectionUnknown {
+		otherProcess.InjectionState = p.InjectionState
+	}
+
 	return merge(p, otherProcess)
 }
 
@@ -1664,6 +1759,7 @@ func (p Process) String(verbose bool) string {
 	if p.Language != nil {
 		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
 	}
+	_, _ = fmt.Fprintln(&sb, "APM Injection Status:", p.InjectionState.String())
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Comm:", p.Comm)
@@ -1679,7 +1775,6 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service Generated Name Source:", p.Service.GeneratedNameSource)
 			_, _ = fmt.Fprintln(&sb, "Service Additional Generated Names:", p.Service.AdditionalGeneratedNames)
 			_, _ = fmt.Fprintln(&sb, "Service Tracer Metadata:", p.Service.TracerMetadata)
-			_, _ = fmt.Fprintln(&sb, "Service DD Service:", p.Service.DDService)
 			_, _ = fmt.Fprintln(&sb, "Service TCP Ports:", p.Service.TCPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
@@ -1892,6 +1987,9 @@ type GPU struct {
 
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
 	DeviceType GPUDeviceType
+
+	// VirtualizationMode contains the virtualization mode of the device
+	VirtualizationMode string
 }
 
 var _ Entity = &GPU{}

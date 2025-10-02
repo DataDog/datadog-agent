@@ -16,6 +16,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"sync"
@@ -451,12 +452,12 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 			return
 		}
 
-		var containerIDs []string
+		var containerIDsFrom = make(map[string]string)
 
 		// Tag using Local Data
 		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
-			containerIDs = append(containerIDs, containerID)
+			containerIDsFrom["ContainerIDFromSocket"] = containerID
 			originFromClient := types.NewEntityID(types.ContainerID, containerID)
 			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
 				t.log.Errorf("%s", err.Error())
@@ -464,7 +465,7 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		}
 
 		if originInfo.LocalData.ContainerID != "" {
-			containerIDs = append(containerIDs, originInfo.LocalData.ContainerID)
+			containerIDsFrom["ContainerIDFromLocalData"] = originInfo.LocalData.ContainerID
 		}
 		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
 			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
@@ -486,20 +487,26 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 		if err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
 			t.log.Tracef("Failed to generate container ID from %v: %s", originInfo.ExternalData, err)
 		}
-
-		// Accumulate tags for generated container ID
 		if generatedContainerID != "" {
-			containerIDs = append(containerIDs, generatedContainerID)
-			if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
-				t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
-			}
+			containerIDsFrom["ContainerIDFromExternalData"] = generatedContainerID
 		}
 
+		containerIDs := slices.Collect(maps.Values(containerIDsFrom))
 		// Check for container ID mismatch
+		// Do not use external data if there is a mismatch between the different resolutions
 		if len(containerIDs) > 1 &&
 			slices.ContainsFunc(containerIDs[1:], func(id string) bool { return id != containerIDs[0] }) {
 			t.telemetryStore.OriginInfoContainerIDMismatch.Inc()
-			t.log.Warnf("Container ID mismatch detected: %v", containerIDs)
+			t.log.Warnf("Container ID mismatch detected: %v", containerIDsFrom)
+		} else {
+			// Accumulate tags for generated container ID
+			// TODO (CONTP): investigate refactoring tag enrichment to return
+			// once higher priority containerID successfully resolves and adds tags
+			if generatedContainerID != "" {
+				if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil && pkglog.ShouldLog(pkglog.TraceLvl) {
+					t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
+				}
+			}
 		}
 	}
 

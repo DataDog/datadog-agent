@@ -135,3 +135,130 @@ func (e *Kubernetes) generateAndDownloadAgentFlare(agentBinary string, pod v1.Po
 	}
 	return flarePath, nil
 }
+
+type podType int
+
+const (
+	podTypeLinux podType = iota
+	podTypeWindows
+	podTypeClusterAgent
+)
+
+// Should return the coverage commands for each pod and each container
+func (e *Kubernetes) getAgentCoverageCommands(podType podType) map[string][]string {
+	if podType == podTypeWindows {
+		return map[string][]string{
+			"agent":          {"agent.exe", "coverage", "generate"},
+			"trace-agent":    {"trace-agent.exe", "coverage", "generate"},
+			"process-agent":  {"process-agent.exe", "coverage", "generate"},
+			"security-agent": {"security-agent.exe", "coverage", "generate"},
+			"system-probe":   {"system-probe.exe", "coverage", "generate"},
+		}
+	} else if podType == podTypeClusterAgent {
+		return map[string][]string{
+			"cluster-agent": {"datadog-cluster-agent", "coverage", "generate"},
+		}
+	}
+	return map[string][]string{
+		"agent":          {"agent", "coverage", "generate"},
+		"trace-agent":    {"trace-agent", "coverage", "generate", "-c", "/etc/datadog-agent/datadog.yaml"},
+		"process-agent":  {"process-agent", "coverage", "generate"},
+		"security-agent": {"security-agent", "coverage", "generate"},
+		"system-probe":   {"system-probe", "coverage", "generate"},
+	}
+}
+
+// Coverage generates a coverage report for each pod and container
+func (e *Kubernetes) Coverage(outputDir string) (string, error) {
+	if e.KubernetesCluster == nil {
+		return "", fmt.Errorf("KubernetesCluster component is not initialized")
+	}
+	if e.Agent == nil {
+		return "", fmt.Errorf("Agent component is not initialized")
+	}
+	if e.KubernetesCluster.KubernetesClient == nil {
+		return "", fmt.Errorf("KubernetesClient component is not initialized")
+	}
+
+	ctx := context.Background()
+	outStr := []string{"===== Coverage ====="}
+
+	// Process Linux pods
+	linuxPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	})
+	if err != nil {
+		outStr = append(outStr, fmt.Sprintf("Failed to list linux pods: %s", err.Error()))
+	} else {
+		if len(linuxPods.Items) >= 1 {
+			outStr = append(outStr, "==== Linux pods ====")
+		}
+		for _, pod := range linuxPods.Items {
+			outStr = append(outStr, fmt.Sprintf("Pod %s:", pod.Name))
+			result := e.generateAndDownloadCoverageForPod(pod, podTypeLinux, outputDir)
+			outStr = append(outStr, result)
+		}
+	}
+
+	// Process Windows pods
+	windowsPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
+	})
+	if err != nil {
+		outStr = append(outStr, fmt.Sprintf("Failed to list windows pods: %s", err.Error()))
+	} else {
+		if len(windowsPods.Items) >= 1 {
+			outStr = append(outStr, "==== Windows pods ====")
+		}
+		for _, pod := range windowsPods.Items {
+			result := e.generateAndDownloadCoverageForPod(pod, podTypeWindows, outputDir)
+			outStr = append(outStr, result)
+		}
+	}
+
+	// Process Cluster Agent pods
+	clusterAgentPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
+	})
+	if err != nil {
+		outStr = append(outStr, fmt.Sprintf("Failed to list cluster agent pods: %s", err.Error()))
+	} else {
+		if len(clusterAgentPods.Items) >= 1 {
+			outStr = append(outStr, "==== Cluster Agent pods ====")
+		}
+		for _, pod := range clusterAgentPods.Items {
+			result := e.generateAndDownloadCoverageForPod(pod, podTypeClusterAgent, outputDir)
+			outStr = append(outStr, result)
+		}
+	}
+
+	return strings.Join(outStr, "\n"), nil
+}
+
+func (e *Kubernetes) generateAndDownloadCoverageForPod(pod v1.Pod, podType podType, outputDir string) string {
+	commandCoverages := e.getAgentCoverageCommands(podType)
+	outStr := []string{}
+	for container, command := range commandCoverages {
+		outStr = append(outStr, fmt.Sprintf("Container %s:", container))
+		stdout, stderr, err := e.KubernetesCluster.KubernetesClient.PodExec(pod.Namespace, pod.Name, container, command)
+		output := strings.Join([]string{stdout, stderr}, "\n")
+		if err != nil {
+			outStr = append(outStr, fmt.Sprintf("Error: %v", err))
+			continue
+		}
+		// find coverage folder in command output
+		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
+		matches := re.FindStringSubmatch(output)
+		if len(matches) < 2 {
+			outStr = append(outStr, fmt.Sprintf("Error: output does not contain the path to the coverage folder, output: %s", output))
+			continue
+		}
+		err = e.KubernetesCluster.KubernetesClient.DownloadFromPod(pod.Namespace, pod.Name, container, matches[1], fmt.Sprintf("%s/coverage", outputDir))
+		if err != nil {
+			outStr = append(outStr, fmt.Sprintf("Error: error while getting folder:%v", err))
+		}
+		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s", matches[1]))
+	}
+
+	return strings.Join(outStr, "\n")
+}

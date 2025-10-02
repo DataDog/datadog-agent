@@ -11,8 +11,8 @@
 // LOG is a macro that prints a message if the level is less than or equal to
 // the DEBUG level.
 volatile const uint32_t debug_level = 0;
-#define LOG(level, fmt, ...) \
-  if (level <= debug_level) { \
+#define LOG(level, fmt, ...)        \
+  if (level <= debug_level) {       \
     bpf_printk(fmt, ##__VA_ARGS__); \
   }
 
