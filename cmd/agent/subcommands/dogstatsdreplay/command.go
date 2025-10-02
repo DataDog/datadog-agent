@@ -14,6 +14,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/util/input"
+	"github.com/fatih/color"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -43,6 +45,7 @@ type cliParams struct {
 
 	// subcommand-specific flags
 
+	autoconfirm         bool
 	dsdReplayFilePath   string
 	dsdVerboseReplay    bool
 	dsdMmapReplay       bool
@@ -72,6 +75,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	dogstatsdReplayCmd.Flags().BoolVarP(&cliParams.dsdVerboseReplay, "verbose", "v", false, "Verbose replay.")
 	dogstatsdReplayCmd.Flags().BoolVarP(&cliParams.dsdMmapReplay, "mmap", "m", true, "Mmap file for replay. Set to false to load the entire file into memory instead")
 	dogstatsdReplayCmd.Flags().IntVarP(&cliParams.dsdReplayIterations, "loops", "l", defaultIterations, "Number of iterations to replay.")
+	dogstatsdReplayCmd.Flags().BoolVarP(&cliParams.autoconfirm, "autoconfirm", "a", false, "Autoconfirm replay (don't prompt for confirmation).")
 
 	return []*cobra.Command{dogstatsdReplayCmd}
 }
@@ -117,6 +121,14 @@ func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliPar
 	if err != nil {
 		fmt.Printf("could not open: %s\n", cliParams.dsdReplayFilePath)
 		return err
+	}
+
+	if !cliParams.autoconfirm {
+		confirmation := input.AskForConfirmation("Replays should only run on local/development agents and never on a production agent. Are you sure you want to continue? [y/N]")
+		if !confirmation {
+			fmt.Fprint(color.Output, color.RedString("Aborting replay.\n"))
+			return nil
+		}
 	}
 
 	s := pkgconfigsetup.Datadog().GetString("dogstatsd_socket")
