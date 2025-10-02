@@ -6,10 +6,11 @@
 package fetch
 
 import (
+	"github.com/gosnmp/gosnmp"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
-	"github.com/gosnmp/gosnmp"
 )
 
 type Fetcher struct {
@@ -28,9 +29,13 @@ func NewFetcher(sessionFactory session.Factory, oidBatchSize int, bulkMaxRepetit
 }
 
 func (f *Fetcher) CreateSession(config *checkconfig.CheckConfig) error {
-	var err error
-	f.session, err = f.sessionFactory(config)
-	return err
+	sess, err := f.sessionFactory(config)
+	if err != nil {
+		return err
+	}
+
+	f.session = sess
+	return nil
 }
 
 func (f *Fetcher) Connect() error {
