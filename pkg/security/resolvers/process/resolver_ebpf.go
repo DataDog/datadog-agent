@@ -913,15 +913,18 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 
 	cgroupRead, err := entry.CGroup.UnmarshalBinary(procCache)
 	if err != nil {
+		fmt.Printf("unmarshal error: %v\n", err)
 		return nil
 	}
 
 	if _, err := entry.UnmarshalProcEntryBinary(procCache[cgroupRead:]); err != nil {
+		fmt.Printf("unmarshal error2: %v\n", err)
 		return nil
 	}
 
 	// check that the cache entry correspond to the event
 	if entry.FileEvent.Inode != 0 && entry.FileEvent.Inode != entry.ExecInode {
+		fmt.Printf("inode mismatch: %d != %d\n", entry.FileEvent.Inode, entry.ExecInode)
 		return nil
 	}
 

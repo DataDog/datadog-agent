@@ -7,6 +7,8 @@ typedef unsigned long long ctx_t;
 
 #define HOOK_ENTRY(func_name) SEC("fentry/" func_name)
 #define HOOK_EXIT(func_name) SEC("fexit/" func_name)
+#define HOOK_UPROBE_ENTRY(func_name) SEC("uprobe/" func_name)
+#define HOOK_UPROBE_EXIT(func_name) SEC("uretprobe/" func_name)
 #define HOOK_SYSCALL_ENTRY0(name, ...) SYSCALL_FENTRY0(name, __VA_ARGS__)
 #define HOOK_SYSCALL_ENTRY1(name, ...) SYSCALL_FENTRY1(name, __VA_ARGS__)
 #define HOOK_SYSCALL_ENTRY2(name, ...) SYSCALL_FENTRY2(name, __VA_ARGS__)
@@ -62,6 +64,8 @@ typedef struct pt_regs ctx_t;
 
 #define HOOK_ENTRY(func_name) SEC("kprobe/" func_name)
 #define HOOK_EXIT(func_name) SEC("kretprobe/" func_name)
+#define HOOK_UPROBE_ENTRY(func_name) SEC("uprobe/" func_name)
+#define HOOK_UPROBE_EXIT(func_name) SEC("uretprobe/" func_name)
 #define HOOK_SYSCALL_ENTRY0(name, ...) SYSCALL_KPROBE0(name, __VA_ARGS__)
 #define HOOK_SYSCALL_ENTRY1(name, ...) SYSCALL_KPROBE1(name, __VA_ARGS__)
 #define HOOK_SYSCALL_ENTRY2(name, ...) SYSCALL_KPROBE2(name, __VA_ARGS__)
