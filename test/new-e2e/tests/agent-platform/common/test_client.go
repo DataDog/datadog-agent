@@ -216,13 +216,12 @@ func AgentProcessIsRunning(client *TestClient, processName string) bool {
 }
 
 // AssertPortBoundByService accepts a port and a service name and returns true if the port is bound by the service
-func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, service string) (boundport.BoundPort, bool) {
+func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, service string, processName string) (boundport.BoundPort, bool) {
 	if h, ok := t.(tHelper); ok {
 		h.Helper()
 	}
 
-	// TODO: might need to map service name to process name, this is working right now though
-	pids, err := process.FindPID(client.Host, service)
+	pids, err := process.FindPID(client.Host, processName)
 	if !assert.NoError(t, err) {
 		return nil, false
 	}
