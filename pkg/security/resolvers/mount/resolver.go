@@ -168,20 +168,19 @@ func (mr *Resolver) HasListMount() bool {
 
 // SyncCacheFromListMount Snapshots the current mountpoints using the listmount api
 func (mr *Resolver) SyncCacheFromListMount() error {
-	mounts, err := GetAll(kernel.ProcFSRoot())
-	if err != nil {
-		return fmt.Errorf("error synchronizing cache: %v", err)
-	}
-
-	seclog.Infof("listmount sync cache found %d entries", len(mounts))
-
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	for _, mnt := range mounts {
-		mr.insert(newMountFromStatmount(&mnt), 0, false)
-	}
+	nrMounts := 0
+	err := GetAll(kernel.ProcFSRoot(), func(sm *Statmount) {
+		mr.insert(newMountFromStatmount(sm), 0, false)
+		nrMounts++
+	})
 
+	if err != nil {
+		return fmt.Errorf("error synchronizing cache: %v", err)
+	}
+	seclog.Infof("listmount sync cache found %d entries", nrMounts)
 	return nil
 }
 
