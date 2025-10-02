@@ -735,7 +735,7 @@ api_key:
 # cmd_port: 5001
 
 ## @param agent_ipc - custom object - optional
-## Configure how the different processes composing the Agent communicate.
+## Configure how the different processes of the Agent communicate.
 #
 # agent_ipc:
 #
