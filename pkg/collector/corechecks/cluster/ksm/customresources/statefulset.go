@@ -23,7 +23,6 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewStatefulSetRolloutFactory returns a new StatefulSet rollout factory that provides rollout duration metrics
@@ -62,10 +61,6 @@ func (f *statefulSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyG
 				// change an active rollout
 				hasRevisionMismatch := f.rolloutTracker.HasStatefulSetRolloutCondition(sts)
 				isOngoing := isNewRollout || hasRevisionMismatch
-
-				log.Infof("ROLLOUT-DEBUG StatefulSet %s/%s: isOngoing=%t, isNewRollout=%t, hasRevisionMismatch=%t, generation=%d, observedGeneration=%d, updateRevision=%s, currentRevision=%s, readyReplicas=%d, replicas=%v",
-					sts.Namespace, sts.Name, isOngoing, isNewRollout, hasRevisionMismatch, sts.Generation, sts.Status.ObservedGeneration,
-					sts.Status.UpdateRevision, sts.Status.CurrentRevision, sts.Status.ReadyReplicas, sts.Spec.Replicas)
 
 				if isOngoing {
 					f.rolloutTracker.StoreStatefulSet(sts)

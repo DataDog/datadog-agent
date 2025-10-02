@@ -29,7 +29,7 @@ func TestControllerRevisionRolloutFactory_Name(t *testing.T) {
 	tracker := NewRolloutTracker()
 	factory := NewControllerRevisionRolloutFactory(client, tracker)
 
-	assert.Equal(t, "controllerrevisions_extended", factory.Name())
+	assert.Equal(t, "controllerrevisions", factory.Name())
 }
 
 func TestControllerRevisionRolloutFactory_ExpectedType(t *testing.T) {

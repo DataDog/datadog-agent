@@ -23,7 +23,6 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewDeploymentRolloutFactory returns a new Deployment rollout factory that provides rollout duration metrics
@@ -66,10 +65,6 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 				isNewRollout := d.Generation != d.Status.ObservedGeneration
 				hasRolloutCondition := f.rolloutTracker.HasRolloutCondition(d)
 				isOngoing := isNewRollout || hasRolloutCondition
-
-				log.Infof("ROLLOUT-DEBUG Deployment %s/%s: isOngoing=%t, isNewRollout=%t, hasRolloutCondition=%t, generation=%d, observedGeneration=%d, readyReplicas=%d, replicas=%v",
-					d.Namespace, d.Name, isOngoing, isNewRollout, hasRolloutCondition, d.Generation, d.Status.ObservedGeneration,
-					d.Status.ReadyReplicas, d.Spec.Replicas)
 
 				if isOngoing {
 					f.rolloutTracker.StoreDeployment(d)

@@ -23,7 +23,6 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewControllerRevisionRolloutFactory returns a new ControllerRevision rollout factory that tracks ControllerRevision events for StatefulSet rollouts
@@ -58,8 +57,6 @@ func (f *controllerRevisionRolloutFactory) MetricFamilyGenerators() []generator.
 			wrapControllerRevisionFunc(func(cr *appsv1.ControllerRevision) *metric.Family {
 				// Store ControllerRevision info if it's owned by a StatefulSet
 				ownerName, ownerUID := f.getStatefulSetOwner(cr)
-				log.Infof("ROLLOUT-DEBUG ControllerRevision %s/%s: revision=%d, ownerName=%s, ownerUID=%s, creationTime=%v",
-					cr.Namespace, cr.Name, cr.Revision, ownerName, ownerUID, cr.CreationTimestamp.Time)
 				if ownerName != "" && ownerUID != "" {
 					f.rolloutTracker.StoreControllerRevision(cr, ownerName, ownerUID)
 				}

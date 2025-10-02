@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -449,7 +450,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 				return err
 			}
 
-			log.Infof("ROLLOUT-DEBUG KSM enabled collectors: %v", cr.collectors)
 			if err := builder.WithEnabledResources(cr.collectors); err != nil {
 				return err
 			}
@@ -561,17 +561,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewControllerRevisionRolloutFactory(c, k.rolloutTracker),
 	}
 
-	log.Infof("ROLLOUT-DEBUG Registered %d custom resource factories", len(factories))
-	for _, f := range factories {
-		log.Infof("ROLLOUT-DEBUG Factory registered: %s", f.Name())
-	}
-
 	factories = manageResourcesReplacement(c, factories, resources)
-
-	log.Infof("ROLLOUT-DEBUG After resource filtering, %d factories remain", len(factories))
-	for _, f := range factories {
-		log.Infof("ROLLOUT-DEBUG Factory after filtering: %s", f.Name())
-	}
 
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
