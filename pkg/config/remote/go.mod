@@ -19,7 +19,6 @@ require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/pkg/errors v0.9.1
-	github.com/secure-systems-lab/go-securesystemslib v0.9.0
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.4.0
 	go.uber.org/atomic v1.11.0
@@ -41,6 +40,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
+	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
 	github.com/spf13/cobra v1.10.1 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
