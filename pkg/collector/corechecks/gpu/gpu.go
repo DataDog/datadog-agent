@@ -113,10 +113,10 @@ func (c *Check) ensureInitDeviceCache() error {
 		return nil
 	}
 
-	var err error
-	c.deviceCache, err = ddnvml.NewDeviceCache()
-	if err != nil {
-		return fmt.Errorf("failed to initialize device cache: %w", err)
+	c.deviceCache = ddnvml.NewDeviceCache()
+
+	if c.deviceCache.GetLastInitError() != nil {
+		return fmt.Errorf("failed to initialize device cache: %w", c.deviceCache.GetLastInitError())
 	}
 
 	return nil

@@ -122,14 +122,10 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 		visibleDevicesCache:          make(map[int][]ddnvml.Device),
 		cudaVisibleDevicesPerProcess: make(map[int]string),
 		workloadmeta:                 opts.wmeta,
+		deviceCache:                  ddnvml.NewDeviceCache(),
 	}
 
 	var err error
-	ctx.deviceCache, err = ddnvml.NewDeviceCache()
-	if err != nil {
-		return nil, fmt.Errorf("error creating device cache: %w", err)
-	}
-
 	ctx.timeResolver, err = ktime.NewResolver()
 	if err != nil {
 		return nil, fmt.Errorf("error creating time resolver: %w", err)
