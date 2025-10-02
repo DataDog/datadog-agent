@@ -1625,11 +1625,6 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     }
 
     // Check if the api key and version are supported
-    if(!is_supported_api_version_for_classification(kafka_header.api_key, kafka_header.api_version)) {
-        return false;
-    }
-
-    // Check if the api key and version are supported
     switch (kafka_header.api_key) {
         case KAFKA_PRODUCE:
             if (kafka_header.api_version > KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
