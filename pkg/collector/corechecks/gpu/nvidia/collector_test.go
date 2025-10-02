@@ -140,8 +140,12 @@ func TestAllCollectorsWork(t *testing.T) {
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
 	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache := ddnvml.NewDeviceCache()
-	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := BuildCollectors(deps, nil)
+	eventsGatherer, err := NewDeviceEventsGatherer()
+	require.NoError(t, err)
+	require.NoError(t, eventsGatherer.Start())
+	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
+	deps := &CollectorDependencies{DeviceCache: deviceCache, DeviceEventsGatherer: eventsGatherer}
+	collectors, err := BuildCollectors(deps)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
 
@@ -150,7 +154,9 @@ func TestAllCollectorsWork(t *testing.T) {
 	for _, collector := range collectors {
 		result, err := collector.Collect()
 		require.NoError(t, err, "collector %s failed to collect", collector.Name())
+		if collector.Name() != deviceEvents {
 			require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
+		}
 		seenCollectors[collector.Name()] = struct{}{}
 	}
 

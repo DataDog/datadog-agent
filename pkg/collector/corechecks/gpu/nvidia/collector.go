@@ -43,9 +43,10 @@ const (
 	sampling  CollectorName = "sampling"  // Consolidates process, samples
 
 	// Specialized collectors (kept separate)
-	field CollectorName = "fields"
-	gpm   CollectorName = "gpm"
-	ebpf  CollectorName = "ebpf"
+	field        CollectorName = "fields"
+	gpm          CollectorName = "gpm"
+	ebpf         CollectorName = "ebpf"
+	deviceEvents CollectorName = "device_events"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -81,14 +82,17 @@ var factory = map[CollectorName]subsystemBuilder{
 	sampling:  newSamplingCollector,  // Consolidates process, samples
 
 	// Specialized collectors that remain unchanged (complex or unique logic)
-	field: newFieldsCollector,
-	gpm:   newGPMCollector,
+	field:        newFieldsCollector,
+	gpm:          newGPMCollector,
+	deviceEvents: newDeviceEventsCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
 	// DeviceCache is a cache of GPU devices.
 	DeviceCache ddnvml.DeviceCache
+	// DeviceEventsGatherer acts like a cache for the most recent device events
+	DeviceEventsGatherer *DeviceEventsGatherer
 	// SystemProbeCache is a (optional) cache of the latest metrics obtained from system probe
 	SystemProbeCache *SystemProbeCache
 }
