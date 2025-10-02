@@ -270,7 +270,9 @@ func (api *API) EvtClose(h windows.Handle) {
 	// is handle a publisher metadata?
 	publisher, err := api.getPublisherMetadataByHandle(evtapi.EventPublisherMetadataHandle(h))
 	if err == nil {
+		api.publisherMutex.Lock()
 		delete(api.publisherHandles, publisher.handle)
+		api.publisherMutex.Unlock()
 		return
 	}
 }

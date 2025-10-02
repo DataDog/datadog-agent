@@ -31,6 +31,7 @@ type API struct {
 	sourceHandles    map[evtapi.EventSourceHandle]string
 	bookmarkHandles  map[evtapi.EventBookmarkHandle]*bookmark
 	publisherHandles map[evtapi.EventPublisherMetadataHandle]*publisherMetadata
+	publisherMutex   sync.RWMutex // Protects publisherHandles map
 }
 
 type eventLog struct {
@@ -156,6 +157,9 @@ func (api *API) addBookmark(bookmark *bookmark) {
 func (api *API) addPublisherMetadata(publisher *publisherMetadata) {
 	h := api.nextHandle.Inc()
 	publisher.handle = evtapi.EventPublisherMetadataHandle(h)
+	
+	api.publisherMutex.Lock()
+	defer api.publisherMutex.Unlock()
 	api.publisherHandles[publisher.handle] = publisher
 }
 
@@ -184,6 +188,9 @@ func (api *API) getBookmarkByHandle(bookmarkHandle evtapi.EventBookmarkHandle) (
 }
 
 func (api *API) getPublisherMetadataByHandle(publisherHandle evtapi.EventPublisherMetadataHandle) (*publisherMetadata, error) {
+	api.publisherMutex.RLock()
+	defer api.publisherMutex.RUnlock()
+	
 	v, ok := api.publisherHandles[publisherHandle]
 	if !ok {
 		return nil, fmt.Errorf("Publisher metadata not found: %#x", publisherHandle)
