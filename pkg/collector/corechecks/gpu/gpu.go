@@ -136,7 +136,11 @@ func (c *Check) ensureInitCollectors() error {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
-	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{DeviceCache: c.deviceCache}, c.spCache)
+	deps := &nvidia.CollectorDependencies{
+		DeviceCache:      c.deviceCache,
+		SystemProbeCache: c.spCache,
+	}
+	collectors, err := nvidia.BuildCollectors(deps)
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}

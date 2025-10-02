@@ -28,7 +28,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	// On the first call, this function returns correctly. On the second it fails.
 	// We need this as we cannot rely on the order of the subsystems in the map.
-	factory := func(_ ddnvml.Device) (Collector, error) {
+	factory := func(_ ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 		if !factorySucceeded {
 			factorySucceeded = true
 			return succeedCollector, nil
@@ -40,7 +40,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache := ddnvml.NewDeviceCache()
 	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}, nil)
+	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 }
@@ -150,7 +150,7 @@ func TestAllCollectorsWork(t *testing.T) {
 	for _, collector := range collectors {
 		result, err := collector.Collect()
 		require.NoError(t, err, "collector %s failed to collect", collector.Name())
-		require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
+			require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
 		seenCollectors[collector.Name()] = struct{}{}
 	}
 

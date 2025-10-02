@@ -82,14 +82,14 @@ type ebpfCollector struct {
 }
 
 // newEbpfCollector creates a new eBPF-based collector for the given device.
-func newEbpfCollector(device ddnvml.Device, cache *SystemProbeCache) (*ebpfCollector, error) {
-	if cache == nil {
+func newEbpfCollector(device ddnvml.Device, deps *CollectorDependencies) (*ebpfCollector, error) {
+	if deps.SystemProbeCache == nil {
 		return nil, fmt.Errorf("system-probe cache cannot be nil")
 	}
 
 	return &ebpfCollector{
 		device:        device,
-		cache:         cache,
+		cache:         deps.SystemProbeCache,
 		activeMetrics: make(map[model.StatsKey]bool),
 	}, nil
 }

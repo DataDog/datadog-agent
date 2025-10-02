@@ -72,7 +72,7 @@ type Collector interface {
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
 // the tags associated with the device, the collector should use them when generating metrics.
-type subsystemBuilder func(device ddnvml.Device) (Collector, error)
+type subsystemBuilder func(device ddnvml.Device, deps *CollectorDependencies) (Collector, error)
 
 // factory is a map of all the subsystems that can be used to collect metrics from NVML.
 var factory = map[CollectorName]subsystemBuilder{
@@ -89,15 +89,17 @@ var factory = map[CollectorName]subsystemBuilder{
 type CollectorDependencies struct {
 	// DeviceCache is a cache of GPU devices.
 	DeviceCache ddnvml.DeviceCache
+	// SystemProbeCache is a (optional) cache of the latest metrics obtained from system probe
+	SystemProbeCache *SystemProbeCache
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
-// If spCache is provided, additional system-probe virtual collectors will be created for all devices.
-func BuildCollectors(deps *CollectorDependencies, spCache *SystemProbeCache) ([]Collector, error) {
-	return buildCollectors(deps, factory, spCache)
+// If SystemProbeCache is provided, additional system-probe virtual collectors will be created for all devices.
+func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
+	return buildCollectors(deps, factory)
 }
 
-func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder, spCache *SystemProbeCache) ([]Collector, error) {
+func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
 	// Step 1: Build NVML collectors for physical devices only,
@@ -109,7 +111,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 
 	for _, dev := range allPhysicalDevices {
 		for name, builder := range builders {
-			c, err := builder(dev)
+			c, err := builder(dev, deps)
 			if errors.Is(err, errUnsupportedDevice) {
 				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
 				continue
@@ -123,10 +125,10 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 	}
 
 	// Step 2: Build system-probe virtual collectors for ALL devices (if cache provided)
-	if spCache != nil {
+	if deps.SystemProbeCache != nil {
 		log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
 		for _, dev := range allPhysicalDevices {
-			spCollector, err := newEbpfCollector(dev, spCache)
+			spCollector, err := newEbpfCollector(dev, deps)
 			if err != nil {
 				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
 				continue
