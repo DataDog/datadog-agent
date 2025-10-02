@@ -2811,16 +2811,6 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string, config pkgconf
 	return "", nil
 }
 
-// IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
-func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
-	// Disable Remote Config for GovCloud
-	isFipsAgent, _ := pkgfips.Enabled()
-	if cfg.GetBool("fips.enabled") || isFipsAgent || cfg.GetString("site") == "ddog-gov.com" {
-		return false
-	}
-	return cfg.GetBool("remote_configuration.enabled")
-}
-
 // GetRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
 // with remote-config
 func GetRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[string]bool {
