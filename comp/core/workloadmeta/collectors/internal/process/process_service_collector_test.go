@@ -582,7 +582,7 @@ func makeModelService(pid int32, name string) model.Service {
 		},
 		DDService:          "dd-model-" + name,
 		TCPPorts:           []uint16{3000, 4000},
-		APMInstrumentation: "manual",
+		APMInstrumentation: true,
 		Language:           "python",
 		Type:               "database",
 		CommandLine:        []string{"python", "-m", "myservice"},
@@ -614,7 +614,7 @@ func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
 				},
 			},
 			TCPPorts:           []uint16{3000, 4000},
-			APMInstrumentation: "manual",
+			APMInstrumentation: true,
 			Type:               "database",
 			LogFiles:           []string{"/var/log/" + name + ".log"},
 			UST: workloadmeta.UST{

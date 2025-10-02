@@ -137,7 +137,7 @@ type Service struct {
 	DDService string
 
 	// APMInstrumentation indicates the APM instrumentation status
-	APMInstrumentation string
+	APMInstrumentation bool
 }
 
 // DeepCopy creates a deep copy of Stats
