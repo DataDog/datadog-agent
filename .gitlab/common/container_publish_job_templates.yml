@@ -37,5 +37,6 @@
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
     # - aws ssm get-parameter --region us-east-1 --name ci.agent-release-management.gsheets-account --with-decryption --query "Parameter.Value" --out text > ./service-account.json
-    - vault kv get -field="google-sheets-account" -mount="kv" "k8s/gitlab-runner/datadog-agent/agent-release-management" > ./service-account.json
+    - export VAULT_ADDR=https://vault.us1.ddbuild.io
+    - vault kv get -format=json -field=google-sheets-account kv/k8s/gitlab-runner/datadog-agent/agent-release-management > ./service-account.json
     - inv google.register-deployment-to-sheet --spreadsheet-id="1fRGRgvRdVffguWbmIv1YU3ZFePoVhqA-bVJAJ8nNwlA" # if [[ "$BUCKET_BRANCH" != "dev" ]];
