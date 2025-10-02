@@ -98,6 +98,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		scanPeriod:             scanPeriod,
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
+		filesChan:              make(chan []*tailer.File, 1),
 		ctx:                    ctx,
 		cancel:                 cancel,
 		oldInfoMap:             make(map[string]*oldTailerInfo),
@@ -143,7 +144,6 @@ func (s *Launcher) run() {
 			go func() {
 				s.filesChan <- s.fileProvider.FilesToTail(s.ctx, s.validatePodContainerID, activeSourcesCopy, s.registry)
 			}()
-			scanTicker.Reset(s.scanPeriod)
 		case files := <-s.filesChan:
 			s.cleanUpRotatedTailers()
 
