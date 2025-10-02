@@ -15,6 +15,7 @@
 #
 
 name "zlib"
+default_version "1.3.1"
 
 build do
   license "Zlib"
