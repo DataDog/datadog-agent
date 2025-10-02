@@ -23,6 +23,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compStatus "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/process"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
@@ -85,6 +86,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				),
 				core.Bundle(),
 				process.Bundle(),
+				logscompressionfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},

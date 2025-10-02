@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package run
+package agent
 
 import (
 	"os"
@@ -21,9 +21,9 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		IoTCommands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"run"},
-		StartCore,
+		run,
 		func(_ pidimpl.Params, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, true, secretParams.Enabled)
 		})
@@ -31,9 +31,9 @@ func TestCommand(t *testing.T) {
 
 func TestCommandPidfile(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		IoTCommands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"run", "--pidfile", "/pid/file"},
-		StartCore,
+		run,
 		func(pidParams pidimpl.Params, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, "/pid/file", pidParams.PIDfilePath)
 			require.Equal(t, true, secretParams.Enabled)

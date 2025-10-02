@@ -28,7 +28,7 @@ import (
 	cmdlaunchgui "github.com/DataDog/datadog-agent/cmd/agent/subcommands/launchgui"
 	cmdprocesschecks "github.com/DataDog/datadog-agent/cmd/agent/subcommands/processchecks"
 	cmdremoteconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/remoteconfig"
-	cmdrun "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
+	agentrun "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/agent"
 	cmdsecret "github.com/DataDog/datadog-agent/cmd/agent/subcommands/secret"
 	cmdsecrethelper "github.com/DataDog/datadog-agent/cmd/agent/subcommands/secrethelper"
 	cmdsnmp "github.com/DataDog/datadog-agent/cmd/agent/subcommands/snmp"
@@ -60,7 +60,7 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdlaunchgui.Commands,
 		cmdanalyzelogs.Commands,
 		cmdremoteconfig.Commands,
-		cmdrun.Commands,
+		agentrun.Commands,
 		cmdsecret.Commands,
 		cmdsnmp.Commands,
 		cmdstatus.Commands,

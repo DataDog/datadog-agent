@@ -61,7 +61,7 @@ func IotAgentSubcommands() []command.SubcommandFactory {
 		cmdlaunchgui.Commands,
 		cmdanalyzelogs.Commands,
 		cmdremoteconfig.Commands,
-		cmdrun.Commands,
+		cmdrun.IoTCommands,
 		cmdsecret.Commands,
 		cmdsnmp.Commands,
 		cmdstatus.Commands,
