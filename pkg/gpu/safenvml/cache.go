@@ -8,7 +8,6 @@
 package safenvml
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 
@@ -18,23 +17,25 @@ import (
 // DeviceCache is a cache of GPU devices, with some methods to easily access devices by UUID or index
 type DeviceCache interface {
 	// GetByUUID returns a device by its UUID
-	GetByUUID(uuid string) (Device, bool)
+	GetByUUID(uuid string) (Device, error)
 	// GetByIndex returns a device by its index
 	GetByIndex(index int) (Device, error)
 	// Count returns the number of physical devices in the cache
-	Count() int
+	Count() (int, error)
 	// SMVersionSet returns a set of all SM versions in the cache
-	SMVersionSet() map[uint32]struct{}
+	SMVersionSet() (map[uint32]struct{}, error)
 	// All returns all devices in the cache
-	All() []Device
+	All() ([]Device, error)
 	// AllPhysicalDevices returns all root devices in the cache
-	AllPhysicalDevices() []Device
+	AllPhysicalDevices() ([]Device, error)
 	// AllMigDevices returns all MIG children in the cache
-	AllMigDevices() []Device
+	AllMigDevices() ([]Device, error)
 	// Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
 	Cores(uuid string) (uint64, error)
-	// GetLastInitError returns the last error that occurred during initialization, or nil if the cache is initialized
-	GetLastInitError() error
+	// EnsureInit ensures that the cache is initialized, returns an error if the initialization fails
+	// this function is called by the other methods of the interface so it's not necessary to call it manually, unless
+	// you want to ensure the cache is initialized before calling the other methods
+	EnsureInit() error
 }
 
 // deviceCache is an implementation of DeviceCache
@@ -63,22 +64,11 @@ func NewDeviceCacheWithOptions(lib SafeNVML) DeviceCache {
 		lib:          lib,
 	}
 
-	// Try to initialize the cache if possible, if not we will try to initialize it later
-	_ = cache.ensureInit()
-
 	return cache
 }
 
-// GetLastInitError returns the error that occurred during initialization, or nil if the cache is initialized
-func (c *deviceCache) GetLastInitError() error {
-	if !c.initialized {
-		return errors.New("cache not initialized")
-	}
-
-	return c.lastInitError
-}
-
-func (c *deviceCache) ensureInit() error {
+// EnsureInit ensures that the cache is initialized, returns an error if the initialization fails
+func (c *deviceCache) EnsureInit() error {
 	if c.initialized {
 		return nil
 	}
@@ -140,18 +130,21 @@ func (c *deviceCache) ensureInit() error {
 }
 
 // GetByUUID returns a device by its UUID
-func (c *deviceCache) GetByUUID(uuid string) (Device, bool) {
-	if err := c.ensureInit(); err != nil {
-		return nil, false
+func (c *deviceCache) GetByUUID(uuid string) (Device, error) {
+	if err := c.EnsureInit(); err != nil {
+		return nil, fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
 	device, ok := c.uuidToDevice[uuid]
-	return device, ok
+	if !ok {
+		return nil, fmt.Errorf("device %s not found", uuid)
+	}
+	return device, nil
 }
 
 // GetByIndex returns a device by its index in the host
 func (c *deviceCache) GetByIndex(index int) (Device, error) {
-	if err := c.ensureInit(); err != nil {
+	if err := c.EnsureInit(); err != nil {
 		return nil, err
 	}
 
@@ -163,47 +156,55 @@ func (c *deviceCache) GetByIndex(index int) (Device, error) {
 }
 
 // Count returns the number of physical devices in the cache
-func (c *deviceCache) Count() int {
-	if err := c.ensureInit(); err != nil {
-		return 0
+func (c *deviceCache) Count() (int, error) {
+	if err := c.EnsureInit(); err != nil {
+		return 0, fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
-	return len(c.allPhysicalDevices)
+	return len(c.allPhysicalDevices), nil
 }
 
 // SMVersionSet returns a set of all SM versions in the cache
-func (c *deviceCache) SMVersionSet() map[uint32]struct{} {
-	_ = c.ensureInit() // Ignore error, as we will return the default set if the cache is not initialized anyways
+func (c *deviceCache) SMVersionSet() (map[uint32]struct{}, error) {
+	if err := c.EnsureInit(); err != nil {
+		return nil, fmt.Errorf("failed to initialize device cache: %w", err)
+	}
 
-	return c.smVersionSet
+	return c.smVersionSet, nil
 }
 
 // All returns all devices in the cache
-func (c *deviceCache) All() []Device {
-	_ = c.ensureInit() // Ignore error, as we will return the default set if the cache is not initialized anyways
+func (c *deviceCache) All() ([]Device, error) {
+	if err := c.EnsureInit(); err != nil {
+		return nil, fmt.Errorf("failed to initialize device cache: %w", err)
+	}
 
-	return c.allDevices
+	return c.allDevices, nil
 }
 
 // AllPhysicalDevices returns all physical devices in the cache
-func (c *deviceCache) AllPhysicalDevices() []Device {
-	_ = c.ensureInit() // Ignore error, as we will return the default set if the cache is not initialized anyways
+func (c *deviceCache) AllPhysicalDevices() ([]Device, error) {
+	if err := c.EnsureInit(); err != nil {
+		return nil, fmt.Errorf("failed to initialize device cache: %w", err)
+	}
 
-	return c.allPhysicalDevices
+	return c.allPhysicalDevices, nil
 }
 
 // AllMigDevices returns all MIG children in the cache
-func (c *deviceCache) AllMigDevices() []Device {
-	_ = c.ensureInit() // Ignore error, as we will return the default set if the cache is not initialized anyways
+func (c *deviceCache) AllMigDevices() ([]Device, error) {
+	if err := c.EnsureInit(); err != nil {
+		return nil, fmt.Errorf("failed to initialize device cache: %w", err)
+	}
 
-	return c.allMigDevices
+	return c.allMigDevices, nil
 }
 
 // Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
 func (c *deviceCache) Cores(uuid string) (uint64, error) {
-	device, ok := c.GetByUUID(uuid)
-	if !ok {
-		return 0, fmt.Errorf("device %s not found", uuid)
+	device, err := c.GetByUUID(uuid)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get device %s: %w", uuid, err)
 	}
 	return uint64(device.GetDeviceInfo().CoreCount), nil
 }

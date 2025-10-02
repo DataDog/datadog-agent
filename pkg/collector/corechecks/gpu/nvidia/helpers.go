@@ -13,12 +13,13 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"golang.org/x/exp/constraints"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"golang.org/x/exp/constraints"
 )
 
 // boolToFloat converts a boolean value to float64 (1.0 for true, 0.0 for false)
@@ -79,14 +80,23 @@ func filterSupportedAPIs(device ddnvml.Device, apiCalls []apiCallInfo) []apiCall
 
 // GetDeviceTagsMapping returns the mapping of tags per GPU device.
 func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Component) map[string][]string {
-	devCount := deviceCache.Count()
+	devCount, err := deviceCache.Count()
+	if err != nil {
+		log.Warnf("Error getting device count: %s", err)
+		return nil
+	}
 	if devCount == 0 {
 		return nil
 	}
 
 	tagsMapping := make(map[string][]string, devCount)
 
-	for _, dev := range deviceCache.AllPhysicalDevices() {
+	allPhysicalDevices, err := deviceCache.AllPhysicalDevices()
+	if err != nil {
+		log.Warnf("Error getting all physical devices: %s", err)
+		return nil
+	}
+	for _, dev := range allPhysicalDevices {
 		uuid := dev.GetDeviceInfo().UUID
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)

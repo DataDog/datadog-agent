@@ -115,8 +115,8 @@ func (c *Check) ensureInitDeviceCache() error {
 
 	c.deviceCache = ddnvml.NewDeviceCache()
 
-	if c.deviceCache.GetLastInitError() != nil {
-		return fmt.Errorf("failed to initialize device cache: %w", c.deviceCache.GetLastInitError())
+	if c.deviceCache.EnsureInit() != nil {
+		return fmt.Errorf("failed to initialize device cache: %w", c.deviceCache.EnsureInit())
 	}
 
 	return nil
@@ -190,10 +190,15 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
-	gpuToContainers := make(map[string]*workloadmeta.Container, c.deviceCache.Count())
+	allPhysicalDevices, err := c.deviceCache.AllPhysicalDevices()
+	if err != nil {
+		log.Warnf("Error getting all physical devices: %s", err)
+		return nil
+	}
+	gpuToContainers := make(map[string]*workloadmeta.Container, len(allPhysicalDevices))
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
-		containerDevices, err := containers.MatchContainerDevices(container, c.deviceCache.AllPhysicalDevices())
+		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
 		if err != nil {
 			c.telemetry.missingContainerGpuMapping.Inc(container.Name)
 		}

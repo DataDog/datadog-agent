@@ -132,7 +132,11 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 	}
 
 	if opts.fatbinParsingEnabled {
-		ctx.cudaKernelCache, err = cuda.NewKernelCache(opts.procRoot, ctx.deviceCache.SMVersionSet(), opts.tm, opts.config.KernelCacheQueueSize)
+		smVersionSet, err := ctx.deviceCache.SMVersionSet()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get SM version set: %w", err)
+		}
+		ctx.cudaKernelCache, err = cuda.NewKernelCache(opts.procRoot, smVersionSet, opts.tm, opts.config.KernelCacheQueueSize)
 		if err != nil {
 			return nil, fmt.Errorf("error creating kernel cache: %w", err)
 		}
@@ -237,7 +241,11 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 		// filter on the devices that are available to the process, not on the
 		// devices available on the host system.
 		var err error // avoid shadowing visibleDevices, declare error before so we can use = instead of :=
-		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.AllPhysicalDevices(), containerID)
+		allPhysicalDevices, err := ctx.deviceCache.AllPhysicalDevices()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get all physical devices: %w", err)
+		}
+		visibleDevices, err = ctx.filterDevicesForContainer(allPhysicalDevices, containerID)
 		if err != nil {
 			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
 		}

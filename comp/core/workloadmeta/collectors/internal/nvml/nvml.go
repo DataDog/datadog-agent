@@ -160,11 +160,10 @@ func (c *collector) Pull(_ context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get NVML library : %w", err)
 	}
-	deviceCache, err := ddnvml.NewDeviceCacheWithOptions(lib)
-	if err != nil {
-		return fmt.Errorf("failed to get GPU devices: %w", err)
+	deviceCache := ddnvml.NewDeviceCacheWithOptions(lib)
+	if err := deviceCache.EnsureInit(); err != nil {
+		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
-
 	// driver version is equal to all devices of the same vendor
 	// currently we handle only nvidia.
 	// in the future this function should be refactored to support more vendors
@@ -177,7 +176,12 @@ func (c *collector) Pull(_ context.Context) error {
 	}
 
 	var events []workloadmeta.CollectorEvent
-	for _, dev := range deviceCache.All() {
+	allDevices, err := deviceCache.All()
+	if err != nil {
+		// Should not happen as we check the last init error for the library
+		return fmt.Errorf("failed to get all devices: %w", err)
+	}
+	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
 		gpu.DriverVersion = driverVersion
 		if err != nil {

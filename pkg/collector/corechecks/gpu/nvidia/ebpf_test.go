@@ -413,7 +413,8 @@ func createMockDevice(t *testing.T, deviceUUID string) ddnvml.Device {
 	ddnvml.WithMockNVML(t, nvmlMock)
 
 	deviceCache := ddnvml.NewDeviceCache()
-	devices := deviceCache.AllPhysicalDevices()
+	devices, err := deviceCache.AllPhysicalDevices()
+	require.NoError(t, err)
 	require.Len(t, devices, 1)
 
 	return devices[0]

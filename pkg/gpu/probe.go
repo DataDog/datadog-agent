@@ -311,7 +311,9 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 
-	p.setupSharedBuffer(&opts)
+	if err := p.setupSharedBuffer(&opts); err != nil {
+		return fmt.Errorf("failed to setup shared buffer: %w", err)
+	}
 
 	if err := p.m.InitWithOptions(buf, &opts); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -326,7 +328,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 
 // setupSharedBuffer sets up the ringbuffer to handle CUDA events produces by ebpf uprobes
 // it must be called BEFORE the InitWithOptions method of the manager is called
-func (p *Probe) setupSharedBuffer(o *manager.Options) {
+func (p *Probe) setupSharedBuffer(o *manager.Options) error {
 	rbHandler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	p.ringBuffer = &manager.RingBuffer{
 		Map: manager.Map{Name: cudaEventsRingbuf},
@@ -336,7 +338,10 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 		},
 	}
 
-	devCount := p.sysCtx.deviceCache.Count()
+	devCount, err := p.sysCtx.deviceCache.Count()
+	if err != nil {
+		return fmt.Errorf("failed to get device count: %w", err)
+	}
 	if devCount == 0 {
 		devCount = 1 // Don't let the buffer size be 0
 	}
@@ -364,6 +369,8 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 
 	p.ringBuffer.TelemetryEnabled = true
 	ebpftelemetry.ReportRingBufferTelemetry(p.ringBuffer)
+
+	return nil
 }
 
 // CollectConsumedEvents waits until the debug collector stores count events and returns them
@@ -465,7 +472,15 @@ func toPowerOf2(x int) int {
 func (p *Probe) GetDebugStats() map[string]interface{} {
 	var activeGpus []map[string]interface{}
 
-	for _, gpu := range p.sysCtx.deviceCache.All() {
+	allDevices, err := p.sysCtx.deviceCache.All()
+	if err != nil {
+		log.Warnf("failed to get all devices: %v", err)
+		return map[string]interface{}{
+			"active_gpus": activeGpus,
+		}
+	}
+
+	for _, gpu := range allDevices {
 		info := gpu.GetDeviceInfo()
 		wmetaGpu, err := p.sysCtx.workloadmeta.GetGPU(info.UUID)
 		_, isMIG := gpu.(*safenvml.MIGDevice)
