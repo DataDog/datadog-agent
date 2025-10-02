@@ -152,8 +152,8 @@ github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c h1:Ud
 github.com/DataDog/datadog-operator/api v0.0.0-20250909133746-a88261a5540c/go.mod h1:E+dFku5SVIXDUj6apiBdDAzrUOR3xLz1bMgUOGjRAVQ=
 github.com/DataDog/datadog-traceroute v0.1.25 h1:2dsZrWJ0Il3TP3cBvwG0NUm3EpvsBxTghpDmkz7QmyA=
 github.com/DataDog/datadog-traceroute v0.1.25/go.mod h1:w5sW46QA2+i5VfzRM0Mx3JKPkcMiFpeVGAdXglIS5zE=
-github.com/DataDog/dd-otel-host-profiler v0.4.0 h1:8uk2ZLlo4zh4AecGDYo5R2/xw2CYb1kLu3UokifD5qU=
-github.com/DataDog/dd-otel-host-profiler v0.4.0/go.mod h1:YuWfHKbawhG8rUYwjV5kB0js91wfekfpX4vhQB6kPSw=
+github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251001104144-35a0daaf10ff h1:ebg53sL4WZzIqazsg7P39quwG7bc9tEr9tXOU5Y5ZzI=
+github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251001104144-35a0daaf10ff/go.mod h1:inkKXnNcJR5TNK8CvXcxybKj9J878mj4+4Ri9cziHbE=
 github.com/DataDog/dd-trace-go/v2 v2.2.2 h1:t7RCS6et5z+xrvM9dqUPtCGoNOWTj0pcApzbktMZi2k=
 github.com/DataDog/dd-trace-go/v2 v2.2.2/go.mod h1:xvdSukALA8/NnVfTAnxqkZfLLO/6Vi4y5ooxfVy6dfk=
 github.com/DataDog/ebpf-manager v0.7.14 h1:k08TW46xdUEHggumRmbs9y+ymcZIJ1LKrRcXEq7EgIM=
@@ -2089,8 +2089,8 @@ go.opentelemetry.io/contrib/propagators/b3 v1.37.0 h1:0aGKdIuVhy5l4GClAjl72ntkZJ
 go.opentelemetry.io/contrib/propagators/b3 v1.37.0/go.mod h1:nhyrxEJEOQdwR15zXrCKI6+cJK60PXAkJ/jRyfhr2mg=
 go.opentelemetry.io/contrib/zpages v0.62.0 h1:9fUYTLmrK0x/lweM2uM+BOx069jLx8PxVqWhegGJ9Bo=
 go.opentelemetry.io/contrib/zpages v0.62.0/go.mod h1:C8kXoiC1Ytvereztus2R+kqdSa6W/MZ8FfS8Zwj+LiM=
-go.opentelemetry.io/ebpf-profiler v0.0.202539 h1:IHEWdyOKPTE/OYgUJSaEAdmTSSw4suLuUHpksafYGok=
-go.opentelemetry.io/ebpf-profiler v0.0.202539/go.mod h1:dbVl7lwkYBvlm1MVfS9cZy8mVbI1tHbKjprjprvhank=
+go.opentelemetry.io/ebpf-profiler v0.0.202540-0.20251001054907-eb8909ecce3f h1:fRrEQNEDT3tOhuUubNGKc8wt1qxJmCOo1F8WSqxT4O0=
+go.opentelemetry.io/ebpf-profiler v0.0.202540-0.20251001054907-eb8909ecce3f/go.mod h1:7vlWUNjkzzJHhyqdEAdGFLIw0m/9ADHE1MvW9CjpoPI=
 go.opentelemetry.io/otel v1.38.0 h1:RkfdswUDRimDg0m2Az18RKOsnI8UDzppJAtj01/Ymk8=
 go.opentelemetry.io/otel v1.38.0/go.mod h1:zcmtmQ1+YmQM9wrNsTGV/q/uyusom3P8RxwExxkZhjM=
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.13.0 h1:z6lNIajgEBVtQZHjfw2hAccPEBDs+nx58VemmXWa2ec=
@@ -2609,8 +2609,8 @@ google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2 h1:1tXaIXCracvtsRx
 google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2/go.mod h1:49MsLSx0oWMOZqcpB3uL8ZOkAh1+TndpJ8ONoCBWiZk=
 google.golang.org/genproto/googleapis/api v0.0.0-20250707201910-8d1bb00bc6a7 h1:FiusG7LWj+4byqhbvmB+Q93B/mOxJLN2DTozDuZm4EU=
 google.golang.org/genproto/googleapis/api v0.0.0-20250707201910-8d1bb00bc6a7/go.mod h1:kXqgZtrWaf6qS3jZOCnCH7WYfrvFjkC51bM8fz3RsCA=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20250922171735-9219d122eba9 h1:V1jCN2HBa8sySkR5vLcCSqJSTMv093Rw9EJefhQGP7M=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20250922171735-9219d122eba9/go.mod h1:HSkG/KdJWusxU1F6CNrwNDjBMgisKxGnc5dAZfT0mjQ=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20250929231259-57b25ae835d4 h1:i8QOKZfYg6AbGVZzUAY3LrNWCKF8O6zFisU9Wl9RER4=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20250929231259-57b25ae835d4/go.mod h1:HSkG/KdJWusxU1F6CNrwNDjBMgisKxGnc5dAZfT0mjQ=
 google.golang.org/grpc v1.19.0/go.mod h1:mqu4LbDTu4XGKhr4mRzUsmM4RtVoemTSY81AxZiDr8c=
 google.golang.org/grpc v1.20.1/go.mod h1:10oTOabMzJvdu6/UiuZezV6QK5dSlG84ov/aaiqXj38=
 google.golang.org/grpc v1.21.0/go.mod h1:oYelfM1adQP15Ek0mdvEgi9Df8B9CZIaU1084ijfRaM=
