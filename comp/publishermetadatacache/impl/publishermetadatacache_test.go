@@ -11,8 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 	"github.com/stretchr/testify/assert"
+
+	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	fakeevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/fake"
@@ -24,8 +25,10 @@ func TestPublisherMetadataCache_Get(t *testing.T) {
 	publisherName1 := "Publisher1"
 	publisherName2 := "Publisher2"
 
-	handle1 := cache.Get(publisherName1)
-	handle2 := cache.Get(publisherName2)
+	handle1, err := cache.Get(publisherName1)
+	assert.NoError(t, err)
+	handle2, err := cache.Get(publisherName2)
+	assert.NoError(t, err)
 
 	assert.NotEqual(t, publishermetadatacache.InvalidHandle, handle1)
 	assert.NotEqual(t, publishermetadatacache.InvalidHandle, handle2)
@@ -48,23 +51,26 @@ func TestPublisherMetadataCache_FormatMessage_InvalidHandle_RecreatesCache(t *te
 	publisherName := "TestPublisher"
 	eventHandle := evtapi.EventRecordHandle(100)
 
-	originalHandle := cache.Get(publisherName)
+	originalHandle, err := cache.Get(publisherName)
+	assert.NoError(t, err)
 	assert.NotEqual(t, publishermetadatacache.InvalidHandle, originalHandle)
 
 	// Invalidate the handle to simulate provider being uninstalled
-	err := fakeAPI.InvalidatePublisherHandle(originalHandle)
+	err = fakeAPI.InvalidatePublisherHandle(originalHandle)
 	assert.NoError(t, err)
 
 	// FormatMessage should detect invalid handle and remove from cache
-	message := cache.FormatMessage(publisherName, eventHandle, 0)
-	assert.Empty(t, message) // Should return empty string when handle is invalid
+	message, err := cache.FormatMessage(publisherName, eventHandle, 0)
+	assert.Empty(t, message)
+	assert.Contains(t, err.Error(), "not implemented") // Fake API returns error
 
 	// Verify cache entry was removed
 	_, found := cache.GetCache().Load(publisherName)
 	assert.False(t, found)
 
 	// Next Get call should create a new handle
-	newHandle := cache.Get(publisherName)
+	newHandle, err := cache.Get(publisherName)
+	assert.NoError(t, err)
 	assert.NotEqual(t, originalHandle, newHandle)
 	assert.NotEqual(t, publishermetadatacache.InvalidHandle, newHandle)
 }
@@ -97,7 +103,8 @@ func TestPublisherMetadataCache_FormatMessage_FakeImplementation(t *testing.T) {
 	eventHandle := evtapi.EventRecordHandle(100)
 
 	// First Get to ensure handle is cached
-	handle := cache.Get(publisherName)
+	handle, err := cache.Get(publisherName)
+	assert.NoError(t, err)
 	assert.NotEqual(t, publishermetadatacache.InvalidHandle, handle)
 
 	// Verify handle was cached
@@ -106,15 +113,16 @@ func TestPublisherMetadataCache_FormatMessage_FakeImplementation(t *testing.T) {
 	assert.Equal(t, handle, cachedValue.(publishermetadatacache.CacheEntry).Handle)
 
 	// FormatMessage will fail with fake API (not implemented) and remove cache entry
-	message := cache.FormatMessage(publisherName, eventHandle, 0)
-	assert.Empty(t, message) // Fake API returns empty string on error
+	message, err := cache.FormatMessage(publisherName, eventHandle, 0)
+	assert.Empty(t, message)
+	assert.Contains(t, err.Error(), "not implemented") // Fake API returns error
 
 	// Verify cache entry was removed due to FormatMessage error
 	_, found = cache.GetCache().Load(publisherName)
 	assert.False(t, found)
 }
 
-func TestPublisherMetadataCache_FormatMessage_Concurrency(_ *testing.T) {
+func TestPublisherMetadataCache_FormatMessage_Concurrency(t *testing.T) {
 	cache := publishermetadatacache.New(fakeevtapi.New())
 
 	publishers := []string{"Publisher1", "Publisher2", "Publisher3", "Publisher4", "Publisher5"}

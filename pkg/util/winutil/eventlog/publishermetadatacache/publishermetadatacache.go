@@ -23,6 +23,7 @@ const InvalidHandle = evtapi.EventPublisherMetadataHandle(0)
 // CacheEntry represents a cached EventPublisherMetadataHandle.
 type CacheEntry struct {
 	Handle    evtapi.EventPublisherMetadataHandle
+	err       error
 	CreatedAt time.Time
 }
 
@@ -57,7 +58,7 @@ func (c *PublisherMetadataCache) deleteEntry(publisherName string) {
 
 // Get retrieves a cached EventPublisherMetadataHandle for the given publisher name.
 // If not found in cache, it calls EvtOpenPublisherMetadata and caches the result.
-func (c *PublisherMetadataCache) Get(publisherName string) evtapi.EventPublisherMetadataHandle {
+func (c *PublisherMetadataCache) Get(publisherName string) (evtapi.EventPublisherMetadataHandle, error) {
 	if value, found := c.cache.Load(publisherName); found {
 		entry := value.(CacheEntry)
 		// If the handle is invalid and expired, delete the cache entry.
@@ -65,7 +66,7 @@ func (c *PublisherMetadataCache) Get(publisherName string) evtapi.EventPublisher
 		if entry.Handle == InvalidHandle && entry.CreatedAt.Add(c.expiration).Before(time.Now()) {
 			c.deleteEntry(publisherName)
 		} else {
-			return entry.Handle
+			return entry.Handle, entry.err
 		}
 
 	}
@@ -75,7 +76,7 @@ func (c *PublisherMetadataCache) Get(publisherName string) evtapi.EventPublisher
 	// Double check another thread didn't already create the handle.
 	if value, found := c.cache.Load(publisherName); found {
 		entry := value.(CacheEntry)
-		return entry.Handle
+		return entry.Handle, entry.err
 	}
 
 	handle, err := c.evtapi.EvtOpenPublisherMetadata(publisherName, "")
@@ -87,20 +88,21 @@ func (c *PublisherMetadataCache) Get(publisherName string) evtapi.EventPublisher
 
 	c.cache.Store(publisherName, CacheEntry{
 		Handle:    handle,
+		err:       err,
 		CreatedAt: time.Now(),
 	})
-	return handle
+	return handle, err
 }
 
 // FormatMessage formats an event message using the cached EventPublisherMetadataHandle.
-func (c *PublisherMetadataCache) FormatMessage(publisherName string, event evtapi.EventRecordHandle, flags uint) string {
-	handle := c.Get(publisherName)
+func (c *PublisherMetadataCache) FormatMessage(publisherName string, event evtapi.EventRecordHandle, flags uint) (string, error) {
+	handle, err := c.Get(publisherName)
 
 	c.handleMu.RLock()
 	if handle == InvalidHandle {
 		// Continue without formatting the message.
 		c.handleMu.RUnlock()
-		return ""
+		return "", err
 	}
 	message, err := c.evtapi.EvtFormatMessage(handle, event, 0, nil, flags)
 	c.handleMu.RUnlock()
@@ -110,14 +112,14 @@ func (c *PublisherMetadataCache) FormatMessage(publisherName string, event evtap
 		if err == windows.ERROR_EVT_MESSAGE_NOT_FOUND ||
 			err == windows.ERROR_EVT_MESSAGE_ID_NOT_FOUND ||
 			err == windows.ERROR_EVT_MESSAGE_LOCALE_NOT_FOUND {
-			return ""
+			return "", err
 		}
 		// FormatMessage failed with an old valid handle, so delete the cache entry
 		// and retry creating the handle on the next Get call.
 		c.deleteEntry(publisherName)
-		return ""
+		return "", err
 	}
-	return message
+	return message, nil
 }
 
 // Flush cleans up all cached handles when the component shuts down

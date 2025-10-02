@@ -100,9 +100,13 @@ func (f *eventMessageFilter) renderEvent(e *eventWithMessage) error {
 }
 
 func (f *eventMessageFilter) getEventMessage(api evtapi.API, providerName string, winevent *evtapi.EventRecord) (string, error) {
-	var err error
-
-	message := f.publisherMetadataCache.FormatMessage(providerName, winevent.EventRecordHandle, evtapi.EvtFormatMessageEvent)
+	message, err := f.publisherMetadataCache.FormatMessage(providerName, winevent.EventRecordHandle, evtapi.EvtFormatMessageEvent)
+	if err == nil {
+		return message, nil
+	} else {
+		err = fmt.Errorf("failed to format message: %w", err)
+	}
+	renderErr := err
 
 	// rendering failed, which may happen if
 	// * the event source/provider cannot be found/loaded
@@ -126,10 +130,10 @@ func (f *eventMessageFilter) getEventMessage(api evtapi.API, providerName string
 			if len(msgstrings) > 0 {
 				message = strings.Join(msgstrings, "\n")
 			} else {
-				err = fmt.Errorf("no strings in EventData")
+				err = fmt.Errorf("no strings in EventData, and %w", renderErr)
 			}
 		} else {
-			err = fmt.Errorf("failed to render EventData")
+			err = fmt.Errorf("failed to render EventData, and %w", renderErr)
 		}
 	}
 

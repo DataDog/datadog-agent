@@ -97,9 +97,9 @@ func (s *ddLogSubmitter) enrichEvent(m *windowsevent.Map, e *eventWithMessage) e
 	}
 
 	eh := e.winevent.EventRecordHandle
-	task := s.publisherMetadataCache.FormatMessage(providerName, eh, evtapi.EvtFormatMessageTask)
-	opcode := s.publisherMetadataCache.FormatMessage(providerName, eh, evtapi.EvtFormatMessageOpcode)
-	level := s.publisherMetadataCache.FormatMessage(providerName, eh, evtapi.EvtFormatMessageLevel)
+	task, _ := s.publisherMetadataCache.FormatMessage(providerName, eh, evtapi.EvtFormatMessageTask)
+	opcode, _ := s.publisherMetadataCache.FormatMessage(providerName, eh, evtapi.EvtFormatMessageOpcode)
+	level, _ := s.publisherMetadataCache.FormatMessage(providerName, eh, evtapi.EvtFormatMessageLevel)
 
 	_ = m.SetMessage(e.renderedMessage)
 	_ = m.SetTask(task)

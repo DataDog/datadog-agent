@@ -14,10 +14,10 @@ import (
 func AddRenderedInfoToMap(m *Map, publisherMetadataCache publishermetadatacache.Component, providerName string, event evtapi.EventRecordHandle) {
 	var message, task, opcode, level string
 
-	message = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageEvent)
-	task = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageTask)
-	opcode = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageOpcode)
-	level = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageLevel)
+	message, _ = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageEvent)
+	task, _ = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageTask)
+	opcode, _ = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageOpcode)
+	level, _ = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageLevel)
 
 	_ = m.SetMessage(message)
 	_ = m.SetTask(task)

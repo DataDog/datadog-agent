@@ -18,7 +18,7 @@ import (
 // It caches handles obtained from EvtOpenPublisherMetadata calls to avoid expensive repeated calls.
 type Component interface {
 	// FormatMessage formats an event message using the cached EventPublisherMetadataHandle.
-	FormatMessage(publisherName string, event evtapi.EventRecordHandle, flags uint) string
+	FormatMessage(publisherName string, event evtapi.EventRecordHandle, flags uint) (string, error)
 
 	// Flush cleans up all cached handles when the component is no longer needed.
 	Flush()
