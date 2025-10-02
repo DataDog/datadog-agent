@@ -284,16 +284,6 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 	startTime := s.TimeNowFn()
 	_ = s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1)
 	for _, conn := range conns {
-		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
-			protocol := convertProtocol(conn.GetType())
-			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
-			continue
-		}
-
-		jsonStr, _ := json.Marshal(conn)
-		s.logger.Debugf("one conn: %s", jsonStr)
-		s.logger.Debugf("s.collectorConfigs.monitorIPWithoutDomain: %t", s.collectorConfigs.monitorIPWithoutDomain)
-
 		// TODO: TEST ME
 		domain := ipToDomain[conn.Raddr.GetIp()]
 		if domain == "" && !s.collectorConfigs.monitorIPWithoutDomain {
@@ -301,6 +291,19 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 			s.logger.Debugf("Skipped, no domain: %s", conn.Raddr)
 			continue
 		}
+		if domain == "" {
+			// TODO: better design
+			if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
+				protocol := convertProtocol(conn.GetType())
+				s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
+				continue
+			}
+		}
+
+		jsonStr, _ := json.Marshal(conn)
+		s.logger.Debugf("one conn: %s", jsonStr)
+		s.logger.Debugf("s.collectorConfigs.monitorIPWithoutDomain: %t", s.collectorConfigs.monitorIPWithoutDomain)
+
 		pathtest := s.makePathtest(conn, dns, domain)
 
 		err := s.scheduleOne(&pathtest)
