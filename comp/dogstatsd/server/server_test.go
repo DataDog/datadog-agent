@@ -143,7 +143,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	requireStart(t, s)
 
 	require.ElementsMatch(
-		[]string{"hello:world", "extra:tags", "hello:world2"},
+		[]string{"hello:world", "extra:tags", "hello:world2", "kube_cloud_provider:aws"},
 		s.extraTags,
 		"both tag sources should have been combined",
 	)

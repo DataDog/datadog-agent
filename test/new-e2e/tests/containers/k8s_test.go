@@ -51,6 +51,7 @@ var GitCommit string
 
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
+	envSpecificClusterTags []string
 }
 
 func (suite *k8sSuite) SetupSuite() {
@@ -611,7 +612,7 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^cluster_name:`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
@@ -619,7 +620,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_namespace:workload-nginx$`,
 				`^kube_service:nginx$`,
 				`^url:http://`,
-			},
+			}),
 		},
 	})
 
@@ -633,7 +634,7 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:`,
 				`^cluster_name:`,
 				`^orch_cluster_id:`,
@@ -645,7 +646,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^sub-team:contint$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
 				Min: 1,
@@ -739,7 +740,7 @@ func (suite *k8sSuite) TestRedis() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:`,
 				`^cluster_name:`,
 				`^orch_cluster_id:`,
@@ -747,7 +748,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
 				Min: 1,
@@ -955,7 +956,7 @@ func (suite *k8sSuite) TestKSM() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
@@ -965,7 +966,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
@@ -982,14 +983,14 @@ func (suite *k8sSuite) TestKSM() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
@@ -1002,7 +1003,7 @@ func (suite *k8sSuite) TestKSM() {
 			Name: "kubernetes_state_customresource.ddm_value",
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
@@ -1014,7 +1015,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^ddm_name:(?:nginx|redis)$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 		},
 	})
 }
@@ -1735,4 +1736,9 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 		}
 		require.NoErrorf(c, err, "Failed finding trace with proper tags")
 	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
+}
+
+func (suite *k8sSuite) testClusterTags(tags []string) *[]string {
+	combined := append(tags, suite.envSpecificClusterTags...)
+	return &combined
 }

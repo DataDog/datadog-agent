@@ -61,9 +61,8 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 			tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
 		}
 
-		if providerName, err := cloudprovider.GetName(ctx); err != nil && providerName != "" {
-			tags = append(tags, taggertags.KubeCloudProvider+":"+providerName)
-		}
+		// hard code for now because EKS Fargate means EKS
+		tags = append(tags, taggertags.KubeCloudProvider+":aws")
 	}
 
 	return tags
