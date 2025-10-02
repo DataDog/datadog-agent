@@ -369,13 +369,6 @@ func (t *Tailer) computeFingerprintFromBuffer() {
 		return
 	}
 
-	// Calculate actual bytes accumulated (accounting for skipped bytes)
-	actualBytesUsed := t.fingerprintBufferOffset - t.fingerprintBytesToSkip
-	if actualBytesUsed < t.fingerprintBufferSize {
-		// Buffer not full yet, don't finalize
-		return
-	}
-
 	// Compute CRC64 checksum on the full buffer
 	checksum := crc64.Checksum(t.fingerprintBuffer, crc64Table)
 
