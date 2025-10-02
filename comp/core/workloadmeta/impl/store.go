@@ -443,17 +443,6 @@ func (w *workloadmeta) GetKubernetesMetadata(id wmdef.KubeMetadataEntityID) (*wm
 	return entity.(*wmdef.KubernetesMetadata), nil
 }
 
-// GetKubernetesNodeMetadataByName implements Store#GetKubernetesNodeMetadataByName.
-func (w *workloadmeta) GetKubernetesNodeMetadataByName(nodeName string) (*wmdef.KubernetesMetadata, error) {
-	entities := w.listEntitiesByKind(wmdef.KindKubernetesMetadata)
-	for k := range entities {
-		if metadata, ok := entities[k].(*wmdef.KubernetesMetadata); ok && metadata.GVR.Resource == "nodes" && metadata.Name == nodeName {
-			return metadata, nil
-		}
-	}
-	return nil, errors.NewNotFound(nodeName)
-}
-
 // ListKubernetesMetadata implements Store#ListKubernetesMetadata.
 func (w *workloadmeta) ListKubernetesMetadata(filterFunc wmdef.EntityFilterFunc[*wmdef.KubernetesMetadata]) []*wmdef.KubernetesMetadata {
 	entities := w.listEntitiesByKind(wmdef.KindKubernetesMetadata)
