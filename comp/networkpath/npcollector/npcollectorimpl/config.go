@@ -31,6 +31,7 @@ type collectorConfigs struct {
 	tcpMethod                    payload.TCPMethod
 	icmpMode                     payload.ICMPMode
 	tcpSynParisTracerouteMode    bool
+	monitorIPWithoutDomain       bool
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {
@@ -57,6 +58,7 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		tcpMethod:                 payload.MakeTCPMethod(agentConfig.GetString("network_path.collector.tcp_method")),
 		icmpMode:                  payload.MakeICMPMode(agentConfig.GetString("network_path.collector.icmp_mode")),
 		tcpSynParisTracerouteMode: agentConfig.GetBool("network_path.collector.tcp_syn_paris_traceroute_mode"),
+		monitorIPWithoutDomain:    agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 	}
 }

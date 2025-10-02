@@ -131,7 +131,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 }
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
-func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry, ipToDomain map[string]string) common.Pathtest {
+func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry, hostname string) common.Pathtest {
 	protocol := convertProtocol(conn.GetType())
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
@@ -151,8 +151,13 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*m
 
 	sourceContainer := conn.Laddr.GetContainerId()
 
+	// TODO: TEST ME
+	if hostname == "" {
+		hostname = conn.Raddr.GetIp()
+	}
+
 	return common.Pathtest{
-		Hostname:          hname,
+		Hostname:          hostname,
 		Port:              remotePort,
 		Protocol:          protocol,
 		SourceContainerID: sourceContainer,
@@ -287,13 +292,16 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 
 		jsonStr, _ := json.Marshal(conn)
 		s.logger.Debugf("one conn: %s", jsonStr)
+		s.logger.Debugf("s.collectorConfigs.monitorIPWithoutDomain: %t", s.collectorConfigs.monitorIPWithoutDomain)
 
+		// TODO: TEST ME
 		domain := ipToDomain[conn.Raddr.GetIp()]
-		if domain == "" {
+		if domain == "" && !s.collectorConfigs.monitorIPWithoutDomain {
+			// TODO: Add config to monitor all domains
 			s.logger.Debugf("Skipped, no domain: %s", conn.Raddr)
 			continue
 		}
-		pathtest := s.makePathtest(conn, dns, ipToDomain)
+		pathtest := s.makePathtest(conn, dns, domain)
 
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
