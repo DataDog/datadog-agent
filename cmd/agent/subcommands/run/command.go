@@ -373,6 +373,17 @@ func run(log log.Component,
 }
 
 func getSharedFxOption() fx.Option {
+	fxOption := getCoreFxOption()
+
+	// check if the agent is running as basic or full
+	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") != "basic" {
+		fxOption = fx.Options(fxOption, getFullFxOption())
+	}
+
+	return fxOption
+}
+
+func getCoreFxOption() fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
@@ -387,7 +398,6 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func() flaretypes.Provider {
 			return flaretypes.NewProvider(hostSbom.FlareProvider)
 		}),
-		lsof.Module(),
 		// Enable core agent specific features like persistence-to-disk
 		forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 		// workloadmeta setup
@@ -402,24 +412,6 @@ func getSharedFxOption() fx.Option {
 			status.NewInformationProvider(endpointsStatus.Provider{}),
 			status.NewInformationProvider(profileStatus.Provider{}),
 		),
-		fx.Provide(func(config config.Component) status.InformationProvider {
-			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
-		}),
-		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) status.InformationProvider {
-			return status.NewInformationProvider(systemprobeStatus.GetProvider(sysprobeconfig))
-		}),
-		fx.Provide(func(config config.Component) status.InformationProvider {
-			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
-		}),
-		fx.Supply(
-			rcclient.Params{
-				AgentName:    "core-agent",
-				AgentVersion: version.AgentVersion,
-			},
-		),
-		otelagentStatusfx.Module(),
-		traceagentStatusImpl.Module(),
-		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
 		statsd.Module(),
 		statusimpl.Module(),
@@ -435,15 +427,12 @@ func getSharedFxOption() fx.Option {
 			}
 			return option.None[logsagentpipeline.Component]()
 		}),
-		otelcol.Bundle(),
 		rctelemetryreporterimpl.Module(),
 		rcserviceimpl.Module(),
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
 		daemoncheckerfx.Module(),
 		fleetfx.Module(),
-		dualTaggerfx.Module(common.DualTaggerParams()),
-		autodiscoveryimpl.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 		// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
@@ -468,7 +457,6 @@ func getSharedFxOption() fx.Option {
 			})
 		}),
 		logs.Bundle(),
-		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
@@ -482,15 +470,59 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(ms serializer.MetricSerializer) option.Option[serializer.MetricSerializer] {
 			return option.New[serializer.MetricSerializer](ms)
 		}),
+		collectorimpl.Module(),
+		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
+			return aggregator.NewStatsdDirect(demux, hostname)
+		}),
+		settingsimpl.Module(),
+		agenttelemetryfx.Module(),
+		networkpath.Bundle(),
+		syntheticsTestsfx.Module(),
+		remoteagentregistryfx.Module(),
+		haagentfx.Module(),
+		metricscompressorfx.Module(),
+		diagnosefx.Module(),
+		ipcfx.ModuleReadWrite(),
+		ssistatusfx.Module(),
+		workloadfilterfx.Module(),
+		connectivitycheckerfx.Module(),
+		configstreamfx.Module(),
+	)
+}
+
+func getFullFxOption() fx.Option {
+	return fx.Options(
+		lsof.Module(),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
+		}),
+		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) status.InformationProvider {
+			return status.NewInformationProvider(systemprobeStatus.GetProvider(sysprobeconfig))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
+		}),
+		fx.Supply(
+			rcclient.Params{
+				AgentName:    "core-agent",
+				AgentVersion: version.AgentVersion,
+			},
+		),
+		otelagentStatusfx.Module(),
+		traceagentStatusImpl.Module(),
+		processagentStatusImpl.Module(),
+		otelcol.Bundle(),
+		dualTaggerfx.Module(common.DualTaggerParams()),
+		autodiscoveryimpl.Module(),
+
+		langDetectionClimpl.Module(),
+
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
 		snmpscanfx.Module(),
-		collectorimpl.Module(),
-		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
-			return aggregator.NewStatsdDirect(demux, hostname)
-		}),
+
 		process.Bundle(),
 		guiimpl.Module(),
 		agent.Bundle(jmxloggerimpl.NewDefaultParams()),
@@ -521,19 +553,6 @@ func getSharedFxOption() fx.Option {
 				Config: config,
 			}
 		}),
-		settingsimpl.Module(),
-		agenttelemetryfx.Module(),
-		networkpath.Bundle(),
-		syntheticsTestsfx.Module(),
-		remoteagentregistryfx.Module(),
-		haagentfx.Module(),
-		metricscompressorfx.Module(),
-		diagnosefx.Module(),
-		ipcfx.ModuleReadWrite(),
-		ssistatusfx.Module(),
-		workloadfilterfx.Module(),
-		connectivitycheckerfx.Module(),
-		configstreamfx.Module(),
 	)
 }
 
