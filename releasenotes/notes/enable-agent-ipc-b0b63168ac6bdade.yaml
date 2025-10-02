@@ -2,4 +2,4 @@
 upgrade:
   - |
     The Agent now binds the port `5009` by default to allow internal cross-process communication between the Agent's
-    processes. You can change this setting by setting `agent_ipc.port` in your datadog.yaml.
+    processes. You can change this behavior by setting `agent_ipc.port` in your datadog.yaml file.
