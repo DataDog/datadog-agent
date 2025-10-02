@@ -366,6 +366,13 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		s.logger.Errorf("%s", err)
 		return
 	}
+
+	err = payload.ValidateNetworkPath(&path)
+	if err != nil {
+		s.logger.Errorf("failed to validate network path: %s", err)
+		return
+	}
+
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
 	path.Origin = payload.PathOriginNetworkTraffic
