@@ -185,7 +185,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	log.Debugf("collected connections in %s", time.Since(start))
 
 	jsonStr, _ := json.Marshal(conns)
-	log.Errorf("jsonStr: %s", jsonStr)
+	log.Debugf("jsonStr: %s", jsonStr)
 
 	c.npCollector.ScheduleConns(conns.Conns, conns.Dns, conns.Domains)
 
