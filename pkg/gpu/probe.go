@@ -311,9 +311,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 
-	if err := p.setupSharedBuffer(&opts); err != nil {
-		return fmt.Errorf("failed to setup shared buffer: %w", err)
-	}
+	p.setupSharedBuffer(&opts)
 
 	if err := p.m.InitWithOptions(buf, &opts); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -328,7 +326,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 
 // setupSharedBuffer sets up the ringbuffer to handle CUDA events produces by ebpf uprobes
 // it must be called BEFORE the InitWithOptions method of the manager is called
-func (p *Probe) setupSharedBuffer(o *manager.Options) error {
+func (p *Probe) setupSharedBuffer(o *manager.Options) {
 	rbHandler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	p.ringBuffer = &manager.RingBuffer{
 		Map: manager.Map{Name: cudaEventsRingbuf},
@@ -340,7 +338,7 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) error {
 
 	devCount, err := p.sysCtx.deviceCache.Count()
 	if err != nil {
-		return fmt.Errorf("failed to get device count: %w", err)
+		log.Warnf("failed to get device count to scale ring buffer size: %v. Will use 1 device for the ring buffer size calculation", err)
 	}
 	if devCount == 0 {
 		devCount = 1 // Don't let the buffer size be 0
@@ -369,8 +367,6 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) error {
 
 	p.ringBuffer.TelemetryEnabled = true
 	ebpftelemetry.ReportRingBufferTelemetry(p.ringBuffer)
-
-	return nil
 }
 
 // CollectConsumedEvents waits until the debug collector stores count events and returns them
