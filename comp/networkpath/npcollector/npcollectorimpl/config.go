@@ -15,10 +15,10 @@ import (
 
 const (
 	// defaultNetworkPathDynamicPathTracerouteQueries defines the default number of traceroute queries for dynamic path
-	defaultNetworkPathDynamicPathTracerouteQueries = 1
+	defaultNetworkPathDynamicPathTracerouteQueries = 3
 
 	// defaultNetworkPathDynamicPathE2eQueries defines the default number of end-to-end queries for dynamic path
-	defaultNetworkPathDynamicPathE2eQueries = 10
+	defaultNetworkPathDynamicPathE2eQueries = 50
 )
 
 type collectorConfigs struct {
