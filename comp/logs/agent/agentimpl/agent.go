@@ -63,6 +63,8 @@ const (
 
 	// inventory setting name
 	logsTransport = "logs_transport"
+
+	expectedStartTimeout = 10 * time.Second
 )
 
 // Module defines the fx options for this component.
@@ -92,7 +94,7 @@ type provides struct {
 	Comp           option.Option[agent.Component]
 	FlareProvider  flaretypes.Provider
 	StatusProvider statusComponent.InformationProvider
-	LogsReciever   option.Option[integrations.Component]
+	LogsReceiver   option.Option[integrations.Component]
 	APIStreamLogs  api.AgentEndpointProvider
 }
 
@@ -100,6 +102,7 @@ type provides struct {
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type logAgent struct {
+	sync.Mutex
 	log            log.Component
 	config         model.Reader
 	inventoryAgent inventoryagent.Component
@@ -127,60 +130,104 @@ type logAgent struct {
 
 	// started is true if the logs agent is running
 	started *atomic.Uint32
+
+	// guaranteeStart is a sync.OnceValue that can be called to guarantee that the logs agent is started
+	guaranteeStart func() error
 }
 
 func newLogsAgent(deps dependencies) provides {
-	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
-		if deps.Config.GetBool("log_enabled") {
-			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
-		}
+	logsAgentConfigured := deps.Config.IsConfigured("logs_enabled") || deps.Config.IsConfigured("log_enabled")
+	logsAgentEnabled := deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled")
 
-		integrationsLogs := integrationsimpl.NewLogsIntegration()
-
-		logsAgent := &logAgent{
-			log:                deps.Log,
-			config:             deps.Config,
-			inventoryAgent:     deps.InventoryAgent,
-			hostname:           deps.Hostname,
-			started:            atomic.NewUint32(status.StatusNotStarted),
-			auditor:            deps.Auditor,
-			sources:            sources.NewLogSources(),
-			services:           service.NewServices(),
-			tracker:            tailers.NewTailerTracker(),
-			flarecontroller:    flareController.NewFlareController(),
-			wmeta:              deps.WMeta,
-			schedulerProviders: deps.SchedulerProviders,
-			integrationsLogs:   integrationsLogs,
-			tagger:             deps.Tagger,
-			compression:        deps.Compression,
-		}
-		deps.Lc.Append(fx.Hook{
-			OnStart: logsAgent.start,
-			OnStop:  logsAgent.stop,
-		})
-
+	if logsAgentConfigured && !logsAgentEnabled {
+		deps.Log.Info("logs-agent disabled")
 		return provides{
-			Comp:           option.New[agent.Component](logsAgent),
+			Comp:           option.None[agent.Component](),
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
-			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
-			LogsReciever:   option.New[integrations.Component](integrationsLogs),
-			APIStreamLogs: api.NewAgentEndpointProvider(streamLogsEvents(logsAgent),
-				"/stream-logs",
-				"POST",
-			),
+			LogsReceiver:   option.None[integrations.Component](),
 		}
 	}
 
-	deps.Log.Info("logs-agent disabled")
+	if deps.Config.GetBool("log_enabled") {
+		deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
+	}
+
+	integrationsLogs := integrationsimpl.NewLogsIntegration(deps.Log, deps.Config)
+	sources := sources.NewLogSources()
+	services := service.NewServices()
+
+	logsAgent := &logAgent{
+		log:                deps.Log,
+		config:             deps.Config,
+		inventoryAgent:     deps.InventoryAgent,
+		hostname:           deps.Hostname,
+		started:            atomic.NewUint32(status.StatusNotStarted),
+		auditor:            deps.Auditor,
+		sources:            sources,
+		services:           services,
+		schedulers:         schedulers.NewSchedulers(sources, services),
+		tracker:            tailers.NewTailerTracker(),
+		flarecontroller:    flareController.NewFlareController(),
+		wmeta:              deps.WMeta,
+		schedulerProviders: deps.SchedulerProviders,
+		integrationsLogs:   integrationsLogs,
+		tagger:             deps.Tagger,
+		compression:        deps.Compression,
+		guaranteeStart:     func() error { return nil },
+	}
+
+	// Logs agent startup behavior is different depending on whether the logs agent is explicitly enabled.
+
+	startHook := logsAgent.start
+
+	if !logsAgentConfigured {
+		startHook = logsAgent.initializeLazyStart
+
+		guaranteeStart := sync.OnceValue(func() error {
+			logsAgent.log.Info("Starting logs-agent via lazy start")
+			return logsAgent.start(context.Background())
+		})
+
+		logsAgent.guaranteeStart = guaranteeStart
+		logsAgent.sources.RegisterAddSourceCallback(guaranteeStart)
+		integrationsLogs.SetActionCallback(guaranteeStart)
+	}
+
+	deps.Lc.Append(fx.Hook{
+		OnStart: startHook,
+		OnStop:  logsAgent.stop,
+	})
+
 	return provides{
-		Comp:           option.None[agent.Component](),
+		Comp:           option.New[agent.Component](logsAgent),
+		LogsReceiver:   option.New(integrationsLogs),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
-		LogsReciever:   option.None[integrations.Component](),
+		FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
+		APIStreamLogs: api.NewAgentEndpointProvider(streamLogsEvents(logsAgent),
+			"/stream-logs",
+			"POST",
+		),
 	}
 }
 
 func (a *logAgent) start(context.Context) error {
+	a.Lock()
+	defer a.Unlock()
+
+	if a.started.Load() != status.StatusNotStarted {
+		a.log.Info("logs-agent already started, skipping")
+		return nil
+	}
+
 	a.log.Info("Starting logs-agent...")
+
+	go func() {
+		time.Sleep(expectedStartTimeout)
+		if a.started.Load() != status.StatusRunning || a.started.Load() != status.StatusStopped {
+			a.log.Warn("logs-agent did not start within the expected amount of time")
+			metrics.TlmLogsHungStart.Add(1)
+		}
+	}()
 
 	// setup the server config
 	endpoints, err := buildEndpoints(a.config)
@@ -257,22 +304,41 @@ func (a *logAgent) startPipeline() {
 	)
 	starter.Start()
 	a.startSchedulers()
+	a.log.Info("logs-agent started")
+	a.started.Store(status.StatusRunning)
+}
+
+func (a *logAgent) initializeLazyStart(context.Context) error {
+	a.log.Info("Preparing the logs-agent for lazy start")
+	a.startSchedulers()
+	return nil
 }
 
 func (a *logAgent) startSchedulers() {
 	a.prepareSchedulers.Do(func() {
+		if a.schedulers == nil {
+			a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
+		}
 		a.schedulers.Start()
 
 		for _, scheduler := range a.schedulerProviders {
 			a.AddScheduler(scheduler)
 		}
-
-		a.log.Info("logs-agent started")
-		a.started.Store(status.StatusRunning)
 	})
 }
 
 func (a *logAgent) stop(context.Context) error {
+	a.Lock()
+	defer a.Unlock()
+
+	if a.started.Load() == status.StatusNotStarted {
+		a.log.Info("logs-agent never started, stopping schedulers")
+		a.schedulers.Stop()
+		a.log.Info("schedulers stopped")
+		a.started.Store(status.StatusStopped)
+		return nil
+	}
+
 	a.log.Info("Stopping logs-agent")
 
 	status.Clear()
@@ -321,23 +387,39 @@ func (a *logAgent) stop(context.Context) error {
 		}
 	}
 	a.log.Info("logs-agent stopped")
+	a.started.Store(status.StatusStopped)
 	return nil
 }
 
 // AddScheduler adds the given scheduler to the agent.
 func (a *logAgent) AddScheduler(scheduler schedulers.Scheduler) {
+	// Add schedulers is always safe to call, even if the logs agent is not started.
 	a.schedulers.AddScheduler(scheduler)
 }
 
 func (a *logAgent) GetSources() *sources.LogSources {
+	// GetSources is always safe to call, even if the logs agent is not started.
 	return a.sources
 }
 
 func (a *logAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
+	if a.started.Load() != status.StatusRunning {
+		return nil
+	}
+
 	return a.diagnosticMessageReceiver
 }
 
 func (a *logAgent) GetPipelineProvider() pipeline.Provider {
+	if a.guaranteeStart == nil {
+		return a.pipelineProvider
+	}
+
+	if err := a.guaranteeStart(); err != nil {
+		a.log.Error("Failed to get pipeline provider: ", err)
+		return nil
+	}
+
 	return a.pipelineProvider
 }
 

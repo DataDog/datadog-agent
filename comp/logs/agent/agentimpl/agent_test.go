@@ -22,6 +22,9 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
+	adintegration "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	adnames "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -49,9 +52,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -119,6 +123,14 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.LogsTruncated.Set(0)
 }
 
+type testScheduler struct {
+	started atomic.Bool
+	stopped atomic.Bool
+}
+
+func (t *testScheduler) Start(_ schedulers.SourceManager) { t.started.Store(true) }
+func (t *testScheduler) Stop()                            { t.stopped.Store(true) }
+
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent, *sources.LogSources, *service.Services) {
 	// setup the sources and the services
 	sources := sources.NewLogSources()
@@ -145,7 +157,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		config:           deps.Config,
 		inventoryAgent:   deps.InventoryAgent,
 		started:          atomic.NewUint32(0),
-		integrationsLogs: integrationsimpl.NewLogsIntegration(),
+		integrationsLogs: integrationsimpl.NewLogsIntegration(deps.Log, deps.Config),
 
 		auditor:         deps.Auditor,
 		sources:         sources,
@@ -168,10 +180,10 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	agent, sources, _ := createAgent(suite, endpoints)
 
 	zero := int64(0)
-	assert.Equal(suite.T(), zero, metrics.LogsDecoded.Value())
-	assert.Equal(suite.T(), zero, metrics.LogsProcessed.Value())
-	assert.Equal(suite.T(), zero, metrics.LogsSent.Value())
-	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
+	assert.Equal(suite.T(), zero, metrics.LogsDecoded.Value(), "LogsDecoded should be 0")
+	assert.Equal(suite.T(), zero, metrics.LogsProcessed.Value(), "LogsProcessed should be 0")
+	assert.Equal(suite.T(), zero, metrics.LogsSent.Value(), "LogsSent should be 0")
+	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value(), "DestinationErrors should be 0")
 	metrics.DestinationLogsDropped.Do(func(k expvar.KeyValue) {
 		assert.Equal(suite.T(), k.Value.String(), "0")
 	})
@@ -184,10 +196,124 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	})
 	agent.stop(context.TODO())
 
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
-	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsSent.Value())
-	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
+	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value(), "LogsDecoded should be equal to the number of fake logs")
+	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value(), "LogsProcessed should be equal to the number of fake logs")
+	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsSent.Value(), "LogsSent should be equal to the number of fake logs")
+	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value(), "DestinationErrors should be 0")
+}
+
+func (suite *AgentTestSuite) TestLazyStart() {
+	cfg := configmock.New(suite.T())
+	server := http.NewTestServer(200, cfg)
+	defer server.Stop()
+
+	suite.configOverrides["api_key"] = "0000001"
+	suite.configOverrides["logs_config.logs_dd_url"] = fmt.Sprintf("%s:%d", server.Endpoint.Host, server.Endpoint.Port)
+	suite.configOverrides["logs_config.use_http"] = true
+	suite.configOverrides["logs_config.logs_no_ssl"] = true
+	suite.configOverrides["logs_config.run_path"] = suite.testDir
+
+	type triggerKind int
+	const (
+		triggerBySource triggerKind = iota
+		triggerByPipelineGetter
+		triggerByIntegrations
+	)
+
+	tests := []struct {
+		name    string
+		trigger triggerKind
+	}{
+		{name: "source triggers start", trigger: triggerBySource},
+		{name: "integrations triggers start", trigger: triggerByIntegrations},
+		{name: "pipeline getter triggers start", trigger: triggerByPipelineGetter},
+	}
+
+	for _, tt := range tests {
+		suite.T().Run(tt.name, func(_ *testing.T) {
+			// Minimal intake config for successful start
+
+			delete(suite.configOverrides, "logs_enabled")
+			deps := suite.createDeps()
+			provides := newLogsAgent(deps)
+
+			compOpt := provides.Comp
+			comp, ok := compOpt.Get()
+			assert.True(suite.T(), ok)
+
+			a := comp.(*logAgent)
+
+			err := a.initializeLazyStart(context.TODO())
+			assert.NoError(suite.T(), err)
+			assert.Equal(suite.T(), uint32(status.StatusNotStarted), a.started.Load(), "agent should still not be started")
+
+			// Run all public methods that are not expected to trigger a lazy start
+			assert.NotNil(suite.T(), a.GetSources(), "GetSources should be set")
+			assert.Nil(suite.T(), a.GetMessageReceiver(), "GetMessageReceiver should be nil")
+			ts := &testScheduler{}
+			comp.AddScheduler(ts) // This should not block the test
+
+			// Confirm that the agent is still not started
+			assert.Equal(suite.T(), uint32(status.StatusNotStarted), a.started.Load(), "agent should still not be started")
+
+			switch tt.trigger {
+			case triggerBySource:
+				zero := int64(0)
+				assert.Equal(suite.T(), zero, metrics.LogsDecoded.Value(), "LogsDecoded should be 0")
+				assert.Equal(suite.T(), zero, metrics.LogsProcessed.Value(), "LogsProcessed should be 0")
+				assert.Equal(suite.T(), zero, metrics.LogsSent.Value(), "LogsSent should be 0")
+				assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value(), "DestinationErrors should be 0")
+				metrics.DestinationLogsDropped.Do(func(k expvar.KeyValue) {
+					assert.Equal(suite.T(), k.Value.String(), "0")
+				})
+
+				comp.GetSources().AddSource(suite.source)
+				testutil.AssertTrueBeforeTimeout(suite.T(), 15*time.Millisecond, 10*time.Second, func() bool {
+					return suite.fakeLogs == metrics.LogsSent.Value()
+				})
+
+				assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value(), "LogsDecoded should be equal to the number of fake logs")
+				assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value(), "LogsProcessed should be equal to the number of fake logs")
+				assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsSent.Value(), "LogsSent should be equal to the number of fake logs")
+				assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value(), "DestinationErrors should be 0")
+			case triggerByPipelineGetter:
+				comp.GetPipelineProvider()
+			case triggerByIntegrations:
+				a.integrationsLogs.RegisterIntegration("test", adintegration.Config{
+					Provider:   adnames.Container,
+					Name:       "test-integration",
+					LogsConfig: []byte(`[{"type": "integration", "source": "foo", "service": "bar"}]`),
+				})
+			}
+
+			assert.Equal(suite.T(), uint32(status.StatusRunning), a.started.Load(), "agent should be running")
+			// confirm underlying variables are set
+			assert.NotNil(suite.T(), a.pipelineProvider, "pipelineProvider should be set")
+			assert.NotNil(suite.T(), a.diagnosticMessageReceiver, "diagnosticMessageReceiver should be set")
+			// confirm public methods are working
+			assert.NotNil(suite.T(), a.GetMessageReceiver(), "GetMessageReceiver should be set")
+			assert.NotNil(suite.T(), a.GetPipelineProvider(), "GetPipelineProvider should be set")
+
+			a.stop(context.TODO())
+			assert.True(suite.T(), ts.stopped.Load())
+		})
+	}
+}
+
+func (suite *AgentTestSuite) TestAgentLazyStop() {
+	deps := suite.createDeps()
+	provides := newLogsAgent(deps)
+	compOpt := provides.Comp
+	comp, ok := compOpt.Get()
+	assert.True(suite.T(), ok)
+
+	a := comp.(*logAgent)
+
+	a.initializeLazyStart(context.TODO())
+	a.stop(context.TODO())
+	assert.Equal(suite.T(), uint32(status.StatusStopped), a.started.Load(), "agent should be stopped")
+	a.start(context.TODO())
+	assert.Equal(suite.T(), uint32(status.StatusStopped), a.started.Load(), "agent should not be running")
 }
 
 func (suite *AgentTestSuite) TestTruncateLogOriginAndService() {
@@ -359,7 +485,7 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 func (suite *AgentTestSuite) TestStatusOut() {
 	originalProvider := logsProvider
 
-	mockResult := logsStatus.Status{
+	mockResult := status.Status{
 		IsRunning: true,
 		Endpoints: []string{"foo", "bar"},
 		StatusMetrics: map[string]string{
@@ -370,14 +496,14 @@ func (suite *AgentTestSuite) TestStatusOut() {
 			"CoreAgentProcessOpenFiles": 27,
 			"OSFileLimit":               1048576,
 		},
-		Integrations: []logsStatus.Integration{},
-		Tailers:      []logsStatus.Tailer{},
+		Integrations: []status.Integration{},
+		Tailers:      []status.Tailer{},
 		Errors:       []string{},
 		Warnings:     []string{},
 		UseHTTP:      true,
 	}
 
-	logsProvider = func(_ bool) logsStatus.Status {
+	logsProvider = func(_ bool) status.Status {
 		return mockResult
 	}
 

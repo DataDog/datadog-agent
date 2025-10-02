@@ -23,6 +23,7 @@ import (
 	integrationsmock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
@@ -49,7 +50,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.fs = afero.NewMemMapFs()
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
-	suite.integrationsComp = integrationsmock.Mock()
+	suite.integrationsComp = integrationsmock.Mock(suite.T())
 	suite.testDir = suite.T().TempDir()
 	suite.testPath = filepath.Join(suite.testDir, "logs_integration_test.log")
 
@@ -89,7 +90,7 @@ func (suite *LauncherTestSuite) TestSendLog() {
 
 	id := "123456789"
 
-	suite.s.Start(nil, nil, nil, nil)
+	suite.s.Start(launchers.NewMockSourceProvider(), nil, nil, nil)
 	suite.integrationsComp.RegisterIntegration(id, *mockConf)
 
 	logSample := "hello world"
@@ -110,7 +111,7 @@ func (suite *LauncherTestSuite) TestEmptyConfig() {
 	mockConf.Provider = "container"
 	mockConf.LogsConfig = integration.Data(``)
 
-	suite.s.Start(nil, nil, nil, nil)
+	suite.s.Start(launchers.NewMockSourceProvider(), nil, nil, nil)
 	suite.integrationsComp.RegisterIntegration("12345", *mockConf)
 
 	assert.Equal(suite.T(), len(suite.s.sources.GetSources()), 0)
@@ -136,7 +137,7 @@ func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileCreated() {
 
 	file.Close()
 
-	suite.s.Start(nil, nil, nil, nil)
+	suite.s.Start(launchers.NewMockSourceProvider(), nil, nil, nil)
 
 	integrationLog := integrations.IntegrationLog{
 		Log:           "sample log",
@@ -149,7 +150,7 @@ func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileCreated() {
 func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileNotCreated() {
 	suite.s.combinedUsageMax = 0
 
-	suite.s.Start(nil, nil, nil, nil)
+	suite.s.Start(launchers.NewMockSourceProvider(), nil, nil, nil)
 
 	integrationLog := integrations.IntegrationLog{
 		Log:           "sample log",
@@ -169,7 +170,7 @@ func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
 
 	file.Close()
 
-	suite.s.Start(nil, nil, nil, nil)
+	suite.s.Start(launchers.NewMockSourceProvider(), nil, nil, nil)
 
 	// Launcher should write this log
 	shortLog := "sample"
@@ -314,7 +315,7 @@ func (suite *LauncherTestSuite) TestFileExceedsSingleFileLimit() {
 	file.Write(make([]byte, oneMB))
 	file.Close()
 
-	suite.s.Start(nil, nil, nil, nil)
+	suite.s.Start(launchers.NewMockSourceProvider(), nil, nil, nil)
 
 	integrationLog := integrations.IntegrationLog{
 		Log:           "sample log",
@@ -387,7 +388,7 @@ func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 		return nil
 	}
 
-	suite.s.Start(nil, nil, nil, nil)
+	suite.s.Start(launchers.NewMockSourceProvider(), nil, nil, nil)
 	suite.integrationsComp.RegisterIntegration(fileID, *mockConf)
 	assert.Equal(suite.T(), 1, len(suite.s.integrationToFile))
 
@@ -431,7 +432,7 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	suite.fs.Chtimes(fileWithPath2, accessTime, modTime.Add(-1*time.Minute))
 	suite.fs.Chtimes(fileWithPath3, accessTime, modTime)
 
-	suite.s.Start(nil, nil, nil, nil)
+	suite.s.Start(launchers.NewMockSourceProvider(), nil, nil, nil)
 
 	integrationLog := integrations.IntegrationLog{
 		Log:           "sample log",
@@ -477,7 +478,7 @@ func (suite *LauncherTestSuite) TestInitialLogsExceedTotalUsageMultipleFiles() {
 	file1.Close()
 	file2.Close()
 
-	suite.s.Start(nil, nil, nil, nil)
+	suite.s.Start(launchers.NewMockSourceProvider(), nil, nil, nil)
 
 	assert.Equal(suite.T(), oneMB, suite.s.combinedUsageSize)
 	assert.Equal(suite.T(), 2, len(suite.s.integrationToFile))
@@ -498,7 +499,7 @@ func (suite *LauncherTestSuite) TestInitialLogExceedsTotalUsageSingleFile() {
 	file.Write(dataTwoMB)
 	file.Close()
 
-	suite.s.Start(nil, nil, nil, nil)
+	suite.s.Start(launchers.NewMockSourceProvider(), nil, nil, nil)
 
 	assert.Equal(suite.T(), int64(0), suite.s.combinedUsageSize)
 	assert.Equal(suite.T(), 1, len(suite.s.integrationToFile))
@@ -562,7 +563,7 @@ func TestReadOnlyFileSystem(t *testing.T) {
 
 	cfg.SetWithoutSource("logs_config.run_path", readOnlyDir)
 
-	integrationsComp := integrationsmock.Mock()
+	integrationsComp := integrationsmock.Mock(t)
 	s := NewLauncher(afero.NewReadOnlyFs(fs), sources.NewLogSources(), integrationsComp)
 
 	// Check the launcher doesn't block on receiving channels
@@ -571,7 +572,7 @@ func TestReadOnlyFileSystem(t *testing.T) {
 	mockConf.LogsConfig = integration.Data(`[{"type": "integration", "source": "foo", "service": "bar"}]`)
 	id := "123456789"
 
-	s.Start(nil, nil, nil, nil)
+	s.Start(launchers.NewMockSourceProvider(), nil, nil, nil)
 	integrationsComp.RegisterIntegration(id, *mockConf)
 
 	logSample := "hello world"
@@ -589,7 +590,7 @@ func TestCombinedDiskUsageFallback(t *testing.T) {
 	cfg.SetWithoutSource("logs_config.integrations_logs_disk_ratio", -1)
 	cfg.SetWithoutSource("logs_config.integrations_logs_total_usage", totalUsage)
 
-	integrationsComp := integrationsmock.Mock()
+	integrationsComp := integrationsmock.Mock(t)
 	s := NewLauncher(afero.NewOsFs(), sources.NewLogSources(), integrationsComp)
 
 	assert.Equal(t, s.combinedUsageMax, int64(totalUsage*1024*1024))
