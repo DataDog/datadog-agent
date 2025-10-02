@@ -271,19 +271,19 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 	if failoverActive {
 		return []metricsserializer.Pipeline{
 			{
-				FilterFunc:  func(series *metrics.Serie) bool { return true },
+				FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
 				Destination: transaction.PrimaryOnly,
 			},
 			{
-				FilterFunc: func(series *metrics.Serie) bool {
-					_, allowed := allowlistForMRF[series.Name]
+				FilterFunc: func(metric metricsserializer.Filterable) bool {
+					_, allowed := allowlistForMRF[metric.GetName()]
 					return allowed
 				},
 				Destination: transaction.SecondaryOnly,
 			},
 			{
-				FilterFunc: func(series *metrics.Serie) bool {
-					_, allowed := allowlistForAutoscaling[series.Name]
+				FilterFunc: func(metric metricsserializer.Filterable) bool {
+					_, allowed := allowlistForAutoscaling[metric.GetName()]
 					return allowed
 				},
 				Destination: transaction.LocalOnly,
@@ -301,15 +301,15 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 			// Split routing: allowlist metrics → PreaggrOnly, others → AllRegions
 			return []metricsserializer.Pipeline{
 				{
-					FilterFunc: func(series *metrics.Serie) bool {
-						_, allowed := allowlistForPreaggr[series.Name]
+					FilterFunc: func(metric metricsserializer.Filterable) bool {
+						_, allowed := allowlistForPreaggr[metric.GetName()]
 						return !allowed
 					},
 					Destination: transaction.AllRegions,
 				},
 				{
-					FilterFunc: func(series *metrics.Serie) bool {
-						_, allowed := allowlistForPreaggr[series.Name]
+					FilterFunc: func(metric metricsserializer.Filterable) bool {
+						_, allowed := allowlistForPreaggr[metric.GetName()]
 						return allowed
 					},
 					Destination: transaction.PreaggrOnly,
@@ -319,11 +319,11 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 			// Dual-ship: all metrics → both destinations
 			return []metricsserializer.Pipeline{
 				{
-					FilterFunc:  func(series *metrics.Serie) bool { return true },
+					FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
 					Destination: transaction.AllRegions,
 				},
 				{
-					FilterFunc:  func(series *metrics.Serie) bool { return true },
+					FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
 					Destination: transaction.PreaggrOnly,
 				},
 			}
@@ -333,7 +333,7 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 	// Default: all metrics to AllRegions
 	return []metricsserializer.Pipeline{
 		{
-			FilterFunc:  func(series *metrics.Serie) bool { return true },
+			FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
 			Destination: transaction.AllRegions,
 		},
 	}
@@ -388,32 +388,13 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	}
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 
-	failoverActive, allowlist := s.getFailoverAllowlist()
-	if failoverActive && len(allowlist) > 0 {
-		payloads, filteredPayloads, err := sketchesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(ss *metrics.SketchSeries) bool {
-			_, allowed := allowlist[ss.Name]
-			return allowed
-		}, s.logger)
-		if err != nil {
-			return fmt.Errorf("dropping sketch payload: %v", err)
-		}
-		for _, payload := range payloads {
-			payload.Destination = transaction.PrimaryOnly
-		}
-		for _, payload := range filteredPayloads {
-			payload.Destination = transaction.SecondaryOnly
-		}
-		payloads = append(payloads, filteredPayloads...)
-
-		return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
-	} else {
-		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy, s.logger)
-		if err != nil {
-			return fmt.Errorf("dropping sketch payload: %v", err)
-		}
-
-		return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
+	pipelines := s.buildPipelines()
+	payloads, err := sketchesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines, s.logger)
+	if err != nil {
+		return fmt.Errorf("dropping sketch payload: %v", err)
 	}
+
+	return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder

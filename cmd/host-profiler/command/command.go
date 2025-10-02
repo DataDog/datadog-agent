@@ -29,6 +29,7 @@ func MakeRootCommand() *cobra.Command {
 		return &globalParams
 	}
 	hostProfiler.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "config", "c", "", "path to host-profiler configuration file")
+	hostProfiler.PersistentFlags().StringVarP(&globalParams.CoreConfPath, "core-config", "", "", "Location to the Datadog Agent config file. If this value is not set, infra attribute processor and all features related to the Agent will not be enabled.")
 
 	for _, subCommandFactory := range hostProfilerSubcommands() {
 		subcommands := subCommandFactory(globalParamsGetter)
