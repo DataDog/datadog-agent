@@ -17,6 +17,8 @@ const (
 	EventKindEntry
 	// EventKindReturn is an event that emits a return.
 	EventKindReturn
+	// EventKindLine is an event that emits a line.
+	EventKindLine
 
 	maxEventKind uint8 = iota
 )
