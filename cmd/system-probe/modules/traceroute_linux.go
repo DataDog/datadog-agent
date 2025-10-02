@@ -25,3 +25,9 @@ func startPlatformDriver() error {
 	// No driver needed on Linux
 	return nil
 }
+
+// stopPlatformDriver is a no-op on Linux
+func stopPlatformDriver() error {
+	// No driver needed on Linux
+	return nil
+}

@@ -28,3 +28,13 @@ func startPlatformDriver() error {
 	log.Debug("Windows network driver started for traceroute")
 	return nil
 }
+
+func stopPlatformDriver() error {
+	if err := driver.Stop(); err != nil {
+		log.Errorf("failed to stop Windows Driver: %s", err)
+		return err
+	}
+	log.Debug("Windows Driver stopped for traceroute")
+	return nil
+}
+

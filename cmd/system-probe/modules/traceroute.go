@@ -55,9 +55,7 @@ func (t *traceroute) GetStats() map[string]interface{} {
 
 func (t *traceroute) Register(httpMux *module.Router) error {
 	// Start platform-specific driver (Windows only, no-op on other platforms)
-	if err := startPlatformDriver(); err != nil {
-		return fmt.Errorf("failed to start platform driver: %w", err)
-	}
+	driverError := startPlatformDriver()
 
 	var runCounter atomic.Uint64
 
@@ -68,6 +66,12 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		if err != nil {
 			log.Errorf("invalid params for host: %s: %s", cfg.DestHostname, err)
 			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if driverError != nil && !cfg.DisableWindowsDriver {
+			log.Errorf("failed to start platform driver: %s", driverError)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
@@ -102,7 +106,12 @@ func (t *traceroute) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 
-func (t *traceroute) Close() {}
+func (t *traceroute) Close() {
+	err := stopPlatformDriver()
+	if err != nil {
+		log.Errorf("failed to stop platform driver: %s", err)
+	}
+}
 
 func logTracerouteRequests(url *url.URL, runCount uint64, start time.Time) {
 	msg := fmt.Sprintf("Got request on %s?%s (count: %d): retrieved traceroute in %s", url.RawPath, url.RawQuery, runCount, time.Since(start))
