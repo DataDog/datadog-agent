@@ -423,11 +423,6 @@ func (t *remoteTagger) AgentTags(_ types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
-// ProcessTagInfo is a no-op in the remote tagger.
-func (t *remoteTagger) ProcessTagInfo([]*types.TagInfo) {
-	// TODO: look into why processing tag info might be done by a remote tagger, if at all.
-}
-
 func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	return t.Tag(types.GetGlobalEntityID(), cardinality)
 }
