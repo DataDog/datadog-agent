@@ -241,7 +241,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		category:                      "Synthetics",
 		contentType:                   logshttp.JSONContentType,
 		endpointsConfigPrefix:         "synthetics.forwarder.",
-		hostnameEndpointPrefix:        "http-synthetics.logs.",
+		hostnameEndpointPrefix:        "http-synthetics.",
 		intakeTrackType:               "synthetics",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,

@@ -52,6 +52,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 		getConfigCheck(w, r, ac)
 	}).Methods("GET")
 	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
+	r.HandleFunc("/config/without-defaults", settings.GetFullConfigWithoutDefaults("")).Methods("GET")
 	r.HandleFunc("/config/by-source", settings.GetFullConfigBySource()).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")

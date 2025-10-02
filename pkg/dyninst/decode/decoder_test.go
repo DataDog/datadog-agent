@@ -41,7 +41,7 @@ func FuzzDecoder(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, item []byte) {
 		_, _, _ = decoder.Decode(Event{
-			Entry:       output.Event(item),
+			EntryOrLine: output.Event(item),
 			ServiceName: "foo",
 		}, &noopSymbolicator{}, []byte{})
 		require.Empty(t, decoder.entry.dataItems)
@@ -64,7 +64,7 @@ func TestDecoderManually(t *testing.T) {
 			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 			require.NoError(t, err)
 			buf, probe, err := decoder.Decode(Event{
-				Entry:       output.Event(item),
+				EntryOrLine: output.Event(item),
 				ServiceName: "foo",
 			}, &noopSymbolicator{}, []byte{})
 			require.NoError(t, err)
@@ -90,7 +90,7 @@ func BenchmarkDecoder(b *testing.B) {
 			require.NoError(b, err)
 			symbolicator := &noopSymbolicator{}
 			event := Event{
-				Entry:       output.Event(c.eventConstructor(b, irProg)),
+				EntryOrLine: output.Event(c.eventConstructor(b, irProg)),
 				ServiceName: "foo",
 			}
 			b.ResetTimer()
@@ -771,7 +771,7 @@ func TestDecoderPanics(t *testing.T) {
 	stringID := stringType.GetID()
 	decoder.decoderTypes[stringID] = &panicDecoderType{decoder.decoderTypes[stringID]}
 	_, _, err = decoder.Decode(Event{
-		Entry:       output.Event(input),
+		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
 		[]byte{},
@@ -800,7 +800,7 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 	stringID := stringType.GetID()
 	delete(decoder.decoderTypes, stringID)
 	out, _, err := decoder.Decode(Event{
-		Entry:       output.Event(input),
+		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
 		[]byte{},
@@ -840,7 +840,7 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	// by each iteration of the loop. It's expected/possible that consumers
 	// of the decoder API will call Decode every time with the same buffer.
 	out, _, err := decoder.Decode(Event{
-		Entry:       output.Event(input),
+		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
 		buf,

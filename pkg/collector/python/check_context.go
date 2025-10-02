@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,6 +30,7 @@ type checkContext struct {
 	senderManager sender.SenderManager
 	logReceiver   option.Option[integrations.Component]
 	tagger        tagger.Component
+	filter        workloadfilter.FilterBundle
 }
 
 func getCheckContext() (*checkContext, error) {
@@ -41,13 +43,14 @@ func getCheckContext() (*checkContext, error) {
 	return checkCtx, nil
 }
 
-func initializeCheckContext(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) {
+func initializeCheckContext(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore workloadfilter.Component) {
 	checkContextMutex.Lock()
 	if checkCtx == nil {
 		checkCtx = &checkContext{
 			senderManager: senderManager,
 			logReceiver:   logReceiver,
 			tagger:        tagger,
+			filter:        filterStore.GetContainerSharedMetricFilters(),
 		}
 
 		if _, ok := logReceiver.Get(); !ok {

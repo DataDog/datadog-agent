@@ -591,6 +591,12 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 	}
 }
 
+func (tm *testModule) sendStats() {
+	// send twice to collect stats from both buffers
+	tm.eventMonitor.SendStats()
+	tm.eventMonitor.SendStats()
+}
+
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (_ *testModule, err error) {
 	defer func() {
 		if err != nil && testMod != nil {

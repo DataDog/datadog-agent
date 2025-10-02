@@ -106,7 +106,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	if p := pkgconfigsetup.Datadog().GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
-	if pkgconfigsetup.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
+	if utils.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := remote(c, ipcAddress, ipc)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
