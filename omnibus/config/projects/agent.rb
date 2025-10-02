@@ -246,8 +246,7 @@ if do_build
   dependency 'datadog-cf-finalize'
 
   if linux_target?
-    command "tar -czf #{install_dir}/LICENSES.tar.gz #{install_dir}/LICENSES"
-    delete "#{install_dir}/LICENSES"
+    dependency 'datadog-agent-finalize-licenses'
   end
 
   # Special csae for heroku which does build & packaging in a single step
