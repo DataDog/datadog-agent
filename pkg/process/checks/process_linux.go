@@ -129,6 +129,7 @@ func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) 
 		UDPPorts:       udpPorts,
 		Language:       wlmProc.Language,
 		Service:        service,
+		InjectionState: procutil.InjectionState(wlmProc.InjectionState),
 	}
 }
 
@@ -193,6 +194,18 @@ func apmInstrumentation(instrumentation string) bool {
 		return false
 	default:
 		return false
+	}
+}
+
+// formatInjectionState converts the internal injection state to the agent payload enum
+func formatInjectionState(state procutil.InjectionState) model.InjectionState {
+	switch state {
+	case procutil.InjectionInjected:
+		return model.InjectionState_INJECTION_INJECTED
+	case procutil.InjectionNotInjected:
+		return model.InjectionState_INJECTION_NOT_INJECTED
+	default:
+		return model.InjectionState_INJECTION_UNKNOWN
 	}
 }
 
