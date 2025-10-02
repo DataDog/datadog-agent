@@ -1956,6 +1956,9 @@ type GPU struct {
 
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
 	DeviceType GPUDeviceType
+
+	// VirtualizationMode contains the virtualization mode of the device
+	VirtualizationMode string
 }
 
 var _ Entity = &GPU{}
