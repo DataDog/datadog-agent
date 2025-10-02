@@ -107,8 +107,8 @@ func (rt *RolloutTracker) StoreReplicaSet(rs *appsv1.ReplicaSet, ownerName, owne
 
 // GetRolloutDuration calculates rollout duration using stored maps
 func (rt *RolloutTracker) GetRolloutDuration(namespace, deploymentName string) float64 {
-	rt.mutex.RLock()
-	defer rt.mutex.RUnlock()
+	rt.mutex.Lock()
+	defer rt.mutex.Unlock()
 
 	deploymentKey := namespace + "/" + deploymentName
 
@@ -241,8 +241,8 @@ func (rt *RolloutTracker) StoreControllerRevision(cr *appsv1.ControllerRevision,
 
 // GetStatefulSetRolloutDuration calculates StatefulSet rollout duration using stored maps
 func (rt *RolloutTracker) GetStatefulSetRolloutDuration(namespace, statefulSetName string) float64 {
-	rt.mutex.RLock()
-	defer rt.mutex.RUnlock()
+	rt.mutex.Lock()
+	defer rt.mutex.Unlock()
 
 	statefulSetKey := namespace + "/" + statefulSetName
 
