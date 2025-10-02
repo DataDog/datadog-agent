@@ -56,8 +56,8 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	// Get current pods for the target
 	targetRef := dpai.Spec().TargetRef
 	objectives := dpai.Spec().Objectives
-	if dpai.Spec().Fallback != nil && dpai.Spec().Fallback.Horizontal.Objective != nil {
-		objectives = []datadoghqcommon.DatadogPodAutoscalerObjective{*dpai.Spec().Fallback.Horizontal.Objective}
+	if dpai.Spec().Fallback != nil && len(dpai.Spec().Fallback.Horizontal.Objectives) > 0 {
+		objectives = dpai.Spec().Fallback.Horizontal.Objectives
 	}
 	targetGVK, targetErr := dpai.TargetGVK()
 	if targetErr != nil {

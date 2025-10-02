@@ -942,8 +942,8 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
 				Fallback: &datadoghq.DatadogFallbackPolicy{
 					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
-						Objective: &datadoghqcommon.DatadogPodAutoscalerObjective{
-							Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType},
 						},
 					},
 				},
@@ -954,9 +954,8 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
 				Fallback: &datadoghq.DatadogFallbackPolicy{
 					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
-						Objective: &datadoghqcommon.DatadogPodAutoscalerObjective{
-							Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
-						},
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType}},
 					},
 				},
 			},

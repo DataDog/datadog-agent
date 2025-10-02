@@ -498,8 +498,12 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 }
 
 func validateAutoscalerObjectives(spec *datadoghq.DatadogPodAutoscalerSpec) error {
-	if spec.Fallback != nil && spec.Fallback.Horizontal.Objective != nil && spec.Fallback.Horizontal.Objective.Type == datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType {
-		return fmt.Errorf("Autoscaler fallback cannot be based on custom query objective")
+	if spec.Fallback != nil && len(spec.Fallback.Horizontal.Objectives) > 0 {
+		for _, objective := range spec.Fallback.Horizontal.Objectives {
+			if objective.Type == datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType {
+				return fmt.Errorf("Autoscaler fallback cannot be based on custom query objective")
+			}
+		}
 	}
 
 	for _, objective := range spec.Objectives {

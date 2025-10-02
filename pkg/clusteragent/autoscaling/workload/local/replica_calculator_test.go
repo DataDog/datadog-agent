@@ -1612,7 +1612,7 @@ func TestCalculateHorizontalRecommendations(t *testing.T) {
 				},
 				Fallback: &datadoghq.DatadogFallbackPolicy{
 					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
-						Objective: &cpuObjective,
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{cpuObjective},
 					},
 				},
 			},
