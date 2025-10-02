@@ -8,6 +8,7 @@ package file
 import (
 	"context"
 	"fmt"
+	"hash/crc64"
 	"io"
 	"os"
 	"path/filepath"
@@ -123,6 +124,14 @@ type Tailer struct {
 	fingerprint     *logstypes.Fingerprint
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
+
+	// Partial fingerprint buffering fields
+	// When a file starts empty, we accumulate data in a buffer until we have enough to compute a fingerprint
+	fingerprintBuffer       []byte
+	fingerprintBufferOffset int
+	fingerprintBufferSize   int
+	fingerprintBytesToSkip  int
+	isPartialFingerprintState *atomic.Bool
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -192,6 +201,21 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		fingerprint:            opts.Fingerprint,
 		CapacityMonitor:        opts.CapacityMonitor,
 		registry:               opts.Registry,
+		isPartialFingerprintState: atomic.NewBool(false),
+	}
+
+	// Initialize partial fingerprint buffering if we have an invalid fingerprint (e.g., empty file)
+	if opts.Fingerprint == nil || !opts.Fingerprint.IsValidFingerprint() {
+		fingerprintConfig := opts.File.Source.Config().FingerprintConfig
+		if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == logstypes.FingerprintStrategyByteChecksum { // TODO: this is only byte-based fingerprinting ... 
+			t.isPartialFingerprintState.Store(true)
+			t.fingerprintBufferSize = fingerprintConfig.Count
+			t.fingerprintBytesToSkip = fingerprintConfig.CountToSkip
+			t.fingerprintBuffer = make([]byte, fingerprintConfig.Count)
+			t.fingerprintBufferOffset = 0
+			log.Debugf("Tailer starting in partial fingerprint state for %s (buffer size: %d, skip: %d)",
+				opts.File.Path, t.fingerprintBufferSize, t.fingerprintBytesToSkip)
+		}
 	}
 
 	if fileRotated {
@@ -304,6 +328,117 @@ func (t *Tailer) StopAfterFileRotation() {
 		t.stop <- struct{}{}
 	}()
 	t.file.Source.RemoveInput(t.file.Path)
+}
+
+// accumulateForFingerprint accumulates data in the fingerprint buffer until we have enough to compute a fingerprint
+func (t *Tailer) accumulateForFingerprint(data []byte) {
+	if !t.isPartialFingerprintState.Load() {
+		return
+	}
+
+	for _, b := range data {
+		// Skip bytes if we haven't reached the skip threshold yet
+		if t.fingerprintBufferOffset < t.fingerprintBytesToSkip {
+			t.fingerprintBufferOffset++
+			continue
+		}
+
+		// Calculate position in buffer (accounting for skipped bytes)
+		bufferPos := t.fingerprintBufferOffset - t.fingerprintBytesToSkip
+		if bufferPos >= t.fingerprintBufferSize {
+			// Buffer is already full, nothing more to do
+			return
+		}
+
+		// Accumulate byte
+		t.fingerprintBuffer[bufferPos] = b
+		t.fingerprintBufferOffset++
+
+		// Check if buffer is now full
+		if bufferPos+1 >= t.fingerprintBufferSize {
+			t.computeFingerprintFromBuffer()
+			return
+		}
+	}
+}
+
+// computeFingerprintFromBuffer computes the final fingerprint from the accumulated buffer and exits partial state
+// This is ONLY called when the buffer is full (reached target size)
+func (t *Tailer) computeFingerprintFromBuffer() {
+	if !t.isPartialFingerprintState.Load() {
+		return
+	}
+
+	// Calculate actual bytes accumulated (accounting for skipped bytes)
+	actualBytesUsed := t.fingerprintBufferOffset - t.fingerprintBytesToSkip
+	if actualBytesUsed < t.fingerprintBufferSize {
+		// Buffer not full yet, don't finalize
+		return
+	}
+
+	// Compute CRC64 checksum on the full buffer
+	checksum := crc64.Checksum(t.fingerprintBuffer, crc64Table)
+
+	// Get the fingerprint config from the file source
+	fingerprintConfig := t.file.Source.Config().FingerprintConfig
+	if fingerprintConfig == nil {
+		log.Warnf("No fingerprint config found when computing fingerprint from buffer for %s", t.file.Path)
+		return
+	}
+
+	// Create the final fingerprint
+	newFingerprint := &logstypes.Fingerprint{
+		Value:     checksum,
+		BytesUsed: t.fingerprintBufferSize,
+		Config: &logstypes.FingerprintConfig{
+			FingerprintStrategy: logstypes.FingerprintStrategyByteChecksum,
+			Count:               fingerprintConfig.Count,
+			CountToSkip:         fingerprintConfig.CountToSkip,
+		},
+	}
+
+	// Update the tailer's fingerprint and exit partial state
+	t.fingerprint = newFingerprint
+	t.isPartialFingerprintState.Store(false)
+	t.fingerprintBuffer = nil
+
+	log.Infof("Computed full fingerprint 0x%x from accumulated buffer for %s (%d bytes)",
+		checksum, t.file.Path, t.fingerprintBufferSize)
+}
+
+// getPartialFingerprintFromBuffer computes a temporary fingerprint from the current buffer without clearing it
+// This is used for rotation detection while still accumulating data
+func (t *Tailer) getPartialFingerprintFromBuffer() *logstypes.Fingerprint {
+	if !t.isPartialFingerprintState.Load() {
+		return nil
+	}
+
+	// Calculate actual bytes accumulated (accounting for skipped bytes)
+	actualBytesUsed := t.fingerprintBufferOffset - t.fingerprintBytesToSkip
+	if actualBytesUsed <= 0 {
+		// Not enough data yet
+		return nil
+	}
+
+	// Compute CRC64 checksum on the actual data accumulated
+	checksum := crc64.Checksum(t.fingerprintBuffer[:actualBytesUsed], crc64Table)
+
+	// Get the fingerprint config from the file source
+	fingerprintConfig := t.file.Source.Config().FingerprintConfig
+	if fingerprintConfig == nil {
+		return nil
+	}
+
+	// Create a temporary fingerprint without modifying tailer state
+	return &logstypes.Fingerprint{
+		Value:     checksum,
+		BytesUsed: actualBytesUsed,
+		Config: &logstypes.FingerprintConfig{
+			FingerprintStrategy: logstypes.FingerprintStrategyByteChecksum,
+			Count:               fingerprintConfig.Count,
+			CountToSkip:         fingerprintConfig.CountToSkip,
+		},
+	}
 }
 
 // readForever lets the tailer tail the content of a file

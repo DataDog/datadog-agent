@@ -56,6 +56,12 @@ func (t *Tailer) read() (int, error) {
 		return 0, nil
 	}
 	t.lastReadOffset.Add(int64(n))
+
+	// Tee data to fingerprint buffer if in partial fingerprint state
+	if t.isPartialFingerprintState.Load() {
+		t.accumulateForFingerprint(inBuf[:n])
+	}
+
 	msg := decoder.NewInput(inBuf[:n])
 	t.decoder.InputChan <- msg
 	return n, nil

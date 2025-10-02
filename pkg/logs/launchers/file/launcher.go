@@ -354,12 +354,8 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 				// Skip on errors
 				continue
 			}
-			// Skip files with invalid fingerprints (errors like empty files), but allow tailing with partial fingerprints
-			if fingerprint != nil && !fingerprint.IsValidFingerprint() {
-				log.Debugf("Skipping file %s due to invalid fingerprint (error case)", file.Path)
-				continue
-			}
-			// Continue with tailing - either valid full fingerprint or valid partial fingerprint
+			// Allow tailing with invalid fingerprints (empty files) to capture partial fingerprints when written
+			// TODO: distinctions btw types of invalid fingerprints (empty files, invalid fingerprints, etc.)? 
 		}
 
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)

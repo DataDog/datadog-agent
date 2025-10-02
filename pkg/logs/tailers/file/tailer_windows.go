@@ -95,6 +95,11 @@ func (t *Tailer) readAvailable() (int, error) {
 		// record these bytes as having been read
 		t.lastReadOffset.Add(int64(n))
 
+		// Tee data to fingerprint buffer if in partial fingerprint state
+		if t.isPartialFingerprintState.Load() {
+			t.accumulateForFingerprint(inBuf[:n])
+		}
+
 		// First, try to send the data to the decoder, but only wait for
 		// windowsOpenFileTimeout.  This short-term blocking send allows this
 		// component to hold a file open over any short-term blockages in the
