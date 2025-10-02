@@ -173,7 +173,7 @@ func FromLatestEvent(api evtapi.API, channelPath, query string) (Bookmark, error
 	handles := make([]evtapi.EventRecordHandle, 1)
 	returned, err := api.EvtNext(resultSet, handles, 1, 1000) // 1 second timeout
 	if err != nil {
-		if err == windows.ERROR_NO_MORE_ITEMS {
+		if err == windows.ERROR_NO_MORE_ITEMS || err == windows.ERROR_TIMEOUT {
 			// No events in the log - return empty bookmark
 			return New(WithWindowsEventLogAPI(api))
 		}
