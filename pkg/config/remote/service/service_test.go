@@ -1441,13 +1441,13 @@ func getHostTags() []string {
 	return []string{"dogo_state:hungry"}
 }
 
-func setupCDNClient(t *testing.T, uptaneClient *mockCDNUptane) *HTTPClient {
-	client, err := NewHTTPClient(t.TempDir(), site, k, "9.9.9")
-	require.NoError(t, err)
-	if uptaneClient != nil {
-		client.uptane = uptaneClient
+func setupCDNClient(uptaneClient *mockCDNUptane) *HTTPClient {
+	return &HTTPClient{
+		Service: Service{
+			rcType: "CDN",
+		},
+		uptane: uptaneClient,
 	}
-	return client
 }
 
 // TestHTTPClientRecentUpdate tests that with a recent (<50s ago) last-update-time,
@@ -1471,7 +1471,7 @@ func TestHTTPClientRecentUpdate(t *testing.T) {
 	)
 	uptaneClient.On("TargetFiles", []string{"datadog/2/TESTING1/id/1"}).Return(map[string][]byte{"datadog/2/TESTING1/id/1": []byte(`testing_1`)}, nil)
 
-	client := setupCDNClient(t, uptaneClient)
+	client := setupCDNClient(uptaneClient)
 	defer client.Close()
 	client.lastUpdate = time.Now()
 
@@ -1523,7 +1523,7 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 			}
 			uptaneClient.On("Update", mock.Anything).Return(updateErr)
 
-			client := setupCDNClient(t, uptaneClient)
+			client := setupCDNClient(uptaneClient)
 			defer client.Close()
 			client.lastUpdate = time.Now().Add(time.Second * -60)
 
