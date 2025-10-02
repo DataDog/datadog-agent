@@ -61,6 +61,17 @@ var ContainerRegexp = regexp.MustCompile(ContainerRegexpStr)
 
 // ContainerFilter returns a filter that will match cgroup folders containing a container id
 func ContainerFilter(_, name string) (string, error) {
+	// Handle libpod- prefix for Podman rootless containers
+	// Rootless Podman uses cgroup paths like: libpod-<container-id>.scope
+	if strings.HasPrefix(name, "libpod-") {
+		// Filter out libpod conmon processes (container monitor)
+		if strings.HasPrefix(name, "libpod-conmon-") {
+			return "", nil
+		}
+		name = strings.TrimPrefix(name, "libpod-")
+		name = strings.TrimSuffix(name, ".scope")
+	}
+
 	match := ContainerRegexp.FindString(name)
 
 	// With systemd cgroup driver, there may be a `.mount` cgroup on top of the normal one
