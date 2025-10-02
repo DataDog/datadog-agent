@@ -10,7 +10,7 @@ features:
   - |
     Introduce a new Health Platform component that provides a unified way to detect, collect, and report host system health issues. The component runs health checks periodically and exposes telemetry for monitoring detected problems.
 
-enhancement:
+enhancements:
   - |
     Add Docker log permissions health check that detects when the Agent cannot access container log files due to restrictive filesystem permissions. The check provides remediation guidance and an optional script to fix permission issues.
 
