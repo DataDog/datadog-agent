@@ -114,7 +114,7 @@ func GetIntegrations() (map[string]interface{}, error) {
 			return nil, fmt.Errorf("unable to parse JMX configuration: %w", err)
 		}
 
-		c := make(map[string]interface{}, 3)
+		c := make(map[string]interface{}, 4)
 		c["init_config"] = GetJSONSerializableMap(rawInitConfig)
 		instances := make([]integration.JSONMap, 0, len(config.Instances))
 		for _, instance := range config.Instances {
@@ -128,6 +128,8 @@ func GetIntegrations() (map[string]interface{}, error) {
 		integration.ConfigSourceToMetadataMap(config.Source, c)
 		c["instances"] = instances
 		c["check_name"] = config.Name
+		c["config.source"] = config.Source
+		c["config.provider"] = config.Provider
 
 		configs[name] = c
 	}
