@@ -22,7 +22,7 @@ macro_rules! generate_ffi {
             let aggregator = rust_check_core::Aggregator::from_ptr(aggregator_ptr);
 
             // create the check instance
-            let check = rust_check_core::AgentCheck::new(check_id, init_config, instance_config, aggregator)?;
+            let check = rust_check_core::AgentCheck::new(&check_id, &init_config, &instance_config, aggregator)?;
 
             // run the custom implementation
             $check_impl(&check)

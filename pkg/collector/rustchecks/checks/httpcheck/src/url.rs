@@ -36,13 +36,29 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_common_url() {
-        let url_str = "https://example.com:1234";
+    fn test_url_parsing() {
+        // Test full URL with scheme, hostname, and port
+        let url1 = Url::from("https://localhost:5000");
+        assert_eq!(url1.scheme, Some("https".to_string()));
+        assert_eq!(url1.path, "localhost");
+        assert_eq!(url1.port, Some("5000".to_string()));
 
-        let url = Url::from(url_str);
+        // Test URL without port
+        let url2 = Url::from("http://example.com");
+        assert_eq!(url2.scheme, Some("http".to_string()));
+        assert_eq!(url2.path, "example.com");
+        assert_eq!(url2.port, None);
 
-        assert_eq!(url.scheme, Some(String::from("https")));
-        assert_eq!(url.path, String::from("example.com"));
-        assert_eq!(url.port, Some(String::from("1234")));
+        // Test hostname with port but no scheme
+        let url3 = Url::from("localhost:8080");
+        assert_eq!(url3.scheme, None);
+        assert_eq!(url3.path, "localhost");
+        assert_eq!(url3.port, Some("8080".to_string()));
+
+        // Test just hostname
+        let url4 = Url::from("example.com");
+        assert_eq!(url4.scheme, None);
+        assert_eq!(url4.path, "example.com");
+        assert_eq!(url4.port, None);
     }
 }

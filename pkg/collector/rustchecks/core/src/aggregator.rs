@@ -27,6 +27,7 @@ pub enum ServiceCheckStatus {
 
 /// Replica of the Agent event struct
 #[repr(C)]
+#[derive(Debug)]
 pub struct Event {
     title: *mut c_char,
     text: *mut c_char,
@@ -258,23 +259,23 @@ impl Aggregator {
         Ok(())
     }
 
-    pub fn submit_event_platform_event(&self, check_id: &str, raw_event_pointer: &str, raw_event_size: c_int, event_type: &str) -> Result<(), Box<dyn Error>> {
+    pub fn submit_event_platform_event(&self, check_id: &str, raw_event: &str, raw_event_size: c_int, event_type: &str) -> Result<(), Box<dyn Error>> {
         // create the C strings
         let cstr_check_id = to_cstring(check_id)?;
-        let cstr_raw_event_pointer = to_cstring(raw_event_pointer)?;
+        let cstr_raw_event = to_cstring(raw_event)?;
         let cstr_event_type = to_cstring(event_type)?;
 
         // submit the event platform event
         (self.cb_submit_event_platform_event)(
             cstr_check_id,
-            cstr_raw_event_pointer,
+            cstr_raw_event,
             raw_event_size,
             cstr_event_type,
         );
 
         // free every allocated C string
         free_cstring(cstr_check_id);
-        free_cstring(cstr_raw_event_pointer);
+        free_cstring(cstr_raw_event);
         free_cstring(cstr_event_type);
 
         Ok(())

@@ -14,12 +14,12 @@ pub struct AgentCheck {
 }
 
 impl AgentCheck {
-    pub fn new(check_id: String, init_config_str: String, instance_config_str: String, aggregator: Aggregator) -> Result<Self, Box<dyn Error>> {
+    pub fn new(check_id: &str, init_config_str: &str, instance_config_str: &str, aggregator: Aggregator) -> Result<Self, Box<dyn Error>> {
         let init_config = Config::new(&init_config_str)?;
         let instance = Config::new(&instance_config_str)?;
 
-
-        Ok(Self { check_id, aggregator, init_config, instance })
+        let agent_check = Self { check_id: check_id.to_string(), aggregator, init_config, instance };
+        Ok(agent_check)
     }
 
     // TODO: raise errors in the submit functions
@@ -75,7 +75,7 @@ impl AgentCheck {
     }
 
     /// Send Event Platform Event
-    pub fn submit_event_platform_event(&self, raw_event_pointer: &str, raw_event_size: c_int, event_type: &str) -> Result<(), Box<dyn Error>> {
-        self.aggregator.submit_event_platform_event(&self.check_id, raw_event_pointer, raw_event_size, event_type)
+    pub fn event_platform_event(&self, raw_event: &str, event_track_type: &str) -> Result<(), Box<dyn Error>> {
+        self.aggregator.submit_event_platform_event(&self.check_id, raw_event, raw_event.len() as c_int, event_track_type)
     }
 }

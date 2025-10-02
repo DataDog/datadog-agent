@@ -1,5 +1,4 @@
 use crate::aggregator::{Aggregator, MetricType, Event};
-use crate::AgentCheck;
 
 use std::ffi::{c_char, c_double, c_float, c_longlong, c_int, CStr};
 
@@ -50,13 +49,22 @@ extern "C" fn mock_submit_metric(
     flush_first_value: bool,
 ) {
     println!(
-        "mock_submit_metric(check_id: {}, metric_type: {:?}, name: {}, value: {}, tags: {:?}, hostname: {}, flush_first_value: {})",
+        r#"=== Metric ===
+{{
+    "check_id": "{}",
+    "name": "{}",
+    "value": {},
+    "tags": {:?},
+    "host": "{}",
+    "type": "{}",
+    "flush_first_value": {}
+}}"#,
         c_str_to_string(check_id),
-        metric_type,
         c_str_to_string(name),
         value,
         c_str_array_to_vec(tags),
         c_str_to_string(hostname),
+        format!("{:?}", metric_type).to_lowercase(),
         flush_first_value
     );
 }
@@ -71,7 +79,15 @@ extern "C" fn mock_submit_service_check(
     message: *mut c_char,
 ) {
     println!(
-        "mock_submit_service_check(check_id: {}, name: {}, status: {}, tags: {:?}, hostname: {}, message: {})",
+        r#"=== Service Check ===
+{{
+    "check_id": "{}",
+    "name": "{}",
+    "status": {},
+    "tags": {:?},
+    "host": "{}",
+    "message": "{}"
+}}"#,
         c_str_to_string(check_id),
         c_str_to_string(name),
         status,
@@ -84,18 +100,18 @@ extern "C" fn mock_submit_service_check(
 /// Mock implementation of SubmitEvent
 extern "C" fn mock_submit_event(
     check_id: *mut c_char,
-    event: *const Event,
+    event_ptr: *const Event,
 ) {
-    let event_info = if event.is_null() {
-        "NULL".to_string()
-    } else {
-        format!("<Event@{:p}>", event)
-    };
-    
+    let event = unsafe { &*event_ptr };
+
     println!(
-        "mock_submit_event(check_id: {}, event: {})",
+        r#"=== Event ===
+{{
+    "check_id": "{}",
+    "event": {:?}
+}}"#,
         c_str_to_string(check_id),
-        event_info
+        event
     );
 }
 
@@ -112,7 +128,18 @@ extern "C" fn mock_submit_histogram_bucket(
     flush_first_value: bool,
 ) {
     println!(
-        "mock_submit_histogram_bucket(check_id: {}, metric_name: {}, value: {}, lower_bound: {}, upper_bound: {}, monotonic: {}, hostname: {}, tags: {:?}, flush_first_value: {})",
+        r#"=== Histogram Bucket ===
+{{
+    "check_id": "{}",
+    "metric_name": "{}",
+    "value": {},
+    "lower_bound": {},
+    "upper_bound": {},
+    "monotonic": {},
+    "hostname": "{}",
+    "tags": {:?},
+    "flush_first_value": {}
+}}"#,
         c_str_to_string(check_id),
         c_str_to_string(metric_name),
         value,
@@ -133,7 +160,13 @@ extern "C" fn mock_submit_event_platform_event(
     event_type: *mut c_char,
 ) {
     println!(
-        "mock_submit_event_platform_event(check_id: {}, raw_event_pointer: {}, raw_event_size: {}, event_type: {})",
+        r#"=== Event Platform Event ===
+{{
+    "check_id": "{}",
+    "raw_event_pointer": "{}",
+    "raw_event_size": {},
+    "event_type": "{}"
+}}"#,
         c_str_to_string(check_id),
         c_str_to_string(raw_event_pointer),
         raw_event_size,
@@ -149,16 +182,4 @@ pub fn mock_aggregator() -> Aggregator {
         mock_submit_histogram_bucket, 
         mock_submit_event_platform_event
     )
-}
-
-pub fn mock_agent_check() -> AgentCheck {
-    // mock aggregator with noop functions
-    let aggregator = mock_aggregator();
-    
-    AgentCheck::new(
-        "mock_check_id".to_string(), 
-        "".to_string(), 
-        "".to_string(), 
-        aggregator
-    ).unwrap()
 }
