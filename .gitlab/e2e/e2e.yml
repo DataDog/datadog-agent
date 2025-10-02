@@ -672,6 +672,8 @@ new-e2e-installer:
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
     REMOTE_STACK_CLEANING: "true"
+    DD_TRACE_DEBUG: "1"
+    EXTRA_PARAMS: --run TestPackages/agent_suse_15_sp4_arm64_install_script
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
