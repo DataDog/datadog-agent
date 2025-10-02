@@ -45,4 +45,3 @@ func (t *Tailer) DidRotate() (bool, error) {
 
 	return false, nil
 }
-

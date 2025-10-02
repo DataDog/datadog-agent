@@ -127,10 +127,10 @@ type Tailer struct {
 
 	// Partial fingerprint buffering fields
 	// When a file starts empty, we accumulate data in a buffer until we have enough to compute a fingerprint
-	fingerprintBuffer       []byte
-	fingerprintBufferOffset int
-	fingerprintBufferSize   int
-	fingerprintBytesToSkip  int
+	fingerprintBuffer         []byte
+	fingerprintBufferOffset   int
+	fingerprintBufferSize     int
+	fingerprintBytesToSkip    int
 	isPartialFingerprintState *atomic.Bool
 }
 
@@ -180,34 +180,34 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	opts.Info.Register(movingSum)
 
 	t := &Tailer{
-		file:                   opts.File,
-		outputChan:             opts.OutputChan,
-		decoder:                opts.Decoder,
-		tagProvider:            tagProvider,
-		lastReadOffset:         atomic.NewInt64(0),
-		decodedOffset:          atomic.NewInt64(0),
-		sleepDuration:          opts.SleepDuration,
-		closeTimeout:           closeTimeout,
-		windowsOpenFileTimeout: windowsOpenFileTimeout,
-		stop:                   make(chan struct{}, 1),
-		done:                   make(chan struct{}, 1),
-		forwardContext:         forwardContext,
-		stopForward:            stopForward,
-		isFinished:             atomic.NewBool(false),
-		didFileRotate:          atomic.NewBool(false),
-		info:                   opts.Info,
-		bytesRead:              bytesRead,
-		movingSum:              movingSum,
-		fingerprint:            opts.Fingerprint,
-		CapacityMonitor:        opts.CapacityMonitor,
-		registry:               opts.Registry,
+		file:                      opts.File,
+		outputChan:                opts.OutputChan,
+		decoder:                   opts.Decoder,
+		tagProvider:               tagProvider,
+		lastReadOffset:            atomic.NewInt64(0),
+		decodedOffset:             atomic.NewInt64(0),
+		sleepDuration:             opts.SleepDuration,
+		closeTimeout:              closeTimeout,
+		windowsOpenFileTimeout:    windowsOpenFileTimeout,
+		stop:                      make(chan struct{}, 1),
+		done:                      make(chan struct{}, 1),
+		forwardContext:            forwardContext,
+		stopForward:               stopForward,
+		isFinished:                atomic.NewBool(false),
+		didFileRotate:             atomic.NewBool(false),
+		info:                      opts.Info,
+		bytesRead:                 bytesRead,
+		movingSum:                 movingSum,
+		fingerprint:               opts.Fingerprint,
+		CapacityMonitor:           opts.CapacityMonitor,
+		registry:                  opts.Registry,
 		isPartialFingerprintState: atomic.NewBool(false),
 	}
 
 	// Initialize partial fingerprint buffering if we have an invalid fingerprint (e.g., empty file)
 	if opts.Fingerprint == nil || !opts.Fingerprint.IsValidFingerprint() {
 		fingerprintConfig := opts.File.Source.Config().FingerprintConfig
-		if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == logstypes.FingerprintStrategyByteChecksum { // TODO: this is only byte-based fingerprinting ... 
+		if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == logstypes.FingerprintStrategyByteChecksum { // TODO: this is only byte-based fingerprinting ...
 			t.isPartialFingerprintState.Store(true)
 			t.fingerprintBufferSize = fingerprintConfig.Count
 			t.fingerprintBytesToSkip = fingerprintConfig.CountToSkip
