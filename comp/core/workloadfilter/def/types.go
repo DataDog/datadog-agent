@@ -58,8 +58,8 @@ type ResourceType string
 const (
 	ContainerType ResourceType = "container"
 	PodType       ResourceType = "pod"
-	ServiceType   ResourceType = "service"
-	EndpointType  ResourceType = "endpoint"
+	ServiceType   ResourceType = "kube_service"
+	EndpointType  ResourceType = "kube_endpoint"
 	ImageType     ResourceType = "image"
 	ProcessType   ResourceType = "process"
 )
@@ -103,6 +103,38 @@ func CreateContainerImage(name string) *Container {
 		FilterContainer: &typedef.FilterContainer{
 			Image: name,
 		},
+	}
+}
+
+// CreateContainer creates a Filterable Container object from a name, image and an (optional) owner.
+func CreateContainer(id, name, img string, owner Filterable) *Container {
+	c := &typedef.FilterContainer{
+		Id:    id,
+		Name:  name,
+		Image: img,
+	}
+
+	setContainerOwner(c, owner)
+
+	return &Container{
+		FilterContainer: c,
+		Owner:           owner,
+	}
+}
+
+// setContainerOwner sets the owner field in the FilterContainer based on the owner type.
+func setContainerOwner(c *typedef.FilterContainer, owner Filterable) {
+	if owner == nil {
+		return
+	}
+
+	switch o := owner.(type) {
+	case *Pod:
+		if o != nil && o.FilterPod != nil {
+			c.Owner = &typedef.FilterContainer_Pod{
+				Pod: o.FilterPod,
+			}
+		}
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 )
 
@@ -46,7 +47,7 @@ func TestHandleEventErrorClearsDebouncer(t *testing.T) {
 
 	// HandleEvent should not return an error (it is swallowed) and should clear
 	// the debouncer for this process.
-	err := sink.HandleEvent(ev)
+	err := sink.HandleEvent(dispatcher.MakeTestingMessage(ev))
 	require.NoError(t, err)
 
 	updates := s.mu.debouncer.getUpdates(now.Add(1 * time.Hour))
