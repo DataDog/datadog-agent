@@ -244,6 +244,12 @@ if do_build
   # This must be the last dependency in the project.
   dependency 'datadog-agent-finalize'
   dependency 'datadog-cf-finalize'
+
+  if linux_target?
+    command "tar -czf #{install_dir}/LICENSES.tar.gz #{install_dir}/LICENSES"
+    delete "#{install_dir}/LICENSES"
+  end
+
   # Special csae for heroku which does build & packaging in a single step
   if do_package
     dependency "init-scripts-agent"

@@ -168,9 +168,6 @@ build do
               # The healthcheck will fail as the rpath doesn't contain install_dir
               command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
             end
-
-            command "tar -czf #{install_dir}/LICENSES.tar.gz #{install_dir}/LICENSES"
-            delete "#{install_dir}/LICENSES"
         end
 
         if osx_target?
