@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && test
+//go:build kubeapiserver
 
 package workload
 
@@ -992,7 +992,7 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 					},
 				},
 			},
-			wantErr: fmt.Sprintf("Autoscaler objective type is %s but podResource and containerResource are nil", datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType),
+			wantErr: "autoscaler objective type is PodResource but podResource is nil",
 		},
 		"container resource type without resource": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
@@ -1002,7 +1002,7 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 					},
 				},
 			},
-			wantErr: fmt.Sprintf("Autoscaler objective type is %s but podResource and containerResource are nil", datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType),
+			wantErr: "autoscaler objective type is ContainerResource but containerResource is nil",
 		},
 		"pod resource type with custom query also set": {
 			spec: datadoghq.DatadogPodAutoscalerSpec{

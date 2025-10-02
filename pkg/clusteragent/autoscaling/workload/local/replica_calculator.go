@@ -83,9 +83,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 	for _, objective := range objectives {
 		recSettings, err := newResourceRecommenderSettings(objective)
 		if err != nil {
-			// Unsupported objective for local recommender (e.g., ControllerObjective); skip it
-			log.Debugf("Skipping objective type %s: %v", objective.Type, err)
-			continue
+			return nil, fmt.Errorf("failed to get recommender settings for objective: %s, %s", dpai.ID(), err)
 		}
 		if recSettings == nil {
 			// ControllerObjective is ignored by the local recommender

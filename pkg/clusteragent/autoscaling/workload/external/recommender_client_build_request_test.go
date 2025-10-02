@@ -12,17 +12,17 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/structpb"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
-	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
@@ -32,15 +32,11 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 	}
 
 	cases := []struct {
-		name              string
-		dpa               model.FakePodAutoscalerInternal
-		cluster           string
-		expectTargets     []target
-		expectTargetRef   *kubeAutoscaling.WorkloadTargetRef
-		expectDesired     *int32
-		expectReady       *int32
-		expectConstraints *kubeAutoscaling.WorkloadRecommendationConstraints
-		expectSettings    map[string]string
+		name          string
+		dpa           model.FakePodAutoscalerInternal
+		cluster       string
+		expectTargets []target
+		expectReq     *kubeAutoscaling.WorkloadRecommendationRequest
 	}{
 		{
 			name: "fractional targets and fields",
@@ -74,13 +70,22 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 					Settings: map[string]interface{}{"custom_setting": "value"},
 				},
 			},
-			cluster:           "test-cluster",
-			expectTargets:     []target{{typ: "cpu", val: 0.80}, {typ: "memory", val: 0.75}},
-			expectTargetRef:   &kubeAutoscaling.WorkloadTargetRef{Kind: "Deployment", Name: "test-deployment", ApiVersion: "apps/v1", Namespace: "default", Cluster: "test-cluster"},
-			expectDesired:     pointer.Ptr[int32](3),
-			expectReady:       pointer.Ptr[int32](0),
-			expectConstraints: &kubeAutoscaling.WorkloadRecommendationConstraints{MinReplicas: 2, MaxReplicas: 4},
-			expectSettings:    map[string]string{"custom_setting": "value"},
+			cluster:       "test-cluster",
+			expectTargets: []target{{typ: "cpu", val: 0.80}, {typ: "memory", val: 0.75}},
+			expectReq: &kubeAutoscaling.WorkloadRecommendationRequest{
+				TargetRef: &kubeAutoscaling.WorkloadTargetRef{Kind: "Deployment", Name: "test-deployment", ApiVersion: "apps/v1", Namespace: "default", Cluster: "test-cluster"},
+				State: &kubeAutoscaling.WorkloadState{
+					DesiredReplicas: 3,
+					ReadyReplicas:   lo.ToPtr[int32](0),
+					CurrentReplicas: lo.ToPtr[int32](3),
+				},
+				Constraints: &kubeAutoscaling.WorkloadRecommendationConstraints{MinReplicas: 2, MaxReplicas: 4},
+				Settings:    map[string]*structpb.Value{"custom_setting": {Kind: &structpb.Value_StringValue{StringValue: "value"}}},
+				Targets: []*kubeAutoscaling.WorkloadRecommendationTarget{
+					{Type: "cpu", TargetValue: 0.80},
+					{Type: "memory", TargetValue: 0.75},
+				},
+			},
 		},
 		{
 			name: "one percent utilization",
@@ -101,9 +106,17 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 				},
 				CustomRecommenderConfiguration: &model.RecommenderConfiguration{Endpoint: "http://example.invalid"},
 			},
-			cluster:         "test-cluster",
-			expectTargets:   []target{{typ: "cpu", val: 0.01}},
-			expectTargetRef: &kubeAutoscaling.WorkloadTargetRef{Kind: "Deployment", Name: "test-deployment", ApiVersion: "apps/v1", Namespace: "default", Cluster: "test-cluster"},
+			cluster:       "test-cluster",
+			expectTargets: []target{{typ: "cpu", val: 0.01}},
+			expectReq: &kubeAutoscaling.WorkloadRecommendationRequest{
+				TargetRef: &kubeAutoscaling.WorkloadTargetRef{Kind: "Deployment", Name: "test-deployment", ApiVersion: "apps/v1", Namespace: "default", Cluster: "test-cluster"},
+				State: &kubeAutoscaling.WorkloadState{
+					ReadyReplicas: lo.ToPtr[int32](0),
+				},
+				Targets: []*kubeAutoscaling.WorkloadRecommendationTarget{
+					{Type: "cpu", TargetValue: 0.01},
+				},
+			},
 		},
 		{
 			name: "minimal config",
@@ -124,9 +137,17 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 				},
 				CustomRecommenderConfiguration: &model.RecommenderConfiguration{Endpoint: "http://example.invalid"},
 			},
-			cluster:         "c",
-			expectTargets:   []target{{typ: "cpu", val: 0.50}},
-			expectTargetRef: &kubeAutoscaling.WorkloadTargetRef{Kind: "Deployment", Name: "wl", ApiVersion: "apps/v1", Namespace: "ns", Cluster: "c"},
+			cluster:       "c",
+			expectTargets: []target{{typ: "cpu", val: 0.50}},
+			expectReq: &kubeAutoscaling.WorkloadRecommendationRequest{
+				TargetRef: &kubeAutoscaling.WorkloadTargetRef{Kind: "Deployment", Name: "wl", ApiVersion: "apps/v1", Namespace: "ns", Cluster: "c"},
+				State: &kubeAutoscaling.WorkloadState{
+					ReadyReplicas: lo.ToPtr[int32](0),
+				},
+				Targets: []*kubeAutoscaling.WorkloadRecommendationTarget{
+					{Type: "cpu", TargetValue: 0.50},
+				},
+			},
 		},
 	}
 
@@ -135,46 +156,7 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 			client := newRecommenderClient(workload.NewPodWatcher(nil, nil))
 			req, err := client.buildWorkloadRecommendationRequest(tc.cluster, tc.dpa.Build(), tc.dpa.CustomRecommenderConfiguration)
 			assert.NoError(t, err)
-			if assert.NotNil(t, req) {
-				// TargetRef
-				if tc.expectTargetRef != nil {
-					assert.Equal(t, tc.expectTargetRef, req.TargetRef)
-				}
-				// State (current replicas always equals dpa.CurrentReplicas)
-				assert.Equal(t, tc.dpa.CurrentReplicas, req.State.CurrentReplicas)
-				if tc.expectDesired != nil {
-					assert.Equal(t, *tc.expectDesired, req.State.DesiredReplicas)
-				}
-				if tc.expectReady != nil {
-					if assert.NotNil(t, req.State.ReadyReplicas) {
-						assert.Equal(t, *tc.expectReady, *req.State.ReadyReplicas)
-					}
-				}
-				// Targets
-				if assert.Len(t, req.Targets, len(tc.expectTargets)) {
-					for i, et := range tc.expectTargets {
-						assert.Equal(t, et.typ, req.Targets[i].Type)
-						assert.InDelta(t, et.val, req.Targets[i].TargetValue, 0.0001)
-					}
-				}
-				// Constraints
-				if tc.expectConstraints != nil {
-					if assert.NotNil(t, req.Constraints) {
-						assert.Equal(t, tc.expectConstraints.MinReplicas, req.Constraints.MinReplicas)
-						assert.Equal(t, tc.expectConstraints.MaxReplicas, req.Constraints.MaxReplicas)
-					}
-				}
-				// Settings
-				if tc.expectSettings != nil {
-					if assert.NotNil(t, req.Settings) {
-						for k, v := range tc.expectSettings {
-							av, ok := req.Settings[k]
-							assert.True(t, ok)
-							assert.Equal(t, structpb.NewStringValue(v).GetStringValue(), av.GetStringValue())
-						}
-					}
-				}
-			}
+			assert.Equal(t, tc.expectReq, req)
 		})
 	}
 }

@@ -136,11 +136,7 @@ func (r *recommenderClient) buildWorkloadRecommendationRequest(clusterName strin
 				targetValue = float64(*u) / 100.0
 			}
 		case common.DatadogPodAutoscalerCustomQueryObjectiveType:
-			targetType = "custom-query"
-			if u := objective.CustomQueryObjective.Value.AbsoluteValue; u != nil {
-				// custom query uses absolute numeric value; convert to float
-				targetValue = float64(u.AsDec().UnscaledBig().Int64())
-			}
+			continue
 		}
 
 		targets = append(targets, &kubeAutoscaling.WorkloadRecommendationTarget{

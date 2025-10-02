@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build kubeapiserver && test
+//go:build kubeapiserver
 
 package local
 
@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -1557,10 +1556,10 @@ func TestCalculateHorizontalRecommendations(t *testing.T) {
 					Formula: "query1",
 				}},
 				Queries: []datadoghqcommon.DatadogPodAutoscalerTimeseriesQuery{{
+					Source: datadoghqcommon.DatadogPodAutoscalerMetricsDataSourceMetrics,
+					Name:   "a",
 					Metrics: &datadoghqcommon.DatadogPodAutoscalerMetricsTimeseriesQuery{
-						DataSource: datadoghqcommon.MetricsDataSourceMetrics,
-						Name:       lo.ToPtr("a"),
-						Query:      "foo",
+						Query: "foo",
 					},
 				}},
 			},

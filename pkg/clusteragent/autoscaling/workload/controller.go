@@ -508,9 +508,13 @@ func validateAutoscalerObjectives(spec *datadoghq.DatadogPodAutoscalerSpec) erro
 			if objective.CustomQueryObjective == nil {
 				return fmt.Errorf("Autoscaler objective type is custom query but customQueryObjective is nil")
 			}
-		case datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType, datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType:
-			if objective.PodResource == nil && objective.ContainerResource == nil {
-				return fmt.Errorf("Autoscaler objective type is %s but podResource and containerResource are nil", objective.Type)
+		case datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType:
+			if objective.PodResource == nil {
+				return fmt.Errorf("autoscaler objective type is %s but podResource is nil", objective.Type)
+			}
+		case datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType:
+			if objective.ContainerResource == nil {
+				return fmt.Errorf("autoscaler objective type is %s but containerResource is nil", objective.Type)
 			}
 		}
 	}
