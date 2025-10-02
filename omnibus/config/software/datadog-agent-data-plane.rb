@@ -44,6 +44,6 @@ build do
   license :project_license
 
   copy 'opt/datadog-agent/embedded/bin/agent-data-plane', "#{install_dir}/embedded/bin"
-  copy 'opt/datadog/agent-data-plane/LICENSES', "#{install_dir}/LICENSES"
+  copy 'opt/datadog/agent-data-plane/LICENSES/*', "#{install_dir}/LICENSES"
   copy 'opt/datadog/agent-data-plane/LICENSE-3rdparty.csv', "#{install_dir}/LICENSES/LICENSE-agent-data-plane-3rdparty.csv"
 end
