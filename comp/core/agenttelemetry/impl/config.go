@@ -385,7 +385,7 @@ var defaultProfiles = `
           aggregate_tags:
             - state
     schedule:
-      start_after: 30
+      start_after: 60
       iterations: 0
       period: 900
 `

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	tracetelemetry "github.com/DataDog/datadog-agent/comp/trace-telemetry/def"
@@ -27,6 +28,7 @@ type Requires struct {
 
 	Config    config.Component
 	Client    ipc.HTTPClient
+	Log       log.Component
 	Telemetry telemetry.Component
 }
 
@@ -38,6 +40,7 @@ type Provides struct {
 type tracetelemetryImpl struct {
 	config config.Component
 	client ipc.HTTPClient
+	log    log.Component
 	metric telemetry.Gauge
 
 	// whether the trace-agent is running
@@ -56,6 +59,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	t := &tracetelemetryImpl{
 		config: reqs.Config,
 		client: reqs.Client,
+		log:    reqs.Log,
 		metric: metric,
 	}
 	provides := Provides{
@@ -95,8 +99,8 @@ func (t *tracetelemetryImpl) Start() {
 	t.cancel = cancel
 
 	go func() {
-		// trace-agent resets the expvars every minute
-		ticker := time.NewTicker(time.Second * 50)
+		// trace-agent resets the expvars every minute, so we want to run more frequently than that
+		ticker := time.NewTicker(time.Second * 45)
 		defer ticker.Stop()
 		for {
 			select {
@@ -139,6 +143,7 @@ func (t *tracetelemetryImpl) getTraceAgentExpvars() (traceAgentExpvars, error) {
 
 func (t *tracetelemetryImpl) updateState() {
 	if t.sending.Load() {
+		t.log.Debugf("Trace-agent is sending data, skipping state update")
 		// if we've established that trace-agent is sending data, don't update the state
 		return
 	}
@@ -146,11 +151,13 @@ func (t *tracetelemetryImpl) updateState() {
 	values, err := t.getTraceAgentExpvars()
 	if err != nil {
 		// keep previous information that we had about trace-agent
+		t.log.Debugf("Failed to get trace-agent expvars: %v", err)
 		return
 	}
 
 	t.running.Store(true)
 	if values.TraceWriterValues.Bytes > 0 || values.StatsWriterValues.Bytes > 0 {
+		t.log.Debugf("Trace-agent is sending data, updating state")
 		t.sending.Store(true)
 	}
 }
