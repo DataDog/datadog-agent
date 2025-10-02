@@ -465,7 +465,9 @@ func batchConnections(
 
 			// Get process tags and add them to the connection tags
 			if processTagProvider != nil {
-				if processTags, err := processTagProvider(c.Pid); err == nil {
+				if processTags, err := processTagProvider(c.Pid); err != nil {
+					log.Debugf("error getting tags for process %v: %v", c.Pid, err)
+				} else {
 					tagsStr = append(tagsStr, processTags...)
 				}
 			}
