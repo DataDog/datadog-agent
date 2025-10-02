@@ -239,7 +239,6 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	}
 
 	pipelines := s.buildPipelines()
-
 	seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
 	extraHeaders = s.protobufExtraHeadersWithCompression
 
