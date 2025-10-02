@@ -5,7 +5,6 @@ go 1.24.0
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.36.0

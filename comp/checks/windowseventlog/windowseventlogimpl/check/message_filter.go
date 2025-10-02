@@ -103,10 +103,8 @@ func (f *eventMessageFilter) getEventMessage(api evtapi.API, providerName string
 	message, err := f.publisherMetadataCache.FormatMessage(providerName, winevent.EventRecordHandle, evtapi.EvtFormatMessageEvent)
 	if err == nil {
 		return message, nil
-	} else {
-		err = fmt.Errorf("failed to format message: %w", err)
 	}
-	renderErr := err
+	renderErr := fmt.Errorf("failed to format message: %w", err)
 
 	// rendering failed, which may happen if
 	// * the event source/provider cannot be found/loaded
