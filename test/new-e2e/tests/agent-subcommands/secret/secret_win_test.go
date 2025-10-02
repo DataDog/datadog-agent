@@ -87,7 +87,7 @@ host_aliases:
 	ddagentRegex := `Access : .+\\ddagentuser Allow  ReadAndExecute`
 	assert.Regexp(v.T(), ddagentRegex, output)
 	assert.Regexp(v.T(), "Number of secrets .+: 1", output)
-	assert.Regexp(v.T(), `- 'alias_secret':\r?\n\s+used in 'datadog\.yaml' configuration in entry 'host_aliases/0'`, output)
+	assert.Regexp(v.T(), `- 'alias_secret':\r?\n\s+- used in 'datadog\.yaml' configuration in entry 'host_aliases/0'`, output)
 	// assert we don't output the resolved secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")
 }
