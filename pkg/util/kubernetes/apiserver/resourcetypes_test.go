@@ -8,7 +8,9 @@
 package apiserver
 
 import (
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -211,6 +213,25 @@ func TestPrepopulateCache(t *testing.T) {
 	assert.Equal(t, "Deployment", resourceCache.typeGroupToKind["deployments/apps"])
 }
 
+type blockingDiscovery struct {
+	*fakediscovery.FakeDiscovery
+	gate  chan struct{} // a channel used as a “gate” to block/unblock
+	calls int32         // counts how many times discovery is called
+}
+
+func newBlockingDiscovery(fakediscovery *fakediscovery.FakeDiscovery) *blockingDiscovery {
+	return &blockingDiscovery{
+		FakeDiscovery: fakediscovery,
+		gate:          make(chan struct{}),
+	}
+}
+
+func (b *blockingDiscovery) ServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error) {
+	atomic.AddInt32(&b.calls, 1)
+	<-b.gate
+	return nil, b.Resources, nil
+}
+
 func TestCacheRefreshOnMiss(t *testing.T) {
 	resetCache()
 
@@ -219,16 +240,12 @@ func TestCacheRefreshOnMiss(t *testing.T) {
 
 	// Initial API resources (empty)
 	fakeDiscoveryClient.Resources = []*v1.APIResourceList{}
-
 	err := InitializeGlobalResourceTypeCache(fakeDiscoveryClient)
 	assert.NoError(t, err, "Initial cache setup should not fail")
 
-	// Simulate a cache miss
-	_, err = resourceCache.getResourceType("Pod", "")
+	blockingFakeDiscovery := newBlockingDiscovery(fakeDiscoveryClient)
+	resourceCache.discoveryClient = blockingFakeDiscovery
 
-	assert.Error(t, err, "Cache miss should return an error before refresh")
-
-	// Update the discovery client with new API resources
 	fakeDiscoveryClient.Resources = []*v1.APIResourceList{
 		{
 			GroupVersion: "v1",
@@ -238,11 +255,39 @@ func TestCacheRefreshOnMiss(t *testing.T) {
 		},
 	}
 
-	// The next call should trigger a refresh and succeed
-	got, err := resourceCache.getResourceType("Pod", "")
+	// fire many goroutines that all miss the cache at the same time
+	const goroutineCount = 25
+	start := make(chan struct{})
+	errCh := make(chan error, goroutineCount)
+	var wg sync.WaitGroup
+	wg.Add(goroutineCount)
 
-	assert.NoError(t, err, "After cache refresh, resource should be found")
-	assert.Equal(t, "pods", got, "Returned resource type should match")
+	for i := 0; i < goroutineCount; i++ {
+		go func() {
+			defer wg.Done()
+			<-start // wait until all goroutines are ready
+			val, err := resourceCache.getResourceType("Pod", "")
+			if err != nil {
+				errCh <- fmt.Errorf("got unexpected error: %v", err)
+				return
+			}
+			if val != "pods" {
+				errCh <- fmt.Errorf("expected pods, got %q", val)
+				return
+			}
+		}()
+	}
+
+	close(start)
+	close(blockingFakeDiscovery.gate)
+
+	wg.Wait()
+	close(errCh)
+
+	for e := range errCh {
+		assert.NoError(t, e)
+	}
+
 }
 
 func resetCache() {

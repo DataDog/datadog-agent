@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,7 +37,7 @@ type ResourceTypeCache struct {
 	lock            sync.RWMutex
 	discoveryClient discovery.DiscoveryInterface
 	refreshing      int32
-	refreshDone     chan struct{}
+	refreshWaitCh   chan struct{}
 	refreshErr      error
 }
 
@@ -137,7 +136,7 @@ func (r *ResourceTypeCache) getResourceType(kind, apiGroup string) (string, erro
 	if found {
 		return resourceType, nil
 	}
-	return "", fmt.Errorf("resource type not found for kind %q and group %q after refresh", kind, apiGroup)
+	return "", fmt.Errorf("resource type not found for kind %q and group %q", kind, apiGroup)
 
 }
 
@@ -170,138 +169,90 @@ func (r *ResourceTypeCache) getResourceKind(resource, apiGroup string) (string, 
 	if found {
 		return kind, nil
 	}
-	return "", fmt.Errorf("resource kind not found for resource %q and group %q after refresh", resource, apiGroup)
+	return "", fmt.Errorf("resource kind not found for resource %q and group %q", resource, apiGroup)
 }
 
 func (r *ResourceTypeCache) refreshCache(ctx context.Context) error {
-	// check if refresh process is in progress
-	if atomic.LoadInt32(&r.refreshing) == 0 {
-		// the first go routine to perform CAS will become the leader
-		if atomic.CompareAndSwapInt32(&r.refreshing, 0, 1) {
+	// decide leader vs follower under the lock.
+	r.lock.Lock()
+	if r.refreshing == 1 {
+		// leader is already refreshing
+		waitCh := r.refreshWaitCh
+		r.lock.Unlock()
 
-			done := make(chan struct{})
-
-			// Protect setting refreshDone and clearing refreshErr
-			r.lock.Lock()
-			r.setRefreshDone(done)
-			r.refreshErr = nil
-			r.lock.Unlock()
-
-			defer func() {
-
-				close(done)
-				r.lock.Lock()
-				r.setRefreshDone(nil)
-				r.lock.Unlock()
-				atomic.StoreInt32(&r.refreshing, 0)
-			}()
-
-			var refreshRetrier retry.Retrier
-			err := refreshRetrier.SetupRetrier(&retry.Config{
-				Name: "ResourceTypeCache_refresh_on_miss",
-				AttemptMethod: func() error {
-
-					err := r.prepopulateCache()
-					if err != nil {
-						cacheErr := fmt.Errorf("failed to refresh resource type cache: %w", err)
-
-						r.lock.Lock()
-						r.refreshErr = cacheErr
-						r.lock.Unlock()
-						return cacheErr
-					}
-					return nil
-				},
-				Strategy:          retry.Backoff,
-				InitialRetryDelay: 200 * time.Millisecond,
-				MaxRetryDelay:     2 * time.Second,
-			})
-			if err != nil {
-				cacheErr := fmt.Errorf("failed to initialize refresh retrier: %w", err)
-				r.lock.Lock()
-				r.refreshErr = cacheErr
-				r.lock.Unlock()
-				return cacheErr
-			}
-
-			for {
-				_ = refreshRetrier.TriggerRetry()
-
-				switch refreshRetrier.RetryStatus() {
-				case retry.OK:
-
-					r.lock.Lock()
-					r.refreshErr = nil
-					r.lock.Unlock()
-					return nil
-
-				case retry.PermaFail:
-
-					var finalErr error
-					if le := refreshRetrier.LastError(); le != nil {
-						finalErr = le.Unwrap()
-					} else {
-						finalErr = fmt.Errorf("permanent failure while refreshing cache")
-					}
-					r.lock.Lock()
-					r.refreshErr = finalErr
-					r.lock.Unlock()
-					return finalErr
-
-				default:
-
-					sleepFor := time.Until(refreshRetrier.NextRetry())
-					if sleepFor < 0 {
-						sleepFor = 0
-					}
-					select {
-					case <-ctx.Done():
-						finalErr := fmt.Errorf("context deadline reached while waiting to repopulate: %w", ctx.Err())
-						r.lock.Lock()
-						r.refreshErr = finalErr
-						r.lock.Unlock()
-						return finalErr
-					case <-time.After(sleepFor):
-
-					}
-				}
-			}
-		}
-	}
-
-	r.lock.RLock()
-	ch := r.getRefreshDone()
-	r.lock.RUnlock()
-
-	if ch == nil {
-		// small window where leader hasn't set channel yet or already cleared it.
-
+		// wait for refresh to complete
+		<-waitCh
 		r.lock.RLock()
 		err := r.refreshErr
 		r.lock.RUnlock()
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
-	// Wait for leader to finish, then read the same outcome
-	<-ch
-	r.lock.RLock()
-	err := r.refreshErr
-	r.lock.RUnlock()
-	if err != nil {
 		return err
 	}
-	return nil
-}
 
-func (r *ResourceTypeCache) getRefreshDone() chan struct{} {
-	return r.refreshDone
-}
+	// no refresh in progress -> set state and create wait channel
+	r.refreshing = 1
+	waitCh := make(chan struct{})
+	r.refreshWaitCh = waitCh
+	r.refreshErr = nil
+	r.lock.Unlock()
 
-func (r *ResourceTypeCache) setRefreshDone(ch chan struct{}) {
-	r.refreshDone = ch
+	// ensure followers are released
+	var runErr error
+	defer func() {
+		r.lock.Lock()
+		r.refreshErr = runErr
+		close(r.refreshWaitCh)
+		r.refreshWaitCh = nil
+		r.refreshing = 0
+		r.lock.Unlock()
+	}()
+
+	// retry config for refreshing the cache
+	var refreshRetrier retry.Retrier
+	if err := refreshRetrier.SetupRetrier(&retry.Config{
+		Name: "ResourceTypeCache_refresh",
+		AttemptMethod: func() error {
+
+			if err := r.prepopulateCache(); err != nil {
+				return fmt.Errorf("failed to refresh resource type cache: %w", err)
+			}
+			return nil
+		},
+		Strategy:          retry.Backoff,
+		InitialRetryDelay: 200 * time.Millisecond,
+		MaxRetryDelay:     2 * time.Second,
+	}); err != nil {
+		runErr = fmt.Errorf("failed to initialize refresh retrier: %w", err)
+		return runErr
+	}
+
+	// retry method for refreshing the cache
+	for {
+		_ = refreshRetrier.TriggerRetry()
+		status := refreshRetrier.RetryStatus()
+
+		if status == retry.OK {
+			return nil
+		}
+		if status == retry.PermaFail {
+			le := refreshRetrier.LastError()
+			runErr = le.Unwrap()
+			return runErr
+		}
+
+		// wait until next retry or context timeout.
+		sleepFor := time.Until(refreshRetrier.NextRetry())
+		if sleepFor < 0 {
+			sleepFor = 0
+		}
+
+		select {
+		case <-ctx.Done():
+			runErr = fmt.Errorf("context deadline reached while waiting to repopulate: %w", ctx.Err())
+			return runErr
+		case <-time.After(sleepFor):
+
+		}
+	}
 }
 
 // prepopulateCache pre-fills the cache with all resource types from the discovery client.
