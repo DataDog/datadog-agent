@@ -39,6 +39,7 @@ func TestEKSSuite(t *testing.T) {
 func (suite *eksSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
+	suite.envSpecificTags = []string{"^kube_cloud_provider:aws$"}
 }
 
 func (suite *eksSuite) TestEKSFargate() {
@@ -210,7 +211,6 @@ func (suite *eksSuite) TestNginxFargate() {
 			Name: "network.http.response_time",
 			Tags: []string{
 				`^kube_namespace:workload-nginx-fargate$`,
-				`^kube_cloud_provider:.*`,
 			},
 		},
 		Expect: testMetricExpectArgs{

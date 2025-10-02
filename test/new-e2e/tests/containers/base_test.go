@@ -29,8 +29,9 @@ import (
 type baseSuite[Env any] struct {
 	e2e.BaseSuite[Env]
 
-	Fakeintake  *fakeintake.Client
-	clusterName string
+	Fakeintake      *fakeintake.Client
+	clusterName     string
+	envSpecificTags []string
 }
 
 func (suite *baseSuite[Env]) BeforeTest(suiteName, testName string) {
@@ -88,7 +89,7 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 	suite.Run("metric   "+prettyMetricQuery, func() {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
-			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+			expectedTags = lo.Map(append(*args.Expect.Tags, suite.envSpecificTags...), func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
 
 		optionalTags := []*regexp.Regexp{regexp.MustCompile("stackid:.*")} // The stackid tag is added by the framework itself to allow filtering on the stack id
@@ -217,7 +218,7 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 	suite.Run("log   "+prettyLogQuery, func() {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
-			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+			expectedTags = lo.Map(append(*args.Expect.Tags, suite.envSpecificTags...), func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
 
 		var expectedMessage *regexp.Regexp
@@ -346,7 +347,7 @@ func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 	suite.Run("checkRun   "+prettyCheckRunQuery, func() {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
-			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+			expectedTags = lo.Map(append(*args.Expect.Tags, suite.envSpecificTags...), func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
 
 		var optionalTags []*regexp.Regexp
@@ -464,7 +465,7 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 	suite.Run("event   "+prettyEventQuery, func() {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
-			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+			expectedTags = lo.Map(append(*args.Expect.Tags, suite.envSpecificTags...), func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
 
 		sendEvent := func(alertType, text string) {
