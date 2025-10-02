@@ -1,4 +1,5 @@
 oracle:
+  allow_failure: true  # incident-43807 related fix, Oracle job is failing
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   stage: functional_test
