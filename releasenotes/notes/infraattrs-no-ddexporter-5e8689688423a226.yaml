@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    The infraattributes processor can now be run when datadog exporter is not configured.
+    The infraattributes processor can now be run when the Datadog Exporter is not configured.
