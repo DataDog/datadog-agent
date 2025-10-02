@@ -122,7 +122,7 @@ func TestPublisherMetadataCache_FormatMessage_FakeImplementation(t *testing.T) {
 	assert.False(t, found)
 }
 
-func TestPublisherMetadataCache_FormatMessage_Concurrency(t *testing.T) {
+func TestPublisherMetadataCache_FormatMessage_Concurrency(_ *testing.T) {
 	cache := publishermetadatacache.New(fakeevtapi.New())
 
 	publishers := []string{"Publisher1", "Publisher2", "Publisher3", "Publisher4", "Publisher5"}
