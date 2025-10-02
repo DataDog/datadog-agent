@@ -1128,7 +1128,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	p.monitors.eventStreamMonitor.CountEvent(eventType, event, dataLen, CPU, !p.useRingBuffers)
 
 	// some events don't need to be dispatched to userspace
-	ok := handleEarlyReturnEvents(eventType, p, event, offset, dataLen, data, newEntryCb)
+	ok := p.handleEarlyReturnEvents(eventType, event, offset, dataLen, data, newEntryCb)
 	if !ok {
 		return
 	}
@@ -1146,7 +1146,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	})
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
-	ok = handleBeforeProcessContext(eventType, p, event, data, offset, dataLen, newEntryCb)
+	ok = p.handleBeforeProcessContext(eventType, event, data, offset, dataLen, newEntryCb)
 	if !ok {
 		return
 	}
@@ -1159,7 +1159,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// handle regular events
-	ok = handleRegularEvent(eventType, p, event, offset, dataLen, data, newEntryCb, read)
+	ok = p.handleRegularEvent(eventType, event, offset, dataLen, data, newEntryCb, read)
 	if !ok {
 		return
 	}
@@ -1182,7 +1182,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	p.fileHasher.FlushPendingReports()
 }
 
-func handleRegularEvent(eventType model.EventType, p *EBPFProbe, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error), read int) bool {
+func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error), read int) bool {
 	var err error
 	switch eventType {
 
@@ -1573,7 +1573,7 @@ func handleRegularEvent(eventType model.EventType, p *EBPFProbe, event *model.Ev
 	return true
 }
 
-func handleBeforeProcessContext(eventType model.EventType, p *EBPFProbe, event *model.Event, data []byte, offset int, dataLen uint64, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFProbe) handleBeforeProcessContext(eventType model.EventType, event *model.Event, data []byte, offset int, dataLen uint64, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
 	switch eventType {
 	case model.ForkEventType:
@@ -1602,7 +1602,7 @@ func handleBeforeProcessContext(eventType model.EventType, p *EBPFProbe, event *
 	return true
 }
 
-func handleEarlyReturnEvents(eventType model.EventType, p *EBPFProbe, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFProbe) handleEarlyReturnEvents(eventType model.EventType, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
 	switch eventType {
 	case model.MountReleasedEventType:
