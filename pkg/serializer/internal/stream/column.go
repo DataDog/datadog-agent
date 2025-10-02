@@ -215,12 +215,12 @@ func (cc *ColumnCompressor) Close() error {
 	return nil
 }
 
-// Len returns length of uncompressed data in a column.
+// UncompressedLen returns length of uncompressed data in a column.
 func (cc *ColumnCompressor) UncompressedLen(column int) int {
 	return cc.columns[column].length
 }
 
-// Bytes returns compressed bytes for a column.
+// CompressedBytes returns compressed bytes for a column.
 func (cc *ColumnCompressor) CompressedBytes(column int) []byte {
 	return cc.columns[column].output.Bytes()
 }
