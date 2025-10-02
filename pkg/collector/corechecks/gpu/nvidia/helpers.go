@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"golang.org/x/exp/constraints"
@@ -21,6 +22,8 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 // boolToFloat converts a boolean value to float64 (1.0 for true, 0.0 for false)
 func boolToFloat(val bool) float64 {
@@ -82,7 +85,9 @@ func filterSupportedAPIs(device ddnvml.Device, apiCalls []apiCallInfo) []apiCall
 func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Component) map[string][]string {
 	devCount, err := deviceCache.Count()
 	if err != nil {
-		log.Warnf("Error getting device count: %s", err)
+		if logLimiter.ShouldLog() {
+			log.Warnf("Error getting device count: %s", err)
+		}
 		return nil
 	}
 	if devCount == 0 {
@@ -93,7 +98,9 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 
 	allPhysicalDevices, err := deviceCache.AllPhysicalDevices()
 	if err != nil {
-		log.Warnf("Error getting all physical devices: %s", err)
+		if logLimiter.ShouldLog() {
+			log.Warnf("Error getting all physical devices: %s", err)
+		}
 		return nil
 	}
 	for _, dev := range allPhysicalDevices {
