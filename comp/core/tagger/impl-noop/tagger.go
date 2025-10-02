@@ -23,10 +23,6 @@ import (
 
 type noopTagger struct{}
 
-func (n *noopTagger) ProcessTagInfo([]*types.TagInfo) {
-	// noop
-}
-
 func (n *noopTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
