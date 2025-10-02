@@ -43,6 +43,8 @@ func TestDeviceEventsGatherer_RegisterWithUnsupportedEvents(t *testing.T) {
 }
 
 func TestDeviceEventsGatherer_GetWithUnregistered(t *testing.T) {
+	safenvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+
 	gatherer, err := NewDeviceEventsGatherer()
 	require.NoError(t, err)
 	require.NoError(t, gatherer.Start())

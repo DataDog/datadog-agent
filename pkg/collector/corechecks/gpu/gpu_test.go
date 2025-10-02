@@ -171,6 +171,10 @@ func TestRunDoesNotError(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, checkGeneric.Run())
+
+	// we need to cancel the check to make sure all resources and async workers are released
+	// before deinitializing the mock library at test cleanup
+	checkGeneric.Cancel()
 }
 
 // mockCollector implements the nvidia.Collector interface for testing
