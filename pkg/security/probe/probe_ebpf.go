@@ -1064,6 +1064,20 @@ func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEn
 	return cgroupContext, nil
 }
 
+// Interface used to unmarshal binary data
+type BinaryUnmarshaler interface {
+	UnmarshalBinary(data []byte) (int, error)
+}
+
+// regularUnmarshalEvent do the regular unmarshaling common to all events
+func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.EventType, offset int, dataLen uint64, data []byte) error {
+	if _, err := bu.UnmarshalBinary(data[offset:]); err != nil {
+		seclog.Errorf("failed to decode %s event: %s (offset %d, len %d)", eventType.String(), err, offset, dataLen)
+		return err
+	}
+	return nil
+}
+
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// handle play snapshot
 	if p.playSnapShotState.Swap(false) {
@@ -1113,86 +1127,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	p.monitors.eventStreamMonitor.CountEvent(eventType, event, dataLen, CPU, !p.useRingBuffers)
 
-	// no need to dispatch events
-	switch eventType {
-	case model.MountReleasedEventType:
-		if _, err = event.MountReleased.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode mount released event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-
-		// Remove all dentry entries belonging to the mountID
-		p.Resolvers.DentryResolver.DelCacheEntries(event.MountReleased.MountID)
-
-		// Delete new mount point from cache
-		if err = p.Resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
-			seclog.Tracef("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
-		}
+	// some events don't need to be dispatched to userspace
+	ok := handleEarlyReturnEvents(eventType, err, p, event, offset, dataLen, data, newEntryCb)
+	if !ok {
 		return
-	case model.ArgsEnvsEventType:
-		if _, err = event.ArgsEnvs.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode args envs event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-
-		p.Resolvers.ProcessResolver.UpdateArgsEnvs(&event.ArgsEnvs)
-
-		return
-	case model.CgroupTracingEventType:
-		if !p.config.RuntimeSecurity.ActivityDumpEnabled {
-			seclog.Errorf("shouldn't receive Cgroup event if activity dumps are disabled")
-			return
-		}
-		if _, err = event.CgroupTracing.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, newEntryCb); err != nil {
-			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
-		} else {
-			event.CgroupTracing.CGroupContext = *cgroupContext
-			event.CGroupContext = cgroupContext
-			containerID := containerutils.FindContainerID(cgroupContext.CGroupID)
-			if containerID != "" {
-				event.CgroupTracing.ContainerContext.ContainerID = containerID
-			}
-
-			p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
-		}
-		return
-	case model.CgroupWriteEventType:
-		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, newEntryCb); err != nil {
-			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
-		}
-		return
-	case model.UnshareMountNsEventType:
-		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode unshare mnt ns event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-		if err := p.handleNewMount(event, &event.UnshareMountNS.Mount); err != nil {
-			seclog.Debugf("failed to handle new mount from unshare mnt ns event: %s", err)
-		}
-		return
-	case model.ShortDNSResponseEventType:
-		if p.config.Probe.DNSResolutionEnabled {
-			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err == nil {
-				p.addToDNSResolver(p.dnsLayer)
-				return
-			}
-
-			seclog.Warnf("failed to decode the short DNS response: %s", err)
-			event.Error = model.ErrFailedDNSPacketDecoding
-			event.FailedDNS = model.FailedDNSEvent{
-				Payload: trimRightZeros(data[offset:]),
-			}
-		}
 	}
-
+	// unmarshall contexts
 	read, err = p.unmarshalContexts(data[offset:], event)
 	if err != nil {
 		seclog.Errorf("failed to decode event `%s`: %s", eventType, err)
@@ -1206,31 +1146,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	})
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
-	switch eventType {
-	case model.ForkEventType:
-		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
-			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-
-		if err := p.Resolvers.ProcessResolver.AddForkEntry(event, newEntryCb); err != nil {
-			seclog.Errorf("failed to insert fork event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
-			return
-		}
-	case model.ExecEventType:
-		// unmarshal and fill event.processCacheEntry
-		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
-			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-
-		err = p.Resolvers.ProcessResolver.AddExecEntry(event)
-		if err != nil {
-			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
-			return
-		}
+	ok = handleBeforeProcessContext(eventType, err, p, event, data, offset, dataLen, newEntryCb)
+	if !ok {
+		return
 	}
-
+	// resolve process context
 	if !p.setProcessContext(eventType, event, newEntryCb) {
 		return
 	}
@@ -1238,17 +1158,41 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
+	// handle regular events
+	ok = handleRegularEvent(eventType, err, p, event, offset, dataLen, data, newEntryCb, read)
+	if !ok {
+		return
+	}
+
+	// send related events
+	for _, relatedEvent := range relatedEvents {
+		p.DispatchEvent(relatedEvent, true)
+		p.eventPool.Put(relatedEvent)
+	}
+	relatedEvents = relatedEvents[0:0]
+
+	p.DispatchEvent(event, true)
+
+	if eventType == model.ExitEventType {
+		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
+	}
+
+	// flush pending actions
+	p.processKiller.FlushPendingReports()
+	p.fileHasher.FlushPendingReports()
+}
+
+func handleRegularEvent(eventType model.EventType, err error, p *EBPFProbe, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error), read int) bool {
 	switch eventType {
 
 	case model.FileMountEventType, model.FileMoveMountEventType:
-		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Mount, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 
 		if err := p.handleNewMount(event, &event.Mount.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
-			return
+			return false
 		}
 
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
@@ -1264,9 +1208,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 	case model.FileUmountEventType:
-		if _, err = event.Umount.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Umount, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
@@ -1279,69 +1222,56 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 	case model.FileOpenEventType:
-		if _, err = event.Open.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Open, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.FileMkdirEventType:
-		if _, err = event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.FileRmdirEventType:
-		if _, err = event.Rmdir.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Rmdir, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.FileUnlinkEventType:
-		if _, err = event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Unlink, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.FileRenameEventType:
-		if _, err = event.Rename.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Rename, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.FileChdirEventType:
-		if _, err = event.Chdir.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode chdir event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Chdir, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.FileChmodEventType:
-		if _, err = event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Chmod, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.FileChownEventType:
-		if _, err = event.Chown.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode chown event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Chown, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.FileUtimesEventType:
-		if _, err = event.Utimes.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode utime event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Utimes, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.FileLinkEventType:
-		if _, err = event.Link.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.Link, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.FileSetXAttrEventType:
-		if _, err = event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode setxattr event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.SetXAttr, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.FileRemoveXAttrEventType:
-		if _, err = event.RemoveXAttr.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
+		if err = p.regularUnmarshalEvent(&event.RemoveXAttr, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.ExitEventType:
-		if _, err = event.Exit.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode exit event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.Exit, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 		exists := p.Resolvers.ProcessResolver.ApplyExitEntry(event, newEntryCb)
 		if exists {
@@ -1356,9 +1286,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			break
 		}
 
-		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.SetUID, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 		defer p.Resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
 	case model.SetgidEventType:
@@ -1367,9 +1296,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			break
 		}
 
-		if _, err = event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.SetGID, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 		defer p.Resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
 	case model.CapsetEventType:
@@ -1378,9 +1306,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			break
 		}
 
-		if _, err = event.Capset.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.Capset, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 		defer p.Resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
 	case model.LoginUIDWriteEventType:
@@ -1388,69 +1315,29 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			break
 		}
 
-		if _, err = event.LoginUIDWrite.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode login_uid_write event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.LoginUIDWrite, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 		defer p.Resolvers.ProcessResolver.UpdateLoginUID(event.PIDContext.Pid, event)
 	case model.SELinuxEventType:
-		if _, err = event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.SELinux, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.BPFEventType:
-		if _, err = event.BPF.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode bpf event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.BPF, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.PTraceEventType:
-		if _, err = event.PTrace.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode ptrace event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.PTrace, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
-
-		// resolve tracee process context
-		var pce *model.ProcessCacheEntry
-		if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
-			pce = newPlaceholderProcessCacheEntryPTraceMe()
-		} else if event.PTrace.PID == 0 && event.PTrace.NSPID == 0 {
-			seclog.Errorf("ptrace event without any PID to resolve")
-			return
-		} else {
-			pidToResolve := event.PTrace.PID
-
-			if pidToResolve == 0 { // resolve the PID given as argument instead
-				containerID := p.fieldHandlers.ResolveContainerID(event, event.ContainerContext)
-				if containerID == "" && event.PTrace.Request != unix.PTRACE_ATTACH {
-					pidToResolve = event.PTrace.NSPID
-				} else {
-					nsid, err := p.fieldHandlers.ResolveProcessNSID(event)
-					if err != nil {
-						seclog.Debugf("PTrace NSID resolution error for process %s in container %s: %v",
-							event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
-						return
-					}
-
-					pid, err := utils.TryToResolveTraceePid(event.ProcessContext.Process.Pid, nsid, event.PTrace.NSPID)
-					if err != nil {
-						seclog.Debugf("PTrace tracee resolution error for process %s in container %s: %v",
-							event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
-						return
-					}
-					pidToResolve = pid
-				}
-			}
-
-			pce = p.Resolvers.ProcessResolver.Resolve(pidToResolve, pidToResolve, 0, false, newEntryCb)
-			if pce == nil {
-				pce = model.NewPlaceholderProcessCacheEntry(pidToResolve, pidToResolve, false)
-			}
+		ok := resolveTraceProcessContext(event, p, newEntryCb)
+		if !ok {
+			return false
 		}
-		event.PTrace.Tracee = &pce.ProcessContext
 	case model.MMapEventType:
-		if _, err = event.MMap.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode mmap event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.MMap, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 
 		if event.MMap.Flags&unix.MAP_ANONYMOUS != 0 {
@@ -1459,14 +1346,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			event.MMap.File.SetBasenameStr("")
 		}
 	case model.MProtectEventType:
-		if _, err = event.MProtect.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode mprotect event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.MProtect, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.LoadModuleEventType:
-		if _, err = event.LoadModule.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode load_module event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.LoadModule, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 
 		if event.LoadModule.LoadedFromMemory {
@@ -1475,33 +1360,21 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			event.LoadModule.File.SetBasenameStr("")
 		}
 	case model.UnloadModuleEventType:
-		if _, err = event.UnloadModule.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode unload_module event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.UnloadModule, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.SignalEventType:
-		if _, err = event.Signal.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode signal event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.Signal, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
-		// resolve target process context
-		var pce *model.ProcessCacheEntry
-		if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
-			pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false, newEntryCb)
-		}
-		if pce == nil {
-			pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
-		}
-		event.Signal.Target = &pce.ProcessContext
+		resolveTargetProcessContext(event, p, newEntryCb)
 	case model.SpliceEventType:
-		if _, err = event.Splice.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode splice event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.Splice, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.NetDeviceEventType:
-		if _, err = event.NetDevice.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode net_device event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.NetDevice, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 
 		request := tcClassifierRequest{
@@ -1510,9 +1383,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		p.pushNewTCClassifierRequest(request)
 	case model.VethPairEventType, model.VethPairNsEventType:
-		if _, err = event.VethPair.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.VethPair, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 
 		request := tcClassifierRequest{
@@ -1529,11 +1401,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.DNSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
-			return
+			return false
 		}
 		offset += read
 
-		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
+		if err = p.regularUnmarshalEvent(&event.DNS, eventType, offset, dataLen, data); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
 				seclog.Debugf("failed to validate DNS request event: %s", event.DNS.Question.Name)
 				return
@@ -1552,7 +1424,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if p.config.Probe.DNSResolutionEnabled {
 			if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 				seclog.Errorf("failed to decode Network Context")
-				return
+				return false
 			}
 			offset += read
 
@@ -1585,7 +1457,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.IMDSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
-			return
+			return false
 		}
 		offset += read
 
@@ -1594,19 +1466,17 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 				// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
 				seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
 			}
-			return
+			return false
 		}
 		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
 	case model.RawPacketFilterEventType:
-		if _, err = event.RawPacket.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.RawPacket, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 		event.NetworkContext = event.RawPacket.NetworkContext
 	case model.RawPacketActionEventType:
-		if _, err = event.RawPacket.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.RawPacket, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 		event.NetworkContext = event.RawPacket.NetworkContext
 
@@ -1618,65 +1488,58 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			events.NewCustomRule(events.RawPacketActionRuleID, events.RulesetLoadedRuleDesc),
 			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 		)
-		return
+		return false
 	case model.NetworkFlowMonitorEventType:
-		if _, err = event.NetworkFlowMonitor.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode NetworkFlowMonitor event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.NetworkFlowMonitor, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.AcceptEventType:
-		if _, err = event.Accept.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode accept event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.Accept, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.BindEventType:
-		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.Bind, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.ConnectEventType:
-		if _, err = event.Connect.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode connect event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.Connect, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.SyscallsEventType:
-		if _, err = event.Syscalls.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode syscalls event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.Syscalls, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 	case model.OnDemandEventType:
 		if p.onDemandManager.isDisabled() {
 			seclog.Debugf("on-demand event received but on-demand probes are disabled")
-			return
+			return false
 		}
 
 		if !p.onDemandRateLimiter.Allow() {
 			seclog.Errorf("on-demand event rate limit reached, disabling on-demand probes to protect the system")
 			p.onDemandManager.disable()
-			return
+			return false
 		}
 
-		if _, err = event.OnDemand.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode on-demand event for syscall event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.OnDemand, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
+
 	case model.SysCtlEventType:
-		if _, err = event.SysCtl.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode sysctl event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.SysCtl, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
+
 	case model.SetSockOptEventType:
-		if _, err = event.SetSockOpt.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode setsockopt event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.SetSockOpt, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 		if event.SetSockOpt.IsFilterTruncated {
 			p.BPFFilterTruncated.Add(1)
 		}
 	case model.SetrlimitEventType:
-		if _, err = event.Setrlimit.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode setrlimit event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.Setrlimit, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 		// resolve target process context
 		var pce *model.ProcessCacheEntry
@@ -1688,43 +1551,180 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		event.Setrlimit.Target = &pce.ProcessContext
 	case model.CapabilitiesEventType:
-		if _, err = event.CapabilitiesUsage.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode capabilities usage event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 		if event.CapabilitiesUsage.Attempted == 0 && event.CapabilitiesUsage.Used == 0 {
 			seclog.Debugf("capabilities usage event with no attempted or used capabilities, skipping")
-			return
+			return false
 		}
 		// is this thread-safe?
 		event.ProcessCacheEntry.CapsAttempted |= event.CapabilitiesUsage.Attempted
 		event.ProcessCacheEntry.CapsUsed |= event.CapabilitiesUsage.Used
 	case model.PrCtlEventType:
-		if _, err = event.PrCtl.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode prctl event: %s (offset %d, len %d)", err, offset, len(data))
-			return
+		if err = p.regularUnmarshalEvent(&event.PrCtl, eventType, offset, dataLen, data); err != nil {
+			return false
 		}
 		if event.PrCtl.IsNameTruncated {
 			p.MetricNameTruncated.Add(1)
 		}
 	}
+	return true
+}
 
-	// send related events
-	for _, relatedEvent := range relatedEvents {
-		p.DispatchEvent(relatedEvent, true)
-		p.eventPool.Put(relatedEvent)
+func handleBeforeProcessContext(eventType model.EventType, err error, p *EBPFProbe, event *model.Event, data []byte, offset int, dataLen uint64, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+	switch eventType {
+	case model.ForkEventType:
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
+			return false
+		}
+
+		if err := p.Resolvers.ProcessResolver.AddForkEntry(event, newEntryCb); err != nil {
+			seclog.Errorf("failed to insert fork event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
+			return false
+		}
+	case model.ExecEventType:
+		// unmarshal and fill event.processCacheEntry
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
+			return false
+		}
+
+		err = p.Resolvers.ProcessResolver.AddExecEntry(event)
+		if err != nil {
+			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
+			return false
+		}
 	}
-	relatedEvents = relatedEvents[0:0]
+	return true
+}
 
-	p.DispatchEvent(event, true)
+func handleEarlyReturnEvents(eventType model.EventType, err error, p *EBPFProbe, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+	switch eventType {
+	case model.MountReleasedEventType:
+		if err = p.regularUnmarshalEvent(&event.MountReleased, eventType, offset, dataLen, data); err != nil {
+			return false
+		}
 
-	if eventType == model.ExitEventType {
-		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
+		// Remove all dentry entries belonging to the mountID
+		p.Resolvers.DentryResolver.DelCacheEntries(event.MountReleased.MountID)
+
+		// Delete new mount point from cache
+		if err = p.Resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
+			seclog.Tracef("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
+		}
+		return false
+	case model.ArgsEnvsEventType:
+		if err = p.regularUnmarshalEvent(&event.ArgsEnvs, eventType, offset, dataLen, data); err != nil {
+			return false
+		}
+		p.Resolvers.ProcessResolver.UpdateArgsEnvs(&event.ArgsEnvs)
+		return false
+	case model.CgroupTracingEventType:
+		if !p.config.RuntimeSecurity.ActivityDumpEnabled {
+			seclog.Errorf("shouldn't receive Cgroup event if activity dumps are disabled")
+			return false
+		}
+		if _, err = event.CgroupTracing.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
+			return false
+		}
+		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, newEntryCb); err != nil {
+			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
+		} else {
+			event.CgroupTracing.CGroupContext = *cgroupContext
+			event.CGroupContext = cgroupContext
+			containerID := containerutils.FindContainerID(cgroupContext.CGroupID)
+			if containerID != "" {
+				event.CgroupTracing.ContainerContext.ContainerID = containerID
+			}
+
+			p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+		}
+		return false
+	case model.CgroupWriteEventType:
+		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return false
+		}
+		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, newEntryCb); err != nil {
+			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
+		}
+		return false
+	case model.UnshareMountNsEventType:
+		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode unshare mnt ns event: %s (offset %d, len %d)", err, offset, dataLen)
+			return false
+		}
+		if err := p.handleNewMount(event, &event.UnshareMountNS.Mount); err != nil {
+			seclog.Debugf("failed to handle new mount from unshare mnt ns event: %s", err)
+		}
+		return false
+	case model.ShortDNSResponseEventType:
+		if p.config.Probe.DNSResolutionEnabled {
+			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
+				seclog.Errorf("failed to decode DNS response: %s", err)
+				return false
+			}
+
+			p.addToDNSResolver(p.dnsLayer)
+		}
+		return false
 	}
+	return true
+}
 
-	// flush pending actions
-	p.processKiller.FlushPendingReports()
-	p.fileHasher.FlushPendingReports()
+func resolveTraceProcessContext(event *model.Event, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+	var pce *model.ProcessCacheEntry
+	if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
+		pce = newPlaceholderProcessCacheEntryPTraceMe()
+	} else if event.PTrace.PID == 0 && event.PTrace.NSPID == 0 {
+		seclog.Errorf("ptrace event without any PID to resolve")
+		return false
+	} else {
+		pidToResolve := event.PTrace.PID
+
+		if pidToResolve == 0 { // resolve the PID given as argument instead
+			containerID := p.fieldHandlers.ResolveContainerID(event, event.ContainerContext)
+			if containerID == "" && event.PTrace.Request != unix.PTRACE_ATTACH {
+				pidToResolve = event.PTrace.NSPID
+			} else {
+				nsid, err := p.fieldHandlers.ResolveProcessNSID(event)
+				if err != nil {
+					seclog.Debugf("PTrace NSID resolution error for process %s in container %s: %v",
+						event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
+					return false
+				}
+
+				pid, err := utils.TryToResolveTraceePid(event.ProcessContext.Process.Pid, nsid, event.PTrace.NSPID)
+				if err != nil {
+					seclog.Debugf("PTrace tracee resolution error for process %s in container %s: %v",
+						event.ProcessContext.Process.FileEvent.PathnameStr, containerID, err)
+					return false
+				}
+				pidToResolve = pid
+			}
+		}
+
+		pce = p.Resolvers.ProcessResolver.Resolve(pidToResolve, pidToResolve, 0, false, newEntryCb)
+		if pce == nil {
+			pce = model.NewPlaceholderProcessCacheEntry(pidToResolve, pidToResolve, false)
+		}
+	}
+	event.PTrace.Tracee = &pce.ProcessContext
+	return true
+}
+
+func resolveTargetProcessContext(event *model.Event, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) {
+	var pce *model.ProcessCacheEntry
+	if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
+		pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false, newEntryCb)
+	}
+	if pce == nil {
+		pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
+	}
+	event.Signal.Target = &pce.ProcessContext
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
