@@ -37,4 +37,3 @@ func stopPlatformDriver() error {
 	log.Debug("Windows Driver stopped for traceroute")
 	return nil
 }
-

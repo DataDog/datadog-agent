@@ -24,7 +24,7 @@ func startPlatformDriver() error {
 }
 
 // stopPlatformDriver is a no-op on darwin
-func stopPlatfromDriver() error{
+func stopPlatfromDriver() error {
 	// No driver needed on Darwin
 	return nil
 }
