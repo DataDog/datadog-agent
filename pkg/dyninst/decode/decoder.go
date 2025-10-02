@@ -172,6 +172,9 @@ func (d *Decoder) Decode(
 	var numExpressions int
 	if d.snapshotMessage.Debugger.Snapshot.Captures.Entry != nil {
 		numExpressions = len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.rootType.Expressions)
+		if d.snapshotMessage.Debugger.Snapshot.Captures.Return != nil {
+			numExpressions += len(d.snapshotMessage.Debugger.Snapshot.Captures.Return.rootType.Expressions)
+		}
 	} else if d.snapshotMessage.Debugger.Snapshot.Captures.Lines != nil {
 		numExpressions = len(d.snapshotMessage.Debugger.Snapshot.Captures.Lines.capture.rootType.Expressions)
 	}
@@ -195,6 +198,7 @@ func (d *Decoder) resetForNextMessage() {
 	clear(d.entry.dataItems)
 	d.entry.clear()
 	d.line.clear()
+	d._return.clear()
 	d.snapshotMessage = snapshotMessage{}
 }
 

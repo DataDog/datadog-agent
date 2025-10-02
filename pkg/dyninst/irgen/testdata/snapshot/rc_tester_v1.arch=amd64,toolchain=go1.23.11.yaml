@@ -12,13 +12,11 @@ Probes:
       events:
         - ID: 2
           Kind: Entry
-          SourceLine: ""
           Type: 198 EventRootType Probe[main.HandleHTTP]
           InjectionPoints: [{PC: "0xd289f3", Frameless: false}]
           Condition: null
         - ID: 1
           Kind: Return
-          SourceLine: ""
           Type: 199 EventRootType Probe[main.HandleHTTP]Return
           InjectionPoints:
             - PC: "0xd28c4b"
@@ -38,13 +36,11 @@ Probes:
       events:
         - ID: 4
           Kind: Entry
-          SourceLine: ""
           Type: 200 EventRootType Probe[main.LookAtTheRequest]
           InjectionPoints: [{PC: "0xd28d6e", Frameless: false}]
           Condition: null
         - ID: 3
           Kind: Return
-          SourceLine: ""
           Type: 201 EventRootType Probe[main.LookAtTheRequest]Return
           InjectionPoints: [{PC: "0xd28dfd", Frameless: false}]
           Condition: null

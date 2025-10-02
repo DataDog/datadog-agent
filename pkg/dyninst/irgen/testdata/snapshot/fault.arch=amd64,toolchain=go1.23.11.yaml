@@ -12,13 +12,11 @@ Probes:
       events:
         - ID: 2
           Kind: Entry
-          SourceLine: ""
           Type: 105 EventRootType Probe[main.callMe]
           InjectionPoints: [{PC: "0x4a804e", Frameless: false}]
           Condition: null
         - ID: 1
           Kind: Return
-          SourceLine: ""
           Type: 106 EventRootType Probe[main.callMe]Return
           InjectionPoints: [{PC: "0x4a80f2", Frameless: false}]
           Condition: null
