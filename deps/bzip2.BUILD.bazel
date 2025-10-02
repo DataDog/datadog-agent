@@ -110,10 +110,11 @@ cc_shared_library(
         #    "-Wl,-soname",
         #],
         "@platforms//os:windows": [],
-        "//conditions:default": [
+        "@platforms//os:macos": [
             "-Wl,-install_name",
             "-Wl,'@rpath/libbz2.so.1.0'",
         ],
+        "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
 )
