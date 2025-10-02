@@ -33,11 +33,11 @@ func isCgroupfsReadonly() bool {
 	sysfsPath := filepath.Join("/sys/fs/cgroup", "test")
 	err := os.MkdirAll(sysfsPath, 0755)
 	if err != nil {
-		return false
+		return true
 	}
 	defer os.RemoveAll(sysfsPath)
 
-	return true
+	return false
 }
 
 func TestInsertDeviceAllowLine(t *testing.T) {
