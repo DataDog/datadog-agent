@@ -17,6 +17,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
@@ -136,13 +137,10 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*m
 		protocol = payload.ProtocolICMP
 	}
 
-	hname := conn.Raddr.GetIp()
-
 	rDNSEntry := dns[conn.Raddr.GetIp()]
 	var reverseDNSHostname string
 	if rDNSEntry != nil && len(rDNSEntry.Names) > 0 {
 		reverseDNSHostname = rDNSEntry.Names[0]
-		hname = rDNSEntry.Names[0]
 	}
 
 	var remotePort uint16
@@ -152,10 +150,6 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*m
 	}
 
 	sourceContainer := conn.Laddr.GetContainerId()
-
-	if domain, ok := ipToDomain[hname]; ok {
-		hname = domain
-	}
 
 	return common.Pathtest{
 		Hostname:          hname,
@@ -267,12 +261,20 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 
 	ipToDomain := make(map[string]string)
 	for _, domain := range domains {
-		ips, _ := net.LookupHost(domain)
+		s.logger.Debugf("[ScheduleConns] Loop domain %s", domain)
+		ips, err := cache.GetWithExpiration(domain, func() ([]string, error) {
+			s.logger.Debugf("[ScheduleConns] Lookup domain %s", domain)
+			ips, err := net.LookupHost(domain)
+			return ips, err
+		}, 5*time.Minute)
+		if err != nil {
+			s.logger.Errorf("Failed to resolve domain %s: %s", domain, err)
+		}
 		for _, ip := range ips {
 			ipToDomain[ip] = domain
 		}
 	}
-	s.logger.Errorf("ipToDomain: %v", ipToDomain)
+	s.logger.Debugf("ipToDomain: %v", ipToDomain)
 
 	startTime := s.TimeNowFn()
 	_ = s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1)
@@ -284,8 +286,13 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 		}
 
 		jsonStr, _ := json.Marshal(conn)
-		s.logger.Errorf("one conn: %s", jsonStr)
+		s.logger.Debugf("one conn: %s", jsonStr)
 
+		domain := ipToDomain[conn.Raddr.GetIp()]
+		if domain == "" {
+			s.logger.Debugf("Skipped, no domain: %s", conn.Raddr)
+			continue
+		}
 		pathtest := s.makePathtest(conn, dns, ipToDomain)
 
 		err := s.scheduleOne(&pathtest)
