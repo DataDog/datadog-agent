@@ -34,7 +34,7 @@ static char *mock_run_symbol(char *check_id, char *init_config, char *instance_c
 }
 
 handles_t get_mock_lib_handles(void) {
-	// TODO: replace the NULL handle by mock shared library handle
+	// only the symbol is required to run the check, so the library handle can be set to NULL
 	handles_t lib_handles = { NULL, mock_run_symbol };
 	return lib_handles;
 }
@@ -75,10 +75,3 @@ func NewSharedLibraryFakeCheck(senderManager sender.SenderManager) (*SharedLibra
 
 	return c, err
 }
-
-// TEST: Scheduling / Unscheduling (dlopen / dlclose) with multiple check instances
-// TEST: check cancel (?)
-// TEST: Run check without errors
-// TEST: run check and remove the lib during the scheduling
-
-// TEST: run check without the lib file (loader_test.go)
