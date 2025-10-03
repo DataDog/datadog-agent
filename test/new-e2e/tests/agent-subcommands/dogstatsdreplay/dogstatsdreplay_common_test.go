@@ -29,10 +29,7 @@ type baseDogstatsdReplaySuite struct {
 
 // uploadCaptureFile uploads a capture file to the remote host
 func (v *baseDogstatsdReplaySuite) uploadCaptureFile(captureData []byte, remotePath string) {
-	// Encode as base64 for safe transport
 	encoded := base64.StdEncoding.EncodeToString(captureData)
-
-	// Upload and decode
 	cmd := fmt.Sprintf("echo '%s' | base64 -d > %s", encoded, remotePath)
 	v.Env().RemoteHost.MustExecute(cmd)
 }
@@ -71,7 +68,5 @@ func (v *baseDogstatsdReplaySuite) TestReplayMissingFile() {
 	// Try to replay non-existent file
 	_, err := v.Env().RemoteHost.Execute(
 		"sudo datadog-agent dogstatsd-replay -f /tmp/nonexistent.cap --autoconfirm")
-
-	// Should error
 	assert.Error(v.T(), err)
 }
