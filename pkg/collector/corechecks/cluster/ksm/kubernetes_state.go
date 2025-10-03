@@ -1160,7 +1160,7 @@ func mergeLabelsOrAnnotationAsTags(extra, instanceMap map[string]map[string]stri
 	}
 
 	for resource, mapping := range extra {
-		var singularName = resource
+		singularName := resource
 		var err error
 		if shouldTransformResource && !isNodeAgent {
 			// modify the resource name to the singular form of the resource

@@ -29,9 +29,10 @@ func TestStaticTags(t *testing.T) {
 		defer mockConfig.SetWithoutSource("tags", []string{})
 		staticTags := GetStaticTags(context.Background(), mockConfig)
 		assert.Equal(t, map[string][]string{
-			"some":             {"tag"},
-			"another":          {"tag"},
-			"eks_fargate_node": {"eksnode"},
+			"some":              {"tag"},
+			"another":           {"tag"},
+			"eks_fargate_node":  {"eksnode"},
+			"kube_distribution": {"eks"},
 		}, staticTags)
 	})
 
@@ -42,9 +43,10 @@ func TestStaticTags(t *testing.T) {
 		defer mockConfig.SetWithoutSource("extra_tags", []string{})
 		staticTags := GetStaticTags(context.Background(), mockConfig)
 		assert.Equal(t, map[string][]string{
-			"some":             {"tag"},
-			"extra":            {"tag"},
-			"eks_fargate_node": {"eksnode"},
+			"some":              {"tag"},
+			"extra":             {"tag"},
+			"eks_fargate_node":  {"eksnode"},
+			"kube_distribution": {"eks"},
 		}, staticTags)
 	})
 
@@ -55,6 +57,7 @@ func TestStaticTags(t *testing.T) {
 		assert.Equal(t, map[string][]string{
 			"eks_fargate_node":  {"eksnode"},
 			"kube_cluster_name": {"foo"},
+			"kube_distribution": {"eks"},
 		}, staticTags)
 	})
 }
@@ -84,6 +87,7 @@ func TestStaticTagsSlice(t *testing.T) {
 			"some:tag",
 			"another:tag",
 			"eks_fargate_node:eksnode",
+			"kube_distribution:eks",
 		}, staticTags)
 	})
 
@@ -99,6 +103,7 @@ func TestStaticTagsSlice(t *testing.T) {
 			"some:tag",
 			"extra:tag",
 			"eks_fargate_node:eksnode",
+			"kube_distribution:eks",
 		}, staticTags)
 	})
 }
@@ -121,13 +126,13 @@ func TestClusterAgentGlobalTags(t *testing.T) {
 
 	t.Run("Agent extraGlobalTags", func(t *testing.T) {
 		flavor.SetFlavor(flavor.DefaultAgent)
-		globalTags := GetClusterAgentStaticTags(mockConfig)
+		globalTags := GetClusterAgentStaticTags(t.Context(), mockConfig)
 		assert.Equal(t, map[string][]string(nil), globalTags)
 	})
 
 	t.Run("ClusterAgent extraGlobalTags", func(t *testing.T) {
 		flavor.SetFlavor(flavor.ClusterAgent)
-		globalTags := GetClusterAgentStaticTags(mockConfig)
+		globalTags := GetClusterAgentStaticTags(t.Context(), mockConfig)
 		assert.Equal(t, map[string][]string{
 			"some":    {"tag"},
 			"extra":   {"tag"},

@@ -123,9 +123,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`},
 	}, {
 		name: "no previous config - update with 2 tests",
@@ -146,9 +146,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "db"
 						}
 					},
-					"orgID": 67890,
-					"mainDC": "us2.staging.dog",
-					"publicID": "puf-2"
+					"org_id": 67890,
+					"main_dc": "us2.staging.dog",
+					"public_id": "puf-2"
 				}`,
 			"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
@@ -168,9 +168,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`,
 		},
 	}, {
@@ -193,9 +193,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`},
 		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
@@ -215,9 +215,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`},
 	}, {
 		name: "previous config with one test- add a new  test",
@@ -238,9 +238,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "db"
 						}
 					},
-					"orgID": 67890,
-					"mainDC": "us2.staging.dog",
-					"publicID": "puf-2"
+					"org_id": 67890,
+					"main_dc": "us2.staging.dog",
+					"public_id": "puf-2"
 				}`,
 			"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
@@ -260,9 +260,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`},
 		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
@@ -282,9 +282,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`},
 	}, {
 		name:       "previous config with one test- delete",
@@ -307,9 +307,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 						"destination_service": "backend"
 					}
 				},
-				"orgID": 12345,
-				"mainDC": "us1.staging.dog",
-				"publicID": "puf-1"
+				"org_id": 12345,
+				"main_dc": "us1.staging.dog",
+				"public_id": "puf-1"
 			}`},
 	},
 	}
