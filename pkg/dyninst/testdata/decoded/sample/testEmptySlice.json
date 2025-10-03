@@ -23,7 +23,7 @@
           {
             "function": "main.executeSliceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
-            "lineNumber": 88
+            "lineNumber": 92
           },
           {
             "function": "main.main",
