@@ -259,14 +259,11 @@ func (s *Launcher) scan() {
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			// Skip files with invalid fingerprints (Value == 0)
-			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
-				// If fingerprint is invalid, persist the old info back into the map for future attempts
-				if hasOldInfo {
-					s.oldInfoMap[scanKey] = oldInfo
-				}
+			if err != nil {
+				// Skip on errors
 				continue
 			}
+			// Allow tailing with invalid fingerprints (empty files) to capture partial fingerprints when written
 		}
 
 		if hasOldInfo {
@@ -345,14 +342,16 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			tailer.ReplaceSource(source)
 			continue
 		}
-
 		var fingerprint *types.Fingerprint
 		// Check if this specific file should be fingerprinted
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			if err != nil || !fingerprint.ValidFingerprint() {
+			if err != nil {
+				// Skip on errors
 				continue
 			}
+			// Allow tailing with invalid fingerprints (empty files) to capture partial fingerprints when written
+			// TODO: distinctions btw types of invalid fingerprints (empty files, invalid fingerprints, etc.)?
 		}
 
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
@@ -498,7 +497,7 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 			InfoRegistry: oldInfoRegistry,
 			Pattern:      oldRegexPattern,
 		}
-		s.oldInfoMap[file.Path] = regexAndRegistry
+		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
 	}
 
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
