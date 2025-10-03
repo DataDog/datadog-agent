@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	hostprofiler "github.com/DataDog/datadog-agent/comp/host-profiler"
@@ -67,11 +67,11 @@ func runHostProfilerCommand(_ context.Context, cliParams *cliParams) error {
 			core.Bundle(),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
-				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),
 			}),
 
 			ipcfx.ModuleReadOnly(),
+			secretfx.Module(),
 			remoteTaggerFx.Module(tagger.NewRemoteParams()),
 			configsyncimpl.Module(configsyncimpl.NewParams(cliParams.SyncTimeout, true, cliParams.SyncOnInitTimeout)),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore))

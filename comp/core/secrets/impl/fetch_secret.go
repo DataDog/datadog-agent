@@ -49,7 +49,7 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 	defer done()
 
 	if !r.embeddedBackendPermissiveRights {
-		if err := checkRights(cmd.Path, r.commandAllowGroupExec); err != nil {
+		if err := checkRightsFunc(cmd.Path, r.commandAllowGroupExec); err != nil {
 			return nil, err
 		}
 	}
