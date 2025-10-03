@@ -92,13 +92,13 @@
 #define FEXIT_CTX_TYPE ctx_t
 
 #define SYSCALL_ABI_HOOKx(x, word_size, type, TYPE, prefix, syscall, suffix, ...)                                                                      \
-    int __attribute__((always_inline)) type##__##sys##syscall(TYPE##_CTX_TYPE *ctx __JOIN(x, __SC_DECL, __VA_ARGS__));                                 \
+    static int __attribute__((always_inline)) type##__##sys##syscall(TYPE##_CTX_TYPE *ctx __JOIN(x, __SC_DECL, __VA_ARGS__));                                 \
     SEC(#type "/" SYSCALL##word_size##_PREFIX #prefix SYSCALL_PREFIX #syscall #suffix)                                                                 \
     int type##__##word_size##_##prefix##sys##syscall##suffix(TYPE##_CTX_TYPE *ctx) {                                                                   \
         SYSCALL_##TYPE##_PROLOG(x, __SC_##word_size##_PARAM, syscall, __VA_ARGS__) return type##__sys##syscall(ctx __JOIN(x, __SC_PASS, __VA_ARGS__)); \
     }
 
-#define SYSCALL_HOOK_COMMON(x, type, TYPE, syscall, ...) int __attribute__((always_inline)) type##__sys##syscall(TYPE##_CTX_TYPE *ctx __JOIN(x, __SC_DECL, __VA_ARGS__))
+#define SYSCALL_HOOK_COMMON(x, type, TYPE, syscall, ...) static int __attribute__((always_inline)) type##__sys##syscall(TYPE##_CTX_TYPE *ctx __JOIN(x, __SC_DECL, __VA_ARGS__))
 #define SYSCALL_KRETPROBE_PROLOG(...)
 #define SYSCALL_FEXIT_PROLOG(...)
 
