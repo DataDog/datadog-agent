@@ -51,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -204,6 +205,7 @@ func makeFlare(flareComp flare.Component,
 	flareprofiler flareprofilerdef.Component,
 	client ipc.HTTPClient,
 	senderManager diagnosesendermanager.Component,
+	filterStore workloadfilter.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
@@ -287,12 +289,12 @@ func makeFlare(flareComp flare.Component,
 	var filePath string
 
 	if cliParams.forceLocal {
-		diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
+		diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, filterStore, wmeta, ac, secretResolver, tagger, config)
 		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil, diagnoseresult)
 	} else {
 		filePath, err = requestArchive(profile, client, cliParams.providerTimeout)
 		if err != nil {
-			diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
+			diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, filterStore, wmeta, ac, secretResolver, tagger, config)
 			filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, err, diagnoseresult)
 		}
 	}
@@ -383,13 +385,14 @@ func runLocalDiagnose(
 	diagnoseConfig diagnose.Config,
 	log log.Component,
 	senderManager diagnosesendermanager.Component,
+	filterStore workloadfilter.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	tagger tagger.Component,
 	config config.Component) []byte {
 
-	result, err := diagnoseLocal.Run(diagnoseComponent, diagnose.Config{Verbose: true}, log, senderManager, wmeta, ac, secretResolver, tagger, config)
+	result, err := diagnoseLocal.Run(diagnoseComponent, diagnose.Config{Verbose: true}, log, senderManager, filterStore, wmeta, ac, secretResolver, tagger, config)
 
 	if err != nil {
 		return []byte(color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))

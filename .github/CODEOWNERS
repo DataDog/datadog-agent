@@ -240,6 +240,7 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/agent-integrations
 /cmd/cws-instrumentation/               @DataDog/agent-security
 /cmd/dogstatsd/                         @DataDog/agent-metric-pipelines
+/cmd/loader/                            @DataDog/agent-runtimes @DataDog/agent-apm
 /cmd/otel-agent/                        @DataDog/opentelemetry-agent
 /cmd/process-agent/                     @DataDog/container-experiences
 /cmd/serverless/                        @DataDog/serverless @Datadog/serverless-aws
@@ -419,6 +420,8 @@
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry-agent
+/pkg/trace/api/loader/                  @DataDog/agent-runtimes
+/pkg/trace/api/loader/listeners.go      @DataDog/agent-apm
 /pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry-agent
 /pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry-agent
 /pkg/trace/telemetry/                   @DataDog/apm-trace-storage
@@ -658,6 +661,7 @@
 /tasks/                                 @DataDog/agent-devx
 /tasks/msi.py                           @DataDog/windows-products
 /tasks/agent.py                         @DataDog/agent-runtimes
+/tasks/loader.py                        @DataDog/agent-runtimes
 /tasks/go_deps.py                       @DataDog/agent-runtimes
 /tasks/dogstatsd.py                     @DataDog/agent-metric-pipelines
 /tasks/update_go.py                     @DataDog/agent-runtimes
