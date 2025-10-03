@@ -86,7 +86,7 @@
     MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
     REMOTE_STACK_CLEANING: "true"
   script:
-    - export IS_DEV_BRANCH=$(dda inv -- -e pipeline.is-dev-branch)
+    - export IS_DEV_BRANCH="$(dda inv -- -e pipeline.is-dev-branch)"
     - DYNAMIC_TESTS_BREAKGLASS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DYNAMIC_TESTS_BREAKGLASS value) || exit $?; export DYNAMIC_TESTS_BREAKGLASS
     - |
       if [ "$DYNAMIC_TESTS_BREAKGLASS" = "true" ] || [ "$IS_DEV_BRANCH" = "false" ] || [ RUN_E2E_TESTS == "on" ]; then
