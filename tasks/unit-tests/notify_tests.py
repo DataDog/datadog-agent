@@ -13,17 +13,24 @@ from tasks import notify
 class TestSendStats(unittest.TestCase):
     @patch("requests.get")
     @patch("tasks.notify.create_count", new=MagicMock())
+    @patch("tasks.libs.common.gitlab.datadog_infra_token", new=MagicMock())
     def test_nominal(self, get_mock):
         with open("tasks/unit-tests/testdata/jobs.json") as f:
             jobs = json.load(f)
         job_list = {"json.return_value": jobs}
         no_jobs = {"json.return_value": ""}
-        get_mock.side_effect = [MagicMock(status_code=200, **job_list), MagicMock(status_code=200, **no_jobs)]
+        token = {"json.return_value": {"token": "1234"}}
+        get_mock.side_effect = [
+            MagicMock(ok=True, **token),
+            MagicMock(status_code=200, **job_list),
+            MagicMock(status_code=200, **no_jobs),
+        ]
         notify.send_stats(MockContext(), print_to_stdout=True)
         get_mock.assert_called()
 
 
 class TestCheckConsistentFailures(unittest.TestCase):
+    @patch("tasks.libs.common.gitlab.datadog_infra_token", new=MagicMock())
     @patch("requests.get")
     def test_nominal(self, get_mock):
         os.environ["CI_PIPELINE_ID"] = "456"
@@ -31,7 +38,12 @@ class TestCheckConsistentFailures(unittest.TestCase):
             jobs = json.load(f)
         job_list = {"json.return_value": jobs}
         no_jobs = {"json.return_value": ""}
-        get_mock.side_effect = [MagicMock(status_code=200, **job_list), MagicMock(status_code=200, **no_jobs)]
+        token = {"json.return_value": {"token": "1234"}}
+        get_mock.side_effect = [
+            MagicMock(ok=True, **token),
+            MagicMock(status_code=200, **job_list),
+            MagicMock(status_code=200, **no_jobs),
+        ]
         notify.check_consistent_failures(
             MockContext(run=Result("test")), "tasks/unit-tests/testdata/job_executions.json"
         )

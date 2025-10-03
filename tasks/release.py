@@ -1107,8 +1107,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     Commits the above changes, and then creates a PR on the upstream repository with the change.
 
     Notes:
-    This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-    with 'repo' permissions.
     This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
@@ -1282,7 +1280,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    gitlab = Gitlab(project_name=GITHUB_REPO_NAME, api_token=get_gitlab_token())
+    gitlab = Gitlab(project_name=GITHUB_REPO_NAME, api_token=get_gitlab_token(ctx))
     list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know
@@ -1458,8 +1456,6 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     Notes:
     base_directory - path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
-    This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-    with 'repo' permissions.
     This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
