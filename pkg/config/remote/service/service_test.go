@@ -44,11 +44,6 @@ const (
 	testEnv      = "test-env"
 )
 
-const (
-	site = "test-site"
-	k    = "test-api-key"
-)
-
 // Setup overrides for tests
 func init() {
 	uuid.GetUUID = func() string {
