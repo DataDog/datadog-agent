@@ -47,11 +47,11 @@ require (
 	golang.org/x/term v0.35.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.32.3
-	k8s.io/apimachinery v0.32.3
-	k8s.io/cli-runtime v0.31.2
-	k8s.io/client-go v0.32.3
-	k8s.io/kubectl v0.31.2
+	k8s.io/api v0.33.5
+	k8s.io/apimachinery v0.33.5
+	k8s.io/cli-runtime v0.33.4
+	k8s.io/client-go v0.33.4
+	k8s.io/kubectl v0.33.4
 )
 
 require (
