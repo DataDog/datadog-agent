@@ -65,6 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
+	pkgtelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -165,7 +166,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, _ ipc.Component, deps module.FactoryDependencies) error {
+func run(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, ipcComp ipc.Component, deps module.FactoryDependencies) error {
 	defer func() {
 		stopSystemProbe()
 	}()
@@ -213,7 +214,7 @@ func run(log log.Component, _ config.Component, telemetry telemetry.Component, s
 		}
 	}()
 
-	if err := startSystemProbe(log, telemetry, sysprobeconfig, rcclient, settings, deps); err != nil {
+	if err := startSystemProbe(log, config, telemetry, sysprobeconfig, rcclient, settings, ipcComp, deps); err != nil {
 		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -257,9 +258,9 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ healthprobe.Component, settings settings.Component, deps module.FactoryDependencies) error {
+		func(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ healthprobe.Component, settings settings.Component, ipcComp ipc.Component, deps module.FactoryDependencies) error {
 			defer StopSystemProbeWithDefaults()
-			err := startSystemProbe(log, telemetry, sysprobeconfig, rcclient, settings, deps)
+			err := startSystemProbe(log, config, telemetry, sysprobeconfig, rcclient, settings, ipcComp, deps)
 			if err != nil {
 				return err
 			}
@@ -345,11 +346,14 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
+func startSystemProbe(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, settings settings.Component, ipcComp ipc.Component, deps module.FactoryDependencies) error {
 	var err error
 	cfg := sysprobeconfig.SysProbeObject()
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
+
+	// Initialize COAT metrics for system-probe
+	initCOATMetrics(telemetry)
 
 	logUserAndGroupID(log)
 	// Exit if system probe is disabled
@@ -401,7 +405,7 @@ func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobe
 		}()
 	}
 
-	if err = api.StartServer(cfg, settings, telemetry, deps); err != nil {
+	if err = api.StartServer(cfg, settings, telemetry, config, ipcComp, deps); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil
@@ -464,4 +468,17 @@ func logUserAndGroupID(log log.Component) {
 	} else {
 		log.Warnf("unable to resolve group: %s", err)
 	}
+}
+
+// initCOATMetrics initializes COAT (Cross-Org Agent Telemetry) metrics for system-probe
+func initCOATMetrics(_ telemetry.Component) {
+	// Create system-probe COAT metrics following the pattern from core agent
+	systemProbeStarted := pkgtelemetry.NewCounter("system_probe", "started", []string{}, "System Probe started counter")
+	systemProbeRunning := pkgtelemetry.NewGauge("system_probe", "running", []string{}, "System Probe running gauge")
+
+	// Emit the metrics
+	systemProbeStarted.Inc()
+	systemProbeRunning.Set(1)
+
+	pkglog.Info("Initialized COAT metrics for system-probe")
 }
