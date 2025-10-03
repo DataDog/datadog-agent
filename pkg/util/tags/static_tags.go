@@ -112,7 +112,7 @@ func GetClusterAgentStaticTags(ctx context.Context, config config.Reader) map[st
 	// DD_CLUSTER_CHECKS_EXTRA_TAGS / DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
 	tags = append(tags, configUtils.GetConfiguredDCATags(config)...)
 
-	// determine for kube_cloud_provider global tag
+	// determine for kube_distribution global tag
 	kubeDistro := cloudprovider.DCAGetName(ctx)
 	if kubeDistro != "" {
 		tags = append(tags, taggertags.KubeDistribution+":"+kubeDistro)

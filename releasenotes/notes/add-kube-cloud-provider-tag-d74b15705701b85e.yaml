@@ -8,4 +8,5 @@
 ---
 features:
   - |
-    The Agent now emits the `kube_cloud_provider` tag based on labels in managed Kubernetes installations.
+    The Agent now emits the `kube_distribution` tag based on labels in managed Kubernetes installations
+    with values: eks, gke and aks.

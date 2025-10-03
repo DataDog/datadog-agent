@@ -39,7 +39,7 @@ func TestEKSSuite(t *testing.T) {
 func (suite *eksSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
-	suite.envSpecificClusterTags = []string{"^kube_cloud_provider:aws$"}
+	suite.envSpecificClusterTags = []string{"^kube_distribution:eks$"}
 }
 
 func (suite *eksSuite) TestEKSFargate() {
@@ -55,7 +55,7 @@ func (suite *eksSuite) TestEKSFargate() {
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
-				"^kube_cloud_provider:aws$",
+				"^kube_distribution:eks$",
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 				`^kube_ownerref_kind:replicaset$`,
@@ -87,7 +87,7 @@ func (suite *eksSuite) TestEKSFargate() {
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
-				"^kube_cloud_provider:aws$",
+				"^kube_distribution:eks$",
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 				`^kube_ownerref_kind:replicaset$`,
@@ -119,7 +119,7 @@ func (suite *eksSuite) TestEKSFargate() {
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
-				"^kube_cloud_provider:aws$",
+				"^kube_distribution:eks$",
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 				`^kube_ownerref_kind:replicaset$`,
@@ -153,7 +153,7 @@ func (suite *eksSuite) TestDogstatsdFargate() {
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
-				"^kube_cloud_provider:aws$",
+				"^kube_distribution:eks$",
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 				`^kube_ownerref_kind:replicaset$`,
@@ -188,7 +188,7 @@ func (suite *eksSuite) TestNginxFargate() {
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_cluster_name:`,
-				"^kube_cloud_provider:aws$",
+				"^kube_distribution:eks$",
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx-fargate$`,
@@ -216,7 +216,6 @@ func (suite *eksSuite) TestNginxFargate() {
 			Name: "network.http.response_time",
 			Tags: []string{
 				`^kube_namespace:workload-nginx-fargate$`,
-				`^kube_cloud_provider:`,
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -224,7 +223,7 @@ func (suite *eksSuite) TestNginxFargate() {
 				`^cluster_name:`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
-				"^kube_cloud_provider:aws$",
+				"^kube_distribution:eks$",
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-nginx-fargate$`,
 				`^kube_service:nginx$`,
@@ -251,7 +250,7 @@ func (suite *eksSuite) TestNginxFargate() {
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_cluster_name:`,
-				"^kube_cloud_provider:aws$",
+				"^kube_distribution:eks$",
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx-fargate$`,

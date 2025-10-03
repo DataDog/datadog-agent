@@ -29,10 +29,10 @@ func TestStaticTags(t *testing.T) {
 		defer mockConfig.SetWithoutSource("tags", []string{})
 		staticTags := GetStaticTags(context.Background(), mockConfig)
 		assert.Equal(t, map[string][]string{
-			"some":                {"tag"},
-			"another":             {"tag"},
-			"eks_fargate_node":    {"eksnode"},
-			"kube_cloud_provider": {"aws"},
+			"some":              {"tag"},
+			"another":           {"tag"},
+			"eks_fargate_node":  {"eksnode"},
+			"kube_distribution": {"eks"},
 		}, staticTags)
 	})
 
@@ -43,10 +43,10 @@ func TestStaticTags(t *testing.T) {
 		defer mockConfig.SetWithoutSource("extra_tags", []string{})
 		staticTags := GetStaticTags(context.Background(), mockConfig)
 		assert.Equal(t, map[string][]string{
-			"some":                {"tag"},
-			"extra":               {"tag"},
-			"eks_fargate_node":    {"eksnode"},
-			"kube_cloud_provider": {"aws"},
+			"some":              {"tag"},
+			"extra":             {"tag"},
+			"eks_fargate_node":  {"eksnode"},
+			"kube_distribution": {"eks"},
 		}, staticTags)
 	})
 
@@ -55,9 +55,9 @@ func TestStaticTags(t *testing.T) {
 		defer mockConfig.SetWithoutSource("tags", []string{})
 		staticTags := GetStaticTags(context.Background(), mockConfig)
 		assert.Equal(t, map[string][]string{
-			"eks_fargate_node":    {"eksnode"},
-			"kube_cluster_name":   {"foo"},
-			"kube_cloud_provider": {"aws"},
+			"eks_fargate_node":  {"eksnode"},
+			"kube_cluster_name": {"foo"},
+			"kube_distribution": {"eks"},
 		}, staticTags)
 	})
 }
@@ -87,7 +87,7 @@ func TestStaticTagsSlice(t *testing.T) {
 			"some:tag",
 			"another:tag",
 			"eks_fargate_node:eksnode",
-			"kube_cloud_provider:aws",
+			"kube_distribution:eks",
 		}, staticTags)
 	})
 
@@ -103,7 +103,7 @@ func TestStaticTagsSlice(t *testing.T) {
 			"some:tag",
 			"extra:tag",
 			"eks_fargate_node:eksnode",
-			"kube_cloud_provider:aws",
+			"kube_distribution:eks",
 		}, staticTags)
 	})
 }
