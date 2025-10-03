@@ -153,6 +153,11 @@ func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.R
 		}
 
 		t.Lock()
+		if t.isClosed {
+			t.Unlock()
+			return
+		}
+
 		for _, selfTest := range t.selfTests {
 			id := selfTest.GetRuleDefinition().ID
 
