@@ -1,6 +1,37 @@
 import os
 
+from pathlib import Path
+import time
+import random
+
 from invoke import task
+
+SERVICE_ACCOUNT_FILE = Path("service-account.json")
+SCOPE = ["https://www.googleapis.com/auth/spreadsheets"]
+
+def _execute_with_retries(request, retries: int =4, min_wait: float = 1.0, max_wait: float = 30.0):
+    from googleapiclient import errors
+    for attempt in range(retries):
+        try:
+            return request.execute()
+        except errors.HttpError as e:
+            if retries - 1 == attempt:
+                raise
+
+            status = e.resp.status
+            if status == 429 or status >= 500:
+                sleep = min_wait * (2 ** attempt)
+                jitter = random.uniform(sleep * 0.5, sleep * 1.5)
+                sleep = min(jitter, max_wait)
+                print(f"[Retry {attempt+1}/{retries}] HTTP {status} received, "
+                      f"waiting {sleep:.1f}s before next attempt...")
+                time.sleep(sleep)
+                continue
+
+            raise
+
+    # Unreachable, here for sanity. We should either return successfully or raise last error
+    raise RuntimeError("Exhausted retries")
 
 
 @task
@@ -37,11 +68,14 @@ def register_deployment_to_sheet(
     dynamic_build_render = dynamic_build_render or os.environ.get("DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS")
     spreadsheet_id = spreadsheet_id or os.environ.get("SHEET_ID")
 
-    scope = ["https://www.googleapis.com/auth/spreadsheets"]
-    credentials = ServiceAccountCredentials.from_json_keyfile_name("service-account.json", scope)
+    if not spreadsheet_id:
+        raise ValueError("Missing spreadsheet_id (or SHEET_ID env var)")
 
+    if not SERVICE_ACCOUNT_FILE.exists():
+        raise FileNotFoundError(f"Service account file not found: {SERVICE_ACCOUNT_FILE}")
+
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(str(SERVICE_ACCOUNT_FILE), SCOPE)
     service = discovery.build("sheets", "v4", credentials=credentials)
-
     body = {
         "values": [
             [
@@ -60,7 +94,6 @@ def register_deployment_to_sheet(
             ]
         ]
     }
-
     request = (
         service.spreadsheets()
         .values()
@@ -71,6 +104,6 @@ def register_deployment_to_sheet(
             body=body,
         )
     )
-    response = request.execute()
 
+    response = _execute_with_retries(request)
     print(response)
