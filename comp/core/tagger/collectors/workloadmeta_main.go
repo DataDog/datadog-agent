@@ -7,6 +7,7 @@ package collectors
 
 import (
 	"context"
+	"maps"
 	"strings"
 
 	"github.com/gobwas/glob"
@@ -97,20 +98,22 @@ func (c *WorkloadMetaCollector) Run(ctx context.Context) {
 }
 
 func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, datadogConfig config.Component) {
-	c.staticTags = tagutil.GetStaticTags(ctx, datadogConfig)
+	staticTags := tagutil.GetStaticTags(ctx, datadogConfig)
+	// staticTags could be nil if no static tags are configured so we copy to
+	// existing non-nil map. That simplifies code down below.
+	maps.Copy(c.staticTags, staticTags)
+
 	if _, exists := c.staticTags[clusterTagNamePrefix]; flavor.GetFlavor() == flavor.ClusterAgent && !exists {
 		// If we are running the cluster agent, we want to set the kube_cluster_name tag as a global tag if we are able
 		// to read it, for the instances where we are running in an environment where hostname cannot be detected.
 		if cluster := clustername.GetClusterNameTagValue(ctx, ""); cluster != "" {
-			if c.staticTags == nil {
-				c.staticTags = make(map[string][]string, 1)
-			}
 			c.staticTags[clusterTagNamePrefix] = []string{cluster}
 		}
 	}
+
 	// These are the global tags that should only be applied to the internal global entity on DCA.
 	// Whereas the static tags are applied to containers and pods directly as well.
-	globalEnvTags := tagutil.GetClusterAgentStaticTags(datadogConfig)
+	globalEnvTags := tagutil.GetClusterAgentStaticTags(ctx, datadogConfig)
 
 	tagList := taglist.NewTagList()
 
@@ -175,6 +178,7 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		tagProcessor:                      p,
 		store:                             store,
 		children:                          make(map[types.EntityID]map[types.EntityID]struct{}),
+		staticTags:                        make(map[string][]string),
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
 		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),
 	}
