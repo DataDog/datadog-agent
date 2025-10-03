@@ -98,7 +98,7 @@ type Provides struct {
 	compdef.Out
 
 	Comp      taggerdef.Component
-	Processor taggerdef.Processor
+	Processor option.Option[taggerdef.Processor]
 	Endpoint  api.AgentEndpointProvider
 }
 
@@ -137,7 +137,7 @@ func NewComponent(req Requires) (Provides, error) {
 
 	return Provides{
 		Comp:      taggerInstance,
-		Processor: taggerInstance.tagStore,
+		Processor: option.New[taggerdef.Processor](taggerInstance.tagStore),
 		Endpoint: api.NewAgentEndpointProvider(func(writer http.ResponseWriter, _ *http.Request) {
 			response := taggerInstance.List()
 			jsonTags, err := json.Marshal(response)

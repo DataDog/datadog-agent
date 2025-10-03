@@ -7,6 +7,7 @@ package agentimpl
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
@@ -47,7 +48,7 @@ type agentServer struct {
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
 	taggerServer        *taggerserver.Server
-	tagProcessor        tagger.Processor
+	tagProcessor        option.Option[tagger.Processor]
 	workloadmetaServer  *workloadmetaServer.Server
 	configService       option.Option[rcservice.Component]
 	configServiceMRF    option.Option[rcservicemrf.Component]
@@ -119,6 +120,12 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 		return &pb.TaggerStateResponse{Loaded: false}, nil
 	}
 
+	tagProcessor, isSet := s.tagProcessor.Get()
+	if !isSet || tagProcessor == nil {
+		log.Debug("Tag processor is unavailable. Cannot set tagger state.")
+		return &pb.TaggerStateResponse{Loaded: false}, errors.New("tag processor is unavailable")
+	}
+
 	state := make([]*taggerTypes.TagInfo, 0, len(req.State))
 
 	// better stores these as the native type
@@ -140,7 +147,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 		})
 	}
 
-	s.tagProcessor.ProcessTagInfo(state)
+	tagProcessor.ProcessTagInfo(state)
 	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")
