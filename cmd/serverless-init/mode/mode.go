@@ -38,6 +38,20 @@ func DetectMode() Conf {
 		"DD_TRACE_ENABLED":                     "true",
 	}
 
+	// Check if Cloud Run proxy mode is enabled
+	if os.Getenv("DD_CLOUDRUN_PROXY_ENABLED") == "true" {
+		log.Infof("Cloud Run proxy mode enabled, launching proxy server")
+		envToSet["DD_LOGS_ENABLED"] = "true"
+		envToSet["DD_APM_NON_LOCAL_TRAFFIC"] = "true"
+		envToSet["DD_DOGSTATSD_NON_LOCAL_TRAFFIC"] = "true"
+		return Conf{
+			LoggerName:     loggerNameSidecar,
+			Runner:         RunCloudRunProxy,
+			TagVersionMode: "_dd.datadog_sidecar_version",
+			EnvDefaults:    envToSet,
+		}
+	}
+
 	if len(os.Args) == 1 {
 		log.Infof("No arguments provided, launching in Sidecar mode")
 		envToSet["DD_LOGS_ENABLED"] = "true"
