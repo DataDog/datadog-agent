@@ -230,11 +230,11 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1) //nolint:errcheck
 		return false
 	}
-	// only ipv4 is supported currently
-	if conn.Family != model.ConnectionFamily_v4 {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
-		return false
-	}
+	//// only ipv4 is supported currently
+	//if conn.Family != model.ConnectionFamily_v4 {
+	//	s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
+	//	return false
+	//}
 
 	return s.checkPassesConnCIDRFilters(conn, vpcSubnets)
 }
@@ -285,19 +285,21 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 	_ = s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1)
 	for _, conn := range conns {
 		// TODO: TEST ME
+		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
+			protocol := convertProtocol(conn.GetType())
+			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
+			continue
+		}
 		domain := ipToDomain[conn.Raddr.GetIp()]
 		if domain == "" && !s.collectorConfigs.monitorIPWithoutDomain {
 			// TODO: Add config to monitor all domains
 			s.logger.Debugf("Skipped, no domain: %s", conn.Raddr)
 			continue
 		}
-		if domain == "" {
-			// TODO: better design
-			if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
-				protocol := convertProtocol(conn.GetType())
-				s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
-				continue
-			}
+
+		// only ipv4 is supported currently
+		if domain == "" && conn.Family != model.ConnectionFamily_v4 {
+			continue
 		}
 
 		jsonStr, _ := json.Marshal(conn)
