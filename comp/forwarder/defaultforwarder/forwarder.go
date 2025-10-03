@@ -44,15 +44,15 @@ func newForwarder(dep dependencies) (provides, error) {
 		}, nil
 	}
 
-	options, err := createOptions(dep.Params, dep.Config, dep.Log)
+	options, err := createOptions(dep.Params, dep.Config, dep.Log, dep.Secrets)
 	if err != nil {
 		return provides{}, err
 	}
 
-	return NewForwarder(dep.Config, dep.Log, dep.Lc, dep.Secrets, true, options), nil
+	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options), nil
 }
 
-func createOptions(params Params, config config.Component, log log.Component) (*Options, error) {
+func createOptions(params Params, config config.Component, log log.Component, secrets secrets.Component) (*Options, error) {
 	var options *Options
 	keysPerDomain, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
@@ -74,6 +74,12 @@ func createOptions(params Params, config config.Component, log log.Component) (*
 		}
 		options = NewOptionsWithResolvers(config, log, r)
 	}
+
+	// Set up secret refresh callback
+	if secrets != nil {
+		options.SecretRefreshCallback = secrets.TriggerRefreshOnAPIKeyFailure
+	}
+
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking
@@ -94,8 +100,8 @@ func createOptions(params Params, config config.Component, log log.Component) (*
 // NewForwarder returns a new forwarder component.
 //
 //nolint:revive
-func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, secrets secrets.Component, ignoreLifeCycleError bool, options *Options) provides {
-	forwarder := NewDefaultForwarder(config, log, secrets, options)
+func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
+	forwarder := NewDefaultForwarder(config, log, options)
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
@@ -116,6 +122,6 @@ func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, s
 func newMockForwarder(config config.Component, log log.Component) provides {
 	options, _ := NewOptions(config, log, nil)
 	return provides{
-		Comp: NewDefaultForwarder(config, log, nil, options),
+		Comp: NewDefaultForwarder(config, log, options),
 	}
 }

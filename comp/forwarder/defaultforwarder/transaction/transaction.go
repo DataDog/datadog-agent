@@ -259,6 +259,9 @@ type HTTPTransaction struct {
 	Kind Kind
 
 	Destination Destination
+
+	// SecretRefreshCallback is called when API key errors occur (403s)
+	SecretRefreshCallback func(reason string)
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -437,8 +440,8 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
 
 		// Trigger secret refresh on API key error
-		if forwarder := getForwarderFromContext(ctx); forwarder != nil {
-			forwarder.TriggerSecretRefresh("403 response from backend")
+		if t.SecretRefreshCallback != nil {
+			t.SecretRefreshCallback("403 response from backend")
 		}
 
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
@@ -494,12 +497,4 @@ func truncateBodyForLog(body []byte) []byte {
 		return body
 	}
 	return append(body[:limit], []byte("...")...)
-}
-
-// getForwarderFromContext retrieves a forwarder from context that can trigger secret refresh
-func getForwarderFromContext(ctx context.Context) interface{ TriggerSecretRefresh(string) } {
-	if forwarder, ok := ctx.Value("forwarder").(interface{ TriggerSecretRefresh(string) }); ok {
-		return forwarder
-	}
-	return nil
 }

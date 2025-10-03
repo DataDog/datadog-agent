@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -77,7 +76,7 @@ type forwarderHealth struct {
 	disableAPIKeyChecking bool
 	validationInterval    time.Duration
 	keyMapMutex           sync.Mutex
-	secrets               secrets.Component
+	secretRefreshCallback SecretRefreshFunc
 }
 
 func (fh *forwarderHealth) init() {
@@ -327,8 +326,8 @@ func (fh *forwarderHealth) checkValidAPIKeys(domain string, keys []string) (apiE
 			fh.log.Warnf("api_key '%s' for domain %s is invalid", scrubbedAPIKey, domain)
 
 			// Trigger secret refresh on invalid API key
-			if fh.secrets != nil {
-				fh.secrets.TriggerRefreshOnAPIKeyFailure("API key validation failure")
+			if fh.secretRefreshCallback != nil {
+				fh.secretRefreshCallback("API key validation failure")
 			}
 		}
 	}
