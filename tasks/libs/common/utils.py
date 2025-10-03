@@ -471,7 +471,12 @@ def clean_nested_paths(paths):
 @contextmanager
 def environ(env):
     original_environ = os.environ.copy()
-    os.environ.update(env)
+    # Apply changes: support a special value "DELETE" to remove variables
+    for key, value in env.items():
+        if value == "DELETE":
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
     yield
     for var in env:
         if var in original_environ:

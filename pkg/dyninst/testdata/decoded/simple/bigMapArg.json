@@ -18,7 +18,7 @@
           {
             "function": "main.bigMapArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 104
+            "lineNumber": 110
           },
           {
             "function": "main.main",
@@ -614,6 +614,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]
