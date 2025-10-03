@@ -245,6 +245,8 @@ func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, d
 		if logLimitProbe.ShouldLog() {
 			log.Warnf("error getting stream handler for stream id %d: %v", header.Stream_id, err)
 		}
+
+		return err
 	}
 
 	switch eventType {
