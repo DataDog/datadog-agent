@@ -1069,7 +1069,8 @@ type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
 }
 
-// regularUnmarshalEvent do the regular unmarshaling common to all events
+// regularUnmarshalEvent do the regular unmarshaling common to all events.
+// It returns false if an error occurs during the unmarshaling, true otherwise.
 func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.EventType, offset int, dataLen uint64, data []byte) bool {
 	if _, err := bu.UnmarshalBinary(data[offset:]); err != nil {
 		seclog.Errorf("failed to decode %s event: %s (offset %d, len %d)", eventType.String(), err, offset, dataLen)
@@ -1078,6 +1079,7 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 	return true
 }
 
+// handleEvent processes raw eBPF events received from the kernel, unmarshaling and dispatching them appropriately.
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// handle play snapshot
 	if p.playSnapShotState.Swap(false) {
@@ -1146,7 +1148,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	if !p.handleBeforeProcessContext(eventType, event, data, offset, dataLen, newEntryCb) {
-		// there was an error while handling the event
 		return
 	}
 	// resolve process context
@@ -1180,6 +1181,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	p.fileHasher.FlushPendingReports()
 }
 
+// handleRegularEvent performs the standard unmarshaling process common to all events.
+// It returns false if an error occurs during processing, indicating the event should be dropped.
 func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
 	var read int
@@ -1408,10 +1411,10 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
 				seclog.Debugf("failed to validate DNS request event: %s", event.DNS.Question.Name)
-				return
+				return false
 			} else if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
 				seclog.Tracef("failed to decode DNS request: %s (offset %d, len %d, data %s)", err, offset, len(data), string(data[offset:]))
-				return
+				return false
 			}
 			seclog.Warnf("failed to decode DNS request: %s", err)
 			event.Error = model.ErrFailedDNSPacketDecoding
@@ -1572,6 +1575,8 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 	return true
 }
 
+// handleBeforeProcessContext unmarshals and populates the process cache entry for fork and exec events before setting the process context.
+// It returns false if the event should be dropped due to processing errors.
 func (p *EBPFProbe) handleBeforeProcessContext(eventType model.EventType, event *model.Event, data []byte, offset int, dataLen uint64, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
 	switch eventType {
@@ -1601,6 +1606,8 @@ func (p *EBPFProbe) handleBeforeProcessContext(eventType model.EventType, event 
 	return true
 }
 
+// handleEarlyReturnEvents processes events that may require early termination of the event handling pipeline.
+// It returns false if an error occurs or if the event should not be dispatched further, true otherwise
 func (p *EBPFProbe) handleEarlyReturnEvents(eventType model.EventType, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
 	switch eventType {
@@ -1676,6 +1683,8 @@ func (p *EBPFProbe) handleEarlyReturnEvents(eventType model.EventType, event *mo
 	return true
 }
 
+// resolveTraceProcessContext resolves the process context of a ptrace event.
+// It returns false if an error occurs, true otherwise.
 func resolveTraceProcessContext(event *model.Event, p *EBPFProbe, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var pce *model.ProcessCacheEntry
 	if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
