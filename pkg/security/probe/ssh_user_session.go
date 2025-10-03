@@ -35,21 +35,6 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 	ppid := event.ProcessContext.Process.PPid
 	parent := p.Resolvers.ProcessResolver.Resolve(ppid, ppid, 0, false, nil)
 
-	// Inherit SSH session from parent if it exists and parent is not nil
-	if parent != nil && parent.ProcessContext.UserSession.ID != 0 && parent.ProcessContext.UserSession.SessionType == 2 {
-		// Copy all SSH session fields from parent
-		event.ProcessContext.UserSession.ID = parent.ProcessContext.UserSession.ID
-		event.ProcessContext.UserSession.SessionType = 2
-		event.ProcessContext.UserSession.Resolved = parent.ProcessContext.UserSession.Resolved
-		event.ProcessContext.UserSession.SSHClientIP = parent.ProcessContext.UserSession.SSHClientIP
-		event.ProcessContext.UserSession.SSHPort = parent.ProcessContext.UserSession.SSHPort
-		if event.ProcessContext.UserSession.Resolved {
-			event.ProcessContext.UserSession.SSHAuthMethod = parent.ProcessContext.UserSession.SSHAuthMethod
-			event.ProcessContext.UserSession.SSHPublicKey = parent.ProcessContext.UserSession.SSHPublicKey
-			event.ProcessContext.UserSession.SSHUsername = parent.ProcessContext.UserSession.SSHUsername
-		}
-		return
-	}
 	envp := p.fieldHandlers.ResolveProcessEnvp(event, &event.ProcessContext.Process)
 	sshClientVar := getEnvVar(envp, "SSH_CLIENT")
 

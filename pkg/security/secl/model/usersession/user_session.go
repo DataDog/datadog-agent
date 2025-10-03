@@ -7,11 +7,20 @@
 package usersession
 
 var (
+	// UserSessionTypeUnknown is the unknown user session type
+	UserSessionTypeUnknown Type = 0
+	// UserSessionTypeK8S is the k8s user session type
+	UserSessionTypeK8S Type = 1
+	// UserSessionTypeSSH is the ssh user session type
+	UserSessionTypeSSH Type = 2
+)
+
+var (
 	// UserSessionTypes are the supported user session types
 	UserSessionTypes = map[string]Type{
-		"unknown": 0,
-		"k8s":     1,
-		"ssh":     2,
+		"unknown": UserSessionTypeUnknown,
+		"k8s":     UserSessionTypeK8S,
+		"ssh":     UserSessionTypeSSH,
 	}
 
 	// UserSessionTypeStrings is used to
