@@ -255,6 +255,8 @@ CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
 OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
 
+LOADER_TAGS = {"otlp"}
+
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 
@@ -299,6 +301,7 @@ build_tags = {
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS,
         "sbomgen": SBOMGEN_TAGS,
         "otel-agent": OTEL_AGENT_TAGS,
+        "loader": LOADER_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),

@@ -38,8 +38,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
 	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache, err := ddnvml.NewDeviceCache()
-	require.NoError(t, err)
+	deviceCache := ddnvml.NewDeviceCache()
 	deps := &CollectorDependencies{DeviceCache: deviceCache}
 	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}, nil)
 	require.NotNil(t, collectors)
@@ -125,8 +124,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 			ddnvml.WithMockNVML(t, nvmlMock)
 
 			// Execute
-			deviceCache, err := ddnvml.NewDeviceCache()
-			require.NoError(t, err)
+			deviceCache := ddnvml.NewDeviceCache()
 			tagsMapping := GetDeviceTagsMapping(deviceCache, fakeTagger)
 
 			// Assert
@@ -141,8 +139,7 @@ func TestAllCollectorsWork(t *testing.T) {
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
 	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache, err := ddnvml.NewDeviceCache()
-	require.NoError(t, err)
+	deviceCache := ddnvml.NewDeviceCache()
 	deps := &CollectorDependencies{DeviceCache: deviceCache}
 	collectors, err := BuildCollectors(deps, nil)
 	require.NoError(t, err)
