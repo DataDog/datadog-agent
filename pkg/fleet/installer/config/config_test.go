@@ -336,3 +336,177 @@ func TestBuildOperationsFromLegacyConfigFileKeepApplicationMonitoring(t *testing
 	ops := buildOperationsFromLegacyInstaller(tmpDir)
 	assert.Len(t, ops, 0)
 }
+
+func TestOperationApply_Copy(t *testing.T) {
+	tmpDir := t.TempDir()
+	sourceFilePath := filepath.Join(tmpDir, "source.yaml")
+	destFilePath := filepath.Join(tmpDir, "dest.yaml")
+
+	// Create source file
+	sourceContent := []byte("foo: bar\nbaz: qux\n")
+	err := os.WriteFile(sourceFilePath, sourceContent, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationCopy,
+		FilePath:          "/source.yaml",
+		DestinationPath:   "/dest.yaml",
+	}
+
+	err = op.apply(root)
+	assert.NoError(t, err)
+
+	// Check that source file still exists
+	_, err = os.Stat(sourceFilePath)
+	assert.NoError(t, err)
+
+	// Check that destination file was created with correct content
+	destContent, err := os.ReadFile(destFilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, sourceContent, destContent)
+}
+
+func TestOperationApply_Move(t *testing.T) {
+	tmpDir := t.TempDir()
+	sourceFilePath := filepath.Join(tmpDir, "source.yaml")
+	destFilePath := filepath.Join(tmpDir, "dest.yaml")
+
+	// Create source file
+	sourceContent := []byte("foo: bar\nbaz: qux\n")
+	err := os.WriteFile(sourceFilePath, sourceContent, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationMove,
+		FilePath:          "/source.yaml",
+		DestinationPath:   "/dest.yaml",
+	}
+
+	err = op.apply(root)
+	assert.NoError(t, err)
+
+	// Check that source file no longer exists
+	_, err = os.Stat(sourceFilePath)
+	assert.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
+
+	// Check that destination file was created with correct content
+	destContent, err := os.ReadFile(destFilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, sourceContent, destContent)
+}
+
+func TestOperationApply_CopyWithNestedDestination(t *testing.T) {
+	tmpDir := t.TempDir()
+	sourceFilePath := filepath.Join(tmpDir, "source.yaml")
+	destDir := filepath.Join(tmpDir, "nested", "dir")
+	destFilePath := filepath.Join(destDir, "dest.yaml")
+
+	// Create source file
+	sourceContent := []byte("foo: bar\nbaz: qux\n")
+	err := os.WriteFile(sourceFilePath, sourceContent, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationCopy,
+		FilePath:          "/source.yaml",
+		DestinationPath:   "/nested/dir/dest.yaml",
+	}
+
+	err = op.apply(root)
+	assert.NoError(t, err)
+
+	// Check that nested directories were created
+	_, err = os.Stat(destDir)
+	assert.NoError(t, err)
+
+	// Check that destination file was created with correct content
+	destContent, err := os.ReadFile(destFilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, sourceContent, destContent)
+}
+
+func TestOperationApply_MoveWithNestedDestination(t *testing.T) {
+	tmpDir := t.TempDir()
+	sourceFilePath := filepath.Join(tmpDir, "source.yaml")
+	destDir := filepath.Join(tmpDir, "nested", "dir")
+	destFilePath := filepath.Join(destDir, "dest.yaml")
+
+	// Create source file
+	sourceContent := []byte("foo: bar\nbaz: qux\n")
+	err := os.WriteFile(sourceFilePath, sourceContent, 0644)
+	assert.NoError(t, err)
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationMove,
+		FilePath:          "/source.yaml",
+		DestinationPath:   "/nested/dir/dest.yaml",
+	}
+
+	err = op.apply(root)
+	assert.NoError(t, err)
+
+	// Check that nested directories were created
+	_, err = os.Stat(destDir)
+	assert.NoError(t, err)
+
+	// Check that source file no longer exists
+	_, err = os.Stat(sourceFilePath)
+	assert.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
+
+	// Check that destination file was created with correct content
+	destContent, err := os.ReadFile(destFilePath)
+	assert.NoError(t, err)
+	assert.Equal(t, sourceContent, destContent)
+}
+
+func TestOperationApply_CopyMissingSource(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationCopy,
+		FilePath:          "/nonexistent.yaml",
+		DestinationPath:   "/dest.yaml",
+	}
+
+	err = op.apply(root)
+	assert.Error(t, err)
+}
+
+func TestOperationApply_MoveMissingSource(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	op := &FileOperation{
+		FileOperationType: FileOperationMove,
+		FilePath:          "/nonexistent.yaml",
+		DestinationPath:   "/dest.yaml",
+	}
+
+	err = op.apply(root)
+	assert.Error(t, err)
+}
