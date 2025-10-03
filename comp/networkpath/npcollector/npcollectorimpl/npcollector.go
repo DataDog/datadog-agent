@@ -267,6 +267,9 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 
 	ipToDomain := make(map[string]string)
 	for _, domain := range domains {
+
+		// TODO: ADD OPTION TO IGNORE ALL DATADOG DOMAINS/TRAFFIC?, BY DEFAULT?
+
 		if strings.HasSuffix(domain, ".ec2.internal") {
 			continue
 		}
