@@ -9,9 +9,7 @@
 package probe
 
 import (
-	"fmt"
 	"math/rand/v2"
-	"os"
 	"strconv"
 	"strings"
 
@@ -19,17 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
-func getEnvFromProc(pid uint32, key string) string {
-	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
-	if err != nil {
-		return ""
-	}
-	for _, kv := range strings.Split(string(data), "\x00") {
-		if kv == "" {
-			continue
-		}
-		if strings.HasPrefix(kv, key+"=") {
-			return strings.TrimPrefix(kv, key+"=")
+// getEnvVar extracts a specific environment variable from a list of environment variables.
+// Each environment variable is in the format "KEY=VALUE".
+func getEnvVar(envp []string, key string) string {
+	prefix := key + "="
+	for _, env := range envp {
+		if strings.HasPrefix(env, prefix) {
+			return strings.TrimPrefix(env, prefix)
 		}
 	}
 	return ""
@@ -56,19 +50,19 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 		}
 		return
 	}
-	pidToRead := event.ProcessContext.Process.Pid
-	testOut := getEnvFromProc(pidToRead, "SSH_CLIENT")
+	envp := p.fieldHandlers.ResolveProcessEnvp(event, &event.ProcessContext.Process)
+	sshClientVar := getEnvVar(envp, "SSH_CLIENT")
 
 	// If the parent is a sshd process and the SSH_CLIENT environment variable is set, we consider it's a new ssh session
-	if parent != nil && strings.Contains(parent.Comm, "sshd") && testOut != "" {
+	if parent != nil && strings.Contains(parent.Comm, "sshd") && sshClientVar != "" {
 		sshSessionId := rand.Uint64()
 		event.ProcessContext.UserSession.ID = sshSessionId
 		event.ProcessContext.UserSession.SessionType = 2
-		parts := strings.Fields(testOut)
+		parts := strings.Fields(sshClientVar)
 		if len(parts) >= 2 {
 			event.ProcessContext.UserSession.SSHClientIP = parts[0]
 			if port, err := strconv.Atoi(parts[1]); err != nil {
-				seclog.Warnf("failed to parse SSH_CLIENT port from %q: %v", testOut, err)
+				seclog.Warnf("failed to parse SSH_CLIENT port from %q: %v", sshClientVar, err)
 			} else {
 				event.ProcessContext.UserSession.SSHPort = port
 			}
