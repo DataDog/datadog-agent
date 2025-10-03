@@ -200,6 +200,59 @@ func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	cr.NotifyListeners(CGroupCreated, newCGroup)
 }
 
+// returns false if the fallback failed
+func (cr *Resolver) resolvePidCgroupFallback(process *model.ProcessCacheEntry) bool {
+	// it should not happen, but we have to fallback in this case
+	cid, cgroup, _, err := cr.cgroupFS.FindCGroupContext(process.Pid, process.Pid)
+	if err == nil && cgroup.CGroupID != "" {
+		process.CGroup.CGroupFile.MountID = cgroup.CGroupFileMountID
+		process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
+		process.CGroup.CGroupID = cgroup.CGroupID
+		process.ContainerID = cid
+		seclog.Infof("Fallback to resolve cgroup for pid %d: %s", process.Pid, cgroup.CGroupID)
+		return true
+	}
+
+	// fallback can fail for short lived processes, in this case we try to assign the parent cgroup
+	if process.PPid == process.Pid || process.PPid <= 0 {
+		seclog.Warnf("Fallback to resolve cgroup for %d, missing parend PPID: %d", process.Pid, process.PPid)
+		return false
+	}
+
+	// first we look for its parent cgroup
+	found := false
+	cr.iterate(func(entry *cgroupModel.CacheEntry) bool {
+		_, exist := entry.PIDs[process.PPid]
+		if exist {
+			process.CGroup.CGroupFile.MountID = entry.CGroupFile.MountID
+			process.CGroup.CGroupFile.Inode = entry.CGroupFile.Inode
+			process.CGroup.CGroupID = entry.CGroupID
+			process.ContainerID = entry.ContainerID
+			found = true
+			seclog.Infof("Fallback to resolve cgroup for %d from parent %d: %s", process.Pid, process.PPid, cgroup.CGroupID)
+			return true
+		}
+		return false
+	})
+	if found {
+		return true
+	}
+
+	// last try, fallback on proc for the parent
+	cid, cgroup, _, err = cr.cgroupFS.FindCGroupContext(process.PPid, process.PPid)
+	if err == nil && cgroup.CGroupID != "" {
+		process.CGroup.CGroupFile.MountID = cgroup.CGroupFileMountID
+		process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
+		process.CGroup.CGroupID = cgroup.CGroupID
+		process.ContainerID = cid
+		seclog.Infof("Fallback to resolve parent cgroup for ppid %d: %s", process.PPid, cgroup.CGroupID)
+		return true
+	}
+
+	seclog.Errorf("Failed to add pid %d, error on fallback to resolve its cgroup: %v", process.Pid, err)
+	return false
+}
+
 // AddPID update the cgroup cache to associates a cgroup and a pid
 // Returns true if the kernel maps need to be synced (if we update somehow the process)
 func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
@@ -207,36 +260,9 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	defer cr.Unlock()
 
 	if process.CGroup.CGroupID == "" || process.CGroup.CGroupFile.Inode == 0 {
-		// it should not happen, but we have to fallback in this case
-		cid, cgroup, _, err := cr.cgroupFS.FindCGroupContext(process.Pid, process.Pid)
-		if err == nil && cgroup.CGroupID != "" {
-			process.CGroup.CGroupFile.MountID = cgroup.CGroupFileMountID
-			process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
-			process.CGroup.CGroupID = cgroup.CGroupID
-			process.ContainerID = cid
-			seclog.Infof("Fallback to resolve cgroup for pid %d: %s", process.Pid, cgroup.CGroupID)
-		} else {
-			// fallback can fail for short lived processes, in this case we assign the parent cgroup
-			// first we look for its parent cgroup
-			found := false
-			cr.iterate(func(entry *cgroupModel.CacheEntry) bool {
-				_, exist := entry.PIDs[process.PPid]
-				if exist {
-					process.CGroup.CGroupFile.MountID = entry.CGroupFile.MountID
-					process.CGroup.CGroupFile.Inode = entry.CGroupFile.Inode
-					process.CGroup.CGroupID = entry.CGroupID
-					process.ContainerID = entry.ContainerID
-					found = true
-					seclog.Infof("Fallback to resolve cgroup for pid from parent %d: %s", process.Pid, cgroup.CGroupID)
-					return true
-				}
-				return false
-			})
-			// if still not found, just return
-			if !found {
-				seclog.Errorf("Failed to add pid %d, error on fallback to resolve its cgroup: %v", process.Pid, err)
-				return
-			}
+		if !cr.resolvePidCgroupFallback(process) {
+			// all fallback failed :/
+			return
 		}
 	}
 
