@@ -6,9 +6,9 @@ variables:
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   timeout: 1h
   rules:
+    - !reference [.except_coverage_pipeline]
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
-    - !reference [.except_coverage_pipeline]
     - !reference [.on_scheduled_main]
     - !reference [.manual]
   # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
