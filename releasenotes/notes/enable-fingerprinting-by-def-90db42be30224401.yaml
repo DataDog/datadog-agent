@@ -8,6 +8,6 @@
 ---
 features:
   - |
-    Enable log file fingerprinting by default.
-    This change switches the default fingerprinting strategy to bytes-based checksum computation and enables
-    tailing for files with insufficient data for fingerprint generation.
+    Enable log file fingerprinting by default with partial fingerprint buffering.
+    The default fingerprinting strategy is now ``byte_checksum``. Empty files created during
+    log rotation are now tailed immediately, with data buffered until a fingerprint can be computed.

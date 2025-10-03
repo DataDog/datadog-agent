@@ -1428,8 +1428,6 @@ func (suite *LauncherTestSuite) TestRotationWithEmptyFileAndNewData() {
 	// Scan to handle rotation and create new tailer
 	s.scan()
 
-	// CRITICAL ASSERTION: Without the fix, this should be 0 (empty files skipped in Pass 2)
-	// With the fix, this should be 1 (empty files allowed to create tailers)
 	afterRotationCount := s.tailers.Count()
 	if !suite.Equal(1, afterRotationCount, "Should have NEW tailer for rotated empty file") {
 		suite.T().Skip("Test correctly fails without fix - empty file was skipped in Pass 2")
@@ -1437,13 +1435,9 @@ func (suite *LauncherTestSuite) TestRotationWithEmptyFileAndNewData() {
 	}
 
 	// Get the new tailer (only reaches here if fix is applied)
-	// newTailer, found := s.tailers.Get(scanKey)
 	if !suite.True(found, "New tailer should exist for empty file") {
 		return
 	}
-
-	// Verify the new tailer is in partial fingerprint state (because file is empty)
-	// suite.True(newTailer.IsPartialFingerprintState(), "New tailer should be in partial fingerprint state for empty file")
 
 	// Write new data to the rotated file
 	f, err := os.OpenFile(suite.testPath, os.O_APPEND|os.O_WRONLY, 0644)

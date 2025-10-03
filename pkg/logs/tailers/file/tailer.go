@@ -205,9 +205,10 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	}
 
 	// Initialize partial fingerprint buffering if we have an invalid fingerprint (e.g., empty file)
+	// ()
 	if opts.Fingerprint == nil || !opts.Fingerprint.IsValidFingerprint() {
 		fingerprintConfig := opts.File.Source.Config().FingerprintConfig
-		if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == logstypes.FingerprintStrategyByteChecksum { // TODO: this is only byte-based fingerprinting ...
+		if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == logstypes.FingerprintStrategyByteChecksum {
 			t.isPartialFingerprint.Store(true)
 			t.fingerprintBufferSize = fingerprintConfig.Count
 			t.fingerprintBytesToSkip = fingerprintConfig.CountToSkip

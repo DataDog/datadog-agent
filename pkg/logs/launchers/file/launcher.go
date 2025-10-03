@@ -259,16 +259,6 @@ func (s *Launcher) scan() {
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			// Skip files with invalid fingerprints (Value == 0)
-
-			// // testingkjdskfljdsf
-			// if (fingerprint != nil && !fingerprint.IsValidFingerprint()) || err != nil {
-			// 	// If fingerprint is invalid, persist the old info back into the map for future attempts
-			// 	if hasOldInfo {
-			// 		s.oldInfoMap[scanKey] = oldInfo
-			// 	}
-			// 	continue  // ← BUG! This skips empty files!
-			// }
 			if err != nil {
 				// Skip on errors
 				continue

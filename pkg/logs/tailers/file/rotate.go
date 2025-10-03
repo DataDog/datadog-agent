@@ -17,7 +17,7 @@ import (
 // - removed and recreated
 // - truncated
 func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, error) {
-	// Step 1: Get the current fingerprint (either from buffer or from tailer)
+	// 1. Get the current fingerprint (from buffer or from tailer)
 	currentFingerprint := t.getCurrentFingerprintForComparison()
 	if currentFingerprint == nil {
 		// Not enough data for fingerprint comparison, fall back to filesystem check
@@ -25,13 +25,13 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, er
 		return t.DidRotate()
 	}
 
-	// Step 2: Compute the new fingerprint from the file on disk
+	// 2. Compute new fingerprint from the file on disk
 	newFingerprint, err := fingerprinter.ComputeFingerprint(t.file)
 	if err != nil {
 		return false, err
 	}
 
-	// Step 3: Compare fingerprints
+	// 3. Compare fingerprints
 	if currentFingerprint.IsPartialFingerprint() || newFingerprint.IsPartialFingerprint() {
 		return t.comparePartialFingerprints(currentFingerprint, newFingerprint)
 	}
@@ -41,7 +41,7 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, er
 // getCurrentFingerprintForComparison returns the fingerprint to use for rotation detection
 // If still buffering, returns a temporary partial fingerprint without clearing the buffer
 func (t *Tailer) getCurrentFingerprintForComparison() *logstypes.Fingerprint {
-	// If still accumulating data, get temporary partial fingerprint
+	// If still accumulating data, get partial fingerprint
 	if t.isPartialFingerprint != nil && t.isPartialFingerprint.Load() {
 		log.Debugf("Still accumulating fingerprint buffer for %s, getting temporary partial fingerprint", t.file.Path)
 		partialFingerprint := t.getPartialFingerprintFromBuffer()
@@ -58,7 +58,7 @@ func (t *Tailer) comparePartialFingerprints(current, new *logstypes.Fingerprint)
 	// Case 1: Same size - compare checksums
 	if current.BytesUsed == new.BytesUsed {
 		if current.Value == new.Value {
-			// Same size and checksum - ambiguous, use filesystem check
+			// Same size and checksum - ambiguous, fallback to filesystem check
 			log.Debugf("Same-sized partial fingerprints match for %s (%d bytes)", t.file.Path, current.BytesUsed)
 			return t.fallbackToFilesystemCheck()
 		}
@@ -74,7 +74,7 @@ func (t *Tailer) comparePartialFingerprints(current, new *logstypes.Fingerprint)
 		return true, nil
 	}
 
-	// Case 3: File grew - ambiguous, use filesystem check
+	// Case 3: File grew - ambiguous, fallback to filesystem check
 	log.Debugf("Partial fingerprint size increased for %s (old: %d bytes, new: %d bytes), checking filesystem",
 		t.file.Path, current.BytesUsed, new.BytesUsed)
 	return t.fallbackToFilesystemCheck()
@@ -95,7 +95,7 @@ func (t *Tailer) compareFullFingerprints(current, new *logstypes.Fingerprint) (b
 	return rotated, nil
 }
 
-// fallbackToFilesystemCheck performs filesystem-based rotation detection (inode/device check)
+// fallbackToFilesystemCheck performs filesystem-based rotation detection
 func (t *Tailer) fallbackToFilesystemCheck() (bool, error) {
 	rotated, err := t.DidRotate()
 	if err != nil {

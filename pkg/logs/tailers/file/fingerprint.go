@@ -168,8 +168,6 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 
 	// Generate partial fingerprint from whatever data we have
 	if bytesRead == 0 {
-		// TODO: do want to tail empty files? if we don't, we should return an invalid fingerprint
-		// return invalid fingerprint if we have no data to compute a fingerprint from
 		return newInvalidFingerprint(fingerprintConfig), nil
 	}
 
