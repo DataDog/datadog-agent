@@ -1,5 +1,7 @@
 import re
 
+from invoke.context import Context
+
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.libs.types import FailedJobReason, FailedJobs, FailedJobType
 
@@ -9,7 +11,7 @@ def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
     Retrieves the list of failed jobs for a given pipeline id in a given project.
     """
 
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token(Context()))
 
     # gitlab.all_jobs yields a generator, it needs to be converted to a list to be able to
     # go through it twice

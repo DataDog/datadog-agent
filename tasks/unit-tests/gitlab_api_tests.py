@@ -1,7 +1,9 @@
 import unittest
 from itertools import cycle
 from unittest import mock
+from unittest.mock import MagicMock
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
@@ -9,9 +11,11 @@ from tasks.libs.common.remote_api import APIError
 
 
 class MockResponse:
-    def __init__(self, content, status_code):
+    def __init__(self, content, status_code, ok=False):
         self.content = content
         self.status_code = status_code
+        self.ok = ok
+        self.text = "Ajeudi"
 
     def json(self):
         return self.content
@@ -35,7 +39,11 @@ def mocked_502_gitlab_requests(*_args, **_kwargs):
 
 
 def mocked_gitlab_project_request(*_args, **_kwargs):
-    return MockResponse("name", 200)
+    return MockResponse("name", 200, True)
+
+
+def mocked_gitlab_token_request(*_args, **_kwargs):
+    return MockResponse({"token": "q23wef"}, 200, True)
 
 
 class SideEffect:
@@ -48,15 +56,21 @@ class SideEffect:
 
 
 class TestStatusCode5XX(unittest.TestCase):
-    @mock.patch('requests.get', side_effect=SideEffect(mocked_502_gitlab_requests, mocked_gitlab_project_request))
+    @mock.patch("tasks.libs.common.gitlab.datadog_infra_token", new=MagicMock())
+    @mock.patch(
+        'requests.get',
+        side_effect=SideEffect(mocked_gitlab_token_request, mocked_502_gitlab_requests, mocked_gitlab_project_request),
+    )
     def test_gitlab_one_fail_one_success(self, _):
-        gitlab = Gitlab(api_token=get_gitlab_token())
+        gitlab = Gitlab(api_token=get_gitlab_token(Context()))
         gitlab.requests_sleep_time = 0
         gitlab.test_project_found()
 
+    @mock.patch("tasks.libs.common.gitlab.datadog_infra_token", new=MagicMock())
     @mock.patch(
         'requests.get',
         side_effect=SideEffect(
+            mocked_gitlab_token_request,
             mocked_502_gitlab_requests,
             mocked_502_gitlab_requests,
             mocked_502_gitlab_requests,
@@ -65,27 +79,32 @@ class TestStatusCode5XX(unittest.TestCase):
         ),
     )
     def test_gitlab_last_one_success(self, _):
-        gitlab = Gitlab(api_token=get_gitlab_token())
+        gitlab = Gitlab(api_token=get_gitlab_token(Context()))
         gitlab.requests_sleep_time = 0
         gitlab.test_project_found()
 
+    @mock.patch("tasks.libs.common.gitlab.datadog_infra_token", new=MagicMock())
     @mock.patch('requests.get', side_effect=SideEffect(mocked_502_gitlab_requests))
     def test_gitlab_full_fail(self, _):
         failed = False
         try:
-            gitlab = Gitlab(api_token=get_gitlab_token())
+            gitlab = Gitlab(api_token=get_gitlab_token(Context()))
             gitlab.requests_sleep_time = 0
             gitlab.test_project_found()
-        except Exit:
+        except (Exit, RuntimeError):
             failed = True
         if not failed:
             Exit("GitlabAPI was expected to fail")
 
-    @mock.patch('requests.get', side_effect=SideEffect(fail_not_found_request, mocked_gitlab_project_request))
+    @mock.patch("tasks.libs.common.gitlab.datadog_infra_token", new=MagicMock())
+    @mock.patch(
+        'requests.get',
+        side_effect=SideEffect(mocked_gitlab_token_request, fail_not_found_request, mocked_gitlab_project_request),
+    )
     def test_gitlab_real_fail(self, _):
         failed = False
         try:
-            gitlab = Gitlab(api_token=get_gitlab_token())
+            gitlab = Gitlab(api_token=get_gitlab_token(Context()))
             gitlab.requests_sleep_time = 0
             gitlab.test_project_found()
         except APIError:

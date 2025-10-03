@@ -1,13 +1,13 @@
 import json
 import os
-import platform
-import subprocess
 from collections import UserList
 from urllib.parse import quote
 
+import requests
 import yaml
 from invoke.exceptions import Exit
 
+from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
@@ -323,47 +323,23 @@ class Gitlab(RemoteAPI):
         )
 
 
-def get_gitlab_token():
-    if "GITLAB_TOKEN" not in os.environ:
-        print("GITLAB_TOKEN not found in env. Trying keychain...")
-        if platform.system() == "Darwin":
-            try:
-                output = subprocess.check_output(
-                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_TOKEN', '-w']
-                )
-                if len(output) > 0:
-                    return output.strip()
-            except subprocess.CalledProcessError:
-                print("GITLAB_TOKEN not found in keychain...")
-                pass
-        print(
-            "Please create an 'api' access token at "
-            "https://gitlab.ddbuild.io/-/profile/personal_access_tokens and "
-            "add it as GITLAB_TOKEN in your keychain "
-            "or export it from your .bashrc or equivalent."
-        )
-        raise Exit(code=1)
-    return os.environ["GITLAB_TOKEN"]
+def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
+    infra_token = datadog_infra_token(ctx, audience="sdm")
+    url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
 
+    res = requests.get(url, headers={'Authorization': infra_token}, timeout=10)
 
-def get_gitlab_bot_token():
-    if "GITLAB_BOT_TOKEN" not in os.environ:
-        print("GITLAB_BOT_TOKEN not found in env. Trying keychain...")
-        if platform.system() == "Darwin":
-            try:
-                output = subprocess.check_output(
-                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_BOT_TOKEN', '-w']
-                )
-                if output:
-                    return output.strip()
-            except subprocess.CalledProcessError:
-                print("GITLAB_BOT_TOKEN not found in keychain...")
-                pass
-        print(
-            "Please make sure that the GITLAB_BOT_TOKEN is set or that " "the GITLAB_BOT_TOKEN keychain entry is set."
-        )
-        raise Exit(code=1)
-    return os.environ["GITLAB_BOT_TOKEN"]
+    if not res.ok:
+        raise RuntimeError(f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}')
+
+    token_info = res.json()
+    if verbose:
+        # Prints also the scopes + the expiration date
+        print('Got Gitlab token, extra information:', {k: v for k, v in token_info.items() if k != 'token'})
+
+    token = token_info['token']
+
+    return token
 
 
 class ReferenceTag(yaml.YAMLObject):
