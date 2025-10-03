@@ -9,7 +9,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/def/replaytagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
@@ -48,7 +48,7 @@ type agentServer struct {
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
 	taggerServer        *taggerserver.Server
-	replayTagger        replaytagger.Component
+	tagProcessor        tagger.Processor
 	workloadmetaServer  *workloadmetaServer.Server
 	configService       option.Option[rcservice.Component]
 	configServiceMRF    option.Option[rcservicemrf.Component]
@@ -141,7 +141,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 		})
 	}
 
-	s.replayTagger.ProcessTagInfo(state)
+	s.tagProcessor.ProcessTagInfo(state)
 	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")
