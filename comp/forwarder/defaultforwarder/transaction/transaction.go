@@ -496,9 +496,14 @@ func truncateBodyForLog(body []byte) []byte {
 	return append(body[:limit], []byte("...")...)
 }
 
+// forwarderContextKey is the type for context key to avoid linter warnings
+type forwarderContextKey string
+
+const forwarderKey forwarderContextKey = "forwarder"
+
 // getForwarderFromContext retrieves a forwarder from context that can trigger secret refresh
 func getForwarderFromContext(ctx context.Context) interface{ TriggerSecretRefresh(string) } {
-	if forwarder, ok := ctx.Value("forwarder").(interface{ TriggerSecretRefresh(string) }); ok {
+	if forwarder, ok := ctx.Value(forwarderKey).(interface{ TriggerSecretRefresh(string) }); ok {
 		return forwarder
 	}
 	return nil

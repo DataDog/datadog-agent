@@ -809,7 +809,11 @@ func (f *DefaultForwarder) TriggerSecretRefresh(reason string) {
 	}
 }
 
+type forwarderContextKey string
+
+const forwarderKey forwarderContextKey = "forwarder"
+
 // CreateTransactionContext adds forwarder to context for transaction access
 func (f *DefaultForwarder) CreateTransactionContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, "forwarder", f)
+	return context.WithValue(ctx, forwarderKey, f)
 }
