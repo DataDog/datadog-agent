@@ -40,7 +40,29 @@ const (
 	SystemdUnitTypeDebRpm SystemdUnitType = "debrpm"
 )
 
+//go:embed templates/gen/sysvinit/*.erb
+var sysvinitScripts embed.FS
+
+// SysvinitScriptType is the type of sysvinit script.
+type SysvinitScriptType string
+
+const (
+	// SysvinitScriptTypeAgent is the main datadog agent sysvinit script.
+	SysvinitScriptTypeAgent SysvinitScriptType = "sysvinit_debian.erb"
+	// SysvinitScriptTypeProcess is the process agent sysvinit script.
+	SysvinitScriptTypeProcess SysvinitScriptType = "sysvinit_debian.process.erb"
+	// SysvinitScriptTypeSecurity is the security agent sysvinit script.
+	SysvinitScriptTypeSecurity SysvinitScriptType = "sysvinit_debian.security.erb"
+	// SysvinitScriptTypeTrace is the trace agent sysvinit script.
+	SysvinitScriptTypeTrace SysvinitScriptType = "sysvinit_debian.trace.erb"
+)
+
 // GetSystemdUnit returns the systemd unit for the given name.
 func GetSystemdUnit(name string, unitType SystemdUnitType) ([]byte, error) {
 	return systemdUnits.ReadFile(filepath.Join("templates/gen", string(unitType), name))
+}
+
+// GetSysvinitScript returns the sysvinit script for the given script type.
+func GetSysvinitScript(scriptType SysvinitScriptType) ([]byte, error) {
+	return sysvinitScripts.ReadFile(filepath.Join("templates/gen/sysvinit", string(scriptType)))
 }
