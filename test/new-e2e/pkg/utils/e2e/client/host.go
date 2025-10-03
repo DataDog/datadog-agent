@@ -320,7 +320,7 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 
 // ReadFilePrivileged reads the content of the file with a privileged user, return bytes read and error if any
 func (h *Host) ReadFilePrivileged(path string) ([]byte, error) {
-	h.context.T().Logf("Reading file at %s", path)
+	h.context.T().Logf("Reading file with privileges at %s", path)
 	return h.readFileWithClient(h.getSFTPPrivilegedClient(), path)
 }
 
