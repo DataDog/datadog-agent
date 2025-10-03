@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 )
 
-//go:embed fixtures/metrics_with_tags.zstd
+//go:embed fixtures/metrics_capture.zstd
 var metricsWithTagsCapture []byte
 
 type baseDogstatsdReplaySuite struct {
@@ -39,7 +39,7 @@ func (v *baseDogstatsdReplaySuite) uploadCaptureFile(captureData []byte, remoteP
 
 // TestReplayWithTagEnrichment tests that replayed metrics are enriched with tags from tagger state.
 func (v *baseDogstatsdReplaySuite) TestReplayWithTagEnrichment() {
-	captureFile := "/tmp/metrics_with_tags.zstd"
+	captureFile := "/tmp/metrics_capture.zstd"
 	v.uploadCaptureFile(metricsWithTagsCapture, captureFile)
 
 	statusOutput := v.Env().Agent.Client.Status()
