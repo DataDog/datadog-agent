@@ -133,7 +133,7 @@ func TestSSHUserSession(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("pam_session_open_command_close", func(t *testing.T) {
+	t.Run("ssh_then_pwd", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			if err := ensureLocalhostSSHAuth(); err != nil {
 				fmt.Fprintf(os.Stderr, "setup ssh failed: %v\n", err)
