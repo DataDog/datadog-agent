@@ -1,16 +1,17 @@
 import os
-
-from pathlib import Path
-import time
 import random
+import time
+from pathlib import Path
 
 from invoke import task
 
 SERVICE_ACCOUNT_FILE = Path("service-account.json")
 SCOPE = ["https://www.googleapis.com/auth/spreadsheets"]
 
-def _execute_with_retries(request, retries: int =4, min_wait: float = 1.0, max_wait: float = 30.0):
+
+def _execute_with_retries(request, retries: int = 4, min_wait: float = 1.0, max_wait: float = 30.0):
     from googleapiclient import errors
+
     for attempt in range(retries):
         try:
             return request.execute()
@@ -20,11 +21,13 @@ def _execute_with_retries(request, retries: int =4, min_wait: float = 1.0, max_w
 
             status = e.resp.status
             if status == 429 or status >= 500:
-                sleep = min_wait * (2 ** attempt)
+                sleep = min_wait * (2**attempt)
                 jitter = random.uniform(sleep * 0.5, sleep * 1.5)
                 sleep = min(jitter, max_wait)
-                print(f"[Retry {attempt+1}/{retries}] HTTP {status} received, "
-                      f"waiting {sleep:.1f}s before next attempt...")
+                print(
+                    f"[Retry {attempt+1}/{retries}] HTTP {status} received, "
+                    f"waiting {sleep:.1f}s before next attempt..."
+                )
                 time.sleep(sleep)
                 continue
 
