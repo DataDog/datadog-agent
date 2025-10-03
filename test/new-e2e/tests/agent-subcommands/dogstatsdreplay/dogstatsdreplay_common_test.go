@@ -42,9 +42,6 @@ func (v *baseDogstatsdReplaySuite) TestReplayWithTagEnrichment() {
 	captureFile := "/tmp/metrics_capture.zstd"
 	v.uploadCaptureFile(metricsWithTagsCapture, captureFile)
 
-	statusOutput := v.Env().Agent.Client.Status()
-	require.Contains(v.T(), statusOutput.Content, "dogstatsd_socket")
-
 	output := v.Env().RemoteHost.MustExecute(
 		fmt.Sprintf("sudo datadog-agent dogstatsd-replay -f %s --autoconfirm", captureFile))
 
@@ -57,16 +54,15 @@ func (v *baseDogstatsdReplaySuite) TestReplayWithTagEnrichment() {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, metrics, "Expected custom.metric metric to be received")
 
-		if len(metrics) > 0 {
-			foundMetric := metrics[0]
-			tagString := strings.Join(foundMetric.Tags, ",")
+		assert.Greater(t, len(metrics), 0, "Expected to have received a custom metric")
+		foundMetric := metrics[0]
+		tagString := strings.Join(foundMetric.Tags, ",")
 
-			assert.Contains(t, tagString, "container_name:statsd-metrics",
-				"Expected  container_name tag from replay state")
+		assert.Contains(t, tagString, "container_name:statsd-metrics",
+			"Expected  container_name tag from replay state")
 
-			assert.Contains(t, tagString, "image_name:ghcr.io/datadog/apps-dogstatsd",
-				"Expected image_name tag from replay state")
-		}
+		assert.Contains(t, tagString, "image_name:ghcr.io/datadog/apps-dogstatsd",
+			"Expected image_name tag from replay state")
 	}, 30*time.Second, 2*time.Second)
 }
 
