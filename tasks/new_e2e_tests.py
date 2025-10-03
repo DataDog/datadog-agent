@@ -279,17 +279,22 @@ def run(
         e2e_module.test_targets = targets
 
     if impacted and running_in_ci():
-        print(color_message("Using dynamic tests", "yellow"))
-        # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
-        with environ({"AWS_PROFILE": "DELETE"}):
-            backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
-            executor = DynTestExecutor(ctx, backend, IndexKind.PACKAGE, get_commit_sha(ctx, short=True))
-            changes = get_modified_files(ctx)
-            print(color_message(f"The following changes were detected: {changes}", "yellow"))
-            to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changes)
-            ctx.run(f"datadog-ci metric --level job --metrics 'e2e.skipped_tests:{len(to_skip)}'")
-            print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
-            skip.extend(to_skip)
+        try:
+            print(color_message("Using dynamic tests", "yellow"))
+            # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
+            with environ({"AWS_PROFILE": "DELETE"}):
+                backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
+                executor = DynTestExecutor(ctx, backend, IndexKind.PACKAGE, get_commit_sha(ctx, short=True))
+                changes = get_modified_files(ctx)
+                print(color_message(f"The following changes were detected: {changes}", "yellow"))
+                to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changes)
+                ctx.run(f"datadog-ci metric --level job --metrics 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
+                print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
+                skip.extend(to_skip)
+        except Exception as e:
+            print(color_message(f"Error using dynamic tests: {e}", "red"))
+            print(color_message("Continuing with static tests", "yellow"))
+
     env_vars = {}
     if profile:
         env_vars["E2E_PROFILE"] = profile

@@ -16,6 +16,8 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -55,10 +57,18 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 				tags = append(tags, clusterTagNamePrefix+cluster)
 			}
 		}
-		clusterIDValue, _ := clustername.GetClusterID()
-		if clusterIDValue != "" {
-			tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
+
+		if datadogConfig.GetBool("cluster_agent.enabled") {
+			clusterAgentStaticTags, err := clusterinfo.GetClusterAgentStaticTagsWithRetry()
+			if err == nil {
+				tags = append(tags, clusterAgentStaticTags...)
+			} else {
+				log.Debugf("Could not fetch cluster agent static tags, cluster id tag will be missing, err: %v", err)
+			}
 		}
+
+		// hard code for now because EKS Fargate means EKS
+		tags = append(tags, taggertags.KubeDistribution+":eks")
 	}
 
 	return tags
@@ -97,7 +107,7 @@ func GetStaticTags(ctx context.Context, datadogConfig config.Component) map[stri
 // GetClusterAgentStaticTags is similar to GetStaticTags, but returning a map[string][]string containing
 // <key>:<value> pairs for all global environment tags on the cluster agent. This includes:
 // DD_TAGS, DD_EXTRA_TAGS, DD_CLUSTER_CHECKS_EXTRA_TAGS, DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
-func GetClusterAgentStaticTags(config config.Reader) map[string][]string {
+func GetClusterAgentStaticTags(ctx context.Context, config config.Reader) map[string][]string {
 	if flavor.GetFlavor() != flavor.ClusterAgent {
 		return nil
 	}
@@ -107,6 +117,12 @@ func GetClusterAgentStaticTags(config config.Reader) map[string][]string {
 
 	// DD_CLUSTER_CHECKS_EXTRA_TAGS / DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
 	tags = append(tags, configUtils.GetConfiguredDCATags(config)...)
+
+	// determine for kube_distribution global tag
+	kubeDistro := cloudprovider.DCAGetName(ctx)
+	if kubeDistro != "" {
+		tags = append(tags, taggertags.KubeDistribution+":"+kubeDistro)
+	}
 
 	if tags == nil {
 		return nil

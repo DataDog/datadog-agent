@@ -24,6 +24,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagset v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/common v0.62.3
+	github.com/DataDog/datadog-agent/pkg/util/flavor v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0
@@ -59,7 +60,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/flavor v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2 // indirect
