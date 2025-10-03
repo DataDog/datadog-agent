@@ -13,6 +13,7 @@
     <<: *docker_variables
     IMG_VARIABLES: ""
     IMG_SIGNING: ""
+    SPREADSHEET_ID: 1fRGRgvRdVffguWbmIv1YU3ZFePoVhqA-bVJAJ8nNwlA
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - |
       if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMG_SOURCES" =~ "$SRC_AGENT" || "$IMG_SOURCES" =~ "$SRC_DCA" || "$IMG_SOURCES" =~ "$SRC_CWS_INSTRUMENTATION" || "$IMG_VARIABLES" =~ "$SRC_AGENT" || "$IMG_VARIABLES" =~ "$SRC_DCA" || "$IMG_VARIABLES" =~ "$SRC_CWS_INSTRUMENTATION" ) ]]; then
@@ -37,4 +38,4 @@
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS
     - vault kv get -field=google-sheets-account -format=json -mount="kv" "k8s/gitlab-runner-datadog-agent/datadog-agent/agent-release-management" > ./service-account.json
-    - inv google.register-deployment-to-sheet --spreadsheet-id="1fRGRgvRdVffguWbmIv1YU3ZFePoVhqA-bVJAJ8nNwlA" # if [[ "$BUCKET_BRANCH" != "dev" ]];
+    - inv google.register-deployment-to-sheet --spreadsheet-id=$SPREADSHEET_ID
