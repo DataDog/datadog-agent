@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -56,9 +57,14 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 				tags = append(tags, clusterTagNamePrefix+cluster)
 			}
 		}
-		clusterIDValue, _ := clustername.GetClusterID()
-		if clusterIDValue != "" {
-			tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
+
+		if datadogConfig.GetBool("cluster_agent.enabled") {
+			clusterAgentStaticTags, err := clusterinfo.GetClusterAgentStaticTagsWithRetry()
+			if err == nil {
+				tags = append(tags, clusterAgentStaticTags...)
+			} else {
+				log.Debugf("Could not fetch cluster agent static tags, cluster id tag will be missing, err: %v", err)
+			}
 		}
 
 		// hard code for now because EKS Fargate means EKS
