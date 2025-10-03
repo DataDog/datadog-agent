@@ -1078,6 +1078,7 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 	return true
 }
 
+// handleEvent processes raw eBPF events received from the kernel, unmarshaling and dispatching them appropriately.
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// handle play snapshot
 	if p.playSnapShotState.Swap(false) {
@@ -1146,7 +1147,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	if !p.handleBeforeProcessContext(eventType, event, data, offset, dataLen, newEntryCb) {
-		// there was an error while handling the event
 		return
 	}
 	// resolve process context
@@ -1180,6 +1180,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	p.fileHasher.FlushPendingReports()
 }
 
+// handleRegularEvent performs the standard unmarshaling process common to all events.
+// It returns false if an error occurs during processing, indicating the event should be dropped.
 func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
 	var read int
@@ -1565,6 +1567,8 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 	return true
 }
 
+// handleBeforeProcessContext unmarshals and populates the process cache entry for fork and exec events before setting the process context.
+// It returns false if the event should be dropped due to processing errors.
 func (p *EBPFProbe) handleBeforeProcessContext(eventType model.EventType, event *model.Event, data []byte, offset int, dataLen uint64, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
 	switch eventType {
@@ -1594,6 +1598,8 @@ func (p *EBPFProbe) handleBeforeProcessContext(eventType model.EventType, event 
 	return true
 }
 
+// handleEarlyReturnEvents processes events that may require early termination of the event handling pipeline.
+// It returns false if an error occurs or if the event should not be dispatched further, true otherwise
 func (p *EBPFProbe) handleEarlyReturnEvents(eventType model.EventType, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
 	switch eventType {
