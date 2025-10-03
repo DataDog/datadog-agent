@@ -245,16 +245,13 @@ func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.U
 
 	f, err := os.OpenFile("/var/log/auth.log", os.O_RDONLY, 0644)
 	defer f.Close()
-	if err == nil {
-	} else if err != nil {
+	if err != nil {
 		// Fallback for Red Hat / CentOS / Fedora
 		f, err = os.OpenFile("/var/log/secure", os.O_RDONLY, 0644)
-		if err == nil {
-		} else if err != nil {
+		if err != nil {
 			// Last Fallback for openSUSE
 			f, err = os.OpenFile("/var/log/messages", os.O_RDONLY, 0644)
-			if err == nil {
-			} else if err != nil {
+			if err != nil {
 				resolveFromJournalctl(ctx)
 
 				ctx.Resolved = true
