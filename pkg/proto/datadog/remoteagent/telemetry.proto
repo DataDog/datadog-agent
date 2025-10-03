@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package datadog.remoteagent;
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+
+service TelemetryProvider {
+  // Gets the telemetry data of a remote agent.
+  rpc GetTelemetry(datadog.remoteagent.GetTelemetryRequest) returns (datadog.remoteagent.GetTelemetryResponse);
+}
+
+message GetTelemetryRequest {}
+
+message GetTelemetryResponse {
+  // Telemetry payload.
+  oneof payload {
+    // Prometheus "text" exposition format.
+    //
+    // https://prometheus.io/docs/instrumenting/exposition_formats/#text-based-format
+    string prom_text = 1;
+  }
+}
