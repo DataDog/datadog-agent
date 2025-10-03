@@ -14,7 +14,6 @@ package nvidia
 
 import (
 	"errors"
-	"fmt"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -87,8 +86,7 @@ var factory = map[CollectorName]subsystemBuilder{
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
-	// DeviceCache is a cache of GPU devices.
-	DeviceCache ddnvml.DeviceCache
+	Devices []ddnvml.Device
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
@@ -102,12 +100,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 
 	// Step 1: Build NVML collectors for physical devices only,
 	// (since most of NVML API doesn't support MIG devices)
-	allPhysicalDevices, err := deps.DeviceCache.AllPhysicalDevices()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get all physical devices: %w", err)
-	}
-
-	for _, dev := range allPhysicalDevices {
+	for _, dev := range deps.Devices {
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
@@ -125,7 +118,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 	// Step 2: Build system-probe virtual collectors for ALL devices (if cache provided)
 	if spCache != nil {
 		log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
-		for _, dev := range allPhysicalDevices {
+		for _, dev := range deps.Devices {
 			spCollector, err := newEbpfCollector(dev, spCache)
 			if err != nil {
 				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
