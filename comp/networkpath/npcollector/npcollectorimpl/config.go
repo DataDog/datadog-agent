@@ -35,6 +35,7 @@ type collectorConfigs struct {
 	e2eQueries                   int
 	disableWindowsDriver         bool
 	monitorIPWithoutDomain       bool
+	datadogSite                  string
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {
@@ -66,6 +67,7 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		disableWindowsDriver:      agentConfig.GetBool("network_path.collector.disable_windows_driver"),
 		monitorIPWithoutDomain:    agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
+		datadogSite:               agentConfig.GetString("site"),
 	}
 }
 
