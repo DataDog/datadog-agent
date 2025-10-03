@@ -297,6 +297,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		},
 		Netpath: w.tracerouteResult,
 		Status:  "passed",
+		RunType: w.testCfg.cfg.RunType,
 	}
 
 	if w.tracerouteError != nil {

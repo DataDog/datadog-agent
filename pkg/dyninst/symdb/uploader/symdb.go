@@ -42,14 +42,16 @@ const (
 
 // Scope represents a lexical scope in the SymDB schema
 type Scope struct {
-	ScopeType         ScopeType          `json:"scope_type"`
-	Name              string             `json:"name"`
-	SourceFile        string             `json:"source_file,omitempty"`
-	StartLine         int                `json:"start_line"`
-	EndLine           int                `json:"end_line"`
-	LanguageSpecifics *LanguageSpecifics `json:"language_specifics,omitempty"`
-	Symbols           []Symbol           `json:"symbols,omitempty"`
-	Scopes            []Scope            `json:"scopes,omitempty"`
+	ScopeType          ScopeType          `json:"scope_type"`
+	Name               string             `json:"name"`
+	SourceFile         string             `json:"source_file,omitempty"`
+	StartLine          int                `json:"start_line"`
+	EndLine            int                `json:"end_line"`
+	HasInjectibleLines bool               `json:"has_injectible_lines"`
+	InjectibleLines    []LineRange        `json:"injectible_lines,omitempty"`
+	LanguageSpecifics  *LanguageSpecifics `json:"language_specifics,omitempty"`
+	Symbols            []Symbol           `json:"symbols,omitempty"`
+	Scopes             []Scope            `json:"scopes,omitempty"`
 }
 
 // SymbolType represents the type of symbol in the SymDB schema
@@ -255,14 +257,23 @@ func convertFunctionToScope(fn symdb.Function, isMethod bool) Scope {
 		scopeType = ScopeTypeFunction
 	}
 
+	injectibleLines := make([]LineRange, len(fn.InjectibleLines))
+	for i, r := range fn.InjectibleLines {
+		injectibleLines[i] = LineRange{
+			Start: r[0],
+			End:   r[1],
+		}
+	}
 	scope := Scope{
-		ScopeType:  scopeType,
-		Name:       fn.Name,
-		SourceFile: fn.File,
-		StartLine:  fn.StartLine,
-		EndLine:    fn.EndLine,
-		Symbols:    make([]Symbol, 0, len(fn.Variables)),
-		Scopes:     make([]Scope, 0, len(fn.Scopes)),
+		ScopeType:          scopeType,
+		Name:               fn.Name,
+		SourceFile:         fn.File,
+		StartLine:          fn.StartLine,
+		EndLine:            fn.EndLine,
+		Symbols:            make([]Symbol, 0, len(fn.Variables)),
+		Scopes:             make([]Scope, 0, len(fn.Scopes)),
+		HasInjectibleLines: true,
+		InjectibleLines:    injectibleLines,
 		LanguageSpecifics: &LanguageSpecifics{
 			GoQualifiedName: fn.QualifiedName,
 		},

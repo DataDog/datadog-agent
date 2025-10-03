@@ -13,7 +13,6 @@ package service
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -27,7 +26,6 @@ import (
 	"github.com/DataDog/go-tuf/data"
 	tufutil "github.com/DataDog/go-tuf/util"
 	"github.com/benbjohnson/clock"
-	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"go.etcd.io/bbolt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -105,11 +103,7 @@ func (s *Service) getNewDirectorRoots(uptane uptaneClient, currentVersion uint64
 		if err != nil {
 			return nil, err
 		}
-		canonicalRoot, err := enforceCanonicalJSON(root)
-		if err != nil {
-			return nil, err
-		}
-		roots = append(roots, canonicalRoot)
+		roots = append(roots, root)
 	}
 	return roots, nil
 }
@@ -968,14 +962,10 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if err != nil {
 		return nil, err
 	}
-	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
-	if err != nil {
-		return nil, err
-	}
 
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
-		Targets:       canonicalTargets,
+		Targets:       targetsRaw,
 		TargetFiles:   targetFiles,
 		ClientConfigs: matchedClientConfigs,
 		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_OK,
@@ -1206,15 +1196,6 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 	return nil
 }
 
-func enforceCanonicalJSON(raw []byte) ([]byte, error) {
-	canonical, err := cjson.EncodeCanonical(json.RawMessage(raw))
-	if err != nil {
-		return nil, err
-	}
-
-	return canonical, nil
-}
-
 // HTTPClient fetches Remote Configurations from an HTTP(s)-based backend
 type HTTPClient struct {
 	Service
@@ -1363,14 +1344,10 @@ func (c *HTTPClient) getUpdate(
 	if err != nil {
 		return nil, err
 	}
-	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
-	if err != nil {
-		return nil, err
-	}
 
 	return &state.Update{
 		TUFRoots:      roots,
-		TUFTargets:    canonicalTargets,
+		TUFTargets:    targetsRaw,
 		TargetFiles:   fileMap,
 		ClientConfigs: configs,
 	}, nil

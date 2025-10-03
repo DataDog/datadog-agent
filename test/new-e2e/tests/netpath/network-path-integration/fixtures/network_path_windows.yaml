@@ -10,3 +10,7 @@ instances:
     protocol: TCP
     port: 443
     tcp_method: syn_socket
+  - hostname: 1.1.1.1
+    protocol: TCP
+    port: 443
+    disable_windows_driver: true

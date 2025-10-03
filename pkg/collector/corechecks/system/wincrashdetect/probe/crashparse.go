@@ -37,6 +37,7 @@ type crashContext struct {
 	bugCheckArg2 uint64
 	bugCheckArg3 uint64
 	bugCheckArg4 uint64
+	agentVersion string
 }
 
 // maximum number of stack trace lines we'll look through, looking for non-"NT!" lines
@@ -125,6 +126,7 @@ func doReadCrashDump(filename string, ctx *logCallbackContext, crashCtx *crashCo
 	crashCtx.bugCheckArg2 = uint64(bugCheckInfo.arg2)
 	crashCtx.bugCheckArg3 = uint64(bugCheckInfo.arg3)
 	crashCtx.bugCheckArg4 = uint64(bugCheckInfo.arg4)
+	crashCtx.agentVersion = C.GoString(&bugCheckInfo.agentVersion[0])
 
 	return nil
 }
@@ -133,9 +135,9 @@ func parseWinCrashDump(wcs *WinCrashStatus) {
 	var ctx logCallbackContext
 	var extendedError uint32
 	var crashCtx crashContext
-	var callstack string
 	var offenderCaptured bool
 
+	callstack := []string{}
 	frames := map[string]bool{}
 
 	err := readfn(wcs.FileName, &ctx, &crashCtx, &extendedError)
@@ -146,6 +148,7 @@ func parseWinCrashDump(wcs *WinCrashStatus) {
 	wcs.BugCheckArg2 = fmt.Sprintf("%X", crashCtx.bugCheckArg2)
 	wcs.BugCheckArg3 = fmt.Sprintf("%X", crashCtx.bugCheckArg3)
 	wcs.BugCheckArg4 = fmt.Sprintf("%X", crashCtx.bugCheckArg4)
+	wcs.AgentVersion = crashCtx.agentVersion
 
 	if err != nil {
 		wcs.StatusCode = WinCrashStatusCodeFailed
@@ -162,7 +165,7 @@ func parseWinCrashDump(wcs *WinCrashStatus) {
 
 	if extendedError != 0 {
 		// this may occur if the file is not a kernel crash dump. Partial information may still be fetched.
-		log.Errorf("Partial error from crash dump %s: %x", wcs.FileName, extendedError)
+		log.Errorf("Partial error from crash dump %s: %d", wcs.FileName, extendedError)
 	}
 
 	// set a maximum of how many lines we'll scan looking for NT!.  The loglinecallback
@@ -234,7 +237,7 @@ func parseWinCrashDump(wcs *WinCrashStatus) {
 			break
 		}
 
-		callstack += callsite + ","
+		callstack = append(callstack, callsite)
 		frames[callsite] = true
 
 		if strings.HasPrefix(callsite, ntBangPrefix) {
@@ -250,9 +253,7 @@ func parseWinCrashDump(wcs *WinCrashStatus) {
 		// continue capturing the callstack frames
 	}
 
-	callstack = strings.TrimSuffix(callstack, ",")
-
 	// keep the symbols unresolved.
-	wcs.Callstack = callstack
+	wcs.Frames = callstack
 	wcs.StatusCode = WinCrashStatusCodeSuccess
 }
