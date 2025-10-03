@@ -18,7 +18,10 @@ import (
 var JSONServerlessInitEncoder Encoder = &jsonServerlessInitEncoder{}
 
 // jsonServerlessInitEncoder transforms a message into a JSON byte array.
-type jsonServerlessInitEncoder struct{}
+// It caches the tags string since tags are constant in serverless-init environments.
+type jsonServerlessInitEncoder struct {
+	cachedTags string
+}
 
 // JSON representation of a message for serverless-init.
 type jsonServerlessInitPayload struct {
@@ -42,6 +45,11 @@ func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string
 		ts = msg.ServerlessExtra.Timestamp
 	}
 
+	// Cache tags on first use since they're constant in serverless-init
+	if j.cachedTags == "" {
+		j.cachedTags = msg.TagsToString()
+	}
+
 	encoded, err := json.Marshal(jsonServerlessInitPayload{
 		Message:   toValidUtf8(msg.GetContent()),
 		Status:    msg.GetStatus(),
@@ -49,7 +57,7 @@ func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string
 		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
-		Tags:      msg.TagsToString(),
+		Tags:      j.cachedTags,
 	})
 
 	if err != nil {
