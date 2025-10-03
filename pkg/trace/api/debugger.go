@@ -88,6 +88,8 @@ func debuggerErrorHandler(err error) http.Handler {
 
 // newDebuggerProxy returns a new httputil.ReverseProxy proxying and augmenting requests with headers containing the tags.
 func newDebuggerProxy(conf *config.AgentConfig, transport http.RoundTripper, hostTags string) *httputil.ReverseProxy {
+	log.Info("DEBUG: newDebuggerProxy")
+	log.Warn("DEBUG: newDebuggerProxy")
 	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
