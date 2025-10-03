@@ -52,7 +52,7 @@ type Requires struct {
 	RcServiceMRF        option.Option[rcservicemrf.Component]
 	IPC                 ipc.Component
 	Tagger              tagger.Component
-	TagProcessor        tagger.Processor
+	TagProcessor        option.Option[tagger.Processor]
 	Cfg                 config.Component
 	AutoConfig          autodiscovery.Component
 	WorkloadMeta        workloadmeta.Component
@@ -66,7 +66,7 @@ type Requires struct {
 type server struct {
 	IPC                 ipc.Component
 	tagger              tagger.Component
-	tagProcessor        tagger.Processor
+	tagProcessor        option.Option[tagger.Processor]
 	workloadMeta        workloadmeta.Component
 	configService       option.Option[rcservice.Component]
 	configServiceMRF    option.Option[rcservicemrf.Component]
