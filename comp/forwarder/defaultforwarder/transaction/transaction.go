@@ -435,6 +435,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
+
+		// Trigger secret refresh on API key error
+		if forwarder := getForwarderFromContext(ctx); forwarder != nil {
+			forwarder.TriggerSecretRefresh("403 response from backend")
+		}
+
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
@@ -488,4 +494,12 @@ func truncateBodyForLog(body []byte) []byte {
 		return body
 	}
 	return append(body[:limit], []byte("...")...)
+}
+
+// getForwarderFromContext retrieves a forwarder from context that can trigger secret refresh
+func getForwarderFromContext(ctx context.Context) interface{ TriggerSecretRefresh(string) } {
+	if forwarder, ok := ctx.Value("forwarder").(interface{ TriggerSecretRefresh(string) }); ok {
+		return forwarder
+	}
+	return nil
 }
