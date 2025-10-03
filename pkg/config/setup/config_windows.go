@@ -34,7 +34,7 @@ var (
 	// DefaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	DefaultSystemProbeAddress = `\\.\pipe\dd_system_probe`
 	// defaultEventMonitorAddress is the default address to be used for connecting to the event monitor
-	defaultEventMonitorAddress = "localhost:3335"
+	defaultEventMonitorAddress = "localhost:3337"
 	// defaultSystemProbeLogFilePath is the default system probe log file
 	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
