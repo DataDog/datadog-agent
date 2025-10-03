@@ -93,7 +93,6 @@ func TestClientEnabled(t *testing.T) {
 			testCase.clusterAgentEnabled),
 			func(t *testing.T) {
 				deps := fxutil.Test[dependencies](t, fx.Options(
-					fxutil.ProvideOptional[secrets.Component](),
 					fx.Provide(func() config.Component {
 						return config.NewMockWithOverrides(t, map[string]interface{}{
 							"language_detection.enabled":           testCase.languageDetectionEnabled,

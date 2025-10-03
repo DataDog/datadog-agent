@@ -48,10 +48,14 @@ const (
 	DefaultProcessAgentLogFile = "/var/log/datadog/process-agent.log"
 	// DefaultOTelAgentLogFile is the default otel-agent log file
 	DefaultOTelAgentLogFile = "/var/log/datadog/otel-agent.log"
+	// DefaultHostProfilerLogFile is the default host-profiler log file
+	DefaultHostProfilerLogFile = "/var/log/datadog/host-profiler.log"
 	// defaultSystemProbeLogFilePath is the default system-probe log file
 	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = "/var/run/datadog/dsd.socket"
+	// defaultReceiverSocket is the default Unix Domain Socket path on which Trace agent will listen
+	defaultReceiverSocket = "/var/run/datadog/apm.socket"
 	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = "/var/log/datadog/streamlogs_info/streamlogs.log"
 )

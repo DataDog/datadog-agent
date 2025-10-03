@@ -59,16 +59,22 @@ var (
 	baseKey = `SOFTWARE\Datadog\Datadog Agent\agent_crash_reporting`
 )
 
+// AgentBSODStackFrame encapsulates a single frame in a crash stack.
+type AgentBSODStackFrame struct {
+	InstructionPointer string `json:"ip"`
+}
+
 // AgentBSOD for Agent Telemetry reporting
 type AgentBSOD struct {
-	Date         string `json:"date"`
-	Offender     string `json:"offender"`
-	BugCheck     string `json:"bugcheck"`
-	BugCheckArg1 string `json:"bugcheckarg1"`
-	BugCheckArg2 string `json:"bugcheckarg2"`
-	BugCheckArg3 string `json:"bugcheckarg3"`
-	BugCheckArg4 string `json:"bugcheckarg4"`
-	Callstack    string `json:"callstack"`
+	Date         string                `json:"date"`
+	Offender     string                `json:"offender"`
+	BugCheck     string                `json:"bugcheck"`
+	BugCheckArg1 string                `json:"bugcheckarg1"`
+	BugCheckArg2 string                `json:"bugcheckarg2"`
+	BugCheckArg3 string                `json:"bugcheckarg3"`
+	BugCheckArg4 string                `json:"bugcheckarg4"`
+	Frames       []AgentBSODStackFrame `json:"frames"`
+	AgentVersion string                `json:"agentversion"`
 }
 
 // Module defines the fx options for this component.
@@ -172,8 +178,7 @@ func (wcd *AgentCrashDetect) Run() error {
 
 	// check if the crash is related to one of our drivers
 	ddFrameFound := false
-	callstack := strings.Split(crash.Callstack, ",")
-	for _, frame := range callstack {
+	for _, frame := range crash.Frames {
 		// the dd driver frames should not have resolved symbols
 		frameParts := strings.Split(frame, "+")
 		if len(frameParts) == 0 {
@@ -193,9 +198,17 @@ func (wcd *AgentCrashDetect) Run() error {
 		return nil
 	}
 
+	// Prepare the callstack frames to be crashtracker friendly.
+	frames := []AgentBSODStackFrame{}
+	for _, f := range crash.Frames {
+		frames = append(frames,
+			AgentBSODStackFrame{
+				InstructionPointer: f,
+			})
+	}
+
 	log.Infof("Sending crash: %v", formatText(crash))
 
-	// TODO: Possibly report the callstack.
 	bsod := AgentBSOD{
 		Date:         crash.DateString,
 		Offender:     crash.Offender,
@@ -204,6 +217,8 @@ func (wcd *AgentCrashDetect) Run() error {
 		BugCheckArg2: crash.BugCheckArg2,
 		BugCheckArg3: crash.BugCheckArg3,
 		BugCheckArg4: crash.BugCheckArg4,
+		Frames:       frames,
+		AgentVersion: crash.AgentVersion,
 	}
 	var bsodPayload []byte
 	bsodPayload, err = json.Marshal(bsod)
@@ -240,12 +255,13 @@ func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 }
 
 func formatText(c *probe.WinCrashStatus) string {
-	// TODO: Possibly report the callstack.
 	baseString := `A system crash was detected.
 	The crash occurred at %s.
 	The offending moudule is %s.
 	The bugcheck code is %s.
-	The bugcheck arguments are (%s, %s, %s, %s).`
+	The bugcheck arguments are (%s, %s, %s, %s).
+	The Agent version is: %s.
+	The callstack is: %v.`
 	return fmt.Sprintf(
 		baseString,
 		c.DateString,
@@ -254,5 +270,7 @@ func formatText(c *probe.WinCrashStatus) string {
 		c.BugCheckArg1,
 		c.BugCheckArg2,
 		c.BugCheckArg3,
-		c.BugCheckArg4)
+		c.BugCheckArg4,
+		c.AgentVersion,
+		c.Frames)
 }

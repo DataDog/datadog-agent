@@ -701,12 +701,19 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 		}
 
 		return string(pingCfgJSON), nil
+	case "use_remote_config_profiles":
+		return strconv.FormatBool(s.config.UseRemoteConfigProfiles), nil
 	}
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
 func (s *SNMPService) FilterTemplates(_ map[string]integration.Config) {
+}
+
+// GetImageName does nothing
+func (s *SNMPService) GetImageName() string {
+	return ""
 }
 
 func convertToCommaSepTags(tags []string) string {

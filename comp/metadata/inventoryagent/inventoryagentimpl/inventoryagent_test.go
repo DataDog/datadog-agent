@@ -163,6 +163,7 @@ func TestInitData(t *testing.T) {
 		"proxy.https":                      "https://name:sekrit@proxy.example.com/",
 		"site":                             "test",
 		"eks_fargate":                      true,
+		"synthetics.collector.enabled":     true,
 
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
@@ -221,6 +222,7 @@ func TestInitData(t *testing.T) {
 		"feature_networks_http_enabled":                true,
 		"feature_networks_https_enabled":               true,
 		"feature_traceroute_enabled":                   true,
+		"feature_synthetics_collector_enabled":         true,
 		"feature_usm_enabled":                          true,
 		"feature_usm_kafka_enabled":                    true,
 		"feature_usm_postgres_enabled":                 true,

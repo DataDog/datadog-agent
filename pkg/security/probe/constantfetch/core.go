@@ -11,7 +11,6 @@ package constantfetch
 import (
 	"errors"
 	"io"
-	"slices"
 	"strings"
 
 	"github.com/cilium/ebpf/btf"
@@ -56,57 +55,80 @@ func (f *BTFConstantFetcher) String() string {
 	return "btf co-re"
 }
 
-type constantRequest struct {
-	id         string
-	sizeof     bool
-	typeName   string
-	fieldNames []string
+func (f *BTFConstantFetcher) getTypesForName(typeName string) ([]btf.Type, error) {
+	actualTy := getActualTypeName(typeName)
+	return f.spec.AnyTypesByName(actualTy)
 }
 
-func (f *BTFConstantFetcher) runRequest(r constantRequest) {
-	actualTy := getActualTypeName(r.typeName)
-	types, err := f.spec.AnyTypesByName(actualTy)
+func (f *BTFConstantFetcher) runSizeofRequest(typeName string) (uint64, error) {
+	types, err := f.getTypesForName(typeName)
 	if err != nil || len(types) == 0 {
-		// if it doesn't exist, we can't do anything
-		return
+		return ErrorSentinel, err
 	}
 
-	finalValue := ErrorSentinel
+	value := ErrorSentinel
 
-	// the spec can contain multiple types for the same name
-	// we check that they all return the same value for the same request
 	for _, ty := range types {
-		value := runRequestOnBTFType(r, ty)
-		if value != ErrorSentinel {
-			if finalValue != ErrorSentinel && finalValue != value {
-				f.err = errors.New("mismatching values in multiple BTF types")
+		sTy, ok := ty.(*btf.Struct)
+		if ok {
+			newValue := uint64(sTy.Size)
+			if value != ErrorSentinel && value != newValue {
+				return ErrorSentinel, errors.New("mismatching sizes in multiple BTF types")
 			}
-			finalValue = value
+			value = newValue
+		}
+
+		uTy, ok := ty.(*btf.Union)
+		if ok {
+			newValue := uint64(uTy.Size)
+			if value != ErrorSentinel && value != newValue {
+				return ErrorSentinel, errors.New("mismatching sizes in multiple BTF types")
+			}
+			value = newValue
 		}
 	}
 
-	if finalValue != ErrorSentinel {
-		f.constants[r.id] = finalValue
-	}
+	return value, nil
 }
 
 // AppendSizeofRequest appends a sizeof request
 func (f *BTFConstantFetcher) AppendSizeofRequest(id, typeName string) {
-	f.runRequest(constantRequest{
-		id:       id,
-		sizeof:   true,
-		typeName: getActualTypeName(typeName),
-	})
+	value, err := f.runSizeofRequest(typeName)
+	if err != nil {
+		f.err = err
+	}
+	if value != ErrorSentinel {
+		f.constants[id] = value
+	}
 }
 
-// AppendOffsetofRequest appends an offset request
-func (f *BTFConstantFetcher) AppendOffsetofRequest(id, typeName string, fieldNames ...string) {
-	f.runRequest(constantRequest{
-		id:         id,
-		sizeof:     false,
-		typeName:   getActualTypeName(typeName),
-		fieldNames: fieldNames,
-	})
+func (f *BTFConstantFetcher) runOffsetofRequest(pairs ...TypeFieldPair) (uint64, error) {
+	for _, pair := range pairs {
+		types, err := f.getTypesForName(pair.TypeName)
+		if err != nil || len(types) == 0 {
+			continue
+		}
+
+		for _, ty := range types {
+			value := runOffsetofOnBTFType(pair.FieldName, ty)
+			if value != ErrorSentinel {
+				return value, nil
+			}
+		}
+	}
+
+	return ErrorSentinel, nil
+}
+
+// AppendOffsetofRequestWithFallbacks appends an offset request
+func (f *BTFConstantFetcher) AppendOffsetofRequestWithFallbacks(id string, pairs ...TypeFieldPair) {
+	value, err := f.runOffsetofRequest(pairs...)
+	if err != nil {
+		f.err = err
+	}
+	if value != ErrorSentinel {
+		f.constants[id] = value
+	}
 }
 
 // FinishAndGetResults returns the results
@@ -125,34 +147,30 @@ func getActualTypeName(tn string) string {
 	return tn
 }
 
-func runRequestOnBTFType(r constantRequest, ty btf.Type) uint64 {
+func runOffsetofOnBTFType(fieldName string, ty btf.Type) uint64 {
 	sTy, ok := ty.(*btf.Struct)
 	if ok {
-		return runRequestOnBTFTypeStructOrUnion(r, sTy.Size, sTy.Members)
+		return runOffsetofOnBTFTypeStructOrUnion(fieldName, sTy.Members)
 	}
 
 	uTy, ok := ty.(*btf.Union)
 	if ok {
-		return runRequestOnBTFTypeStructOrUnion(r, uTy.Size, uTy.Members)
+		return runOffsetofOnBTFTypeStructOrUnion(fieldName, uTy.Members)
 	}
 
 	return ErrorSentinel
 }
 
-func runRequestOnBTFTypeStructOrUnion(r constantRequest, size uint32, members []btf.Member) uint64 {
-	if r.sizeof {
-		return uint64(size)
-	}
-
+func runOffsetofOnBTFTypeStructOrUnion(fieldName string, members []btf.Member) uint64 {
 	for _, m := range members {
 		if m.Name == "" {
-			sub := runRequestOnBTFType(r, m.Type)
+			sub := runOffsetofOnBTFType(fieldName, m.Type)
 			if sub != ErrorSentinel {
 				return uint64(m.Offset.Bytes()) + sub
 			}
 		}
 
-		if slices.Contains(r.fieldNames, m.Name) {
+		if m.Name == fieldName {
 			return uint64(m.Offset.Bytes())
 		}
 	}

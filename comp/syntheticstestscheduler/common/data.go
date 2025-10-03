@@ -70,14 +70,67 @@ type SyntheticsTestConfig struct {
 	Type    string `json:"type"`
 
 	Config struct {
-		Assertions []interface{} `json:"assertions"`
+		Assertions []Assertion   `json:"assertions"`
 		Request    ConfigRequest `json:"request"`
 	} `json:"config"`
 
 	Interval int    `json:"tick_every"`
-	OrgID    int    `json:"orgID"`
-	MainDC   string `json:"mainDC"`
-	PublicID string `json:"publicID"`
+	OrgID    int    `json:"org_id"`
+	MainDC   string `json:"main_dc"`
+	PublicID string `json:"public_id"`
+	RunType  string `json:"run_type"`
+}
+
+// Operator represents a comparison operator for assertions.
+type Operator string
+
+const (
+	// OperatorIs checks equality.
+	OperatorIs Operator = "is"
+	// OperatorIsNot checks inequality.
+	OperatorIsNot Operator = "isNot"
+	// OperatorMoreThan checks if greater than target.
+	OperatorMoreThan Operator = "moreThan"
+	// OperatorMoreThanOrEquals checks if greater than or equal to target.
+	OperatorMoreThanOrEquals Operator = "moreThanOrEquals"
+	// OperatorLessThan checks if less than target.
+	OperatorLessThan Operator = "lessThan"
+	// OperatorLessThanOrEquals checks if less than or equal to target.
+	OperatorLessThanOrEquals Operator = "lessThanOrEquals"
+)
+
+// AssertionType represents the type of metric being asserted in a network test.
+type AssertionType string
+
+const (
+	// AssertionTypeNetworkHops represents a network hops assertion.
+	AssertionTypeNetworkHops AssertionType = "networkHops"
+	// AssertionTypeLatency represents a latency assertion.
+	AssertionTypeLatency AssertionType = "latency"
+	// AssertionTypePacketLoss represents a packet loss percentage assertion.
+	AssertionTypePacketLoss AssertionType = "packetLossPercentage"
+	// AssertionTypePacketJitter represents a packet jitter assertion.
+	AssertionTypePacketJitter AssertionType = "jitter"
+)
+
+// AssertionSubType represents the aggregation type for an assertion.
+type AssertionSubType string
+
+const (
+	// AssertionSubTypeAverage represents the average value of the metric.
+	AssertionSubTypeAverage AssertionSubType = "avg"
+	// AssertionSubTypeMin represents the minimum value of the metric.
+	AssertionSubTypeMin AssertionSubType = "min"
+	// AssertionSubTypeMax represents the maximum value of the metric.
+	AssertionSubTypeMax AssertionSubType = "max"
+)
+
+// Assertion represents a single condition to be checked in a network test.
+type Assertion struct {
+	Operator Operator         `json:"operator"`
+	Property AssertionSubType `json:"property"`
+	Target   string           `json:"target"`
+	Type     AssertionType    `json:"type"`
 }
 
 // UnmarshalJSON is a Custom unmarshal for SyntheticsTestConfig
@@ -88,13 +141,14 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 		Subtype string `json:"subtype"`
 
 		Config struct {
-			Assertions []interface{}   `json:"assertions"`
+			Assertions []Assertion     `json:"assertions"`
 			Request    json.RawMessage `json:"request"`
 		} `json:"config"`
 
-		OrgID    int    `json:"orgID"`
-		MainDC   string `json:"mainDC"`
-		PublicID string `json:"publicID"`
+		OrgID    int    `json:"org_id"`
+		MainDC   string `json:"main_dc"`
+		PublicID string `json:"public_id"`
+		RunType  string `json:"run_type"`
 	}
 
 	var tmp rawConfig
@@ -107,6 +161,7 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 	c.OrgID = tmp.OrgID
 	c.MainDC = tmp.MainDC
 	c.PublicID = tmp.PublicID
+	c.RunType = tmp.RunType
 	c.Config.Assertions = tmp.Config.Assertions
 
 	switch payload.Protocol(tmp.Subtype) {

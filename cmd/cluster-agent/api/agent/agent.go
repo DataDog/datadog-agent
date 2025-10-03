@@ -24,6 +24,8 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
+	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
+
 	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -37,7 +39,7 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, taggerComp tagger.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, ipc ipc.Component) {
+func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, taggerComp tagger.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, clusterChecksMetadataComp clusterchecksmetadata.Component, ipc ipc.Component) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +52,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 		getConfigCheck(w, r, ac)
 	}).Methods("GET")
 	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
+	r.HandleFunc("/config/without-defaults", settings.GetFullConfigWithoutDefaults("")).Methods("GET")
 	r.HandleFunc("/config/by-source", settings.GetFullConfigBySource()).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
@@ -61,6 +64,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
 	r.HandleFunc("/metadata/cluster-agent", dcametadataComp.WritePayloadAsJSON).Methods("GET")
+	r.HandleFunc("/metadata/cluster-checks", clusterChecksMetadataComp.WritePayloadAsJSON).Methods("GET")
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {

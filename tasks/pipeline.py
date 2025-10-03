@@ -14,7 +14,6 @@ from invoke.exceptions import Exit
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     cancel_pipeline,
-    get_gitlab_bot_token,
     get_gitlab_repo,
     gitlab_configuration_is_modified,
     refresh_pipeline,
@@ -97,9 +96,6 @@ def auto_cancel_previous_pipelines(ctx):
     """
     Automatically cancel previous pipelines running on the same ref
     """
-
-    if not os.environ.get('GITLAB_TOKEN'):
-        raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
 
     git_ref = os.environ["CI_COMMIT_REF_NAME"]
     if git_ref == "":
@@ -329,7 +325,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     Use --variable to specify the environment variables that should be passed to the child pipeline.
     You can pass the argument multiple times for each new variable you wish to forward
 
-    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
+    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails.
 
     Use --timeout to set up a timeout shorter than the default 2 hours, to anticipate failures if any.
 
@@ -342,15 +338,9 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     if not os.environ.get('CI_JOB_TOKEN'):
         raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
 
-    if not os.environ.get('GITLAB_TOKEN'):
-        if follow:
-            raise Exit("GITLAB_TOKEN variable needed to follow child pipelines.", 1)
-        else:
-            # The Gitlab lib requires `GITLAB_TOKEN` to be
-            # set, but trigger_pipeline doesn't use it
-            os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
-
-    repo = get_gitlab_repo(project_name)
+    # Use the CI_JOB_TOKEN which is passed from gitlab
+    token = None if follow else os.environ['CI_JOB_TOKEN']
+    repo = get_gitlab_repo(project_name, token=token)
 
     # Fill the environment variables to pass to the child pipeline.
     variables = {}
@@ -529,7 +519,7 @@ def get_schedules(_, repo: str = 'DataDog/datadog-agent'):
     Pretty-print all pipeline schedules on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     for schedule in gitlab_repo.pipelineschedules.list(per_page=100, all=True):
         schedule.pprint()
@@ -541,7 +531,7 @@ def get_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     Pretty-print a single pipeline schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.get(schedule_id)
 
@@ -556,7 +546,7 @@ def create_schedule(_, description, ref, cron, cron_timezone=None, active=False,
     Note that unless you explicitly specify the --active flag, the schedule will be created as inactive.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.create(
         {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone, 'active': active}
@@ -573,7 +563,7 @@ def edit_schedule(
     Edit an existing pipeline schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     data = {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone}
     data = {key: value for (key, value) in data.items() if value is not None}
@@ -589,7 +579,7 @@ def activate_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     Activate an existing pipeline schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.update(schedule_id, {'active': True})
 
@@ -602,7 +592,7 @@ def deactivate_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     Deactivate an existing pipeline schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.update(schedule_id, {'active': False})
 
@@ -615,7 +605,7 @@ def delete_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     Delete an existing pipeline schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     gitlab_repo.pipelineschedules.delete(schedule_id)
 
@@ -628,7 +618,7 @@ def create_schedule_variable(_, schedule_id, key, value, repo: str = 'DataDog/da
     Create a variable for an existing schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.get(schedule_id)
     schedule.variables.create({'key': key, 'value': value})
@@ -642,7 +632,7 @@ def edit_schedule_variable(_, schedule_id, key, value, repo: str = 'DataDog/data
     Edit an existing variable for a schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.get(schedule_id)
     schedule.variables.update(key, {'value': value})
@@ -656,7 +646,7 @@ def delete_schedule_variable(_, schedule_id, key, repo: str = 'DataDog/datadog-a
     Delete an existing variable for a schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.get(schedule_id)
     schedule.variables.delete(key)
@@ -888,3 +878,43 @@ def compare_to_itself(ctx):
         ctx.run(f"git checkout {current_branch}", hide=True)
         ctx.run(f"git branch -D {new_branch}", hide=True)
         ctx.run(f"git push origin :{new_branch}", hide=True)
+
+
+@task
+def is_dev_branch(_):
+    """
+    Check if the current branch is not a dev branch.
+    """
+    # Mirror logic from .fast_on_dev_branch_only in .gitlab-ci.yml
+    # Not a dev branch if any of the following is true:
+    # - On main branch
+    # - On a release branch (e.g., 7.42.x)
+    # - On a tagged commit
+    # - In a triggered pipeline
+
+    current_branch = os.getenv("CI_COMMIT_BRANCH", "")
+
+    # Main branch
+    if current_branch == "main":
+        print("false")
+        return
+
+    # Release branch: matches \d+.\d+.x
+    if re.match(r"^\d+\.\d+\.x$", current_branch):
+        print("false")
+        return
+
+    # Tagged commit (prefer CI variable if present)
+    ci_commit_tag = os.getenv("CI_COMMIT_TAG", "")
+    if ci_commit_tag is not None and ci_commit_tag != "":
+        print("false")
+        return
+
+    # Triggered pipeline (CI context)
+    ci_pipeline_source = os.getenv("CI_PIPELINE_SOURCE", "")
+    if ci_pipeline_source in ("trigger", "pipeline"):
+        print("false")
+        return
+
+    # Otherwise, consider it a dev branch
+    print("true")

@@ -123,6 +123,11 @@ func (s *StaticConfigService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 
+// GetImageName does nothing
+func (s *StaticConfigService) GetImageName() string {
+	return ""
+}
+
 // FilterTemplates does nothing.
 func (s *StaticConfigService) FilterTemplates(_ map[string]integration.Config) {
 }

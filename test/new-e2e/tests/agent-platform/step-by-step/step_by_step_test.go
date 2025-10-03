@@ -105,7 +105,7 @@ func TestStepByStepScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
 
 			e2e.Run(tt,
-				&stepByStepSuite{cwsSupported: cwsSupported, osVersion: version},
+				&stepByStepSuite{cwsSupported: cwsSupported, osVersion: version, osDesc: osDesc},
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),

@@ -1,6 +1,13 @@
+## This file is managed by Datadog.
+## Please do not edit it manually.
+#
 ad_identifiers:
   - snmp
 init_config:
+  ## @param use_remote_config_profiles - boolean - optional - default: false
+  ## Whether to apply device profiles from the SNMP Profile Manager.
+  #
+  use_remote_config_profiles: "%%extra_use_remote_config_profiles%%"
 instances:
   -
     ## @param ip_address - string - optional

@@ -16,9 +16,10 @@ import (
 	"net/url"
 	"time"
 
-	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 
 	"github.com/DataDog/datadog-operator/api/datadoghq/common"
 
@@ -122,23 +123,25 @@ func (r *recommenderClient) buildWorkloadRecommendationRequest(clusterName strin
 	targets := []*kubeAutoscaling.WorkloadRecommendationTarget{}
 	for _, objective := range objectives {
 		targetType := ""
-		utilization := int32(0)
+		targetValue := 0.0
 		switch objective.Type {
 		case common.DatadogPodAutoscalerPodResourceObjectiveType:
 			targetType = objective.PodResource.Name.String()
 			if u := objective.PodResource.Value.Utilization; u != nil {
-				utilization = *u
+				targetValue = float64(*u) / 100.0
 			}
 		case common.DatadogPodAutoscalerContainerResourceObjectiveType:
 			targetType = objective.ContainerResource.Name.String()
 			if u := objective.ContainerResource.Value.Utilization; u != nil {
-				utilization = *u
+				targetValue = float64(*u) / 100.0
 			}
+		case common.DatadogPodAutoscalerCustomQueryObjectiveType:
+			continue
 		}
 
 		targets = append(targets, &kubeAutoscaling.WorkloadRecommendationTarget{
 			Type:        targetType,
-			TargetValue: float64(utilization) / 100.0, // convert percentage to decimal
+			TargetValue: targetValue,
 		})
 	}
 

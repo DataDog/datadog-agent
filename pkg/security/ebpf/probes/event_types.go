@@ -503,7 +503,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 
 		// List of probes required to capture setsockopt events
 		"setsockopt": {
-			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setsockopt", hasFentry, EntryAndExit)},
+			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setsockopt", hasFentry, EntryAndExit)},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_socket_setsockopt"),
 				hookFunc("hook_sk_attach_filter"),

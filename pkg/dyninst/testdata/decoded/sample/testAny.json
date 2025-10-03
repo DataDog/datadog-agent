@@ -18,7 +18,7 @@
           {
             "function": "main.testAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
+            "lineNumber": 55
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -28,7 +28,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -60,11 +60,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -85,7 +94,7 @@
           {
             "function": "main.testAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
+            "lineNumber": 55
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -95,7 +104,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -127,11 +136,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -152,7 +170,7 @@
           {
             "function": "main.testAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
+            "lineNumber": 55
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -162,7 +180,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -194,11 +212,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -219,7 +246,7 @@
           {
             "function": "main.testAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
+            "lineNumber": 55
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -229,7 +256,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -261,11 +288,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -286,7 +322,7 @@
           {
             "function": "main.testAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
+            "lineNumber": 55
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -296,7 +332,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -328,11 +364,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -353,7 +398,7 @@
           {
             "function": "main.testAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
+            "lineNumber": 55
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -363,7 +408,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -395,11 +440,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -420,7 +474,7 @@
           {
             "function": "main.testAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
+            "lineNumber": 55
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -430,7 +484,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -461,11 +515,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -486,7 +549,7 @@
           {
             "function": "main.testAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
+            "lineNumber": 55
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -496,7 +559,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -528,11 +591,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -553,7 +625,7 @@
           {
             "function": "main.testAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
+            "lineNumber": 55
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -563,7 +635,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -596,11 +668,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -621,7 +702,7 @@
           {
             "function": "main.testAny",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 54
+            "lineNumber": 55
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -631,7 +712,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -663,10 +744,19 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

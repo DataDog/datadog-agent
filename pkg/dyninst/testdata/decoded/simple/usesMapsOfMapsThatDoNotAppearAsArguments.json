@@ -18,7 +18,7 @@
           {
             "function": "main.usesMapsOfMapsThatDoNotAppearAsArguments",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 134
+            "lineNumber": 143
           },
           {
             "function": "main.main",
@@ -43,12 +43,18 @@
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {}
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "map[uint8]map[int]main.aStructNotUsedAsAnArgument",
+                "notCapturedReason": "unavailable"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

@@ -587,6 +587,11 @@ type DNSEvent struct {
 	Response *DNSResponse `field:"response,check:HasResponse"`
 }
 
+// FailedDNSEvent represents a DNS packet that was failed to be decoded (inbound or outbound)
+type FailedDNSEvent struct {
+	Payload []byte `field:"-"`
+}
+
 // DNSResponse represents a DNS response event
 type DNSResponse struct {
 	ResponseCode uint8 `field:"code"` // SECLDoc[code] Definition:`Response code of the DNS response according to RFC 1035` Constants:`DNS Responses`

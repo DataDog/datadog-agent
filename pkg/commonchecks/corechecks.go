@@ -31,9 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/oomkill"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/tcpqueuelength"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
@@ -93,11 +90,8 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, store))
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
-	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
 	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger, telemetry, store))
 	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
-	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory(tagger))
-	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory(tagger))
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
 	corecheckLoader.RegisterCheck(process.CheckName, process.Factory())
 	if cfg.GetBool("use_networkv2_check") {
@@ -128,4 +122,6 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(discovery.CheckName, discovery.Factory())
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg))
+
+	registerSystemProbeChecks(tagger)
 }

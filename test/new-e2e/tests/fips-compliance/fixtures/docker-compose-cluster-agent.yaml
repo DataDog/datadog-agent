@@ -7,7 +7,7 @@ services:
     image: "ghcr.io/datadog/apps-fips-server:{APPS_VERSION}"
     ports:
       - "443:443"
-    entrypoint: ["./run.sh", "${CERT:-rsa}", "${CIPHER}", "${TLS_MAX}"]
+    entrypoint: ["./run.sh", "${CERT:-rsa}", "${CIPHER}", "${TLS_MIN}", "${TLS_MAX}"]
 
   # Cluster agent for FIPS testing
   cluster-agent:

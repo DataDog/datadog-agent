@@ -34,6 +34,8 @@ type Component interface {
 
 	// GetContainerSharedMetricFilters retrieves the container shared metric FilterBundle
 	GetContainerSharedMetricFilters() FilterBundle
+	// GetContainerPausedFilters retrieves the container paused FilterBundle
+	GetContainerPausedFilters() FilterBundle
 	// GetPodSharedMetricFilters retrieves the pod shared metric FilterBundle
 	GetPodSharedMetricFilters() FilterBundle
 

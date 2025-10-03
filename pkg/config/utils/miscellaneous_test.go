@@ -108,3 +108,82 @@ func TestIsAPMEnabled(t *testing.T) {
 		})
 	}
 }
+
+func TestIsRemoteConfigEnabled(t *testing.T) {
+	tests := []struct {
+		name      string
+		expected  bool
+		setConfig func(m model.BuildableConfig)
+	}{
+		{
+			name:     "explicitly enabled",
+			expected: true,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("remote_configuration.enabled", true)
+			},
+		},
+		{
+			name:     "explicitly disabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("remote_configuration.enabled", false)
+			},
+		},
+		{
+			name:     "gov via fips.enabled and not explicitly enabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("fips.enabled", true)
+			},
+		},
+		{
+			name:     "gov via site and not explicitly enabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("site", "ddog-gov.com")
+			},
+		},
+		{
+			name:     "gov via fips.enabled and explicitly enabled",
+			expected: true,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("fips.enabled", true)
+				m.SetWithoutSource("remote_configuration.enabled", true)
+			},
+		},
+		{
+			name:     "gov via site and explicitly enabled",
+			expected: true,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("site", "ddog-gov.com")
+				m.SetWithoutSource("remote_configuration.enabled", true)
+			},
+		},
+		{
+			name:     "gov via fips.enabled and explicitly disabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("fips.enabled", true)
+				m.SetWithoutSource("remote_configuration.enabled", false)
+			},
+		},
+		{
+			name:     "gov via site and explicitly disabled",
+			expected: false,
+			setConfig: func(m model.BuildableConfig) {
+				m.SetWithoutSource("site", "ddog-gov.com")
+				m.SetWithoutSource("remote_configuration.enabled", false)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			test.setConfig(mockConfig)
+			assert.Equal(t,
+				test.expected, IsRemoteConfigEnabled(mockConfig),
+				"Was expecting IsRemoteConfigEnabled to return", test.expected)
+		})
+	}
+}

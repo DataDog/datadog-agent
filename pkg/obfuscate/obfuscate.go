@@ -231,6 +231,10 @@ type SQLConfig struct {
 	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	KeepJSONPath bool `json:"keep_json_path" yaml:"keep_json_path"`
 
+	// ReplaceBindParameter specifies whether to replace SQL bind parameters such as @P1 with ?.
+	// By default, bind parameters are not replaced.
+	ReplaceBindParameter bool `json:"replace_bind_parameter" yaml:"replace_bind_parameter"`
+
 	// Cache is deprecated. Please use `apm_config.obfuscation.cache` instead.
 	Cache bool `json:"cache" yaml:"cache"`
 }

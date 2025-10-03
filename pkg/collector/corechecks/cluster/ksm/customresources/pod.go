@@ -197,7 +197,8 @@ func containerResourceOwnerGenerator(c v1.Container, p *v1.Pod, resourceType str
 // owner of the pod.
 func (f *extendedPodFactory) customResourceOwnerGenerator(p *v1.Pod, resourceType string, contType ContainerType) *metric.Family {
 	// We want to omit pods that have succeeded, as those no longer count towards resource allocation
-	if p.Status.Phase == v1.PodSucceeded || p.Status.Phase == v1.PodFailed {
+	// We also skip Pods that are not scheduled yet as their request/limits value are not actually allocated yet
+	if p.Status.Phase == v1.PodSucceeded || p.Status.Phase == v1.PodFailed || p.Spec.NodeName == "" {
 		return &metric.Family{}
 	}
 

@@ -324,3 +324,11 @@ func (d *safeDeviceImpl) IsMigDeviceHandle() (bool, error) {
 	isMig, ret := d.nvmlDevice.IsMigDeviceHandle()
 	return isMig, NewNvmlAPIErrorOrNil("IsMigDeviceHandle", ret)
 }
+
+func (d *safeDeviceImpl) GetVirtualizationMode() (nvml.GpuVirtualizationMode, error) {
+	if err := d.lib.lookup(toNativeName("GetVirtualizationMode")); err != nil {
+		return nvml.GPU_VIRTUALIZATION_MODE_NONE, err
+	}
+	mode, ret := d.nvmlDevice.GetVirtualizationMode()
+	return mode, NewNvmlAPIErrorOrNil("GetVirtualizationMode", ret)
+}

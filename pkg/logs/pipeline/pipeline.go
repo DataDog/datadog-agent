@@ -39,7 +39,7 @@ func NewPipeline(
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverlessMeta sender.ServerlessMeta,
 	hostname hostnameinterface.Component,
-	_ pkgconfigmodel.Reader,
+	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	instanceID string,
 ) *Pipeline {
@@ -60,7 +60,7 @@ func NewPipeline(
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
-	processor := processor.New(inputChan, strategyInput, processingRules,
+	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
 		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
 
 	return &Pipeline{
@@ -106,7 +106,19 @@ func getStrategy(
 		if endpoints.Main.UseCompression {
 			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
-		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverlessMeta, sender.NewArraySerializer(), endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID)
+
+		return sender.NewBatchStrategy(
+			inputChan,
+			outputChan,
+			flushChan,
+			serverlessMeta,
+			endpoints.BatchWait,
+			endpoints.BatchMaxSize,
+			endpoints.BatchMaxContentSize,
+			"logs",
+			encoder,
+			pipelineMonitor,
+			instanceID)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
 }

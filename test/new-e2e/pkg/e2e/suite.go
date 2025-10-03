@@ -146,6 +146,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff/v4"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -158,6 +159,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -230,6 +232,22 @@ func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), time
 		}()
 		condition(c)
 	}, timeout, interval, msgAndArgs...)
+}
+
+// EventuallyWithExponentialBackoff replaces EventuallyWithT with synchronous exponential backoff
+func (bs *BaseSuite[Env]) EventuallyWithExponentialBackoff(condition func() error, maxElapsedTime, maxInterval time.Duration, msgAndArgs ...interface{}) bool {
+	bs.Suite.T().Helper()
+
+	err := backoff.Retry(condition, backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(5*time.Second),
+		backoff.WithMultiplier(2),
+		backoff.WithMaxInterval(maxInterval),
+		backoff.WithMaxElapsedTime(maxElapsedTime),
+	))
+	if err != nil {
+		return bs.Suite.Fail(fmt.Sprintf("Condition never satisfied: %v", err), msgAndArgs...)
+	}
+	return true
 }
 
 // EventuallyWithTf is a wrapper around testify.Suite.EventuallyWithTf that catches panics to fail test without skipping TeardownSuite
@@ -734,7 +752,15 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)
+				bs.T().Logf("WARNING: Unable to destroy stack %s: %s", stackName, out)
+				_, err := bs.datadogClient.PostEvent(&datadog.Event{
+					Title: pointer.Ptr(fmt.Sprintf("Unable to destroy stack %s", stackName)),
+					Text:  pointer.Ptr(fmt.Sprintf("Unable to destroy stack %s: %s", stackName, out)),
+					Tags:  []string{"test:e2e", "stack:destroy", "stack_name:" + stackName, "service:stackcleaner-worker", "ci.job.name:" + os.Getenv("CI_JOB_NAME"), "ci.job.id:" + os.Getenv("CI_JOB_ID"), "ci.pipeline.id:" + os.Getenv("CI_PIPELINE_ID")},
+				})
+				if err != nil {
+					bs.T().Logf("Unable to post event: %v", err)
+				}
 			} else {
 				bs.T().Logf("Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
 			}

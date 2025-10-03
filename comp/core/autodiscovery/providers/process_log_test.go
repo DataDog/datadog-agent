@@ -8,6 +8,7 @@ package providers
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,6 +42,137 @@ func skipOnWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping test on Windows due to Unix-specific file operations and permissions")
 	}
+}
+
+func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
+	// Create temporary directories with mock integration config files
+	tempDir := t.TempDir()
+	confdDir := filepath.Join(tempDir, "confd")
+
+	// Mock the confd_path configuration
+	originalConfig := configmock.New(t)
+	originalConfig.SetWithoutSource("confd_path", confdDir)
+
+	// Create nginx integration in confd directory
+	nginxDir := filepath.Join(confdDir, "nginx.d")
+	err := os.MkdirAll(nginxDir, 0755)
+	require.NoError(t, err)
+
+	nginxConf := filepath.Join(nginxDir, "conf.yaml.example")
+	nginxContent := `# logs:
+#   - type: file
+#     path: /var/log/nginx/access.log
+#     source: nginx
+#     service: nginx
+`
+	err = os.WriteFile(nginxConf, []byte(nginxContent), 0644)
+	require.NoError(t, err)
+
+	// Create apache integration with multiple source patterns
+	apacheDir := filepath.Join(confdDir, "apache.d")
+	err = os.MkdirAll(apacheDir, 0755)
+	require.NoError(t, err)
+
+	apacheConf := filepath.Join(apacheDir, "conf.yaml.example")
+	apacheContent := `# logs:
+#   - type: file
+#     path: /var/log/apache2/access.log
+#     source: apache
+#   - type: file
+#     path: /var/log/apache2/error.log
+#     source: apache2
+`
+	err = os.WriteFile(apacheConf, []byte(apacheContent), 0644)
+	require.NoError(t, err)
+
+	apacheConf2 := filepath.Join(apacheDir, "conf.yaml")
+	apacheContent2 := `# logs:
+   - type: file
+     path: /var/log/apache2/access.log
+     source: "apache3
+`
+	err = os.WriteFile(apacheConf2, []byte(apacheContent2), 0644)
+	require.NoError(t, err)
+
+	// Create postgresql integration with multi-line format
+	postgresqlDir := filepath.Join(confdDir, "postgresql.d")
+	err = os.MkdirAll(postgresqlDir, 0755)
+	require.NoError(t, err)
+
+	postgresqlConf := filepath.Join(postgresqlDir, "conf.yaml.example")
+	postgresqlContent := `## Log Section
+##
+## logs:
+##   - type: file
+##     path: /var/log/postgres/postgresql.log
+#     source: postgresql
+##   - type: file
+##     path: /var/log/postgres/postgres.log
+#     source: postgresql
+`
+	err = os.WriteFile(postgresqlConf, []byte(postgresqlContent), 0644)
+	require.NoError(t, err)
+
+	// Create integration without source (should be ignored)
+	noSourceDir := filepath.Join(confdDir, "nosource.d")
+	err = os.MkdirAll(noSourceDir, 0755)
+	require.NoError(t, err)
+
+	noSourceConf := filepath.Join(noSourceDir, "conf.yaml.example")
+	noSourceContent := `# logs:
+#   - type: file
+#     path: /var/log/nosource.log
+#     service: nosource
+`
+	err = os.WriteFile(noSourceConf, []byte(noSourceContent), 0644)
+	require.NoError(t, err)
+
+	// Test discovery
+	sources := discoverIntegrationSources()
+
+	// Verify discovered sources from confd_path
+	assert.True(t, sources["nginx"], "Should discover nginx source from confd")
+	assert.True(t, sources["apache"], "Should discover apache source from confd")
+	assert.True(t, sources["apache2"], "Should discover apache2 source from confd")
+	assert.True(t, sources["apache3"], "Should discover apache3 source from confd")
+	assert.True(t, sources["postgresql"], "Should discover postgresql source from confd")
+
+	// Verify that integrations without source comments are not discovered
+	assert.False(t, sources["nosource"], "Should not discover sources without source comments")
+
+	// Test that function scans multiple directories by verifying it includes
+	// sources from both the confd_path we set and the dist path (if it exists)
+	// Note: The actual dist path scanning will work in production, but we test
+	// the basic functionality with the confd_path we can control
+	assert.GreaterOrEqual(t, len(sources), 3, "Should discover at least 3 sources")
+
+	// Verify agent process names are automatically added when integration sources exist
+	assert.True(t, sources["system-probe"], "Should include system-probe")
+
+	// Test edge cases
+	t.Run("empty confd_path", func(t *testing.T) {
+		emptyConfig := configmock.New(t)
+		emptyConfig.SetWithoutSource("confd_path", "")
+
+		// Should still work with just dist path (if it exists)
+		emptySources := discoverIntegrationSources()
+		// Should be a map (possibly empty if no dist directory exists)
+		assert.NotNil(t, emptySources)
+	})
+
+	t.Run("non-existent confd_path", func(t *testing.T) {
+		nonExistentConfig := configmock.New(t)
+		nonExistentConfig.SetWithoutSource("confd_path", "/non/existent/path")
+
+		// Should still work with just dist path (if it exists)
+		nonExistentSources := discoverIntegrationSources()
+		assert.NotNil(t, nonExistentSources)
+	})
+
+	t.Run("no agent names when no integration sources", func(t *testing.T) {
+		sources := discoverIntegrationSources()
+		assert.False(t, sources["system-probe"], "Should NOT include agent name system-probe when no integration sources found")
+	})
 }
 
 func (p *processLogConfigProvider) processEventsNoVerifyReadable(evBundle workloadmeta.EventBundle) integration.ConfigChanges {
@@ -1022,45 +1155,143 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 
 func TestProcessLogProviderGetSource(t *testing.T) {
 	tests := []struct {
-		generatedName       string
-		generatedNameSource string
-		expectedSource      string
+		name                    string
+		validIntegrationSources map[string]bool
+		generatedName           string
+		generatedNameSource     string
+		language                *languagemodels.Language
+		expectedSource          string
 	}{
 		{
-			generatedName:  "apache2",
-			expectedSource: "apache",
+			name:                    "hardcoded mapping - apache2 to apache",
+			validIntegrationSources: map[string]bool{},
+			generatedName:           "apache2",
+			expectedSource:          "apache",
 		},
 		{
-			generatedName:  "postgres",
-			expectedSource: "postgresql",
+			name:                    "hardcoded mapping - postgres to postgresql",
+			validIntegrationSources: map[string]bool{},
+			generatedName:           "postgres",
+			expectedSource:          "postgresql",
 		},
 		{
-			generatedName:  "org.elasticsearch.bootstrap.elasticsearch",
-			expectedSource: "elasticsearch",
+			name:                    "elasticsearch prefix mapping",
+			validIntegrationSources: map[string]bool{},
+			generatedName:           "org.elasticsearch.bootstrap.Elasticsearch",
+			expectedSource:          "elasticsearch",
 		},
 		{
-			generatedName:  "org.sonar.server.app.webserver",
-			expectedSource: "sonarqube",
+			name:                    "sonar prefix mapping",
+			validIntegrationSources: map[string]bool{},
+			generatedName:           "org.sonar.application.App",
+			expectedSource:          "sonarqube",
 		},
 		{
-			generatedName:       "myapp",
-			generatedNameSource: "gunicorn",
-			expectedSource:      "gunicorn",
+			name:                    "valid integration source - direct match",
+			validIntegrationSources: map[string]bool{"nginx": true, "redis": true},
+			generatedName:           "nginx",
+			expectedSource:          "nginx",
 		},
 		{
-			generatedName:  "unknown",
-			expectedSource: "unknown",
+			name:                    "valid integration source - redis",
+			validIntegrationSources: map[string]bool{"nginx": true, "redis": true},
+			generatedName:           "redis",
+			expectedSource:          "redis",
+		},
+		{
+			name:                    "gunicorn WSGI app - overrides language",
+			validIntegrationSources: map[string]bool{"gunicorn": true},
+			generatedName:           "myapp",
+			generatedNameSource:     "gunicorn",
+			language:                &languagemodels.Language{Name: languagemodels.Python},
+			expectedSource:          "gunicorn",
+		},
+		{
+			name:                    "language fallback - python",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Python},
+			expectedSource:          "python",
+		},
+		{
+			name:                    "language fallback - go",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Go},
+			expectedSource:          "go",
+		},
+		{
+			name:                    "language fallback - java",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Java},
+			expectedSource:          "java",
+		},
+		{
+			name:                    "language fallback - node",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Node},
+			expectedSource:          "nodejs",
+		},
+		{
+			name:                    "language fallback - ruby",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Ruby},
+			expectedSource:          "ruby",
+		},
+		{
+			name:                    "language fallback - dotnet",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: languagemodels.Dotnet},
+			expectedSource:          "csharp",
+		},
+		{
+			name:                    "unknown language - uses candidate",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                &languagemodels.Language{Name: "unknown"},
+			expectedSource:          "myapp",
+		},
+		{
+			name:                    "no language - uses candidate",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "myapp",
+			language:                nil,
+			expectedSource:          "myapp",
+		},
+		{
+			name:                    "empty integration sources - uses candidate",
+			validIntegrationSources: map[string]bool{},
+			generatedName:           "unknown-service",
+			expectedSource:          "unknown-service",
+		},
+		{
+			name:                    "not in integration sources but has language - uses language",
+			validIntegrationSources: map[string]bool{"nginx": true},
+			generatedName:           "unknown-service",
+			language:                &languagemodels.Language{Name: languagemodels.Python},
+			expectedSource:          "python",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.expectedSource, func(t *testing.T) {
-			service := &workloadmeta.Service{
-				GeneratedName:       tt.generatedName,
-				GeneratedNameSource: tt.generatedNameSource,
+		t.Run(tt.name, func(t *testing.T) {
+			provider := &processLogConfigProvider{
+				validIntegrationSources: tt.validIntegrationSources,
 			}
 
-			result := getSource(service)
+			process := &workloadmeta.Process{
+				Service: &workloadmeta.Service{
+					GeneratedName:       tt.generatedName,
+					GeneratedNameSource: tt.generatedNameSource,
+				},
+				Language: tt.language,
+			}
+
+			result := provider.getSource(process)
 			assert.Equal(t, tt.expectedSource, result)
 		})
 	}

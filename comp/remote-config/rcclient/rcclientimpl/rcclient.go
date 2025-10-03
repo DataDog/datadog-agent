@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -134,7 +135,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		isSystemProbe:     deps.Params.IsSystemProbe,
 	}
 
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	if configUtils.IsRemoteConfigEnabled(deps.Config) {
 		deps.Lc.Append(fx.Hook{
 			OnStart: func(context.Context) error {
 				rc.start()

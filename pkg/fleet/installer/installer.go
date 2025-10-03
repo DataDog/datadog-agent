@@ -102,8 +102,8 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
 		packages:   pkgs,
 		config: &config.Directories{
-			StablePath:     filepath.Join(paths.DefaultUserConfigsDir, "datadog-agent"),
-			ExperimentPath: filepath.Join(paths.DefaultUserConfigsDir, "datadog-agent-exp"),
+			StablePath:     paths.AgentConfigDir,
+			ExperimentPath: paths.AgentConfigDir + "-exp",
 		},
 		hooks: packages.NewHooks(env, pkgs),
 

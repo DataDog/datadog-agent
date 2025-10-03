@@ -200,7 +200,7 @@ var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|dd
 // https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 func BuildURLWithPrefix(prefix, site string) string {
 	site = strings.TrimSpace(site)
-	if wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
+	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
 		site += "."
 	}
 	return prefix + site

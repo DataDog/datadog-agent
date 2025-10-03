@@ -19,7 +19,10 @@ typedef enum _readCrashDumpErrors {
     RCD_OPEN_DUMP_FILE_FAILED = 4,
     RCD_WAIT_FOR_EVENT_FAILED = 5,
     RCD_EXECUTE_FAILED = 6,
-    RCD_INVALID_ARG = 7
+    RCD_INVALID_ARG = 7,
+    RCD_QUERY_SYMBOLS_INTERFACE_FAILED = 8,
+    RCD_DD_MODULE_NOT_FOUND = 9,
+    RCD_GET_MODULE_VERSION_INFO_FAILED = 10,
 } READ_CRASH_DUMP_ERROR;
 
 typedef struct _bugCheckInfo {
@@ -28,6 +31,7 @@ typedef struct _bugCheckInfo {
     ULONG64 arg2;
     ULONG64 arg3;
     ULONG64 arg4;
+    char agentVersion[64];
 } BUGCHECK_INFO;
 
 READ_CRASH_DUMP_ERROR readCrashDump(char* fname, void* ctx, BUGCHECK_INFO* bugCheckInfo, long* extendedError);

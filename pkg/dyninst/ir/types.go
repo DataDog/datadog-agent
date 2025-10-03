@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
+	"slices"
 )
 
 // Type represents a an in-memory representation of a type in the target
@@ -188,12 +189,21 @@ func (t *StructureType) Fields() iter.Seq[Field] {
 
 // FieldOffsetByName returns the offset of the field with the given name.
 func (t *StructureType) FieldOffsetByName(name string) (uint32, error) {
-	for _, f := range t.RawFields {
-		if f.Name == name {
-			return f.Offset, nil
-		}
+	field, ok := t.FieldByName(name)
+	if !ok {
+		return 0, fmt.Errorf("no field %s in struct %s", name, t.Name)
 	}
-	return 0, fmt.Errorf("no field %s in struct %s", name, t.Name)
+	return field.Offset, nil
+}
+
+// FieldByName returns the field with the given name.
+func (t *StructureType) FieldByName(name string) (*Field, bool) {
+	if idx := slices.IndexFunc(t.RawFields, func(f Field) bool {
+		return f.Name == name
+	}); idx >= 0 {
+		return &t.RawFields[idx], true
+	}
+	return nil, false
 }
 
 // Field is a field in a structure.
@@ -374,6 +384,8 @@ type EventRootType struct {
 	TypeCommon
 	syntheticType
 
+	// EventKind is the kind of the event.
+	EventKind EventKind
 	// Bitset tracking successful expression evaluation (one bit per
 	// expression).
 	PresenceBitsetSize uint32
@@ -394,9 +406,36 @@ type RootExpression struct {
 	Name string
 	// Offset is the offset of the expression in the event output.
 	Offset uint32
+	// Kind is the kind of the expression.
+	Kind RootExpressionKind
 	// Expression is the logical operations to be evaluated to produce the
 	// value of the event.
 	Expression Expression
+}
+
+// RootExpressionKind is the kind of a root expression.
+type RootExpressionKind uint8
+
+const (
+	_ RootExpressionKind = iota
+	// RootExpressionKindArgument corresponds to an argument of the event.
+	RootExpressionKindArgument
+	// RootExpressionKindLocal corresponds to a local variable of the event.
+	RootExpressionKindLocal
+	// RootExpressionKindTemplateSegment means that this expression is part of a
+	// template segment.
+	// RootExpressionKindTemplateSegment
+)
+
+func (k RootExpressionKind) String() string {
+	switch k {
+	case RootExpressionKindArgument:
+		return "argument"
+	case RootExpressionKindLocal:
+		return "local"
+	default:
+		return fmt.Sprintf("RootExpressionKind(%d)", k)
+	}
 }
 
 // UnresolvedPointeeType is a placeholder type that represents an unresolved

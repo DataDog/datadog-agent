@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,7 +37,7 @@ func CheckAndUpgradeConfig() error {
 	}
 	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
 	ddcfg.AddConfigPath(defaultpaths.ConfPath)
-	_, err := pkgconfigsetup.LoadWithoutSecret(ddcfg, nil)
+	_, err := pkgconfigsetup.LoadWithSecret(ddcfg, secretsnoop.NewComponent().Comp, nil)
 	if err == nil {
 		// was able to read config, check for api key
 		if ddcfg.GetString("api_key") != "" {

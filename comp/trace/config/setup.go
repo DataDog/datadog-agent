@@ -80,15 +80,17 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
 	cfg.GitCommit = version.Commit
-	cfg.ReceiverSocket = defaultReceiverSocket
 
 	// the core config can be assumed to already be set-up as it has been
 	// injected as a component dependency
 	// TODO: do not interface directly with pkg/config anywhere
 	coreConfigObject := c.Object()
+
 	if coreConfigObject == nil {
 		return nil, errors.New("no core config found! Bailing out")
 	}
+
+	cfg.ReceiverSocket = coreConfigObject.GetString("apm_config.receiver_socket")
 
 	if !coreConfigObject.GetBool("disable_file_logging") {
 		cfg.LogFilePath = DefaultLogFilePath
@@ -104,7 +106,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	if p := pkgconfigsetup.Datadog().GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
-	if pkgconfigsetup.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
+	if utils.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := remote(c, ipcAddress, ipc)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)

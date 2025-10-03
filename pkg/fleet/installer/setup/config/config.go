@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 const (
@@ -26,13 +24,7 @@ var (
 
 // WriteConfigs writes the configuration files to the given directory.
 func WriteConfigs(config Config, configDir string) error {
-	// ensure config root is created with correct permissions
-	err := paths.EnsureInstallerDataDir()
-	if err != nil {
-		return fmt.Errorf("could not create config directory: %w", err)
-	}
-
-	err = writeConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
+	err := writeConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
 	if err != nil {
 		return fmt.Errorf("could not write datadog.yaml: %w", err)
 	}
@@ -94,9 +86,7 @@ type DatadogConfig struct {
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
-	CollectGPUTags       bool                       `yaml:"collect_gpu_tags,omitempty"`
 	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
-	EnableNvmlDetection  bool                       `yaml:"enable_nvml_detection,omitempty"` // Deprecated: this field won't be used after agent v7.70, GPUCheck.Enabled will be enough.
 	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
 }
 

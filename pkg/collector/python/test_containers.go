@@ -8,36 +8,32 @@
 package python
 
 import (
-	"regexp"
 	"testing"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 import "C"
 
 func testIsContainerExcluded(t *testing.T) {
-	filter = &containers.Filter{
-		Enabled: true,
-	}
-	defer func() { filter = nil }()
+	sender := mocksender.NewMockSender("testID")
+	logReceiver := option.None[integrations.Component]()
+	tagger := nooptagger.NewComponent()
 
-	r, err := regexp.Compile("bar")
-	assert.Nil(t, err)
-	filter.ImageExcludeList = append(filter.ImageExcludeList, r)
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_exclude", []string{"image:bar", "kube_namespace:black"})
+	mockConfig.SetWithoutSource("container_include", "kube_namespace:white")
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 
-	r, err = regexp.Compile("white")
-	assert.Nil(t, err)
-	filter.NamespaceIncludeList = append(filter.NamespaceIncludeList, r)
-
-	r, err = regexp.Compile("black")
-	assert.Nil(t, err)
-	filter.NamespaceExcludeList = append(filter.NamespaceExcludeList, r)
-
-	assert.Equal(t, IsContainerExcluded(C.CString("foo"), C.CString("bar"), C.CString("ns")), C.int(1))
-	assert.Equal(t, IsContainerExcluded(C.CString("foo"), C.CString("bar"), C.CString("white")), C.int(0))
-	assert.Equal(t, IsContainerExcluded(C.CString("foo"), C.CString("baz"), C.CString("black")), C.int(1))
-	assert.Equal(t, IsContainerExcluded(C.CString("foo"), C.CString("baz"), nil), C.int(0))
+	assert.Equal(t, C.int(1), IsContainerExcluded(C.CString("foo"), C.CString("bar"), C.CString("ns")))
+	assert.Equal(t, C.int(0), IsContainerExcluded(C.CString("foo"), C.CString("bar"), C.CString("white")))
+	assert.Equal(t, C.int(1), IsContainerExcluded(C.CString("foo"), C.CString("baz"), C.CString("black")))
+	assert.Equal(t, C.int(0), IsContainerExcluded(C.CString("foo"), C.CString("baz"), nil))
 }

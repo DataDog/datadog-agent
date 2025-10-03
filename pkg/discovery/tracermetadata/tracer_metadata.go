@@ -10,7 +10,7 @@
 package tracermetadata
 
 // TracerMetadata as defined in
-// https://github.com/DataDog/libdatadog/blob/99056cf717cfe9/ddcommon/src/tracer_metadata.rs#L7-L29
+// https://github.com/DataDog/libdatadog/blob/0b59f64c4fc08105e5b73c5a0752ced3cf8f653e/datadog-library-config/src/tracer_metadata.rs#L7-L34
 type TracerMetadata struct {
 	SchemaVersion  uint8  `json:"schema_version"`
 	RuntimeID      string `json:"runtime_id,omitempty"`
@@ -20,4 +20,6 @@ type TracerMetadata struct {
 	ServiceName    string `json:"service_name,omitempty"`
 	ServiceEnv     string `json:"service_env,omitempty"`
 	ServiceVersion string `json:"service_version,omitempty"`
+	ProcessTags    string `json:"process_tags,omitempty"`
+	ContainerID    string `json:"container_id,omitempty"`
 }

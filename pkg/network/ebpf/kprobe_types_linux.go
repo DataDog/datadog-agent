@@ -26,13 +26,14 @@ type ConnStats struct {
 	Recv_bytes     uint64
 	Sent_packets   uint32
 	Recv_packets   uint32
-	Timestamp      uint64
-	Duration       uint64
+	Timestamp_ms   NetTimeMs
+	Duration_ms    NetTimeMs
 	Cookie         uint32
 	Protocol_stack ProtocolStack
 	Flags          uint8
 	Direction      uint8
 	Tls_tags       TLSTags
+	Cert_id        uint32
 }
 type Conn struct {
 	Tup        ConnTuple
@@ -111,6 +112,9 @@ type TLSTagsWrapper struct {
 	Updated   uint64
 	Info      TLSTags
 	Pad_cgo_0 [2]byte
+}
+type NetTimeMs struct {
+	Timestamp [3]uint16
 }
 
 type _Ctype_struct_sock uint64

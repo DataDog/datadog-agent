@@ -7,6 +7,7 @@
 package health
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -32,7 +34,9 @@ import (
 )
 
 type cliParams struct {
-	timeout int
+	timeout    int
+	JSON       bool
+	PrettyJSON bool
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -63,12 +67,15 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
 
 	cmd.Flags().IntVarP(&cliParams.timeout, "timeout", "t", 20, "timeout in second to query the Agent")
+	cmd.Flags().BoolVarP(&cliParams.JSON, "json", "j", false, "print out raw json")
+	cmd.Flags().BoolVarP(&cliParams.PrettyJSON, "pretty-json", "p", false, "pretty print JSON")
 	return cmd
 }
 
@@ -104,6 +111,18 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 		return fmt.Errorf("error unmarshalling json: %s", err)
 	}
 
+	// Handle JSON output
+	if cliParams.JSON || cliParams.PrettyJSON {
+		if cliParams.PrettyJSON {
+			var prettyJSON bytes.Buffer
+			json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
+			r = prettyJSON.Bytes()
+		}
+		fmt.Print(string(r))
+		return nil
+	}
+
+	// Handle formatted text output
 	sort.Strings(s.Unhealthy)
 	sort.Strings(s.Healthy)
 

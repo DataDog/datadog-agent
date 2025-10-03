@@ -19,19 +19,7 @@ func CreateContainer(container *workloadmeta.Container, owner workloadfilter.Fil
 	if container == nil {
 		return nil
 	}
-
-	c := &typedef.FilterContainer{
-		Id:    container.ID,
-		Name:  container.Name,
-		Image: container.Image.RawName,
-	}
-
-	setContainerOwner(c, owner)
-
-	return &workloadfilter.Container{
-		FilterContainer: c,
-		Owner:           owner,
-	}
+	return workloadfilter.CreateContainer(container.ID, container.Name, container.Image.RawName, owner)
 }
 
 // CreateContainerFromOrch creates a Filterable Container object from a workloadmeta.OrchestratorContainer and an owner.
@@ -39,35 +27,7 @@ func CreateContainerFromOrch(container *workloadmeta.OrchestratorContainer, owne
 	if container == nil {
 		return nil
 	}
-
-	c := &typedef.FilterContainer{
-		Id:    container.ID,
-		Name:  container.Name,
-		Image: container.Image.RawName,
-	}
-
-	setContainerOwner(c, owner)
-
-	return &workloadfilter.Container{
-		FilterContainer: c,
-		Owner:           owner,
-	}
-}
-
-// setContainerOwner sets the owner field in the FilterContainer based on the owner type.
-func setContainerOwner(c *typedef.FilterContainer, owner workloadfilter.Filterable) {
-	if owner == nil {
-		return
-	}
-
-	switch o := owner.(type) {
-	case *workloadfilter.Pod:
-		if o != nil && o.FilterPod != nil {
-			c.Owner = &typedef.FilterContainer_Pod{
-				Pod: o.FilterPod,
-			}
-		}
-	}
+	return workloadfilter.CreateContainer(container.ID, container.Name, container.Image.RawName, owner)
 }
 
 // CreatePod creates a Filterable Pod object from a workloadmeta.KubernetesPod.

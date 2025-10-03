@@ -27,10 +27,12 @@ func TestDeviceCache(t *testing.T) {
 	WithMockNVML(t, mockNvml)
 
 	// Create device cache
-	cache, err := NewDeviceCache()
-	require.NoError(t, err)
+	cache := NewDeviceCache()
 	require.NotNil(t, cache)
-	require.Equal(t, len(testutil.GPUUUIDs), cache.Count())
+	require.NoError(t, cache.EnsureInit())
+	count, err := cache.Count()
+	require.NoError(t, err)
+	require.Equal(t, len(testutil.GPUUUIDs), count)
 }
 
 func TestDeviceCachePartialFailure(t *testing.T) {
@@ -60,23 +62,26 @@ func TestDeviceCachePartialFailure(t *testing.T) {
 	WithMockNVML(t, mockNvml)
 
 	// Create device cache
-	cache, err := NewDeviceCache()
-	require.NoError(t, err)
+	cache := NewDeviceCache()
 	require.NotNil(t, cache)
-	require.Equal(t, 2, cache.Count())
+	require.NoError(t, cache.EnsureInit())
+	count, err := cache.Count()
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
 
 	// Verify we can get the working devices
-	device0, ok := cache.GetByUUID(testutil.GPUUUIDs[0])
-	require.True(t, ok)
+	device0, err := cache.GetByUUID(testutil.GPUUUIDs[0])
+	require.NoError(t, err)
 	require.Equal(t, 0, device0.GetDeviceInfo().Index)
 
-	device1, ok := cache.GetByUUID(testutil.GPUUUIDs[1])
-	require.True(t, ok)
+	device1, err := cache.GetByUUID(testutil.GPUUUIDs[1])
+	require.NoError(t, err)
 	require.Equal(t, 1, device1.GetDeviceInfo().Index)
 
 	// Verify we can't get the failed device
-	_, ok = cache.GetByUUID("non-existent-uuid")
-	require.False(t, ok)
+	_, err = cache.GetByUUID("non-existent-uuid")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "device non-existent-uuid not found")
 }
 
 func TestDeviceCacheGetByIndex(t *testing.T) {
@@ -90,9 +95,9 @@ func TestDeviceCacheGetByIndex(t *testing.T) {
 	WithMockNVML(t, mockNvml)
 
 	// Create device cache
-	cache, err := NewDeviceCache()
-	require.NoError(t, err)
+	cache := NewDeviceCache()
 	require.NotNil(t, cache)
+	require.NoError(t, cache.EnsureInit())
 
 	// Test get by index
 	device, err := cache.GetByIndex(0)
@@ -121,12 +126,13 @@ func TestDeviceCacheSMVersionSet(t *testing.T) {
 	WithMockNVML(t, mockNvml)
 
 	// Create device cache
-	cache, err := NewDeviceCache()
-	require.NoError(t, err)
+	cache := NewDeviceCache()
 	require.NotNil(t, cache)
+	require.NoError(t, cache.EnsureInit())
 
 	// Test SM version set
-	smVersions := cache.SMVersionSet()
+	smVersions, err := cache.SMVersionSet()
+	require.NoError(t, err)
 	require.NotEmpty(t, smVersions)
 	_, exists := smVersions[75] // 7*10 + 5
 	require.True(t, exists)
@@ -142,15 +148,18 @@ func TestDeviceCacheAll(t *testing.T) {
 	WithMockNVML(t, mockNvml)
 
 	// Create device cache
-	cache, err := NewDeviceCache()
-	require.NoError(t, err)
+	cache := NewDeviceCache()
 	require.NotNil(t, cache)
+	require.NoError(t, cache.EnsureInit())
 
 	// cache.Count() should *only* counts physical devices
-	require.Equal(t, len(testutil.GPUUUIDs), cache.Count(), "Didn't find expected number of physical devices in cache")
+	count, err := cache.Count()
+	require.NoError(t, err)
+	require.Equal(t, len(testutil.GPUUUIDs), count, "Didn't find expected number of physical devices in cache")
 
 	// cache.All() includes all physical and MIG devices
-	allDevices := cache.All()
+	allDevices, err := cache.All()
+	require.NoError(t, err)
 	expectedTotalDevices := testutil.GetTotalExpectedDevices()
 	require.Len(t, allDevices, expectedTotalDevices, "Cache is not filled correctly, some devices are missing")
 }
@@ -166,9 +175,9 @@ func TestDeviceCacheCores(t *testing.T) {
 	WithMockNVML(t, mockNvml)
 
 	// Create device cache
-	cache, err := NewDeviceCache()
-	require.NoError(t, err)
+	cache := NewDeviceCache()
 	require.NotNil(t, cache)
+	require.NoError(t, cache.EnsureInit())
 
 	// Test getting cores
 	cores, err := cache.Cores(testutil.DefaultGpuUUID)
@@ -188,12 +197,13 @@ func TestDeviceCacheAllPhysicalDevices(t *testing.T) {
 	)
 	WithMockNVML(t, mockNvml)
 
-	cache, err := NewDeviceCache()
-	require.NoError(t, err)
+	cache := NewDeviceCache()
 	require.NotNil(t, cache)
+	require.NoError(t, cache.EnsureInit())
 
 	// Test get all devices
-	physicalDevices := cache.AllPhysicalDevices()
+	physicalDevices, err := cache.AllPhysicalDevices()
+	require.NoError(t, err)
 	require.Len(t, physicalDevices, len(testutil.GPUUUIDs))
 
 	for i, device := range physicalDevices {
@@ -210,11 +220,12 @@ func TestDeviceCacheAllMigDevices(t *testing.T) {
 	)
 	WithMockNVML(t, mockNvml)
 
-	cache, err := NewDeviceCache()
-	require.NoError(t, err)
+	cache := NewDeviceCache()
+	require.NoError(t, cache.EnsureInit())
 	require.NotNil(t, cache)
 
-	migDevices := cache.AllMigDevices()
+	migDevices, err := cache.AllMigDevices()
+	require.NoError(t, err)
 	// Calculate expected number of MIG devices from testutil
 	expectedTotalMigCount := testutil.GetTotalExpectedDevices() - len(testutil.GPUUUIDs)
 	require.Len(t, migDevices, expectedTotalMigCount, "AllMigDevices should return all and only configured MIG instances")

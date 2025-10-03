@@ -61,6 +61,7 @@ func TestPull(t *testing.T) {
 		require.Equal(t, testutil.DefaultMaxClockRates[workloadmeta.GPUSM], gpu.MaxClockRates[workloadmeta.GPUSM])
 		require.Equal(t, testutil.DefaultMaxClockRates[workloadmeta.GPUMemory], gpu.MaxClockRates[workloadmeta.GPUMemory])
 		require.Equal(t, expectedActivePIDs, gpu.ActivePIDs)
+		require.Equal(t, "none", gpu.VirtualizationMode)
 	}
 
 	for _, uuid := range testutil.GPUUUIDs {

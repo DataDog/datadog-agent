@@ -12,6 +12,7 @@ import "github.com/DataDog/datadog-agent/pkg/dyninst/object"
 type config struct {
 	objectLoader     object.Loader
 	typeIndexFactory goTypeIndexFactory
+	skipReturnEvents bool
 }
 
 var defaultConfig = config{
@@ -34,6 +35,11 @@ func WithOnDiskGoTypeIndexFactory(diskCache *object.DiskCache) Option {
 	return optionFunc(func(c *config) {
 		c.typeIndexFactory = &onDiskGoTypeIndexFactory{diskCache: diskCache}
 	})
+}
+
+// WithSkipReturnEvents skips the generation of return events.
+func WithSkipReturnEvents(skip bool) Option {
+	return optionFunc(func(c *config) { c.skipReturnEvents = skip })
 }
 
 type optionFunc func(c *config)
