@@ -72,3 +72,9 @@ validate_experiment_systemd_units:
   rules: !reference [.on_installer_systemd_changes]
   script:
     - dda inv -- -e installer.generate-experiment-units --check
+
+test_gitlab:
+  extends: .lint
+  needs: []
+  script:
+    - dda inv -- -e auth.test-gitlab

@@ -5,7 +5,7 @@ import os
 from invoke import Exit, task
 
 from tasks.libs.ciproviders.github_api import generate_local_github_token
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_token
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo, get_gitlab_token
 from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.utils import running_in_ci
 
@@ -30,6 +30,35 @@ def gitlab(ctx, repo='datadog-agent', verbose=False):
         print(os.environ["GITLAB_TOKEN"])
     else:
         print(get_gitlab_token(ctx, repo, verbose))
+
+
+@task
+def test_gitlab(ctx, repo='datadog-agent', n=100):
+    import time
+    import sys
+
+    if "GITLAB_TOKEN" in os.environ:
+        print('Warning: GITLAB_TOKEN is set in the environment')
+
+    n_errors = 0
+    reponame = 'DataDog/' + repo
+    for i in range(n):
+        print(f'#{i+1}/{n}')
+        try:
+            repo = get_gitlab_repo(reponame)
+            id = 78266844
+            p = repo.pipelines.get(id, lazy=False)
+            print('Got pipeline', p.status)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            n_errors += 1
+
+        print('Sleeping')
+        time.sleep(1)
+        sys.stdout.flush()
+
+    print(f'Total errors: {n_errors}/{n}')
 
 
 @task
