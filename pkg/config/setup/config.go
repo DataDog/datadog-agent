@@ -528,6 +528,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
 	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", DefaultNetworkPathStaticPathTracerouteQueries)
 	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
+	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -2157,6 +2158,10 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_GIT_REPOSITORY_URL": {},
 		// signals whether or not ADP is enabled
 		"DD_ADP_ENABLED": {},
+		// trace-loader socket file descriptors
+		"DD_APM_NET_RECEIVER_FD":  {},
+		"DD_APM_UNIX_RECEIVER_FD": {},
+		"DD_OTLP_CONFIG_GRPC_FD":  {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
