@@ -522,7 +522,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	assert.Equal(t, int64(1), attempts.Load())
 }
 
-func xTestTransactionEventHandlersOnRetry(t *testing.T) {
+func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	requests := atomic.NewInt64(0)
 
 	mux := http.NewServeMux()

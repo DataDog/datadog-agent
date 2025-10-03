@@ -260,15 +260,15 @@ func TestIsblockEndpointStaysClosedAfterFailedTest(t *testing.T) {
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test"))
 
 	e.close("test")
 
-	assert.True(t, e.isBlock("test"))
+	assert.True(t, e.isBlockForSend("test"))
 
 	mocktime = mocktime.Add(2 * time.Second)
-	assert.False(t, e.isBlock("test"))
-	assert.True(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test"))
+	assert.True(t, e.isBlockForSend("test"))
 
 	e.close("test")
 
@@ -281,8 +281,8 @@ func TestIsblockEndpointStaysClosedAfterFailedTest(t *testing.T) {
 
 	// Testing again after another 2 seconds
 	mocktime = mocktime.Add(2 * time.Second)
-	assert.False(t, e.isBlock("test"))
-	assert.True(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test"))
+	assert.True(t, e.isBlockForSend("test"))
 	assertState(t, e, "test", HalfBlocked)
 }
 
@@ -300,19 +300,19 @@ func TestIsblockEndpointReopensAfterSuccessfulTest(t *testing.T) {
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test"))
 
 	e.close("test")
 
-	assert.True(t, e.isBlock("test"))
+	assert.True(t, e.isBlockForSend("test"))
 
 	mocktime = mocktime.Add(2 * time.Second)
-	assert.False(t, e.isBlock("test"))
-	assert.True(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test"))
+	assert.True(t, e.isBlockForSend("test"))
 
 	e.recover("test")
 
-	e.isBlock("test")
+	e.isBlockForSend("test")
 	assertState(t, e, "test", Unblocked)
 }
 
@@ -330,15 +330,15 @@ func TestIsblockEndpointReopensForTest(t *testing.T) {
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test"))
 
 	e.close("test")
 
-	assert.True(t, e.isBlock("test"))
+	assert.True(t, e.isBlockForSend("test"))
 
 	mocktime = mocktime.Add(2 * time.Second)
-	assert.False(t, e.isBlock("test"))
-	assert.True(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test"))
+	assert.True(t, e.isBlockForSend("test"))
 }
 
 func TestIsblockEndpointCloses(t *testing.T) {
@@ -346,11 +346,11 @@ func TestIsblockEndpointCloses(t *testing.T) {
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test"))
 
 	e.close("test")
 
-	assert.True(t, e.isBlock("test"))
+	assert.True(t, e.isBlockForSend("test"))
 }
 
 func TestIsblockOpen(t *testing.T) {
@@ -358,5 +358,5 @@ func TestIsblockOpen(t *testing.T) {
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlock("test"))
+	assert.False(t, e.isBlockForSend("test"))
 }

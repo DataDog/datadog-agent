@@ -167,13 +167,40 @@ func (e *blockedEndpoints) recover(endpoint string) {
 	e.errorPerEndpoint[endpoint] = b
 }
 
-func (e *blockedEndpoints) isBlock(endpoint string) bool {
+// isBlockForRetry checks if the endpoint is blocked when deciding if
+// we want to add the transaction to the retry queue.
+// We check if an endpoint is blocked in two places.
+// Once when deciding if we want to requeue a transaction and another time
+// if we are deciding whether to send the transaction. The retry queue should
+// not also update the state as that is only used when sending the transaction
+// to ensure only one gets sent when in the `HalfBlock` state.
+func (e *blockedEndpoints) isBlockForRetry(endpoint string) bool {
+	e.m.RLock()
+	defer e.m.RUnlock()
+
+	if b, ok := e.errorPerEndpoint[endpoint]; ok {
+		b.m.RLock()
+		defer b.m.RUnlock()
+
+		return b.state == HalfBlocked ||
+			(b.state == Blocked && TimeNow().Before(b.until))
+
+	}
+
+	return false
+}
+
+// isBlockForSend checks if the endpoint is blocked when deciding if
+// we want to send a transaction.
+// This function can modify the state. When in `Blocked` after the
+// timeout has expired we want to move to `HalfOpen` where we send a
+// single transaction to test if the endpoint now available.
+func (e *blockedEndpoints) isBlockForSend(endpoint string) bool {
 	e.m.RLock()
 	defer e.m.RUnlock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
 
-		printState("current state", b.state)
 		b.m.RLock()
 		switch b.state {
 		case HalfBlocked:
