@@ -209,12 +209,12 @@ func isStreamSpecificEvent(et gpuebpf.CudaEventType) bool {
 func (c *cudaEventConsumer) handleEvent(header *gpuebpf.CudaEventHeader, dataPtr unsafe.Pointer, dataLen int) error {
 	eventType := gpuebpf.CudaEventType(header.Type)
 
-	// Acts as a sanity check to ensure that we're not missing any event types
-	if counter, ok := c.telemetry.eventCounterByType[eventType]; !ok {
+	counter, ok := c.telemetry.eventCounterByType[eventType]
+	if !ok {
+		c.telemetry.eventErrors.Inc(telemetryEventTypeUnknown, telemetryEventErrorUnknownType)
 		return fmt.Errorf("unknown event type: %d", header.Type)
-	} else {
-		counter.Inc()
 	}
+	counter.Inc()
 
 	if isStreamSpecificEvent(eventType) {
 		return c.handleStreamEvent(header, dataPtr, dataLen)
