@@ -13,8 +13,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"regexp"
-	"strings"
 	"sync"
 	"time"
 
@@ -256,8 +254,6 @@ func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
 	return vpcSubnets, nil
 }
 
-var awsElbRegex = regexp.MustCompile(`.*\.elb(\.[a-z0-9-]*)?\.amazonaws\.com`)
-
 func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry, domains []string) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
@@ -273,13 +269,7 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 
 		// TODO: ADD OPTION TO IGNORE ALL DATADOG DOMAINS/TRAFFIC?, BY DEFAULT?
 
-		if strings.HasSuffix(domain, ".ec2.internal") {
-			continue
-		}
-		if strings.HasSuffix(domain, "."+s.collectorConfigs.datadogSite) {
-			continue
-		}
-		if awsElbRegex.MatchString(domain) {
+		if shouldSkipDomain(domain, s.collectorConfigs.datadogSite) {
 			continue
 		}
 
