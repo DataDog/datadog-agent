@@ -265,7 +265,7 @@ TAIL_CALL_FNC(sys_open_ret_cb, void *ctx) {
 }
 
 // get and set the retval then tail call so that only one program is used for all the syscall ret
-static int __attribute__((always_inline)) sys_open_ret(void *ctx) {
+static int __attribute__((always_inline)) sys_open_ret(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
