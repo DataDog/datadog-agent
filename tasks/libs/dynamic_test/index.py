@@ -318,3 +318,15 @@ class DynamicTestIndex:
             skipped[job_name] = self.skipped_tests(modified_packages, job_name)
 
         return skipped
+
+    def triggering_path(self, job_name: str, test_name: str) -> list[str]:
+        """Determine the triggering path for a specific test.
+
+        Args:
+            test_name: Name of the test to get the triggering path for
+        """
+        triggering_path = []
+        for pkg, tests in self._data.get(job_name, {}).items():
+            if test_name in tests:
+                triggering_path.append(pkg)
+        return triggering_path

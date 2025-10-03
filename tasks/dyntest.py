@@ -7,8 +7,10 @@ from time import sleep
 
 from invoke import Context, task
 
+from tasks.libs.common.auth import aws_vault_env
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import get_modified_files
+from tasks.libs.common.git import get_commit_sha, get_modified_files
+from tasks.libs.common.utils import environ
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator
 from tasks.libs.dynamic_test.executor import DynTestExecutor
@@ -18,6 +20,7 @@ from tasks.libs.dynamic_test.indexers.e2e import (
     FileCoverageDynTestIndexer,
     PackageCoverageDynTestIndexer,
 )
+from tasks.new_e2e_tests import DEFAULT_DYNTEST_BUCKET_URI
 
 
 @task
@@ -85,3 +88,20 @@ def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: 
         evaluator.send_stats_to_datadog(results)
 
         sleep(10)  # small sleep to avoid rate limiting
+
+
+@task
+def show_triggering_path(ctx: Context, job_name: str, test_name: str):
+    print(f"Showing triggering path for {test_name} in {job_name}")
+    # Authenticate with aws-vault
+    with environ(aws_vault_env(ctx, "sso-build-stable-developer")):
+        backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
+        executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
+        triggering_path = executor.triggering_path(job_name, test_name)
+
+    if triggering_path:
+        print(f"Triggering path for {test_name} in {job_name}: {triggering_path}")
+    else:
+        print(
+            f"No triggering path found for {test_name} in {job_name}, it means that the test is in the index, it should never be skipped"
+        )
