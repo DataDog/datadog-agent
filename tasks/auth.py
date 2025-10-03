@@ -54,8 +54,7 @@ def test_gitlab(ctx, repo='datadog-agent', n=100):
             traceback.print_exc()
             n_errors += 1
 
-        print('Sleeping')
-        time.sleep(1)
+        print('--------------------')
         sys.stdout.flush()
 
     print(f'Total errors: {n_errors}/{n}')
