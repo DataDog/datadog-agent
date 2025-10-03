@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client/fixtures"
 	"github.com/stretchr/testify/require"
@@ -931,4 +932,92 @@ func TestUseAlternateAppliancesFlag(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, client.useAlternateAppliances)
 	})
+}
+
+func TestWithTimeout(t *testing.T) {
+	authConfig := AuthConfig{
+		Method:   "basic",
+		Username: "user",
+		Password: "password",
+	}
+
+	tests := []struct {
+		name            string
+		timeoutSeconds  int
+		expectedTimeout time.Duration
+	}{
+		{
+			name:            "default timeout without option",
+			timeoutSeconds:  0, // not using WithTimeout option
+			expectedTimeout: defaultHTTPTimeout * time.Second,
+		},
+		{
+			name:            "custom timeout 5 seconds",
+			timeoutSeconds:  5,
+			expectedTimeout: 5 * time.Second,
+		},
+		{
+			name:            "custom timeout 30 seconds",
+			timeoutSeconds:  30,
+			expectedTimeout: 30 * time.Second,
+		},
+		{
+			name:            "custom timeout 1 second",
+			timeoutSeconds:  1,
+			expectedTimeout: 1 * time.Second,
+		},
+		{
+			name:            "custom timeout 60 seconds",
+			timeoutSeconds:  60,
+			expectedTimeout: 60 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var client *Client
+			var err error
+
+			if tt.timeoutSeconds == 0 {
+				// Test default timeout (no WithTimeout option)
+				client, err = NewClient("example.com", 9182, "analytics.example.com:8443", false, authConfig)
+			} else {
+				// Test custom timeout with WithTimeout option
+				client, err = NewClient("example.com", 9182, "analytics.example.com:8443", false, authConfig, WithTimeout(tt.timeoutSeconds))
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, client)
+			require.NotNil(t, client.httpClient)
+			require.Equal(t, tt.expectedTimeout, client.httpClient.Timeout)
+		})
+	}
+}
+
+func TestWithTimeoutMultipleOptions(t *testing.T) {
+	authConfig := AuthConfig{
+		Method:   "basic",
+		Username: "user",
+		Password: "password",
+	}
+
+	// Test that WithTimeout works correctly when combined with other options
+	client, err := NewClient(
+		"example.com",
+		9182,
+		"analytics.example.com:8443",
+		false,
+		authConfig,
+		WithTimeout(15),
+		WithMaxAttempts(5),
+		WithMaxCount(1000),
+		WithStartPagination(true),
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	require.Equal(t, 15*time.Second, client.httpClient.Timeout)
+	require.Equal(t, 5, client.maxAttempts)
+	require.Equal(t, "1000", client.maxCount)
+	require.True(t, client.useStartPagination)
 }

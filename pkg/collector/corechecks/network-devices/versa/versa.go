@@ -47,6 +47,7 @@ type checkCfg struct {
 	LookbackWindow                        string   `yaml:"lookback_window"`
 	ExtendedLookbackWindow                string   `yaml:"extended_lookback_window"`
 	UseHTTP                               bool     `yaml:"use_http"`
+	ClientTimeout                         int      `yaml:"client_timeout"`
 	Insecure                              bool     `yaml:"insecure"`
 	CAFile                                string   `yaml:"ca_file"`
 	Namespace                             string   `yaml:"namespace"`
@@ -481,6 +482,10 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 
 func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 	var clientOptions []client.ClientOptions
+
+	if v.config.ClientTimeout > 0 {
+		clientOptions = append(clientOptions, client.WithTimeout(v.config.ClientTimeout))
+	}
 
 	if v.config.Insecure || v.config.CAFile != "" {
 		options, err := client.WithTLSConfig(v.config.Insecure, v.config.CAFile)

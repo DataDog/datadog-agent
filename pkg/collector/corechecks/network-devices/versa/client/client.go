@@ -152,6 +152,14 @@ func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint
 	return nil
 }
 
+// WithTimeout is a functional option to set the HTTP Client timeout
+// in seconds
+func WithTimeout(timeoutSeconds int) ClientOptions {
+	return func(c *Client) {
+		c.httpClient.Timeout = time.Duration(timeoutSeconds) * time.Second
+	}
+}
+
 // WithTLSConfig is a functional option to set the HTTP Client TLS Config
 func WithTLSConfig(insecure bool, CAFile string) (ClientOptions, error) {
 	var caCert []byte
