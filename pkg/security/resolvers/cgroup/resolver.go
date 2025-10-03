@@ -209,7 +209,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	if process.CGroup.CGroupID == "" || process.CGroup.CGroupFile.Inode == 0 {
 		// it should not happen, but we have to fallback in this case
 		cid, cgroup, _, err := cr.cgroupFS.FindCGroupContext(process.Pid, process.Pid)
-		if err == nil {
+		if err == nil && cgroup.CGroupID != "" {
 			process.CGroup.CGroupFile.MountID = cgroup.CGroupFileMountID
 			process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
 			process.CGroup.CGroupID = cgroup.CGroupID
