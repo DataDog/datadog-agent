@@ -10,13 +10,17 @@ SCOPE = ["https://www.googleapis.com/auth/spreadsheets"]
 
 
 def _execute_with_retries(request, retries: int = 4, min_wait: float = 1.0, max_wait: float = 30.0):
+    """
+    Execute a googleapiclient HttpRequest with exponential backoff + jitter.
+    attempts = total tries (initial try + retries).
+    """
     from googleapiclient import errors
 
-    for attempt in range(retries):
+    for attempt in range(1, retries + 1):
         try:
             return request.execute()
         except errors.HttpError as e:
-            if retries - 1 == attempt:
+            if attempt - 1 == retries:
                 raise
 
             status = e.resp.status
