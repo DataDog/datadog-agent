@@ -144,7 +144,7 @@ def setup(
                 devcontainer["mounts"].append(more_mounts)
             more_create = user_config.get("onCreate")
             if more_create:
-               devcontainer["onCreateCommand"] = devcontainer["onCreateCommand"] + " && " + " && ".join(more_create)
+                devcontainer["onCreateCommand"] = devcontainer["onCreateCommand"] + " && " + " && ".join(more_create)
 
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))
