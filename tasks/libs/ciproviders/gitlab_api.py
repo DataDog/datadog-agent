@@ -76,6 +76,8 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
 
     token = token_info['token']
 
+    assert token.startswith('glpat-'), "Got empty Gitlab token"
+
     return token
 
 
