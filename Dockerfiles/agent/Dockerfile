@@ -198,7 +198,7 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && usermod -a -G secret-manager dd-agent \
   && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
-  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
+  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run/ \
   && chmod 755 /probe.sh /initlog.sh \
   && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
   && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
