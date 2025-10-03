@@ -25,7 +25,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/def/replaytagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -83,10 +82,6 @@ type localTagger struct {
 	cancel                     context.CancelFunc
 }
 
-func (t *localTagger) ProcessTagInfo(tagInfo []*types.TagInfo) {
-	t.tagStore.ProcessTagInfo(tagInfo)
-}
-
 // Requires defines the dependencies of the tagger component.
 type Requires struct {
 	compdef.In
@@ -102,9 +97,9 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp       taggerdef.Component
-	ReplayComp replaytagger.Component
-	Endpoint   api.AgentEndpointProvider
+	Comp      taggerdef.Component
+	Processor taggerdef.Processor
+	Endpoint  api.AgentEndpointProvider
 }
 
 // NewComponent returns a new tagger client
@@ -141,8 +136,8 @@ func NewComponent(req Requires) (Provides, error) {
 	}})
 
 	return Provides{
-		Comp:       taggerInstance,
-		ReplayComp: taggerInstance,
+		Comp:      taggerInstance,
+		Processor: taggerInstance.tagStore,
 		Endpoint: api.NewAgentEndpointProvider(func(writer http.ResponseWriter, _ *http.Request) {
 			response := taggerInstance.List()
 			jsonTags, err := json.Marshal(response)

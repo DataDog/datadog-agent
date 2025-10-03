@@ -28,10 +28,6 @@ type fakeTagger struct {
 	tagStore *tagstore.TagStore
 }
 
-func (f *fakeTagger) ProcessTagInfo(tagInfo []*types.TagInfo) {
-	f.tagStore.ProcessTagInfo(tagInfo)
-}
-
 // MockRequires is a struct containing the required components for the mock.
 type MockRequires struct {
 	Config       config.Component
