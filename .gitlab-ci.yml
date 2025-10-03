@@ -163,10 +163,6 @@ variables:
 
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
-  # SUFFIX variable to _test_only
-  DATADOG_AGENT_BUILDIMAGES_SUFFIX: "_test_only"
-  DATADOG_AGENT_BUILDIMAGES: v77996334-c8e51f66
-  # New images to enable different version per image - not used yet
   # SUFFIX variable to
   CI_IMAGE_BTF_GEN: v77445509-0f6a3ac2
   CI_IMAGE_BTF_GEN_SUFFIX: ""
