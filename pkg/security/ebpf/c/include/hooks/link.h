@@ -7,7 +7,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_link(u8 async, const char *oldpath, const char *newpath) {
+static int __attribute__((always_inline)) trace__sys_link(u8 async, const char *oldpath, const char *newpath) {
     struct policy_t policy = fetch_policy(EVENT_LINK);
     struct syscall_cache_t syscall = {
         .type = EVENT_LINK,
@@ -92,7 +92,7 @@ TAIL_CALL_FNC(dr_link_src_callback, ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) create_link_target_dentry_common(struct dentry *target_dentry, enum link_target_dentry_origin origin) {
+static int __attribute__((always_inline)) create_link_target_dentry_common(struct dentry *target_dentry, enum link_target_dentry_origin origin) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
@@ -133,7 +133,7 @@ int rethook___lookup_hash(ctx_t *ctx) {
     return create_link_target_dentry_common((struct dentry *)CTX_PARMRET(ctx), ORIGIN_RETHOOK___LOOKUP_HASH);
 }
 
-int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
         pop_syscall(EVENT_LINK);
         return 0;
@@ -201,7 +201,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_link_exit, struct tracepoint_raw_syscalls_sy
     return sys_link_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
+static int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;

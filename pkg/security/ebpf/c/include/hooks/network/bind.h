@@ -6,7 +6,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) sys_bind(u64 pid_tgid) {
+static int __attribute__((always_inline)) sys_bind(u64 pid_tgid) {
     struct syscall_cache_t syscall = {
         .type = EVENT_BIND,
         .async = pid_tgid ? 1: 0,
@@ -26,7 +26,7 @@ HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr *, addr, unsigned int, ad
     return sys_bind(0);
 }
 
-int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_BIND);
     if (!syscall) {
         return 0;

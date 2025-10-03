@@ -6,7 +6,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_chmod(const char *path, umode_t mode) {
+static int __attribute__((always_inline)) trace__sys_chmod(const char *path, umode_t mode) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -41,7 +41,7 @@ HOOK_SYSCALL_ENTRY4(fchmodat2, int, dirfd, const char *, filename, umode_t, mode
     return trace__sys_chmod(filename, mode);
 }
 
-int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHMOD);
     if (!syscall) {
         return 0;

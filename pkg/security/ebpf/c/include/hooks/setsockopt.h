@@ -5,7 +5,8 @@
 #include "helpers/syscalls.h"
 #include "helpers/process.h"
 #include <uapi/linux/filter.h>
-long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_fd, int level, int optname) {
+
+static long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_fd, int level, int optname) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -24,7 +25,7 @@ long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_
     return 0;
 }
 
-int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SETSOCKOPT);
     if (!syscall) {
         return 0;

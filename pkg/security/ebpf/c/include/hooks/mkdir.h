@@ -7,7 +7,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-long __attribute__((always_inline)) trace__sys_mkdir(u8 async, const char *filename, umode_t mode) {
+static long __attribute__((always_inline)) trace__sys_mkdir(u8 async, const char *filename, umode_t mode) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -37,7 +37,7 @@ HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char *, filename, umode_t, mode) 
     return trace__sys_mkdir(SYNC_SYSCALL, filename, mode);
 }
 
-int __attribute__((always_inline)) filename_create_common(struct path *p) {
+static int __attribute__((always_inline)) filename_create_common(struct path *p) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;
@@ -88,7 +88,7 @@ int hook_vfs_mkdir(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;
@@ -152,7 +152,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_mkdir_exit, struct tracepoint_raw_syscalls_s
     return sys_mkdir_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
+static int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;

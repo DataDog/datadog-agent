@@ -9,7 +9,7 @@
 #include "constants/fentry_macro.h"
 #include "helpers/caps.h"
 
-int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
+static int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
     // use the fist 56 bits of ktime to simulate a somewhat monotonic id
     // the last 8 bits are the cpu id to avoid collisions between cores
     // increment the id by 1 for the envs to have distinct ids (this assumes a new exec syscall cannot be issued in the next nanosecond)
@@ -51,7 +51,7 @@ HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, ar
     return trace__sys_execveat(ctx, filename, argv, env);
 }
 
-int __attribute__((always_inline)) handle_execve_exit() {
+static int __attribute__((always_inline)) handle_execve_exit() {
     pop_syscall(EVENT_EXEC);
     return 0;
 }
@@ -64,7 +64,7 @@ HOOK_SYSCALL_EXIT(execveat) {
     return handle_execve_exit();
 }
 
-int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
+static int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *interpreter_inode;
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), get_file_f_inode_addr(file));
 
@@ -97,7 +97,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
 
 #define DO_FORK_STRUCT_INPUT 1
 
-int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
+static int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
     struct syscall_cache_t syscall = {
         .type = EVENT_FORK,
         .fork.is_thread = 1,
@@ -274,7 +274,7 @@ int hook_do_coredump(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
+static int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
@@ -385,7 +385,7 @@ int hook_exit_itimers(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) fill_exec_context() {
+static int __attribute__((always_inline)) fill_exec_context() {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -465,7 +465,7 @@ TAIL_CALL_FNC(get_envs_offset, void *ctx) {
     return 0;
 }
 
-void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_parsing_context_t *args_envs_ctx, struct args_envs_t *args_envs) {
+static void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_parsing_context_t *args_envs_ctx, struct args_envs_t *args_envs) {
     const char *args_start = args_envs_ctx->args_start;
     int offset = args_envs_ctx->parsing_offset;
 
@@ -599,7 +599,7 @@ TAIL_CALL_FNC(parse_args_envs, void *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_binprm *bprm) {
+static int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_binprm *bprm) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -697,7 +697,7 @@ int hook_setup_arg_pages(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
+static int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     struct syscall_cache_t *syscall = pop_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;

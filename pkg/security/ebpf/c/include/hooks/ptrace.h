@@ -44,7 +44,7 @@ HOOK_SYSCALL_ENTRY3(ptrace, u32, request, pid_t, pid, void *, addr) {
     return 0;
 }
 
-int __attribute__((always_inline)) ptrace_check_attach_common(struct task_struct *child) {
+static int __attribute__((always_inline)) ptrace_check_attach_common(struct task_struct *child) {
     if (!child) {
         return 0;
     }
@@ -73,7 +73,7 @@ int hook_arch_ptrace(ctx_t *ctx) {
     return ptrace_check_attach_common((struct task_struct *)CTX_PARM1(ctx));
 }
 
-int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_PTRACE);
     if (!syscall) {
         return 0;

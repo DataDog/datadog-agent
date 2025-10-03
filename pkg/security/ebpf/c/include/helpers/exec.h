@@ -6,7 +6,7 @@
 
 #include "process.h"
 
-int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file, struct inode *inode) {
+static int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file, struct inode *inode) {
     struct dentry *dentry  = get_file_dentry(file);
     if (syscall->exec.dentry) {
         // handle nlink that needs to be collected in the second pass

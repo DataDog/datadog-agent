@@ -5,10 +5,6 @@
 #include "constants/macros.h"
 #include "maps.h"
 
-int __attribute__((always_inline)) ktime_get_sec() {
-    return NS_TO_SEC(bpf_ktime_get_ns());
-}
-
 static __attribute__((always_inline)) u32 ord(u8 c) {
     if (c >= 49 && c <= 57) {
         return c - 48;
@@ -38,7 +34,7 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
     return res;
 }
 
-int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
+static int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
     u32 key = 0;
     struct selinux_write_buffer_t *copy = bpf_map_lookup_elem(&selinux_write_buffer, &key);
     if (!copy) {
@@ -66,11 +62,11 @@ int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
     return 0;
 }
 
-u32 __attribute__((always_inline)) rand32() {
+static u32 __attribute__((always_inline)) rand32() {
     return bpf_get_prandom_u32();
 }
 
-u64 __attribute__((always_inline)) rand64() {
+static u64 __attribute__((always_inline)) rand64() {
     return (u64)rand32() << 32 | bpf_ktime_get_ns();
 }
 

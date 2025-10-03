@@ -43,7 +43,7 @@ enum param_kind_t {
 
 #define HOOK_ON_DEMAND HOOK_ENTRY("parse_args")
 
-struct on_demand_event_t* __attribute__((always_inline)) get_on_demand_event() {
+static struct on_demand_event_t* __attribute__((always_inline)) get_on_demand_event() {
 	u32 key = 0;
 	struct on_demand_event_t* evt = bpf_map_lookup_elem(&on_demand_event_gen, &key);
 	if (!evt) {

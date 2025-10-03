@@ -5,7 +5,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, const char *uargs) {
+static int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, const char *uargs) {
     struct syscall_cache_t syscall = {
         .type = EVENT_INIT_MODULE,
         .init_module = {
@@ -30,7 +30,7 @@ HOOK_SYSCALL_ENTRY3(finit_module, int, fd, const char *, uargs, int, flags) {
     return trace_init_module(0, uargs);
 }
 
-int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f, enum TAIL_CALL_PROG_TYPE prog_type) {
+static int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
@@ -55,7 +55,7 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     return 0;
 }
 
-int __attribute__((always_inline)) fetch_mod_name_common(struct module *m) {
+static int __attribute__((always_inline)) fetch_mod_name_common(struct module *m) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
@@ -93,7 +93,7 @@ int hook_security_kernel_read_file(ctx_t *ctx) {
     return trace_kernel_file(ctx, f, KPROBE_OR_FENTRY_TYPE);
 }
 
-int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, char *modname) {
+static int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, char *modname) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
@@ -167,7 +167,7 @@ HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace_delete_module_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) trace_delete_module_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_DELETE_MODULE);
     if (!syscall) {
         return 0;

@@ -29,19 +29,19 @@ static __attribute__((always_inline)) u32 copy_tty_name(const char src[TTY_NAME_
     return TTY_NAME_LEN;
 }
 
-void __attribute__((always_inline)) copy_proc_entry(struct process_entry_t *src, struct process_entry_t *dst) {
+static void __attribute__((always_inline)) copy_proc_entry(struct process_entry_t *src, struct process_entry_t *dst) {
     dst->executable = src->executable;
     dst->exec_timestamp = src->exec_timestamp;
     copy_tty_name(src->tty_name, dst->tty_name);
     bpf_probe_read(dst->comm, TASK_COMM_LEN, src->comm);
 }
 
-void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, struct proc_cache_t *dst) {
+static void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, struct proc_cache_t *dst) {
     dst->cgroup = src->cgroup;
     copy_proc_entry(&src->entry, &dst->entry);
 }
 
-void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cache_t *src, struct pid_cache_t *dst) {
+static void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cache_t *src, struct pid_cache_t *dst) {
     dst->cookie = src->cookie;
     dst->user_session_id = src->user_session_id;
     dst->ppid = src->ppid;
@@ -49,7 +49,7 @@ void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cac
     dst->credentials = src->credentials;
 }
 
-struct proc_cache_t __attribute__((always_inline)) * get_proc_from_cookie(u64 cookie) {
+static struct proc_cache_t *__attribute__((always_inline)) get_proc_from_cookie(u64 cookie) {
     if (!cookie) {
         return NULL;
     }
@@ -57,11 +57,11 @@ struct proc_cache_t __attribute__((always_inline)) * get_proc_from_cookie(u64 co
     return bpf_map_lookup_elem(&proc_cache, &cookie);
 }
 
-struct pid_cache_t *__attribute__((always_inline)) get_pid_cache(u32 tgid) {
+static struct pid_cache_t *__attribute__((always_inline)) get_pid_cache(u32 tgid) {
     return (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
 }
 
-struct proc_cache_t *__attribute__((always_inline)) get_proc_cache(u32 tgid) {
+static struct proc_cache_t *__attribute__((always_inline)) get_proc_cache(u32 tgid) {
     struct pid_cache_t *pid_entry = get_pid_cache(tgid);
     if (!pid_entry) {
         return NULL;
@@ -104,27 +104,27 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context(
     return fill_process_context_with_pid_tgid(data, pid_tgid);
 }
 
-void __attribute__((always_inline)) fill_args_envs(struct process_event_t *event, struct syscall_cache_t *syscall) {
+static void __attribute__((always_inline)) fill_args_envs(struct process_event_t *event, struct syscall_cache_t *syscall) {
     event->args_id = syscall->exec.args.id;
     event->args_truncated = syscall->exec.args.truncated;
     event->envs_id = syscall->exec.envs.id;
     event->envs_truncated = syscall->exec.envs.truncated;
 }
 
-u32 __attribute__((always_inline)) get_root_nr_from_pid_struct(struct pid *pid) {
+static u32 __attribute__((always_inline)) get_root_nr_from_pid_struct(struct pid *pid) {
     // read the root pid namespace nr from &pid->numbers[0].nr
     u32 root_nr = 0;
     bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + get_pid_numbers_offset());
     return root_nr;
 }
 
-u32 __attribute__((always_inline)) get_root_nr_from_task_struct(struct task_struct *task) {
+static u32 __attribute__((always_inline)) get_root_nr_from_task_struct(struct task_struct *task) {
     struct pid *pid = NULL;
     bpf_probe_read(&pid, sizeof(pid), (void *)task + get_task_struct_pid_offset());
     return get_root_nr_from_pid_struct(pid);
 }
 
-u32 __attribute__((always_inline)) get_namespace_nr_from_task_struct(struct task_struct *task) {
+static u32 __attribute__((always_inline)) get_namespace_nr_from_task_struct(struct task_struct *task) {
     struct pid *pid = NULL;
     bpf_probe_read_kernel(&pid, sizeof(pid), (void *)task + get_task_struct_pid_offset());
 
@@ -139,7 +139,7 @@ u32 __attribute__((always_inline)) get_namespace_nr_from_task_struct(struct task
     return namespace_nr;
 }
 
-__attribute__((always_inline)) struct process_event_t *new_process_event(u8 is_fork) {
+static __attribute__((always_inline)) struct process_event_t *new_process_event(u8 is_fork) {
     u32 key = bpf_get_current_pid_tgid() % EVENT_GEN_SIZE;
     struct process_event_t *evt = bpf_map_lookup_elem(&process_event_gen, &key);
 
@@ -153,7 +153,7 @@ __attribute__((always_inline)) struct process_event_t *new_process_event(u8 is_f
     return evt;
 }
 
-bool __attribute__((always_inline)) is_current_kworker_dying() {
+static bool __attribute__((always_inline)) is_current_kworker_dying() {
     char comm[16];
     bpf_get_current_comm(comm, sizeof(comm));
     return comm[0] == 'k' && comm[1] == 'w' && comm[2] == 'o' && comm[3] == 'r' && comm[4] == 'k' && comm[5] == 'e' && comm[6] == 'r' && comm[7] == '/' && comm[8] == 'd' && comm[9] == 'y' && comm[10] == 'i' && comm[11] == 'n' && comm[12] == 'g';
@@ -169,7 +169,7 @@ static void __attribute__((always_inline)) fill_cgroup_context(struct proc_cache
     }
 }
 
-u64 __attribute__((always_inline)) get_cgroup_id(u32 tgid) {
+static u64 __attribute__((always_inline)) get_cgroup_id(u32 tgid) {
     struct proc_cache_t *entry = get_proc_cache(tgid);
     return entry ? entry->cgroup.cgroup_file.ino : 0;
 }

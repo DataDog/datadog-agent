@@ -1,7 +1,7 @@
 #ifndef _HELPERS_NETWORK_UTILS_H_
 #define _HELPERS_NETWORK_UTILS_H_
 
-__attribute__((always_inline)) void flip(struct flow_t *flow) {
+static __attribute__((always_inline)) void flip(struct flow_t *flow) {
     u64 tmp = 0;
     tmp = flow->tcp_udp.sport;
     flow->tcp_udp.sport = flow->tcp_udp.dport;

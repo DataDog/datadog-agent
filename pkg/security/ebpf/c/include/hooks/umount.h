@@ -19,7 +19,7 @@ int hook_security_sb_umount(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UMOUNT);
     if (!syscall) {
         return 0;

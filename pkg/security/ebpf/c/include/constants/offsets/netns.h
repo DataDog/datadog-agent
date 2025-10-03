@@ -3,7 +3,7 @@
 
 #include "constants/macros.h"
 
-__attribute__((always_inline)) u32 get_ifindex_from_net_device(struct net_device *device) {
+static __attribute__((always_inline)) u32 get_ifindex_from_net_device(struct net_device *device) {
     u64 net_device_ifindex_offset;
     LOAD_CONSTANT("net_device_ifindex_offset", net_device_ifindex_offset);
 
@@ -12,7 +12,7 @@ __attribute__((always_inline)) u32 get_ifindex_from_net_device(struct net_device
     return ifindex;
 }
 
-__attribute__((always_inline)) char *get_net_device_name(struct net_device *device) {
+static __attribute__((always_inline)) char *get_net_device_name(struct net_device *device) {
     u64 net_device_name_offset;
     LOAD_CONSTANT("net_device_name_offset", net_device_name_offset);
 
@@ -22,7 +22,7 @@ __attribute__((always_inline)) char *get_net_device_name(struct net_device *devi
 #define NET_STRUCT_HAS_PROC_INUM 0
 #define NET_STRUCT_HAS_NS 1
 
-__attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
+static __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
     u64 net_struct_type;
     LOAD_CONSTANT("net_struct_type", net_struct_type);
     u64 net_proc_inum_offset;
@@ -45,7 +45,7 @@ __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
 #endif
 }
 
-__attribute__((always_inline)) u32 get_netns_from_net_device(struct net_device *device) {
+static __attribute__((always_inline)) u32 get_netns_from_net_device(struct net_device *device) {
     u64 device_nd_net_net_offset;
     LOAD_CONSTANT("device_nd_net_net_offset", device_nd_net_net_offset);
 
@@ -59,7 +59,7 @@ __attribute__((always_inline)) u32 get_netns_from_net_device(struct net_device *
     return get_netns_from_net(net);
 }
 
-__attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {
+static __attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {
     u64 sock_common_skc_net_offset;
     LOAD_CONSTANT("sock_common_skc_net_offset", sock_common_skc_net_offset);
 
@@ -69,16 +69,7 @@ __attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {
     return get_netns_from_net(net);
 }
 
-__attribute__((always_inline)) u32 get_netns_from_socket(struct socket *socket) {
-    u64 socket_sock_offset;
-    LOAD_CONSTANT("socket_sock_offset", socket_sock_offset);
-
-    struct sock *sk = NULL;
-    bpf_probe_read(&sk, sizeof(sk), (void *)socket + socket_sock_offset);
-    return get_netns_from_sock(sk);
-}
-
-__attribute__((always_inline)) u32 get_netns_from_nf_conn(struct nf_conn *ct) {
+static __attribute__((always_inline)) u32 get_netns_from_nf_conn(struct nf_conn *ct) {
     u64 nf_conn_ct_net_offset;
     LOAD_CONSTANT("nf_conn_ct_net_offset", nf_conn_ct_net_offset);
 

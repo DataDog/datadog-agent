@@ -5,7 +5,7 @@
 
 #include "process.h"
 
-int __attribute__((always_inline)) handle_register_user_session(void *data) {
+static int __attribute__((always_inline)) handle_register_user_session(void *data) {
     struct user_session_request_t request = {};
     bpf_probe_read(&request, sizeof(request), data);
 
