@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
@@ -266,6 +267,10 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 
 	ipToDomain := make(map[string]string)
 	for _, domain := range domains {
+		if strings.HasSuffix(domain, ".ec2.internal") {
+			continue
+		}
+
 		s.logger.Debugf("[ScheduleConns] Loop domain %s", domain)
 		ips, err := cache.GetWithExpiration(domain, func() ([]string, error) {
 			s.logger.Debugf("[ScheduleConns] Lookup domain %s", domain)
