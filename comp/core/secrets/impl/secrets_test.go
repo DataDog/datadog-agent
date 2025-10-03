@@ -231,7 +231,6 @@ func newResolver(_ *testing.T, params secrets.ConfigParams) *secretResolver {
 	resolver := NewComponent(
 		Requires{
 			Telemetry: nooptelemetry.GetCompatComponent(),
-			Params:    secrets.Params{Enabled: true},
 		},
 	).Comp.(*secretResolver)
 
@@ -1005,7 +1004,6 @@ func TestBackendTypeWithValidVaultConfig(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	r := newEnabledSecretResolver(tel)
 
-	r.enabled = true
 	r.backendType = "hashicorp.vault"
 	r.backendConfig = map[string]interface{}{
 		"vault_address": "http://127.0.0.1:8200",

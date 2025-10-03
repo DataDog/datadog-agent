@@ -77,27 +77,25 @@ func runAgentSidekicks(ag component) error {
 		},
 	})
 
-	if secrets, ok := ag.secrets.Get(); ok {
-		// Adding a route to trigger a secrets refresh from the CLI.
-		// TODO - components: the secrets comp already export a route but it requires the API component which is not
-		// used by the trace agent. This should be removed once the trace-agent is fully componentize.
-		ag.Agent.DebugServer.AddRoute("/secret/refresh",
-			// Adding IPC middleware to the secrets refresh endpoint to check validity of auth token Header.
-			ag.ipc.HTTPMiddleware(
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					res, err := secrets.Refresh()
-					if err != nil {
-						log.Errorf("error while refresing secrets: %s", err)
-						w.Header().Set("Content-Type", "application/json")
-						body, _ := json.Marshal(map[string]string{"error": err.Error()})
-						http.Error(w, string(body), http.StatusInternalServerError)
-						return
-					}
-					w.Write([]byte(res))
-				}),
-			),
-		)
-	}
+	// Adding a route to trigger a secrets refresh from the CLI.
+	// TODO - components: the secrets comp already export a route but it requires the API component which is not
+	// used by the trace agent. This should be removed once the trace-agent is fully componentize.
+	ag.Agent.DebugServer.AddRoute("/secret/refresh",
+		// Adding IPC middleware to the secrets refresh endpoint to check validity of auth token Header.
+		ag.ipc.HTTPMiddleware(
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				res, err := ag.secrets.Refresh()
+				if err != nil {
+					log.Errorf("error while refresing secrets: %s", err)
+					w.Header().Set("Content-Type", "application/json")
+					body, _ := json.Marshal(map[string]string{"error": err.Error()})
+					http.Error(w, string(body), http.StatusInternalServerError)
+					return
+				}
+				w.Write([]byte(res))
+			}),
+		),
+	)
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
 	if pcfg := profilingConfig(tracecfg, ag.params.DisableInternalProfiling); pcfg != nil {
