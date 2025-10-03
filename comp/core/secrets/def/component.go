@@ -25,6 +25,7 @@ type ConfigParams struct {
 	ScopeIntegrationToNamespace bool
 	AllowedNamespace            []string
 	ImageToHandle               map[string][]string
+	RefreshOnAPIKeyFailure      bool
 }
 
 // Component is the component type.
@@ -37,4 +38,6 @@ type Component interface {
 	SubscribeToChanges(callback SecretChangeCallback)
 	// Refresh will resolve secret handles again, notifying any subscribers of changed values
 	Refresh() (string, error)
+	// TriggerRefreshOnAPIKeyFailure attempts to trigger secret refresh when API key errors occur
+	TriggerRefreshOnAPIKeyFailure(reason string)
 }

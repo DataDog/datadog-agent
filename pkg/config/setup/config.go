@@ -2453,6 +2453,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		ScopeIntegrationToNamespace: config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
 		AllowedNamespace:            config.GetStringSlice("secret_allowed_k8s_namespace"),
 		ImageToHandle:               config.GetStringMapStringSlice("secret_image_to_handle"),
+		RefreshOnAPIKeyFailure:      config.GetBool("secret_refresh_on_api_key_failure"),
 	})
 
 	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
