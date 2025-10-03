@@ -106,6 +106,11 @@ func setupSensitiveCmdlines() []testCase {
 		{[]string{"java -1_password 1234"}, []string{"java", "-1_password", "********"}},
 		{[]string{"agent", "1_password:1234"}, []string{"agent", "1_password:********"}},
 		{[]string{"agent 1_password:1234"}, []string{"agent", "1_password:********"}},
+		{[]string{"java", "-Dzepher.key=exampleKey123"}, []string{"java", "-Dzepher.key=********"}},
+		{[]string{"java", "-Dauth.token=abc123"}, []string{"java", "-Dauth.token=********"}},
+		{[]string{"java", "-Dapp.secret.key=value"}, []string{"java", "-Dapp.secret.key=********"}},
+		{[]string{"java", "-Dmyapp.auth.enabled=true"}, []string{"java", "-Dmyapp.auth.enabled=********"}},
+		{[]string{"java", "-Dspring.datasource.password=dbpass"}, []string{"java", "-Dspring.datasource.password=********"}},
 	}
 }
 
@@ -130,6 +135,10 @@ func setupInsensitiveCmdlines() []testCase {
 		{[]string{"java -1_pword 1234"}, []string{"java -1_pword 1234"}},
 		{[]string{"agent", "1_pword:1234"}, []string{"agent", "1_pword:1234"}},
 		{[]string{"agent 1_pword:1234"}, []string{"agent 1_pword:1234"}},
+		{[]string{"java", "-Dzepher.port=8080"}, []string{"java", "-Dzepher.port=8080"}},
+		{[]string{"java", "-Dapp.debug=true"}, []string{"java", "-Dapp.debug=true"}},
+		{[]string{"java", "-Dfile.encoding=UTF-8"}, []string{"java", "-Dfile.encoding=UTF-8"}},
+		{[]string{"java", "-Djava.awt.headless=true"}, []string{"java", "-Djava.awt.headless=true"}},
 	}
 }
 
