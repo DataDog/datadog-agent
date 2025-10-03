@@ -41,6 +41,7 @@ type collectorConfigs struct {
 	tcpSynParisTracerouteMode    bool
 	tracerouteQueries            int
 	e2eQueries                   int
+	disableWindowsDriver         bool
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {
@@ -69,6 +70,7 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		tcpSynParisTracerouteMode: agentConfig.GetBool("network_path.collector.tcp_syn_paris_traceroute_mode"),
 		tracerouteQueries:         defaultNetworkPathDynamicPathTracerouteQueries,
 		e2eQueries:                defaultNetworkPathDynamicPathE2eQueries,
+		disableWindowsDriver:      agentConfig.GetBool("network_path.collector.disable_windows_driver"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 	}
 }

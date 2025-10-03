@@ -121,6 +121,7 @@ type Result struct {
 	Netstats        NetStats            `json:"netstats"`
 	Netpath         payload.NetworkPath `json:"netpath"`
 	Status          string              `json:"status"`
+	RunType         string              `json:"runType"`
 }
 
 // Test represents the definition of a test including metadata and version.

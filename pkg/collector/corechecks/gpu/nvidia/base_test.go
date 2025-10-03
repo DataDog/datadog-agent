@@ -41,9 +41,9 @@ func setupMockDevice(t *testing.T, customize func(device *mock.Device) *mock.Dev
 	}
 
 	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache, err := ddnvml.NewDeviceCache()
+	deviceCache := ddnvml.NewDeviceCache()
+	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
-	devices := deviceCache.AllPhysicalDevices()
 	require.NotEmpty(t, devices)
 	return devices[0]
 }

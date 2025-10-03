@@ -113,9 +113,9 @@ func (c *Check) ensureInitDeviceCache() error {
 		return nil
 	}
 
-	var err error
-	c.deviceCache, err = ddnvml.NewDeviceCache()
-	if err != nil {
+	c.deviceCache = ddnvml.NewDeviceCache()
+
+	if err := c.deviceCache.EnsureInit(); err != nil {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
@@ -173,7 +173,9 @@ func (c *Check) Run() error {
 	// Refresh SP cache before collecting metrics, if it is available
 	if c.spCache != nil {
 		if err := c.spCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
-			log.Warnf("error refreshing system-probe cache: %v", err)
+			if logLimitCheck.ShouldLog() {
+				log.Warnf("error refreshing system-probe cache: %v", err)
+			}
 			// Continue with NVML-only metrics, SP collectors will return empty metrics
 		}
 	}
@@ -190,10 +192,17 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
-	gpuToContainers := make(map[string]*workloadmeta.Container, c.deviceCache.Count())
+	allPhysicalDevices, err := c.deviceCache.AllPhysicalDevices()
+	if err != nil {
+		if logLimitCheck.ShouldLog() {
+			log.Warnf("Error getting all physical devices: %s", err)
+		}
+		return nil
+	}
+	gpuToContainers := make(map[string]*workloadmeta.Container, len(allPhysicalDevices))
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
-		containerDevices, err := containers.MatchContainerDevices(container, c.deviceCache.AllPhysicalDevices())
+		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
 		if err != nil {
 			c.telemetry.missingContainerGpuMapping.Inc(container.Name)
 		}
