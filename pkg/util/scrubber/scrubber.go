@@ -90,6 +90,11 @@ type Scrubber struct {
 	// shouldApply is a function that can be used to conditionally apply a replacer.
 	// If the function returns false, the replacer will not be applied.
 	shouldApply func(repl Replacer) bool
+
+	// preserveENC controls whether ENC[] patterns should be preserved during scrubbing.
+	// When true, matches containing ENC[] patterns will not be scrubbed.
+	// This is primarily used by the flare to preserve ENC value in yaml files.
+	preserveENC bool
 }
 
 // New creates a new scrubber with no replacers installed.
@@ -122,6 +127,14 @@ func (c *Scrubber) SetShouldApply(shouldApply func(repl Replacer) bool) {
 	c.shouldApply = shouldApply
 }
 
+// SetPreserveENC enables or disables ENC[] preservation during scrubbing.
+// When enabled, regex matches containing ENC[] patterns will not be scrubbed in single-line replacers.
+// This is primarily used by flare to preserve ENC[] values as they also implement YAML scrubbing.
+// Multiline replacers always scrub regardless of this setting to prevent security leaks.
+func (c *Scrubber) SetPreserveENC(preserve bool) {
+	c.preserveENC = preserve
+}
+
 // ScrubFile scrubs credentials from file given by pathname
 func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
@@ -149,7 +162,7 @@ func (c *Scrubber) ScrubBytes(data []byte) ([]byte, error) {
 // applied to URLs or to strings containing URLs. It does not run multi-line
 // replacers, and should not be used on multi-line inputs.
 func (c *Scrubber) ScrubLine(message string) string {
-	return string(c.scrub([]byte(message), c.singleLineReplacers))
+	return string(c.scrub([]byte(message), c.singleLineReplacers, true))
 }
 
 // scrubReader applies the cleaning algorithm to a Reader
@@ -173,7 +186,7 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 		if blankRegex.Match(b) {
 			cleanedBuffer.WriteRune('\n')
 		} else if !commentRegex.Match(b) {
-			b = c.scrub(b, c.singleLineReplacers)
+			b = c.scrub(b, c.singleLineReplacers, true)
 			if !first {
 				cleanedBuffer.WriteRune('\n')
 			}
@@ -188,13 +201,18 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 	}
 
 	// Then we apply multiline replacers on the cleaned file
-	cleanedFile := c.scrub(cleanedBuffer.Bytes(), c.multiLineReplacers)
+	// Note: ENC[] checking is disabled for multiline replacers to prevent
+	// security leaks where a large multiline match containing ENC[] would
+	// preserve secrets on other lines within the same match.
+	cleanedFile := c.scrub(cleanedBuffer.Bytes(), c.multiLineReplacers, false)
 
 	return cleanedFile, nil
 }
 
 // scrub applies the given replacers to the given data.
-func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
+// If allowENC is true, replacers will skip matches that contain valid ENC[] patterns.
+// This should be true for single-line replacers and false for multiline replacers.
+func (c *Scrubber) scrub(data []byte, replacers []Replacer, allowENC bool) []byte {
 	for _, repl := range replacers {
 		if repl.Regex == nil {
 			// ignoring YAML only replacers
@@ -213,21 +231,15 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 			}
 		}
 		if len(repl.Hints) == 0 || containsHint {
-			if repl.ReplFunc != nil {
-				data = repl.Regex.ReplaceAllFunc(data, func(match []byte) []byte {
-					if containsValidENC(match) {
-						return match // Don't replace if contains valid ENC[]
-					}
+			data = repl.Regex.ReplaceAllFunc(data, func(match []byte) []byte {
+				if allowENC && c.preserveENC && containsValidENC(match) {
+					return match
+				}
+				if repl.ReplFunc != nil {
 					return repl.ReplFunc(match)
-				})
-			} else {
-				data = repl.Regex.ReplaceAllFunc(data, func(match []byte) []byte {
-					if containsValidENC(match) {
-						return match // Don't replace if contains valid ENC[]
-					}
-					return repl.Regex.ReplaceAll(match, repl.Repl)
-				})
-			}
+				}
+				return repl.Regex.ReplaceAll(match, repl.Repl)
+			})
 		}
 	}
 	return data
@@ -244,14 +256,8 @@ func IsEnc(str string) bool {
 	return false
 }
 
-// containsValidENC checks if the match contains a valid ENC[]
+var encPattern = regexp.MustCompile(`ENC\[[^\]]*\]`)
+
 func containsValidENC(data []byte) bool {
-	encPattern := regexp.MustCompile(`ENC\[[^\]]*\]`)
-	matches := encPattern.FindAll(data, -1)
-	for _, match := range matches {
-		if isEnc := IsEnc(string(match)); isEnc {
-			return true
-		}
-	}
-	return false
+	return encPattern.Match(data)
 }

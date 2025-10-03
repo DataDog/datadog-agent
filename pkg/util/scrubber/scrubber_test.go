@@ -115,8 +115,10 @@ func TestScrubBig(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestENCTextScrubbing tests that ENC[] patterns are preserved when the flag is enabled
 func TestENCTextScrubbing(t *testing.T) {
 	scrubber := NewWithDefaults()
+	scrubber.SetPreserveENC(true)
 
 	testCases := []struct {
 		name     string
@@ -146,24 +148,108 @@ func TestENCTextScrubbing(t *testing.T) {
 	}
 }
 
-func TestENCLineScrubbing(t *testing.T) {
+// TestENCPreservationDisabled tests that ENC[] patterns are scrubbed when flag is disabled (default)
+func TestENCPreservationDisabled(t *testing.T) {
 	scrubber := NewWithDefaults()
+	// Don't call SetPreserveENC - defaults to false
 
-	testLines := []struct {
+	testCases := []struct {
+		name  string
+		input string
+	}{
+		{"password with ENC", "password=ENC[secret]"},
+		{"password YAML with ENC", "password: ENC[secret]"},
+		{"token YAML ENC", "auth_token: ENC[yaml_token]"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := scrubber.ScrubBytes([]byte(tc.input))
+			require.NoError(t, err)
+
+			// Verify ENC[] was scrubbed
+			assert.NotContains(t, string(result), "ENC[", "ENC[] should be scrubbed when preservation is disabled")
+			assert.Contains(t, string(result), "********", "Should be replaced with asterisks")
+		})
+	}
+}
+
+// TestYAMLScrubberSimpleENC tests YAML scrubber with simple ENC[] values
+func TestYAMLScrubberSimpleENC(t *testing.T) {
+	scrubber := NewWithDefaults()
+	scrubber.SetPreserveENC(true)
+
+	testCases := []struct {
+		name     string
 		input    string
 		expected string
 	}{
-		{"api_key: ENC[line_secret]", "api_key: ENC[line_secret]"},
-		{"password: ENC[line_pass]", "password: ENC[line_pass]"},
-		{"token: ENC[line_token]", "token: ENC[line_token]"},
-		{"token: plain_secret", "token: \"********\""},
-		{"password: plain_pass", "password: \"********\""},
-		{"https://user:ENC[url_pass]@host", "https://user:ENC[url_pass]@host"},
-		{"https://user:secret123@host", "https://user:********@host"},
+		{
+			name:     "simple ENC value",
+			input:    "password: ENC[my_secret]",
+			expected: "password: ENC[my_secret]",
+		},
+		{
+			name:     "plain password",
+			input:    "password: plain_secret",
+			expected: "password: \"********\"",
+		},
+		{
+			name:     "api_key with ENC",
+			input:    "api_key: ENC[line_secret]",
+			expected: "api_key: ENC[line_secret]",
+		},
+		{
+			name:     "password with ENC",
+			input:    "password: ENC[line_pass]",
+			expected: "password: ENC[line_pass]",
+		},
+		{
+			name:     "token with ENC",
+			input:    "token: ENC[line_token]",
+			expected: "token: ENC[line_token]",
+		},
+		{
+			name:     "token plain",
+			input:    "token: plain_secret",
+			expected: "token: \"********\"",
+		},
+		{
+			name:     "password plain",
+			input:    "password: plain_pass",
+			expected: "password: \"********\"",
+		},
+		{
+			name:     "URL with ENC password",
+			input:    "https://user:ENC[url_pass]@host",
+			expected: "https://user:ENC[url_pass]@host",
+		},
+		{
+			name:     "URL with plain password",
+			input:    "https://user:secret123@host",
+			expected: "https://user:********@host",
+		},
 	}
 
-	for _, tc := range testLines {
-		result := scrubber.ScrubLine(tc.input)
-		assert.Equal(t, tc.expected, result, "ScrubLine should preserve ENC[] handlers")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := scrubber.ScrubYaml([]byte(tc.input))
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, string(result))
+		})
 	}
+}
+
+// TestComplexYAMLStructureWithByteScrubber tests byte scrubber on complex YAML structure
+func TestComplexYAMLStructureWithByteScrubber(t *testing.T) {
+	scrubber := NewWithDefaults()
+
+	input := `instances:
+- password: ["ENC[test]", "secret1", "secret2"]`
+
+	result, err := scrubber.ScrubBytes([]byte(input))
+	require.NoError(t, err)
+
+	assert.Equal(t, `instances:
+- password: "********"`, string(result))
 }
