@@ -541,7 +541,7 @@ require (
 	github.com/briandowns/spinner v1.23.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
-	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
+	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chrusty/protoc-gen-jsonschema v0.0.0-20240212064413-73d5723042b8 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
