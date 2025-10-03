@@ -332,3 +332,19 @@ func (d *safeDeviceImpl) GetVirtualizationMode() (nvml.GpuVirtualizationMode, er
 	mode, ret := d.nvmlDevice.GetVirtualizationMode()
 	return mode, NewNvmlAPIErrorOrNil("GetVirtualizationMode", ret)
 }
+
+func (d *safeDeviceImpl) GetSupportedEventTypes() (uint64, error) {
+	if err := d.lib.lookup(toNativeName("GetSupportedEventTypes")); err != nil {
+		return 0, err
+	}
+	types, ret := d.nvmlDevice.GetSupportedEventTypes()
+	return types, NewNvmlAPIErrorOrNil("GetSupportedEventTypes", ret)
+}
+
+func (d *safeDeviceImpl) RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error {
+	if err := d.lib.lookup(toNativeName("RegisterEvents")); err != nil {
+		return err
+	}
+	ret := d.nvmlDevice.RegisterEvents(evtTypes, evtSet)
+	return NewNvmlAPIErrorOrNil("RegisterEvents", ret)
+}

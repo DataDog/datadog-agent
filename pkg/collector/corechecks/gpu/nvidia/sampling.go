@@ -190,6 +190,6 @@ func newStatefulCollector(name CollectorName, device ddnvml.Device, apiCalls []a
 var sampleAPIFactory = createSampleAPIs
 
 // newSamplingCollector creates a collector that consolidates all sampling collector types
-func newSamplingCollector(device ddnvml.Device) (Collector, error) {
+func newSamplingCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 	return newStatefulCollector(sampling, device, sampleAPIFactory())
 }
