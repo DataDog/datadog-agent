@@ -10,6 +10,7 @@ variables:
       when: always
     - !reference [.on_scheduled_main]
     - !reference [.manual]
+    - !reference [.except_coverage_pipeline]
   # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
   image: $BENCHMARKS_CI_IMAGE
   needs: ["setup_agent_version"]
