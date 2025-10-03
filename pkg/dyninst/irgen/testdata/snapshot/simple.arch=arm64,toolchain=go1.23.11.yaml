@@ -10,8 +10,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 13}
       events:
-        - ID: 13
-          Type: 168 EventRootType Probe[main.PointerChainArg]
+        - ID: 24
+          Kind: Entry
+          Type: 185 EventRootType Probe[main.PointerChainArg]
           InjectionPoints: [{PC: "0xb5388", Frameless: false}]
           Condition: null
     - id: PointerSmallChainArg
@@ -24,8 +25,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 14}
       events:
-        - ID: 14
-          Type: 169 EventRootType Probe[main.PointerSmallChainArg]
+        - ID: 25
+          Kind: Entry
+          Type: 186 EventRootType Probe[main.PointerSmallChainArg]
           InjectionPoints: [{PC: "0xb53c0", Frameless: false}]
           Condition: null
     - id: bigMapArg
@@ -37,9 +39,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 9}
       events:
-        - ID: 9
-          Type: 164 EventRootType Probe[main.bigMapArg]
-          InjectionPoints: [{PC: "0xb5870", Frameless: true}]
+        - ID: 17
+          Kind: Entry
+          Type: 177 EventRootType Probe[main.bigMapArg]
+          InjectionPoints: [{PC: "0xb5880", Frameless: false}]
+          Condition: null
+        - ID: 16
+          Kind: Return
+          Type: 178 EventRootType Probe[main.bigMapArg]Return
+          InjectionPoints: [{PC: "0xb58f4", Frameless: false}]
           Condition: null
     - id: inlined
       version: 0
@@ -51,13 +59,19 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 12}
       events:
-        - ID: 12
-          Type: 167 EventRootType Probe[main.inlined]
+        - ID: 23
+          Kind: Entry
+          Type: 183 EventRootType Probe[main.inlined]
           InjectionPoints:
-            - PC: "0xb573c"
-              Frameless: true
             - PC: "0xb519c"
               Frameless: false
+            - PC: "0xb5748"
+              Frameless: false
+          Condition: null
+        - ID: 22
+          Kind: Return
+          Type: 184 EventRootType Probe[main.inlined]Return
+          InjectionPoints: [{PC: "0xb5780", Frameless: false}]
           Condition: null
     - id: intArg
       version: 0
@@ -68,9 +82,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
+        - ID: 2
+          Kind: Entry
+          Type: 162 EventRootType Probe[main.intArg]
+          InjectionPoints: [{PC: "0xb5428", Frameless: false}]
+          Condition: null
         - ID: 1
-          Type: 156 EventRootType Probe[main.intArg]
-          InjectionPoints: [{PC: "0xb541c", Frameless: true}]
+          Kind: Return
+          Type: 163 EventRootType Probe[main.intArg]Return
+          InjectionPoints: [{PC: "0xb5460", Frameless: false}]
           Condition: null
     - id: intArrayArg
       version: 0
@@ -81,9 +101,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 4}
       events:
-        - ID: 4
-          Type: 159 EventRootType Probe[main.intArrayArg]
-          InjectionPoints: [{PC: "0xb559c", Frameless: true}]
+        - ID: 8
+          Kind: Entry
+          Type: 168 EventRootType Probe[main.intArrayArg]
+          InjectionPoints: [{PC: "0xb55a8", Frameless: false}]
+          Condition: null
+        - ID: 7
+          Kind: Return
+          Type: 169 EventRootType Probe[main.intArrayArg]Return
+          InjectionPoints: [{PC: "0xb55ec", Frameless: false}]
           Condition: null
     - id: intArrayArgFrameless
       version: 0
@@ -94,8 +120,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 7}
       events:
-        - ID: 7
-          Type: 162 EventRootType Probe[main.stringArrayArgFrameless]
+        - ID: 13
+          Kind: Entry
+          Type: 174 EventRootType Probe[main.stringArrayArgFrameless]
           InjectionPoints: [{PC: "0xb5720", Frameless: true}]
           Condition: null
     - id: intSliceArg
@@ -107,9 +134,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 3}
       events:
-        - ID: 3
-          Type: 158 EventRootType Probe[main.intSliceArg]
-          InjectionPoints: [{PC: "0xb550c", Frameless: true}]
+        - ID: 6
+          Kind: Entry
+          Type: 166 EventRootType Probe[main.intSliceArg]
+          InjectionPoints: [{PC: "0xb5518", Frameless: false}]
+          Condition: null
+        - ID: 5
+          Kind: Return
+          Type: 167 EventRootType Probe[main.intSliceArg]Return
+          InjectionPoints: [{PC: "0xb5554", Frameless: false}]
           Condition: null
     - id: mapArg
       version: 0
@@ -120,9 +153,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 8}
       events:
-        - ID: 8
-          Type: 163 EventRootType Probe[main.mapArg]
-          InjectionPoints: [{PC: "0xb57fc", Frameless: true}]
+        - ID: 15
+          Kind: Entry
+          Type: 175 EventRootType Probe[main.mapArg]
+          InjectionPoints: [{PC: "0xb5808", Frameless: false}]
+          Condition: null
+        - ID: 14
+          Kind: Return
+          Type: 176 EventRootType Probe[main.mapArg]Return
+          InjectionPoints: [{PC: "0xb5838", Frameless: false}]
           Condition: null
     - id: noArgs
       version: 0
@@ -133,9 +172,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 10}
       events:
-        - ID: 10
-          Type: 165 EventRootType Probe[main.noArgs]
-          InjectionPoints: [{PC: "0xb592c", Frameless: true}]
+        - ID: 19
+          Kind: Entry
+          Type: 179 EventRootType Probe[main.noArgs]
+          InjectionPoints: [{PC: "0xb5938", Frameless: false}]
+          Condition: null
+        - ID: 18
+          Kind: Return
+          Type: 180 EventRootType Probe[main.noArgs]Return
+          InjectionPoints: [{PC: "0xb5970", Frameless: false}]
           Condition: null
     - id: stringArg
       version: 0
@@ -146,9 +191,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
-        - ID: 2
-          Type: 157 EventRootType Probe[main.stringArg]
-          InjectionPoints: [{PC: "0xb548c", Frameless: true}]
+        - ID: 4
+          Kind: Entry
+          Type: 164 EventRootType Probe[main.stringArg]
+          InjectionPoints: [{PC: "0xb5498", Frameless: false}]
+          Condition: null
+        - ID: 3
+          Kind: Return
+          Type: 165 EventRootType Probe[main.stringArg]Return
+          InjectionPoints: [{PC: "0xb54d4", Frameless: false}]
           Condition: null
     - id: stringArrayArg
       version: 0
@@ -159,9 +210,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 6}
       events:
-        - ID: 6
-          Type: 161 EventRootType Probe[main.stringArrayArg]
-          InjectionPoints: [{PC: "0xb56ac", Frameless: true}]
+        - ID: 12
+          Kind: Entry
+          Type: 172 EventRootType Probe[main.stringArrayArg]
+          InjectionPoints: [{PC: "0xb56b8", Frameless: false}]
+          Condition: null
+        - ID: 11
+          Kind: Return
+          Type: 173 EventRootType Probe[main.stringArrayArg]Return
+          InjectionPoints: [{PC: "0xb56fc", Frameless: false}]
           Condition: null
     - id: stringSliceArg
       version: 0
@@ -172,9 +229,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 5}
       events:
-        - ID: 5
-          Type: 160 EventRootType Probe[main.stringSliceArg]
-          InjectionPoints: [{PC: "0xb561c", Frameless: true}]
+        - ID: 10
+          Kind: Entry
+          Type: 170 EventRootType Probe[main.stringSliceArg]
+          InjectionPoints: [{PC: "0xb5628", Frameless: false}]
+          Condition: null
+        - ID: 9
+          Kind: Return
+          Type: 171 EventRootType Probe[main.stringSliceArg]Return
+          InjectionPoints: [{PC: "0xb5664", Frameless: false}]
           Condition: null
     - id: usesMapsOfMapsThatDoNotAppearAsArguments
       version: 0
@@ -186,9 +249,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 11}
       events:
-        - ID: 11
-          Type: 166 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
-          InjectionPoints: [{PC: "0xb59a0", Frameless: true}]
+        - ID: 21
+          Kind: Entry
+          Type: 181 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
+          InjectionPoints: [{PC: "0xb59b0", Frameless: false}]
+          Condition: null
+        - ID: 20
+          Kind: Return
+          Type: 182 EventRootType Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return
+          InjectionPoints: [{PC: "0xb5b24", Frameless: false}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -332,6 +401,11 @@ Subprograms:
           Locations: [{Range: 0xb5990..0xb5b40, Pieces: []}]
           IsParameter: true
           IsReturn: true
+        - Name: m
+          Type: 121 GoMapType map[string]map[int]main.aStructNotUsedAsAnArgument
+          Locations: [{Range: 0xb5990..0xb5b40, Pieces: []}]
+          IsParameter: false
+          IsReturn: false
     - ID: 12
       Name: main.inlined
       OutOfLinePCRanges: [0xb5730..0xb57a0]
@@ -356,7 +430,7 @@ Subprograms:
           RootRanges: [0xb5000..0xb5410]
       Variables:
         - Name: ptr
-          Type: 121 PointerType *****int
+          Type: 126 PointerType *****int
           Locations:
             - Range: 0xb5360..0xb53a8
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
@@ -370,7 +444,7 @@ Subprograms:
           RootRanges: [0xb5000..0xb5410]
       Variables:
         - Name: ptr
-          Type: 123 PointerType **int
+          Type: 128 PointerType **int
           Locations:
             - Range: 0xb53c0..0xb53f0
               Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
@@ -378,38 +452,38 @@ Subprograms:
           IsReturn: false
 Types:
     - __kind: PointerType
-      ID: 121
+      ID: 126
       Name: '*****int'
       ByteSize: 8
       GoRuntimeType: 32960
       GoKind: 22
-      Pointee: 122 PointerType ****int
+      Pointee: 127 PointerType ****int
     - __kind: PointerType
-      ID: 122
+      ID: 127
       Name: '****int'
       ByteSize: 8
       GoRuntimeType: 32896
       GoKind: 22
-      Pointee: 155 PointerType ***int
+      Pointee: 161 PointerType ***int
     - __kind: PointerType
-      ID: 155
+      ID: 161
       Name: '***int'
       ByteSize: 8
       GoRuntimeType: 32832
       GoKind: 22
-      Pointee: 123 PointerType **int
+      Pointee: 128 PointerType **int
     - __kind: PointerType
-      ID: 123
+      ID: 128
       Name: '**int'
       ByteSize: 8
       GoRuntimeType: 32768
       GoKind: 22
       Pointee: 94 PointerType *int
     - __kind: PointerType
-      ID: 131
+      ID: 136
       Name: '*[]int.array'
       ByteSize: 8
-      Pointee: 130 GoSliceDataType []int.array
+      Pointee: 135 GoSliceDataType []int.array
     - __kind: PointerType
       ID: 39
       Name: '*[]runtime.ancestorInfo'
@@ -418,20 +492,20 @@ Types:
       GoKind: 22
       Pointee: 40 UnresolvedPointeeType []runtime.ancestorInfo
     - __kind: PointerType
-      ID: 133
+      ID: 138
       Name: '*[]string.array'
       ByteSize: 8
-      Pointee: 132 GoSliceDataType []string.array
+      Pointee: 137 GoSliceDataType []string.array
     - __kind: PointerType
-      ID: 127
+      ID: 132
       Name: '*[]uint8.array'
       ByteSize: 8
-      Pointee: 126 GoSliceDataType []uint8.array
+      Pointee: 131 GoSliceDataType []uint8.array
     - __kind: PointerType
-      ID: 129
+      ID: 134
       Name: '*[]uintptr.array'
       ByteSize: 8
-      Pointee: 128 GoSliceDataType []uintptr.array
+      Pointee: 133 GoSliceDataType []uintptr.array
     - __kind: PointerType
       ID: 5
       Name: '*bool'
@@ -440,10 +514,10 @@ Types:
       GoKind: 22
       Pointee: 4 BaseType bool
     - __kind: PointerType
-      ID: 147
+      ID: 152
       Name: '*bucket<int,main.aStructNotUsedAsAnArgument>'
       ByteSize: 8
-      Pointee: 148 GoHMapBucketType bucket<int,main.aStructNotUsedAsAnArgument>
+      Pointee: 153 GoHMapBucketType bucket<int,main.aStructNotUsedAsAnArgument>
     - __kind: PointerType
       ID: 107
       Name: '*bucket<string,int>'
@@ -454,6 +528,11 @@ Types:
       Name: '*bucket<string,main.bigStruct>'
       ByteSize: 8
       Pointee: 115 GoHMapBucketType bucket<string,main.bigStruct>
+    - __kind: PointerType
+      ID: 124
+      Name: '*bucket<string,map[int]main.aStructNotUsedAsAnArgument>'
+      ByteSize: 8
+      Pointee: 125 GoHMapBucketType bucket<string,map[int]main.aStructNotUsedAsAnArgument>
     - __kind: PointerType
       ID: 119
       Name: '*bucket<uint8,map[int]main.aStructNotUsedAsAnArgument>'
@@ -481,10 +560,10 @@ Types:
       GoKind: 22
       Pointee: 17 BaseType float64
     - __kind: PointerType
-      ID: 145
+      ID: 150
       Name: '*hash<int,main.aStructNotUsedAsAnArgument>'
       ByteSize: 8
-      Pointee: 146 GoHMapHeaderType hash<int,main.aStructNotUsedAsAnArgument>
+      Pointee: 151 GoHMapHeaderType hash<int,main.aStructNotUsedAsAnArgument>
     - __kind: PointerType
       ID: 105
       Name: '*hash<string,int>'
@@ -495,6 +574,11 @@ Types:
       Name: '*hash<string,main.bigStruct>'
       ByteSize: 8
       Pointee: 113 GoHMapHeaderType hash<string,main.bigStruct>
+    - __kind: PointerType
+      ID: 122
+      Name: '*hash<string,map[int]main.aStructNotUsedAsAnArgument>'
+      ByteSize: 8
+      Pointee: 123 GoHMapHeaderType hash<string,map[int]main.aStructNotUsedAsAnArgument>
     - __kind: PointerType
       ID: 117
       Name: '*hash<uint8,map[int]main.aStructNotUsedAsAnArgument>'
@@ -522,12 +606,12 @@ Types:
       GoKind: 22
       Pointee: 14 BaseType int64
     - __kind: PointerType
-      ID: 139
+      ID: 144
       Name: '*main.bigStruct'
       ByteSize: 8
       GoRuntimeType: 24704
       GoKind: 22
-      Pointee: 140 StructureType main.bigStruct
+      Pointee: 145 StructureType main.bigStruct
     - __kind: PointerType
       ID: 26
       Name: '*runtime._defer'
@@ -606,10 +690,10 @@ Types:
       GoKind: 22
       Pointee: 10 GoStringHeaderType string
     - __kind: PointerType
-      ID: 125
+      ID: 130
       Name: '*string.str'
       ByteSize: 8
-      Pointee: 124 GoStringDataType string.str
+      Pointee: 129 GoStringDataType string.str
     - __kind: PointerType
       ID: 98
       Name: '*uint'
@@ -653,7 +737,7 @@ Types:
       GoKind: 22
       Pointee: 1 BaseType uintptr
     - __kind: EventRootType
-      ID: 168
+      ID: 185
       Name: Probe[main.PointerChainArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -662,14 +746,14 @@ Types:
           Offset: 1
           Kind: argument
           Expression:
-            Type: 121 PointerType *****int
+            Type: 126 PointerType *****int
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 13, index: 0, name: ptr}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 169
+      ID: 186
       Name: Probe[main.PointerSmallChainArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -678,14 +762,14 @@ Types:
           Offset: 1
           Kind: argument
           Expression:
-            Type: 123 PointerType **int
+            Type: 128 PointerType **int
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 14, index: 0, name: ptr}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 164
+      ID: 177
       Name: Probe[main.bigMapArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -701,7 +785,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 167
+      ID: 178
+      Name: Probe[main.bigMapArg]Return
+    - __kind: EventRootType
+      ID: 183
       Name: Probe[main.inlined]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -717,7 +804,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 156
+      ID: 184
+      Name: Probe[main.inlined]Return
+    - __kind: EventRootType
+      ID: 162
       Name: Probe[main.intArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -733,7 +823,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 159
+      ID: 163
+      Name: Probe[main.intArg]Return
+    - __kind: EventRootType
+      ID: 168
       Name: Probe[main.intArrayArg]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -749,7 +842,10 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 158
+      ID: 169
+      Name: Probe[main.intArrayArg]Return
+    - __kind: EventRootType
+      ID: 166
       Name: Probe[main.intSliceArg]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -765,7 +861,10 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 163
+      ID: 167
+      Name: Probe[main.intSliceArg]Return
+    - __kind: EventRootType
+      ID: 175
       Name: Probe[main.mapArg]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -781,10 +880,16 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 165
+      ID: 176
+      Name: Probe[main.mapArg]Return
+    - __kind: EventRootType
+      ID: 179
       Name: Probe[main.noArgs]
     - __kind: EventRootType
-      ID: 157
+      ID: 180
+      Name: Probe[main.noArgs]Return
+    - __kind: EventRootType
+      ID: 164
       Name: Probe[main.stringArg]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -800,7 +905,10 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 162
+      ID: 165
+      Name: Probe[main.stringArg]Return
+    - __kind: EventRootType
+      ID: 174
       Name: Probe[main.stringArrayArgFrameless]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -816,7 +924,7 @@ Types:
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
-      ID: 161
+      ID: 172
       Name: Probe[main.stringArrayArg]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -832,7 +940,10 @@ Types:
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
-      ID: 160
+      ID: 173
+      Name: Probe[main.stringArrayArg]Return
+    - __kind: EventRootType
+      ID: 170
       Name: Probe[main.stringSliceArg]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -848,8 +959,27 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 166
+      ID: 171
+      Name: Probe[main.stringSliceArg]Return
+    - __kind: EventRootType
+      ID: 181
       Name: Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]
+    - __kind: EventRootType
+      ID: 182
+      Name: Probe[main.usesMapsOfMapsThatDoNotAppearAsArguments]Return
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: ~r0
+          Offset: 1
+          Kind: local
+          Expression:
+            Type: 116 GoMapType map[uint8]map[int]main.aStructNotUsedAsAnArgument
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 11, index: 0, name: ~r0}
+                  Offset: 0
+                  ByteSize: 8
     - __kind: ArrayType
       ID: 85
       Name: '[10]runtime.heldLockInfo'
@@ -860,7 +990,7 @@ Types:
       HasCount: true
       Element: 86 StructureType runtime.heldLockInfo
     - __kind: ArrayType
-      ID: 154
+      ID: 160
       Name: '[128]uint8'
       ByteSize: 128
       GoRuntimeType: 42688
@@ -968,7 +1098,7 @@ Types:
       HasCount: true
       Element: 79 StructureType runtime.pcvalueCacheEnt
     - __kind: ArrayType
-      ID: 134
+      ID: 139
       Name: '[8]uint8'
       ByteSize: 8
       GoRuntimeType: 42304
@@ -977,25 +1107,31 @@ Types:
       HasCount: true
       Element: 3 BaseType uint8
     - __kind: GoSliceDataType
-      ID: 153
+      ID: 159
       Name: '[]bucket<int,main.aStructNotUsedAsAnArgument>.array'
       DynamicSizeClass: hashmap
       ByteSize: 144
-      Element: 148 GoHMapBucketType bucket<int,main.aStructNotUsedAsAnArgument>
+      Element: 153 GoHMapBucketType bucket<int,main.aStructNotUsedAsAnArgument>
     - __kind: GoSliceDataType
-      ID: 137
+      ID: 142
       Name: '[]bucket<string,int>.array'
       DynamicSizeClass: hashmap
       ByteSize: 208
       Element: 108 GoHMapBucketType bucket<string,int>
     - __kind: GoSliceDataType
-      ID: 141
+      ID: 146
       Name: '[]bucket<string,main.bigStruct>.array'
       DynamicSizeClass: hashmap
       ByteSize: 208
       Element: 115 GoHMapBucketType bucket<string,main.bigStruct>
     - __kind: GoSliceDataType
-      ID: 149
+      ID: 155
+      Name: '[]bucket<string,map[int]main.aStructNotUsedAsAnArgument>.array'
+      DynamicSizeClass: hashmap
+      ByteSize: 208
+      Element: 125 GoHMapBucketType bucket<string,map[int]main.aStructNotUsedAsAnArgument>
+    - __kind: GoSliceDataType
+      ID: 154
       Name: '[]bucket<uint8,map[int]main.aStructNotUsedAsAnArgument>.array'
       DynamicSizeClass: hashmap
       ByteSize: 88
@@ -1016,29 +1152,29 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 130 GoSliceDataType []int.array
+      Data: 135 GoSliceDataType []int.array
     - __kind: GoSliceDataType
-      ID: 130
+      ID: 135
       Name: '[]int.array'
       DynamicSizeClass: slice
       ByteSize: 8
       Element: 9 BaseType int
     - __kind: ArrayType
-      ID: 150
+      ID: 156
       Name: '[]key<int>'
       ByteSize: 64
       Count: 8
       HasCount: true
       Element: 9 BaseType int
     - __kind: ArrayType
-      ID: 135
+      ID: 140
       Name: '[]key<string>'
       ByteSize: 128
       Count: 8
       HasCount: true
       Element: 10 GoStringHeaderType string
     - __kind: ArrayType
-      ID: 142
+      ID: 147
       Name: '[]key<uint8>'
       ByteSize: 8
       Count: 8
@@ -1064,9 +1200,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 132 GoSliceDataType []string.array
+      Data: 137 GoSliceDataType []string.array
     - __kind: GoSliceDataType
-      ID: 132
+      ID: 137
       Name: '[]string.array'
       DynamicSizeClass: slice
       ByteSize: 16
@@ -1087,9 +1223,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 126 GoSliceDataType []uint8.array
+      Data: 131 GoSliceDataType []uint8.array
     - __kind: GoSliceDataType
-      ID: 126
+      ID: 131
       Name: '[]uint8.array'
       DynamicSizeClass: slice
       ByteSize: 1
@@ -1110,41 +1246,41 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 128 GoSliceDataType []uintptr.array
+      Data: 133 GoSliceDataType []uintptr.array
     - __kind: GoSliceDataType
-      ID: 128
+      ID: 133
       Name: '[]uintptr.array'
       DynamicSizeClass: slice
       ByteSize: 8
       Element: 1 BaseType uintptr
     - __kind: ArrayType
-      ID: 136
+      ID: 141
       Name: '[]val<int>'
       ByteSize: 64
       Count: 8
       HasCount: true
       Element: 9 BaseType int
     - __kind: ArrayType
-      ID: 151
+      ID: 157
       Name: '[]val<main.aStructNotUsedAsAnArgument>'
       ByteSize: 64
       Count: 8
       HasCount: true
-      Element: 152 StructureType main.aStructNotUsedAsAnArgument
+      Element: 158 StructureType main.aStructNotUsedAsAnArgument
     - __kind: ArrayType
-      ID: 138
+      ID: 143
       Name: '[]val<main.bigStruct>'
       ByteSize: 64
       Count: 8
       HasCount: true
-      Element: 139 PointerType *main.bigStruct
+      Element: 144 PointerType *main.bigStruct
     - __kind: ArrayType
-      ID: 143
+      ID: 148
       Name: '[]val<map[int]main.aStructNotUsedAsAnArgument>'
       ByteSize: 64
       Count: 8
       HasCount: true
-      Element: 144 GoMapType map[int]main.aStructNotUsedAsAnArgument
+      Element: 149 GoMapType map[int]main.aStructNotUsedAsAnArgument
     - __kind: BaseType
       ID: 4
       Name: bool
@@ -1152,24 +1288,24 @@ Types:
       GoRuntimeType: 39168
       GoKind: 1
     - __kind: GoHMapBucketType
-      ID: 148
+      ID: 153
       Name: bucket<int,main.aStructNotUsedAsAnArgument>
       ByteSize: 144
       RawFields:
         - Name: tophash
           Offset: 0
-          Type: 134 ArrayType [8]uint8
+          Type: 139 ArrayType [8]uint8
         - Name: keys
           Offset: 8
-          Type: 150 ArrayType []key<int>
+          Type: 156 ArrayType []key<int>
         - Name: values
           Offset: 72
-          Type: 151 ArrayType []val<main.aStructNotUsedAsAnArgument>
+          Type: 157 ArrayType []val<main.aStructNotUsedAsAnArgument>
         - Name: overflow
           Offset: 136
-          Type: 147 PointerType *bucket<int,main.aStructNotUsedAsAnArgument>
+          Type: 152 PointerType *bucket<int,main.aStructNotUsedAsAnArgument>
       KeyType: 9 BaseType int
-      ValueType: 152 StructureType main.aStructNotUsedAsAnArgument
+      ValueType: 158 StructureType main.aStructNotUsedAsAnArgument
     - __kind: GoHMapBucketType
       ID: 108
       Name: bucket<string,int>
@@ -1177,13 +1313,13 @@ Types:
       RawFields:
         - Name: tophash
           Offset: 0
-          Type: 134 ArrayType [8]uint8
+          Type: 139 ArrayType [8]uint8
         - Name: keys
           Offset: 8
-          Type: 135 ArrayType []key<string>
+          Type: 140 ArrayType []key<string>
         - Name: values
           Offset: 136
-          Type: 136 ArrayType []val<int>
+          Type: 141 ArrayType []val<int>
         - Name: overflow
           Offset: 200
           Type: 107 PointerType *bucket<string,int>
@@ -1196,18 +1332,37 @@ Types:
       RawFields:
         - Name: tophash
           Offset: 0
-          Type: 134 ArrayType [8]uint8
+          Type: 139 ArrayType [8]uint8
         - Name: keys
           Offset: 8
-          Type: 135 ArrayType []key<string>
+          Type: 140 ArrayType []key<string>
         - Name: values
           Offset: 136
-          Type: 138 ArrayType []val<main.bigStruct>
+          Type: 143 ArrayType []val<main.bigStruct>
         - Name: overflow
           Offset: 200
           Type: 114 PointerType *bucket<string,main.bigStruct>
       KeyType: 10 GoStringHeaderType string
-      ValueType: 139 PointerType *main.bigStruct
+      ValueType: 144 PointerType *main.bigStruct
+    - __kind: GoHMapBucketType
+      ID: 125
+      Name: bucket<string,map[int]main.aStructNotUsedAsAnArgument>
+      ByteSize: 208
+      RawFields:
+        - Name: tophash
+          Offset: 0
+          Type: 139 ArrayType [8]uint8
+        - Name: keys
+          Offset: 8
+          Type: 140 ArrayType []key<string>
+        - Name: values
+          Offset: 136
+          Type: 148 ArrayType []val<map[int]main.aStructNotUsedAsAnArgument>
+        - Name: overflow
+          Offset: 200
+          Type: 124 PointerType *bucket<string,map[int]main.aStructNotUsedAsAnArgument>
+      KeyType: 10 GoStringHeaderType string
+      ValueType: 149 GoMapType map[int]main.aStructNotUsedAsAnArgument
     - __kind: GoHMapBucketType
       ID: 120
       Name: bucket<uint8,map[int]main.aStructNotUsedAsAnArgument>
@@ -1215,18 +1370,18 @@ Types:
       RawFields:
         - Name: tophash
           Offset: 0
-          Type: 134 ArrayType [8]uint8
+          Type: 139 ArrayType [8]uint8
         - Name: keys
           Offset: 8
-          Type: 142 ArrayType []key<uint8>
+          Type: 147 ArrayType []key<uint8>
         - Name: values
           Offset: 16
-          Type: 143 ArrayType []val<map[int]main.aStructNotUsedAsAnArgument>
+          Type: 148 ArrayType []val<map[int]main.aStructNotUsedAsAnArgument>
         - Name: overflow
           Offset: 80
           Type: 119 PointerType *bucket<uint8,map[int]main.aStructNotUsedAsAnArgument>
       KeyType: 3 BaseType uint8
-      ValueType: 144 GoMapType map[int]main.aStructNotUsedAsAnArgument
+      ValueType: 149 GoMapType map[int]main.aStructNotUsedAsAnArgument
     - __kind: BaseType
       ID: 91
       Name: complex128
@@ -1277,7 +1432,7 @@ Types:
       GoRuntimeType: 52384
       GoKind: 19
     - __kind: GoHMapHeaderType
-      ID: 146
+      ID: 151
       Name: hash<int,main.aStructNotUsedAsAnArgument>
       ByteSize: 48
       RawFields:
@@ -1298,18 +1453,18 @@ Types:
           Type: 2 BaseType uint32
         - Name: buckets
           Offset: 16
-          Type: 147 PointerType *bucket<int,main.aStructNotUsedAsAnArgument>
+          Type: 152 PointerType *bucket<int,main.aStructNotUsedAsAnArgument>
         - Name: oldbuckets
           Offset: 24
-          Type: 147 PointerType *bucket<int,main.aStructNotUsedAsAnArgument>
+          Type: 152 PointerType *bucket<int,main.aStructNotUsedAsAnArgument>
         - Name: nevacuate
           Offset: 32
           Type: 1 BaseType uintptr
         - Name: extra
           Offset: 40
           Type: 109 PointerType *runtime.mapextra
-      BucketType: 148 GoHMapBucketType bucket<int,main.aStructNotUsedAsAnArgument>
-      BucketsType: 153 GoSliceDataType []bucket<int,main.aStructNotUsedAsAnArgument>.array
+      BucketType: 153 GoHMapBucketType bucket<int,main.aStructNotUsedAsAnArgument>
+      BucketsType: 159 GoSliceDataType []bucket<int,main.aStructNotUsedAsAnArgument>.array
     - __kind: GoHMapHeaderType
       ID: 106
       Name: hash<string,int>
@@ -1343,7 +1498,7 @@ Types:
           Offset: 40
           Type: 109 PointerType *runtime.mapextra
       BucketType: 108 GoHMapBucketType bucket<string,int>
-      BucketsType: 137 GoSliceDataType []bucket<string,int>.array
+      BucketsType: 142 GoSliceDataType []bucket<string,int>.array
     - __kind: GoHMapHeaderType
       ID: 113
       Name: hash<string,main.bigStruct>
@@ -1377,7 +1532,41 @@ Types:
           Offset: 40
           Type: 109 PointerType *runtime.mapextra
       BucketType: 115 GoHMapBucketType bucket<string,main.bigStruct>
-      BucketsType: 141 GoSliceDataType []bucket<string,main.bigStruct>.array
+      BucketsType: 146 GoSliceDataType []bucket<string,main.bigStruct>.array
+    - __kind: GoHMapHeaderType
+      ID: 123
+      Name: hash<string,map[int]main.aStructNotUsedAsAnArgument>
+      ByteSize: 48
+      RawFields:
+        - Name: count
+          Offset: 0
+          Type: 9 BaseType int
+        - Name: flags
+          Offset: 8
+          Type: 3 BaseType uint8
+        - Name: B
+          Offset: 9
+          Type: 3 BaseType uint8
+        - Name: noverflow
+          Offset: 10
+          Type: 7 BaseType uint16
+        - Name: hash0
+          Offset: 12
+          Type: 2 BaseType uint32
+        - Name: buckets
+          Offset: 16
+          Type: 124 PointerType *bucket<string,map[int]main.aStructNotUsedAsAnArgument>
+        - Name: oldbuckets
+          Offset: 24
+          Type: 124 PointerType *bucket<string,map[int]main.aStructNotUsedAsAnArgument>
+        - Name: nevacuate
+          Offset: 32
+          Type: 1 BaseType uintptr
+        - Name: extra
+          Offset: 40
+          Type: 109 PointerType *runtime.mapextra
+      BucketType: 125 GoHMapBucketType bucket<string,map[int]main.aStructNotUsedAsAnArgument>
+      BucketsType: 155 GoSliceDataType []bucket<string,map[int]main.aStructNotUsedAsAnArgument>.array
     - __kind: GoHMapHeaderType
       ID: 118
       Name: hash<uint8,map[int]main.aStructNotUsedAsAnArgument>
@@ -1411,7 +1600,7 @@ Types:
           Offset: 40
           Type: 109 PointerType *runtime.mapextra
       BucketType: 120 GoHMapBucketType bucket<uint8,map[int]main.aStructNotUsedAsAnArgument>
-      BucketsType: 149 GoSliceDataType []bucket<uint8,map[int]main.aStructNotUsedAsAnArgument>.array
+      BucketsType: 154 GoSliceDataType []bucket<uint8,map[int]main.aStructNotUsedAsAnArgument>.array
     - __kind: BaseType
       ID: 9
       Name: int
@@ -1542,14 +1731,14 @@ Types:
       GoKind: 25
       RawFields: []
     - __kind: StructureType
-      ID: 152
+      ID: 158
       Name: main.aStructNotUsedAsAnArgument
       ByteSize: 8
       GoRuntimeType: 64512
       GoKind: 25
       RawFields: [{Name: a, Offset: 0, Type: 9 BaseType int}]
     - __kind: StructureType
-      ID: 140
+      ID: 145
       Name: main.bigStruct
       ByteSize: 184
       GoRuntimeType: 112416
@@ -1578,14 +1767,14 @@ Types:
           Type: 9 BaseType int
         - Name: data
           Offset: 56
-          Type: 154 ArrayType [128]uint8
+          Type: 160 ArrayType [128]uint8
     - __kind: GoMapType
-      ID: 144
+      ID: 149
       Name: map[int]main.aStructNotUsedAsAnArgument
       ByteSize: 8
       GoRuntimeType: 55552
       GoKind: 21
-      HeaderType: 146 GoHMapHeaderType hash<int,main.aStructNotUsedAsAnArgument>
+      HeaderType: 151 GoHMapHeaderType hash<int,main.aStructNotUsedAsAnArgument>
     - __kind: GoMapType
       ID: 104
       Name: map[string]int
@@ -1600,6 +1789,13 @@ Types:
       GoRuntimeType: 55744
       GoKind: 21
       HeaderType: 113 GoHMapHeaderType hash<string,main.bigStruct>
+    - __kind: GoMapType
+      ID: 121
+      Name: map[string]map[int]main.aStructNotUsedAsAnArgument
+      ByteSize: 8
+      GoRuntimeType: 55840
+      GoKind: 21
+      HeaderType: 123 GoHMapHeaderType hash<string,map[int]main.aStructNotUsedAsAnArgument>
     - __kind: GoMapType
       ID: 116
       Name: map[uint8]map[int]main.aStructNotUsedAsAnArgument
@@ -2336,13 +2532,13 @@ Types:
       RawFields:
         - Name: str
           Offset: 0
-          Type: 125 PointerType *string.str
+          Type: 130 PointerType *string.str
         - Name: len
           Offset: 8
           Type: 9 BaseType int
-      Data: 124 GoStringDataType string.str
+      Data: 129 GoStringDataType string.str
     - __kind: GoStringDataType
-      ID: 124
+      ID: 129
       Name: string.str
       DynamicSizeClass: string
       ByteSize: 1
@@ -2388,7 +2584,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 39232
       GoKind: 26
-MaxTypeID: 169
+MaxTypeID: 186
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x191240", TypesOffset: 296}
 CommonTypes:
