@@ -147,7 +147,7 @@ func (s *Launcher) run() {
 		case files := <-s.filesChan:
 			s.cleanUpRotatedTailers()
 
-			s.resolveActiveTailers(files)
+			s.scan(files)
 			scanTicker.Reset(s.scanPeriod)
 		case <-s.stop:
 			// Cancel the context passed to fileProvider.FilesToTail
@@ -178,11 +178,11 @@ func (s *Launcher) cleanup() {
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
 }
 
-// resolveActiveTailers checks all the files we're expected to tail, compares them to the currently tailed files,
+// scan checks all the files we're expected to tail, compares them to the currently tailed files,
 // and triggers the required updates.
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
-func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
+func (s *Launcher) scan(files []*tailer.File) {
 	tailersFilesCopy := make([]*tailer.File, len(files))
 	copy(tailersFilesCopy, files)
 
