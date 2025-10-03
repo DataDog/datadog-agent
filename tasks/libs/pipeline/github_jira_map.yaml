@@ -49,3 +49,4 @@
 '@datadog/agent-processing-and-routing': APR
 '@datadog/agent-discovery': DSCVR
 '@datadog/synthetics-executing': SYNORG
+'@datadog/agent-health': ASUP
