@@ -59,7 +59,11 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     infra_token = datadog_infra_token(ctx, audience="sdm")
     url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
 
-    res = requests.get(url, headers={'Authorization': infra_token}, timeout=10)
+    import time
+    start_time = time.perf_counter()
+    res = requests.get(url, headers={'Authorization': infra_token}, timeout=30)
+    end_time = time.perf_counter()
+    print(f'Got Gitlab token in {end_time - start_time:.2f}s')
 
     if not res.ok:
         raise RuntimeError(f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}')
