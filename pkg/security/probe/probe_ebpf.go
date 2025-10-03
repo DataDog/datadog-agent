@@ -1070,12 +1070,12 @@ type BinaryUnmarshaler interface {
 }
 
 // regularUnmarshalEvent do the regular unmarshaling common to all events
-func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.EventType, offset int, dataLen uint64, data []byte) error {
+func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.EventType, offset int, dataLen uint64, data []byte) bool {
 	if _, err := bu.UnmarshalBinary(data[offset:]); err != nil {
 		seclog.Errorf("failed to decode %s event: %s (offset %d, len %d)", eventType.String(), err, offset, dataLen)
-		return err
+		return false
 	}
-	return nil
+	return true
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
@@ -1127,9 +1127,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	p.monitors.eventStreamMonitor.CountEvent(eventType, event, dataLen, CPU, !p.useRingBuffers)
 
-	// some events don't need to be dispatched to userspace
-	ok := p.handleEarlyReturnEvents(eventType, event, offset, dataLen, data, newEntryCb)
-	if !ok {
+	// some events don't need to be dispatched and return early after unmarshaling
+	if !p.handleEarlyReturnEvents(eventType, event, offset, dataLen, data, newEntryCb) {
 		return
 	}
 	// unmarshall contexts
@@ -1146,8 +1145,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	})
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
-	ok = p.handleBeforeProcessContext(eventType, event, data, offset, dataLen, newEntryCb)
-	if !ok {
+	if !p.handleBeforeProcessContext(eventType, event, data, offset, dataLen, newEntryCb) {
+		// there was an error while handling the event
 		return
 	}
 	// resolve process context
@@ -1159,8 +1158,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// handle regular events
-	ok = p.handleRegularEvent(eventType, event, offset, dataLen, data, newEntryCb)
-	if !ok {
+	if !p.handleRegularEvent(eventType, event, offset, dataLen, data, newEntryCb) {
 		return
 	}
 
@@ -1188,7 +1186,7 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 	switch eventType {
 
 	case model.FileMountEventType, model.FileMoveMountEventType:
-		if err = p.regularUnmarshalEvent(&event.Mount, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Mount, eventType, offset, dataLen, data) {
 			return false
 		}
 
@@ -1210,7 +1208,7 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 		}
 
 	case model.FileUmountEventType:
-		if err = p.regularUnmarshalEvent(&event.Umount, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Umount, eventType, offset, dataLen, data) {
 			return false
 		}
 
@@ -1224,55 +1222,55 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 		}
 
 	case model.FileOpenEventType:
-		if err = p.regularUnmarshalEvent(&event.Open, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Open, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.FileMkdirEventType:
-		if err = p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.FileRmdirEventType:
-		if err = p.regularUnmarshalEvent(&event.Rmdir, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Rmdir, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.FileUnlinkEventType:
-		if err = p.regularUnmarshalEvent(&event.Unlink, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Unlink, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.FileRenameEventType:
-		if err = p.regularUnmarshalEvent(&event.Rename, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Rename, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.FileChdirEventType:
-		if err = p.regularUnmarshalEvent(&event.Chdir, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Chdir, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.FileChmodEventType:
-		if err = p.regularUnmarshalEvent(&event.Chmod, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Chmod, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.FileChownEventType:
-		if err = p.regularUnmarshalEvent(&event.Chown, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Chown, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.FileUtimesEventType:
-		if err = p.regularUnmarshalEvent(&event.Utimes, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Utimes, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.FileLinkEventType:
-		if err = p.regularUnmarshalEvent(&event.Link, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Link, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.FileSetXAttrEventType:
-		if err = p.regularUnmarshalEvent(&event.SetXAttr, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.SetXAttr, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.FileRemoveXAttrEventType:
-		if err = p.regularUnmarshalEvent(&event.RemoveXAttr, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.RemoveXAttr, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.ExitEventType:
-		if err = p.regularUnmarshalEvent(&event.Exit, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Exit, eventType, offset, dataLen, data) {
 			return false
 		}
 		exists := p.Resolvers.ProcessResolver.ApplyExitEntry(event, newEntryCb)
@@ -1288,7 +1286,7 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 			break
 		}
 
-		if err = p.regularUnmarshalEvent(&event.SetUID, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.SetUID, eventType, offset, dataLen, data) {
 			return false
 		}
 		defer p.Resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
@@ -1298,7 +1296,7 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 			break
 		}
 
-		if err = p.regularUnmarshalEvent(&event.SetGID, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.SetGID, eventType, offset, dataLen, data) {
 			return false
 		}
 		defer p.Resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
@@ -1308,7 +1306,7 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 			break
 		}
 
-		if err = p.regularUnmarshalEvent(&event.Capset, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Capset, eventType, offset, dataLen, data) {
 			return false
 		}
 		defer p.Resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
@@ -1317,20 +1315,20 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 			break
 		}
 
-		if err = p.regularUnmarshalEvent(&event.LoginUIDWrite, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.LoginUIDWrite, eventType, offset, dataLen, data) {
 			return false
 		}
 		defer p.Resolvers.ProcessResolver.UpdateLoginUID(event.PIDContext.Pid, event)
 	case model.SELinuxEventType:
-		if err = p.regularUnmarshalEvent(&event.SELinux, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.SELinux, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.BPFEventType:
-		if err = p.regularUnmarshalEvent(&event.BPF, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.BPF, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.PTraceEventType:
-		if err = p.regularUnmarshalEvent(&event.PTrace, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.PTrace, eventType, offset, dataLen, data) {
 			return false
 		}
 		ok := resolveTraceProcessContext(event, p, newEntryCb)
@@ -1338,7 +1336,7 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 			return false
 		}
 	case model.MMapEventType:
-		if err = p.regularUnmarshalEvent(&event.MMap, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.MMap, eventType, offset, dataLen, data) {
 			return false
 		}
 
@@ -1348,11 +1346,11 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 			event.MMap.File.SetBasenameStr("")
 		}
 	case model.MProtectEventType:
-		if err = p.regularUnmarshalEvent(&event.MProtect, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.MProtect, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.LoadModuleEventType:
-		if err = p.regularUnmarshalEvent(&event.LoadModule, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.LoadModule, eventType, offset, dataLen, data) {
 			return false
 		}
 
@@ -1362,20 +1360,20 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 			event.LoadModule.File.SetBasenameStr("")
 		}
 	case model.UnloadModuleEventType:
-		if err = p.regularUnmarshalEvent(&event.UnloadModule, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.UnloadModule, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.SignalEventType:
-		if err = p.regularUnmarshalEvent(&event.Signal, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Signal, eventType, offset, dataLen, data) {
 			return false
 		}
 		resolveTargetProcessContext(event, p, newEntryCb)
 	case model.SpliceEventType:
-		if err = p.regularUnmarshalEvent(&event.Splice, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Splice, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.NetDeviceEventType:
-		if err = p.regularUnmarshalEvent(&event.NetDevice, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.NetDevice, eventType, offset, dataLen, data) {
 			return false
 		}
 
@@ -1385,7 +1383,7 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 		}
 		p.pushNewTCClassifierRequest(request)
 	case model.VethPairEventType, model.VethPairNsEventType:
-		if err = p.regularUnmarshalEvent(&event.VethPair, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.VethPair, eventType, offset, dataLen, data) {
 			return false
 		}
 
@@ -1407,7 +1405,7 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 		}
 		offset += read
 
-		if err = p.regularUnmarshalEvent(&event.DNS, eventType, offset, dataLen, data); err != nil {
+		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
 				seclog.Debugf("failed to validate DNS request event: %s", event.DNS.Question.Name)
 				return
@@ -1472,12 +1470,12 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 		}
 		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
 	case model.RawPacketFilterEventType:
-		if err = p.regularUnmarshalEvent(&event.RawPacket, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.RawPacket, eventType, offset, dataLen, data) {
 			return false
 		}
 		event.NetworkContext = event.RawPacket.NetworkContext
 	case model.RawPacketActionEventType:
-		if err = p.regularUnmarshalEvent(&event.RawPacket, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.RawPacket, eventType, offset, dataLen, data) {
 			return false
 		}
 		event.NetworkContext = event.RawPacket.NetworkContext
@@ -1492,23 +1490,23 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 		)
 		return false
 	case model.NetworkFlowMonitorEventType:
-		if err = p.regularUnmarshalEvent(&event.NetworkFlowMonitor, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.NetworkFlowMonitor, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.AcceptEventType:
-		if err = p.regularUnmarshalEvent(&event.Accept, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Accept, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.BindEventType:
-		if err = p.regularUnmarshalEvent(&event.Bind, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Bind, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.ConnectEventType:
-		if err = p.regularUnmarshalEvent(&event.Connect, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Connect, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.SyscallsEventType:
-		if err = p.regularUnmarshalEvent(&event.Syscalls, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Syscalls, eventType, offset, dataLen, data) {
 			return false
 		}
 	case model.OnDemandEventType:
@@ -1523,24 +1521,24 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 			return false
 		}
 
-		if err = p.regularUnmarshalEvent(&event.OnDemand, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.OnDemand, eventType, offset, dataLen, data) {
 			return false
 		}
 
 	case model.SysCtlEventType:
-		if err = p.regularUnmarshalEvent(&event.SysCtl, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.SysCtl, eventType, offset, dataLen, data) {
 			return false
 		}
 
 	case model.SetSockOptEventType:
-		if err = p.regularUnmarshalEvent(&event.SetSockOpt, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.SetSockOpt, eventType, offset, dataLen, data) {
 			return false
 		}
 		if event.SetSockOpt.IsFilterTruncated {
 			p.BPFFilterTruncated.Add(1)
 		}
 	case model.SetrlimitEventType:
-		if err = p.regularUnmarshalEvent(&event.Setrlimit, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.Setrlimit, eventType, offset, dataLen, data) {
 			return false
 		}
 		// resolve target process context
@@ -1553,7 +1551,7 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 		}
 		event.Setrlimit.Target = &pce.ProcessContext
 	case model.CapabilitiesEventType:
-		if err = p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false
 		}
 		if event.CapabilitiesUsage.Attempted == 0 && event.CapabilitiesUsage.Used == 0 {
@@ -1564,7 +1562,7 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 		event.ProcessCacheEntry.CapsAttempted |= event.CapabilitiesUsage.Attempted
 		event.ProcessCacheEntry.CapsUsed |= event.CapabilitiesUsage.Used
 	case model.PrCtlEventType:
-		if err = p.regularUnmarshalEvent(&event.PrCtl, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.PrCtl, eventType, offset, dataLen, data) {
 			return false
 		}
 		if event.PrCtl.IsNameTruncated {
@@ -1607,7 +1605,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(eventType model.EventType, event *mo
 	var err error
 	switch eventType {
 	case model.MountReleasedEventType:
-		if err = p.regularUnmarshalEvent(&event.MountReleased, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.MountReleased, eventType, offset, dataLen, data) {
 			return false
 		}
 
@@ -1620,7 +1618,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(eventType model.EventType, event *mo
 		}
 		return false
 	case model.ArgsEnvsEventType:
-		if err = p.regularUnmarshalEvent(&event.ArgsEnvs, eventType, offset, dataLen, data); err != nil {
+		if !p.regularUnmarshalEvent(&event.ArgsEnvs, eventType, offset, dataLen, data) {
 			return false
 		}
 		p.Resolvers.ProcessResolver.UpdateArgsEnvs(&event.ArgsEnvs)
@@ -1630,8 +1628,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(eventType model.EventType, event *mo
 			seclog.Errorf("shouldn't receive Cgroup event if activity dumps are disabled")
 			return false
 		}
-		if _, err = event.CgroupTracing.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
+		if !p.regularUnmarshalEvent(&event.CgroupTracing, eventType, offset, dataLen, data) {
 			return false
 		}
 		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, newEntryCb); err != nil {
