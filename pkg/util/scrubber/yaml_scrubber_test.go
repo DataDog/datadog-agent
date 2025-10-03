@@ -112,6 +112,35 @@ func TestConfigScrubbedValidYaml(t *testing.T) {
 	assert.Equal(t, trimmedOutput, trimmedCleaned)
 }
 
+func TestConfigScrubbedYamlWithENC(t *testing.T) {
+	wd, _ := os.Getwd()
+
+	inputConf := filepath.Join(wd, "test", "conf_enc.yaml")
+	inputConfData, err := os.ReadFile(inputConf)
+	require.NoError(t, err)
+
+	outputConf := filepath.Join(wd, "test", "conf_enc_scrubbed.yaml")
+	outputConfData, err := os.ReadFile(outputConf)
+	require.NoError(t, err)
+
+	// Create scrubber with ENC preservation enabled
+	scrubber := NewWithDefaults()
+	scrubber.SetPreserveENC(true)
+	cleaned, err := scrubber.ScrubBytes([]byte(inputConfData))
+	require.NoError(t, err)
+
+	// First test that the a scrubbed yaml is still a valid yaml
+	var out interface{}
+	err = yaml.Unmarshal(cleaned, &out)
+	assert.NoError(t, err, "Could not load YAML configuration after being scrubbed")
+
+	// We replace windows line break by linux so the tests pass on every OS
+	trimmedOutput := strings.TrimSpace(strings.ReplaceAll(string(outputConfData), "\r\n", "\n"))
+	trimmedCleaned := strings.TrimSpace(strings.ReplaceAll(string(cleaned), "\r\n", "\n"))
+
+	assert.Equal(t, trimmedOutput, trimmedCleaned)
+}
+
 func TestConfigScrubbedYaml(t *testing.T) {
 	wd, _ := os.Getwd()
 

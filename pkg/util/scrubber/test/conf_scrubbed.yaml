@@ -53,35 +53,3 @@ network_devices:
 community: "********"
 authentication_key: "********"
 privacy_key: "********"
-
-token_secret: ENC[token_secret]
-
-mixed_config:
-  api_key: ENC[mixed_api_key]
-  password: "********"
-  database:
-    host: localhost
-    password: ENC[db_password]
-    backup_password: "********"
-
-secret_endpoints:
-  - name: prod
-    auth_token: ENC[prod_token]
-  - name: staging
-    auth_token: "********"
-
-services:
-  auth_service:
-    credentials:
-      primary:
-        x-api-key: ENC[primary_api_key]
-        x-auth-token: ENC[primary_auth_token]
-      backup:
-        x-api-key: "********"
-        x-auth-token: "********"
-
-edge_cases:
-  empty_enc: ENC[]
-  whitespace_enc: "  ENC[whitespace_key]  "
-  nested_brackets: ENC[key_with_]_brackets]
-  invalid_password: "********"
