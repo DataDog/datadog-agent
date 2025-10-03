@@ -11,22 +11,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCloudProviderName(t *testing.T) {
+func TestKubeDistributionName(t *testing.T) {
 	// Test cases for cloud provider name
 	testCases := []struct {
 		name     string
 		expected string
 		labels   map[string]string
 	}{
-		{"AWS", "aws", map[string]string{"eks.amazonaws.com/compute-type": "large5n"}},
-		{"GCP", "gcp", map[string]string{"cloud.google.com/gke-boot-disk": "/dev/ssd0n1"}},
-		{"Azure", "azure", map[string]string{"kubernetes.azure.com/mode": "managed-azure"}},
+		{"AWS", "eks", map[string]string{"eks.amazonaws.com/compute-type": "large5n"}},
+		{"GCP", "gke", map[string]string{"cloud.google.com/gke-boot-disk": "/dev/ssd0n1"}},
+		{"Azure", "aks", map[string]string{"kubernetes.azure.com/mode": "managed-azure"}},
 		{"Unknown", "", map[string]string{"cloud.provider": "unknown"}},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			provider := getProvideNameFromNodeLabels(tc.labels)
+			provider := getKubeDistributionNameFromNodeLabels(tc.labels)
 			assert.Equal(t, tc.expected, provider)
 		})
 	}

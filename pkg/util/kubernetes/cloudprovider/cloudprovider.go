@@ -14,10 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 )
 
-// GetName returns the name of the cloud provider for the current node.
+// GetName returns the name of the kube distribution for the current node.
 // GetName shouldn't be used on DCA. For DCA please refer to DCAGetName.
 func GetName(ctx context.Context) (string, error) {
-	cacheKey := cache.BuildAgentKey(constants.NodeCloudProviderKey)
+	cacheKey := cache.BuildAgentKey(constants.NodeKubeDistributionKey)
 	if cloudProvider, found := cache.Cache.Get(cacheKey); found {
 		return cloudProvider.(string), nil
 	}
@@ -42,27 +42,27 @@ func GetName(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	cloudProvider := getProvideNameFromNodeLabels(nl)
+	kubeDistro := getKubeDistributionNameFromNodeLabels(nl)
 
-	cache.Cache.Set(cacheKey, cloudProvider, cache.NoExpiration)
-	return cloudProvider, nil
+	cache.Cache.Set(cacheKey, kubeDistro, cache.NoExpiration)
+	return kubeDistro, nil
 }
 
-// getProvideNameFromNodeLabels checks certain node labels to determine the kube cloud provider.
+// getKubeDistributionNameFromNodeLabels checks certain node labels to determine the kube cloud provider.
 // Returns an empty string if no provider is determined.
-func getProvideNameFromNodeLabels(nl map[string]string) string {
+func getKubeDistributionNameFromNodeLabels(nl map[string]string) string {
 	for labelName := range nl {
 		switch labelName {
 		case "eks.amazonaws.com/nodegroup",
 			"eks.amazonaws.com/compute-type",
 			"alpha.eksctl.io/cluster-name":
-			return "aws"
+			return "eks"
 		case "cloud.google.com/gke-boot-disk":
-			return "gcp"
+			return "gke"
 		case "kubernetes.azure.com/nodepool-type",
 			"kubernetes.azure.com/mode",
 			"kubernetes.azure.com/cluster":
-			return "azure"
+			return "aks"
 		}
 	}
 	return ""

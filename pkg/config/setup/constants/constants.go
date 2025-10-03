@@ -11,6 +11,6 @@ const (
 	DefaultEBPFLessProbeAddr = "localhost:5678"
 	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
 	ClusterIDCacheKey = "orchestratorClusterID"
-	// NodeCloudProviderKey is the key name for the node cloud provider in the agent in-mem cache
-	NodeCloudProviderKey = "nodeCloudProvider"
+	// NodeKubeDistributionKey is the key name for the node kube distribution in the agent in-mem cache
+	NodeKubeDistributionKey = "nodeKubeDistribution"
 )

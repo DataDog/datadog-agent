@@ -62,7 +62,7 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 		}
 
 		// hard code for now because EKS Fargate means EKS
-		tags = append(tags, taggertags.KubeCloudProvider+":aws")
+		tags = append(tags, taggertags.KubeDistribution+":eks")
 	}
 
 	return tags
@@ -113,9 +113,9 @@ func GetClusterAgentStaticTags(ctx context.Context, config config.Reader) map[st
 	tags = append(tags, configUtils.GetConfiguredDCATags(config)...)
 
 	// determine for kube_cloud_provider global tag
-	cloudProvider := cloudprovider.DCAGetName(ctx)
-	if cloudProvider != "" {
-		tags = append(tags, taggertags.KubeCloudProvider+":"+cloudProvider)
+	kubeDistro := cloudprovider.DCAGetName(ctx)
+	if kubeDistro != "" {
+		tags = append(tags, taggertags.KubeDistribution+":"+kubeDistro)
 	}
 
 	if tags == nil {

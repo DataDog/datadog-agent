@@ -17,9 +17,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// DCAGetName returns the name of the cloud provider for the current node.
+// DCAGetName returns the name of the kube distribution for the current node.
 func DCAGetName(ctx context.Context) string {
-	cacheKey := cache.BuildAgentKey(constants.NodeCloudProviderKey)
+	cacheKey := cache.BuildAgentKey(constants.NodeKubeDistributionKey)
 	if cloudProvider, found := cache.Cache.Get(cacheKey); found {
 		return cloudProvider.(string)
 	}
@@ -31,7 +31,7 @@ func DCAGetName(ctx context.Context) string {
 	}
 
 	nl := getNodeLabels(ctx, nodeName)
-	providerName := getProvideNameFromNodeLabels(nl)
+	providerName := getKubeDistributionNameFromNodeLabels(nl)
 
 	// It is fine to save empty tag to avoid querying API server over and over again.
 	// Empty tag are ignored.

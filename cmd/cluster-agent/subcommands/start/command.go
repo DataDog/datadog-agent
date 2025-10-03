@@ -393,10 +393,10 @@ func start(log log.Component,
 		}
 		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 	}
-	// determine cloud provider for that node.
-	cloudProvider := cloudprovider.DCAGetName(mainCtx)
+	// determine kube distribution for that node.
+	kubeDistro := cloudprovider.DCAGetName(mainCtx)
 
-	pkglog.Infof("Cluster ID: %s, Cluster Name: %s, Kube Cloud Provider: %s", clusterID, clusterName, cloudProvider)
+	pkglog.Infof("Cluster ID: %s, Cluster Name: %s, Kube Distribution: %s", clusterID, clusterName, kubeDistro)
 
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client

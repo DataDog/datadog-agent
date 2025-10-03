@@ -35,8 +35,8 @@ const (
 	KubeClusterName = "kube_cluster_name"
 	// OrchClusterID is the tag for the orchestrator cluster ID
 	OrchClusterID = "orch_cluster_id"
-	// KubeCloudProvider is the tag for the managed Kubernetes cloud provider: aws, gcp, azure
-	KubeCloudProvider = "kube_cloud_provider"
+	// KubeDistribution is the tag for the managed Kubernetes cloud provider: eks, gke, aks
+	KubeDistribution = "kube_distribution"
 
 	// ImageName is the tag for the image name
 	ImageName = "image_name"
