@@ -58,14 +58,12 @@ type RolloutOperations interface {
 // RolloutTracker manages rollout state for a KSM check instance
 type RolloutTracker struct {
 	// Deployment tracking
-	deploymentMap        map[string]*appsv1.Deployment
-	deploymentAccessTime map[string]time.Time // Track when each deployment was last accessed
-	deploymentStartTime  map[string]time.Time // Track when each rollout started
-	replicaSetMap        map[string]*ReplicaSetInfo
+	deploymentMap       map[string]*appsv1.Deployment
+	deploymentStartTime map[string]time.Time // Track when each rollout started
+	replicaSetMap       map[string]*ReplicaSetInfo
 
 	// StatefulSet tracking
 	statefulSetMap        map[string]*appsv1.StatefulSet
-	statefulSetAccessTime map[string]time.Time // Track when each StatefulSet was last accessed
 	statefulSetStartTime  map[string]time.Time // Track when each rollout started
 	controllerRevisionMap map[string]*ControllerRevisionInfo
 
@@ -76,14 +74,12 @@ type RolloutTracker struct {
 func NewRolloutTracker() *RolloutTracker {
 	return &RolloutTracker{
 		// Deployment maps
-		deploymentMap:        make(map[string]*appsv1.Deployment),
-		deploymentAccessTime: make(map[string]time.Time),
-		deploymentStartTime:  make(map[string]time.Time),
-		replicaSetMap:        make(map[string]*ReplicaSetInfo),
+		deploymentMap:       make(map[string]*appsv1.Deployment),
+		deploymentStartTime: make(map[string]time.Time),
+		replicaSetMap:       make(map[string]*ReplicaSetInfo),
 
 		// StatefulSet maps
 		statefulSetMap:        make(map[string]*appsv1.StatefulSet),
-		statefulSetAccessTime: make(map[string]time.Time),
 		statefulSetStartTime:  make(map[string]time.Time),
 		controllerRevisionMap: make(map[string]*ControllerRevisionInfo),
 	}
@@ -111,11 +107,6 @@ func (rt *RolloutTracker) GetRolloutDuration(namespace, deploymentName string) f
 	defer rt.mutex.RUnlock()
 
 	deploymentKey := namespace + "/" + deploymentName
-
-	// Update access time for this deployment
-	if _, exists := rt.deploymentMap[deploymentKey]; exists {
-		rt.deploymentAccessTime[deploymentKey] = time.Now()
-	}
 
 	// Try to use the newest ReplicaSet creation time, fall back to deployment start time
 	var startTime time.Time
@@ -161,7 +152,6 @@ func (rt *RolloutTracker) StoreDeployment(dep *appsv1.Deployment) {
 	}
 
 	rt.deploymentMap[key] = dep.DeepCopy()
-	rt.deploymentAccessTime[key] = time.Now() // Track when we stored it
 }
 
 // CleanupDeployment removes a deployment and its ReplicaSets from tracking
@@ -173,8 +163,7 @@ func (rt *RolloutTracker) CleanupDeployment(namespace, name string) {
 
 	// Remove deployment
 	delete(rt.deploymentMap, key)
-	delete(rt.deploymentAccessTime, key) // Also remove access time tracking
-	delete(rt.deploymentStartTime, key)  // Also remove rollout start time
+	delete(rt.deploymentStartTime, key)
 
 	// Remove associated ReplicaSets
 	removedReplicaSets := 0
@@ -246,11 +235,6 @@ func (rt *RolloutTracker) GetStatefulSetRolloutDuration(namespace, statefulSetNa
 
 	statefulSetKey := namespace + "/" + statefulSetName
 
-	// Update access time for this StatefulSet
-	if _, exists := rt.statefulSetMap[statefulSetKey]; exists {
-		rt.statefulSetAccessTime[statefulSetKey] = time.Now()
-	}
-
 	// Try to use the newest ControllerRevision creation time, fall back to StatefulSet start time
 	var startTime time.Time
 
@@ -295,7 +279,6 @@ func (rt *RolloutTracker) StoreStatefulSet(sts *appsv1.StatefulSet) {
 	}
 
 	rt.statefulSetMap[key] = sts.DeepCopy()
-	rt.statefulSetAccessTime[key] = time.Now() // Track when we stored it
 }
 
 // CleanupStatefulSet removes a StatefulSet and its ControllerRevisions from tracking
@@ -307,8 +290,7 @@ func (rt *RolloutTracker) CleanupStatefulSet(namespace, name string) {
 
 	// Remove StatefulSet
 	delete(rt.statefulSetMap, key)
-	delete(rt.statefulSetAccessTime, key) // Also remove access time tracking
-	delete(rt.statefulSetStartTime, key)  // Also remove rollout start time
+	delete(rt.statefulSetStartTime, key)
 
 	// Remove associated ControllerRevisions
 	for crKey, crInfo := range rt.controllerRevisionMap {
