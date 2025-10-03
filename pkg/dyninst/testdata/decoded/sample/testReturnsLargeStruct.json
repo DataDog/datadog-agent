@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testFramelessArray",
+      "method": "main.testReturnsLargeStruct",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,19 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testFramelessArray",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
-            "lineNumber": 93
+            "function": "main.testReturnsLargeStruct",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 118
           },
           {
-            "function": "main.executeInlined",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
-            "lineNumber": 105
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 251
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 34
+            "lineNumber": 50
           },
           {
             "function": "runtime.main",
@@ -42,47 +42,58 @@
           }
         ],
         "probe": {
-          "id": "testFramelessArray",
+          "id": "testReturnsLargeStruct",
           "location": {
-            "method": "main.testFramelessArray"
+            "method": "main.testReturnsLargeStruct"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "a": {
-                "type": "[5]int",
-                "size": "5",
-                "elements": [
-                  {
-                    "type": "int",
-                    "value": "1"
-                  },
-                  {
-                    "type": "int",
-                    "value": "2"
-                  },
-                  {
-                    "type": "int",
-                    "value": "3"
-                  },
-                  {
-                    "type": "int",
-                    "value": "4"
-                  },
-                  {
-                    "type": "int",
-                    "value": "5"
-                  }
-                ]
-              }
-            }
-          },
           "return": {
             "locals": {
               "~r0": {
-                "type": "int",
-                "value": "15"
+                "type": "main.largeStruct",
+                "fields": {
+                  "a": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "b": {
+                    "type": "int",
+                    "value": "2"
+                  },
+                  "c": {
+                    "type": "int",
+                    "value": "3"
+                  },
+                  "d": {
+                    "type": "int",
+                    "value": "4"
+                  },
+                  "e": {
+                    "type": "int",
+                    "value": "5"
+                  },
+                  "f": {
+                    "type": "int",
+                    "value": "6"
+                  },
+                  "g": {
+                    "type": "int",
+                    "value": "7"
+                  },
+                  "h": {
+                    "type": "int",
+                    "value": "8"
+                  },
+                  "i": {
+                    "type": "int",
+                    "value": "9"
+                  },
+                  "j": {
+                    "type": "int",
+                    "value": "10"
+                  }
+                }
               }
             }
           }

@@ -23,7 +23,7 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 100
+            "lineNumber": 239
           },
           {
             "function": "main.main",
@@ -65,7 +65,11 @@
             "locals": {
               "~r0": {
                 "type": "main.behavior",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
               }
             }
           }
@@ -99,7 +103,7 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 101
+            "lineNumber": 240
           },
           {
             "function": "main.main",
@@ -146,7 +150,17 @@
             "locals": {
               "~r0": {
                 "type": "main.behavior",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "main.firstBehavior",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "foo"
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -180,7 +194,7 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 102
+            "lineNumber": 241
           },
           {
             "function": "main.main",
@@ -228,7 +242,18 @@
             "locals": {
               "~r0": {
                 "type": "main.behavior",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "*main.firstBehavior",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "foo"
+                      }
+                    }
+                  }
+                }
               }
             }
           }

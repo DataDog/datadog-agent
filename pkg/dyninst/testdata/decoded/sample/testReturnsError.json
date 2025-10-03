@@ -23,7 +23,7 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 89
+            "lineNumber": 228
           },
           {
             "function": "main.main",
@@ -60,7 +60,18 @@
             "locals": {
               "~r0": {
                 "type": "error",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "error"
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -94,7 +105,7 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 90
+            "lineNumber": 229
           },
           {
             "function": "main.main",
@@ -131,7 +142,11 @@
             "locals": {
               "~r0": {
                 "type": "error",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
               }
             }
           }

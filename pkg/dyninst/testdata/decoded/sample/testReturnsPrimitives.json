@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testSomeNamedReturn",
+      "method": "main.testReturnsPrimitives",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testSomeNamedReturn",
+            "function": "main.testReturnsPrimitives",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 82
+            "lineNumber": 90
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 245
+            "lineNumber": 248
           },
           {
             "function": "main.main",
@@ -42,33 +42,45 @@
           }
         ],
         "probe": {
-          "id": "testSomeNamedReturn",
+          "id": "testReturnsPrimitives",
           "location": {
-            "method": "main.testSomeNamedReturn"
+            "method": "main.testReturnsPrimitives"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "i": {
-                "type": "int",
-                "value": "42"
-              }
-            }
-          },
           "return": {
             "locals": {
               "~r0": {
-                "type": "int",
-                "value": "41"
+                "type": "int8",
+                "value": "1"
               },
-              "result2": {
-                "type": "int",
-                "value": "42"
+              "~r1": {
+                "type": "int16",
+                "value": "2"
               },
               "~r2": {
-                "type": "int",
-                "value": "43"
+                "type": "int32",
+                "value": "3"
+              },
+              "~r3": {
+                "type": "int64",
+                "value": "4"
+              },
+              "~r4": {
+                "type": "uint8",
+                "value": "5"
+              },
+              "~r5": {
+                "type": "uint16",
+                "value": "6"
+              },
+              "~r6": {
+                "type": "uint32",
+                "value": "7"
+              },
+              "~r7": {
+                "type": "uint64",
+                "value": "8"
               }
             }
           }

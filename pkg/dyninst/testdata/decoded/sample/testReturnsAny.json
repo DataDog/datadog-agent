@@ -23,7 +23,7 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 95
+            "lineNumber": 234
           },
           {
             "function": "main.main",
@@ -64,7 +64,11 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
               }
             }
           }
@@ -98,7 +102,7 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 96
+            "lineNumber": 235
           },
           {
             "function": "main.main",
@@ -140,7 +144,12 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "int",
+                    "value": "42"
+                  }
+                }
               }
             }
           }
@@ -174,7 +183,7 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 98
+            "lineNumber": 237
           },
           {
             "function": "main.main",
@@ -217,7 +226,13 @@
             "locals": {
               "~r0": {
                 "type": "interface {}",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "*int",
+                    "address": "[addr]",
+                    "value": "42"
+                  }
+                }
               }
             }
           }
