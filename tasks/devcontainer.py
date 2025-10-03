@@ -137,7 +137,7 @@ def setup(
     # Add per user configuration
     user_config_path = Path.home() / ".devcontainer" / "agent_overrides.json"
     if os.path.exists(user_config_path):
-        with open(user_config_path, "r") as sf:
+        with open(user_config_path) as sf:
             user_config = json.load(sf)
             more_mounts = user_config.get("mounts")
             if more_mounts:
