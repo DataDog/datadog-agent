@@ -132,7 +132,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 	if deps.SystemProbeCache != nil {
 		log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
 		for _, dev := range allPhysicalDevices {
-			spCollector, err := newEbpfCollector(dev, deps)
+			spCollector, err := newEbpfCollector(dev, deps.SystemProbeCache)
 			if err != nil {
 				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
 				continue

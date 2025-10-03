@@ -102,14 +102,10 @@ func (c *deviceEventsCollector) Collect() ([]Metric, error) {
 		c.metricsByXidCode[evt.EventData].Value++
 	}
 
-	// collect metrics in a deterministic order
-	xidCodes := slices.Collect(maps.Keys(c.metricsByXidCode))
-	slices.Sort(xidCodes)
 	var metrics []Metric
-	for _, xidCode := range xidCodes {
-		metrics = append(metrics, *c.metricsByXidCode[xidCode])
+	for _, m := range c.metricsByXidCode {
+		metrics = append(metrics, *m)
 	}
-
 	return metrics, nil
 }
 
@@ -174,7 +170,7 @@ func (c *DeviceEventsGatherer) Stop() error {
 	c.evtSetMtx.Lock()
 	defer c.evtSetMtx.Unlock()
 	if err := c.lib.EventSetFree(c.evtSet); err != nil {
-		return fmt.Errorf("failed freeing event set: %w", err)
+		log.Errorf("failed freeing event set: %v", err)
 	}
 	c.evtSet = nil
 

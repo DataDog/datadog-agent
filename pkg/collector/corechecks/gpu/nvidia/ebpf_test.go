@@ -113,7 +113,7 @@ func testCollectWithInvalidCache(t *testing.T) {
 	dev := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := NewSystemProbeCache()
 
-	collector, err := newEbpfCollector(dev, &CollectorDependencies{SystemProbeCache: cache})
+	collector, err := newEbpfCollector(dev, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -138,7 +138,7 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
+	collector, err := newEbpfCollector(device, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -199,7 +199,7 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
+	collector, err := newEbpfCollector(device, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -239,7 +239,7 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
+	collector, err := newEbpfCollector(device, cache)
 	require.NoError(t, err)
 
 	// First collect with process 123
@@ -305,7 +305,7 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
+	collector, err := newEbpfCollector(device, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -361,7 +361,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
+	collector, err := newEbpfCollector(device, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()

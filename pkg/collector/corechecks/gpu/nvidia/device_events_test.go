@@ -215,7 +215,7 @@ func TestDeviceEventsCollector(t *testing.T) {
 	mm2, err := collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, mm2, 2)
-	assert.Equal(t, []Metric{
+	assert.ElementsMatch(t, []Metric{
 		{
 			Name:     xidErrorsMetricName,
 			Value:    1,

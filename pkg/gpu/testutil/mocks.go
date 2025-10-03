@@ -266,6 +266,12 @@ func WithDeviceCount(count int) NvmlMockOption {
 			lib.DeviceGetCountFunc = func() (int, nvml.Return) {
 				return count, nvml.SUCCESS
 			}
+			lib.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
+				if index >= count {
+					return nil, nvml.ERROR_INVALID_ARGUMENT
+				}
+				return GetDeviceMock(index), nvml.SUCCESS
+			}
 		})
 	}
 }
