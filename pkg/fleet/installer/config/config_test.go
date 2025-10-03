@@ -339,8 +339,8 @@ func TestBuildOperationsFromLegacyConfigFileKeepApplicationMonitoring(t *testing
 
 func TestOperationApply_Copy(t *testing.T) {
 	tmpDir := t.TempDir()
-	sourceFilePath := filepath.Join(tmpDir, "source.yaml")
-	destFilePath := filepath.Join(tmpDir, "dest.yaml")
+	sourceFilePath := filepath.Join(tmpDir, "datadog.yaml")
+	destFilePath := filepath.Join(tmpDir, "security-agent.yaml")
 
 	// Create source file
 	sourceContent := []byte("foo: bar\nbaz: qux\n")
@@ -353,8 +353,8 @@ func TestOperationApply_Copy(t *testing.T) {
 
 	op := &FileOperation{
 		FileOperationType: FileOperationCopy,
-		FilePath:          "/source.yaml",
-		DestinationPath:   "/dest.yaml",
+		FilePath:          "/datadog.yaml",
+		DestinationPath:   "/security-agent.yaml",
 	}
 
 	err = op.apply(root)
@@ -372,8 +372,8 @@ func TestOperationApply_Copy(t *testing.T) {
 
 func TestOperationApply_Move(t *testing.T) {
 	tmpDir := t.TempDir()
-	sourceFilePath := filepath.Join(tmpDir, "source.yaml")
-	destFilePath := filepath.Join(tmpDir, "dest.yaml")
+	sourceFilePath := filepath.Join(tmpDir, "datadog.yaml")
+	destFilePath := filepath.Join(tmpDir, "otel-config.yaml")
 
 	// Create source file
 	sourceContent := []byte("foo: bar\nbaz: qux\n")
@@ -386,8 +386,8 @@ func TestOperationApply_Move(t *testing.T) {
 
 	op := &FileOperation{
 		FileOperationType: FileOperationMove,
-		FilePath:          "/source.yaml",
-		DestinationPath:   "/dest.yaml",
+		FilePath:          "/datadog.yaml",
+		DestinationPath:   "/otel-config.yaml",
 	}
 
 	err = op.apply(root)
@@ -406,9 +406,9 @@ func TestOperationApply_Move(t *testing.T) {
 
 func TestOperationApply_CopyWithNestedDestination(t *testing.T) {
 	tmpDir := t.TempDir()
-	sourceFilePath := filepath.Join(tmpDir, "source.yaml")
-	destDir := filepath.Join(tmpDir, "nested", "dir")
-	destFilePath := filepath.Join(destDir, "dest.yaml")
+	sourceFilePath := filepath.Join(tmpDir, "datadog.yaml")
+	destDir := filepath.Join(tmpDir, "conf.d", "mycheck.d")
+	destFilePath := filepath.Join(destDir, "config.yaml")
 
 	// Create source file
 	sourceContent := []byte("foo: bar\nbaz: qux\n")
@@ -421,8 +421,8 @@ func TestOperationApply_CopyWithNestedDestination(t *testing.T) {
 
 	op := &FileOperation{
 		FileOperationType: FileOperationCopy,
-		FilePath:          "/source.yaml",
-		DestinationPath:   "/nested/dir/dest.yaml",
+		FilePath:          "/datadog.yaml",
+		DestinationPath:   "/conf.d/mycheck.d/config.yaml",
 	}
 
 	err = op.apply(root)
@@ -440,9 +440,9 @@ func TestOperationApply_CopyWithNestedDestination(t *testing.T) {
 
 func TestOperationApply_MoveWithNestedDestination(t *testing.T) {
 	tmpDir := t.TempDir()
-	sourceFilePath := filepath.Join(tmpDir, "source.yaml")
-	destDir := filepath.Join(tmpDir, "nested", "dir")
-	destFilePath := filepath.Join(destDir, "dest.yaml")
+	sourceFilePath := filepath.Join(tmpDir, "system-probe.yaml")
+	destDir := filepath.Join(tmpDir, "conf.d", "mycheck.d")
+	destFilePath := filepath.Join(destDir, "config.yaml")
 
 	// Create source file
 	sourceContent := []byte("foo: bar\nbaz: qux\n")
@@ -455,8 +455,8 @@ func TestOperationApply_MoveWithNestedDestination(t *testing.T) {
 
 	op := &FileOperation{
 		FileOperationType: FileOperationMove,
-		FilePath:          "/source.yaml",
-		DestinationPath:   "/nested/dir/dest.yaml",
+		FilePath:          "/system-probe.yaml",
+		DestinationPath:   "/conf.d/mycheck.d/config.yaml",
 	}
 
 	err = op.apply(root)
@@ -486,8 +486,8 @@ func TestOperationApply_CopyMissingSource(t *testing.T) {
 
 	op := &FileOperation{
 		FileOperationType: FileOperationCopy,
-		FilePath:          "/nonexistent.yaml",
-		DestinationPath:   "/dest.yaml",
+		FilePath:          "/datadog.yaml",
+		DestinationPath:   "/security-agent.yaml",
 	}
 
 	err = op.apply(root)
@@ -503,8 +503,8 @@ func TestOperationApply_MoveMissingSource(t *testing.T) {
 
 	op := &FileOperation{
 		FileOperationType: FileOperationMove,
-		FilePath:          "/nonexistent.yaml",
-		DestinationPath:   "/dest.yaml",
+		FilePath:          "/datadog.yaml",
+		DestinationPath:   "/otel-config.yaml",
 	}
 
 	err = op.apply(root)

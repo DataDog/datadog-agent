@@ -252,6 +252,7 @@ func (a *FileOperation) apply(root *os.Root) error {
 			return err
 		}
 
+		// TODO: this is 1.25+ only
 		err = root.MkdirAll(destinationPath, 0755)
 		if err != nil {
 			return err
@@ -275,6 +276,7 @@ func (a *FileOperation) apply(root *os.Root) error {
 			return err
 		}
 
+		// TODO: this is 1.25+ only
 		err = root.MkdirAll(destinationPath, 0755)
 		if err != nil {
 			return err
