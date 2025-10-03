@@ -146,3 +146,26 @@ func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPSocket(c *assert.Col
 	// > 1 verifies that we have more than just the last hop known
 	assert.True(c, countKnownHops > 1, "expected to find at least one hop that is reachable")
 }
+
+func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPDisableWindowsDriver(c *assert.CollectT, agentHostname string) {
+	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+		return np.Destination.Hostname == "1.1.1.1" && np.Protocol == "TCP"
+	})
+
+	assertPayloadBase(c, np, agentHostname)
+
+	assert.NotZero(c, np.Destination.Port)
+	require.NotEmpty(c, np.Traceroute.Runs)
+	assert.NotEmpty(c, np.Traceroute.Runs[0].Hops)
+
+	// assert that one of the hops is reachable
+	run := np.Traceroute.Runs[0]
+	countKnownHops := 0
+	for _, hop := range run.Hops {
+		if hop.Reachable {
+			countKnownHops++
+		}
+	}
+	// > 1 verifies that we have more than just the last hop known
+	assert.True(c, countKnownHops > 1, "expected to find at least one hop that is reachable")
+}

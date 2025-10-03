@@ -57,25 +57,25 @@ func addTags(target map[string]bool, name string, value string, splits map[strin
 	}
 }
 
-// AddHigh adds a new high cardinality tag to the map, or replace if already exists.
+// AddHigh adds a new high cardinality tag to the map.
 // It will skip empty values/names, so it's safe to use without verifying the value is not empty.
 func (l *TagList) AddHigh(name string, value string) {
 	addTags(l.highCardTags, name, value, l.splitList)
 }
 
-// AddOrchestrator adds a new orchestrator-level cardinality tag to the map, or replice if already exists.
+// AddOrchestrator adds a new orchestrator-level cardinality tag to the map.
 // It will skip empty values/names, so it's safe to use without verifying the value is not empty.
 func (l *TagList) AddOrchestrator(name string, value string) {
 	addTags(l.orchestratorCardTags, name, value, l.splitList)
 }
 
-// AddLow adds a new low cardinality tag to the list, or replace if already exists.
+// AddLow adds a new low cardinality tag to the map.
 // It will skip empty values/names, so it's safe to use without verifying the value is not empty.
 func (l *TagList) AddLow(name string, value string) {
 	addTags(l.lowCardTags, name, value, l.splitList)
 }
 
-// AddStandard adds a new standard tag to the list, or replace if already exists.
+// AddStandard adds a new standard tag to the map.
 // It adds the standard tag to the low cardinality tag list as well.
 // It will skip empty values/names, so it's safe to use without verifying the value is not empty.
 func (l *TagList) AddStandard(name string, value string) {
