@@ -136,6 +136,7 @@ message UnixDogstatsdMsg {
 message TaggerState {
     map<string, Entity> state = 1;
     map<int32, string> pidMap = 2;
+    int64 duration = 3;
 }
 
 message TaggerStateResponse {
