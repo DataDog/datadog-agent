@@ -41,9 +41,9 @@ func Test_GetProfileMap(t *testing.T) {
 						Name: "p1",
 					},
 					Commands: map[CommandType][]string{
-						Running: {"show running-config"},
-						Startup: {"show startup-config"},
-						Version: {"show version"},
+						Running: {"show run"},
+						Startup: {"show start"},
+						Version: {"show ver"},
 					},
 				},
 				"p2": &NCMProfile{
@@ -164,9 +164,9 @@ func Test_ParseNCMProfileFromFile(t *testing.T) {
 			profileFile: p1,
 			expectedDeviceProfile: &NCMProfile{
 				Commands: map[CommandType][]string{
-					Running: {"show running-config"},
-					Startup: {"show startup-config"},
-					Version: {"show version"},
+					Running: {"show run"},
+					Startup: {"show start"},
+					Version: {"show ver"},
 				},
 			},
 		},
