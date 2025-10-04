@@ -537,6 +537,7 @@ RUN apt-get update && \
     apt-get install -y patchelf
 
 COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
+COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
@@ -570,6 +571,7 @@ COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
 {copy_extra_agents}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
