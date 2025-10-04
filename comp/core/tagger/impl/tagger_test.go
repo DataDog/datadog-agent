@@ -596,6 +596,12 @@ func TestEnrichTags(t *testing.T) {
 	containerName, initContainerName, containerID, initContainerID, podUID := "container-name", "init-container-name", "container-id", "init-container-id", "pod-uid"
 
 	// Fill fake tagger with entities
+
+	// Note: in the real tagger, the pod tags are tied to the container tags.
+	// However, this is not the case in the fake tagger.
+	// Hence, we should only expect the pod defined tags if tag enrichment directly
+	// queries for the pod entity because higher granular container tags failed to accumulate.
+
 	fakeTagger.SetTags(types.NewEntityID(types.KubernetesPodUID, podUID), "host", []string{"pod-low"}, []string{"pod-orch"}, []string{"pod-high"}, []string{"pod-std"})
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, containerID), "host", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, []string{"container-std"})
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, initContainerID), "host", []string{"init-container-low"}, []string{"init-container-orch"}, []string{"init-container-high"}, []string{"init-container-std"})
@@ -659,7 +665,7 @@ func TestEnrichTags(t *testing.T) {
 				},
 				Cardinality:   "high",
 				ProductOrigin: origindetection.ProductOriginAPM},
-			expectedTags: []string{"container-low", "container-orch", "container-high", "pod-low", "pod-orch", "pod-high"},
+			expectedTags: []string{"container-low", "container-orch", "container-high"},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -708,7 +714,7 @@ func TestEnrichTags(t *testing.T) {
 				},
 				Cardinality: "low",
 			},
-			expectedTags: []string{"pod-low", "container-low"},
+			expectedTags: []string{"container-low"},
 			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector) },
 		},
 		{
@@ -735,7 +741,7 @@ func TestEnrichTags(t *testing.T) {
 				},
 				Cardinality: "high",
 			},
-			expectedTags: []string{"pod-low", "pod-orch", "pod-high", "container-low", "container-orch", "container-high"},
+			expectedTags: []string{"container-low", "container-orch", "container-high"},
 			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector) },
 		},
 		{
@@ -749,7 +755,7 @@ func TestEnrichTags(t *testing.T) {
 				},
 				Cardinality: "low",
 			},
-			expectedTags: []string{"pod-low", "init-container-low"},
+			expectedTags: []string{"init-container-low"},
 			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&initContainerMetaCollector) },
 		},
 	} {
@@ -778,7 +784,7 @@ func TestEnrichTagsContainerIDMismatch(t *testing.T) {
 	localContainerID, externalContainerID, podUID := "local-container-id", "external-container-id", "pod-uid"
 	containerName := "container-name"
 
-	fakeTagger.SetTags(types.NewEntityID(types.KubernetesPodUID, podUID), "kubelet", []string{"pod-low"}, nil, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.KubernetesPodUID, podUID), "kubelet", []string{"directly-from-pod-low"}, nil, nil, nil)
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, localContainerID), "kubelet", []string{"local-container-low"}, nil, nil, nil)
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, externalContainerID), "kubelet", []string{"external-container-low"}, nil, nil, nil)
 
@@ -811,7 +817,7 @@ func TestEnrichTagsContainerIDMismatch(t *testing.T) {
 		actualTags := tb.Get()
 
 		assert.Contains(t, actualTags, "local-container-low")
-		assert.Contains(t, actualTags, "pod-low")
+		assert.NotContains(t, actualTags, "directly-from-pod-low")
 		assert.NotContains(t, actualTags, "external-container-low")
 	})
 }
