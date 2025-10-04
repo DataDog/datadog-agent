@@ -60,6 +60,7 @@
         "captures": {}
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": ""
   }
 ]

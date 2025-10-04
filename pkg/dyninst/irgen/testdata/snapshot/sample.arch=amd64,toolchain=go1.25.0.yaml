@@ -174,8 +174,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testBoolArray}
       tags: ['foo:bar']
+      message: '{x}'
       template: ""
-      segments: []
+      segments: [{dsl: {json: {ref: x}, dsl: x}}]
       captureSnapshot: true
       subprogram: {subprogram: 4}
       events:
@@ -385,8 +386,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testEmptyStruct}
       tags: ['foo:bar']
+      message: '{e}'
       template: ""
-      segments: []
+      segments: [{dsl: {json: {ref: e}, dsl: e}}]
       captureSnapshot: true
       subprogram: {subprogram: 127}
       events:
@@ -1702,8 +1704,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testSingleInt16}
       tags: ['foo:bar']
+      message: hello {x}
       template: ""
-      segments: []
+      segments: [{str: hello}, {dsl: {json: {ref: x}, dsl: x}}]
       captureSnapshot: true
       subprogram: {subprogram: 26}
       events:
@@ -1747,8 +1750,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testSingleInt8}
       tags: ['foo:bar']
+      message: hello {x}
       template: ""
-      segments: []
+      segments: [{str: hello}, {dsl: {json: {ref: x}, dsl: x}}]
       captureSnapshot: true
       subprogram: {subprogram: 25}
       events:
@@ -1777,8 +1781,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testSingleString}
       tags: ['foo:bar']
+      message: '{x}'
       template: ""
-      segments: []
+      segments: [{dsl: {json: {ref: x}, dsl: x}}]
       captureSnapshot: true
       subprogram: {subprogram: 116}
       events:
@@ -2006,8 +2011,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testStruct}
       tags: ['foo:bar']
+      message: '{x}'
       template: ""
-      segments: []
+      segments: [{dsl: {json: {ref: x}, dsl: x}}]
       captureSnapshot: true
       subprogram: {subprogram: 126}
       events:
@@ -2244,8 +2250,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testUintPointer}
       tags: ['foo:bar']
+      message: '{x}'
       template: ""
-      segments: []
+      segments: [{dsl: {json: {ref: x}, dsl: x}}]
       captureSnapshot: true
       subprogram: {subprogram: 90}
       events:
@@ -2259,8 +2266,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testUintSlice}
       tags: ['foo:bar']
+      message: '{u}'
       template: ""
-      segments: []
+      segments: [{dsl: {json: {ref: u}, dsl: u}}]
       captureSnapshot: true
       subprogram: {subprogram: 104}
       events:
@@ -10322,6 +10330,19 @@ Types:
     - __kind: EventRootType
       ID: 1467
       Name: Probe[main.testStruct]Return
+      ByteSize: 57
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: x
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 288 StructureType main.aStruct
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 120, index: 0, name: x}
+                  Offset: 0
+                  ByteSize: 56
     - __kind: EventRootType
       ID: 1457
       Name: Probe[main.testThreeStringsInStructPointer]

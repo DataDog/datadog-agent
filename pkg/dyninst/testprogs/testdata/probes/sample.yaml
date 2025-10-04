@@ -34,6 +34,12 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleInt8
+    message: "hello {x}"
+    segments:
+      - str: "hello"
+      - json: 
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleInt16
     type: LOG_PROBE
@@ -41,6 +47,12 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleInt16
+    message: "hello {x}"
+    segments:
+      - str: "hello"
+      - json: 
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleInt32
     type: LOG_PROBE
@@ -119,6 +131,11 @@ probes:
     where:
       methodName: main.testSingleString
     captureSnapshot: true
+    message: "{x}"
+    segments:
+      - json: 
+          ref: "x"
+        dsl: "x"  
   - id: testUnitializedString
     type: LOG_PROBE
     tags:
@@ -214,6 +231,11 @@ probes:
     where:
       methodName: main.testBoolArray
     captureSnapshot: true
+    message: "{x}"
+    segments:
+      - json: 
+          ref: "x"
+        dsl: "x"
   - id: testIntArray
     type: LOG_PROBE
     tags:
@@ -324,6 +346,11 @@ probes:
     where:
       methodName: main.testUintSlice
     captureSnapshot: true
+    message: "{u}"
+    segments:
+      - json: 
+          ref: "u"
+        dsl: "u"
   - id: testVeryLargeSlice
     type: LOG_PROBE
     tags:
@@ -416,6 +443,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testStruct
+    message: "{x}"
+    segments:
+      - json: 
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testEmptyStruct
     type: LOG_PROBE
@@ -424,6 +456,11 @@ probes:
     where:
       methodName: main.testEmptyStruct
     captureSnapshot: true
+    message: "{e}"
+    segments:
+      - json: 
+          ref: "e"
+        dsl: "e"
   - id: testUintPointer
     type: LOG_PROBE
     tags:
@@ -431,6 +468,11 @@ probes:
     where:
       methodName: main.testUintPointer
     captureSnapshot: true
+    message: "{x}"
+    segments:
+      - json: 
+          ref: "x"
+        dsl: "x"
   - id: testStringPointer
     type: LOG_PROBE
     tags:

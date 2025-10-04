@@ -7,6 +7,9 @@ probes:
     captureSnapshot: true
     capture:
       maxReferenceDepth: 1
+    template: "test log message"
+    segments:
+      - str: "test log message"
   - id: http_handler
     type: LOG_PROBE
     where:
@@ -14,3 +17,7 @@ probes:
     captureSnapshot: true
     capture:
       maxReferenceDepth: 1
+    template: "test log message"
+    segments:
+      - str: "test log message"
+

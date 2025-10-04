@@ -25,6 +25,7 @@ import (
 	"cmp"
 	"container/heap"
 	"debug/dwarf"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -45,9 +46,11 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -1411,61 +1414,89 @@ func populateEventExpressions(
 	typeCatalog *typeCatalog,
 ) ir.Issue {
 	id := typeCatalog.idAlloc.next()
-	var expressions []*ir.RootExpression
-	for _, variable := range probe.Subprogram.Variables {
-		var variableKind ir.RootExpressionKind
+	var (
+		expressions           []*ir.RootExpression
+		variableExpressionSet = make(map[string]int)
+	)
+	if probe.ProbeDefinition.GetKind() == ir.ProbeKindSnapshot {
 		switch event.Kind {
 		case ir.EventKindEntry:
-			if !variable.IsParameter || variable.IsReturn {
-				continue
+			for _, variable := range probe.Subprogram.Variables {
+				if !variable.IsParameter || variable.IsReturn {
+					continue
+				}
+				if _, ok := variableExpressionSet[variable.Name]; ok {
+					continue
+				}
+				expr := createVariableExpression(variable, ir.RootExpressionKindArgument)
+				expressions = append(expressions, expr)
+				variableExpressionSet[variable.Name] = len(expressions) - 1
 			}
-			variableKind = ir.RootExpressionKindArgument
 		case ir.EventKindReturn:
-			if !variable.IsReturn {
-				continue
+			for _, variable := range probe.Subprogram.Variables {
+				if !variable.IsReturn {
+					continue
+				}
+				if _, ok := variableExpressionSet[variable.Name]; ok {
+					continue
+				}
+				expr := createVariableExpression(variable, ir.RootExpressionKindLocal)
+				expressions = append(expressions, expr)
+				variableExpressionSet[variable.Name] = len(expressions) - 1
 			}
-			variableKind = ir.RootExpressionKindLocal
 		case ir.EventKindLine:
 			// We capture any variable that is available at any of the injection points.
 			// We rely on both locations and injection points being sorted by PC to make
 			// this check linear. The location ranges might overlap, but this sweep is
 			// still correct.
-			available := false
-			locIdx := 0
-			for _, injectionPoint := range event.InjectionPoints {
-				for locIdx < len(variable.Locations) && variable.Locations[locIdx].Range[1] <= injectionPoint.PC {
-					locIdx++
+
+			for _, variable := range probe.Subprogram.Variables {
+				available := false
+				locIdx := 0
+				for _, injectionPoint := range event.InjectionPoints {
+					for locIdx < len(variable.Locations) && variable.Locations[locIdx].Range[1] <= injectionPoint.PC {
+						locIdx++
+					}
+					if locIdx < len(variable.Locations) && injectionPoint.PC >= variable.Locations[locIdx].Range[0] {
+						available = true
+						break
+					}
 				}
-				if locIdx < len(variable.Locations) && injectionPoint.PC >= variable.Locations[locIdx].Range[0] {
-					available = true
-					break
+				if !available {
+					continue
 				}
+				expr := createVariableExpression(variable, ir.RootExpressionKindLocal)
+				expressions = append(expressions, expr)
+				variableExpressionSet[variable.Name] = len(expressions) - 1
 			}
-			if !available {
-				continue
-			}
-			variableKind = ir.RootExpressionKindLocal
 		default:
 			panic(fmt.Sprintf("unexpected event kind: %v", event.Kind))
 		}
-		variableSize := variable.Type.GetByteSize()
-		expr := &ir.RootExpression{
-			Name:   variable.Name,
-			Offset: uint32(0),
-			Kind:   variableKind,
-			Expression: ir.Expression{
-				Type: variable.Type,
-				Operations: []ir.ExpressionOp{
-					&ir.LocationOp{
-						Variable: variable,
-						Offset:   0,
-						ByteSize: uint32(variableSize),
-					},
-				},
-			},
-		}
-		expressions = append(expressions, expr)
 	}
+
+	// Collect segment variables and add them to expressions before calculating sizes
+	for i := range probe.Template.Segments {
+		segment, ok := (probe.Template.Segments[i]).(ir.JSONSegment)
+		if !ok {
+			continue
+		}
+		relevantVariables, err := collectSegmentVariables(segment.JSON, probe.Subprogram)
+		if err != nil {
+			return ir.Issue{
+				Kind:    ir.IssueKindUnsupportedFeature,
+				Message: fmt.Sprintf("failed to collect segment variables: %v", err),
+			}
+		}
+		for _, variable := range relevantVariables {
+			if _, ok := variableExpressionSet[variable.Name]; !ok {
+				expr := createVariableExpression(variable, ir.RootExpressionKindArgument)
+				expressions = append(expressions, expr)
+				variableExpressionSet[variable.Name] = len(expressions) - 1
+			}
+			break
+		}
+	}
+
 	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
 	byteSize := uint64(presenceBitsetSize)
 	for _, e := range expressions {
@@ -1492,7 +1523,50 @@ func populateEventExpressions(
 		Expressions:        expressions,
 	}
 	typeCatalog.typesByID[event.Type.ID] = event.Type
+
+	// map segments to their expression indices
+	for i := range probe.Template.Segments {
+		segment, ok := (probe.Template.Segments[i]).(ir.JSONSegment)
+		if !ok {
+			continue
+		}
+		relevantVariables, err := collectSegmentVariables(segment.JSON, probe.Subprogram)
+		if err != nil {
+			return ir.Issue{
+				Kind:    ir.IssueKindUnsupportedFeature,
+				Message: fmt.Sprintf("failed to collect segment variables: %v", err),
+			}
+		}
+		for _, variable := range relevantVariables {
+			if expressionIndex, ok := variableExpressionSet[variable.Name]; ok {
+				segment.RootTypeExpressionIndicies[event.Type.ID] = expressionIndex
+			}
+			probe.Template.Segments[i] = segment
+			break
+		}
+	}
+
 	return ir.Issue{}
+}
+
+func createVariableExpression(variable *ir.Variable, kind ir.RootExpressionKind) *ir.RootExpression {
+	fmt.Println(variable.Name, variable.Type)
+	variableSize := variable.Type.GetByteSize()
+	return &ir.RootExpression{
+		Name:   variable.Name,
+		Offset: uint32(0),
+		Kind:   kind,
+		Expression: ir.Expression{
+			Type: variable.Type,
+			Operations: []ir.ExpressionOp{
+				&ir.LocationOp{
+					Variable: variable,
+					Offset:   0,
+					ByteSize: uint32(variableSize),
+				},
+			},
+		},
+	}
 }
 
 type rootVisitor struct {
@@ -1936,10 +2010,36 @@ func newProbe(
 	if returnEvent != nil {
 		events = append(events, returnEvent)
 	}
+	segments := []ir.TemplateSegment{}
+	probeTemplate := probeCfg.GetTemplate()
+	for seg := range probeTemplate.GetSegments() {
+		if s, ok := seg.(rcjson.TemplateSegment); ok && (s.JSONSegment != nil || s.StringSegment != nil) {
+			if s.JSONSegment != nil {
+				segments = append(segments, ir.JSONSegment{
+					JSON:                       s.JSONSegment.JSON,
+					DSL:                        s.JSONSegment.DSL,
+					RootTypeExpressionIndicies: make(map[ir.TypeID]int),
+				})
+			} else if s.StringSegment != nil {
+				segments = append(segments, ir.StringSegment{Value: string(*s.StringSegment)})
+			} else {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindInvalidProbeDefinition,
+					Message: fmt.Sprintf("invalid template segment: %T", seg),
+				}, nil
+			}
+		}
+	}
+
+	template := &ir.Template{
+		TemplateString: probeCfg.GetTemplate().GetTemplateString(),
+		Segments:       segments,
+	}
 	probe := &ir.Probe{
 		ProbeDefinition: probeCfg,
 		Subprogram:      subprogram,
 		Events:          events,
+		Template:        template,
 	}
 	return probe, ir.Issue{}, nil
 }
@@ -2727,4 +2827,48 @@ func compileUnitFromName(name string) string {
 		return runtimePackageName
 	}
 	return name[:packageNameEnd]
+}
+
+// collectSegmentVariables collects the variables used in an expression.
+func collectSegmentVariables(msg json.RawMessage, subprogram *ir.Subprogram) ([]*ir.Variable, error) {
+	if len(msg) == 0 {
+		return nil, nil
+	}
+	expr, err := exprlang.Parse(msg)
+	if err != nil {
+		return nil, err
+	}
+	if !exprlang.IsSupported(expr) {
+		return nil, fmt.Errorf("expression is not supported")
+	}
+	varNames := exprlang.CollectVariableReferences(expr)
+	if len(varNames) == 0 {
+		return nil, nil
+	}
+	variables := []*ir.Variable{}
+	for _, varName := range varNames {
+		// Validate that the referenced variable exists as a parameter in the subprogram
+		varIndex := validateVariableReference(varName, subprogram)
+		if varIndex == -1 {
+			return nil, fmt.Errorf("referenced variable '%s' is not in the subprogram", varName)
+		}
+		variables = append(variables, subprogram.Variables[varIndex])
+	}
+	return variables, nil
+}
+
+// validateVariableReference checks if a referenced variable exists as a parameter
+// in the given subprogram.
+func validateVariableReference(varName string, subprogram *ir.Subprogram) int {
+	if varName == "" {
+		return -1
+	}
+
+	// Check if the referenced parameter exists in the subprogram's parameters
+	for i, variable := range subprogram.Variables {
+		if variable.IsParameter && variable.Name == varName {
+			return i
+		}
+	}
+	return -1
 }
