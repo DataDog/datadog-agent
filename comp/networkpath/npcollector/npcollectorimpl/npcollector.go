@@ -17,6 +17,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/domainresolver"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/filter"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
@@ -27,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -46,8 +48,8 @@ const (
 type npCollectorImpl struct {
 	// config related
 	collectorConfigs *collectorConfigs
-	sourceExcludes   []*filter.ConnectionFilter
-	destExcludes     []*filter.ConnectionFilter
+	sourceExcludes   []*networkfilter.ConnectionFilter
+	destExcludes     []*networkfilter.ConnectionFilter
 
 	// Deps
 	epForwarder  eventplatform.Forwarder
@@ -84,6 +86,8 @@ type npCollectorImpl struct {
 	runTraceroute func(cfg config.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 
 	networkDevicesNamespace string
+	domainResolver          *domainresolver.DomainResolver
+	filter                  filter.Filter
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -97,8 +101,8 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 
 	return &npCollectorImpl{
 		collectorConfigs: collectorConfigs,
-		sourceExcludes:   filter.ParseConnectionFilters(collectorConfigs.sourceExcludedConns),
-		destExcludes:     filter.ParseConnectionFilters(collectorConfigs.destExcludedConns),
+		sourceExcludes:   networkfilter.ParseConnectionFilters(collectorConfigs.sourceExcludedConns),
+		destExcludes:     networkfilter.ParseConnectionFilters(collectorConfigs.destExcludedConns),
 
 		epForwarder:  epForwarder,
 		logger:       logger,
@@ -126,11 +130,14 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		workersDone:   make(chan struct{}),
 
 		runTraceroute: runTraceroute,
+
+		domainResolver: domainresolver.NewDomainResolver(),
+		filter:         filter.NewFilter(collectorConfigs.filterConfig),
 	}
 }
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
-func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common.Pathtest {
+func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry, domain string) common.Pathtest {
 	protocol := convertProtocol(conn.GetType())
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
@@ -150,8 +157,16 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*m
 
 	sourceContainer := conn.Laddr.GetContainerId()
 
+	// TODO: TEST ME
+	var hostname string
+	if domain != "" {
+		hostname = domain
+	} else {
+		hostname = conn.Raddr.GetIp()
+	}
+
 	return common.Pathtest{
-		Hostname:          conn.Raddr.GetIp(),
+		Hostname:          hostname,
 		Port:              remotePort,
 		Protocol:          protocol,
 		SourceContainerID: sourceContainer,
@@ -200,19 +215,19 @@ func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn *model.Connection, vpc
 		return false
 	}
 
-	filterable := filter.FilterableConnection{
+	filterable := networkfilter.FilterableConnection{
 		Type:   conn.Type,
 		Source: source,
 		Dest:   dest,
 	}
-	if filter.IsExcludedConnection(s.sourceExcludes, s.destExcludes, filterable) {
+	if networkfilter.IsExcludedConnection(s.sourceExcludes, s.destExcludes, filterable) {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_cidr_excluded"}, 1) //nolint:errcheck
 		return false
 	}
 	return true
 
 }
-func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
+func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet, domain string) bool {
 	if conn == nil {
 		return false
 	}
@@ -225,7 +240,8 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 	// only ipv4 is supported currently
-	if conn.Family != model.ConnectionFamily_v4 {
+	// if domain is present, we will traceroute the domain, so, it doesn't matter if the conn family is IPv4 or IPv6
+	if domain == "" && conn.Family != model.ConnectionFamily_v4 {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
 		return false
 	}
@@ -259,13 +275,40 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 	}
 	startTime := s.TimeNowFn()
 	_ = s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns.Conns)), []string{}, 1)
+
+	ipToDomainResolver, errs := s.domainResolver.GetIPResolverForDomains(conns.Domains)
+	if len(errs) > 0 {
+		// TODO: TEST ME
+		s.logger.Errorf("GetIPResolverForDomains errors: %s", errors.Join(errs...))
+	}
+
 	for _, conn := range conns.Conns {
-		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
+		domain := ipToDomainResolver.ResolveIPToDomain(conn.Raddr.GetIp())
+
+		if !(domain != "" || s.collectorConfigs.monitorIPWithoutDomain) {
+			// TODO: TEST ME
+			// network_path:
+			//  collector:
+			//    exclude:
+			//      - match_domain: '*.datadoghq.com'
+			//      - match_domain: '*.google.com'
+			//      - match_ip: <IP or CIDR>
+			//    include:
+			//      - match_domain: '*.zoom.us'
+			//        match_domain_strategy: wildcard                 # wildcard | regex
+			//      - match_ip: <IP or CIDR>
+			//        # match_port: <port>                            # add later if user ask for it
+			//        # match_protocol: <TCP | UDP | ICMP>            # add later if user ask for it
+			// TODO: replace with new networkfilter
+			continue
+		}
+
+		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets, domain) {
 			protocol := convertProtocol(conn.GetType())
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
 		}
-		pathtest := s.makePathtest(conn, conns.Dns)
+		pathtest := s.makePathtest(conn, conns.Dns, domain)
 
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
