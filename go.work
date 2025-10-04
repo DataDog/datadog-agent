@@ -7,7 +7,12 @@ godebug tlsmlkem=0
 
 use (
 	.
+	./pkg/util/hostinfo
+	./pkg/util/jsonquery
 	comp/api/api/def
+	comp/core/agenttelemetry/def
+	comp/core/agenttelemetry/fx
+	comp/core/agenttelemetry/impl
 	comp/core/config
 	comp/core/configsync
 	comp/core/flare/builder
