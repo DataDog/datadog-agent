@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -15,9 +16,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
 
+// TimeNow useful for mocking
+var TimeNow = time.Now
+
+const (
+	Unblocked = iota
+	HalfBlocked
+	Blocked
+)
+
+type circuitBreakerState = int
+
 type block struct {
 	nbError int
 	until   time.Time
+	state   circuitBreakerState
+	m       sync.RWMutex
 }
 
 type blockedEndpoints struct {
@@ -59,6 +73,31 @@ func newBlockedEndpoints(config config.Component, log log.Component) *blockedEnd
 	}
 }
 
+func printState(prefix string, state circuitBreakerState) {
+	switch state {
+	case Unblocked:
+		fmt.Println("\033[035m", prefix, "unblocked", "\033[0m")
+	case HalfBlocked:
+		fmt.Println("\033[035m", prefix, "half blocked", "\033[0m")
+	case Blocked:
+		fmt.Println("\033[035m", prefix, "blocked", "\033[0m")
+	}
+
+}
+
+func (e *block) setState(state circuitBreakerState) {
+	e.state = state
+	printState("new state", e.state)
+}
+
+func (e *blockedEndpoints) getState(endpoint string) (bool, circuitBreakerState) {
+	if b, ok := e.errorPerEndpoint[endpoint]; ok {
+		return true, b.state
+	}
+
+	return false, 0
+}
+
 func (e *blockedEndpoints) close(endpoint string) {
 	e.m.Lock()
 	defer e.m.Unlock()
@@ -67,11 +106,29 @@ func (e *blockedEndpoints) close(endpoint string) {
 	if knownBlock, ok := e.errorPerEndpoint[endpoint]; ok {
 		b = knownBlock
 	} else {
-		b = &block{}
+		b = &block{
+			state: Unblocked,
+		}
 	}
 
-	b.nbError = e.backoffPolicy.IncError(b.nbError)
-	b.until = time.Now().Add(e.getBackoffDuration(b.nbError))
+	switch b.state {
+	case Unblocked:
+		// The circuit breaker is closed, we need to open it for a given time
+		b.nbError = e.backoffPolicy.IncError(b.nbError)
+		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
+		b.setState(Blocked)
+	case HalfBlocked:
+		// There is a risk that this transaction was sent before the circuit breaker was
+		// moved to half open. Currently this assumes that it wasn't and we need to work
+		// out a way to solve this....
+		// The test transaction failed, so we need to mave back to closed.
+		b.nbError = e.backoffPolicy.IncError(b.nbError)
+		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
+		b.setState(Blocked)
+	case Blocked:
+		// We ignore all failures coming in when open. These are transactions sent
+		// before the first one returned with an error.
+	}
 
 	e.errorPerEndpoint[endpoint] = b
 }
@@ -84,22 +141,94 @@ func (e *blockedEndpoints) recover(endpoint string) {
 	if knownBlock, ok := e.errorPerEndpoint[endpoint]; ok {
 		b = knownBlock
 	} else {
-		b = &block{}
+		b = &block{
+			state: Unblocked,
+		}
 	}
 
-	b.nbError = e.backoffPolicy.DecError(b.nbError)
-	b.until = time.Now().Add(e.getBackoffDuration(b.nbError))
+	switch b.state {
+	case Unblocked:
+		// Nothing to do, we are already closed and running smoothly.
+	case HalfBlocked:
+		// The test worked, we can ease off
+		b.nbError = e.backoffPolicy.DecError(b.nbError)
+		if b.nbError == 0 {
+			b.setState(Unblocked)
+		} else {
+			b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
+			b.setState(Blocked)
+		}
+	case Blocked:
+		// If we are open and a successful transaction came through, we
+		// can't be sure if it was sent before the errored transaction or
+		// after, so we will ignore this.
+	}
 
 	e.errorPerEndpoint[endpoint] = b
 }
 
-func (e *blockedEndpoints) isBlock(endpoint string) bool {
+// isBlockForRetry checks if the endpoint is blocked when deciding if
+// we want to add the transaction to the retry queue.
+// We check if an endpoint is blocked in two places.
+// Once when deciding if we want to requeue a transaction and another time
+// if we are deciding whether to send the transaction. The retry queue should
+// not also update the state as that is only used when sending the transaction
+// to ensure only one gets sent when in the `HalfBlock` state.
+func (e *blockedEndpoints) isBlockForRetry(endpoint string) bool {
 	e.m.RLock()
 	defer e.m.RUnlock()
 
-	if b, ok := e.errorPerEndpoint[endpoint]; ok && time.Now().Before(b.until) {
-		return true
+	if b, ok := e.errorPerEndpoint[endpoint]; ok {
+		b.m.RLock()
+		defer b.m.RUnlock()
+
+		return b.state == HalfBlocked ||
+			(b.state == Blocked && TimeNow().Before(b.until))
+
 	}
+
+	return false
+}
+
+// isBlockForSend checks if the endpoint is blocked when deciding if
+// we want to send a transaction.
+// This function can modify the state. When in `Blocked` after the
+// timeout has expired we want to move to `HalfOpen` where we send a
+// single transaction to test if the endpoint now available.
+func (e *blockedEndpoints) isBlockForSend(endpoint string) bool {
+	e.m.RLock()
+	defer e.m.RUnlock()
+
+	if b, ok := e.errorPerEndpoint[endpoint]; ok {
+
+		b.m.RLock()
+		switch b.state {
+		case HalfBlocked:
+			// We have already sent the single transactions to test if the endpoint is now up
+			b.m.RUnlock()
+			return true
+		case Blocked:
+			if TimeNow().Before(b.until) {
+				b.m.RUnlock()
+				return true
+			} else {
+				// Upgrade to a full lock so we can move
+				// to HalfOpen and send this transaction
+				// to test the endpoint.
+				b.m.RUnlock()
+				b.m.Lock()
+				defer b.m.Unlock()
+				if b.state == Blocked {
+					b.setState(HalfBlocked)
+				}
+
+				return false
+			}
+		}
+
+		b.m.RUnlock()
+	}
+
 	return false
 }
 

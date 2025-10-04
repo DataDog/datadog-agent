@@ -106,7 +106,7 @@ func (f *domainForwarder) retryTransactions(_ time.Time) {
 
 	for _, t := range transactions {
 		transactionEndpointName := t.GetEndpointName()
-		if !f.blockedList.isBlock(t.GetTarget()) {
+		if !f.blockedList.isBlockForRetry(t.GetTarget()) {
 			select {
 			case f.lowPrio <- t:
 				transactionsRetriedByEndpoint.Add(transactionEndpointName, 1)
