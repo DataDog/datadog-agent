@@ -44,8 +44,10 @@ type checkCfg struct {
 	MaxAttempts                           int      `yaml:"max_attempts"`
 	MaxPages                              int      `yaml:"max_pages"`
 	MaxCount                              int      `yaml:"max_count"`
-	LookbackTimeWindowMinutes             int      `yaml:"lookback_time_window_minutes"`
+	LookbackWindow                        string   `yaml:"lookback_window"`
+	ExtendedLookbackWindow                string   `yaml:"extended_lookback_window"`
 	UseHTTP                               bool     `yaml:"use_http"`
+	ClientTimeout                         int      `yaml:"client_timeout"`
 	Insecure                              bool     `yaml:"insecure"`
 	CAFile                                string   `yaml:"ca_file"`
 	Namespace                             string   `yaml:"namespace"`
@@ -68,6 +70,8 @@ type checkCfg struct {
 	SendInterfaceMetadataFromAnalytics    *bool    `yaml:"send_interface_metadata_from_analytics"`
 	ClientID                              string   `yaml:"client_id"`
 	ClientSecret                          string   `yaml:"client_secret"`
+	UseStartPagination                    *bool    `yaml:"use_start_pagination"`
+	UseAlternateAppliancesEndpoint        *bool    `yaml:"use_alternate_appliances_endpoint"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -121,6 +125,7 @@ func (v *VersaCheck) Run() error {
 	// Process each organization and collect all required data
 	var appliances []client.Appliance
 	var interfaces []client.Interface
+	var appliancesByOrg map[string][]client.Appliance
 
 	// Determine if we need appliances for device mapping
 	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectDirectorInterfaceMetrics ||
@@ -129,21 +134,41 @@ func (v *VersaCheck) Run() error {
 		*v.config.CollectTunnelMetrics || *v.config.CollectQoSMetrics || *v.config.CollectDIAMetrics ||
 		*v.config.CollectInterfaceMetrics
 
-	for _, org := range organizations {
-		log.Tracef("Processing organization: %s", org.Name)
+	// Collect appliances based on configuration
+	if *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics || needsDeviceMapping {
+		appliancesByOrg = make(map[string][]client.Appliance)
 
-		// Gather appliances if we need device metadata, hardware metrics, or device mapping
-		if *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics || needsDeviceMapping {
-			orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
+		if *v.config.UseAlternateAppliancesEndpoint {
+			// Use alternate appliances endpoint and organize by org
+			allAppliances, err := c.GetAppliances()
 			if err != nil {
-				log.Errorf("error getting appliances from organization %s: %v", org.Name, err)
-			} else {
-				for _, appliance := range orgAppliances {
-					log.Tracef("Processing appliance: %+v", appliance)
+				log.Errorf("error getting all appliances: %v", err)
+			}
+			for _, appliance := range allAppliances {
+				appliancesByOrg[appliance.OwnerOrg] = append(appliancesByOrg[appliance.OwnerOrg], appliance)
+				appliances = append(appliances, appliance)
+				log.Tracef("Processing appliance: %+v", appliance)
+			}
+		} else {
+			// Use per-organization calls (default behavior)
+			for _, org := range organizations {
+				orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
+				if err != nil {
+					log.Errorf("error getting appliances from organization %s: %v", org.Name, err)
+				} else {
+					appliancesByOrg[org.Name] = orgAppliances
+					for _, appliance := range orgAppliances {
+						log.Tracef("Processing appliance: %+v", appliance)
+					}
+					appliances = append(appliances, orgAppliances...)
 				}
-				appliances = append(appliances, orgAppliances...)
 			}
 		}
+	}
+
+	// Collect interfaces per organization (this still needs to be done per org)
+	for _, org := range organizations {
+		log.Tracef("Processing organization: %s", org.Name)
 
 		// Grab interfaces if we need interface metadata
 		// Note: collect_interface_metrics depends on this data, but requires explicit send_interface_metadata enablement
@@ -334,7 +359,6 @@ func (v *VersaCheck) Run() error {
 			tunnelMetrics, err := c.GetTunnelMetrics(org.Name)
 			if err != nil {
 				log.Warnf("error getting tunnel metrics for tenant %s from Versa client: %v", org.Name, err)
-				continue
 			}
 			v.metricsSender.SendTunnelMetrics(tunnelMetrics, deviceNameToIDMap)
 		}
@@ -364,7 +388,6 @@ func (v *VersaCheck) Run() error {
 			analyticsInterfaceMetrics, err := c.GetAnalyticsInterfaces(org.Name)
 			if err != nil {
 				log.Errorf("error getting analytics interface metrics from organization %s: %v", org.Name, err)
-				continue
 			}
 
 			if len(analyticsInterfaceMetrics) > 0 {
@@ -429,6 +452,8 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectSiteMetrics = boolPointer(false)
 	instanceConfig.CollectInterfaceMetrics = boolPointer(false)
 	instanceConfig.SendInterfaceMetadataFromAnalytics = boolPointer(false)
+	instanceConfig.UseStartPagination = boolPointer(false)
+	instanceConfig.UseAlternateAppliancesEndpoint = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
@@ -458,6 +483,10 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 	var clientOptions []client.ClientOptions
 
+	if v.config.ClientTimeout > 0 {
+		clientOptions = append(clientOptions, client.WithTimeout(v.config.ClientTimeout))
+	}
+
 	if v.config.Insecure || v.config.CAFile != "" {
 		options, err := client.WithTLSConfig(v.config.Insecure, v.config.CAFile)
 		if err != nil {
@@ -479,8 +508,20 @@ func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 		clientOptions = append(clientOptions, client.WithMaxCount(v.config.MaxCount))
 	}
 
-	if v.config.LookbackTimeWindowMinutes > 0 {
-		clientOptions = append(clientOptions, client.WithLookback(v.config.LookbackTimeWindowMinutes))
+	if v.config.LookbackWindow != "" {
+		clientOptions = append(clientOptions, client.WithLookback(v.config.LookbackWindow))
+	}
+
+	if v.config.ExtendedLookbackWindow != "" {
+		clientOptions = append(clientOptions, client.WithExtendedLookback(v.config.ExtendedLookbackWindow))
+	}
+
+	if v.config.UseStartPagination != nil && *v.config.UseStartPagination {
+		clientOptions = append(clientOptions, client.WithStartPagination(true))
+	}
+
+	if v.config.UseAlternateAppliancesEndpoint != nil && *v.config.UseAlternateAppliancesEndpoint {
+		clientOptions = append(clientOptions, client.WithAlternateAppliances(true))
 	}
 
 	return clientOptions, nil
