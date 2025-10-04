@@ -87,6 +87,8 @@ const (
 	K8sPodDisruptionBudget = 27
 	// K8sEndpointSlice represents a Kubernetes EndpointSlice
 	K8sEndpointSlice = 28
+	// K8sKubeletConfig represents a Kubernetes KubeletConfiguration
+	K8sKubeletConfig = 29
 	// ECSTask represents an ECS Task
 	ECSTask = 150
 )
@@ -104,6 +106,7 @@ func NodeTypes() []NodeType {
 		K8sDaemonSet,
 		K8sDeployment,
 		K8sEndpointSlice,
+		K8sKubeletConfig,
 		K8sHorizontalPodAutoscaler,
 		K8sIngress,
 		K8sJob,
@@ -188,6 +191,8 @@ func (n NodeType) String() string {
 		return "PodDisruptionBudget"
 	case K8sEndpointSlice:
 		return "EndpointSlice"
+	case K8sKubeletConfig:
+		return "KubeletConfiguration"
 	default:
 		_ = log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
@@ -206,6 +211,7 @@ func (n NodeType) Orchestrator() string {
 		K8sDaemonSet,
 		K8sDeployment,
 		K8sEndpointSlice,
+		K8sKubeletConfig,
 		K8sHorizontalPodAutoscaler,
 		K8sIngress,
 		K8sJob,
