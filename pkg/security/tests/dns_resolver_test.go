@@ -186,19 +186,12 @@ func TestDNSResolver(t *testing.T) {
 		}
 
 		for _, ip := range ipAddresses {
-			// This test contains a 1 second backoff, and tries 10 times until it fails
-			attempts := 10
-			for ; attempts != 0; attempts-- {
-				list := p.Resolvers.DNSResolver.HostListFromIP(ip)
-				if slices.Contains(list, hostname) && allCnamesResolved(list) {
-					break
-				}
-				time.Sleep(1 * time.Second)
-			}
-
-			if attempts == 0 {
-				t.Fatal("Number of attempts exceeded")
-			}
+			t.Run(ip.String(), func(t *testing.T) {
+				assert.Eventually(t, func() bool {
+					list := p.Resolvers.DNSResolver.HostListFromIP(ip)
+					return slices.Contains(list, hostname) && allCnamesResolved(list)
+				}, 10*time.Second, 1*time.Second, "timed out waiting for reverse DNS resolution")
+			})
 		}
 	})
 }
