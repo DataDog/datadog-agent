@@ -501,8 +501,7 @@ func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*PolicySta
 		evts = append(evts, events.NewCustomEvent(model.CustomEventType, evt))
 	}
 
-	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc),
-		evts
+	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc), evts
 }
 
 // extractMonitoredFilesAndFolders extracts file and folder paths from rule expressions
