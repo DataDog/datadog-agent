@@ -55,6 +55,8 @@ func (m *MockSecretResolver) Refresh() (string, error) {
 	return "", nil
 }
 
+func (m *MockSecretResolver) TriggerRefreshOnAPIKeyFailure(_ string) {}
+
 func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
 	for _, scenario := range m.scenarios {
 		if scenario.called == 0 {

@@ -259,6 +259,9 @@ type HTTPTransaction struct {
 	Kind Kind
 
 	Destination Destination
+
+	// SecretRefreshCallback is called when API key errors occur (403s)
+	SecretRefreshCallback func(reason string)
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -435,6 +438,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
+
+		// Trigger secret refresh on API key error
+		if t.SecretRefreshCallback != nil {
+			t.SecretRefreshCallback("403 response from backend")
+		}
+
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)

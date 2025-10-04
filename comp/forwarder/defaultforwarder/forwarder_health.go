@@ -76,6 +76,7 @@ type forwarderHealth struct {
 	disableAPIKeyChecking bool
 	validationInterval    time.Duration
 	keyMapMutex           sync.Mutex
+	secretRefreshCallback SecretRefreshFunc
 }
 
 func (fh *forwarderHealth) init() {
@@ -323,6 +324,11 @@ func (fh *forwarderHealth) checkValidAPIKeys(domain string, keys []string) (apiE
 			validKey = true
 		} else {
 			fh.log.Warnf("api_key '%s' for domain %s is invalid", scrubbedAPIKey, domain)
+
+			// Trigger secret refresh on invalid API key
+			if fh.secretRefreshCallback != nil {
+				fh.secretRefreshCallback("API key validation failure")
+			}
 		}
 	}
 

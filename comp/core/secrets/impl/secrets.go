@@ -124,6 +124,11 @@ type secretResolver struct {
 	tlmSecretBackendElapsed telemetry.Gauge
 	tlmSecretUnmarshalError telemetry.Counter
 	tlmSecretResolveError   telemetry.Counter
+
+	// Secret Api Key Expiry Refresh
+	secretRefreshOnAPIKeyFailure bool
+	lastAPIKeyFailureRefresh     time.Time
+	apiKeyFailureRefreshMutex    sync.Mutex
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -305,6 +310,8 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.scopeIntegrationToNamespace = params.ScopeIntegrationToNamespace
 	r.allowedNamespace = params.AllowedNamespace
 	r.imageToHandle = params.ImageToHandle
+
+	r.secretRefreshOnAPIKeyFailure = params.RefreshOnAPIKeyFailure
 }
 
 func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
@@ -826,4 +833,39 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 	stats["unresolvedSecrets"] = r.unresolvedSecrets
 
 	return stats
+}
+
+func (r *secretResolver) TriggerRefreshOnAPIKeyFailure(reason string) {
+	if !r.secretRefreshOnAPIKeyFailure {
+		log.Debug("secret_refresh_on_api_key_failure disabled, skipping refresh")
+		return
+	}
+
+	r.apiKeyFailureRefreshMutex.Lock()
+	defer r.apiKeyFailureRefreshMutex.Unlock()
+
+	// throttle
+	const throttleSeconds = 300
+	timeSinceLastRefresh := time.Since(r.lastAPIKeyFailureRefresh)
+	throttleDuration := time.Duration(throttleSeconds) * time.Second
+
+	if timeSinceLastRefresh < throttleDuration {
+		log.Debugf("Secret refresh throttled, %v remaining", throttleDuration-timeSinceLastRefresh)
+		return
+	}
+
+	r.lastAPIKeyFailureRefresh = time.Now()
+	log.Infof("Triggering secret refresh due to: %s", reason)
+
+	// avoid blocking
+	go func() {
+		result, err := r.Refresh()
+		if err != nil {
+			log.Errorf("Error-triggered secret refresh failed: %v", err)
+		} else if result != "" {
+			log.Infof("Secret refresh completed: %s", result)
+		} else {
+			log.Info("Secret refresh completed with no changes")
+		}
+	}()
 }
