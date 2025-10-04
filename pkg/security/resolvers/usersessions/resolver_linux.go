@@ -9,8 +9,13 @@
 package usersessions
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -128,4 +133,148 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 	// cache resolved context
 	r.userSessions.Add(id, ctx)
 	return ctx
+}
+
+func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
+	type SSHLogLine struct {
+		Date      string
+		Hostname  string
+		Service   string
+		Remaining string
+	}
+	type SSHParsedLine struct {
+		AuthentificationMethod string
+		User                   string
+		IP                     string
+		Port                   string
+		SSHVersion             string
+		Remaining              string
+	}
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := lines[i]
+		// separate the line into words
+		words := strings.Split(line, " ")
+		sshLogLine := SSHLogLine{}
+		switch {
+		// We saw two different types of logs, so we try to parse both
+		case strings.HasPrefix(words[2], "sshd"):
+			sshLogLine = SSHLogLine{
+				Date:      words[0],
+				Hostname:  words[1],
+				Service:   words[2],
+				Remaining: strings.Join(words[3:], " "),
+			}
+		case strings.HasPrefix(words[4], "sshd"):
+			sshLogLine = SSHLogLine{
+				Date:      words[2],
+				Hostname:  words[3],
+				Service:   words[4],
+				Remaining: strings.Join(words[5:], " "),
+			}
+		default:
+			continue
+		}
+		// if the service is "sshd" and the line starts with "Accepted" it's the beginning of an ssh session
+		if strings.HasPrefix(sshLogLine.Service, "sshd") && strings.HasPrefix(sshLogLine.Remaining, "Accepted") {
+			// One example of line is: "Accepted publickey for lima from 192.168.5.2 port 38835 ssh2: ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU"
+			// Get the infos like that : Accepted <authentification method> for <username> from <ip> port <port> <ssh version> <Remaining (hash)>
+			// Here it should be the good line to parse. If we have multiple connexion with same username, we start by the last one so it should be the good one
+			// TODO?: Maybe add a check on the date and time ( + eventually correlated to edit time of the file ?)
+
+			sshWords := strings.Split(sshLogLine.Remaining, " ")
+			if len(sshWords) < 9 {
+				continue
+			}
+			sshParsedLine := SSHParsedLine{
+				AuthentificationMethod: sshWords[1],
+				User:                   sshWords[3],
+				IP:                     sshWords[5],
+				Port:                   sshWords[7],
+				SSHVersion:             sshWords[8],
+				Remaining:              strings.Join(sshWords[9:], " "),
+			}
+			// We compare port and IP to ensure that the line is the one we want
+			if sshParsedLine.IP == ctx.SSHClientIP && sshParsedLine.Port == fmt.Sprintf("%d", ctx.SSHPort) {
+				ctx.SSHUsername = sshParsedLine.User
+				switch sshParsedLine.AuthentificationMethod {
+				case "publickey":
+					ctx.SSHAuthMethod = 1
+					// Here Parse the Public Key which can be ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU
+					sshParsedLine.Remaining = strings.Split(sshParsedLine.Remaining, ":")[1]
+					ctx.SSHPublicKey = sshParsedLine.Remaining
+					return
+				case "password":
+					ctx.SSHAuthMethod = 2
+					return
+				// Other types not implemented yet
+				default:
+					ctx.SSHAuthMethod = 0
+					return
+				}
+			}
+		}
+	}
+}
+
+func resolveFromJournalctl(ctx *model.UserSessionContext) {
+	cmd := exec.Command("sh", "-c", "journalctl | grep Accepted")
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	if err := cmd.Run(); err != nil {
+		return
+	}
+
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+
+	parseSSHLogLines(lines, ctx)
+
+}
+
+// ResolveSSHUserSession resolves the ssh user session from the auth log
+func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.UserSessionContext {
+	id := ctx.ID
+
+	if id == 0 {
+		return nil
+	}
+
+	r.Lock()
+	defer r.Unlock()
+
+	f, err := os.OpenFile("/var/log/auth.log", os.O_RDONLY, 0644)
+	defer f.Close()
+	if err == nil {
+	} else if err != nil {
+		// Fallback for Red Hat / CentOS / Fedora
+		f, err = os.OpenFile("/var/log/secure", os.O_RDONLY, 0644)
+		if err == nil {
+		} else if err != nil {
+			// Last Fallback for openSUSE
+			f, err = os.OpenFile("/var/log/messages", os.O_RDONLY, 0644)
+			if err == nil {
+			} else if err != nil {
+				resolveFromJournalctl(ctx)
+
+				ctx.Resolved = true
+				// cache resolved context
+				r.userSessions.Add(id, ctx)
+				return ctx
+			}
+		}
+	}
+
+	var lines []string
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		lines = append(lines, sc.Text())
+	}
+	parseSSHLogLines(lines, ctx)
+	ctx.Resolved = true
+
+	// cache resolved context
+	r.userSessions.Add(id, ctx)
+	return ctx
+
 }
