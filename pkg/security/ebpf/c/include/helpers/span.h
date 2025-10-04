@@ -5,7 +5,7 @@
 
 #include "process.h"
 
-int __attribute__((always_inline)) handle_register_span_memory(void *data) {
+static int __attribute__((always_inline)) handle_register_span_memory(void *data) {
     struct span_tls_t tls = {};
     bpf_probe_read(&tls, sizeof(tls), data);
 
@@ -17,7 +17,7 @@ int __attribute__((always_inline)) handle_register_span_memory(void *data) {
     return 0;
 }
 
-int __attribute__((always_inline)) unregister_span_memory() {
+static int __attribute__((always_inline)) unregister_span_memory() {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
@@ -26,7 +26,7 @@ int __attribute__((always_inline)) unregister_span_memory() {
     return 0;
 }
 
-void __attribute__((always_inline)) fill_span_context(struct span_context_t *span) {
+static void __attribute__((always_inline)) fill_span_context(struct span_context_t *span) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
@@ -49,13 +49,13 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
     }
 }
 
-void __attribute__((always_inline)) reset_span_context(struct span_context_t *span) {
+static void __attribute__((always_inline)) reset_span_context(struct span_context_t *span) {
     span->span_id = 0;
     span->trace_id[0] = 0;
     span->trace_id[1] = 0;
 }
 
-void __attribute__((always_inline)) copy_span_context(struct span_context_t *src, struct span_context_t *dst) {
+static void __attribute__((always_inline)) copy_span_context(struct span_context_t *src, struct span_context_t *dst) {
     dst->span_id = src->span_id;
     dst->trace_id[0] = src->trace_id[0];
     dst->trace_id[1] = src->trace_id[1];

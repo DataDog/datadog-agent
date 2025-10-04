@@ -4,7 +4,7 @@
 #include "helpers/discarders.h"
 #include "baloum.h"
 
-int __attribute__((always_inline)) _is_discarded_by_inode(u64 event_type, u32 mount_id, u64 inode) {
+static int __attribute__((always_inline)) _is_discarded_by_inode(u64 event_type, u32 mount_id, u64 inode) {
     struct is_discarded_by_inode_t params = {
         .event_type = event_type,
         .discarder = {
@@ -14,6 +14,18 @@ int __attribute__((always_inline)) _is_discarded_by_inode(u64 event_type, u32 mo
     };
 
     return is_discarded_by_inode(&params);
+}
+
+static struct inode_discarder_params_t *__attribute__((always_inline)) get_inode_discarder_params(u32 mount_id, u64 inode, u32 is_leaf) {
+    struct inode_discarder_t key = {
+        .path_key = {
+            .ino = inode,
+            .mount_id = mount_id,
+        },
+        .is_leaf = is_leaf,
+    };
+
+    return bpf_map_lookup_elem(&inode_discarders, &key);
 }
 
 SEC("test/discarders_event_mask")

@@ -15,7 +15,7 @@ static u64 __attribute__((always_inline)) get_pipe_buffer_size(void) {
     return size;
 }
 
-int __attribute__((always_inline)) get_pipe_last_buffer_flags(struct pipe_inode_info *pipe, void *bufs) {
+static int __attribute__((always_inline)) get_pipe_last_buffer_flags(struct pipe_inode_info *pipe, void *bufs) {
     u64 kernel_has_legacy_pipe_inode_info;
     LOAD_CONSTANT("kernel_has_legacy_pipe_inode_info", kernel_has_legacy_pipe_inode_info);
 

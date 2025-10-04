@@ -8,7 +8,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_unlink(u8 async, int dirfd, const char *filename, int flags) {
+static int __attribute__((always_inline)) trace__sys_unlink(u8 async, int dirfd, const char *filename, int flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UNLINK,
         .policy = fetch_policy(EVENT_UNLINK),
@@ -105,7 +105,7 @@ TAIL_CALL_FNC(dr_unlink_callback, ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
     if (!syscall) {
         return 0;

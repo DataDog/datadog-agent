@@ -5,7 +5,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/events_predicates.h"
 
-int __attribute__((always_inline)) credentials_update(u64 type) {
+static int __attribute__((always_inline)) credentials_update(u64 type) {
     struct syscall_cache_t syscall = {
         .type = type,
     };
@@ -14,7 +14,7 @@ int __attribute__((always_inline)) credentials_update(u64 type) {
     return 0;
 }
 
-int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall_with(credentials_predicate);
     if (!syscall) {
         return 0;

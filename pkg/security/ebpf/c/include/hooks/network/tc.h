@@ -28,7 +28,7 @@ int classifier_egress(struct __sk_buff *skb) {
     return route_pkt(skb, pkt, EGRESS);
 };
 
-__attribute__((always_inline)) int prepare_raw_packet_event(struct __sk_buff *skb, struct packet_t *pkt) {
+static __attribute__((always_inline)) int prepare_raw_packet_event(struct __sk_buff *skb, struct packet_t *pkt) {
     struct raw_packet_event_t *evt = get_raw_packet_event();
     if (evt == NULL) {
         // should never happen
@@ -57,7 +57,7 @@ __attribute__((always_inline)) int prepare_raw_packet_event(struct __sk_buff *sk
     return 1;
 }
 
-__attribute__((always_inline)) int is_raw_packet_enabled() {
+static __attribute__((always_inline)) int is_raw_packet_enabled() {
     u32 key = 0;
     u32 *enabled = bpf_map_lookup_elem(&raw_packet_enabled, &key);
     return enabled && *enabled;

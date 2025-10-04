@@ -8,7 +8,7 @@
 #include "buffer_selector.h"
 #include "events.h"
 
-u16 __attribute__((always_inline)) get_dns_rcode_discarder_mask() {
+static u16 __attribute__((always_inline)) get_dns_rcode_discarder_mask() {
     const u32 i = 0;
     u16 *discarder_bits = bpf_map_lookup_elem(&filtered_dns_rcodes, &i);
 
@@ -19,7 +19,7 @@ u16 __attribute__((always_inline)) get_dns_rcode_discarder_mask() {
     return *discarder_bits;
 }
 
-void __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
+static void __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
     struct bpf_map_def *discarder_stats = select_buffer(&fb_discarder_stats, &bb_discarder_stats, DISCARDER_MONITOR_KEY);
     if (discarder_stats == NULL) {
         return;
@@ -34,7 +34,7 @@ void __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
     __sync_fetch_and_add(&stats->discarders_added, 1);
 }
 
-int __attribute__((always_inline)) monitor_discarded(u64 event_type) {
+static int __attribute__((always_inline)) monitor_discarded(u64 event_type) {
     struct bpf_map_def *discarder_stats = select_buffer(&fb_discarder_stats, &bb_discarder_stats, DISCARDER_MONITOR_KEY);
     if (discarder_stats == NULL) {
         return 0;
@@ -51,14 +51,14 @@ int __attribute__((always_inline)) monitor_discarded(u64 event_type) {
     return 0;
 }
 
-int __attribute__((always_inline)) get_mount_discarder_revision(u32 mount_id) {
+static int __attribute__((always_inline)) get_mount_discarder_revision(u32 mount_id) {
     u32 i = mount_id % REVISION_ARRAY_SIZE;
     u32 *revision = bpf_map_lookup_elem(&inode_disc_revisions, &i);
 
     return revision ? *revision : 0;
 }
 
-int __attribute__((always_inline)) bump_mount_discarder_revision(u32 mount_id) {
+static int __attribute__((always_inline)) bump_mount_discarder_revision(u32 mount_id) {
     u32 i = mount_id % REVISION_ARRAY_SIZE;
     u32 *revision = bpf_map_lookup_elem(&inode_disc_revisions, &i);
     if (!revision) {
@@ -70,7 +70,7 @@ int __attribute__((always_inline)) bump_mount_discarder_revision(u32 mount_id) {
     return *revision;
 }
 
-void __attribute__((always_inline)) bump_discarders_revision() {
+static void __attribute__((always_inline)) bump_discarders_revision() {
     u32 key = 0;
     u32 *revision = bpf_map_lookup_elem(&discarders_revision, &key);
     if (!revision) {
@@ -80,14 +80,14 @@ void __attribute__((always_inline)) bump_discarders_revision() {
     __sync_fetch_and_add(revision, 1);
 }
 
-int __attribute__((always_inline)) get_discarders_revision() {
+static int __attribute__((always_inline)) get_discarders_revision() {
     u32 key = 0;
     u32 *revision = bpf_map_lookup_elem(&discarders_revision, &key);
 
     return revision ? *revision : 0;
 }
 
-u64 *__attribute__((always_inline)) get_discarder_timestamp(struct discarder_params_t *params, u64 event_type) {
+static u64 *__attribute__((always_inline)) get_discarder_timestamp(struct discarder_params_t *params, u64 event_type) {
     switch (event_type) {
     case EVENT_OPEN:
         return &params->timestamps[EVENT_OPEN - EVENT_FIRST_DISCARDER];
@@ -121,14 +121,14 @@ u64 *__attribute__((always_inline)) get_discarder_timestamp(struct discarder_par
 // This function is doing the same thing as the one before, but can only work if `params` is a pointer to a map value
 // and not a pointer to the stack since kernels < 4.15 does not allow this. On the other hand it is faster and needs less
 // instructions.
-u64 *__attribute__((always_inline)) get_discarder_timestamp_from_map(struct discarder_params_t *params, u64 event_type) {
+static u64 *__attribute__((always_inline)) get_discarder_timestamp_from_map(struct discarder_params_t *params, u64 event_type) {
     if (EVENT_FIRST_DISCARDER <= event_type && event_type < EVENT_LAST_DISCARDER) {
         return &params->timestamps[event_type - EVENT_FIRST_DISCARDER];
     }
     return NULL;
 }
 
-void *__attribute__((always_inline)) is_discarded(void *discarder_map, void *key, u64 event_type, u64 now) {
+static void *__attribute__((always_inline)) is_discarded(void *discarder_map, void *key, u64 event_type, u64 now) {
     void *entry = bpf_map_lookup_elem(discarder_map, key);
     if (entry == NULL) {
         return NULL;
@@ -157,21 +157,9 @@ void *__attribute__((always_inline)) is_discarded(void *discarder_map, void *key
     return NULL;
 }
 
-int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode);
+static int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode);
 
-struct inode_discarder_params_t *__attribute__((always_inline)) get_inode_discarder_params(u32 mount_id, u64 inode, u32 is_leaf) {
-    struct inode_discarder_t key = {
-        .path_key = {
-            .ino = inode,
-            .mount_id = mount_id,
-        },
-        .is_leaf = is_leaf,
-    };
-
-    return bpf_map_lookup_elem(&inode_discarders, &key);
-}
-
-int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u64 inode, u64 timeout, u32 is_leaf) {
+static int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u64 inode, u64 timeout, u32 is_leaf) {
     if (!mount_id || !inode) {
         return 0;
     }
@@ -233,7 +221,7 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
     return 0;
 }
 
-int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
+static int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
     // start with the "normal" discarder check
     struct inode_discarder_t key = params->discarder;
     struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *)is_discarded(&inode_discarders, &key, params->event_type, params->now);
@@ -254,7 +242,7 @@ int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_
     return 1;
 }
 
-int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode) {
+static int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode) {
     if (!mount_id || !inode) {
         return 0;
     }
@@ -298,7 +286,7 @@ static __attribute__((always_inline)) int is_discarded_by_pid() {
     return is_runtime_discarded() && is_runtime_request();
 }
 
-int __attribute__((always_inline)) dentry_resolver_discarder_event_type(struct syscall_cache_t *syscall) {
+static int __attribute__((always_inline)) dentry_resolver_discarder_event_type(struct syscall_cache_t *syscall) {
     if (syscall->state == ACCEPTED) {
         return 0;
     }

@@ -5,7 +5,7 @@
 #include "helpers/network/raw.h"
 #include "perf_ring.h"
 
-__attribute__((always_inline)) int send_raw_packet_event(struct __sk_buff *skb, struct packet_t *pkt, u32 event_type, u32 action) {
+static __attribute__((always_inline)) int send_raw_packet_event(struct __sk_buff *skb, struct packet_t *pkt, u32 event_type, u32 action) {
     struct raw_packet_event_t *evt = get_raw_packet_event();
     if (evt == NULL || skb == NULL || evt->len == 0) {
         // should never happen

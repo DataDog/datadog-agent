@@ -5,7 +5,7 @@
 #include "constants/macros.h"
 #include "maps.h"
 
-__attribute__((always_inline)) void tc_cursor_init(struct cursor *c, struct __sk_buff *skb) {
+static __attribute__((always_inline)) void tc_cursor_init(struct cursor *c, struct __sk_buff *skb) {
     c->end = (void *)(long)skb->data_end;
     c->pos = (void *)(long)skb->data;
 }
@@ -18,12 +18,12 @@ PARSE_FUNC(tcphdr)
 PARSE_FUNC(icmphdr)
 PARSE_FUNC(icmp6hdr)
 
-__attribute__((always_inline)) struct packet_t *get_packet() {
+static __attribute__((always_inline)) struct packet_t *get_packet() {
     u32 key = PACKET_KEY;
     return bpf_map_lookup_elem(&packets, &key);
 }
 
-__attribute__((always_inline)) struct packet_t *reset_packet() {
+static __attribute__((always_inline)) struct packet_t *reset_packet() {
     u32 key = PACKET_KEY;
     struct packet_t new_pkt = {
         .ns_flow = {
@@ -34,7 +34,7 @@ __attribute__((always_inline)) struct packet_t *reset_packet() {
     return get_packet();
 }
 
-__attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple, struct flow_t *flow) {
+static __attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple, struct flow_t *flow) {
     flow->tcp_udp.sport = tuple->src.u.all;
     flow->tcp_udp.dport = tuple->dst.u.all;
 
@@ -42,7 +42,7 @@ __attribute__((always_inline)) void parse_tuple(struct nf_conntrack_tuple *tuple
     bpf_probe_read(&flow->daddr, sizeof(flow->daddr), &tuple->dst.u3.all);
 }
 
-__attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *skb, int direction) {
+static __attribute__((always_inline)) struct packet_t * parse_packet(struct __sk_buff *skb, int direction) {
     struct cursor c = {};
     tc_cursor_init(&c, skb);
 
