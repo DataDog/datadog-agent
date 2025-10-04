@@ -203,6 +203,8 @@ func testDyninst(
 		for _, d := range testServer.getDiags() {
 			if d.diagnosticMessage.Debugger.Status == uploader.StatusInstalled {
 				installedProbeIDs[d.diagnosticMessage.Debugger.ProbeID] = struct{}{}
+			} else if d.diagnosticMessage.Debugger.Status == uploader.StatusError {
+				t.Fatalf("probe %s installation failed: %s", d.diagnosticMessage.Debugger.ProbeID, d.diagnosticMessage.Debugger.DiagnosticException.Message)
 			}
 		}
 		assert.Equal(c, allProbeIDs, installedProbeIDs)
