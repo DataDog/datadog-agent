@@ -281,7 +281,6 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 
 	for _, conn := range conns.Conns {
 		domain := ipToDomainResolver.ResolveIPToDomain(conn.Raddr.GetIp())
-		fmt.Println("domain", domain)
 
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets, domain) {
 			protocol := convertProtocol(conn.GetType())
