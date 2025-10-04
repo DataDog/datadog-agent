@@ -283,6 +283,18 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 		domain := ipToDomainResolver.ResolveIPToDomain(conn.Raddr.GetIp())
 
 		if domain == "" {
+			// network_path:
+			//  collector:
+			//    exclude:
+			//      - match_domain: '*.datadoghq.com'
+			//      - match_domain: '*.google.com'
+			//      - match_ip: <IP or CIDR>
+			//    include:
+			//      - match_domain: '*.zoom.us'
+			//        match_domain_strategy: wildcard                 # wildcard | regex
+			//      - match_ip: <IP or CIDR>
+			//        # match_port: <port>                            # add later if user ask for it
+			//        # match_protocol: <TCP | UDP | ICMP>            # add later if user ask for it
 			// TODO: replace with new filter
 			continue
 		}
