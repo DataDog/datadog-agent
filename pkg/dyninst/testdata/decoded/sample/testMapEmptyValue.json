@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testPointerToMap",
+      "method": "main.testMapEmptyValue",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testPointerToMap",
+            "function": "main.testMapEmptyValue",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
-            "lineNumber": 46
+            "lineNumber": 102
           },
           {
             "function": "main.executeMapFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
-            "lineNumber": 149
+            "lineNumber": 217
           },
           {
             "function": "main.main",
@@ -42,37 +42,26 @@
           }
         ],
         "probe": {
-          "id": "testPointerToMap",
+          "id": "testMapEmptyValue",
           "location": {
-            "method": "main.testPointerToMap"
+            "method": "main.testMapEmptyValue"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
               "m": {
-                "type": "*map[string]int",
-                "address": "[addr]",
-                "size": "2",
+                "type": "map[int]struct {}",
+                "size": "1",
                 "entries": [
                   [
                     {
-                      "type": "string",
-                      "value": "bar"
-                    },
-                    {
-                      "type": "int",
-                      "value": "2"
-                    }
-                  ],
-                  [
-                    {
-                      "type": "string",
-                      "value": "foo"
-                    },
-                    {
                       "type": "int",
                       "value": "1"
+                    },
+                    {
+                      "type": "struct {}",
+                      "fields": {}
                     }
                   ]
                 ]
