@@ -285,7 +285,8 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 	for _, conn := range conns.Conns {
 		domain := ipToDomainResolver.ResolveIPToDomain(conn.Raddr.GetIp())
 
-		if domain == "" {
+		if !(domain != "" || s.collectorConfigs.monitorIPWithoutDomain) {
+			// TODO: TEST ME
 			// network_path:
 			//  collector:
 			//    exclude:

@@ -37,6 +37,7 @@ type collectorConfigs struct {
 	e2eQueries                   int
 	disableWindowsDriver         bool
 	filterConfig                 []filter.Config
+	monitorIPWithoutDomain       bool
 }
 
 func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
@@ -74,6 +75,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		disableWindowsDriver:      agentConfig.GetBool("network_path.collector.disable_windows_driver"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 		filterConfig:              collectorFilter,
+		monitorIPWithoutDomain:    agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),
 	}
 }
 

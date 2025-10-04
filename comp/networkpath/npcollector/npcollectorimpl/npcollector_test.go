@@ -85,9 +85,10 @@ func Test_NpCollector_StartAndStop(t *testing.T) {
 func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.flush_interval":       "1s",
-		"network_devices.namespace":                   "my-ns1",
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.flush_interval":            "1s",
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_devices.namespace":                        "my-ns1",
 	}
 	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
 
@@ -425,10 +426,11 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.flush_interval":       "1s",
-		"network_path.collector.workers":              100,
-		"network_devices.namespace":                   "my-ns1",
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.flush_interval":            "1s",
+		"network_path.collector.workers":                   100,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_devices.namespace":                        "my-ns1",
 	}
 	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
 
@@ -574,11 +576,13 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		count int
 	}
 	defaultagentConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
 	}
 	icmpModeConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.icmp_mode":            "all",
+		"network_path.connections_monitoring.enabled":      true,
+		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.icmp_mode":                 "all",
 	}
 
 	tests := []struct {
@@ -695,8 +699,9 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		{
 			name: "input chan is full",
 			agentConfigs: map[string]any{
-				"network_path.connections_monitoring.enabled": true,
-				"network_path.collector.input_chan_size":      1,
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.input_chan_size":           1,
+				"network_path.collector.monitor_ip_without_domain": true,
 			},
 			conns:             createConns(20),
 			expectedPathtests: []*common.Pathtest{},
