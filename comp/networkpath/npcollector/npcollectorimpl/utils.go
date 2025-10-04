@@ -6,6 +6,9 @@
 package npcollectorimpl
 
 import (
+	"regexp"
+	"strings"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
@@ -17,4 +20,19 @@ func convertProtocol(connType model.ConnectionType) payload.Protocol {
 		return payload.ProtocolUDP
 	}
 	return ""
+}
+
+var awsElbRegex = regexp.MustCompile(`.*\.elb(\.[a-z0-9-]*)?\.amazonaws\.com`)
+
+func shouldSkipDomain(domain string, ddSite string) bool {
+	if strings.HasSuffix(domain, ".ec2.internal") {
+		return true
+	}
+	if ddSite != "" && strings.HasSuffix(domain, "."+ddSite) {
+		return true
+	}
+	if awsElbRegex.MatchString(domain) {
+		return true
+	}
+	return false
 }
