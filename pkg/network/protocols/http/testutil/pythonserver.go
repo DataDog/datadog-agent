@@ -9,6 +9,7 @@
 package testutil
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -22,10 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -74,13 +76,30 @@ func HTTPPythonServer(t *testing.T, addr string, options Options) *exec.Cmd {
 
 	curDir, _ := CurDir()
 	crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
+	if options.CertPath != "" {
+		crtPath = options.CertPath
+	}
 	keyPath := filepath.Join(curDir, "testdata/server.key")
+	if options.KeyPath != "" {
+		keyPath = options.KeyPath
+	}
 	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, host, port, crtPath, keyPath)
 	scriptFile, err := writeTempFile("python_openssl_script", pythonSSLServer)
 	require.NoError(t, err)
 
 	cmd := exec.Command("python3", scriptFile.Name(), strconv.FormatBool(options.EnableTLS))
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+
 	go require.NoError(t, cmd.Start())
+
+	go func() {
+		err := cmd.Wait()
+		fmt.Printf("cmd exited with %s\n", err)
+		fmt.Printf("cmd output: '%s'\n", out.String())
+	}()
 
 	// Waiting for the server to be ready
 	portCtx, cancelPortCtx := context.WithDeadline(context.Background(), time.Now().Add(time.Second*5))
