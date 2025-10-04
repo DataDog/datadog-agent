@@ -17,6 +17,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/domainresolver"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
@@ -84,6 +85,7 @@ type npCollectorImpl struct {
 	runTraceroute func(cfg config.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 
 	networkDevicesNamespace string
+	domainResolver          *domainresolver.DomainResolver
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -126,11 +128,13 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		workersDone:   make(chan struct{}),
 
 		runTraceroute: runTraceroute,
+
+		domainResolver: domainresolver.NewDomainResolver(),
 	}
 }
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
-func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common.Pathtest {
+func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry, domain string) common.Pathtest {
 	protocol := convertProtocol(conn.GetType())
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
@@ -150,8 +154,16 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*m
 
 	sourceContainer := conn.Laddr.GetContainerId()
 
+	// TODO: TEST ME
+	var hostname string
+	if domain != "" {
+		hostname = domain
+	} else {
+		hostname = conn.Raddr.GetIp()
+	}
+
 	return common.Pathtest{
-		Hostname:          conn.Raddr.GetIp(),
+		Hostname:          hostname,
 		Port:              remotePort,
 		Protocol:          protocol,
 		SourceContainerID: sourceContainer,
@@ -212,7 +224,7 @@ func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn *model.Connection, vpc
 	return true
 
 }
-func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
+func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet, domain string) bool {
 	if conn == nil {
 		return false
 	}
@@ -225,7 +237,8 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 	// only ipv4 is supported currently
-	if conn.Family != model.ConnectionFamily_v4 {
+	// if domain is present, we will traceroute the domain, so, it doesn't matter if the conn family is IPv4 or IPv6
+	if domain == "" && conn.Family != model.ConnectionFamily_v4 {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
 		return false
 	}
@@ -259,13 +272,23 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 	}
 	startTime := s.TimeNowFn()
 	_ = s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns.Conns)), []string{}, 1)
+
+	ipToDomainResolver, errs := s.domainResolver.GetIPResolverForDomains(conns.Domains)
+	if len(errs) > 0 {
+		// TODO: TEST ME
+		s.logger.Errorf("GetIPResolverForDomains errors: %s", errors.Join(errs...))
+	}
+
 	for _, conn := range conns.Conns {
-		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
+		domain := ipToDomainResolver.ResolveIPToDomain(conn.Raddr.GetIp())
+		fmt.Println("domain", domain)
+
+		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets, domain) {
 			protocol := convertProtocol(conn.GetType())
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
 		}
-		pathtest := s.makePathtest(conn, conns.Dns)
+		pathtest := s.makePathtest(conn, conns.Dns, domain)
 
 		err := s.scheduleOne(&pathtest)
 		if err != nil {

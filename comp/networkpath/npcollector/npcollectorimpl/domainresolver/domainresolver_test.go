@@ -1,4 +1,4 @@
-package npcollectorimpl
+package domainresolver
 
 import (
 	"errors"
@@ -23,7 +23,7 @@ func Test_domainResolver_getIPToDomainMap(t *testing.T) {
 		name                  string
 		domains               []string
 		expectedIPToDomainMap map[string]string
-		expectedError         string
+		expectedErrList       []error
 	}{
 		{
 			name:    "valid domains",
@@ -38,24 +38,23 @@ func Test_domainResolver_getIPToDomainMap(t *testing.T) {
 			},
 		},
 		{
-			name:                  "error case",
-			domains:               []string{"error", "zoom.us"},
-			expectedIPToDomainMap: nil,
-			expectedError:         "test error",
+			name:    "error case",
+			domains: []string{"error", "zoom.us"},
+			expectedIPToDomainMap: map[string]string{
+				"170.114.52.2":             "zoom.us",
+				"2407:30c0:182::aa72:3402": "zoom.us",
+			},
+			expectedErrList: []error{errors.New("error looking up IPs for domain error: test error")},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := &domainResolver{
+			d := &DomainResolver{
 				lookupHostFn: lookupHostFn,
 			}
-			ipToDomainMap, err := d.getIPToDomainMap(tt.domains)
+			ipToDomainMap, errList := d.getIPToDomainMap(tt.domains)
 			assert.Equal(t, tt.expectedIPToDomainMap, ipToDomainMap)
-			if tt.expectedError != "" {
-				assert.EqualError(t, err, tt.expectedError)
-			} else {
-				assert.NoError(t, err)
-			}
+			assert.Equal(t, errors.Join(tt.expectedErrList...), errors.Join(errList...))
 		})
 	}
 }

@@ -1270,6 +1270,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 		name               string
 		conn               *model.Connection
 		vpcSubnets         []*net.IPNet
+		domain             string
 		shouldSchedule     bool
 		subnetSkipped      bool
 		sourceExcludes     map[string][]string
@@ -1314,6 +1315,17 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Family:    model.ConnectionFamily_v6,
 			},
 			shouldSchedule: false,
+		},
+		{
+			name: "should schedule for ipv6 cnn if domain is present",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v6,
+			},
+			domain:         "abc",
+			shouldSchedule: true,
 		},
 		{
 			name: "should not schedule for loopback",
@@ -1510,7 +1522,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
-			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets))
+			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets, tt.domain))
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)
@@ -1573,7 +1585,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
-			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil))
+			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil, ""))
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)
