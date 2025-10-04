@@ -48,7 +48,7 @@ func Module() fxutil.Module {
 func newNpCollector(deps dependencies) provides {
 	var collector *npCollectorImpl
 
-	configs := newConfig(deps.AgentConfig)
+	configs := newConfig(deps.AgentConfig, deps.Logger)
 	if configs.networkPathCollectorEnabled() {
 		deps.Logger.Debugf("Network Path Collector enabled")
 

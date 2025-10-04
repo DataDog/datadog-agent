@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/filter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
@@ -34,9 +36,16 @@ type collectorConfigs struct {
 	tracerouteQueries            int
 	e2eQueries                   int
 	disableWindowsDriver         bool
+	filterConfig                 []filter.Config
 }
 
-func newConfig(agentConfig config.Component) *collectorConfigs {
+func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
+	var collectorFilter []filter.Config
+	err := agentConfig.UnmarshalKey("network_path.collector.filters", &collectorFilter)
+	if err != nil {
+		// TODO: TEST ME
+		logger.Errorf("Error unmarshalling network_path.collector.filters")
+	}
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
 		workers:                      agentConfig.GetInt("network_path.collector.workers"),
@@ -64,6 +73,7 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		e2eQueries:                agentConfig.GetInt("network_path.collector.e2e_queries"),
 		disableWindowsDriver:      agentConfig.GetBool("network_path.collector.disable_windows_driver"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
+		filterConfig:              collectorFilter,
 	}
 }
 
