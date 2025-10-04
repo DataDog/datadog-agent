@@ -44,6 +44,7 @@ exceptions:
   - "golang.org/x/mod/..."
   - "golang.org/x/xerrors/..."
   - "github.com/stretchr/testify"
+  - "gitlab.com/gitlab-org/api/client-go/..."
 
 additional:
   # list here paths to additional licenses
