@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
 )
 
 const (
@@ -59,7 +60,7 @@ type CWSConsumer struct {
 	rateLimiter    *events.RateLimiter
 	sendStatsChan  chan chan bool
 	eventSender    events.EventSender
-	grpcServer     *GRPCServer
+	grpcServer     *grpcutils.Server
 	ruleEngine     *rulesmodule.RuleEngine
 	selfTester     *selftests.SelfTester
 	selfTestCount  int
@@ -87,7 +88,12 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		}
 	}
 
-	family := common.GetFamilyAddress(cfg.SocketPath)
+	cmdSocketPath, err := common.GetCmdSocketPath(cfg.SocketPath, cfg.CmdSocketPath)
+	if err != nil {
+		return nil, err
+	}
+
+	family := common.GetFamilyAddress(cmdSocketPath)
 
 	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
 	if err != nil {
@@ -106,7 +112,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		apiServer:     apiServer,
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
-		grpcServer:    NewGRPCServer(family, cfg.SocketPath),
+		grpcServer:    grpcutils.NewServer(family, cmdSocketPath),
 		selfTester:    selfTester,
 		reloader:      NewReloader(),
 		crtelemetry:   crtelemetry,
@@ -144,7 +150,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	seclog.SetPatterns(cfg.LogPatterns...)
 	seclog.SetTags(cfg.LogTags...)
 
-	api.RegisterSecurityModuleServer(c.grpcServer.server, c.apiServer)
+	api.RegisterSecurityModuleServer(c.grpcServer.ServiceRegistrar(), c.apiServer)
 
 	// platform specific initialization
 	if err := c.init(evm, cfg, opts); err != nil {
