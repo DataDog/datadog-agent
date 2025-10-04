@@ -17,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/debug"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
@@ -29,7 +31,7 @@ import (
 )
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, telemetry telemetry.Component, deps module.FactoryDependencies) error {
+func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, telemetry telemetry.Component, config config.Component, ipcComp ipc.Component, deps module.FactoryDependencies) error {
 	conn, err := server.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return err
@@ -74,6 +76,12 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, teleme
 			log.Errorf("error creating HTTP server: %s", err)
 		}
 	}()
+
+	// Start gRPC server and register with Remote Agent Registry if enabled
+	if err := startGrpcServerAndRemoteAgentRegistry(telemetry, config, ipcComp); err != nil {
+		log.Warnf("Failed to start gRPC server and Remote Agent Registry registration: %v", err)
+		// Don't fail startup if Remote Agent Registry registration fails - system-probe should continue working
+	}
 
 	return nil
 }
