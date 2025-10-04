@@ -12,9 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -46,6 +48,26 @@ func TestEmitNvmlMetrics(t *testing.T) {
 
 	device1UUID := "gpu-uuid-1"
 	device2UUID := "gpu-uuid-2"
+
+	// create mock library returning just the 2 test devices
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
+	device1 := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions(), func(d *nvmlmock.Device) {
+		d.GetUUIDFunc = func() (string, nvml.Return) { return device1UUID, nvml.SUCCESS }
+	})
+	device2 := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions(), func(d *nvmlmock.Device) {
+		d.GetUUIDFunc = func() (string, nvml.Return) { return device2UUID, nvml.SUCCESS }
+	})
+	ddnvml.WithMockNVML(t, nvmlMock)
+	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
+		switch index {
+		case 0:
+			return device1, nvml.SUCCESS
+		case 1:
+			return device2, nvml.SUCCESS
+		default:
+			return nil, nvml.ERROR_INVALID_ARGUMENT
+		}
+	}
 
 	// Create mock collectors
 	for i, deviceUUID := range []string{device1UUID, device2UUID} {
@@ -92,8 +114,8 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	// Process the metrics
 	metricTime := time.Now()
 	metricTimestamp := float64(metricTime.UnixNano()) / float64(time.Second)
-	err := check.emitMetrics(mockSender, gpuToContainersMap, metricTime)
-	assert.NoError(t, err)
+	require.NoError(t, check.deviceCache.Refresh())
+	require.NoError(t, check.emitMetrics(mockSender, gpuToContainersMap, metricTime))
 
 	// Verify metrics for each device
 	for i, deviceUUID := range []string{device1UUID, device2UUID} {
