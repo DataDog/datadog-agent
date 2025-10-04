@@ -23,7 +23,7 @@
           {
             "function": "main.executeMapFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
-            "lineNumber": 195
+            "lineNumber": 207
           },
           {
             "function": "main.main",

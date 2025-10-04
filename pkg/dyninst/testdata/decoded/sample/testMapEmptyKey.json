@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testPointerToMap",
+      "method": "main.testMapEmptyKey",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testPointerToMap",
+            "function": "main.testMapEmptyKey",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
-            "lineNumber": 46
+            "lineNumber": 98
           },
           {
             "function": "main.executeMapFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
-            "lineNumber": 149
+            "lineNumber": 216
           },
           {
             "function": "main.main",
@@ -42,33 +42,22 @@
           }
         ],
         "probe": {
-          "id": "testPointerToMap",
+          "id": "testMapEmptyKey",
           "location": {
-            "method": "main.testPointerToMap"
+            "method": "main.testMapEmptyKey"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
               "m": {
-                "type": "*map[string]int",
-                "address": "[addr]",
-                "size": "2",
+                "type": "map[struct {}]int",
+                "size": "1",
                 "entries": [
                   [
                     {
-                      "type": "string",
-                      "value": "bar"
-                    },
-                    {
-                      "type": "int",
-                      "value": "2"
-                    }
-                  ],
-                  [
-                    {
-                      "type": "string",
-                      "value": "foo"
+                      "type": "struct {}",
+                      "fields": {}
                     },
                     {
                       "type": "int",
