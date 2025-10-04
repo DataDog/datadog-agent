@@ -409,7 +409,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 			Type:      model.ConnectionType_udp,
 		},
 	}
-	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
+	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry), nil)
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
 
@@ -475,7 +475,7 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 			Type:      model.ConnectionType_tcp,
 		})
 	}
-	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
+	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry), nil)
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 10)
 
@@ -516,7 +516,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	}
 
 	// WHEN
-	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
+	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry), nil)
 
 	// THEN
 	calls := stats.GaugeCalls
@@ -770,7 +770,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 
-			npCollector.ScheduleConns(tt.conns, tt.dns)
+			npCollector.ScheduleConns(tt.conns, tt.dns, nil)
 
 			actualPathtests := []*common.Pathtest{}
 			for i := 0; i < len(tt.expectedPathtests); i++ {
@@ -992,7 +992,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// add line to avoid linter error
 		_ = i
-		npCollector.ScheduleConns(connections, make(map[string]*model.DNSEntry))
+		npCollector.ScheduleConns(connections, make(map[string]*model.DNSEntry), nil)
 
 		waitForProcessedPathtests(npCollector, 60*time.Second, 50)
 	}

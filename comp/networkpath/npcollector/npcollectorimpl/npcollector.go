@@ -17,6 +17,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
@@ -130,7 +131,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 }
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
-func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common.Pathtest {
+func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry, hostname string) common.Pathtest {
 	protocol := convertProtocol(conn.GetType())
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
@@ -150,8 +151,13 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*m
 
 	sourceContainer := conn.Laddr.GetContainerId()
 
+	// TODO: TEST ME
+	if hostname == "" {
+		hostname = conn.Raddr.GetIp()
+	}
+
 	return common.Pathtest{
-		Hostname:          conn.Raddr.GetIp(),
+		Hostname:          hostname,
 		Port:              remotePort,
 		Protocol:          protocol,
 		SourceContainerID: sourceContainer,
@@ -224,11 +230,11 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1) //nolint:errcheck
 		return false
 	}
-	// only ipv4 is supported currently
-	if conn.Family != model.ConnectionFamily_v4 {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
-		return false
-	}
+	//// only ipv4 is supported currently
+	//if conn.Family != model.ConnectionFamily_v4 {
+	//	s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
+	//	return false
+	//}
 
 	return s.checkPassesConnCIDRFilters(conn, vpcSubnets)
 }
@@ -248,7 +254,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
 	return vpcSubnets, nil
 }
 
-func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry) {
+func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry, domains []string) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
@@ -257,15 +263,57 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
 		return
 	}
+
+	ipToDomain := make(map[string]string)
+	for _, domain := range domains {
+
+		// TODO: ADD OPTION TO IGNORE ALL DATADOG DOMAINS/TRAFFIC?, BY DEFAULT?
+
+		if shouldSkipDomain(domain, s.collectorConfigs.datadogSite) {
+			continue
+		}
+
+		s.logger.Debugf("[ScheduleConns] Loop domain %s", domain)
+		ips, err := cache.GetWithExpiration(domain, func() ([]string, error) {
+			s.logger.Debugf("[ScheduleConns] Lookup domain %s", domain)
+			ips, err := net.LookupHost(domain)
+			return ips, err
+		}, 5*time.Minute)
+		if err != nil {
+			s.logger.Errorf("Failed to resolve domain %s: %s", domain, err)
+		}
+		for _, ip := range ips {
+			ipToDomain[ip] = domain
+		}
+	}
+	s.logger.Debugf("ipToDomain: %v", ipToDomain)
+
 	startTime := s.TimeNowFn()
 	_ = s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1)
 	for _, conn := range conns {
+		// TODO: TEST ME
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
 			protocol := convertProtocol(conn.GetType())
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
 		}
-		pathtest := s.makePathtest(conn, dns)
+		domain := ipToDomain[conn.Raddr.GetIp()]
+		if domain == "" && !s.collectorConfigs.monitorIPWithoutDomain {
+			// TODO: Add config to monitor all domains
+			s.logger.Debugf("Skipped, no domain: %s", conn.Raddr)
+			continue
+		}
+
+		// only ipv4 is supported currently
+		if domain == "" && conn.Family != model.ConnectionFamily_v4 {
+			continue
+		}
+
+		jsonStr, _ := json.Marshal(conn)
+		s.logger.Debugf("one conn: %s", jsonStr)
+		s.logger.Debugf("s.collectorConfigs.monitorIPWithoutDomain: %t", s.collectorConfigs.monitorIPWithoutDomain)
+
+		pathtest := s.makePathtest(conn, dns, domain)
 
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
