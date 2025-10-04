@@ -282,6 +282,11 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 	for _, conn := range conns.Conns {
 		domain := ipToDomainResolver.ResolveIPToDomain(conn.Raddr.GetIp())
 
+		if domain == "" {
+			// TODO: replace with new filter
+			continue
+		}
+
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets, domain) {
 			protocol := convertProtocol(conn.GetType())
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
