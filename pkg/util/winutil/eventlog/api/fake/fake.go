@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"sync"
 
-	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/windows"
+
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
 // backing datastructures for the Fake API
@@ -24,11 +25,13 @@ import (
 type API struct {
 	eventLogs map[string]*eventLog
 
-	nextHandle      *atomic.Uint64
-	subscriptions   map[evtapi.EventResultSetHandle]*subscription
-	eventHandles    map[evtapi.EventRecordHandle]*eventRecord
-	sourceHandles   map[evtapi.EventSourceHandle]string
-	bookmarkHandles map[evtapi.EventBookmarkHandle]*bookmark
+	nextHandle       *atomic.Uint64
+	subscriptions    map[evtapi.EventResultSetHandle]*subscription
+	eventHandles     map[evtapi.EventRecordHandle]*eventRecord
+	sourceHandles    map[evtapi.EventSourceHandle]string
+	bookmarkHandles  map[evtapi.EventBookmarkHandle]*bookmark
+	publisherHandles map[evtapi.EventPublisherMetadataHandle]*publisherMetadata
+	publisherMutex   sync.RWMutex // Protects publisherHandles map
 }
 
 type eventLog struct {
@@ -79,6 +82,13 @@ type bookmark struct {
 	eventRecordID uint
 }
 
+type publisherMetadata struct {
+	handle      evtapi.EventPublisherMetadataHandle
+	publisherID string
+	// For testing - allows simulating invalid handles
+	isValid bool
+}
+
 // New returns a new Windows Event Log API fake
 func New() *API {
 	var api API
@@ -89,6 +99,7 @@ func New() *API {
 	api.eventHandles = make(map[evtapi.EventRecordHandle]*eventRecord)
 	api.sourceHandles = make(map[evtapi.EventSourceHandle]string)
 	api.bookmarkHandles = make(map[evtapi.EventBookmarkHandle]*bookmark)
+	api.publisherHandles = make(map[evtapi.EventPublisherMetadataHandle]*publisherMetadata)
 
 	api.eventLogs = make(map[string]*eventLog)
 
@@ -143,6 +154,15 @@ func (api *API) addBookmark(bookmark *bookmark) {
 	api.bookmarkHandles[bookmark.handle] = bookmark
 }
 
+func (api *API) addPublisherMetadata(publisher *publisherMetadata) {
+	h := api.nextHandle.Inc()
+	publisher.handle = evtapi.EventPublisherMetadataHandle(h)
+
+	api.publisherMutex.Lock()
+	defer api.publisherMutex.Unlock()
+	api.publisherHandles[publisher.handle] = publisher
+}
+
 func (api *API) getSubscriptionByHandle(subHandle evtapi.EventResultSetHandle) (*subscription, error) {
 	v, ok := api.subscriptions[subHandle]
 	if !ok {
@@ -165,6 +185,27 @@ func (api *API) getBookmarkByHandle(bookmarkHandle evtapi.EventBookmarkHandle) (
 		return nil, fmt.Errorf("Bookmark not found: %#x", bookmarkHandle)
 	}
 	return v, nil
+}
+
+func (api *API) getPublisherMetadataByHandle(publisherHandle evtapi.EventPublisherMetadataHandle) (*publisherMetadata, error) {
+	api.publisherMutex.RLock()
+	defer api.publisherMutex.RUnlock()
+
+	v, ok := api.publisherHandles[publisherHandle]
+	if !ok {
+		return nil, fmt.Errorf("Publisher metadata not found: %#x", publisherHandle)
+	}
+	return v, nil
+}
+
+// InvalidatePublisherHandle marks a publisher handle as invalid for testing
+func (api *API) InvalidatePublisherHandle(handle evtapi.EventPublisherMetadataHandle) error {
+	publisher, err := api.getPublisherMetadataByHandle(handle)
+	if err != nil {
+		return err
+	}
+	publisher.isValid = false
+	return nil
 }
 
 func (api *API) getEventLog(name string) (*eventLog, error) {
