@@ -1,0 +1,8 @@
+# Fix for Docker container size metrics not being collected when configured via autodiscovery
+---
+fixes:
+  - |
+    ``docker.container.size_rw`` and ``docker.container.size_rootfs``, which were previously ignored, are now sent when ``collect_container_size`` is enabled 
+    through autodiscovery. 
+    Previously, the ``collectContainerSize`` parameter was not passed to the ``runDockerCustom`` method, causing the size metrics to be 
+    ignored regardless of the configuration setting.
