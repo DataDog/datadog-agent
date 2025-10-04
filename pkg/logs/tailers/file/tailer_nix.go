@@ -8,6 +8,7 @@
 package file
 
 import (
+	"fmt"
 	"io"
 	"path/filepath"
 
@@ -32,6 +33,15 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	f, err := opener.OpenLogFile(fullpath)
 	if err != nil {
 		return err
+	}
+	if t.fingerprint != nil && t.fingerprinter != nil {
+		fingerprint, err := t.fingerprinter.ComputeFingerprintFromHandle(f, t.fingerprint.Config)
+		if err != nil {
+			return fmt.Errorf("failed to confirm fingerprint for file %s: %w", t.file.Path, err)
+		}
+		if !fingerprint.Equals(t.fingerprint) {
+			return fmt.Errorf("Could not start tailer, fingerprint mismatch for file %s", t.file.Path)
+		}
 	}
 	t.osFile = f
 	ret, _ := f.Seek(offset, whence)
