@@ -331,7 +331,7 @@ func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string)
 
 		// We use the YAML scrubber when needed. This handles nested keys, list, maps and such.
 		if strings.Contains(srcFile, ".yaml") || strings.Contains(destFile, ".yaml") {
-			content, err = fb.scrubber.ScrubYaml(content)
+			content, err = fb.encAwareScrubber.ScrubYaml(content)
 		} else {
 			content, err = fb.scrubber.ScrubBytes(content)
 		}
