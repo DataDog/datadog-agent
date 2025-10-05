@@ -19,6 +19,6 @@ type batchKey struct {
 }
 
 const (
-	batchPagesPerCPU = 0x8
+	batchPagesPerCPU = 0x10
 	batchBufferSize  = 0x1000
 )

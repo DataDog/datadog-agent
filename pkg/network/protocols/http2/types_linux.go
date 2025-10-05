@@ -31,6 +31,7 @@ type HTTP2DynamicTableIndex struct {
 	Index uint64
 	Tup   ConnTuple
 }
+type ValueType = uint8
 type HTTP2DynamicTableEntry struct {
 	Buffer             [160]uint8
 	Value_type         uint8
@@ -99,4 +100,11 @@ const (
 	K400Value      StaticTableEnumValue = 0xc
 	K404Value      StaticTableEnumValue = 0xd
 	K500Value      StaticTableEnumValue = 0xe
+)
+
+const (
+	UnknownType    ValueType = 0x0
+	PathType       ValueType = 0x1
+	MethodType     ValueType = 0x2
+	StatusCodeType ValueType = 0x3
 )

@@ -8,7 +8,7 @@ BPF_HASH_MAP(http2_incomplete_frames, conn_tuple_t, incomplete_frame_t, 0)
 
 /* http2_dynamic_table is the map that holding the supported dynamic values - the index is the static index and the
    conn tuple and it is value is the buffer which contains the dynamic string. */
-BPF_HASH_MAP(http2_dynamic_table, dynamic_table_index_t, dynamic_table_entry_t, 0)
+BPF_HASH_MAP(http2_dynamic_table, dynamic_table_index_t, value_type_t, 0)
 
 // A map between a stream (connection and a stream id) to the current global dynamic counter.
 // The value also a field called "previous" which is used to cache the last index we've cleaned during our cleanup

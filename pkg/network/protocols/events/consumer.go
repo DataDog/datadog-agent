@@ -53,6 +53,10 @@ type Consumer[V any] struct {
 	invalidBatchCount                                  *telemetry.Counter
 }
 
+func (c *Consumer[V]) GetTelem() *telemetry.MetricGroup {
+	return c.metricGroup
+}
+
 // NewConsumer instantiates a new event Consumer
 // `callback` is executed once for every "event" generated on eBPF and must:
 // 1) copy the data it wishes to hold since the underlying byte array is reclaimed;

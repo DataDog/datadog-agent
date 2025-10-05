@@ -71,6 +71,10 @@ const (
 	tlsTerminationTailCall   = "uprobe__http2_tls_termination"
 )
 
+func (p *Protocol) GetDynamic() *DynamicTable {
+	return p.dynamicTable
+}
+
 // Spec is the protocol spec for HTTP/2.
 var Spec = &protocols.ProtocolSpec{
 	Factory: newHTTP2Protocol,
@@ -394,7 +398,7 @@ func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		}
 	case dynamicTable:
 		var key HTTP2DynamicTableIndex
-		var value HTTP2DynamicTableEntry
+		var value ValueType
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
 		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {

@@ -77,6 +77,7 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
     if (is_static_table_entry(index)) {
         headers_to_process->index = index;
         headers_to_process->type = kStaticHeader;
+        headers_to_process->value_type = get_value_type(index);
         *interesting_headers_counter += is_interesting_static_entry(index);
         return;
     }
@@ -87,9 +88,14 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
 
     headers_to_process->index = dynamic_index->index;
     headers_to_process->type = kExistingDynamicHeader;
+    value_type_t *value_type = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
+    if (value_type == NULL) {
+        return;
+    }
+    headers_to_process->value_type = *value_type;
     // If the entry exists, increase the counter. If the entry is missing, then we won't increase the counter.
     // This is a simple trick to spare if-clause, to reduce pressure on the complexity of the program.
-    *interesting_headers_counter += bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) != NULL;
+    *interesting_headers_counter += 1;
     return;
 }
 

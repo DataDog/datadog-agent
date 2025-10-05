@@ -335,8 +335,6 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
 
         value_type = current_header->value_type;
         if (current_header->type == kStaticHeader) {
-            value_type = get_value_type(current_header->index);
-
             if (kMethodType == value_type) {
                 // TODO: mark request
                 current_stream->request_method.static_table_index = current_header->index;
@@ -354,12 +352,9 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
         }
 
         dynamic_index->index = current_header->index;
-        if (current_header->type == kExistingDynamicHeader) {
-            dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
-            if (dynamic_value == NULL) {
-                break;
-            }
-            value_type = dynamic_value->value_type;
+        // TODO: guy. We can eliminate the if clause below
+        if (current_header->type == kNewDynamicHeader) {
+            bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &value_type, BPF_ANY);
         }
         if (kPathType == value_type) {
             current_stream->path.dynamic_table_index = current_header->index;
@@ -836,6 +831,7 @@ static __always_inline void push_dynamic_values(pktbuf_t pkt, conn_tuple_t *tup,
 
         current_header = &headers_to_process[iteration];
 
+        // TODO: guy
         if (current_header->type == kNewDynamicHeader) {
             elem->key.tup = *tup;
             elem->key.index = current_header->index;

@@ -95,7 +95,7 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8, output []byte) ([]b
 }
 
 // Path returns the URL from the request fragment captured in eBPF.
-func (ev *eventWrapper) Path(buffer []byte) ([]byte, bool) {
+func (ev *eventWrapper) Path([]byte) ([]byte, bool) {
 	if ev.EbpfTx.Stream.Path.Static_table_index != 0 {
 		value, ok := pathStaticTable[ev.EbpfTx.Stream.Path.Static_table_index]
 		if !ok {
@@ -104,24 +104,17 @@ func (ev *eventWrapper) Path(buffer []byte) ([]byte, bool) {
 		return []byte(value.Get()), true
 	}
 
-	value, ok := ev.dt.resolveDynamicEntry(HTTP2DynamicTableIndex{
+	key := HTTP2DynamicTableIndex{
 		Index: ev.EbpfTx.Stream.Path.Dynamic_table_index,
 		Tup:   ev.Tuple,
-	})
+	}
+	value, ok := ev.dt.resolveDynamicEntry(key)
 	if !ok {
-		if oversizedLogLimit.ShouldLog() {
-			log.Warn("unknown path key")
-		}
+		// log.Warnf("unknown path key; %v", key)
 		return nil, false
 	}
 
-	strValue := value.Get()
-	n := len(strValue)
-	if n > len(buffer) {
-		n = len(buffer)
-	}
-	copy(buffer[:n], strValue)
-	return buffer, true
+	return []byte(value.Get()), true
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
@@ -138,7 +131,9 @@ func (ev *eventWrapper) RequestLatency() float64 {
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
 func (ev *eventWrapper) Incomplete() bool {
-	return ev.EbpfTx.Stream.Request_started == 0 || ev.EbpfTx.Stream.Response_last_seen == 0 || ev.StatusCode() == 0 || !ev.EbpfTx.Stream.Path.Finalized || ev.Method() == http.MethodUnknown
+	_, ok := ev.Path(nil)
+	return ev.EbpfTx.Stream.Request_started == 0 || ev.EbpfTx.Stream.Response_last_seen == 0 || ev.StatusCode() == 0 ||
+		!ev.EbpfTx.Stream.Path.Finalized || ev.Method() == http.MethodUnknown || !ok
 }
 
 // ConnTuple returns the connections tuple of the transaction.
@@ -221,10 +216,21 @@ func (ev *eventWrapper) StatusCode() uint16 {
 		return 0
 	}
 
+	flippedTuple := ConnTuple{
+		Saddr_h:  ev.Tuple.Daddr_h,
+		Saddr_l:  ev.Tuple.Daddr_l,
+		Daddr_h:  ev.Tuple.Saddr_h,
+		Daddr_l:  ev.Tuple.Saddr_l,
+		Sport:    ev.Tuple.Dport,
+		Dport:    ev.Tuple.Sport,
+		Netns:    ev.Tuple.Netns,
+		Pid:      ev.Tuple.Pid,
+		Metadata: ev.Tuple.Metadata,
+	}
 	// TODO: Should be integer as well
 	value, ok := ev.dt.resolveDynamicEntry(HTTP2DynamicTableIndex{
 		Index: ev.EbpfTx.Stream.Status_code.Dynamic_table_index,
-		Tup:   ev.Tuple,
+		Tup:   flippedTuple,
 	})
 	if !ok {
 		if oversizedLogLimit.ShouldLog() {

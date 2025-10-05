@@ -30,6 +30,7 @@ const (
 
 type ConnTuple = C.conn_tuple_t
 type HTTP2DynamicTableIndex C.dynamic_table_index_t
+type ValueType = C.value_type_t
 type HTTP2DynamicTableEntry C.dynamic_table_entry_t
 type HTTP2StreamKey C.http2_stream_key_t
 type interestingValue C.interesting_value_t
@@ -53,4 +54,11 @@ const (
 	K400Value      StaticTableEnumValue = C.k400
 	K404Value      StaticTableEnumValue = C.k404
 	K500Value      StaticTableEnumValue = C.k500
+)
+
+const (
+	UnknownType    ValueType = C.kUnknownType
+	PathType       ValueType = C.kPathType
+	MethodType     ValueType = C.kMethodType
+	StatusCodeType ValueType = C.kStatusCodeType
 )

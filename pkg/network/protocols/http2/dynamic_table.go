@@ -32,12 +32,8 @@ const (
 )
 
 var (
-	interner *intern.StringInterner
-)
-
-func init() {
 	interner = intern.NewStringInterner()
-}
+)
 
 // DynamicTable encapsulates the management of the dynamic table in the user mode.
 type DynamicTable struct {
@@ -54,7 +50,11 @@ type DynamicTable struct {
 	// terminatedConnectionMux is used to protect the terminated connections list from concurrent access.
 	terminatedConnectionMux sync.Mutex
 	// mapCleaner is the map cleaner used to clear entries of terminated connections from the kernel map.
-	mapCleaner *ddebpf.MapCleaner[HTTP2DynamicTableIndex, HTTP2DynamicTableEntry]
+	mapCleaner *ddebpf.MapCleaner[HTTP2DynamicTableIndex, ValueType]
+}
+
+func (dt *DynamicTable) GetConsumer() *events.Consumer[DynamicTableValue] {
+	return dt.dynamicTableEventsConsumer
 }
 
 // NewDynamicTable creates a new dynamic table.
@@ -117,9 +117,7 @@ func (dt *DynamicTable) processTerminatedConnections(events []netebpf.ConnTuple)
 func (dt *DynamicTable) processDynamicTable(events []DynamicTableValue) {
 	for _, event := range events {
 		if err := dt.addDynamicTableToCache(event); err != nil {
-			if oversizedLogLimit.ShouldLog() {
-				log.Error(err)
-			}
+			log.Error(err)
 		}
 	}
 }
@@ -131,7 +129,7 @@ func (dt *DynamicTable) setupDynamicTableMapCleaner(mgr *manager.Manager, cfg *c
 		return fmt.Errorf("error getting http2 dynamic table map: %w", err)
 	}
 
-	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2DynamicTableIndex, HTTP2DynamicTableEntry](dynamicTableMap, protocols.DefaultMapCleanerBatchSize, dynamicTable, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2DynamicTableIndex, ValueType](dynamicTableMap, protocols.DefaultMapCleanerBatchSize, dynamicTable, "usm_monitor")
 	if err != nil {
 		return fmt.Errorf("error creating a map cleaner for http2 dynamic table: %w", err)
 	}
@@ -152,7 +150,7 @@ func (dt *DynamicTable) setupDynamicTableMapCleaner(mgr *manager.Manager, cfg *c
 		func() {
 			terminatedConnectionsMap = make(map[netebpf.ConnTuple]struct{})
 		},
-		func(_ int64, key HTTP2DynamicTableIndex, _ HTTP2DynamicTableEntry) bool {
+		func(_ int64, key HTTP2DynamicTableIndex, _ ValueType) bool {
 			_, ok := terminatedConnectionsMap[key.Tup]
 			if ok {
 				return true
@@ -186,8 +184,8 @@ func (dt *DynamicTable) stop() {
 
 // sync is pulling all intermediate events from the kernel to the user mode.
 func (dt *DynamicTable) sync() {
-	dt.terminatedConnectionsEventsConsumer.Sync()
 	dt.dynamicTableEventsConsumer.Sync()
+	dt.terminatedConnectionsEventsConsumer.Sync()
 }
 
 // addDynamicTableToCache inserts a new value to the LRU.
@@ -206,8 +204,14 @@ func (dt *DynamicTable) addDynamicTableToCache(v DynamicTableValue) error {
 			return err
 		}
 
-		if err := validatePath(tmpBuffer.Bytes()); err != nil {
-			return err
+		switch v.Value.Value_type {
+		case PathType:
+			if err := validatePath(tmpBuffer.Bytes()); err != nil {
+				return err
+			}
+		case MethodType, StatusCodeType:
+		default:
+			return fmt.Errorf("invalid http2 dynamic table value type: %v", v.Value.Value_type)
 		}
 
 		dt.dynamicTableMutex.Lock()
@@ -226,8 +230,14 @@ func (dt *DynamicTable) addDynamicTableToCache(v DynamicTableValue) error {
 		}
 		v.Value.String_len = uint8(len(v.Value.Buffer))
 	}
-	if err := validatePath(v.Value.Buffer[:v.Value.String_len]); err != nil {
-		return err
+	switch v.Value.Value_type {
+	case PathType:
+		if err := validatePath(v.Value.Buffer[:v.Value.String_len]); err != nil {
+			return err
+		}
+	case MethodType, StatusCodeType:
+	default:
+		return fmt.Errorf("invalid http2 dynamic table value type: %v", v.Value.Value_type)
 	}
 	dt.dynamicTableMutex.Lock()
 	defer dt.dynamicTableMutex.Unlock()
