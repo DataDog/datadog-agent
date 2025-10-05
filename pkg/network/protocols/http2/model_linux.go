@@ -41,6 +41,9 @@ type EventWrapper struct {
 
 	methodSet bool
 	method    http.Method
+
+	statusCodeSet bool
+	statusCode    uint16
 }
 
 // validatePath validates the given path.
@@ -295,6 +298,10 @@ func (ew *EventWrapper) StatusCode() uint16 {
 		}
 	}
 
+	if ew.statusCodeSet {
+		return ew.statusCode
+	}
+
 	if ew.Stream.Status_code.Is_huffman_encoded {
 		// The final form of the status code is 3 characters.
 		statusCode, err := hpack.HuffmanDecodeToString(ew.Stream.Status_code.Raw_buffer[:http2RawStatusCodeMaxLength-1])
@@ -305,23 +312,23 @@ func (ew *EventWrapper) StatusCode() uint16 {
 		if err != nil {
 			return 0
 		}
-		return uint16(code)
+
+		ew.SetStatusCode(uint16(code))
+		return ew.statusCode
 	}
 
 	code, err := strconv.Atoi(string(ew.Stream.Status_code.Raw_buffer[:]))
 	if err != nil {
 		return 0
 	}
-	return uint16(code)
+	ew.SetStatusCode(uint16(code))
+	return ew.statusCode
 }
 
 // SetStatusCode sets the HTTP status code of the transaction.
 func (ew *EventWrapper) SetStatusCode(code uint16) {
-	val := strconv.Itoa(int(code))
-	if len(val) > http2RawStatusCodeMaxLength {
-		return
-	}
-	copy(ew.Stream.Status_code.Raw_buffer[:], val)
+	ew.statusCode = code
+	ew.statusCodeSet = true
 }
 
 // ResponseLastSeen returns the last seen response.
