@@ -250,7 +250,7 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 	}
 
 	// TODO: add comment
-	skipIPWithoutDomain := !s.collectorConfigs.monitorIPWithoutDomain
+	skipIPWithoutDomain := !s.collectorConfigs.monitorIPWithoutDomain // TODO: use config skip_ip_without_domain?
 	if noDomain && skipIPWithoutDomain {
 		// TODO: TEST ME
 		// network_path:
