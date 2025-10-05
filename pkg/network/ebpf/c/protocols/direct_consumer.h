@@ -19,7 +19,7 @@
 */
 #define USM_DIRECT_CONSUMER_INIT(name, event_type, map_name)                                                \
     static __always_inline __u64 name##_get_ringbuf_flags(size_t data_size) {                               \
-        __u64 ringbuffer_wakeup_size = 0;                                                                    \
+        __u64 ringbuffer_wakeup_size = 0;                                                                   \
         LOAD_CONSTANT("ringbuffer_wakeup_size", ringbuffer_wakeup_size);                                    \
         if (ringbuffer_wakeup_size == 0) {                                                                  \
             return 0;                                                                                       \
@@ -35,11 +35,11 @@
         LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);                                          \
                                                                                                             \
         if (ringbuffers_enabled) {                                                                          \
-            bpf_ringbuf_output_with_telemetry(&map_name, event, sizeof(event_type),                        \
+            bpf_ringbuf_output_with_telemetry(&map_name, event, sizeof(event_type),                         \
                                                name##_get_ringbuf_flags(sizeof(event_type)));               \
         } else {                                                                                            \
             u32 cpu = bpf_get_smp_processor_id();                                                           \
-            bpf_perf_event_output_with_telemetry(ctx, &map_name, cpu, event, sizeof(event_type));          \
+            bpf_perf_event_output_with_telemetry(ctx, &map_name, cpu, event, sizeof(event_type));           \
         }                                                                                                   \
     }
 
