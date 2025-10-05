@@ -140,7 +140,7 @@ func TestUSMDirectBufferWakeupCount(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
-		assert.Equal(t, 32, cfg.DirectConsumerBufferWakeupCountPerCPU)
+		assert.Equal(t, 8, cfg.DirectConsumerBufferWakeupCountPerCPU)
 	})
 
 	t.Run("via yaml", func(t *testing.T) {
