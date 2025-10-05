@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"golang.org/x/net/http2/hpack"
 
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -28,11 +29,15 @@ import (
 )
 
 var oversizedLogLimit = log.NewLogLimit(10, time.Minute*10)
+var interner = intern.NewStringInterner()
 
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
 // We use this wrapper to avoid recomputing the same values (path/method/status code) multiple times.
 type EventWrapper struct {
 	*EbpfTx
+
+	pathSet bool
+	path    *intern.StringValue
 }
 
 // validatePath validates the given path.
@@ -108,6 +113,11 @@ func (ew *EventWrapper) Path(buffer []byte) ([]byte, bool) {
 		}
 	}
 
+	if ew.pathSet {
+		n := copy(buffer, ew.path.Get())
+		return buffer[:n], true
+	}
+
 	var err error
 	if ew.Stream.Path.Is_huffman_encoded {
 		buffer, err = decodeHTTP2Path(ew.Stream.Path.Raw_buffer, ew.Stream.Path.Length, buffer)
@@ -146,6 +156,8 @@ func (ew *EventWrapper) Path(buffer []byte) ([]byte, bool) {
 	if queryStart == -1 {
 		queryStart = len(buffer)
 	}
+	ew.path = interner.Get(buffer[:queryStart])
+	ew.pathSet = true
 	return buffer[:queryStart], true
 }
 
