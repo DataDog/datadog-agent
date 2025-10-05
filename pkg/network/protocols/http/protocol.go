@@ -333,9 +333,10 @@ func (p *protocol) createAdaptiveConsumer() error {
 			// Fall back to BatchConsumer on unsupported kernels
 			kernelVersion, err := kernel.HostVersion()
 			if err != nil {
-				return err
+				log.Warnf("HTTP monitoring: direct consumer requested but unable to determine kernel version (%v), falling back to batch consumer", err)
+			} else {
+				log.Warnf("HTTP monitoring: direct consumer requested but kernel version %v < 5.8.0, falling back to batch consumer", kernelVersion)
 			}
-			log.Warnf("HTTP monitoring: direct consumer requested but kernel version %v < 5.8.0, falling back to batch consumer", kernelVersion)
 			p.useDirectConsumer = false
 		}
 	} else {
