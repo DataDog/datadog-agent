@@ -266,6 +266,7 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		//        # match_port: <port>                            # add later if user ask for it
 		//        # match_protocol: <TCP | UDP | ICMP>            # add later if user ask for it
 		// TODO: replace with new networkfilter
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ip_without_domain"}, 1) //nolint:errcheck
 		return false
 	}
 
