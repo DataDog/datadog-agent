@@ -75,10 +75,10 @@ func TestIncompleteBuffer(t *testing.T) {
 		}
 		buffer.Add(request)
 		_ = buffer.Flush(time.Time{})
-		require.True(t, len(buffer.data) > 0)
+		require.NotEmpty(t, buffer.data)
 
 		buffer.data[0].Stream.Request_started = uint64(startTime - buffer.minAgeNano)
 		_ = buffer.Flush(time.Time{})
-		assert.True(t, len(buffer.data) == 0)
+		require.Empty(t, buffer.data)
 	})
 }
