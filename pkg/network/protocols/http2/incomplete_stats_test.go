@@ -24,24 +24,26 @@ func TestIncompleteBuffer(t *testing.T) {
 		buffer := NewIncompleteBuffer(config.New()).(*incompleteBuffer)
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
-		request := &EbpfTx{
-			Tuple: ConnTuple{
-				Sport: 6000,
-			},
-			Stream: HTTP2Stream{
-				Response_last_seen: 0, // Required to make the request incomplete.
-				Request_started:    uint64(now.UnixNano()),
-				Status_code: http2StatusCode{
-					Static_table_entry: K200Value,
-					Finalized:          true,
+		request := &EventWrapper{
+			EbpfTx: &EbpfTx{
+				Tuple: ConnTuple{
+					Sport: 6000,
 				},
-				Request_method: http2requestMethod{
-					Static_table_entry: GetValue,
-					Finalized:          true,
-				},
-				Path: http2Path{
-					Static_table_entry: EmptyPathValue,
-					Finalized:          true,
+				Stream: HTTP2Stream{
+					Response_last_seen: 0, // Required to make the request incomplete.
+					Request_started:    uint64(now.UnixNano()),
+					Status_code: http2StatusCode{
+						Static_table_entry: K200Value,
+						Finalized:          true,
+					},
+					Request_method: http2requestMethod{
+						Static_table_entry: GetValue,
+						Finalized:          true,
+					},
+					Path: http2Path{
+						Static_table_entry: EmptyPathValue,
+						Finalized:          true,
+					},
 				},
 			},
 		}
@@ -62,15 +64,17 @@ func TestIncompleteBuffer(t *testing.T) {
 		startTime, err := ebpf.NowNanoseconds()
 		require.NoError(t, err)
 		buffer.minAgeNano = (1 * time.Second).Nanoseconds()
-		request := &EbpfTx{
-			Tuple: ConnTuple{
-				Sport: 6000,
-			},
-			Stream: HTTP2Stream{
-				Path: http2Path{
-					Static_table_entry: EmptyPathValue,
+		request := &EventWrapper{
+			EbpfTx: &EbpfTx{
+				Tuple: ConnTuple{
+					Sport: 6000,
 				},
-				Request_started: uint64(startTime),
+				Stream: HTTP2Stream{
+					Path: http2Path{
+						Static_table_entry: EmptyPathValue,
+					},
+					Request_started: uint64(startTime),
+				},
 			},
 		}
 		buffer.Add(request)
