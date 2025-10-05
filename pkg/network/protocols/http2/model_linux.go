@@ -38,6 +38,9 @@ type EventWrapper struct {
 
 	pathSet bool
 	path    *intern.StringValue
+
+	methodSet bool
+	method    http.Method
 }
 
 // validatePath validates the given path.
@@ -234,6 +237,10 @@ func (ew *EventWrapper) Method() http.Method {
 		}
 	}
 
+	if ew.methodSet {
+		return ew.method
+	}
+
 	// if the length of the method is greater than the buffer, then we return 0.
 	if int(ew.Stream.Request_method.Length) > len(ew.Stream.Request_method.Raw_buffer) || ew.Stream.Request_method.Length == 0 {
 		if oversizedLogLimit.ShouldLog() {
@@ -256,7 +263,10 @@ func (ew *EventWrapper) Method() http.Method {
 	if err != nil {
 		return http.MethodUnknown
 	}
-	return http2Method
+
+	ew.method = http2Method
+	ew.methodSet = true
+	return ew.method
 }
 
 // StatusCode returns the status code of the transaction.
