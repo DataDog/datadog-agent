@@ -140,21 +140,21 @@ func TestUSMDirectBufferWakeupCount(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
-		assert.Equal(t, 32, cfg.DirectConsumerBufferWakeupCount)
+		assert.Equal(t, 32, cfg.DirectConsumerBufferWakeupCountPerCPU)
 	})
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.buffer_wakeup_count", 64)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.buffer_wakeup_count_per_cpu", 64)
 		cfg := New()
-		assert.Equal(t, 64, cfg.DirectConsumerBufferWakeupCount)
+		assert.Equal(t, 64, cfg.DirectConsumerBufferWakeupCountPerCPU)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_BUFFER_WAKEUP_COUNT", "128")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_BUFFER_WAKEUP_COUNT_PER_CPU", "128")
 		cfg := New()
-		assert.Equal(t, 128, cfg.DirectConsumerBufferWakeupCount)
+		assert.Equal(t, 128, cfg.DirectConsumerBufferWakeupCountPerCPU)
 	})
 }
 

@@ -107,11 +107,19 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 		log.Errorf("DirectConsumer %s: unable to detect number of CPUs, assuming 96: %s", proto, err)
 	}
 
-	// Set up perf mode and channel size similar to initClosedConnEventHandler
-	// For DirectConsumer, we want kernel-level batching for performance
-	// but individual event processing in userspace (unlike BatchConsumer)
-	perfMode := perf.WakeupEvents(config.DirectConsumerBufferWakeupCount) // Wait for N events before wakeup
-	chanSize := config.DirectConsumerChannelSize * config.DirectConsumerBufferWakeupCount
+	// Perf buffers are per-CPU (each CPU has its own buffer), so wakeup parameters are per-CPU.
+	// Ring buffers are a single shared buffer across all CPUs, so wakeup parameters are global.
+	//
+	// DirectConsumerBufferWakeupCountPerCPU specifies the per-CPU wakeup count.
+	// For perf buffers, this is used directly. For ring buffers, it's multiplied by CPU count.
+	perCPUWakeupCount := config.DirectConsumerBufferWakeupCountPerCPU
+	totalWakeupCount := perCPUWakeupCount * numCPUs
+
+	// Configure perf buffer wakeup (ring buffers ignore perfMode and use ringBufferWakeupSize)
+	perfMode := perf.WakeupEvents(perCPUWakeupCount)
+
+	// Size channel for aggregate burst capacity
+	chanSize := config.DirectConsumerChannelSize * totalWakeupCount
 
 	// perf.UsePerfBuffers expects per-CPU buffer size (the underlying loader allocates numCPU buffers)
 	// Ring buffers need total size (single shared buffer across all CPUs)
@@ -124,8 +132,9 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 		mode = perf.UpgradePerfBuffers(perfBufferSize, chanSize, perfMode, totalRingBufferSize)
 	}
 
-	// Calculate the size of the single event that will be written via bpf_ringbuf_output
+	// Ring buffer wakeup uses eBPF code that checks pending_data >= wakeup_size (see direct_consumer.h)
 	eventSize := int(unsafe.Sizeof(*new(V)))
+	ringBufferWakeupSize := uint64(totalWakeupCount * (eventSize + unix.BPF_RINGBUF_HDR_SZ))
 
 	mapName := eventMapName(proto)
 	eventHandler, err := perf.NewEventHandler(
@@ -134,8 +143,7 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 		mode,
 		perf.SendTelemetry(config.InternalTelemetryEnabled),
 		perf.RingBufferEnabledConstantName("ringbuffers_enabled"),
-		perf.RingBufferWakeupSize("ringbuffer_wakeup_size",
-			uint64(config.DirectConsumerBufferWakeupCount*(eventSize+unix.BPF_RINGBUF_HDR_SZ))),
+		perf.RingBufferWakeupSize("ringbuffer_wakeup_size", ringBufferWakeupSize),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event handler for protocol %s: %w", proto, err)
