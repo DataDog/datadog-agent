@@ -180,47 +180,25 @@ func TestUSMDirectChannelSize(t *testing.T) {
 	})
 }
 
-func TestUSMDirectPerfBufferSize(t *testing.T) {
+func TestUSMDirectKernelBufferSize(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
-		assert.Equal(t, 65536, cfg.DirectConsumerPerfBufferSizePerCPU)
+		assert.Equal(t, 65536, cfg.DirectConsumerKernelBufferSizePerCPU)
 	})
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.perf_buffer_size_per_cpu", 131072)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.kernel_buffer_size_per_cpu", 131072)
 		cfg := New()
-		assert.Equal(t, 131072, cfg.DirectConsumerPerfBufferSizePerCPU)
+		assert.Equal(t, 131072, cfg.DirectConsumerKernelBufferSizePerCPU)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_PERF_BUFFER_SIZE_PER_CPU", "262144")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_KERNEL_BUFFER_SIZE_PER_CPU", "262144")
 		cfg := New()
-		assert.Equal(t, 262144, cfg.DirectConsumerPerfBufferSizePerCPU)
-	})
-}
-
-func TestUSMDirectRingBufferSize(t *testing.T) {
-	t.Run("default value", func(t *testing.T) {
-		mock.NewSystemProbe(t)
-		cfg := New()
-		assert.Equal(t, 65536, cfg.DirectConsumerRingBufferSizePerCPU)
-	})
-
-	t.Run("via yaml", func(t *testing.T) {
-		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.ring_buffer_size_per_cpu", 131072)
-		cfg := New()
-		assert.Equal(t, 131072, cfg.DirectConsumerRingBufferSizePerCPU)
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_RING_BUFFER_SIZE_PER_CPU", "262144")
-		cfg := New()
-		assert.Equal(t, 262144, cfg.DirectConsumerRingBufferSizePerCPU)
+		assert.Equal(t, 262144, cfg.DirectConsumerKernelBufferSizePerCPU)
 	})
 }
 

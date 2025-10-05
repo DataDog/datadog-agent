@@ -10,6 +10,7 @@ package events
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"unsafe"
 
@@ -45,6 +46,12 @@ type DirectConsumer[V any] struct {
 	metricGroup       *telemetry.MetricGroup
 	eventsCount       *telemetry.Counter
 	invalidEventCount *telemetry.Counter
+}
+
+// roundUpToPageSize rounds a size up to the next multiple of the system page size (ceiling)
+func roundUpToPageSize(size int) int {
+	pageSize := os.Getpagesize()
+	return ((size + pageSize - 1) / pageSize) * pageSize
 }
 
 // NewDirectConsumer creates a new DirectConsumer for the specified protocol.
@@ -121,10 +128,12 @@ func NewDirectConsumer[V any](proto string, callback func(*V), config *config.Co
 	// Size channel for aggregate burst capacity
 	chanSize := config.DirectConsumerChannelSize * totalWakeupCount
 
-	// perf.UsePerfBuffers expects per-CPU buffer size (the underlying loader allocates numCPU buffers)
-	// Ring buffers need total size (single shared buffer across all CPUs)
-	perfBufferSize := config.DirectConsumerPerfBufferSizePerCPU
-	totalRingBufferSize := config.DirectConsumerRingBufferSizePerCPU * numCPUs
+	// Use single configuration value for both buffer types and adjust to meet kernel requirements:
+	// - Perf buffer: Round up to page size multiple (per-CPU buffer)
+	// - Ring buffer: perfBufferSize * CPU count, then round to nearest power of 2 (total buffer size)
+	baseBufferSize := config.DirectConsumerKernelBufferSizePerCPU
+	perfBufferSize := roundUpToPageSize(baseBufferSize)
+	totalRingBufferSize := toPowerOf2(perfBufferSize * numCPUs)
 
 	mode := perf.UsePerfBuffers(perfBufferSize, chanSize, perfMode)
 	// Always try to upgrade to ring buffers for direct events if supported
