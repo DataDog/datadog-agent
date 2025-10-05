@@ -48,7 +48,7 @@ func (b *incompleteBuffer) Add(tx http.Transaction) {
 	}
 
 	// Copy underlying EventWrapper value.
-	ebpfTX, ok := tx.(*EventWrapper)
+	eventWrapper, ok := tx.(*EventWrapper)
 	if !ok {
 		if b.oversizedLogLimit.ShouldLog() {
 			log.Warnf("http2 incomplete buffer received a non-EventWrapper transaction (%T), dropping transaction", tx)
@@ -56,10 +56,10 @@ func (b *incompleteBuffer) Add(tx http.Transaction) {
 		return
 	}
 
-	ebpfTxCopy := new(EventWrapper)
-	*ebpfTxCopy = *ebpfTX
+	eventWrapperCopy := new(EventWrapper)
+	*eventWrapperCopy = *eventWrapper
 
-	b.data = append(b.data, ebpfTxCopy)
+	b.data = append(b.data, eventWrapperCopy)
 }
 
 // Flush flushes the buffer and returns the joined transactions.

@@ -413,11 +413,11 @@ func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 
 func (p *Protocol) processHTTP2(events []EbpfTx) {
 	for i := range events {
-		tx := &EventWrapper{
+		eventWrapper := &EventWrapper{
 			EbpfTx: &events[i],
 		}
-		p.telemetry.Count(tx)
-		p.statkeeper.Process(tx)
+		p.telemetry.Count(eventWrapper)
+		p.statkeeper.Process(eventWrapper)
 	}
 }
 

@@ -211,12 +211,12 @@ func TestHTTP2Method(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tx := &EventWrapper{
+			eventWrapper := &EventWrapper{
 				EbpfTx: &EbpfTx{
 					Stream: tt.Stream,
 				},
 			}
-			assert.Equalf(t, tt.want, tx.Method(), "Method()")
+			assert.Equalf(t, tt.want, eventWrapper.Method(), "Method()")
 		})
 	}
 }
