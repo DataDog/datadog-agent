@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -58,8 +59,9 @@ func TestIncompleteBuffer(t *testing.T) {
 	t.Run("removing old incomplete", func(t *testing.T) {
 		// Testing the scenario where an incomplete request is removed after a certain time.
 		buffer := NewIncompleteBuffer(config.New()).(*incompleteBuffer)
-		now := time.Now()
-		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
+		startTime, err := ebpf.NowNanoseconds()
+		require.NoError(t, err)
+		buffer.minAgeNano = (1 * time.Second).Nanoseconds()
 		request := &EbpfTx{
 			Tuple: ConnTuple{
 				Sport: 6000,
@@ -68,15 +70,15 @@ func TestIncompleteBuffer(t *testing.T) {
 				Path: http2Path{
 					Static_table_entry: EmptyPathValue,
 				},
-				Request_started: uint64(now.UnixNano()),
+				Request_started: uint64(startTime),
 			},
 		}
 		buffer.Add(request)
-		_ = buffer.Flush(now)
+		_ = buffer.Flush(time.Time{})
+		require.NotEmpty(t, buffer.data)
 
-		assert.True(t, len(buffer.data) > 0)
-		now = now.Add(35 * time.Second)
-		_ = buffer.Flush(now)
-		assert.True(t, len(buffer.data) == 0)
+		buffer.data[0].Stream.Request_started = uint64(startTime - buffer.minAgeNano)
+		_ = buffer.Flush(time.Time{})
+		require.Empty(t, buffer.data)
 	})
 }
