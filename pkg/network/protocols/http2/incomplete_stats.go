@@ -10,6 +10,7 @@ package http2
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -62,12 +63,16 @@ func (b *incompleteBuffer) Add(tx http.Transaction) {
 }
 
 // Flush flushes the buffer and returns the joined transactions.
-func (b *incompleteBuffer) Flush(now time.Time) []http.Transaction {
+func (b *incompleteBuffer) Flush(time.Time) []http.Transaction {
 	var (
 		joined   []http.Transaction
 		previous = b.data
-		nowUnix  = now.UnixNano()
 	)
+
+	nowUnix, err := ebpf.NowNanoseconds()
+	if err != nil {
+		nowUnix = 0
+	}
 
 	b.data = make([]*EbpfTx, 0)
 	for _, entry := range previous {
