@@ -1,0 +1,22 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "show running-config"
+      ]
+    },
+    {
+      "type": "startup",
+      "values": [
+        "show startup-config"
+      ]
+    },
+    {
+      "type": "version",
+      "values": [
+        "show version"
+      ]
+    }
+  ]
+}

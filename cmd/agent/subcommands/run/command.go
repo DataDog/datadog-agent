@@ -85,6 +85,7 @@ import (
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -150,6 +151,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
+	tracetelemetryfx "github.com/DataDog/datadog-agent/comp/trace-telemetry/fx"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -161,6 +163,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	hostSbom "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
@@ -209,10 +212,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			}),
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
-				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
+			secretsfx.Module(),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
 			getSharedFxOption(),
@@ -243,10 +246,10 @@ func run(log log.Component,
 	cfg config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
-	sysprobeconfig sysprobeconfig.Component,
+	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	_ replay.Component,
-	forwarder defaultforwarder.Component,
+	_ defaultforwarder.Component,
 	wmeta workloadmeta.Component,
 	filterStore workloadfilter.Component,
 	taggerComp tagger.Component,
@@ -254,11 +257,11 @@ func run(log log.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
-	sharedSerializer serializer.MetricSerializer,
-	logsAgent option.Option[logsAgent.Component],
+	_ serializer.MetricSerializer,
+	_ option.Option[logsAgent.Component],
 	_ statsd.Component,
-	processAgent processAgent.Component,
-	otelcollector otelcollector.Component,
+	_ processAgent.Component,
+	_ otelcollector.Component,
 	_ host.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
@@ -270,13 +273,13 @@ func run(log log.Component,
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
-	agentAPI internalAPI.Component,
+	_ internalAPI.Component,
 	_ packagesigning.Component,
 	_ systemprobemetadata.Component,
 	_ securityagentmetadata.Component,
-	statusComponent status.Component,
+	_ status.Component,
 	collector collector.Component,
-	cloudfoundrycontainer cloudfoundrycontainer.Component,
+	_ cloudfoundrycontainer.Component,
 	_ expvarserver.Component,
 	_ pid.Component,
 	jmxlogger jmxlogger.Component,
@@ -331,26 +334,17 @@ func run(log log.Component,
 		log,
 		flare,
 		telemetry,
-		sysprobeconfig,
 		server,
 		wmeta,
 		filterStore,
 		taggerComp,
 		ac,
 		rcclient,
-		logsAgent,
-		processAgent,
-		forwarder,
-		sharedSerializer,
-		otelcollector,
 		demultiplexer,
-		agentAPI,
 		invChecks,
 		logReceiver,
-		statusComponent,
 		collector,
 		cfg,
-		cloudfoundrycontainer,
 		jmxlogger,
 		settings,
 		agenttelemetryComponent,
@@ -543,6 +537,7 @@ func getSharedFxOption() fx.Option {
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
+		tracetelemetryfx.Module(),
 	)
 }
 
@@ -551,26 +546,17 @@ func startAgent(
 	log log.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
-	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	wmeta workloadmeta.Component,
 	filterStore workloadfilter.Component,
 	tagger tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
-	_ option.Option[logsAgent.Component],
-	_ processAgent.Component,
-	_ defaultforwarder.Component,
-	_ serializer.MetricSerializer,
-	_ otelcollector.Component,
 	demultiplexer demultiplexer.Component,
-	_ internalAPI.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
-	_ status.Component,
 	collectorComponent collector.Component,
 	cfg config.Component,
-	_ cloudfoundrycontainer.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
 	agenttelemetryComponent agenttelemetry.Component,
@@ -616,7 +602,7 @@ func startAgent(
 	log.Infof("Hostname is: %s", hostnameDetected)
 
 	// start remote configuration management
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	if configUtils.IsRemoteConfigEnabled(cfg) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
 		controller := datastreams.NewController(ac, rcclient)
@@ -664,7 +650,7 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
