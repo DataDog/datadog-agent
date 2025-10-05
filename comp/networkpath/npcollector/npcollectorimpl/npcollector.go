@@ -239,14 +239,19 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1) //nolint:errcheck
 		return false
 	}
+
+	noDomain := domain == ""
+
 	// only ipv4 is supported currently
 	// if domain is present, we will traceroute the domain, so, it doesn't matter if the conn family is IPv4 or IPv6
-	if domain == "" && conn.Family != model.ConnectionFamily_v4 {
+	if noDomain && conn.Family != model.ConnectionFamily_v4 {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
 		return false
 	}
 
-	if !(domain != "" || s.collectorConfigs.monitorIPWithoutDomain) {
+	// TODO: add comment
+	skipIPWithoutDomain := !s.collectorConfigs.monitorIPWithoutDomain
+	if noDomain && skipIPWithoutDomain {
 		// TODO: TEST ME
 		// network_path:
 		//  collector:
