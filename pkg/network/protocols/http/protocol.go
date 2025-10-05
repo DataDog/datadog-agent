@@ -175,6 +175,9 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 			netifProbeID.EBPFFuncName = netifProbe414
 		}
 		opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
+	} else {
+		// When using DirectConsumer, exclude flush probes to avoid loading/verifying them
+		opts.ExcludedFunctions = append(opts.ExcludedFunctions, netifProbe, netifProbe414)
 	}
 
 	utils.EnableOption(opts, "http_monitoring_enabled")
