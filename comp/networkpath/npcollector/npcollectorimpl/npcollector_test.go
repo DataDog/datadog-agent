@@ -1283,7 +1283,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 		connectionExcluded bool
 	}{
 		{
-			name: "should schedule",
+			name:   "should schedule",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1292,7 +1293,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: true,
 		},
 		{
-			name: "should not schedule incoming conn",
+			name:   "should not schedule incoming conn",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1302,7 +1304,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
-			name: "should not schedule conn with none direction",
+			name:   "should not schedule conn with none direction",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1312,7 +1315,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
-			name: "should not schedule ipv6",
+			name:   "should not schedule ipv6 when there is no domain",
+			domain: "",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1322,18 +1326,19 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
-			name: "should schedule for ipv6 cnn if domain is present",
+			name:   "should schedule for ipv6 cnn if domain is present",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 				Family:    model.ConnectionFamily_v6,
 			},
-			domain:         "abc",
 			shouldSchedule: true,
 		},
 		{
-			name: "should not schedule for loopback",
+			name:   "should not schedule for loopback",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
@@ -1344,7 +1349,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
-			name: "should not schedule for intrahost",
+			name:   "should not schedule for intrahost",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1356,7 +1362,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 		},
 		// intra-vpc subnet skipping tests
 		{
-			name: "VPC: random subnet should schedule anyway",
+			name:   "VPC: random subnet should schedule anyway",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1367,7 +1374,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			subnetSkipped:  false,
 		},
 		{
-			name: "VPC: relevant subnet should skip",
+			name:   "VPC: relevant subnet should skip",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
@@ -1378,7 +1386,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			subnetSkipped:  true,
 		},
 		{
-			name: "VPC: shouldn't skip local address even if the subnet matches",
+			name:   "VPC: shouldn't skip local address even if the subnet matches",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
@@ -1389,7 +1398,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			subnetSkipped:  false,
 		},
 		{
-			name: "VPC: translated clusterIP should get matched",
+			name:   "VPC: translated clusterIP should get matched",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
@@ -1404,7 +1414,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			subnetSkipped:  true,
 		},
 		{
-			name: "VPC: source translation existing shouldn't break subnet check",
+			name:   "VPC: source translation existing shouldn't break subnet check",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
@@ -1421,7 +1432,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 		},
 		// connection exclusion tests
 		{
-			name: "exclusion: block dest exactly",
+			name:   "exclusion: block dest exactly",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1434,7 +1446,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: true,
 		},
 		{
-			name: "exclusion: block dest but different port",
+			name:   "exclusion: block dest but different port",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1447,7 +1460,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: false,
 		},
 		{
-			name: "exclusion: block source with port range",
+			name:   "exclusion: block source with port range",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1460,7 +1474,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: true,
 		},
 		{
-			name: "exclusion: block dest subnet",
+			name:   "exclusion: block dest subnet",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
@@ -1473,7 +1488,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: true,
 		},
 		{
-			name: "exclusion: block dest subnet, no match",
+			name:   "exclusion: block dest subnet, no match",
+			domain: "abc",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
@@ -1486,7 +1502,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: false,
 		},
 		{
-			name: "exclusion: only UDP, matching case",
+			name:   "exclusion: only UDP, matching case",
+			domain: "abc",
 			conn: &model.Connection{
 				Type:      model.ConnectionType_udp,
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
@@ -1500,7 +1517,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			connectionExcluded: true,
 		},
 		{
-			name: "exclusion: only UDP, non-matching case",
+			name:   "exclusion: only UDP, non-matching case",
+			domain: "abc",
 			conn: &model.Connection{
 				// (tcp is 0 so this doesn't actually do anything)
 				Type:      model.ConnectionType_tcp,
@@ -1590,7 +1608,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
-			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil, ""))
+			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil, "abc"))
 
 			if tt.subnetSkipped {
 				require.Contains(t, stats.CountCalls, subnetSkippedStat)

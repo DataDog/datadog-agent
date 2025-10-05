@@ -246,6 +246,24 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 
+	if !(domain != "" || s.collectorConfigs.monitorIPWithoutDomain) {
+		// TODO: TEST ME
+		// network_path:
+		//  collector:
+		//    exclude:
+		//      - match_domain: '*.datadoghq.com'
+		//      - match_domain: '*.google.com'
+		//      - match_ip: <IP or CIDR>
+		//    include:
+		//      - match_domain: '*.zoom.us'
+		//        match_domain_strategy: wildcard                 # wildcard | regex
+		//      - match_ip: <IP or CIDR>
+		//        # match_port: <port>                            # add later if user ask for it
+		//        # match_protocol: <TCP | UDP | ICMP>            # add later if user ask for it
+		// TODO: replace with new networkfilter
+		return false
+	}
+
 	return s.checkPassesConnCIDRFilters(conn, vpcSubnets)
 }
 
@@ -284,24 +302,6 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 
 	for _, conn := range conns.Conns {
 		domain := ipToDomainResolver.ResolveIPToDomain(conn.Raddr.GetIp())
-
-		if !(domain != "" || s.collectorConfigs.monitorIPWithoutDomain) {
-			// TODO: TEST ME
-			// network_path:
-			//  collector:
-			//    exclude:
-			//      - match_domain: '*.datadoghq.com'
-			//      - match_domain: '*.google.com'
-			//      - match_ip: <IP or CIDR>
-			//    include:
-			//      - match_domain: '*.zoom.us'
-			//        match_domain_strategy: wildcard                 # wildcard | regex
-			//      - match_ip: <IP or CIDR>
-			//        # match_port: <port>                            # add later if user ask for it
-			//        # match_protocol: <TCP | UDP | ICMP>            # add later if user ask for it
-			// TODO: replace with new networkfilter
-			continue
-		}
 
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets, domain) {
 			protocol := convertProtocol(conn.GetType())
