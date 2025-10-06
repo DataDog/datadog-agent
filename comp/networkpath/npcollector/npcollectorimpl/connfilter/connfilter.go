@@ -32,7 +32,7 @@ type Config struct {
 type Filter struct {
 	Type        Type
 	matchDomain *regexp.Regexp
-	matchIP     *net.IPNet
+	matchIPCidr *net.IPNet
 }
 
 // ConnFilter class
@@ -66,13 +66,53 @@ func NewConnFilter(config []Config) (*ConnFilter, []error) {
 	filters := make([]Filter, 0, len(config))
 	var errs []error
 	for _, cfg := range config {
-		matchDomainRe, err := regexp.Compile(cfg.MatchDomain)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("error compiling domain regex `%s`: %s", cfg.MatchDomain, err))
+		var matchDomainRe *regexp.Regexp
+		var matchIPCidr *net.IPNet
+		if cfg.MatchDomain != "" {
+			matchDomainStrat := cfg.MatchDomainStrategy
+			if matchDomainStrat == "" {
+				// TODO: TEST ME
+				matchDomainStrat = matchDomainStrategyWildcard
+			}
+			if matchDomainStrat != matchDomainStrategyWildcard && matchDomainStrat != matchDomainStrategyRegex {
+				errs = append(errs, fmt.Errorf("invalid match domain strategy: %s", matchDomainStrat))
+				// TODO: TEST ME
+				continue
+			}
+			domainRe, err := buildRegex(cfg.MatchDomain, matchDomainStrat)
+			if err != nil {
+				// TODO: TEST ME
+				errs = append(errs, fmt.Errorf("error building regex `%s`: %s", cfg.MatchDomain, err))
+				continue
+			}
+			matchDomainRe = domainRe
 		}
+		if cfg.MatchIP != "" {
+			var cidrStr string
+			ip := net.ParseIP(cfg.MatchIP)
+			if ip != nil { // TODO: Does this work?
+				if ip.To4() != nil {
+					// TODO: TEST ME
+					cidrStr = cfg.MatchIP + "/32"
+				} else if ip.To16() != nil {
+					// TODO: TEST ME
+					cidrStr = cfg.MatchIP + "/128"
+				}
+			} else {
+				cidrStr = cfg.MatchIP
+			}
+			_, cidr, err := net.ParseCIDR(cidrStr)
+			if err != nil {
+				// TODO: TEST ME
+				errs = append(errs, fmt.Errorf("failed to parsing match_ip `%s`: %s", cfg.MatchIP, err))
+			}
+			matchIPCidr = cidr
+		}
+
 		filters = append(filters, Filter{
 			Type:        cfg.Type,
 			matchDomain: matchDomainRe,
+			matchIPCidr: matchIPCidr,
 		})
 	}
 	return &ConnFilter{
@@ -83,11 +123,14 @@ func NewConnFilter(config []Config) (*ConnFilter, []error) {
 func (f *ConnFilter) Match(domain string, ip string) bool {
 	matched := true
 	for _, filter := range f.filters {
-		if filter.matchDomain.MatchString(domain) {
-			if filter.Type == filterTypeExclude {
-				matched = false
-			} else {
-				matched = true
+		if filter.matchDomain != nil { // TODO: TEST ME
+			if filter.matchDomain.MatchString(domain) {
+				matched = isMatched(filter.Type)
+			}
+		}
+		if filter.matchIPCidr != nil { // TODO: TEST ME
+			if filter.matchIPCidr.Contains(net.ParseIP(ip)) {
+				matched = isMatched(filter.Type)
 			}
 		}
 	}
@@ -101,4 +144,11 @@ func (f *ConnFilter) Match(domain string, ip string) bool {
 	//	//filters.
 	//}
 	return matched
+}
+
+func isMatched(t Type) bool {
+	if t == filterTypeExclude {
+		return false
+	}
+	return true
 }
