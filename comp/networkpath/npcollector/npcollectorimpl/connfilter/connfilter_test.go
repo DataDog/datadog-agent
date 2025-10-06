@@ -3,9 +3,6 @@ package connfilter
 import (
 	"testing"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -48,18 +45,4 @@ filters:
 			}
 		})
 	}
-}
-
-func getConnFilter(t *testing.T, configString string) (*ConnFilter, error) {
-	var configs []Config
-
-	cfg := configComponent.NewMockFromYAML(t, configString)
-
-	err := structure.UnmarshalKey(cfg, "filters", &configs)
-	if err != nil {
-		return nil, err
-	}
-	logger := logmock.New(t)
-	connFilter := NewConnFilter(logger, configs)
-	return connFilter, err
 }

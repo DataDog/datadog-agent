@@ -1,10 +1,9 @@
 package connfilter
 
 import (
+	"fmt"
 	"net"
 	"regexp"
-
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
 type Type string
@@ -61,14 +60,15 @@ type ConnFilter struct {
 //        # match_protocol: <TCP | UDP | ICMP>            # add later if user ask for it
 //        type: exclude
 
-func NewConnFilter(logger log.Component, config []Config) *ConnFilter {
+func NewConnFilter(config []Config) (*ConnFilter, []error) {
 	// TODO: test compile error
 
 	filters := make([]Filter, 0, len(config))
+	var errs []error
 	for _, cfg := range config {
 		matchDomainRe, err := regexp.Compile(cfg.MatchDomain)
 		if err != nil {
-			logger.Errorf("Error compiling domain regex `%s`: %s", cfg.MatchDomain, err)
+			errs = append(errs, fmt.Errorf("error compiling domain regex `%s`: %s", cfg.MatchDomain, err))
 		}
 		filters = append(filters, Filter{
 			Type:        cfg.Type,
@@ -77,7 +77,7 @@ func NewConnFilter(logger log.Component, config []Config) *ConnFilter {
 	}
 	return &ConnFilter{
 		filters: filters,
-	}
+	}, errs
 }
 
 func (f *ConnFilter) Match(domain string, ip string) bool {
