@@ -1,9 +1,9 @@
 import base64
 import os
+import platform
 import re
+import subprocess
 from typing import List
-
-from invoke import Context
 
 try:
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject
@@ -240,40 +240,51 @@ class GithubAPI:
         """
         Attempt to find a working authentication, in order:
             - Personal access token through GITHUB_TOKEN environment variable
-            - Short lived token generated locally
-            - A fake login user/password to reach public repositories
             - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
-              variables (can also use GITHUB_INSTALLATION_ID to save a request).
-              This is required for Gitlab CI.
+              variables (can also use GITHUB_INSTALLATION_ID to save a request)
+            - A token from macOS keychain
+            - A fake login user/password to reach public repositories
         """
-        from tasks.libs.common.utils import running_in_ci
-
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
-        elif not running_in_ci():
-            return Auth.Token(generate_local_github_token(Context()))
-        elif public_repo:
-            return Auth.Login("user", "password")
-
-        if "GITHUB_APP_ID" not in os.environ or "GITHUB_KEY_B64" not in os.environ:
-            raise Exit(
-                message="For private repositories on CI, you need to set the GITHUB_APP_ID and GITHUB_KEY_B64 environment variables",
-                code=1,
+        if "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ:
+            appAuth = Auth.AppAuth(
+                os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
             )
+            installation_id = os.environ.get('GITHUB_INSTALLATION_ID', None)
+            if installation_id is None:
+                # Even if we don't know the installation id, there's an API endpoint to
+                # retrieve it, given the other credentials (app id + key).
+                integration = GithubIntegration(auth=appAuth)
+                installations = integration.get_installations()
+                if len(installations) == 0:
+                    raise Exit(message='No usable installation found', code=1)
+                installation_id = installations[0]
+            return appAuth.get_installation_auth(int(installation_id))
+        if public_repo:
+            return Auth.Login("user", "password")
+        if platform.system() == "Darwin":
+            try:
+                output = (
+                    subprocess.check_output(
+                        ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
+                    )
+                    .decode()
+                    .strip()
+                )
 
-        appAuth = Auth.AppAuth(
-            os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
+                if output:
+                    return Auth.Token(output)
+            except subprocess.CalledProcessError:
+                print("GITHUB_TOKEN not found in keychain...")
+                pass
+        raise Exit(
+            message="Please create a 'repo' access token at "
+            "https://github.com/settings/tokens and "
+            "add it as GITHUB_TOKEN in your keychain "
+            "or export it from your .bashrc or equivalent.",
+            code=1,
         )
-        installation_id = os.environ.get('GITHUB_INSTALLATION_ID', None)
-        if installation_id is None:
-            # Even if we don't know the installation id, there's an API endpoint to
-            # retrieve it, given the other credentials (app id + key).
-            integration = GithubIntegration(auth=appAuth)
-            installations = integration.get_installations()
-            if installations.totalCount == 0:
-                raise Exit(message='No usable installation found', code=1)
-            installation_id = installations[0].id
-        return appAuth.get_installation_auth(int(installation_id))
 
     @staticmethod
     def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
@@ -289,27 +300,3 @@ class GithubAPI:
         install_id = installations[0].id
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
-
-
-def generate_local_github_token(ctx):
-    """
-    Generates a github token locally.
-    """
-
-    try:
-        token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
-
-        assert (
-            token.startswith('gh') and ' ' not in token
-        ), "`ddtool auth github token` returned an invalid token, it might be due to ddtool outdated. Please run `brew update && brew upgrade ddtool`."
-
-        return token
-    except AssertionError:
-        # No retry on asserts
-        raise
-    except Exception:
-        # Try to login and then get a token
-        ctx.run('ddtool auth github login')
-        token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
-
-        return token

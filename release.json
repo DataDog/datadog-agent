@@ -2,7 +2,7 @@
     "base_branch": "6.53.x",
     "current_milestone": "6.53.0",
     "dependencies": {
-        "INTEGRATIONS_CORE_VERSION": "7.53.x",
+        "INTEGRATIONS_CORE_VERSION": "nschweitzer/backport_agent6",
         "OMNIBUS_RUBY_VERSION": "6.53.0",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
