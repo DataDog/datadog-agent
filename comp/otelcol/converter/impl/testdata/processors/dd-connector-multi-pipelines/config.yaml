@@ -12,8 +12,6 @@ exporters:
     api:
       key: "0000"
 processors:
-  batch:
-    timeout: 10s
 connectors:
   datadog/connector:
     traces:
@@ -41,17 +39,17 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog]
     traces/2:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog/connector]
     metrics:
       receivers: [otlp, datadog/connector]
-      processors: [batch]
+      processors: []
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog]

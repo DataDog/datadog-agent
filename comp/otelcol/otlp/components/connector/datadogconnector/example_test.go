@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/otelcol/otelcoltest"
 	"go.opentelemetry.io/collector/processor"
-	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 
@@ -46,7 +45,6 @@ func newTestComponents(t *testing.T) otelcol.Factories {
 	require.NoError(t, err)
 	factories.Processors, err = otelcol.MakeFactoryMap[processor.Factory](
 		[]processor.Factory{
-			batchprocessor.NewFactory(),
 			tailsamplingprocessor.NewFactory(),
 		}...,
 	)

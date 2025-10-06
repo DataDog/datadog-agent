@@ -78,12 +78,6 @@ exporters:
       trace_buffer: 0
 extensions: {}
 processors:
-  batch:
-    metadata_cardinality_limit: 1000
-    metadata_keys: []
-    send_batch_max_size: 0
-    send_batch_size: 8192
-    timeout: 200ms
 receivers:
   otlp:
     protocols:
@@ -111,14 +105,12 @@ service:
       exporters:
         - datadog
       processors:
-        - batch
       receivers:
         - otlp
     metrics:
       exporters:
         - datadog
       processors:
-        - batch
       receivers:
         - otlp
         - datadog/connector
@@ -126,14 +118,12 @@ service:
       exporters:
         - datadog/connector
       processors:
-        - batch
       receivers:
         - otlp
     traces/send:
       exporters:
         - datadog
       processors:
-        - batch
       receivers:
         - otlp
   telemetry:

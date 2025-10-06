@@ -115,12 +115,6 @@ extensions:
     tls: null
     write_timeout: 0s
 processors:
-  batch:
-    metadata_cardinality_limit: 1000
-    metadata_keys: []
-    send_batch_max_size: 0
-    send_batch_size: 8192
-    timeout: 200ms
   infraattributes/dd-autoconfigured:
     allow_hostname_override: false
     cardinality: 0
@@ -153,7 +147,7 @@ processors:
 receivers:
   otlp:
     protocols:
-      grpc: 
+      grpc:
         endpoint: 0.0.0.0:4317
         keepalive:
           enforcement_policy: {}
@@ -172,7 +166,7 @@ receivers:
         traces_url_path: /v1/traces
         write_timeout: 0s
   prometheus/dd-autoconfigured:
-    api_server: 
+    api_server:
       enabled: false
       server_config:
         cors: null
@@ -234,7 +228,6 @@ service:
       exporters:
         - datadog
       processors:
-        - batch
         - infraattributes/dd-autoconfigured
       receivers:
         - otlp
@@ -242,7 +235,6 @@ service:
       exporters:
         - datadog
       processors:
-        - batch
         - infraattributes/dd-autoconfigured
       receivers:
         - otlp
@@ -258,7 +250,6 @@ service:
       exporters:
         - datadog/connector
       processors:
-        - batch
         - infraattributes/dd-autoconfigured
       receivers:
         - otlp
@@ -266,7 +257,6 @@ service:
       exporters:
         - datadog
       processors:
-        - batch
         - infraattributes/dd-autoconfigured
       receivers:
         - otlp

@@ -1,19 +1,17 @@
 
 processors:
-  batch:
-    timeout: 10s
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog/connector, datadog]
     metrics:
       receivers: [otlp, datadog/connector]
-      processors: [batch]
+      processors: []
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog]

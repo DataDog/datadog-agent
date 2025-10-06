@@ -27,7 +27,6 @@ exporters:
     api:
       key: ${env:DD_API_KEY}
 processors:
-  batch:
   infraattributes:
     cardinality: 2
 extensions:
@@ -47,13 +46,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [infraattributes, batch]
+      processors: [infraattributes]
       exporters: [datadog]
     metrics:
       receivers: [otlp, prometheus]
-      processors: [infraattributes, batch]
+      processors: [infraattributes]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [infraattributes, batch]
+      processors: [infraattributes]
       exporters: [datadog]
