@@ -1671,14 +1671,17 @@ func (p *EBPFProbe) handleEarlyReturnEvents(eventType model.EventType, event *mo
 		return false
 	case model.ShortDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
-			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
-				seclog.Errorf("failed to decode DNS response: %s", err)
+			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err == nil {
+				p.addToDNSResolver(p.dnsLayer)
 				return false
 			}
 
-			p.addToDNSResolver(p.dnsLayer)
+			seclog.Warnf("failed to decode the short DNS response: %s", err)
+			event.Error = model.ErrFailedDNSPacketDecoding
+			event.FailedDNS = model.FailedDNSEvent{
+				Payload: trimRightZeros(data[offset:]),
+			}
 		}
-		return false
 	}
 	return true
 }
