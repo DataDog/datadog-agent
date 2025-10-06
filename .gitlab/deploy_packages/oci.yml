@@ -18,7 +18,9 @@ include:
     - !reference [.retrieve_linux_go_tools_deps]
     - VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
     - VERSION_NO_PIPELINE="$(dda inv agent.version --url-safe | sed -E 's/\.pipeline(.*)//')-1" || exit $?
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - export USE_SHORT_LIVED_GITLAB_TOKEN=1
+    - export token="$(dda inv -- -e auth.gitlab --repo datadog-packages)"
+    - git config --global url."https://gitlab-ci-token:${token}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
     - export PATH=$PATH:$(go env GOPATH)/bin
     - go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest

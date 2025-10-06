@@ -9,7 +9,9 @@
     - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
     - export INSTALL_DIR=${INSTALL_DIR:-/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}}
     - set +x
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - export USE_SHORT_LIVED_GITLAB_TOKEN=1
+    - export token="$(dda inv -- -e auth.gitlab --repo datadog-packages)"
+    - git config --global url."https://gitlab-ci-token:${token}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
     - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
   variables:
