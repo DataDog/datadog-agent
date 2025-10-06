@@ -14,7 +14,7 @@ bazel:build-deps:linux-amd64:
         files: [ .bazelversion ]
       paths:
         - .cache/bazelisk
-        - .cache/bazel/install
+        #- .cache/bazel/install
       policy: pull-push
       when: on_success
   script:
@@ -23,11 +23,11 @@ bazel:build-deps:linux-amd64:
     - mkdir -p /data/bzl /data/output /data/bzl-repo
     - bazel build //deps/...
   variables:
-      BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk"
+      #BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk"
       BAZEL_DISK_CACHE: "/data/bzl"
       BAZEL_OUTPUT_USER_ROOT: "/data/output"
       BAZEL_REPO_CONTENTS_CACHE: "/data/bzl-repo"
-      XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+      #XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
 
 bazel:build-deps:linux-arm64:
   extends: [ .bazel:build-deps, .linux_arm64 ]
