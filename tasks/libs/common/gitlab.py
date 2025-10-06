@@ -324,20 +324,12 @@ class Gitlab(RemoteAPI):
 
 
 def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
-    infra_token = datadog_infra_token(ctx, audience="sdm")
-    url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
+    # TODO(celian): Use short lived token once stable
+    token_cmd = ctx.run(f'{os.environ["CI_PROJECT_DIR"]}/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME', hide=True)
+    if not token_cmd.ok:
+        raise Exit(f'Failed to retrieve Gitlab token, command failed with code {token_cmd.status_code}:\n{token_cmd.stderr}', 1)
 
-    res = requests.get(url, headers={'Authorization': infra_token}, timeout=10)
-
-    if not res.ok:
-        raise RuntimeError(f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}')
-
-    token_info = res.json()
-    if verbose:
-        # Prints also the scopes + the expiration date
-        print('Got Gitlab token, extra information:', {k: v for k, v in token_info.items() if k != 'token'})
-
-    token = token_info['token']
+    token = token_cmd.stdout.strip()
 
     return token
 
