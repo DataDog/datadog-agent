@@ -182,7 +182,7 @@ require (
 	github.com/DataDog/go-libddwaf/v4 v4.3.2
 	github.com/DataDog/go-sqllexer v0.1.8
 	github.com/DataDog/gopsutil v1.2.2
-	github.com/DataDog/nikos v1.12.12
+	github.com/DataDog/nikos v1.12.13-0.20251006111510-6e71ff4cfe77
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
@@ -474,7 +474,6 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 // indirect
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/aptly v1.5.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.71.0-devel.0.20250902202452-61c2536752eb // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.64.0-rc.12 // indirect
@@ -645,7 +644,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/jaegertracing/jaeger-idl v0.6.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
-	github.com/jlaffaye/ftp v0.1.0 // indirect
+	github.com/jlaffaye/ftp v0.2.0 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
@@ -765,7 +764,6 @@ require (
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/ovh/go-ovh v1.9.0 // indirect
 	github.com/package-url/packageurl-go v0.1.3 // indirect
-	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
@@ -964,6 +962,7 @@ require (
 require (
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/jsonapi v0.12.0 // indirect
+	github.com/aptly-dev/aptly v1.6.2 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/elastic/go-freelru v0.16.0 // indirect
 	github.com/elastic/go-perf v0.0.0-20241029065020-30bec95324b8 // indirect
@@ -972,6 +971,7 @@ require (
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.136.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.136.0 // indirect
+	github.com/saracen/walker v0.1.2 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
