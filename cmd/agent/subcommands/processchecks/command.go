@@ -13,6 +13,8 @@ import (
 	processCommand "github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	wlmCatalogCore "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -29,6 +31,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	},
 		"processchecks",
 		checkAllowlist,
+		wlmCatalogCore.GetCatalog(),
+		workloadmeta.NodeAgent,
 	)
 	return []*cobra.Command{cmd}
 }
