@@ -149,6 +149,27 @@ filters:
 				{domain: "123.datadoghq.com", shouldMatch: true},
 			},
 		},
+		{
+			name: "exclude all ip, then include",
+			config: `
+filters:
+  - match_ip: 0.0.0.0/0
+    type: exclude
+  - match_ip: 10.10.10.0/30
+    type: include
+  - match_ip: 10.10.10.100
+    type: include
+`,
+			expectedMatches: []expectedMatch{
+				{ip: "10.10.20.0", shouldMatch: false},
+				{ip: "10.10.10.0", shouldMatch: true},
+				{ip: "10.10.10.1", shouldMatch: true},
+				{ip: "10.10.10.2", shouldMatch: true},
+				{ip: "10.10.10.3", shouldMatch: true},
+				{ip: "10.10.10.4", shouldMatch: false},
+				{ip: "10.10.10.100", shouldMatch: true},
+			},
+		},
 
 		// TODO: TEST FOR ALL CASES
 	}
