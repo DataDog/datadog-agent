@@ -3,15 +3,15 @@ module github.com/DataDog/datadog-agent/pkg/util/uuid
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/cache v0.71.1-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.71.1-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.71.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.71.1
 	github.com/shirou/gopsutil/v4 v4.25.8-0.20250809033336-ffcdc2b7662f
 	golang.org/x/sys v0.35.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.71.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.71.1-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.71.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.71.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
