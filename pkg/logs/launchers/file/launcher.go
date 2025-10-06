@@ -196,16 +196,21 @@ func (s *Launcher) scan() {
 			var err error
 
 			if s.fingerprinter.ShouldFileFingerprint(file) {
+				log.Debugf("Pass 1: Checking rotation for %s via fingerprint", file.Path)
 				didRotate, err = tailered.DidRotateViaFingerprint(s.fingerprinter)
+				log.Debugf("Pass 1: DidRotateViaFingerprint for %s returned: didRotate=%v, err=%v", file.Path, didRotate, err)
 				if err != nil {
 					didRotate = false
 				}
 				if didRotate {
+					log.Debugf("Pass 1: Rotation detected for %s, calling rotateTailerWithoutRestart", file.Path)
 					s.rotateTailerWithoutRestart(tailered, file)
 					continue
 				}
 			} else {
+				log.Debugf("Pass 1: Checking rotation for %s via filesystem (fingerprinting disabled)", file.Path)
 				didRotate, err = tailered.DidRotate()
+				log.Debugf("Pass 1: DidRotate for %s returned: didRotate=%v, err=%v", file.Path, didRotate, err)
 
 				if err != nil {
 					log.Debugf("failed to detect log rotation: %v", err)
@@ -222,6 +227,7 @@ func (s *Launcher) scan() {
 			}
 		} else {
 			// Defer any files that are not tailed for the 2nd pass
+			log.Debugf("Pass 1: File %s not currently tailed, deferring to Pass 2", file.Path)
 			continue
 		}
 
@@ -244,39 +250,64 @@ func (s *Launcher) scan() {
 	lastIterationOldInfo := s.oldInfoMap
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
 	// Pass 2 - Create new tailers for files that need to be tailed
+	log.Debugf("Pass 2: Starting, checking %d files", len(files))
 	for _, file := range files {
 		scanKey := file.GetScanKey()
 		_, isTailed := s.tailers.Get(scanKey)
 		if isTailed {
+			log.Debugf("Pass 2: File %s already tailed, skipping", file.Path)
 			filesTailed[scanKey] = true
 			continue
 		}
 
+		log.Debugf("Pass 2: Considering file %s for tailing", file.Path)
+
 		// Check if we have stored info for this file from a previous rotation
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
+		log.Debugf("Pass 2: File %s hasOldInfo=%v", file.Path, hasOldInfo)
+
 		var fingerprint *types.Fingerprint
 		var err error
 		if s.fingerprinter.ShouldFileFingerprint(file) {
+			log.Debugf("Pass 2: Computing fingerprint for %s", file.Path)
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
 			if err != nil {
+				log.Debugf("Pass 2: Error computing fingerprint for %s: %v, skipping", file.Path, err)
 				// Skip on errors
 				continue
 			}
+			if fingerprint != nil {
+				log.Debugf("Pass 2: Computed fingerprint for %s: valid=%v, value=0x%x, bytesUsed=%d",
+					file.Path, fingerprint.IsValidFingerprint(), fingerprint.Value, fingerprint.BytesUsed)
+			} else {
+				log.Debugf("Pass 2: Fingerprint for %s is nil", file.Path)
+			}
 			// Allow tailing with invalid fingerprints (empty files) to capture partial fingerprints when written
+		} else {
+			log.Debugf("Pass 2: Fingerprinting disabled for %s", file.Path)
 		}
 
 		if hasOldInfo {
+			log.Debugf("Pass 2: Starting tailer for %s WITH stored info", file.Path)
 			if s.startNewTailerWithStoredInfo(file, config.Beginning, oldInfo, fingerprint) {
+				log.Debugf("Pass 2: Successfully started tailer for %s with stored info", file.Path)
 				filesTailed[scanKey] = true
+			} else {
+				log.Debugf("Pass 2: Failed to start tailer for %s with stored info", file.Path)
 			}
 		} else {
+			log.Debugf("Pass 2: Starting tailer for %s WITHOUT stored info", file.Path)
 			// Normal case - no stored info
 			if s.startNewTailer(file, config.Beginning, fingerprint) {
+				log.Debugf("Pass 2: Successfully started tailer for %s", file.Path)
 				filesTailed[scanKey] = true
+			} else {
+				log.Debugf("Pass 2: Failed to start tailer for %s", file.Path)
 			}
 		}
 	}
+	log.Debugf("Pass 2: Completed")
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
 
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
