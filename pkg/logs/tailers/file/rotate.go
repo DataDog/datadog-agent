@@ -91,16 +91,20 @@ func (t *Tailer) compareFullFingerprints(current, new *logstypes.Fingerprint) (b
 	if rotated {
 		log.Debugf("File rotation detected via fingerprint mismatch for %s (old: 0x%x, new: 0x%x)",
 			t.file.Path, current.Value, new.Value)
+		return rotated, nil
 	}
-	return rotated, nil
+	// even if fingerprints are the same, we need to check the filesystem, in case of rotate in place, truncation, etc.
+	return t.fallbackToFilesystemCheck()
 }
 
-// fallbackToFilesystemCheck performs filesystem-based rotation detection
+// fallbackToFilesystemCheck performs filesystem-based rotation detection (inode change or truncation)
 func (t *Tailer) fallbackToFilesystemCheck() (bool, error) {
+	log.Debugf("Falling back to filesystem check for %s (lastReadOffset: %d)", t.file.Path, t.lastReadOffset.Load())
 	rotated, err := t.DidRotate()
 	if err != nil {
 		log.Debugf("Filesystem check failed for %s, assuming no rotation: %v", t.file.Path, err)
 		return false, nil
 	}
+	log.Debugf("Filesystem check for %s returned: rotated=%v", t.file.Path, rotated)
 	return rotated, err
 }
