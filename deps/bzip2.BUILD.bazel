@@ -115,8 +115,8 @@ cc_shared_library(
         #],
         "@platforms//os:macos": [
             "-shared",
-            "-Wl,-install_name",
-            "-Wl,'@rpath/libbz2.so.1.0'",
+            # "-Wl,-install_name",
+            # "-Wl,'@rpath/libbz2.so.1.0'",
         ],
         "@platforms//os:windows": [],
         "//conditions:default": [],
