@@ -1,4 +1,11 @@
-package filter
+package connfilter
+
+import (
+	"net"
+	"regexp"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+)
 
 type Type string
 
@@ -22,9 +29,16 @@ type Config struct {
 	MatchIP             string                  `mapstructure:"match_ip"`
 }
 
-// Filter class
+// Filter represent one filter
 type Filter struct {
-	config []Config
+	Type        Type
+	matchDomain *regexp.Regexp
+	matchIP     *net.IPNet
+}
+
+// ConnFilter class
+type ConnFilter struct {
+	filters []Filter
 }
 
 // network_path:
@@ -47,8 +61,44 @@ type Filter struct {
 //        # match_protocol: <TCP | UDP | ICMP>            # add later if user ask for it
 //        type: exclude
 
-func NewFilter(config []Config) Filter {
-	return Filter{
-		config: config,
+func NewConnFilter(logger log.Component, config []Config) *ConnFilter {
+	// TODO: test compile error
+
+	filters := make([]Filter, 0, len(config))
+	for _, cfg := range config {
+		matchDomainRe, err := regexp.Compile(cfg.MatchDomain)
+		if err != nil {
+			logger.Errorf("Error compiling domain regex `%s`: %s", cfg.MatchDomain, err)
+		}
+		filters = append(filters, Filter{
+			Type:        cfg.Type,
+			matchDomain: matchDomainRe,
+		})
 	}
+	return &ConnFilter{
+		filters: filters,
+	}
+}
+
+func (f *ConnFilter) Match(domain string, ip string) bool {
+	matched := true
+	for _, filter := range f.filters {
+		if filter.matchDomain.MatchString(domain) {
+			if filter.Type == filterTypeExclude {
+				matched = false
+			} else {
+				matched = true
+			}
+		}
+	}
+	//net.ParseCIDR
+	//cidr := net.IPNet{}
+	//cidr.Contains(net.ParseIP(domain))
+
+	// domain included by default
+	// ip included by default
+	//for _, filters := range f.filters {
+	//	//filters.
+	//}
+	return matched
 }

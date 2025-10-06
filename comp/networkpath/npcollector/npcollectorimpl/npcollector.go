@@ -17,8 +17,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/domainresolver"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/filter"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
@@ -87,7 +87,7 @@ type npCollectorImpl struct {
 
 	networkDevicesNamespace string
 	domainResolver          *domainresolver.DomainResolver
-	filter                  filter.Filter
+	filter                  *connfilter.ConnFilter
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -132,7 +132,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		runTraceroute: runTraceroute,
 
 		domainResolver: domainresolver.NewDomainResolver(),
-		filter:         filter.NewFilter(collectorConfigs.filterConfig),
+		filter:         connfilter.NewConnFilter(logger, collectorConfigs.filterConfig),
 	}
 }
 
@@ -254,7 +254,11 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 
+	if !s.filter.Match(domain, conn.Raddr.GetIp()) {
+		return false
+	}
 	if domain != "" {
+
 		// TODO: impl networkfilter
 		// TODO: TEST ME
 		// network_path:
