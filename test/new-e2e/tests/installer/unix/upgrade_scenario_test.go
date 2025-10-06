@@ -21,13 +21,10 @@ type packageName string
 
 const (
 	datadogAgent     packageName = "datadog-agent"
-	datadogInstaller packageName = "datadog-installer"
 	datadogApmInject packageName = "datadog-apm-inject"
 )
 
 const (
-	installerUnit    = "datadog-agent-installer.service"
-	installerUnitXP  = "datadog-agent-installer-exp.service"
 	apmInjectVersion = "0.1.2"
 )
 
@@ -153,6 +150,8 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
 	timestamp = s.host.LastJournaldTimestamp()
 	s.promoteExperiment(datadogAgent)
 	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+	state = s.host.State()
+	state.AssertPathDoesNotExist("/opt/datadog-agent")
 }
 
 func (s *upgradeScenarioSuite) TestBackendFailure() {
