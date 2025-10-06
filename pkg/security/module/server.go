@@ -311,8 +311,6 @@ func (a *APIServer) start(ctx context.Context) {
 				return true
 			})
 		case <-ctx.Done():
-			close(a.events)
-			close(a.activityDumps)
 			return
 		}
 	}
