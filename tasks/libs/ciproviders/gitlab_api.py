@@ -9,6 +9,7 @@ import glob
 import json
 import os
 import re
+import subprocess
 import sys
 from copy import deepcopy
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from difflib import Differ
 from functools import lru_cache
 from itertools import product
 from pathlib import Path
+from sys import platform
 from typing import Any, Literal
 
 import gitlab
@@ -55,6 +57,8 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
             )
 
         return token_cmd.stdout.strip()
+    elif 'GITLAB_TOKEN' in os.environ:
+        return os.environ['GITLAB_TOKEN']
 
     infra_token = datadog_infra_token(ctx, audience="sdm")
     url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
@@ -72,6 +76,24 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     token = token_info['token']
 
     return token
+
+
+def get_gitlab_bot_token():
+    if "GITLAB_BOT_TOKEN" not in os.environ:
+        print("GITLAB_BOT_TOKEN not found in env. Trying keychain...")
+        if platform.system() == "Darwin":
+            try:
+                output = subprocess.check_output(
+                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_BOT_TOKEN', '-w']
+                )
+                if output:
+                    return output.strip()
+            except subprocess.CalledProcessError:
+                print("GITLAB_BOT_TOKEN not found in keychain...")
+                pass
+        print("Please make sure that the GITLAB_BOT_TOKEN is set or that the GITLAB_BOT_TOKEN keychain entry is set.")
+        raise Exit(code=1)
+    return os.environ["GITLAB_BOT_TOKEN"]
 
 
 def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
