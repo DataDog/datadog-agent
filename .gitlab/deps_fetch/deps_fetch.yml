@@ -74,6 +74,13 @@ go_tools_deps:
     # Partial mitigation for #incident-30779. It will cache datadog-packages , but if the upstream version is updated without the key cache changing, the cache will not work until the key cache changes.
     # Long term solution will be to provide the datadog-packages as a binary hosted internally
     - git config --global url."https://gitlab-ci-token:${token}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - |
+      pushd /tmp
+      echo Cloning datadog-packages
+      git clone https://github.com/DataDog/datadog-packages.git || true
+      echo Cloning go-service-authn
+      git clone https://github.com/DataDog/go-service-authn.git || true
+      popd
     - go env -w GOPRIVATE="github.com/DataDog/*"
     - go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
     - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
