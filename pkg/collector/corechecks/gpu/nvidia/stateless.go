@@ -399,6 +399,6 @@ func createStatelessAPIs() []apiCallInfo {
 var statelessAPIFactory = createStatelessAPIs
 
 // newStatelessCollector creates a collector that consolidates all stateless collector types
-func newStatelessCollector(device ddnvml.Device) (Collector, error) {
+func newStatelessCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 	return NewBaseCollector(stateless, device, statelessAPIFactory())
 }

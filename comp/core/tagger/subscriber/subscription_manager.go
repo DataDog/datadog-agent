@@ -30,6 +30,13 @@ type subscriptionManager struct {
 	telemetryStore *telemetry.Store
 }
 
+type subscriberChannelContent struct {
+	batches        int
+	totalEvents    int
+	eventsByPrefix map[types.EntityIDPrefix]int
+	eventsByType   map[string]int
+}
+
 // NewSubscriptionManager creates and returns a new subscription manager
 func NewSubscriptionManager(telemetryStore *telemetry.Store) SubscriptionManager {
 	return &subscriptionManager{
@@ -136,7 +143,10 @@ func (sm *subscriptionManager) Notify(events []types.EntityEvent) {
 			for _, subscriber := range subscribers {
 
 				if len(subscriber.ch) >= bufferSize {
-					log.Errorf("subscriber with id %q has a channel full, canceling subscription", subscriber.id)
+					channelContent := inspectChannel(subscriber.ch)
+					log.Errorf("subscriber with id %q has a channel full (%d events in %d batches: prefixes=%v, types=%v), canceling subscription",
+						subscriber.id, channelContent.totalEvents, channelContent.batches,
+						channelContent.eventsByPrefix, channelContent.eventsByType)
 					sm.unsubscribe(subscriber.id)
 					continue
 				}
@@ -174,4 +184,45 @@ func (sm *subscriptionManager) notify(ch chan []types.EntityEvent, events []type
 	sm.telemetryStore.Events.Add(float64(len(events)), types.TagCardinalityToString(cardinality))
 
 	ch <- subscriberEvents
+}
+
+func inspectChannel(ch chan []types.EntityEvent) subscriberChannelContent {
+	batches := 0
+	totalEvents := 0
+	eventsByPrefix := make(map[types.EntityIDPrefix]int)
+	eventsByType := make(map[string]int)
+
+	// The subscriber may still be reading from the channel while we drain it.
+	// That's OK, because after calling this function, we unsubscribe the
+	// subscriber to force a reconnect. Note that the drained contents may not
+	// exactly match what was queued when the overflow was detected, but should
+	// be good enough for debugging.
+	for {
+		select {
+		case batch := <-ch:
+			batches++
+			for _, event := range batch {
+				totalEvents++
+				eventsByPrefix[event.Entity.ID.GetPrefix()]++
+
+				// EventType is an int, convert to string for easier debugging
+				switch event.EventType {
+				case types.EventTypeAdded:
+					eventsByType["Added"]++
+				case types.EventTypeModified:
+					eventsByType["Modified"]++
+				case types.EventTypeDeleted:
+					eventsByType["Deleted"]++
+				}
+			}
+		default:
+			// Channel emptied
+			return subscriberChannelContent{
+				batches:        batches,
+				totalEvents:    totalEvents,
+				eventsByPrefix: eventsByPrefix,
+				eventsByType:   eventsByType,
+			}
+		}
+	}
 }
