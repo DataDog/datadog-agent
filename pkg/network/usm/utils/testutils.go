@@ -79,6 +79,7 @@ func NewUSMEmptyConfig() *config.Config {
 	cfg.EnableIstioMonitoring = false
 	cfg.EnableNodeJSMonitoring = false
 	cfg.EnableGoTLSSupport = false
+	cfg.HTTPUseDirectConsumer = false
 
 	return cfg
 }
