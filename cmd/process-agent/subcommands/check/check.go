@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -29,7 +30,7 @@ import (
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -114,10 +115,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
 			FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
 		}
-	}, "check", checkAllowlist)}
+	}, "check", checkAllowlist, wmcatalogremote.GetCatalog(), workloadmeta.Remote)}
 }
 
-func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, allowlist []string) *cobra.Command {
+func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, allowlist []string, wlmCatalog fx.Option, wlmAgentType workloadmeta.AgentType) *cobra.Command {
 	cliParams := &CliParams{
 		GlobalParams: globalParamsGetter(),
 	}
@@ -145,7 +146,6 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
 				secretsfx.Module(),
-				// Provide workloadmeta module
 
 				// Provide eventplatformimpl module
 				eventplatformreceiverimpl.Module(),
@@ -157,13 +157,15 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				// Provide npcollector module
 				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
-				wmcatalogremote.GetCatalog(),
+				wlmCatalog,
+
+				// Provide workloadmeta module
 				workloadmetafx.Module(workloadmeta.Params{
-					AgentType: workloadmeta.Remote,
+					AgentType: wlmAgentType,
 				}),
 
 				// Tagger must be initialized after agent config has been setup
-				remoteTaggerfx.Module(tagger.NewRemoteParams()),
+				dualTaggerfx.Module(common.DualTaggerParams()),
 				processComponent.Bundle(),
 				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
