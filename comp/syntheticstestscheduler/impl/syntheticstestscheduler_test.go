@@ -123,9 +123,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`},
 	}, {
 		name: "no previous config - update with 2 tests",
@@ -146,9 +146,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "db"
 						}
 					},
-					"orgID": 67890,
-					"mainDC": "us2.staging.dog",
-					"publicID": "puf-2"
+					"org_id": 67890,
+					"main_dc": "us2.staging.dog",
+					"public_id": "puf-2"
 				}`,
 			"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
@@ -168,9 +168,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`,
 		},
 	}, {
@@ -193,9 +193,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`},
 		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
@@ -215,9 +215,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`},
 	}, {
 		name: "previous config with one test- add a new  test",
@@ -238,9 +238,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "db"
 						}
 					},
-					"orgID": 67890,
-					"mainDC": "us2.staging.dog",
-					"publicID": "puf-2"
+					"org_id": 67890,
+					"main_dc": "us2.staging.dog",
+					"public_id": "puf-2"
 				}`,
 			"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
@@ -260,9 +260,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`},
 		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version": 1,
@@ -282,9 +282,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 							"destination_service": "backend"
 						}
 					},
-					"orgID": 12345,
-					"mainDC": "us1.staging.dog",
-					"publicID": "puf-1"
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
 				}`},
 	}, {
 		name:       "previous config with one test- delete",
@@ -307,9 +307,9 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 						"destination_service": "backend"
 					}
 				},
-				"orgID": 12345,
-				"mainDC": "us1.staging.dog",
-				"publicID": "puf-1"
+				"org_id": 12345,
+				"main_dc": "us1.staging.dog",
+				"public_id": "puf-1"
 			}`},
 	},
 	}
@@ -385,9 +385,9 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
 					"version":1,"type":"network","subtype":"TCP",
 					"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"SYN","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
-					"orgID":12345,"mainDC":"us1.staging.dog","publicID":"puf-9fm-c89"
+					"org_id":12345,"main_dc":"us1.staging.dog","public_id":"puf-9fm-c89","run_type":"scheduled"
 				}`},
-			expectedEventJSON: `{"location":{ "id":"agent:test-hostname"},"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":[],"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":150},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":1756901488592,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","pathtrace_id":"pathtrace-id-111-example.com","origin":"synthetics","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed"},"test":{"id":"puf-9fm-c89","subType":"TCP","type":"network","version":1},"v":1}`,
+			expectedEventJSON: `{"location":{ "id":"agent:test-hostname"},"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":[],"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":150},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":1756901488592,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","pathtrace_id":"pathtrace-id-111-example.com","origin":"synthetics","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed","runType":"scheduled"},"test":{"id":"puf-9fm-c89","subType":"TCP","type":"network","version":1},"v":1}`,
 			expectedRunTraceroute: func(_ context.Context, cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
 				return payload.NetworkPath{
 					PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,

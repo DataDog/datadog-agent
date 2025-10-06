@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -23,24 +24,26 @@ func TestIncompleteBuffer(t *testing.T) {
 		buffer := NewIncompleteBuffer(config.New()).(*incompleteBuffer)
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
-		request := &EbpfTx{
-			Tuple: ConnTuple{
-				Sport: 6000,
-			},
-			Stream: HTTP2Stream{
-				Response_last_seen: 0, // Required to make the request incomplete.
-				Request_started:    uint64(now.UnixNano()),
-				Status_code: http2StatusCode{
-					Static_table_entry: K200Value,
-					Finalized:          true,
+		request := &EventWrapper{
+			EbpfTx: &EbpfTx{
+				Tuple: ConnTuple{
+					Sport: 6000,
 				},
-				Request_method: http2requestMethod{
-					Static_table_entry: GetValue,
-					Finalized:          true,
-				},
-				Path: http2Path{
-					Static_table_entry: EmptyPathValue,
-					Finalized:          true,
+				Stream: HTTP2Stream{
+					Response_last_seen: 0, // Required to make the request incomplete.
+					Request_started:    uint64(now.UnixNano()),
+					Status_code: http2StatusCode{
+						Static_table_entry: K200Value,
+						Finalized:          true,
+					},
+					Request_method: http2requestMethod{
+						Static_table_entry: GetValue,
+						Finalized:          true,
+					},
+					Path: http2Path{
+						Static_table_entry: EmptyPathValue,
+						Finalized:          true,
+					},
 				},
 			},
 		}
@@ -58,25 +61,28 @@ func TestIncompleteBuffer(t *testing.T) {
 	t.Run("removing old incomplete", func(t *testing.T) {
 		// Testing the scenario where an incomplete request is removed after a certain time.
 		buffer := NewIncompleteBuffer(config.New()).(*incompleteBuffer)
-		now := time.Now()
-		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
-		request := &EbpfTx{
-			Tuple: ConnTuple{
-				Sport: 6000,
-			},
-			Stream: HTTP2Stream{
-				Path: http2Path{
-					Static_table_entry: EmptyPathValue,
+		startTime, err := ebpf.NowNanoseconds()
+		require.NoError(t, err)
+		buffer.minAgeNano = (1 * time.Second).Nanoseconds()
+		request := &EventWrapper{
+			EbpfTx: &EbpfTx{
+				Tuple: ConnTuple{
+					Sport: 6000,
 				},
-				Request_started: uint64(now.UnixNano()),
+				Stream: HTTP2Stream{
+					Path: http2Path{
+						Static_table_entry: EmptyPathValue,
+					},
+					Request_started: uint64(startTime),
+				},
 			},
 		}
 		buffer.Add(request)
-		_ = buffer.Flush(now)
+		_ = buffer.Flush(time.Time{})
+		require.NotEmpty(t, buffer.data)
 
-		assert.True(t, len(buffer.data) > 0)
-		now = now.Add(35 * time.Second)
-		_ = buffer.Flush(now)
-		assert.True(t, len(buffer.data) == 0)
+		buffer.data[0].Stream.Request_started = uint64(startTime - buffer.minAgeNano)
+		_ = buffer.Flush(time.Time{})
+		require.Empty(t, buffer.data)
 	})
 }
