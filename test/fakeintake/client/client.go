@@ -144,7 +144,6 @@ type Client struct {
 	ndmAggregator                  aggregator.NDMAggregator
 	ndmflowAggregator              aggregator.NDMFlowAggregator
 	netpathAggregator              aggregator.NetpathAggregator
-	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
 	hostAggregator                 aggregator.HostAggregator
 }
 
@@ -176,7 +175,6 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ndmAggregator:                  aggregator.NewNDMAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
-		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
 		hostAggregator:                 aggregator.NewHostAggregator(),
 	}
 	for _, opt := range opts {
@@ -395,14 +393,6 @@ func (c *Client) FilterContainerImages(name string, options ...MatchOpt[*aggrega
 	}
 	// apply filters one after the other
 	return filterPayload(images, options...)
-}
-
-func (c *Client) getServiceDiscoveries() error {
-	payloads, err := c.getFakePayloads(apmTelemetryEndpoint)
-	if err != nil {
-		return err
-	}
-	return c.serviceDiscoveryAggregator.UnmarshallPayloads(payloads)
 }
 
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
@@ -1124,20 +1114,4 @@ func filterPayload[T aggregator.PayloadItem](payloads []T, options ...MatchOpt[T
 		}
 	}
 	return filteredPayloads, nil
-}
-
-// GetServiceDiscoveries fetches fakeintake on `api/v2/apmtelemetry` endpoint and returns
-// all received service discovery payloads
-func (c *Client) GetServiceDiscoveries() ([]*aggregator.ServiceDiscoveryPayload, error) {
-	err := c.getServiceDiscoveries()
-	if err != nil {
-		return nil, err
-	}
-
-	names := c.serviceDiscoveryAggregator.GetNames()
-	payloads := make([]*aggregator.ServiceDiscoveryPayload, 0, len(names))
-	for _, name := range names {
-		payloads = append(payloads, c.serviceDiscoveryAggregator.GetPayloadsByName(name)...)
-	}
-	return payloads, nil
 }

@@ -150,8 +150,15 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 		cfg.MaxTTL = uint8(*ncr.MaxTTL)
 	}
 	if ncr.Timeout != nil {
-		cfg.Timeout = time.Duration(*ncr.Timeout) * time.Second
+		cfg.Timeout = time.Duration(float64(*ncr.Timeout) * 0.9 / float64(cfg.MaxTTL) * float64(time.Second))
 	}
+	if ncr.TracerouteCount != nil {
+		cfg.TracerouteQueries = *ncr.TracerouteCount
+	}
+	if ncr.ProbeCount != nil {
+		cfg.E2eQueries = *ncr.ProbeCount
+	}
+	cfg.ReverseDNS = true
 }
 
 // toNetpathConfig converts a SyntheticsTestConfig into a system-probe Config.
@@ -219,6 +226,7 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) erro
 	if err != nil {
 		return err
 	}
+
 	payloadBytes, err := json.Marshal(res)
 	if err != nil {
 		return err
@@ -289,6 +297,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		},
 		Netpath: w.tracerouteResult,
 		Status:  "passed",
+		RunType: w.testCfg.cfg.RunType,
 	}
 
 	if w.tracerouteError != nil {

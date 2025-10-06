@@ -37,7 +37,8 @@ type UST struct {
 
 // ServicesResponse is the response for the system-probe /discovery/services endpoint.
 type ServicesResponse struct {
-	Services []Service `json:"services"`
+	Services     []Service `json:"services"`
+	InjectedPIDs []int     `json:"injected_pids"`
 }
 
 // NetworkStatsResponse is the response for the system-probe /discovery/network-stats endpoint.

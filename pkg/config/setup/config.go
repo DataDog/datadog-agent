@@ -33,7 +33,6 @@ import (
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -138,6 +137,12 @@ const (
 
 	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
 	DefaultNetworkPathMaxTTL = 30
+
+	// DefaultNetworkPathStaticPathTracerouteQueries defines the default number of traceroute queries for static path
+	DefaultNetworkPathStaticPathTracerouteQueries = 3
+
+	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
+	DefaultNetworkPathStaticPathE2eQueries = 50
 )
 
 var (
@@ -520,6 +525,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.tcp_method", "")
 	config.BindEnvAndSetDefault("network_path.collector.icmp_mode", "")
 	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
+	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", DefaultNetworkPathStaticPathTracerouteQueries)
+	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
+	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -1170,6 +1178,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Config Stream
 	config.BindEnvAndSetDefault("config_stream.sleep_interval", 3*time.Second)
+
+	// Data Plane
+	config.BindEnvAndSetDefault("data_plane.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1236,6 +1248,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("inventories_diagnostics_enabled", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
+	config.BindEnvAndSetDefault("check_runner_utilization_threshold", 0.95)
+	config.BindEnvAndSetDefault("check_runner_utilization_monitor_interval", 60*time.Second)
+	config.BindEnvAndSetDefault("check_runner_utilization_warning_cooldown", 10*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_timeout", 60*time.Second)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
@@ -1999,14 +2014,9 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 	}
 }
 
-// LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
-func LoadWithoutSecret(config pkgconfigmodel.Config, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-	return LoadDatadogCustom(config, "datadog.yaml", option.None[secrets.Component](), additionalEnvVars)
-}
-
 // LoadWithSecret reads config files and initializes config with decrypted secrets
 func LoadWithSecret(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-	return LoadDatadogCustom(config, "datadog.yaml", option.New[secrets.Component](secretResolver), additionalEnvVars)
+	return LoadDatadogCustom(config, "datadog.yaml", secretResolver, additionalEnvVars)
 }
 
 // Merge will merge additional configuration into an existing configuration
@@ -2142,6 +2152,10 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_GIT_REPOSITORY_URL": {},
 		// signals whether or not ADP is enabled
 		"DD_ADP_ENABLED": {},
+		// trace-loader socket file descriptors
+		"DD_APM_NET_RECEIVER_FD":  {},
+		"DD_APM_UNIX_RECEIVER_FD": {},
+		"DD_OTLP_CONFIG_GRPC_FD":  {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
@@ -2191,7 +2205,7 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadogCustom loads the datadog config in the given config
-func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolver option.Option[secrets.Component], additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
+func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolver secrets.Component, additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -2213,10 +2227,8 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
-	if resolver, ok := secretResolver.Get(); ok {
-		if err := ResolveSecrets(config, resolver, origin); err != nil {
-			return warnings, err
-		}
+	if err := ResolveSecrets(config, secretResolver, origin); err != nil {
+		return warnings, err
 	}
 
 	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
@@ -2252,7 +2264,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
-		if pkgconfigenv.IsServerless() {
+		if pkgconfigenv.IsLambda() {
 			log.Debug("No config file detected, using environment variable based configuration only")
 			// The remaining code in LoadCustom is not run to keep a low cold start time
 			return nil
@@ -2794,16 +2806,6 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string, config pkgconf
 		return pipelineURL, nil
 	}
 	return "", nil
-}
-
-// IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
-func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
-	// Disable Remote Config for GovCloud
-	isFipsAgent, _ := pkgfips.Enabled()
-	if cfg.GetBool("fips.enabled") || isFipsAgent || cfg.GetString("site") == "ddog-gov.com" {
-		return false
-	}
-	return cfg.GetBool("remote_configuration.enabled")
 }
 
 // GetRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
