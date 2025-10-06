@@ -1,6 +1,7 @@
 import os
 import random
 import time
+import http.client
 from pathlib import Path
 
 from invoke import task
@@ -16,26 +17,27 @@ def _execute_with_retries(request, retries: int = 4, min_wait: float = 1.0, max_
     """
     from googleapiclient import errors
 
-    for attempt in range(1, retries + 1):
+    retryable_errors = {408, 429, 500, 502, 503, 504}
+
+    for attempt in range(retries + 1):
         try:
             return request.execute()
-        except errors.HttpError as e:
-            if attempt - 1 == retries:
+        except (errors.HttpError, http.client.RemoteDisconnected, TimeoutError, ConnectionError) as e:
+            status = getattr(getattr(e, "resp", None), "status", None)
+            is_http = isinstance(e, errors.HttpError)
+
+            retryable = (not is_http) or (status in retryable_errors)
+            if not retryable or attempt == retries:
                 raise
 
-            status = e.resp.status
-            if status == 429 or status >= 500:
-                sleep = min_wait * (2**attempt)
-                jitter = random.uniform(sleep * 0.5, sleep * 1.5)
-                sleep = min(jitter, max_wait)
-                print(
-                    f"[Retry {attempt+1}/{retries}] HTTP {status} received, "
-                    f"waiting {sleep:.1f}s before next attempt..."
-                )
-                time.sleep(sleep)
-                continue
-
-            raise
+            sleep = min_wait * (2**attempt)
+            jitter = random.uniform(sleep * 0.5, sleep * 1.5)
+            sleep = min(jitter, max_wait)
+            print(
+                f"[Retry {attempt+1}/{retries}] HTTP {status or 'network'} — "
+                f"waiting {sleep:.1f}s before next attempt..."
+            )
+            time.sleep(sleep)
 
     # Unreachable, here for sanity. We should either return successfully or raise last error
     raise RuntimeError("Exhausted retries")
