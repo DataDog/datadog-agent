@@ -197,6 +197,13 @@ func (ew *EventWrapper) ConnTuple() types.ConnectionKey {
 	}
 }
 
+var (
+	unsupportedMethods = map[http.Method]struct{}{
+		http.MethodConnect: {},
+		http.MethodTrace:   {},
+	}
+)
+
 // Method returns the HTTP method of the transaction.
 func (ew *EventWrapper) Method() http.Method {
 	var method string
@@ -236,6 +243,9 @@ func (ew *EventWrapper) Method() http.Method {
 
 	http2Method, ok := http.StringToMethod[strings.ToUpper(method)]
 	if !ok {
+		return http.MethodUnknown
+	}
+	if _, exists := unsupportedMethods[http2Method]; exists {
 		return http.MethodUnknown
 	}
 
