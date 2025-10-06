@@ -19,6 +19,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -26,7 +28,6 @@ import (
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	sysconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // sysinfoParams holds CLI flags for the sysinfo command.
@@ -84,7 +85,7 @@ func runSysinfo(_ sysconfigcomponent.Component, params *sysinfoParams) error {
 	sysInfo := &SystemInfo{}
 
 	// Get kernel version
-	kernelVersion, err := kernel.Release()
+	kernelVersion, err := getKernelVersion()
 	if err != nil {
 		sysInfo.KernelVersion = fmt.Sprintf("<unable to detect: %v>", err)
 	} else {
@@ -216,4 +217,18 @@ func getProcesses() ([]ProcessInfo, error) {
 	})
 
 	return processes, nil
+}
+
+// getKernelVersion returns the kernel version string
+func getKernelVersion() (string, error) {
+	if runtime.GOOS != "linux" {
+		return "", fmt.Errorf("kernel version detection only supported on Linux")
+	}
+
+	var u unix.Utsname
+	if err := unix.Uname(&u); err != nil {
+		return "", fmt.Errorf("uname failed: %w", err)
+	}
+
+	return unix.ByteSliceToString(u.Release[:]), nil
 }
