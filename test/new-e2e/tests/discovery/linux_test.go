@@ -50,6 +50,7 @@ type linuxTestSuite struct {
 var services = []string{
 	"python-svc",
 	"python-instrumented",
+	"python-restricted",
 	"node-json-server",
 	"node-instrumented",
 	"rails-svc",
