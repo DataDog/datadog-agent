@@ -431,17 +431,17 @@ instances:
 
 	// Run each check and verify it produces metrics
 	for _, check := range basicChecks {
-		s.T().Run(fmt.Sprintf("check_%s", check.name), func(t *testing.T) {
+		s.Run(fmt.Sprintf("check_%s", check.name), func() {
 			metrics := s.runCheckInBasicMode(check.name, check.config)
 
 			// Verify that the check produced some metrics
 			if len(metrics) == 0 {
-				t.Errorf("Check %s produced no metrics in basic mode", check.name)
+				s.T().Errorf("Check %s produced no metrics in basic mode", check.name)
 				return
 			}
 
 			// Log some basic info about the metrics
-			t.Logf("Check %s produced %d metrics in basic mode", check.name, len(metrics))
+			s.T().Logf("Check %s produced %d metrics in basic mode", check.name, len(metrics))
 
 			// Verify that at least one metric has a valid value
 			hasValidMetric := false
@@ -453,7 +453,7 @@ instances:
 			}
 
 			if !hasValidMetric {
-				t.Errorf("Check %s produced no metrics with valid values in basic mode", check.name)
+				s.T().Errorf("Check %s produced no metrics with valid values in basic mode", check.name)
 			}
 		})
 	}
