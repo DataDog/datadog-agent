@@ -61,6 +61,8 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
         elif 'GITLAB_TOKEN' in os.environ:
             return os.environ['GITLAB_TOKEN']
 
+    print(f"CELIAN: Generating short lived token for {repo}", file=sys.stderr)
+
     infra_token = datadog_infra_token(ctx, audience="sdm")
     url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
 
