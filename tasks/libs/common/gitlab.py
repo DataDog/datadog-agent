@@ -332,7 +332,9 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:  # noqa
         res = requests.get(url, headers={'Authorization': infra_token}, timeout=10)
 
         if not res.ok:
-            raise RuntimeError(f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}')
+            raise RuntimeError(
+                f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}'
+            )
 
         token_info = res.json()
         if verbose:
