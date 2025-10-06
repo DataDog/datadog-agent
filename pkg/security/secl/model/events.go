@@ -137,6 +137,8 @@ const (
 	CapabilitiesEventType
 	// FileMoveMountEventType Move Mount even
 	FileMoveMountEventType
+	// FailedDNSEventType Failed DNS
+	FailedDNSEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -297,6 +299,8 @@ func (t EventType) String() string {
 		return "delete_key"
 	case ChangePermissionEventType:
 		return "change_permission"
+	case FailedDNSEventType:
+		return "failed_dns"
 	case LoginUIDWriteEventType:
 		return "login_uid_write"
 	case CgroupWriteEventType:

@@ -696,6 +696,7 @@ func materializePending(
 		}
 		// First, create variables defined directly under the subprogram/abstract DIEs.
 		variableByOffset := make(map[dwarf.Offset]*ir.Variable, len(p.variables))
+		variableByName := make(map[string]*ir.Variable, len(p.variables))
 		for _, die := range p.variables {
 			parseLocs := !p.abstract
 			var ranges []ir.PCRange
@@ -712,8 +713,16 @@ func materializePending(
 				return nil, err
 			}
 			if v != nil {
+				if pv, ok := variableByName[v.Name]; ok {
+					// Dwarf sometimes contains same variable repeated, incorrectly,
+					// which causes trouble in further probe processing.
+					// Ignore repeated entries.
+					variableByOffset[die.Offset] = pv
+					continue
+				}
 				sp.Variables = append(sp.Variables, v)
 				variableByOffset[die.Offset] = v
+				variableByName[v.Name] = v
 			}
 		}
 		// Then, propagate locations and define additional vars from inlined instances.
@@ -735,7 +744,7 @@ func materializePending(
 				if ok {
 					baseVar, found := variableByOffset[abstractOrigin]
 					if !found {
-						return nil, fmt.Errorf("abstract variable not found for inlined variable")
+						return nil, fmt.Errorf("abstract variable not found for inlined variable @%#x", inlVar.Offset)
 					}
 					if locField := inlVar.AttrField(dwarf.AttrLocation); locField != nil {
 						locs := computeLocations(
@@ -755,7 +764,13 @@ func materializePending(
 						return nil, err
 					}
 					if v != nil {
-						sp.Variables = append(sp.Variables, v)
+						if pv, ok := variableByName[v.Name]; ok {
+							// We only need to merge locations.
+							pv.Locations = append(pv.Locations, v.Locations...)
+						} else {
+							variableByName[v.Name] = v
+							sp.Variables = append(sp.Variables, v)
+						}
 					}
 				}
 			}
