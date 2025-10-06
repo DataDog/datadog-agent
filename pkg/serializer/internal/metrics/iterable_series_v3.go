@@ -116,13 +116,13 @@ type payloadsBuilderV3 struct {
 	txn         *stream.ColumnTransaction
 	dict        *dictionaryBuilder
 
-	deltaName           deltaEncoder
-	deltaTags           deltaEncoder
-	deltaResources      deltaEncoder
-	deltaInterval       deltaEncoder
-	deltaTimestamp      deltaEncoder
-	deltaSourceTypeName deltaEncoder
-	deltaOriginInfo     deltaEncoder
+	deltaNameRef           deltaEncoder
+	deltaTagsRef           deltaEncoder
+	deltaResourcesRef      deltaEncoder
+	deltaInterval          deltaEncoder
+	deltaTimestamp         deltaEncoder
+	deltaSourceTypeNameRef deltaEncoder
+	deltaOriginRef         deltaEncoder
 
 	pointsThisPayload   int
 	maxPointsPerPayload int
@@ -272,13 +272,13 @@ func (pb *payloadsBuilderV3) appendProtobufFieldHeader(dst []byte, id int, len i
 func (pb *payloadsBuilderV3) reset() {
 	pb.pointsThisPayload = 0
 	pb.dict.reset()
-	pb.deltaName.reset()
-	pb.deltaTags.reset()
-	pb.deltaResources.reset()
+	pb.deltaNameRef.reset()
+	pb.deltaTagsRef.reset()
+	pb.deltaResourcesRef.reset()
 	pb.deltaInterval.reset()
 	pb.deltaTimestamp.reset()
-	pb.deltaSourceTypeName.reset()
-	pb.deltaOriginInfo.reset()
+	pb.deltaSourceTypeNameRef.reset()
+	pb.deltaOriginRef.reset()
 	pb.compressor.Reset()
 }
 
@@ -358,18 +358,18 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 
 func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	pb.txn.Reset()
-	pb.txn.Sint64(columnNameRef, pb.deltaName.encode(pb.dict.internName(serie.Name)))
-	pb.txn.Sint64(columnTagsRef, pb.deltaTags.encode(pb.dict.internTags(serie.Tags)))
+	pb.txn.Sint64(columnNameRef, pb.deltaNameRef.encode(pb.dict.internName(serie.Name)))
+	pb.txn.Sint64(columnTagsRef, pb.deltaTagsRef.encode(pb.dict.internTags(serie.Tags)))
 	pb.txn.Sint64(columnInterval, pb.deltaInterval.encode(serie.Interval))
 
 	pb.renderResources(serie)
 	pb.txn.Sint64(columnResourcesRef,
-		pb.deltaResources.encode(pb.dict.internResources(pb.resourcesBuf)))
+		pb.deltaResourcesRef.encode(pb.dict.internResources(pb.resourcesBuf)))
 
 	pb.txn.Sint64(columnSourceTypeNameRef,
-		pb.deltaSourceTypeName.encode(pb.dict.internSourceTypeName(serie.SourceTypeName)))
+		pb.deltaSourceTypeNameRef.encode(pb.dict.internSourceTypeName(serie.SourceTypeName)))
 
-	pb.txn.Sint64(columnOriginRef, pb.deltaOriginInfo.encode(
+	pb.txn.Sint64(columnOriginRef, pb.deltaOriginRef.encode(
 		pb.dict.internOriginInfo(originInfo{
 			product:  metricSourceToOriginProduct(serie.Source),
 			category: metricSourceToOriginCategory(serie.Source),
