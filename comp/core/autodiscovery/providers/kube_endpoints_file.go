@@ -259,9 +259,6 @@ func (s *store) insertEp(ep *v1.Endpoints) bool {
 		epConfig.shouldCollect = true
 	}
 
-	log.Warnf("Added endpoint object: %v", ep)
-	log.Warnf("Store dump %+v", s.epConfigs)
-
 	return celFound || found
 }
 
