@@ -2,6 +2,37 @@
 Release Notes
 =============
 
+.. _Release Notes_7.71.1:
+
+7.71.1
+======
+
+.. _Release Notes_7.71.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-10-07
+
+- Please refer to the `7.71.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7711>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.71.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes configuration parsing for extended container metric 
+  collection on the container core check.
+
+- Fix Remote Agent management configuration changes on Windows.
+
+- Fix race condition that in rare cases caused remote updates on Windows to fail without an error.
+  
+  The Go context used when creating a detached subprocess was closed on exit. This triggered an async
+  action to kill the detached subprocess, which in rare cases completed before the process exited.
+
+
 .. _Release Notes_7.71.0:
 
 7.71.0
