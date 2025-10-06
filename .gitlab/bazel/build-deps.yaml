@@ -7,14 +7,17 @@
 
 bazel:build-deps:linux-amd64:
   extends: [ .bazel:build-deps, .linux_x64 ]
-  #tags: [ "arch:amd64", "specific:true" ]
   tags: ["linux-persistent:amd64", "specific:true"]
+  cache: []
   script:
-    - echo 'startup --output_user_root=/data/output' >> .bazelrc
-    - echo 'build --disk_cache=/data/bzl' >> .bazelrc
-    - echo 'common --repository_cache=/data/bzl-repo' >> .bazelrc
-    - echo 'common --repo_contents_cache=/data/bzl-repo' >> .bazelrc
+  # Wrapper in tools/bazel expects these directories to exist
+  # TODO(agent-build): make the wrapper to create these directories
+    - mkdir -p /data/bzl /data/output /data/bzl-repo
     - bazel build //deps/...
+  variables:
+      BAZEL_DISK_CACHE: "/data/bzl"
+      BAZEL_OUTPUT_USER_ROOT: "/data/output"
+      BAZEL_REPO_CONTENTS_CACHE: "/data/bzl-repo"
 
 bazel:build-deps:linux-arm64:
   extends: [ .bazel:build-deps, .linux_arm64 ]
