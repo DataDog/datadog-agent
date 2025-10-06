@@ -9,9 +9,7 @@
 package infrabasic
 
 import (
-	"fmt"
 	"strings"
-	"testing"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -187,42 +185,40 @@ instances:
 
 	// Run each excluded integration and verify it produces no metrics or fails
 	for _, integration := range excludedIntegrations {
-		s.T().Run(fmt.Sprintf("excluded_integration_%s", integration.name), func(t *testing.T) {
-			metrics := s.runCheckInBasicMode(integration.name, integration.config)
+		metrics := s.runCheckInBasicMode(integration.name, integration.config)
 
-			// In basic mode, these integrations should either:
-			// 1. Produce no metrics (not loaded)
-			// 2. Fail to run (not available)
-			// 3. Produce minimal/error metrics
-			if len(metrics) == 0 {
-				t.Logf("Integration %s correctly excluded from basic mode (no metrics)", integration.name)
-				return
-			}
+		// In basic mode, these integrations should either:
+		// 1. Produce no metrics (not loaded)
+		// 2. Fail to run (not available)
+		// 3. Produce minimal/error metrics
+		if len(metrics) == 0 {
+			s.T().Logf("Integration %s correctly excluded from basic mode (no metrics)", integration.name)
+			continue
+		}
 
-			// If metrics are produced, they should be minimal or error indicators
-			// Log the metrics for debugging
-			t.Logf("Integration %s produced %d metrics in basic mode", integration.name, len(metrics))
+		// If metrics are produced, they should be minimal or error indicators
+		// Log the metrics for debugging
+		s.T().Logf("Integration %s produced %d metrics in basic mode", integration.name, len(metrics))
 
-			// Check if any metrics indicate the integration is not properly running
-			hasErrorMetrics := false
-			for _, metric := range metrics {
-				if len(metric.Points) > 0 {
-					// Look for error indicators in metric names or tags
-					if strings.Contains(metric.Metric, "error") ||
-						strings.Contains(metric.Metric, "failed") ||
-						strings.Contains(metric.Metric, "unavailable") {
-						hasErrorMetrics = true
-						break
-					}
+		// Check if any metrics indicate the integration is not properly running
+		hasErrorMetrics := false
+		for _, metric := range metrics {
+			if len(metric.Points) > 0 {
+				// Look for error indicators in metric names or tags
+				if strings.Contains(metric.Metric, "error") ||
+					strings.Contains(metric.Metric, "failed") ||
+					strings.Contains(metric.Metric, "unavailable") {
+					hasErrorMetrics = true
+					break
 				}
 			}
+		}
 
-			if hasErrorMetrics {
-				t.Logf("Integration %s correctly shows error metrics in basic mode", integration.name)
-			} else {
-				t.Errorf("Integration %s should be excluded from basic mode but appears to be running normally", integration.name)
-			}
-		})
+		if hasErrorMetrics {
+			s.T().Logf("Integration %s correctly shows error metrics in basic mode", integration.name)
+		} else {
+			s.T().Errorf("Integration %s should be excluded from basic mode but appears to be running normally", integration.name)
+		}
 	}
 }
 
@@ -431,31 +427,29 @@ instances:
 
 	// Run each check and verify it produces metrics
 	for _, check := range basicChecks {
-		s.Run(fmt.Sprintf("check_%s", check.name), func() {
-			metrics := s.runCheckInBasicMode(check.name, check.config)
+		metrics := s.runCheckInBasicMode(check.name, check.config)
 
-			// Verify that the check produced some metrics
-			if len(metrics) == 0 {
-				s.T().Errorf("Check %s produced no metrics in basic mode", check.name)
-				return
+		// Verify that the check produced some metrics
+		if len(metrics) == 0 {
+			s.T().Errorf("Check %s produced no metrics in basic mode", check.name)
+			continue
+		}
+
+		// Log some basic info about the metrics
+		s.T().Logf("Check %s produced %d metrics in basic mode", check.name, len(metrics))
+
+		// Verify that at least one metric has a valid value
+		hasValidMetric := false
+		for _, metric := range metrics {
+			if len(metric.Points) > 0 {
+				hasValidMetric = true
+				break
 			}
+		}
 
-			// Log some basic info about the metrics
-			s.T().Logf("Check %s produced %d metrics in basic mode", check.name, len(metrics))
-
-			// Verify that at least one metric has a valid value
-			hasValidMetric := false
-			for _, metric := range metrics {
-				if len(metric.Points) > 0 {
-					hasValidMetric = true
-					break
-				}
-			}
-
-			if !hasValidMetric {
-				s.T().Errorf("Check %s produced no metrics with valid values in basic mode", check.name)
-			}
-		})
+		if !hasValidMetric {
+			s.T().Errorf("Check %s produced no metrics with valid values in basic mode", check.name)
+		}
 	}
 }
 
