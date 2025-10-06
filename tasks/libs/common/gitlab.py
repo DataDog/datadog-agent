@@ -3,6 +3,7 @@ import os
 from collections import UserList
 from urllib.parse import quote
 
+import requests
 import yaml
 from invoke.exceptions import Exit
 
@@ -323,7 +324,23 @@ class Gitlab(RemoteAPI):
 
 
 def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:  # noqa
-    # TODO(celian): Use short lived token once stable
+    # TODO(celian): Use short lived token once stable, this code is there only for unit tests
+    try:
+        infra_token = datadog_infra_token(ctx, audience="sdm")
+        url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
+
+        res = requests.get(url, headers={'Authorization': infra_token}, timeout=10)
+
+        if not res.ok:
+            raise RuntimeError(f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}')
+
+        token_info = res.json()
+        if verbose:
+            # Prints also the scopes + the expiration date
+            print('Got Gitlab token, extra information:', {k: v for k, v in token_info.items() if k != 'token'})
+    except Exception:
+        pass  # noqa
+
     token_cmd = ctx.run(
         f'{os.environ["CI_PROJECT_DIR"]}/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token',
         hide=True,
