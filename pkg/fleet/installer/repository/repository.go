@@ -17,7 +17,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
@@ -465,7 +464,11 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 
 	// special case for the agent package
 	// remove the agent deb/rpm directory if it exists and we have upgraded to an OCI-based agent
-	if runtime.GOOS == "linux" && pkgName == "datadog-agent" && r.stable.HasTarget() && !strings.HasPrefix(r.stable.Target(), "/opt/datadog-agent") {
+	stablePath, err := filepath.EvalSymlinks(filepath.Join(r.rootPath, stableVersionLink))
+	if err != nil {
+		log.Errorf("could not evaluate symlinks for stable link: %v", err)
+	}
+	if err == nil && runtime.GOOS == "linux" && pkgName == "datadog-agent" && r.stable.HasTarget() && stablePath != "" && stablePath != "/opt/datadog-agent" {
 		if err := os.RemoveAll("/opt/datadog-agent"); err != nil {
 			log.Errorf("could not remove previous agent directory: %v", err)
 		}
