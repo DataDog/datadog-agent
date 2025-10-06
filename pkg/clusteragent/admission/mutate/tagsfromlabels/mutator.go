@@ -90,8 +90,8 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (b
 
 	owner, err := getOwner(owners[0], ns, dc, i.config.ownerCacheTTL)
 	if err != nil {
-		log.Error(err)
-		return false, errors.New(metrics.InternalError)
+		log.Warnf("Failed to get owner reference for pod: %v. Skipping owner-based tagging.", err)
+		return false, nil // skip tagging, don't fail webhook
 	}
 
 	log.Debugf("Looking for standard labels on '%s/%s' - kind '%s' owner of pod %s", owner.namespace, owner.name, owner.kind, mutatecommon.PodString(pod))
