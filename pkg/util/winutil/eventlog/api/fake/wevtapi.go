@@ -267,14 +267,6 @@ func (api *API) EvtClose(h windows.Handle) {
 		delete(api.subscriptions, sub.handle)
 		return
 	}
-	// is handle a publisher metadata?
-	publisher, err := api.getPublisherMetadataByHandle(evtapi.EventPublisherMetadataHandle(h))
-	if err == nil {
-		api.publisherMutex.Lock()
-		delete(api.publisherHandles, publisher.handle)
-		api.publisherMutex.Unlock()
-		return
-	}
 }
 
 // EvtRenderEventXml is a fake of EvtRender with EvtRenderEventXml
@@ -458,19 +450,12 @@ func (api *API) EvtRenderEventValues(_ evtapi.EventRenderContextHandle, _ evtapi
 }
 
 // EvtOpenPublisherMetadata fake
+// not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtopenpublishermetadata
 func (api *API) EvtOpenPublisherMetadata(
-	PublisherID string,
+	_ string,
 	_ string) (evtapi.EventPublisherMetadataHandle, error) {
-
-	publisher := &publisherMetadata{
-		publisherID: PublisherID,
-		isValid:     true, // Start as valid
-	}
-
-	api.addPublisherMetadata(publisher)
-
-	return publisher.handle, nil
+	return evtapi.EventPublisherMetadataHandle(0), fmt.Errorf("not implemented")
 }
 
 // EvtFormatMessage fake

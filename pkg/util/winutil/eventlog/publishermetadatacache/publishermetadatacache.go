@@ -9,6 +9,7 @@
 package publishermetadatacache
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -17,14 +18,14 @@ import (
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
-// InvalidHandle represents an invalid EventPublisherMetadataHandle
-const InvalidHandle = evtapi.EventPublisherMetadataHandle(0)
+// invalidHandle represents an invalid EventPublisherMetadataHandle
+const invalidHandle = evtapi.EventPublisherMetadataHandle(0)
 
-// CacheEntry represents a cached EventPublisherMetadataHandle.
-type CacheEntry struct {
-	Handle    evtapi.EventPublisherMetadataHandle
+// cacheEntry represents a cached EventPublisherMetadataHandle.
+type cacheEntry struct {
+	handle    evtapi.EventPublisherMetadataHandle
 	err       error
-	CreatedAt time.Time
+	createdAt time.Time
 }
 
 // PublisherMetadataCache implements the Component interface
@@ -50,9 +51,9 @@ func (c *PublisherMetadataCache) deleteEntry(publisherName string) {
 	c.handleMu.Lock()
 	defer c.handleMu.Unlock()
 	if value, found := c.cache.Load(publisherName); found {
-		entry := value.(CacheEntry)
-		if entry.Handle != InvalidHandle {
-			evtapi.EvtClosePublisherMetadata(c.evtapi, entry.Handle)
+		entry := value.(cacheEntry)
+		if entry.handle != invalidHandle {
+			evtapi.EvtClosePublisherMetadata(c.evtapi, entry.handle)
 		}
 		c.cache.Delete(publisherName)
 	}
@@ -62,13 +63,13 @@ func (c *PublisherMetadataCache) deleteEntry(publisherName string) {
 // If not found in cache, it calls EvtOpenPublisherMetadata and caches the result.
 func (c *PublisherMetadataCache) Get(publisherName string) (evtapi.EventPublisherMetadataHandle, error) {
 	if value, found := c.cache.Load(publisherName); found {
-		entry := value.(CacheEntry)
+		entry := value.(cacheEntry)
 		// If the handle is invalid and expired, delete the cache entry.
 		// No need to delete an expired valid handle.
-		if entry.Handle == InvalidHandle && entry.CreatedAt.Add(c.expiration).Before(time.Now()) {
+		if entry.handle == invalidHandle && entry.createdAt.Add(c.expiration).Before(time.Now()) {
 			c.deleteEntry(publisherName)
 		} else {
-			return entry.Handle, entry.err
+			return entry.handle, entry.err
 		}
 
 	}
@@ -77,21 +78,21 @@ func (c *PublisherMetadataCache) Get(publisherName string) (evtapi.EventPublishe
 	defer c.handleMu.Unlock()
 	// Double check another thread didn't already create the handle.
 	if value, found := c.cache.Load(publisherName); found {
-		entry := value.(CacheEntry)
-		return entry.Handle, entry.err
+		entry := value.(cacheEntry)
+		return entry.handle, entry.err
 	}
 
 	handle, err := c.evtapi.EvtOpenPublisherMetadata(publisherName, "")
 
 	if err != nil {
 		// Cache the invalid handle and retry creating the handle once it expires from the cache.
-		handle = InvalidHandle
+		handle = invalidHandle
 	}
 
-	c.cache.Store(publisherName, CacheEntry{
-		Handle:    handle,
+	c.cache.Store(publisherName, cacheEntry{
+		handle:    handle,
 		err:       err,
-		CreatedAt: time.Now(),
+		createdAt: time.Now(),
 	})
 	return handle, err
 }
@@ -101,7 +102,7 @@ func (c *PublisherMetadataCache) FormatMessage(publisherName string, event evtap
 	handle, err := c.Get(publisherName)
 
 	c.handleMu.RLock()
-	if handle == InvalidHandle {
+	if handle == invalidHandle {
 		// Continue without formatting the message.
 		c.handleMu.RUnlock()
 		return "", err
@@ -111,9 +112,9 @@ func (c *PublisherMetadataCache) FormatMessage(publisherName string, event evtap
 
 	if err != nil {
 		// Ignore these errors
-		if err == windows.ERROR_EVT_MESSAGE_NOT_FOUND ||
-			err == windows.ERROR_EVT_MESSAGE_ID_NOT_FOUND ||
-			err == windows.ERROR_EVT_MESSAGE_LOCALE_NOT_FOUND {
+		if errors.Is(err, windows.ERROR_EVT_MESSAGE_NOT_FOUND) ||
+			errors.Is(err, windows.ERROR_EVT_MESSAGE_ID_NOT_FOUND) ||
+			errors.Is(err, windows.ERROR_EVT_MESSAGE_LOCALE_NOT_FOUND) {
 			return "", err
 		}
 		// FormatMessage failed with an old valid handle, so delete the cache entry
@@ -129,16 +130,11 @@ func (c *PublisherMetadataCache) Flush() {
 	c.handleMu.Lock()
 	defer c.handleMu.Unlock()
 	c.cache.Range(func(key, value interface{}) bool {
-		entry := value.(CacheEntry)
-		if entry.Handle != InvalidHandle {
-			evtapi.EvtClosePublisherMetadata(c.evtapi, entry.Handle)
+		entry := value.(cacheEntry)
+		if entry.handle != invalidHandle {
+			evtapi.EvtClosePublisherMetadata(c.evtapi, entry.handle)
 		}
 		c.cache.Delete(key)
 		return true
 	})
-}
-
-// GetCache returns the internal cache for testing purposes
-func (c *PublisherMetadataCache) GetCache() *sync.Map {
-	return &c.cache
 }
