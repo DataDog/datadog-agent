@@ -224,36 +224,8 @@ type LogProbeCommon struct {
 }
 
 // TemplateSegment is a segment of a probe template.
-type TemplateSegment struct {
-	*StringSegment `json:"str,omitempty"`
-	*JSONSegment   `json:"dsl,omitempty"`
-}
-
-// TemplateSegment implements the ir.TemplateSegmentDefinition interface.
-func (s TemplateSegment) TemplateSegment() {}
-
-// GetString implements the ir.TemplateSegmentString interface
-func (s TemplateSegment) GetString() string {
-	if s.StringSegment != nil {
-		return string(*s.StringSegment)
-	}
-	return ""
-}
-
-// GetDSL implements the ir.TemplateSegmentExpression interface
-func (s TemplateSegment) GetDSL() string {
-	if s.JSONSegment != nil {
-		return s.JSONSegment.DSL
-	}
-	return ""
-}
-
-// GetJSON implements the ir.TemplateSegmentExpression interface
-func (s TemplateSegment) GetJSON() json.RawMessage {
-	if s.JSONSegment != nil {
-		return s.JSONSegment.JSON
-	}
-	return nil
+type TemplateSegment interface {
+	TemplateSegment() // marker method
 }
 
 // SegmentList is a list of Segments which can each be either a StringSegment or a JSONSegment
@@ -270,7 +242,7 @@ func (sl *SegmentList) UnmarshalJSON(data []byte) error {
 	for i, data := range segmentData {
 		var str StringSegment
 		if err := json.Unmarshal(data, &str); err == nil {
-			(*sl)[i] = TemplateSegment{StringSegment: &str}
+			(*sl)[i] = str
 			continue
 		}
 
@@ -284,13 +256,13 @@ func (sl *SegmentList) UnmarshalJSON(data []byte) error {
 			if err := json.Unmarshal(strData, &str); err != nil {
 				return fmt.Errorf("failed to unmarshal string segment %d: %w", i, err)
 			}
-			(*sl)[i] = TemplateSegment{StringSegment: &str}
+			(*sl)[i] = str
 		} else if _, hasDSL := raw["json"]; hasDSL {
 			var jsonSeg JSONSegment
 			if err := json.Unmarshal(data, &jsonSeg); err != nil {
 				return fmt.Errorf("failed to unmarshal JSON segment %d: %w", i, err)
 			}
-			(*sl)[i] = TemplateSegment{JSONSegment: &jsonSeg}
+			(*sl)[i] = jsonSeg
 		} else {
 			return fmt.Errorf("unknown segment type at index %d: %s", i, string(data))
 		}
@@ -301,8 +273,13 @@ func (sl *SegmentList) UnmarshalJSON(data []byte) error {
 // StringSegment is a string literal to be used as a segment of a probe template.
 type StringSegment string
 
-// Segment implements the Segment interface.
-func (s StringSegment) Segment() {}
+// GetString implements the ir.TemplateSegmentString interface
+func (s StringSegment) GetString() string {
+	return string(s)
+}
+
+// TemplateSegment implements the TemplateSegment interface.
+func (s StringSegment) TemplateSegment() {}
 
 // JSONSegment is a JSON object to be used as a segment of a probe template.
 type JSONSegment struct {
@@ -312,8 +289,18 @@ type JSONSegment struct {
 	DSL string `json:"dsl"`
 }
 
-// Segment implements the Segment interface.
-func (s JSONSegment) Segment() {}
+// GetDSL implements the ir.TemplateSegmentExpression interface
+func (s JSONSegment) GetDSL() string {
+	return s.DSL
+}
+
+// GetJSON implements the ir.TemplateSegmentExpression interface
+func (s JSONSegment) GetJSON() json.RawMessage {
+	return s.JSON
+}
+
+// TemplateSegment implements the TemplateSegment interface.
+func (s JSONSegment) TemplateSegment() {}
 
 // GetCaptureConfig returns the capture configuration of the probe.
 func (l *LogProbeCommon) GetCaptureConfig() ir.CaptureConfig {

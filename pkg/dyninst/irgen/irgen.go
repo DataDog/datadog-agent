@@ -1836,8 +1836,11 @@ func populateEventExpressions(
 			}
 		}
 		for _, variable := range relevantVariables {
+			if variable.IsReturn {
+				continue
+			}
 			if _, ok := variableExpressionSet[variable.Name]; !ok {
-				expr := createVariableExpression(variable, ir.RootExpressionKindArgument)
+				expr := createVariableExpression(variable, eventKind)
 				expressions = append(expressions, expr)
 				variableExpressionSet[variable.Name] = len(expressions) - 1
 			}
@@ -2445,21 +2448,20 @@ func newProbe(
 	segments := []ir.TemplateSegment{}
 	probeTemplate := probeCfg.GetTemplate()
 	for seg := range probeTemplate.GetSegments() {
-		if s, ok := seg.(rcjson.TemplateSegment); ok && (s.JSONSegment != nil || s.StringSegment != nil) {
-			if s.JSONSegment != nil {
-				segments = append(segments, ir.JSONSegment{
-					JSON:                       s.JSONSegment.JSON,
-					DSL:                        s.JSONSegment.DSL,
-					RootTypeExpressionIndicies: make(map[ir.TypeID]int),
-				})
-			} else if s.StringSegment != nil {
-				segments = append(segments, ir.StringSegment{Value: string(*s.StringSegment)})
-			} else {
-				return nil, ir.Issue{
-					Kind:    ir.IssueKindInvalidProbeDefinition,
-					Message: fmt.Sprintf("invalid template segment: %T", seg),
-				}, nil
-			}
+		switch s := seg.(type) {
+		case rcjson.StringSegment:
+			segments = append(segments, ir.StringSegment{Value: s.GetString()})
+		case rcjson.JSONSegment:
+			segments = append(segments, ir.JSONSegment{
+				JSON:                       s.GetJSON(),
+				DSL:                        s.GetDSL(),
+				RootTypeExpressionIndicies: make(map[ir.TypeID]int),
+			})
+		default:
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindInvalidProbeDefinition,
+				Message: fmt.Sprintf("invalid template segment: %T", seg),
+			}, nil
 		}
 	}
 

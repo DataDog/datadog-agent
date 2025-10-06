@@ -81,19 +81,13 @@ var testCases = []testCase{
 				},
 				Template: "Hello {name}",
 				Segments: SegmentList{
-					TemplateSegment{
-						StringSegment: newStringSegment("Hello "),
-					},
-					TemplateSegment{
-						JSONSegment: &JSONSegment{
-							JSON: json.RawMessage(`{"ref": "name"}`),
-							DSL:  "name",
-						},
-					},
+					newStringSegment("Hello "),
+					newJSONSegment(json.RawMessage(`{"ref": "name"}`), "name"),
 				},
 			},
 		},
 	},
+
 	{
 		name: "log probe with file and multiple lines",
 		input: `{
@@ -144,12 +138,8 @@ var testCases = []testCase{
 				},
 				Template: "Hello {name}",
 				Segments: SegmentList{
-					TemplateSegment{
-						StringSegment: newStringSegment("Hello "),
-					},
-					TemplateSegment{
-						JSONSegment: newJSONSegment(json.RawMessage(`{"ref": "name"}`), "name"),
-					},
+					newStringSegment("Hello "),
+					newJSONSegment(json.RawMessage(`{"ref": "name"}`), "name"),
 				},
 			},
 		},
@@ -205,12 +195,8 @@ var testCases = []testCase{
 				},
 				Template: "Hello {name}",
 				Segments: SegmentList{
-					TemplateSegment{
-						StringSegment: newStringSegment("Hello "),
-					},
-					TemplateSegment{
-						JSONSegment: newJSONSegment(json.RawMessage(`{"ref": "name"}`), "name"),
-					},
+					newStringSegment("Hello "),
+					newJSONSegment(json.RawMessage(`{"ref": "name"}`), "name"),
 				},
 			},
 		},
@@ -293,15 +279,9 @@ var testCases = []testCase{
 				},
 				Template: "Hello {name} world",
 				Segments: SegmentList{
-					TemplateSegment{
-						StringSegment: newStringSegment("Hello "),
-					},
-					TemplateSegment{
-						JSONSegment: newJSONSegment(json.RawMessage(`{"ref": "name"}`), "name"),
-					},
-					TemplateSegment{
-						StringSegment: newStringSegment(" world"),
-					},
+					newStringSegment("Hello "),
+					newJSONSegment(json.RawMessage(`{"ref": "name"}`), "name"),
+					newStringSegment(" world"),
 				},
 			},
 		},
@@ -330,13 +310,13 @@ func TestUnmarshalProbe(t *testing.T) {
 	}
 }
 
-func newStringSegment(value string) *StringSegment {
+func newStringSegment(value string) StringSegment {
 	s := StringSegment(value)
-	return &s
+	return s
 }
 
-func newJSONSegment(json json.RawMessage, dsl string) *JSONSegment {
-	return &JSONSegment{
+func newJSONSegment(json json.RawMessage, dsl string) JSONSegment {
+	return JSONSegment{
 		JSON: json,
 		DSL:  dsl,
 	}

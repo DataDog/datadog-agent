@@ -980,11 +980,12 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testNamedReturn
-    message: "hello {result}"
+    message: "The returned value is: {result}"
     segments:
-      - json: 
+      - str: "The returned value is: "
+      - dsl: "result"
+        json:
           ref: "result"
-        dsl: "result"
     captureSnapshot: true
   - id: testMultipleNamedReturn
     type: LOG_PROBE
