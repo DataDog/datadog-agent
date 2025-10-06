@@ -18,7 +18,7 @@
           {
             "function": "main.testAnyPtr",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 64
+            "lineNumber": 65
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -55,11 +55,20 @@
                 "isNull": true
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "<nil>"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -80,7 +89,7 @@
           {
             "function": "main.testAnyPtr",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 64
+            "lineNumber": 65
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -122,11 +131,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "0x[addr]"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -147,7 +165,7 @@
           {
             "function": "main.testAnyPtr",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 64
+            "lineNumber": 65
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -190,11 +208,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "0x[addr]"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -215,7 +242,7 @@
           {
             "function": "main.testAnyPtr",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 64
+            "lineNumber": 65
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -258,11 +285,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "0x[addr]"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -283,7 +319,7 @@
           {
             "function": "main.testAnyPtr",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 64
+            "lineNumber": 65
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -332,11 +368,20 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "0x[addr]"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -357,7 +402,7 @@
           {
             "function": "main.testAnyPtr",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go",
-            "lineNumber": 64
+            "lineNumber": 65
           },
           {
             "function": "main.executeInterfaceFuncs",
@@ -412,10 +457,19 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "0x[addr]"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

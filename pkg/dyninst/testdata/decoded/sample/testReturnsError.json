@@ -18,12 +18,12 @@
           {
             "function": "main.testReturnsError",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 33
+            "lineNumber": 38
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 89
+            "lineNumber": 378
           },
           {
             "function": "main.main",
@@ -55,11 +55,31 @@
                 "value": "true"
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "error",
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "error"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -80,12 +100,12 @@
           {
             "function": "main.testReturnsError",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 33
+            "lineNumber": 40
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 90
+            "lineNumber": 379
           },
           {
             "function": "main.main",
@@ -117,10 +137,23 @@
                 "value": "false"
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "error",
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]
