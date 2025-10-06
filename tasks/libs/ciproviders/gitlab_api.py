@@ -8,6 +8,7 @@ from __future__ import annotations
 import glob
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -17,7 +18,6 @@ from difflib import Differ
 from functools import lru_cache
 from itertools import product
 from pathlib import Path
-from sys import platform
 from typing import Any, Literal
 
 import gitlab
