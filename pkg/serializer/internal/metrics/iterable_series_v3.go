@@ -100,7 +100,6 @@ const (
 	metricCount = 0x01
 	metricRate  = 0x02
 	metricGauge = 0x03
-	metricketch = 0x04
 
 	valueZero    int64 = 0x00
 	valueSint64  int64 = 0x10
