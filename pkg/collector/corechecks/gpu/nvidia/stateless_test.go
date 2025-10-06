@@ -24,7 +24,7 @@ func TestNewStatelessCollector(t *testing.T) {
 	device := setupMockDevice(t, nil)
 
 	// Test that the stateless collector creates the expected dynamic API set
-	collector, err := newStatelessCollector(device)
+	collector, err := newStatelessCollector(device, nil)
 	require.NoError(t, err)
 	require.NotNil(t, collector)
 
@@ -93,7 +93,7 @@ func TestCollectProcessMemory(t *testing.T) {
 				return device
 			})
 
-			collector, err := newStatelessCollector(mockDevice)
+			collector, err := newStatelessCollector(mockDevice, nil)
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()
@@ -127,7 +127,7 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 		return device
 	})
 
-	collector, err := newStatelessCollector(mockDevice)
+	collector, err := newStatelessCollector(mockDevice, nil)
 	require.NoError(t, err)
 
 	processMetrics, err := collector.Collect()
@@ -166,7 +166,7 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 		return device
 	})
 
-	collector, err := newStatelessCollector(mockDevice)
+	collector, err := newStatelessCollector(mockDevice, nil)
 	require.NoError(t, err)
 
 	processMetrics, err := collector.Collect()
@@ -276,7 +276,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 			}
 
 			mockDevice := setupMockDevice(t, tt.customSetup)
-			c, err := newStatelessCollector(mockDevice)
+			c, err := newStatelessCollector(mockDevice, nil)
 
 			if tt.wantError {
 				require.Error(t, err)
@@ -376,7 +376,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 				return device
 			})
 
-			collector, err := newStatelessCollector(mockDevice)
+			collector, err := newStatelessCollector(mockDevice, nil)
 			require.NoError(t, err)
 
 			// Collect metrics
