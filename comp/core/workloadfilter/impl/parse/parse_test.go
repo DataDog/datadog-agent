@@ -17,7 +17,7 @@ import (
 )
 
 func TestGetProductConfigs(t *testing.T) {
-	config := &workloadfilter.CELFilterConfig{
+	config := workloadfilter.CELFilterConfig{
 		{
 			Products: []workloadfilter.Product{workloadfilter.ProductMetrics, workloadfilter.ProductLogs},
 			Rules: map[workloadfilter.ResourceType][]string{
@@ -41,14 +41,14 @@ func TestGetProductConfigs(t *testing.T) {
 		{
 			Products: []workloadfilter.Product{workloadfilter.ProductGlobal},
 			Rules: map[workloadfilter.ResourceType][]string{
-				workloadfilter.ResourceType("processes"): {
-					"process.name == 'systemd'",
+				workloadfilter.ResourceType("kube_services"): {
+					"kube_services.name == 'backend'",
 				},
 			},
 		},
 	}
 
-	results := GetProductConfigs(config)
+	results, errs := GetProductConfigs(config)
 
 	// Should have results for all 4 products (metrics, logs, sbom, global)
 	assert.Len(t, results, 4)
@@ -63,16 +63,17 @@ func TestGetProductConfigs(t *testing.T) {
 	require.True(t, exists)
 	assert.Len(t, logsRules[workloadfilter.ContainerType], 2)
 
-	// Check SBOM product (should have 1 container rule and 1 pod rule with warning logged)
+	// Check SBOM product
 	sbomRules, exists := results[workloadfilter.ProductSBOM]
 	require.True(t, exists)
 	assert.Len(t, sbomRules[workloadfilter.ContainerType], 1)
-	assert.Len(t, sbomRules[workloadfilter.PodType], 1)
+	assert.Len(t, sbomRules[workloadfilter.PodType], 0) // should drop invalid pod rule
+	assert.Len(t, errs, 1)                              // should have one error for unsupported pod rule in SBOM
 
 	// Check global product
 	globalRules, exists := results[workloadfilter.ProductGlobal]
 	require.True(t, exists)
-	assert.Len(t, globalRules[workloadfilter.ProcessType], 1)
+	assert.Len(t, globalRules[workloadfilter.ServiceType], 1)
 }
 
 func TestConsolidateRulesByProduct(t *testing.T) {

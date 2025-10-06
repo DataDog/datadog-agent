@@ -7,8 +7,9 @@
 package parse
 
 import (
+	"errors"
+
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // ProductSupportMap defines which rule types each product supports
@@ -21,7 +22,6 @@ var ProductSupportMap = map[workloadfilter.Product]map[workloadfilter.ResourceTy
 	},
 	workloadfilter.ProductLogs: {
 		workloadfilter.ContainerType: {},
-		workloadfilter.PodType:       {},
 	},
 	workloadfilter.ProductSBOM: {
 		workloadfilter.ContainerType: {},
@@ -43,41 +43,33 @@ func isRuleTypeSupported(product workloadfilter.Product, resourceType workloadfi
 	return supported
 }
 
-func logValidationWarnings(product workloadfilter.Product, rules map[workloadfilter.ResourceType][]string) {
-	for resourceType, ruleStrings := range rules {
-		if len(ruleStrings) > 0 && !isRuleTypeSupported(product, resourceType) {
-			log.Warnf("Product %s does not support %s rules (found %d rules)\n",
-				product, resourceType, len(ruleStrings))
-		}
-	}
-}
-
-func checkUndefinedProducts(productRules map[workloadfilter.Product]map[workloadfilter.ResourceType][]string) []string {
-	undefinedProducts := []string{}
+func removeInvalidConfig(productRules map[workloadfilter.Product]map[workloadfilter.ResourceType][]string) []error {
+	unsupportedErrors := []error{}
+	resourceTypeSet := makeSet(workloadfilter.GetAllResourceTypes())
 	productSet := makeSet(workloadfilter.GetAllProducts())
 
-	for product := range productRules {
+	for product, rules := range productRules {
+		// Remove unsupported product
 		if _, exists := productSet[product]; !exists {
-			undefinedProducts = append(undefinedProducts, string(product))
+			unsupportedErrors = append(unsupportedErrors, errors.New("unsupported product for CEL workload filtering: "+string(product)))
+			delete(productRules, product)
+			continue
 		}
-	}
-
-	return undefinedProducts
-}
-
-func checkUndefinedResourceTypes(productRules map[workloadfilter.Product]map[workloadfilter.ResourceType][]string) []string {
-	undefinedResourceTypes := []string{}
-	resourceTypeSet := makeSet(workloadfilter.GetAllResourceTypes())
-
-	for _, rules := range productRules {
-		for resourceType := range rules {
+		for resourceType, ruleStrings := range rules {
+			// Remove unsupported resource type
 			if _, exists := resourceTypeSet[resourceType]; !exists {
-				undefinedResourceTypes = append(undefinedResourceTypes, string(resourceType))
+				unsupportedErrors = append(unsupportedErrors, errors.New("unsupported resource type for CEL workload filtering: "+string(resourceType)))
+				delete(rules, resourceType)
+			}
+			// Remove product specific unsupported resource type
+			if len(ruleStrings) > 0 && !isRuleTypeSupported(product, resourceType) {
+				unsupportedErrors = append(unsupportedErrors, errors.New("unsupported resource type for CEL workload filtering on "+string(product)+" product: "+string(resourceType)))
+				delete(rules, resourceType)
 			}
 		}
 	}
 
-	return undefinedResourceTypes
+	return unsupportedErrors
 }
 
 func makeSet[T comparable](items []T) map[T]struct{} {

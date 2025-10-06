@@ -6,8 +6,6 @@
 package workloadfilter
 
 import (
-	"log"
-
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 )
 
@@ -68,8 +66,7 @@ func (rt ResourceType) ToSingular() ResourceType {
 	if plural, ok := singularMap[string(rt)]; ok {
 		return plural
 	}
-	log.Fatalf("Should not have resource type without singular form. unknown resource type %s", rt)
-	return ""
+	return rt
 }
 
 // GetAllResourceTypes returns all defined resource types.

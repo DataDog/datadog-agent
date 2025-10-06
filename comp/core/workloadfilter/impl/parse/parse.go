@@ -8,31 +8,18 @@ package parse
 
 import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // GetProductConfigs parses the configuration and returns raw rule strings organized by product
-func GetProductConfigs(config *workloadfilter.CELFilterConfig) map[workloadfilter.Product]map[workloadfilter.ResourceType][]string {
+func GetProductConfigs(config workloadfilter.CELFilterConfig) (map[workloadfilter.Product]map[workloadfilter.ResourceType][]string, []error) {
 	if config == nil {
-		return nil
+		return nil, nil
 	}
 
-	productRulesMap := consolidateRulesByProduct(*config)
-	for product, rules := range productRulesMap {
-		logValidationWarnings(product, rules)
-	}
+	productRulesMap := consolidateRulesByProduct(config)
+	invalidConfigErrors := removeInvalidConfig(productRulesMap)
 
-	undefinedProducts := checkUndefinedProducts(productRulesMap)
-	if len(undefinedProducts) > 0 {
-		log.Warnf("Undefined products found in configuration: %v", undefinedProducts)
-	}
-
-	undefinedResources := checkUndefinedResourceTypes(productRulesMap)
-	if len(undefinedResources) > 0 {
-		log.Warnf("Undefined resource types found in configuration: %v", undefinedResources)
-	}
-
-	return productRulesMap
+	return productRulesMap, invalidConfigErrors
 }
 
 // consolidateRulesByProduct merges all rules for the same product
