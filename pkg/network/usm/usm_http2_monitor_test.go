@@ -26,6 +26,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1809,8 +1810,9 @@ func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map
 			}
 			count := statusCodeStats.Count
 			newKey := usmhttp.Key{
-				Path:   usmhttp.Path{Content: key.Path.Content},
-				Method: key.Method,
+				ConnectionKey: key.ConnectionKey,
+				Path:          usmhttp.Path{Content: key.Path.Content},
+				Method:        key.Method,
 			}
 			if _, ok := res[newKey]; !ok {
 				res[newKey] = count
@@ -1825,6 +1827,7 @@ func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map
 	}
 
 	for key, endpointCount := range res {
+		key.ConnectionKey = types.ConnectionKey{}
 		_, ok := expectedEndpoints[key]
 		if !ok {
 			return false
