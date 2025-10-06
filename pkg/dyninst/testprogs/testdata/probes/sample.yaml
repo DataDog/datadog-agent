@@ -34,9 +34,9 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleInt8
-    message: "hello {x}"
+    message: "parameter = {x}"
     segments:
-      - str: "hello"
+      - str: "parameter = "
       - json: 
           ref: "x"
         dsl: "x"
@@ -47,9 +47,9 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleInt16
-    message: "hello {x}"
+    message: "parameter = {x}"
     segments:
-      - str: "hello"
+      - str: "parameter = "
       - json: 
           ref: "x"
         dsl: "x"
@@ -980,9 +980,13 @@ probes:
     type: LOG_PROBE
     where:
       methodName: main.testNamedReturn
-    message: "The returned value is: {result}"
+    message: "Parameter {i} * 2 = result {result}"
     segments:
-      - str: "The returned value is: "
+      - str: "Parameter "
+      - dsl: "i"
+        json:
+          ref: "i"
+      - str: " * 2 = result "
       - dsl: "result"
         json:
           ref: "result"
@@ -1077,6 +1081,15 @@ probes:
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
+    message: "{a} and {b}"
+    segments:
+      - dsl: "a"
+        json:
+          ref: "a"
+      - str: " and "
+      - dsl: "b"
+        json:
+          ref: "b"
   - id: testReturnsPrimitives
     type: LOG_PROBE
     where:

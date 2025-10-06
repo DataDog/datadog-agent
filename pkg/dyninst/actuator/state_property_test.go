@@ -229,9 +229,7 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 						},
 						Template: "test log message",
 						Segments: rcjson.SegmentList{
-							rcjson.TemplateSegment{
-								StringSegment: newStringSegment("test log message"),
-							},
+							newStringSegment("test log message"),
 						},
 					},
 				}

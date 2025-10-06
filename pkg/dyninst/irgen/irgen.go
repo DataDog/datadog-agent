@@ -724,7 +724,7 @@ func materializePending(
 			if parseLocs {
 				ranges = p.outOfLinePCRanges
 			}
-			isParameter := die.Tag == dwarf.TagFormalParameter
+			isParameter := isParameterDie(die)
 			v, err := processVariable(
 				p.unit, die, isParameter,
 				parseLocs, ranges,
@@ -755,7 +755,7 @@ func materializePending(
 				ranges = inl.inlinedPCRanges.Ranges
 			}
 			for _, inlVar := range inl.variables {
-				isParameter := inlVar.Tag == dwarf.TagFormalParameter
+				isParameter := isParameterDie(inlVar)
 				abstractOrigin, ok, err := maybeGetAttr[dwarf.Offset](
 					inlVar, dwarf.AttrAbstractOrigin,
 				)
@@ -1766,63 +1766,52 @@ func populateEventExpressions(
 		expressions           []*ir.RootExpression
 		variableExpressionSet = make(map[string]int)
 	)
-	if probe.ProbeDefinition.GetKind() == ir.ProbeKindSnapshot {
+	for _, variable := range probe.Subprogram.Variables {
+		if _, ok := variableExpressionSet[variable.Name]; ok {
+			continue
+		}
+		var variableKind ir.RootExpressionKind
 		switch event.Kind {
 		case ir.EventKindEntry:
-			for _, variable := range probe.Subprogram.Variables {
-				if !variable.IsParameter || variable.IsReturn {
-					continue
-				}
-				if _, ok := variableExpressionSet[variable.Name]; ok {
-					continue
-				}
-				expr := createVariableExpression(variable, ir.RootExpressionKindArgument)
-				expressions = append(expressions, expr)
-				variableExpressionSet[variable.Name] = len(expressions) - 1
+			if !variable.IsParameter || variable.IsReturn {
+				continue
 			}
+			variableKind = ir.RootExpressionKindArgument
 		case ir.EventKindReturn:
-			for _, variable := range probe.Subprogram.Variables {
-				if !variable.IsReturn {
-					continue
-				}
-				if _, ok := variableExpressionSet[variable.Name]; ok {
-					continue
-				}
-				expr := createVariableExpression(variable, ir.RootExpressionKindLocal)
-				expressions = append(expressions, expr)
-				variableExpressionSet[variable.Name] = len(expressions) - 1
+			if !variable.IsReturn {
+				continue
 			}
+			variableKind = ir.RootExpressionKindLocal
 		case ir.EventKindLine:
 			// We capture any variable that is available at any of the injection points.
 			// We rely on both locations and injection points being sorted by PC to make
 			// this check linear. The location ranges might overlap, but this sweep is
 			// still correct.
-
-			for _, variable := range probe.Subprogram.Variables {
-				available := false
-				locIdx := 0
-				for _, injectionPoint := range event.InjectionPoints {
-					for locIdx < len(variable.Locations) && variable.Locations[locIdx].Range[1] <= injectionPoint.PC {
-						locIdx++
-					}
-					if locIdx < len(variable.Locations) && injectionPoint.PC >= variable.Locations[locIdx].Range[0] {
-						available = true
-						break
-					}
+			available := false
+			locIdx := 0
+			for _, injectionPoint := range event.InjectionPoints {
+				for locIdx < len(variable.Locations) && variable.Locations[locIdx].Range[1] <= injectionPoint.PC {
+					locIdx++
 				}
-				if !available {
-					continue
+				if locIdx < len(variable.Locations) && injectionPoint.PC >= variable.Locations[locIdx].Range[0] {
+					available = true
+					break
 				}
-				expr := createVariableExpression(variable, ir.RootExpressionKindLocal)
-				expressions = append(expressions, expr)
-				variableExpressionSet[variable.Name] = len(expressions) - 1
 			}
+			if !available {
+				continue
+			}
+			variableKind = ir.RootExpressionKindLocal
 		default:
 			panic(fmt.Sprintf("unexpected event kind: %v", event.Kind))
 		}
+		expr := createVariableExpression(variable, variableKind)
+		expressions = append(expressions, expr)
+		variableExpressionSet[variable.Name] = len(expressions) - 1
 	}
 
-	// Collect segment variables and add them to expressions before calculating sizes
+	// Collect segment variables and add generated expressions for them if needed
+	// before calculating sizes
 	for i := range probe.Template.Segments {
 		segment, ok := (probe.Template.Segments[i]).(ir.JSONSegment)
 		if !ok {
@@ -1836,15 +1825,23 @@ func populateEventExpressions(
 			}
 		}
 		for _, variable := range relevantVariables {
-			if variable.IsReturn {
-				continue
-			}
 			if _, ok := variableExpressionSet[variable.Name]; !ok {
-				expr := createVariableExpression(variable, eventKind)
+				var variableKind ir.RootExpressionKind
+				if variable.IsParameter {
+					if event.Kind != ir.EventKindEntry {
+						continue
+					}
+					variableKind = ir.RootExpressionKindArgument
+				} else {
+					if event.Kind != ir.EventKindReturn && event.Kind != ir.EventKindLine {
+						continue
+					}
+					variableKind = ir.RootExpressionKindLocal
+				}
+				expr := createVariableExpression(variable, variableKind)
 				expressions = append(expressions, expr)
 				variableExpressionSet[variable.Name] = len(expressions) - 1
 			}
-			break
 		}
 	}
 
@@ -1893,7 +1890,6 @@ func populateEventExpressions(
 				segment.RootTypeExpressionIndicies[event.Type.ID] = expressionIndex
 			}
 			probe.Template.Segments[i] = segment
-			break
 		}
 	}
 	return ir.Issue{}
@@ -1914,13 +1910,12 @@ func (c concreteSubprogramRef) cmpByOffset(b concreteSubprogramRef) int {
 	)
 }
 
-func createVariableExpression(variable *ir.Variable, kind ir.RootExpressionKind) *ir.RootExpression {
-	fmt.Println(variable.Name, variable.Type)
+func createVariableExpression(variable *ir.Variable, variableKind ir.RootExpressionKind) *ir.RootExpression {
 	variableSize := variable.Type.GetByteSize()
 	return &ir.RootExpression{
 		Name:   variable.Name,
 		Offset: uint32(0),
-		Kind:   kind,
+		Kind:   variableKind,
 		Expression: ir.Expression{
 			Type: variable.Type,
 			Operations: []ir.ExpressionOp{
@@ -3232,9 +3227,19 @@ func validateVariableReference(varName string, subprogram *ir.Subprogram) int {
 
 	// Check if the referenced parameter exists in the subprogram's parameters
 	for i, variable := range subprogram.Variables {
-		if variable.IsParameter && variable.Name == varName {
+		if variable.Name == varName {
 			return i
 		}
 	}
 	return -1
+}
+
+func isParameterDie(die *dwarf.Entry) bool {
+	varParamField := die.AttrField(dwarf.AttrVarParam)
+	if varParamField == nil {
+		// Should not happen
+		return false
+	}
+	v, ok := varParamField.Val.(bool)
+	return ok && !v
 }

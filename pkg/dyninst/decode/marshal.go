@@ -40,7 +40,6 @@ type debuggerData struct {
 
 type message struct {
 	probe            *ir.Probe
-	captureData      *captureData
 	captureMap       map[ir.TypeID]*captureEvent
 	evaluationErrors *[]string
 }
@@ -168,7 +167,7 @@ func (ce *captureEvent) clear() {
 }
 
 func (ce *captureEvent) init(
-	ev output.Event, types map[ir.TypeID]ir.Type, evalErrors *[]string,
+	ev output.Event, kind ir.EventKind, types map[ir.TypeID]ir.Type, evalErrors *[]string,
 ) error {
 	var rootType *ir.EventRootType
 	var rootData []byte
@@ -199,6 +198,7 @@ func (ce *captureEvent) init(
 	ce.rootType = rootType
 	ce.rootData = rootData
 	ce.skippedIndices.reset(len(rootType.Expressions))
+	ce.rootType.EventKind = kind
 	ce.evaluationErrors = evalErrors
 	return nil
 }
@@ -639,7 +639,7 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 		{kind: ir.RootExpressionKindLocal, token: jsontext.String("locals")},
 	} {
 		// We iterate over the 'Expressions' of the EventRoot which contains
-		// metadata and raw bytes of the parameters of this function.
+		// metadata and raw bytes of the variables of this function.
 		var haveKind bool
 		for i, expr := range ce.rootType.Expressions {
 			if expr.Kind != kind.kind {
@@ -669,7 +669,6 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 				return err
 			}
 		}
-
 	}
 	if err := writeTokens(enc, jsontext.EndObject); err != nil {
 		return err
