@@ -6,6 +6,7 @@ from urllib.parse import quote
 import yaml
 from invoke.exceptions import Exit
 
+from tasks.libs.common.auth import datadog_infra_token  # noqa
 from tasks.libs.common.remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
