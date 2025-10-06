@@ -241,7 +241,6 @@ def run(
     skip=[],  # noqa: B006
     impacted=False,
     flavor="",
-    major_version="",
     cws_supported_osdescriptors="",
     src_agent_version="",
     dest_agent_version="",
@@ -376,7 +375,7 @@ def run(
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
 
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{major_version}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []
@@ -396,7 +395,6 @@ def run(
         "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
         "test_run_arg": test_run_arg,
         "flavor": f"-flavor {flavor}" if flavor else "",
-        "major_version": f"-major-version {major_version}" if major_version else "",
         "osdescriptors": f"-osdescriptors {osdescriptors}" if osdescriptors else "",
         "cws_supported_osdescriptors": f"-cws-supported-osdescriptors {cws_supported_osdescriptors}"
         if cws_supported_osdescriptors

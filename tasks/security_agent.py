@@ -59,7 +59,6 @@ def build(
     race=False,
     rebuild=False,
     install_path=None,
-    major_version='7',
     go_mod="readonly",
     skip_assets=False,
     static=False,
@@ -69,11 +68,11 @@ def build(
     Build the security agent
     """
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, install_path=install_path)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
 
     main = "main."
     ld_vars = {
-        "Version": get_version(ctx, major_version=major_version),
+        "Version": get_version(ctx),
         "GoVersion": get_go_version(),
         "GitBranch": get_current_branch(ctx),
         "GitCommit": get_commit_sha(ctx, short=True),
@@ -84,7 +83,7 @@ def build(
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version)
+        vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/security-agent/windows_resources/security-agent.rc",
@@ -311,7 +310,6 @@ def build_functional_tests(
     output='pkg/security/tests/testsuite',
     srcpath='pkg/security/tests',
     arch: str | Arch = CURRENT_ARCH,
-    major_version='7',
     build_tags='functionaltests',
     build_flags='',
     bundle_ebpf=True,
@@ -327,7 +325,6 @@ def build_functional_tests(
         if not skip_object_files:
             build_cws_object_files(
                 ctx,
-                major_version=major_version,
                 arch=arch,
                 kernel_release=kernel_release,
                 debug=debug,
@@ -336,7 +333,7 @@ def build_functional_tests(
         build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler)
 
     arch = Arch.from_str(arch)
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, arch=arch)
     common_ancestor = get_common_ancestor(ctx, "HEAD")
     print(f"Using git ref {common_ancestor} as common ancestor between HEAD and main branch")
     ldflags += f"-X {REPO_PATH}/{srcpath}.GitAncestorOnMain={common_ancestor} "
@@ -400,7 +397,6 @@ def functional_tests(
     ctx,
     verbose=False,
     race=False,
-    major_version='7',
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
     testflags='',
@@ -409,7 +405,6 @@ def functional_tests(
 ):
     build_functional_tests(
         ctx,
-        major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
@@ -431,7 +426,6 @@ def ebpfless_functional_tests(
     verbose=False,
     race=False,
     arch=CURRENT_ARCH,
-    major_version='7',
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
     testflags='',
@@ -440,7 +434,6 @@ def ebpfless_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
@@ -462,7 +455,6 @@ def docker_functional_tests(
     verbose=False,
     race=False,
     arch=CURRENT_ARCH,
-    major_version='7',
     testflags='',
     bundle_ebpf=True,
     skip_linters=False,
@@ -470,7 +462,6 @@ def docker_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        major_version=major_version,
         output="pkg/security/tests/testsuite",
         bundle_ebpf=bundle_ebpf,
         static=True,
@@ -788,9 +779,7 @@ def e2e_prepare_win(ctx):
 
 @task
 def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
-    build_cws_object_files(
-        ctx, major_version='7', kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH
-    )
+    build_cws_object_files(ctx, kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH)
 
     env = {"CGO_ENABLED": "1"}
 
