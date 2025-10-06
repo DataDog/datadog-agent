@@ -89,8 +89,6 @@ func injectUserSession(params *InjectCliParams) error {
 	switch params.SessionType {
 	case "k8s":
 		sessionType = model.UserSessionTypeK8S
-	case "ssh":
-		sessionType = model.UserSessionTypeSSH
 	default:
 		sessionType = model.UserSessionTypeUnknown
 	}
