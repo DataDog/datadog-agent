@@ -34,7 +34,7 @@
 #include "protocols/tls/tags-types.h"
 #include "protocols/tls/tls-maps.h"
 
-static __always_inline void http_process(http_event_t *event, skb_info_t *skb_info, __u64 tags);
+static __always_inline void http_process(void *ctx, http_event_t *event, skb_info_t *skb_info, __u64 tags);
 
 /* this function is called by all TLS hookpoints (OpenSSL, GnuTLS and GoTLS, JavaTLS) and */
 /* it's used for classify the subset of protocols that is supported by `classify_protocol_for_dispatcher` */
