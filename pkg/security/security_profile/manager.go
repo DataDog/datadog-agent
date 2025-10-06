@@ -660,6 +660,8 @@ func (m *Manager) evictUnusedNodes() {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
+	filepathsInProcessCache := m.GetNodesInProcessCache()
+
 	for selector, profile := range m.profiles {
 		if profile == nil {
 			continue
@@ -670,7 +672,7 @@ func (m *Manager) evictUnusedNodes() {
 			continue
 		}
 
-		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime)
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache)
 		if evicted > 0 {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
@@ -681,4 +683,32 @@ func (m *Manager) evictUnusedNodes() {
 	if totalEvicted > 0 {
 		seclog.Infof("evicted %d total unused process nodes across all profiles", totalEvicted)
 	}
+}
+
+// GetNodesInProcessCache returns a map of all the filepaths in the process cache
+func (m *Manager) GetNodesInProcessCache() map[string]bool {
+
+	cgr := m.resolvers.CGroupResolver
+	pr := m.resolvers.ProcessResolver
+
+	filepaths := make(map[string]bool)
+
+	pids := make(map[uint32]bool)
+	cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
+		for pid := range cgce.PIDs {
+			pids[pid] = true
+		}
+		return true
+	})
+
+	for pid := range pids {
+		pce := pr.Resolve(pid, pid, 0, true, nil)
+		if pce == nil {
+			seclog.Errorf("couldn't resolve process cache entry for pid %d", pid)
+			continue
+		}
+		filepaths[pce.FileEvent.PathnameStr] = true
+	}
+
+	return filepaths
 }

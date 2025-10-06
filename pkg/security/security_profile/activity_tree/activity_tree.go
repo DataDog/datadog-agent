@@ -961,7 +961,7 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 
 // EvictUnusedNodes evicts all nodes that haven't been touched since the given timestamp
 // and returns the total number of nodes evicted
-func (at *ActivityTree) EvictUnusedNodes(before time.Time) int {
+func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[string]bool) int {
 	totalEvicted := 0
 
 	// Iterate through all process nodes and evict unused nodes
@@ -970,6 +970,16 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time) int {
 		if node == nil {
 			continue
 		}
+
+		// Try a fallback if the node is in the process cache
+		if filepathsInProcessCache[node.Process.FileEvent.PathnameStr] {
+			// check if the node was supposed to be removed, then update the last seen to now
+			evictableImageTags := node.NodeBase.GetEvictableImageTags(before)
+			for _, imageTag := range evictableImageTags {
+				node.NodeBase.AppendImageTag(imageTag, time.Now())
+			}
+		}
+
 		evicted := node.EvictUnusedNodes(before)
 		totalEvicted += evicted
 
