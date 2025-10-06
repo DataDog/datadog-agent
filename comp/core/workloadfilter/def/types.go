@@ -264,7 +264,6 @@ const (
 	PodADAnnotations
 	// CEL-based filters
 	PodCELMetrics
-	PodCELLogs
 	PodCELGlobal
 )
 
@@ -346,6 +345,20 @@ func (e *Endpoint) Type() ResourceType {
 	return EndpointType
 }
 
+// EndpointFilter defines the type of endpoint filter.
+type EndpointFilter int
+
+// Defined Endpoint filter kinds
+const (
+	LegacyEndpointMetrics EndpointFilter = iota
+	LegacyEndpointGlobal
+	EndpointADAnnotationsMetrics
+	EndpointADAnnotations
+	// CEL-based filters
+	EndpointCELMetrics
+	EndpointCELGlobal
+)
+
 //
 // Process Definition
 //
@@ -378,20 +391,4 @@ type ProcessFilter int
 // Defined Process filter kinds.
 const (
 	LegacyProcessExcludeList ProcessFilter = iota
-	// CEL-based filters
-	ProcessCELGlobal
-)
-
-// EndpointFilter defines the type of endpoint filter.
-type EndpointFilter int
-
-// Defined Endpoint filter kinds
-const (
-	LegacyEndpointMetrics EndpointFilter = iota
-	LegacyEndpointGlobal
-	EndpointADAnnotationsMetrics
-	EndpointADAnnotations
-	// CEL-based filters
-	EndpointCELMetrics
-	EndpointCELGlobal
 )

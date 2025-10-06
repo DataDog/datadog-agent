@@ -12,7 +12,6 @@ import (
 )
 
 // ProductSupportMap defines which rule types each product supports
-// Maps from our input Product types to workloadfilter ResourceTypes
 var ProductSupportMap = map[workloadfilter.Product]map[workloadfilter.ResourceType]struct{}{
 	workloadfilter.ProductMetrics: {
 		workloadfilter.ContainerType: {},
@@ -45,7 +44,6 @@ func isRuleTypeSupported(product workloadfilter.Product, resourceType workloadfi
 }
 
 func logValidationWarnings(product workloadfilter.Product, rules map[workloadfilter.ResourceType][]string) {
-	// Check each rule type using loop
 	for resourceType, ruleStrings := range rules {
 		if len(ruleStrings) > 0 && !isRuleTypeSupported(product, resourceType) {
 			log.Warnf("Product %s does not support %s rules (found %d rules)\n",
