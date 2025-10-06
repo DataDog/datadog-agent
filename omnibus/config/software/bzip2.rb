@@ -36,9 +36,9 @@ build do
     cwd: "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent"
 
   # This is temporary until we fix pkg_install to deal with symlinks
-  link "#{install_dir}/embedded/lib/libbz2.so.1.0.8", "#{install_dir}/embedded/lib/libbz2.so.1.0"
-  link "#{install_dir}/embedded/lib/libbz2.so.1.0.8", "#{install_dir}/embedded/lib/libbz2.so.1"
-  link "#{install_dir}/embedded/lib/libbz2.so.1.0.8", "#{install_dir}/embedded/lib/libbz2.so"
+  link "libbz2.so.1.0.8", "#{install_dir}/embedded/lib/libbz2.so.1.0"
+  link "libbz2.so.1.0.8", "#{install_dir}/embedded/lib/libbz2.so.1"
+  link "libbz2.so.1.0.8", "#{install_dir}/embedded/lib/libbz2.so"
 
   # The version of bzip2 we use doesn't create a pkgconfig file,
   # we add it here manually (needed at least by the Python build)
