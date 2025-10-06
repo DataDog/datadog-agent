@@ -31,6 +31,7 @@ use (
 	comp/core/secrets/fx
 	comp/core/secrets/impl
 	comp/core/secrets/mock
+	comp/core/secrets/noop-impl
 	comp/core/secrets/utils
 	comp/core/status
 	comp/core/status/statusimpl

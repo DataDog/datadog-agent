@@ -305,11 +305,18 @@ probes:
     where:
       methodName: main.testArrayOfArraysOfArrays
     captureSnapshot: true
-  # - id: testArrayOfStructs
-  #   type: LOG_PROBE
-  #   where:
-  #     methodName: main.testArrayOfStructs
-  #   captureSnapshot: true
+  - id: testArrayOfStructs
+    type: LOG_PROBE
+    where:
+      methodName: main.testArrayOfStructs
+    captureSnapshot: true
+  - id: testArrayEmptyStructs
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testArrayEmptyStructs
+    captureSnapshot: true
   - id: testUintSlice
     type: LOG_PROBE
     tags:
@@ -395,6 +402,13 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testNilSlice
+    captureSnapshot: true
+  - id: testSliceEmptyStructs
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testSliceEmptyStructs
     captureSnapshot: true
   - id: testStruct
     type: LOG_PROBE
@@ -656,6 +670,27 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapLargeKeyLargeValue
+    captureSnapshot: true
+  - id: testMapEmptyKey
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMapEmptyKey
+    captureSnapshot: true
+  - id: testMapEmptyValue
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMapEmptyValue
+    captureSnapshot: true
+  - id: testMapEmptyKeyAndValue
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMapEmptyKeyAndValue
     captureSnapshot: true
   - id: testStructWithMap
     type: LOG_PROBE
