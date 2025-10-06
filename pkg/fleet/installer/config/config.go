@@ -247,7 +247,13 @@ func (a *FileOperation) apply(root *os.Root) error {
 			return err
 		}
 
-		srcContent, err := root.ReadFile(path)
+		srcFile, err := root.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		srcContent, err := io.ReadAll(srcFile)
 		if err != nil {
 			return err
 		}
@@ -270,7 +276,13 @@ func (a *FileOperation) apply(root *os.Root) error {
 			return err
 		}
 
-		srcContent, err := root.ReadFile(path)
+		srcFile, err := root.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		srcContent, err := io.ReadAll(srcFile)
 		if err != nil {
 			return err
 		}
