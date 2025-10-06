@@ -319,11 +319,17 @@ func (s *Launcher) scan() {
 
 // cleanUpRotatedTailers removes any rotated tailers that have stopped from the list
 func (s *Launcher) cleanUpRotatedTailers() {
+	if len(s.rotatedTailers) > 0 {
+		log.Tracef("Rotation cleanup: checking %d tracked tailers", len(s.rotatedTailers))
+	}
 	pendingTailers := []*tailer.Tailer{}
 	for _, tailer := range s.rotatedTailers {
-		if !tailer.IsFinished() {
-			pendingTailers = append(pendingTailers, tailer)
+		if tailer.IsFinished() {
+			log.Debugf("Rotation cleanup: tailer %s finished draining rotated file (bytesRead=%d)", tailer.GetID(), tailer.Source().BytesRead.Get())
+			continue
 		}
+		log.Tracef("Rotation cleanup: tailer %s still draining rotated file (bytesRead=%d)", tailer.GetID(), tailer.Source().BytesRead.Get())
+		pendingTailers = append(pendingTailers, tailer)
 	}
 	s.rotatedTailers = pendingTailers
 }
@@ -517,7 +523,15 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 
 func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
+	log.Debugf("Pass 1: rotateTailerWithoutRestart invoked for %s (tailerID=%s, bytesRead=%d)", file.Path, oldTailer.GetID(), oldTailer.Source().BytesRead.Get())
 	oldTailer.StopAfterFileRotation()
+
+	// Remove the rotated tailer from the active container so it is not
+	// stopped immediately during this scan iteration. The tailer keeps
+	// running (and draining the rotated file) via StopAfterFileRotation,
+	// and we continue to track it separately in rotatedTailers.
+	s.tailers.Remove(oldTailer)
+	log.Debugf("Pass 1: Removed rotated tailer for %s from active container to allow drain", file.Path)
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()
@@ -532,6 +546,7 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 	}
 
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+	log.Debugf("Pass 1: Tracking %d rotated tailers after handling %s", len(s.rotatedTailers), file.Path)
 
 	return false // Will return false regardless and we will let scan() handle it
 }

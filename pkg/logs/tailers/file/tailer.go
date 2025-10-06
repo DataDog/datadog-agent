@@ -310,8 +310,12 @@ func (t *Tailer) Stop() {
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
 	bytesReadAtRotationTime := t.bytesRead.Get()
+	log.Debugf("StopAfterFileRotation invoked for %s (closeTimeout=%s, bytesRead=%d, lastReadOffset=%d)",
+		t.file.Path, t.closeTimeout, bytesReadAtRotationTime, t.lastReadOffset.Load())
 	go func() {
+		log.Debugf("StopAfterFileRotation waiting %s before stopping tailer for %s", t.closeTimeout, t.file.Path)
 		time.Sleep(t.closeTimeout)
+		log.Debugf("StopAfterFileRotation timeout reached for %s", t.file.Path)
 		if newBytesRead := t.bytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
 			log.Infof("After rotation close timeout (%s), an additional %d bytes were read from file %q", t.closeTimeout, newBytesRead, t.file.Path)
 			if t.osFile != nil {
@@ -326,6 +330,7 @@ func (t *Tailer) StopAfterFileRotation() {
 			}
 		}
 		t.stopForward()
+		log.Debugf("StopAfterFileRotation: closing tailer for %s after timeout", t.file.Path)
 		t.stop <- struct{}{}
 	}()
 	t.file.Source.RemoveInput(t.file.Path)
