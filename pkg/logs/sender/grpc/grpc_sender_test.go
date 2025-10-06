@@ -24,35 +24,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
 
 // MockGRPCServer that implements StatefulLogsServiceServer
 type MockGRPCServer struct {
-	UnimplementedStatefulLogsServiceServer
+	statefulpb.UnimplementedStatefulLogsServiceServer
 
 	// Control behavior
 	shouldFailSend   bool
 	shouldFailRecv   bool
 	shouldDisconnect bool
 	responseDelay    time.Duration
-	batchResponses   map[int32]BatchStatus_Status
+	batchResponses   map[int32]statefulpb.BatchStatus_Status
 	mu               sync.RWMutex
 
 	// Track what was received
-	receivedBatches []*StatefulBatch
-	activeStreams   []StatefulLogsService_LogsStreamServer
+	receivedBatches []*statefulpb.StatefulBatch
+	activeStreams   []statefulpb.StatefulLogsService_LogsStreamServer
 	streamsMu       sync.RWMutex
 }
 
 func NewMockGRPCServer() *MockGRPCServer {
 	return &MockGRPCServer{
-		batchResponses:  make(map[int32]BatchStatus_Status),
-		receivedBatches: make([]*StatefulBatch, 0),
-		activeStreams:   make([]StatefulLogsService_LogsStreamServer, 0),
+		batchResponses:  make(map[int32]statefulpb.BatchStatus_Status),
+		receivedBatches: make([]*statefulpb.StatefulBatch, 0),
+		activeStreams:   make([]statefulpb.StatefulLogsService_LogsStreamServer, 0),
 	}
 }
 
-func (s *MockGRPCServer) LogsStream(stream StatefulLogsService_LogsStreamServer) error {
+func (s *MockGRPCServer) LogsStream(stream statefulpb.StatefulLogsService_LogsStreamServer) error {
 	s.streamsMu.Lock()
 	s.activeStreams = append(s.activeStreams, stream)
 	streamIndex := len(s.activeStreams) - 1
@@ -84,7 +85,7 @@ func (s *MockGRPCServer) LogsStream(stream StatefulLogsService_LogsStreamServer)
 		s.receivedBatches = append(s.receivedBatches, batch)
 
 		// Determine response status
-		responseStatus := BatchStatus_OK
+		responseStatus := statefulpb.BatchStatus_OK
 		if status, exists := s.batchResponses[int32(batch.BatchId)]; exists {
 			responseStatus = status
 		}
@@ -108,7 +109,7 @@ func (s *MockGRPCServer) LogsStream(stream StatefulLogsService_LogsStreamServer)
 		}
 
 		// Send response back
-		response := &BatchStatus{
+		response := &statefulpb.BatchStatus{
 			BatchId: int32(batch.BatchId),
 			Status:  responseStatus,
 		}
@@ -144,18 +145,16 @@ func (s *MockGRPCServer) SetResponseDelay(delay time.Duration) {
 	s.responseDelay = delay
 }
 
-func (s *MockGRPCServer) SetBatchResponse(batchID int32, status BatchStatus_Status) {
+func (s *MockGRPCServer) SetBatchResponse(batchID int32, status statefulpb.BatchStatus_Status) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.batchResponses[batchID] = status
 }
 
-func (s *MockGRPCServer) GetReceivedBatches() []*StatefulBatch {
+func (s *MockGRPCServer) GetReceivedBatches() []*statefulpb.StatefulBatch {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	result := make([]*StatefulBatch, len(s.receivedBatches))
-	copy(result, s.receivedBatches)
-	return result
+	return s.receivedBatches
 }
 
 func (s *MockGRPCServer) ClearReceivedBatches() {
@@ -177,7 +176,7 @@ func startMockGRPCServer(t *testing.T) (*MockGRPCServer, string, func()) {
 
 	mockServer := NewMockGRPCServer()
 	grpcServer := grpc.NewServer()
-	RegisterStatefulLogsServiceServer(grpcServer, mockServer)
+	statefulpb.RegisterStatefulLogsServiceServer(grpcServer, mockServer)
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
@@ -207,7 +206,7 @@ func (s *MockSink) Channel() chan *message.Payload {
 }
 
 // Helper to create GRPCSender with mock server
-func createTestGRPCSender(t *testing.T, address string) (*GRPCSender, *MockSink) {
+func createTestGRPCSender(t *testing.T, address string) (*Sender, *MockSink) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("logs_config.batch_wait", 100) // Short batch wait for testing
 	cfg.SetWithoutSource("logs_config.pipelines", 1)    // Single pipeline
@@ -264,6 +263,7 @@ func TestGRPCSenderEndToEndFlow(t *testing.T) {
 		Encoding:      "identity",
 		UnencodedSize: 12,
 		IsSnapshot:    false,
+		GRPCData:      []*statefulpb.Datum{{Data: &statefulpb.Datum_Logs{Logs: &statefulpb.Log{Content: &statefulpb.Log_Raw{Raw: "test message"}}}}},
 	}
 
 	// Send payload through GRPCSender input channel
@@ -318,6 +318,7 @@ func TestGRPCSenderFailureRecovery(t *testing.T) {
 		Encoding:      "identity",
 		UnencodedSize: 9,
 		IsSnapshot:    false,
+		GRPCData:      []*statefulpb.Datum{{Data: &statefulpb.Datum_Logs{Logs: &statefulpb.Log{Content: &statefulpb.Log_Raw{Raw: "message 1"}}}}},
 	}
 
 	inputChan := sender.In()
@@ -358,6 +359,7 @@ func TestGRPCSenderFailureRecovery(t *testing.T) {
 		Encoding:      "identity",
 		UnencodedSize: 9,
 		IsSnapshot:    false,
+		GRPCData:      []*statefulpb.Datum{{Data: &statefulpb.Datum_Logs{Logs: &statefulpb.Log{Content: &statefulpb.Log_Raw{Raw: "message 2"}}}}},
 	}
 
 	select {
@@ -389,6 +391,7 @@ func TestGRPCSenderFailureRecovery(t *testing.T) {
 		Encoding:      "identity",
 		UnencodedSize: 8,
 		IsSnapshot:    true,
+		GRPCData:      []*statefulpb.Datum{{Data: &statefulpb.Datum_Logs{Logs: &statefulpb.Log{Content: &statefulpb.Log_Raw{Raw: "snapshot"}}}}},
 	}
 
 	select {
@@ -407,7 +410,7 @@ func TestGRPCSenderFailureRecovery(t *testing.T) {
 	require.GreaterOrEqual(t, len(newBatches), 1, "Should have received snapshot on new stream")
 
 	// Find snapshot batch
-	var snapshotBatch *StatefulBatch
+	var snapshotBatch *statefulpb.StatefulBatch
 	for _, batch := range newBatches {
 		if len(batch.Data) > 0 && batch.Data[0].GetLogs().GetRaw() == "snapshot" {
 			snapshotBatch = batch
@@ -424,6 +427,7 @@ func TestGRPCSenderFailureRecovery(t *testing.T) {
 		Encoding:      "identity",
 		UnencodedSize: 9,
 		IsSnapshot:    false,
+		GRPCData:      []*statefulpb.Datum{{Data: &statefulpb.Datum_Logs{Logs: &statefulpb.Log{Content: &statefulpb.Log_Raw{Raw: "message 3"}}}}},
 	}
 
 	select {

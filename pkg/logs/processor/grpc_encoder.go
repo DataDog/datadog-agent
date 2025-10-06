@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender/grpc"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
 
 // GRPCEncoder is a shared gRPC encoder that encodes messages as Datum->Log->raw.
@@ -21,7 +21,7 @@ type grpcEncoder struct{}
 
 // Encode encodes a message into a protobuf Datum byte array.
 // The structure is: Datum -> Log -> raw content
-func (g *grpcEncoder) Encode(msg *message.Message, hostname string) error {
+func (g *grpcEncoder) Encode(msg *message.Message, _ string) error {
 	if msg.State != message.StateRendered {
 		return fmt.Errorf("message passed to encoder isn't rendered")
 	}
@@ -33,16 +33,17 @@ func (g *grpcEncoder) Encode(msg *message.Message, hostname string) error {
 	}
 
 	// Create the Log message using stateful_encoding.proto definitions
-	log := &grpc.Log{
+	log := &statefulpb.Log{
 		Timestamp: uint64(ts.UnixNano()),
-		Content: &grpc.Log_Raw{
+		Content: &statefulpb.Log_Raw{
 			Raw: toValidUtf8(msg.GetContent()),
 		},
+		// TODO: add hostname/other tags
 	}
 
 	// Wrap the Log in a Datum
-	datum := &grpc.Datum{
-		Data: &grpc.Datum_Logs{
+	datum := &statefulpb.Datum{
+		Data: &statefulpb.Datum_Logs{
 			Logs: log,
 		},
 	}
