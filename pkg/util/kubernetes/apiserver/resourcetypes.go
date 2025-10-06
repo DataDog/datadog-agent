@@ -36,7 +36,7 @@ type ResourceTypeCache struct {
 	typeGroupToKind map[string]string
 	lock            sync.RWMutex
 	discoveryClient discovery.DiscoveryInterface
-	refreshing      int32
+	refreshing      bool
 	refreshWaitCh   chan struct{}
 	refreshErr      error
 }
@@ -175,7 +175,7 @@ func (r *ResourceTypeCache) getResourceKind(resource, apiGroup string) (string, 
 func (r *ResourceTypeCache) refreshCache(ctx context.Context) error {
 	// decide leader vs follower under the lock.
 	r.lock.Lock()
-	if r.refreshing == 1 {
+	if r.refreshing {
 		// leader is already refreshing
 		waitCh := r.refreshWaitCh
 		r.lock.Unlock()
@@ -189,7 +189,7 @@ func (r *ResourceTypeCache) refreshCache(ctx context.Context) error {
 	}
 
 	// no refresh in progress -> set state and create wait channel
-	r.refreshing = 1
+	r.refreshing = true
 	waitCh := make(chan struct{})
 	r.refreshWaitCh = waitCh
 	r.refreshErr = nil
@@ -202,7 +202,7 @@ func (r *ResourceTypeCache) refreshCache(ctx context.Context) error {
 		r.refreshErr = runErr
 		close(r.refreshWaitCh)
 		r.refreshWaitCh = nil
-		r.refreshing = 0
+		r.refreshing = false
 		r.lock.Unlock()
 	}()
 

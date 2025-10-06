@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -279,10 +280,14 @@ func TestCacheRefreshOnMiss(t *testing.T) {
 	}
 
 	close(start)
+	time.Sleep(2 * time.Second)
 	close(blockingFakeDiscovery.gate)
 
 	wg.Wait()
 	close(errCh)
+
+	got := atomic.LoadInt32(&blockingFakeDiscovery.calls)
+	assert.Equal(t, int32(1), got, "expected exactly 1 discovery call")
 
 	for e := range errCh {
 		assert.NoError(t, e)
