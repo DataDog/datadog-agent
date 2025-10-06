@@ -37,10 +37,10 @@ trap '
   rm "$CI_PROJECT_DIR/user.bazelrc"
 
   # Reintegrate `--repo_contents_cache` to original directory
-  if [ -e "$ext_repo_contents_cache" ]; then
-    rm >&2 -frv "$BAZEL_REPO_CONTENTS_CACHE"
-    mv "$ext_repo_contents_cache" "$BAZEL_REPO_CONTENTS_CACHE"
-  fi
+  #if [ -e "$ext_repo_contents_cache" ]; then
+  #  rm >&2 -frv "$BAZEL_REPO_CONTENTS_CACHE"
+  #  mv "$ext_repo_contents_cache" "$BAZEL_REPO_CONTENTS_CACHE"
+  #fi
 ' EXIT
 
 # Payload: execute `bazel` - done
