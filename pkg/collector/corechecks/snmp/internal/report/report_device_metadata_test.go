@@ -30,6 +30,7 @@ import (
 )
 
 func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.T) {
+	setupHostname(t)
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
@@ -144,6 +145,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
 	"integration": "snmp",
+	"collector_metadata": {
+		"agent_version": "6.0.0",
+		"agent_hostname": "my-hostname"
+	},
     "devices": [
         {
             "id": "1234",
@@ -183,6 +188,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_profileDeviceVendorFallback(t *testing.T) {
+	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
 
 	var storeWithoutIfName = &valuestore.ResultValueStore{
@@ -230,6 +236,10 @@ profiles:
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
 	"integration": "snmp",
+	"collector_metadata": {
+		"agent_version": "6.0.0",
+		"agent_hostname": "my-hostname"
+	},
     "devices": [
         {
             "id": "my-ns:1.2.3.4",
@@ -262,6 +272,7 @@ profiles:
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagnoses(t *testing.T) {
+	setupHostname(t)
 	var storeWithIfName = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{
 			"1.3.6.1.2.1.31.1.1.1.1": {
@@ -379,6 +390,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
 	"integration": "snmp",
+	"collector_metadata": {
+		"agent_version": "6.0.0",
+		"agent_hostname": "my-hostname"
+	},
     "devices": [
         {
             "id": "1234",
@@ -444,6 +459,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testing.T) {
+	setupHostname(t)
 	var emptyMetadataStore = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
@@ -492,6 +508,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
 	"integration": "snmp",
+	"collector_metadata": {
+		"agent_version": "6.0.0",
+		"agent_hostname": "my-hostname"
+	},
     "devices": [
         {
             "id": "1234",
@@ -522,6 +542,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing.T) {
+	setupHostname(t)
 	var emptyMetadataStore = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
@@ -567,6 +588,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
 	"integration": "snmp",
+	"collector_metadata": {
+		"agent_version": "6.0.0",
+		"agent_hostname": "my-hostname"
+	},
     "devices": [
         {
             "id": "1234",
@@ -596,6 +621,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testing.T) {
+	setupHostname(t)
 	var emptyMetadataStore = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
@@ -641,6 +667,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
 	"integration": "snmp",
+	"collector_metadata": {
+		"agent_version": "6.0.0",
+		"agent_hostname": "my-hostname"
+	},
     "devices": [
         {
             "id": "1234",
@@ -671,6 +701,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testing.T) {
+	setupHostname(t)
 	var emptyMetadataStore = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
@@ -716,6 +747,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
 	"integration": "snmp",
+	"collector_metadata": {
+		"agent_version": "6.0.0",
+		"agent_hostname": "my-hostname"
+	},
     "devices": [
         {
             "id": "1234",
@@ -746,6 +781,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
+	setupHostname(t)
 	var store = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{
 			// Outside IPs
@@ -994,6 +1030,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
     "integration": "snmp",
+	"collector_metadata": {
+		"agent_version": "6.0.0",
+		"agent_hostname": "my-hostname"
+	},
     "devices": [
         {
             "id": "1234",

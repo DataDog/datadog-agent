@@ -15,8 +15,16 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
+
+func setupHostname(t *testing.T) {
+	mockConfig := configmock.New(t)
+	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
+}
 
 // mockTimeNow mocks time.Now
 var mockTimeNow = func() time.Time {
@@ -27,6 +35,7 @@ var mockTimeNow = func() time.Time {
 }
 
 func TestSendMetadata(t *testing.T) {
+	setupHostname(t)
 	TimeNow = mockTimeNow
 
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
@@ -80,6 +89,10 @@ func TestSendMetadata(t *testing.T) {
 {
   "namespace": "my-ns",
   "integration": "cisco-sdwan",
+  "collector_metadata": {
+    "agent_version": "6.0.0",
+    "agent_hostname": "my-hostname"
+  },
   "devices": [
     {
       "id": "my-ns:10.0.0.1",
