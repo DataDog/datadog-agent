@@ -2889,10 +2889,6 @@ core,google.golang.org/grpc/keepalive,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/mem,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/metadata,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/peer,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/reflection,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/reflection/grpc_reflection_v1,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/reflection/grpc_reflection_v1alpha,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/reflection/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/resolver,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/resolver/dns,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/resolver/manual,Apache-2.0,Copyright 2014 gRPC authors.
