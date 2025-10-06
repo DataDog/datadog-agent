@@ -84,15 +84,15 @@ func TestCallAgentsForService(t *testing.T) {
 	testCases := []struct {
 		name                    string
 		remoteAgent             []*testRemoteAgentServer
-		expectedCodes           map[string]codes.Code
+		expectedCodes           map[string][]codes.Code
 		withEphemeralAgent      bool
 		shouldSucceedInLessThan time.Duration
 	}{
 		{
 			name:        "1 success",
 			remoteAgent: []*testRemoteAgentServer{fastAgent},
-			expectedCodes: map[string]codes.Code{
-				"fast-agent": codes.OK,
+			expectedCodes: map[string][]codes.Code{
+				"fast-agent": {codes.OK},
 			},
 			withEphemeralAgent:      false,
 			shouldSucceedInLessThan: 200 * time.Millisecond,
@@ -100,9 +100,9 @@ func TestCallAgentsForService(t *testing.T) {
 		{
 			name:        "1 timeout + 1 success",
 			remoteAgent: []*testRemoteAgentServer{fastAgent, slowAgent},
-			expectedCodes: map[string]codes.Code{
-				"fast-agent": codes.OK,
-				"slow-agent": codes.DeadlineExceeded,
+			expectedCodes: map[string][]codes.Code{
+				"fast-agent": {codes.OK},
+				"slow-agent": {codes.DeadlineExceeded},
 			},
 			withEphemeralAgent:      false,
 			shouldSucceedInLessThan: 1 * time.Second,
@@ -110,9 +110,9 @@ func TestCallAgentsForService(t *testing.T) {
 		{
 			name:        "1 success + 1 wrong session ID",
 			remoteAgent: []*testRemoteAgentServer{fastAgent, wrongSessionIDAgent},
-			expectedCodes: map[string]codes.Code{
-				"fast-agent":             codes.OK,
-				"wrong-session-id-agent": codes.InvalidArgument,
+			expectedCodes: map[string][]codes.Code{
+				"fast-agent":             {codes.OK},
+				"wrong-session-id-agent": {codes.InvalidArgument},
 			},
 			withEphemeralAgent:      false,
 			shouldSucceedInLessThan: 200 * time.Millisecond,
@@ -120,9 +120,9 @@ func TestCallAgentsForService(t *testing.T) {
 		{
 			name:        "1 success + 1 empty session ID",
 			remoteAgent: []*testRemoteAgentServer{fastAgent, emptySessionIDAgent},
-			expectedCodes: map[string]codes.Code{
-				"fast-agent":             codes.OK,
-				"empty-session-id-agent": codes.InvalidArgument,
+			expectedCodes: map[string][]codes.Code{
+				"fast-agent":             {codes.OK},
+				"empty-session-id-agent": {codes.InvalidArgument},
 			},
 			withEphemeralAgent:      false,
 			shouldSucceedInLessThan: 200 * time.Millisecond,
@@ -130,9 +130,11 @@ func TestCallAgentsForService(t *testing.T) {
 		{
 			name:        "1 success + 1 dead agent",
 			remoteAgent: []*testRemoteAgentServer{fastAgent},
-			expectedCodes: map[string]codes.Code{
-				"fast-agent": codes.OK,
-				"dead-agent": codes.DeadlineExceeded,
+			expectedCodes: map[string][]codes.Code{
+				"fast-agent": {codes.OK},
+				// Both codes are acceptable because the remote agent either returns codes.Unavailable when turning off or codes.DeadlineExceeded when already turned off
+				// "dead-agent": {codes.DeadlineExceeded, codes.Unavailable},
+				"dead-agent": {codes.DeadlineExceeded, codes.Unavailable},
 			},
 			withEphemeralAgent:      true,
 			shouldSucceedInLessThan: time.Second,
@@ -140,8 +142,8 @@ func TestCallAgentsForService(t *testing.T) {
 		{
 			name:        "1 success + 1 without status provider",
 			remoteAgent: []*testRemoteAgentServer{fastAgent, agentWithoutStatusProvider},
-			expectedCodes: map[string]codes.Code{
-				"fast-agent": codes.OK,
+			expectedCodes: map[string][]codes.Code{
+				"fast-agent": {codes.OK},
 			},
 		},
 	}
@@ -175,7 +177,7 @@ func TestCallAgentsForService(t *testing.T) {
 
 			require.Equal(t, len(testCase.expectedCodes), len(statuses), "Should have the expected number of statuses")
 			for _, status := range statuses {
-				require.Equal(t, testCase.expectedCodes[status.flavor], status.errCode)
+				require.Contains(t, testCase.expectedCodes[status.flavor], status.errCode)
 			}
 		})
 	}
