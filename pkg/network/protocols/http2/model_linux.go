@@ -290,7 +290,7 @@ func (ew *EventWrapper) RequestStarted() uint64 {
 }
 
 // SetRequestMethod sets the HTTP method of the transaction.
-func (ew *EventWrapper) SetRequestMethod(method http.Method) {
+func (ew *EventWrapper) SetRequestMethod(http.Method) {
 	// if we set Static_table_entry to be different from 0, and no indexed value, it will default to 0 which is "UNKNOWN"
 	ew.Stream.Request_method.Static_table_entry = 1
 }
