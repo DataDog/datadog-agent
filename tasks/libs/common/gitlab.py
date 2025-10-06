@@ -3,11 +3,9 @@ import os
 from collections import UserList
 from urllib.parse import quote
 
-import requests
 import yaml
 from invoke.exceptions import Exit
 
-from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
@@ -323,9 +321,9 @@ class Gitlab(RemoteAPI):
         )
 
 
-def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
+def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:  # noqa
     # TODO(celian): Use short lived token once stable
-    token_cmd = ctx.run(f'{os.environ["CI_PROJECT_DIR"]}/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME', hide=True)
+    token_cmd = ctx.run(f'{os.environ["CI_PROJECT_DIR"]}/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token', hide=True)
     if not token_cmd.ok:
         raise Exit(f'Failed to retrieve Gitlab token, command failed with code {token_cmd.status_code}:\n{token_cmd.stderr}', 1)
 
