@@ -59,8 +59,35 @@ type locationData struct {
 }
 
 type captureData struct {
-	Entry  *captureEvent `json:"entry,omitempty"`
-	Return *captureEvent `json:"return,omitempty"`
+	Entry  *captureEvent    `json:"entry,omitempty"`
+	Return *captureEvent    `json:"return,omitempty"`
+	Lines  *lineCaptureData `json:"lines,omitempty"`
+}
+
+type lineCaptureData struct {
+	sourceLine string
+	capture    *captureEvent
+}
+
+func (l *lineCaptureData) clear() {
+	l.sourceLine = ""
+	l.capture = nil
+}
+
+func (l *lineCaptureData) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if err := writeTokens(enc,
+		jsontext.BeginObject,
+		jsontext.String(l.sourceLine)); err != nil {
+		return err
+	}
+	if err := json.MarshalEncode(enc, l.capture); err != nil {
+		return err
+	}
+	if err := writeTokens(enc, jsontext.EndObject); err != nil {
+		return err
+	}
+	return nil
+
 }
 
 type captureEvent struct {

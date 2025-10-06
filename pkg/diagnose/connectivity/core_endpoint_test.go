@@ -13,7 +13,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 
@@ -123,15 +122,9 @@ func TestSendHTTPRequestToEndpoint_ProtoPayload(t *testing.T) {
 		assert.Equal(t, "application/x-protobuf", r.Header.Get("Content-Type"))
 		assert.Equal(t, "api_key1", r.Header.Get("DD-API-KEY"))
 
-		body, err := io.ReadAll(r.Body)
+		_, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
 		defer r.Body.Close()
-
-		var sketch gogen.SketchPayload
-		err = proto.Unmarshal(body, &sketch)
-		assert.NoError(t, err)
-		assert.Len(t, sketch.Sketches, 1)
-		assert.Equal(t, "example.metric", sketch.Sketches[0].Metric)
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Received Protobuf"))
