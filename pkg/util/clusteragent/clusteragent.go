@@ -56,7 +56,7 @@ type Metadata struct {
 	Labels      map[string]string
 }
 
-// DCAClientInterface  is required to query the API of Datadog cluster agent
+// DCAClientInterface is required to query the API of Datadog cluster agent
 type DCAClientInterface interface {
 	Version(withRefresh bool) version.Version
 	ClusterAgentAPIEndpoint() string

@@ -16,6 +16,7 @@ import (
 // JSONServerlessEncoder is a shared json encoder sending a struct message field
 // instead of a bytes message field. This encoder is used in the AWS Lambda
 // serverless environment.
+// TODO(@nhulston) remove lambda encoder when Go Lambda Extension is fully retired.
 var JSONServerlessEncoder Encoder = &jsonServerlessEncoder{}
 
 // jsonEncoder transforms a message into a JSON byte array.
