@@ -203,12 +203,14 @@ func testDyninst(
 		for _, d := range testServer.getDiags() {
 			if d.diagnosticMessage.Debugger.Status == uploader.StatusInstalled {
 				installedProbeIDs[d.diagnosticMessage.Debugger.ProbeID] = struct{}{}
+			} else if d.diagnosticMessage.Debugger.Status == uploader.StatusError {
+				t.Fatalf("probe %s installation failed: %s", d.diagnosticMessage.Debugger.ProbeID, d.diagnosticMessage.Debugger.DiagnosticException.Message)
 			}
 		}
 		assert.Equal(c, allProbeIDs, installedProbeIDs)
 	}
 	require.EventuallyWithT(
-		t, assertProbesInstalled, 10*time.Second, 100*time.Millisecond,
+		t, assertProbesInstalled, 60*time.Second, 100*time.Millisecond,
 		"diagnostics should indicate that the probes are installed",
 	)
 
@@ -263,8 +265,13 @@ func testDyninst(
 		if !rewriteEnabled {
 			expOut, ok := expOut[log.id]
 			assert.True(t, ok, "expected output for probe %s not found", log.id)
-			assert.Less(t, expIdx, len(expOut), "expected at least %d events for probe %s, got %d", expIdx+1, log.id, len(expOut))
-			assert.Equal(t, string(expOut[expIdx]), string(redacted))
+			if assert.Less(
+				t, expIdx, len(expOut),
+				"expected at least %d events for probe %s, got %d",
+				expIdx+1, log.id, len(expOut),
+			) {
+				assert.Equal(t, string(expOut[expIdx]), string(redacted))
+			}
 		}
 	}
 	return retMap

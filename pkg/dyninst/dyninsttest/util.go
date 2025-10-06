@@ -111,13 +111,14 @@ func GenerateIr(
 	tempDir string,
 	binPath string,
 	cfgName string,
+	options ...irgen.Option,
 ) (*object.ElfFileWithDwarf, *ir.Program) {
 	probes := testprogs.MustGetProbeDefinitions(t, cfgName)
 
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 
-	irp, err := irgen.GenerateIR(1, obj, probes)
+	irp, err := irgen.GenerateIR(1, obj, probes, options...)
 	require.NoError(t, err)
 	require.Empty(t, irp.Issues)
 

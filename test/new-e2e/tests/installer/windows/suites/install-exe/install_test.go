@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 	wincommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	wincommonagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	infraos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -84,6 +85,8 @@ func (s *testInstallExeSuite) TestInstallAgentPackage() {
 			s.Require().Contains(actual, s.CurrentAgentVersion().PackageVersion())
 		}).
 		WithExperimentVersionEqual("")
+
+	wincommonagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // proxyEnv provisions a Windows VM (for the installer) and a Linux VM (hosting a Squid proxy)

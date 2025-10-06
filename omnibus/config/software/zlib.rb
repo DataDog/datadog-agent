@@ -17,47 +17,10 @@
 name "zlib"
 default_version "1.3.1"
 
-version "1.3.1" do
-  source sha256: "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23"
-end
-
-source url: "https://zlib.net/fossils/zlib-#{version}.tar.gz",
-       extract: :seven_zip
-
-relative_path "zlib-#{version}"
-
 build do
   license "Zlib"
   license_file "https://gist.githubusercontent.com/remh/77877aa00b45c1ebc152/raw/372a65de9f4c4ed376771b8d2d0943da83064726/zlib.license"
 
-  if windows?
-    env = with_standard_compiler_flags(with_embedded_path, bfd_flags: true)
-
-    patch source: "zlib-windows-relocate.patch", env: env
-
-    # We can't use the top-level Makefile. Instead, the developers have made
-    # an organic, artisanal, hand-crafted Makefile.gcc for us which takes a few
-    # variables.
-    env["BINARY_PATH"] = "/bin"
-    env["LIBRARY_PATH"] = "/lib"
-    env["INCLUDE_PATH"] = "/include"
-    env["DESTDIR"] = "#{install_dir}/embedded"
-
-    make_args = [
-      "-fwin32/Makefile.gcc",
-      "SHARED_MODE=1",
-      "CFLAGS=\"#{env["CFLAGS"]} -Wall\"",
-      "ASFLAGS=\"#{env["CFLAGS"]} -Wall\"",
-      "LDFLAGS=\"#{env["LDFLAGS"]}\"",
-      "ARFLAGS=\"rcs #{env["ARFLAGS"]}\"",
-      "RCFLAGS=\"--define GCC_WINDRES #{env["RCFLAGS"]}\"",
-    ]
-
-    # On windows, msys make 3.81 doesn't support -j.
-    make(*make_args, env: env)
-    make("install", *make_args, env: env)
-  else
-    command "bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'", \
+  command "bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'", \
 	cwd: "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent"
-  end
 end

@@ -216,7 +216,7 @@ func FillK8sPodResourceVersion(p *model.Pod) error {
 }
 
 // computeStatus is mostly copied from kubernetes to match what users see in kubectl
-// in case of issues, check for changes upstream: https://github.com/kubernetes/kubernetes/blob/b95f9c32d65638b63dee7fc887ff9ab2ba409c58/pkg/printers/internalversion/printers.go#L841
+// in case of issues, check for changes upstream: https://github.com/kubernetes/kubernetes/blob/50cc9905b6165c14b11dda5bc4a72bd1891ae0dd/pkg/printers/internalversion/printers.go#L891
 func computeStatus(p *corev1.Pod) string {
 	restarts := 0
 	restartableInitContainerRestarts := 0
@@ -225,11 +225,13 @@ func computeStatus(p *corev1.Pod) string {
 	lastRestartDate := metav1.NewTime(time.Time{})
 	lastRestartableInitContainerRestartDate := metav1.NewTime(time.Time{})
 
-	reason := string(p.Status.Phase)
+	podPhase := p.Status.Phase
+	reason := string(podPhase)
 	if p.Status.Reason != "" {
 		reason = p.Status.Reason
 	}
 
+	// If the Pod carries {type:PodScheduled, reason:SchedulingGated}, set reason to 'SchedulingGated'.
 	for _, condition := range p.Status.Conditions {
 		if condition.Type == corev1.PodScheduled && condition.Reason == corev1.PodReasonSchedulingGated {
 			reason = corev1.PodReasonSchedulingGated
@@ -298,6 +300,7 @@ func computeStatus(p *corev1.Pod) string {
 		restarts = restartableInitContainerRestarts
 		lastRestartDate = lastRestartableInitContainerRestartDate
 		hasRunning := false
+		errorReason := ""
 		for i := len(p.Status.ContainerStatuses) - 1; i >= 0; i-- {
 			container := p.Status.ContainerStatuses[i]
 
@@ -308,27 +311,33 @@ func computeStatus(p *corev1.Pod) string {
 					lastRestartDate = terminatedDate
 				}
 			}
-			if container.State.Waiting != nil && container.State.Waiting.Reason != "" {
+			switch {
+			case container.State.Waiting != nil && container.State.Waiting.Reason != "":
 				reason = container.State.Waiting.Reason
-			} else if container.State.Terminated != nil && container.State.Terminated.Reason != "" {
-				reason = container.State.Terminated.Reason
-			} else if container.State.Terminated != nil && container.State.Terminated.Reason == "" {
-				if container.State.Terminated.Signal != 0 {
+			case container.State.Terminated != nil:
+				if len(container.State.Terminated.Reason) > 0 {
+					reason = container.State.Terminated.Reason
+				} else if container.State.Terminated.Signal != 0 {
 					reason = fmt.Sprintf("Signal:%d", container.State.Terminated.Signal)
 				} else {
 					reason = fmt.Sprintf("ExitCode:%d", container.State.Terminated.ExitCode)
 				}
-			} else if container.Ready && container.State.Running != nil {
+				if container.State.Terminated.ExitCode != 0 {
+					errorReason = reason
+				}
+			case container.Ready && container.State.Running != nil:
 				hasRunning = true
 				readyContainers++
 			}
 		}
 
 		// change pod status back to "Running" if there is at least one container still reporting as "Running" status
-		if reason == "Completed" && hasRunning {
-			if hasPodReadyCondition(p.Status.Conditions) {
+		if reason == "Completed" {
+			if hasRunning && hasPodReadyCondition(p.Status.Conditions) {
 				reason = "Running"
-			} else {
+			} else if errorReason != "" {
+				reason = errorReason
+			} else if hasRunning {
 				reason = "NotReady"
 			}
 		}
@@ -336,7 +345,7 @@ func computeStatus(p *corev1.Pod) string {
 
 	if p.DeletionTimestamp != nil && p.Status.Reason == nodeUnreachablePodReason {
 		reason = "Unknown"
-	} else if p.DeletionTimestamp != nil {
+	} else if p.DeletionTimestamp != nil && !isPodPhaseTerminal(corev1.PodPhase(podPhase)) {
 		reason = "Terminating"
 	}
 
@@ -524,6 +533,10 @@ func isPodInitializedConditionTrue(status *corev1.PodStatus) bool {
 		return condition.Status == corev1.ConditionTrue
 	}
 	return false
+}
+
+func isPodPhaseTerminal(phase corev1.PodPhase) bool {
+	return phase == corev1.PodFailed || phase == corev1.PodSucceeded
 }
 
 func hasPodReadyCondition(conditions []corev1.PodCondition) bool {

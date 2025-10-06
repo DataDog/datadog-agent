@@ -250,6 +250,15 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
+	// resize policy tags
+	if container.ResizePolicy.CPURestartPolicy != "" {
+		tagList.AddLow(tags.CPURestartPolicy, container.ResizePolicy.CPURestartPolicy)
+	}
+
+	if container.ResizePolicy.MemoryRestartPolicy != "" {
+		tagList.AddLow(tags.MemoryRestartPolicy, container.ResizePolicy.MemoryRestartPolicy)
+	}
+
 	low, orch, high, standard := tagList.Compute()
 	return []*types.TagInfo{
 		{
@@ -285,6 +294,9 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 	}
 
 	for _, tracerMeta := range process.Service.TracerMetadata {
+		tagList.AddStandard(tags.Service, tracerMeta.ServiceName)
+		tagList.AddStandard(tags.Env, tracerMeta.ServiceEnv)
+		tagList.AddStandard(tags.Version, tracerMeta.ServiceVersion)
 		parseProcessTags(tagList, tracerMeta.ProcessTags)
 	}
 
@@ -696,6 +708,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
 	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
+	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 
 	low, orch, high, standard := tagList.Compute()
 

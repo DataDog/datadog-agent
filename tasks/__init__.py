@@ -43,6 +43,7 @@ from tasks import (
     issue,
     kmt,
     linter,
+    loader,
     macos,
     modules,
     msi,
@@ -201,6 +202,7 @@ ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
+ns.add_collection(loader)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)

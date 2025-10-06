@@ -8,7 +8,9 @@ from __future__ import annotations
 import glob
 import json
 import os
+import platform
 import re
+import subprocess
 import sys
 from copy import deepcopy
 from dataclasses import dataclass
@@ -28,7 +30,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
-from tasks.libs.common.utils import retry_function
+from tasks.libs.common.utils import retry_function, running_in_ci
 from tasks.libs.linter.gitlab_exceptions import FailureLevel, SingleGitlabLintFailure
 from tasks.libs.types.types import JobDependency
 
@@ -43,6 +45,21 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
+    # TODO(celian): Restore short lived token generation
+    if running_in_ci():
+        # Get the token from fetch_secrets
+        token_cmd = ctx.run(
+            f"{os.environ['CI_PROJECT_DIR']}/tools/ci/fetch_secret.sh gitlab-token write_api", hide=True
+        )
+        if not token_cmd.ok:
+            raise RuntimeError(
+                f'Failed to retrieve Gitlab token, request failed with code {token_cmd.return_code}:\n{token_cmd.stderr}'
+            )
+
+        return token_cmd.stdout.strip()
+    elif 'GITLAB_TOKEN' in os.environ:
+        return os.environ['GITLAB_TOKEN']
+
     infra_token = datadog_infra_token(ctx, audience="sdm")
     url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
 
@@ -59,6 +76,24 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     token = token_info['token']
 
     return token
+
+
+def get_gitlab_bot_token():
+    if "GITLAB_BOT_TOKEN" not in os.environ:
+        print("GITLAB_BOT_TOKEN not found in env. Trying keychain...")
+        if platform.system() == "Darwin":
+            try:
+                output = subprocess.check_output(
+                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_BOT_TOKEN', '-w']
+                )
+                if output:
+                    return output.strip()
+            except subprocess.CalledProcessError:
+                print("GITLAB_BOT_TOKEN not found in keychain...")
+                pass
+        print("Please make sure that the GITLAB_BOT_TOKEN is set or that the GITLAB_BOT_TOKEN keychain entry is set.")
+        raise Exit(code=1)
+    return os.environ["GITLAB_BOT_TOKEN"]
 
 
 def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
