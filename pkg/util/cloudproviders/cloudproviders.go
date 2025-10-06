@@ -175,14 +175,30 @@ func GetHostCCRID(ctx context.Context, detectedCloud string) string {
 	// When running in k8s, kubelet may be detected by GetHostAliases (this is
 	// non-deterministic). For such cases, we try each of the possible CCRID
 	// cloud providers that we know about.
-	for _, callback := range hostCCRIDDetectors {
-		hostCCRID, err := callback(ctx)
-		if err == nil {
-			return hostCCRID
-		}
+	var wg sync.WaitGroup
+	m := sync.Mutex{}
+	hostCCRID := ""
+
+	// Call each cloud provider concurrently, since this is called during startup
+	for _, ccridDetector := range hostCCRIDDetectors {
+		wg.Add(1)
+		go func(ccridDetector cloudProviderCCRIDDetector) {
+			defer wg.Done()
+
+			ccrid, err := ccridDetector(ctx)
+			if err == nil {
+				m.Lock()
+				hostCCRID = ccrid
+				m.Unlock()
+			}
+		}(ccridDetector)
 	}
-	log.Infof("No Host CCRID found for cloudprovider: %q", detectedCloud)
-	return ""
+	wg.Wait()
+
+	if hostCCRID == "" {
+		log.Infof("No Host CCRID found for cloudprovider: %q", detectedCloud)
+	}
+	return hostCCRID
 }
 
 // GetPublicIPv4 returns the public IPv4 from different providers
