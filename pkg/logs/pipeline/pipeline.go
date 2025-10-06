@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -48,7 +49,11 @@ func NewPipeline(
 
 	var encoder processor.Encoder
 	if serverlessMeta.IsEnabled() {
-		encoder = processor.JSONServerlessEncoder
+		if env.IsLambda() {
+			encoder = processor.JSONServerlessEncoder
+		} else {
+			encoder = processor.JSONServerlessInitEncoder
+		}
 	} else if endpoints.UseHTTP {
 		encoder = processor.JSONEncoder
 	} else if endpoints.UseProto {

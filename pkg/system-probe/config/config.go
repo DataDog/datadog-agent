@@ -14,11 +14,9 @@ import (
 	"runtime"
 	"strings"
 
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -196,33 +194,6 @@ func load() (*types.Config, error) {
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
 
 	return c, nil
-}
-
-// SetupOptionalDatadogConfigWithDir loads the datadog.yaml config file from a given config directory but will not fail on a missing file
-func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
-	cfg := pkgconfigsetup.GlobalConfigBuilder()
-
-	cfg.AddConfigPath(configDir)
-	if configFile != "" {
-		cfg.SetConfigFile(configFile)
-	}
-	// load the configuration
-	_, err := pkgconfigsetup.LoadDatadogCustom(cfg, "datadog.yaml", option.None[secrets.Component](), pkgconfigsetup.SystemProbe().GetEnvVars())
-	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
-	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
-		// special-case permission-denied with a clearer error message
-		if errors.Is(err, fs.ErrPermission) {
-			if runtime.GOOS == "windows" {
-				err = fmt.Errorf(`cannot access the Datadog config file (%w); try running the command in an Administrator shell"`, err)
-			} else {
-				err = fmt.Errorf("cannot access the Datadog config file (%w); try running the command under the same user as the Datadog Agent", err)
-			}
-		} else {
-			err = fmt.Errorf("unable to load Datadog config file: %w", err)
-		}
-		return err
-	}
-	return nil
 }
 
 func applyFleetPolicy(cfg pkgconfigmodel.Config) error {

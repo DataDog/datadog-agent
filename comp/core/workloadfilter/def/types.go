@@ -106,6 +106,38 @@ func CreateContainerImage(name string) *Container {
 	}
 }
 
+// CreateContainer creates a Filterable Container object from a name, image and an (optional) owner.
+func CreateContainer(id, name, img string, owner Filterable) *Container {
+	c := &typedef.FilterContainer{
+		Id:    id,
+		Name:  name,
+		Image: img,
+	}
+
+	setContainerOwner(c, owner)
+
+	return &Container{
+		FilterContainer: c,
+		Owner:           owner,
+	}
+}
+
+// setContainerOwner sets the owner field in the FilterContainer based on the owner type.
+func setContainerOwner(c *typedef.FilterContainer, owner Filterable) {
+	if owner == nil {
+		return
+	}
+
+	switch o := owner.(type) {
+	case *Pod:
+		if o != nil && o.FilterPod != nil {
+			c.Owner = &typedef.FilterContainer_Pod{
+				Pod: o.FilterPod,
+			}
+		}
+	}
+}
+
 // ContainerFilter defines the type of container filter.
 type ContainerFilter int
 
@@ -142,6 +174,18 @@ func (p *Pod) Serialize() any {
 // Type returns the resource type of the pod.
 func (p *Pod) Type() ResourceType {
 	return PodType
+}
+
+// CreatePod creates a Filterable Pod object.
+func CreatePod(id, name, namespace string, annotations map[string]string) *Pod {
+	return &Pod{
+		FilterPod: &typedef.FilterPod{
+			Id:          id,
+			Name:        name,
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+	}
 }
 
 // PodFilter defines the type of pod filter.

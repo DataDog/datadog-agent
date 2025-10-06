@@ -45,3 +45,8 @@ func formatLanguage(_ *languagemodels.Language) model.Language {
 func formatServiceDiscovery(_ *procutil.Service) *model.ServiceDiscovery {
 	return nil
 }
+
+// formatInjectionState is a stub for non-linux platforms
+func formatInjectionState(_ procutil.InjectionState) model.InjectionState {
+	return model.InjectionState_INJECTION_UNKNOWN
+}
