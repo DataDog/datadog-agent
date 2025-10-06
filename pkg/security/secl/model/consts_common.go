@@ -438,13 +438,12 @@ var (
 		"STATIC":  Static,
 		"DYNAMIC": Dynamic,
 	}
-	// UserSessionTypeConstants is the list of available options for usersession types
-	// generate_constants:UserSessionTypeConstants,UserSessionTypeConstants are the supported options for usersession types.
-
+	// UserSessionTypes is the list of available types of usersessions
+	// generate_constants:UserSessionTypes,UserSessionTypes are the supported types of usersessions.
 	UserSessionTypes = map[string]int{
-		"USER_SESSION_TYPE_NONE": int(UserSessionTypeUnknown),
-		"USER_SESSION_TYPE_K8S":  int(UserSessionTypeK8S),
-		"USER_SESSION_TYPE_SSH":  int(UserSessionTypeSSH),
+		"UNKNOWN": int(UserSessionTypeUnknown),
+		"K8S":     int(UserSessionTypeK8S),
+		"SSH":     int(UserSessionTypeSSH),
 	}
 )
 
@@ -499,11 +498,11 @@ func (r SyscallDriftEventReason) String() string {
 // User session types
 var (
 	// UserSessionTypeUnknown is the unknown user session type
-	UserSessionTypeUnknown uint8 = 0
+	UserSessionTypeUnknown uint8
 	// UserSessionTypeK8S is the k8s user session type
-	UserSessionTypeK8S uint8 = 1
+	UserSessionTypeK8S uint8
 	// UserSessionTypeSSH is the ssh user session type
-	UserSessionTypeSSH uint8 = 2
+	UserSessionTypeSSH uint8
 )
 
 func initUserSessionTypes() {

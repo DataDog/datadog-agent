@@ -6178,6 +6178,15 @@ Unlink flags are the supported flags for the unlink syscall.
 | ---- |---------------|
 | `AT_REMOVEDIR` | all |
 
+### `UserSessionTypes` {#usersessiontypes}
+UserSessionTypes are the supported types of usersessions.
+
+| Name | Architectures |
+| ---- |---------------|
+| `UNKNOWN` | all |
+| `K8S` | all |
+| `SSH` | all |
+
 ### `Virtual Memory flags` {#virtual-memory-flags}
 Virtual Memory flags define the protection of a virtual memory segment.
 

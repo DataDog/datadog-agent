@@ -1036,6 +1036,15 @@ Network directions are the supported directions of network packets.
 | `INGRESS` | all |
 | `EGRESS` | all |
 
+### `UserSessionTypes` {#usersessiontypes}
+UserSessionTypes are the supported types of usersessions.
+
+| Name | Architectures |
+| ---- |---------------|
+| `UNKNOWN` | all |
+| `K8S` | all |
+| `SSH` | all |
+
 
 
 {{< partial name="whats-next/whats-next.html" >}}

@@ -2713,6 +2713,25 @@
           "architecture": "all"
         }
       ]
+    },
+    {
+      "name": "UserSessionTypes",
+      "link": "usersessiontypes",
+      "description": "UserSessionTypes are the supported types of usersessions.",
+      "all": [
+        {
+          "name": "UNKNOWN",
+          "architecture": "all"
+        },
+        {
+          "name": "K8S",
+          "architecture": "all"
+        },
+        {
+          "name": "SSH",
+          "architecture": "all"
+        }
+      ]
     }
   ]
 }
