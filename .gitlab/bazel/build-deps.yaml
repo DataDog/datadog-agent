@@ -12,13 +12,9 @@ bazel:build-deps:linux-amd64:
   script:
   # Wrapper in tools/bazel expects these directories to exist
   # TODO(agent-build): make the wrapper to create these directories
-    - mkdir -p $XDG_CACHE_HOME/bzl-disk $XDG_CACHE_HOME/output_root $XDG_CACHE_HOME/bzl-repo
+    - mkdir -p $XDG_CACHE_HOME/disk $XDG_CACHE_HOME/bazel $XDG_CACHE_HOME/repo-contents
     - bazel build //deps/...
   variables:
-      BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk"
-      BAZEL_DISK_CACHE: "$XDG_CACHE_HOME/bzl-disk"
-      BAZEL_OUTPUT_USER_ROOT: "$XDG_CACHE_HOME/output_root"
-      BAZEL_REPO_CONTENTS_CACHE: "$BAZEL_OUTPUT_USER_ROOT/bzl-repo"
       XDG_CACHE_HOME: "/data"
 
 bazel:build-deps:linux-arm64:
