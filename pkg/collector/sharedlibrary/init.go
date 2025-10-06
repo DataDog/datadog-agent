@@ -8,6 +8,7 @@ package sharedlibrary
 
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -20,8 +21,8 @@ import (
 // init adds the shared library loader to the scheduler
 func init() {
 	if pkgconfigsetup.Datadog().GetBool("shared_libraries_check.enabled") {
-		factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, int, error) {
-			loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger)
+		factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (check.Loader, int, error) {
+			loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filter)
 			priority := 40
 			return loader, priority, err
 		}

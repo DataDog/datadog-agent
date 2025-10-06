@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -34,8 +35,8 @@ type SharedLibraryCheckLoader struct {
 }
 
 // NewSharedLibraryCheckLoader creates a loader for Shared Library checks
-func NewSharedLibraryCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (*SharedLibraryCheckLoader, error) {
-	initializeCheckContext(senderManager, logReceiver, tagger)
+func NewSharedLibraryCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (*SharedLibraryCheckLoader, error) {
+	initializeCheckContext(senderManager, logReceiver, tagger, filter)
 	return &SharedLibraryCheckLoader{
 		logReceiver: logReceiver,
 	}, nil
