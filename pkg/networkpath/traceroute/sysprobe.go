@@ -19,13 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getTraceroute(client *http.Client, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, reverseDNS bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
+func getTraceroute(client *http.Client, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, disableWindowsDriver bool, reverseDNS bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
 	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
 	log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s&tcp_method=%s&tcp_syn_paris_traceroute_mode=%t&reverse_dns=%t&traceroute_queries=%d&e2e_queries=%d", host, clientID, port, maxTTL, timeout, protocol, tcpMethod, tcpSynParisTracerouteMode, reverseDNS, tracerouteQueries, e2eQueries))
+	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, fmt.Sprintf("/traceroute/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s&tcp_method=%s&tcp_syn_paris_traceroute_mode=%t&disable_windows_driver=%t&reverse_dns=%t&traceroute_queries=%d&e2e_queries=%d", host, clientID, port, maxTTL, timeout, protocol, tcpMethod, tcpSynParisTracerouteMode, disableWindowsDriver, reverseDNS, tracerouteQueries, e2eQueries))
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err

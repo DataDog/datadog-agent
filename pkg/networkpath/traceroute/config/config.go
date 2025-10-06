@@ -43,4 +43,6 @@ type Config struct {
 	TracerouteQueries int
 	// E2eQueries is the number of end-to-end queries to perform
 	E2eQueries int
+	// DisableWindowsDriver disables the use of Windows driver for traceroute
+	DisableWindowsDriver bool
 }
