@@ -12,10 +12,6 @@
 #include "protocols/http/maps.h"
 #include "protocols/http/usm-events.h"
 #include "protocols/tls/https.h"
-#include "protocols/direct_consumer.h"
-
-// Initialize DirectConsumer utilities for HTTP protocol
-USM_DIRECT_CONSUMER_INIT(http, http_event_t, http_batch_events)
 
 static __always_inline int http_responding(http_transaction_t *http) {
     return (http != NULL && http->response_status_code != 0);
