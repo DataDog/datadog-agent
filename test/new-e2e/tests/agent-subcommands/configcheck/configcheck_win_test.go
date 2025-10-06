@@ -24,7 +24,7 @@ type windowsConfigCheckSuite struct {
 }
 
 func TestWindowsConfigCheckSuite(t *testing.T) {
-	e2e.Run(t, &windowsConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &windowsConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
 }
 
 // cpu, disk, file_handle, io, memory, network, ntp, uptime, winproc
@@ -96,7 +96,7 @@ func (v *windowsConfigCheckSuite) TestWithBadConfigCheck() {
 	- name: bad yaml formatting via tab
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(integration)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(integration)))
 
 	output := v.Env().Agent.Client.ConfigCheck()
 
@@ -109,7 +109,7 @@ func (v *windowsConfigCheckSuite) TestWithAddedIntegrationsCheck() {
     url: http://some.url.example.com
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(integration)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(integration)))
 
 	output := v.Env().Agent.Client.ConfigCheck()
 

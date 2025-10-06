@@ -22,12 +22,12 @@ type windowsDiagnoseSuite struct {
 }
 
 func TestWindowsDiagnoseSuite(t *testing.T) {
-	e2e.Run(t, &windowsDiagnoseSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &windowsDiagnoseSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
 }
 
 func (v *windowsDiagnoseSuite) TestDiagnoseOtherCmdPort() {
 	params := agentparams.WithAgentConfig("cmd_port: 4567")
-	v.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(params)))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(params)))
 
 	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite)
 	assert.NotContains(v.T(), diagnose, "FAIL")
