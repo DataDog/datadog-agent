@@ -24,15 +24,20 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 )
 
-// Getpid returns the current process ID in the host namespace
-func Getpid() uint32 {
-	p, err := os.Readlink(kernel.HostProc("/self"))
+// GetpidFrom returns the current process ID from the given proc root
+func GetpidFrom(procRoot string) uint32 {
+	p, err := os.Readlink(filepath.Join(procRoot, "self"))
 	if err == nil {
 		if pid, err := strconv.ParseInt(p, 10, 32); err == nil {
 			return uint32(pid)
 		}
 	}
 	return uint32(os.Getpid())
+}
+
+// Getpid returns the current process ID in the host namespace
+func Getpid() uint32 {
+	return GetpidFrom(kernel.ProcFSRoot())
 }
 
 var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)

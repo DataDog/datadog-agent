@@ -80,7 +80,7 @@ struct syscall_cache_t {
             u64 rlim_max;
             u32 pid;
             struct process_context_t target_process;
-            struct container_context_t target_container;
+            struct cgroup_context_t target_cgroup;
         } setrlimit;
 
         struct {
@@ -111,19 +111,13 @@ struct syscall_cache_t {
             struct path_key_t root_key;
             struct path_key_t mountpoint_key;
             dev_t device;
+            int clone_mnt_ctr;
+            int source;
         } mount;
 
         struct {
             struct vfsmount *vfs;
         } umount;
-
-        struct {
-            struct mount *newmnt;
-            // collected from kernel functions arguments
-            int fd;
-            int flags;
-            unsigned int mount_attrs;
-        } fsmount;
 
         struct {
             struct file_t src_file;
@@ -149,6 +143,7 @@ struct syscall_cache_t {
             struct args_envs_parsing_context_t args_envs_ctx;
             struct span_context_t span_context;
             struct linux_binprm_t linux_binprm;
+            u32 is_through_symlink;
         } exec;
 
         struct {
@@ -265,9 +260,22 @@ struct syscall_cache_t {
         } sysctl;
 
         struct {
+            short socket_type;
+            u16 socket_family;
+            unsigned short filter_len;
+            u16 socket_protocol;
+            int filter_size_to_send;
             int level;
             int optname;
+            u32 truncated;
+            struct sock_fprog *fprog;
         } setsockopt;
+        struct {
+            int option;
+            int name_size_to_send;
+            u32 name_truncated;
+            char name[MAX_PRCTL_NAME_LEN];
+        } prctl;
     };
 };
 

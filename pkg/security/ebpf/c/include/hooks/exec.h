@@ -7,6 +7,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/network/stats.h"
 #include "constants/fentry_macro.h"
+#include "helpers/caps.h"
 
 int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
     // use the fist 56 bits of ktime to simulate a somewhat monotonic id
@@ -68,7 +69,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), get_file_f_inode_addr(file));
 
     syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, get_file_f_path_addr(file));
-    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
+    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.ino, syscall->exec.linux_binprm.interpreter.mount_id, 1, 0);
 
 #if defined(DEBUG_INTERPRETER)
     bpf_printk("interpreter file: %llx", file);
@@ -243,7 +244,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         u64 on_stack_cookie = event->pid_entry.cookie;
         struct proc_cache_t *parent_pc = get_proc_from_cookie(on_stack_cookie);
         if (parent_pc) {
-            fill_container_context(parent_pc, &event->container);
+            fill_cgroup_context(parent_pc, &event->cgroup);
             copy_proc_entry(&parent_pc->entry, &event->proc_entry);
         }
     }
@@ -253,7 +254,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
 
     // [activity_dump] inherit tracing state
-    inherit_traced_state(args, ppid, pid, &event->container);
+    inherit_traced_state(args, ppid, pid, &event->cgroup);
 
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
@@ -295,6 +296,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
+            flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
         } else if (is_current_kworker_dying()) {
             pop_syscall(EVENT_ANY);
             return 0;
@@ -306,7 +308,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         if (pc) {
             dec_mount_ref(ctx, pc->entry.executable.path_key.mount_id);
         }
-        fill_container_context(pc, &event.container);
+        fill_cgroup_context(pc, &event.cgroup);
         fill_span_context(&event.span);
         event.exit_code = (u32)(u64)CTX_PARM1(ctx);
         u8 *in_coredump = (u8 *)bpf_map_lookup_elem(&tasks_in_coredump, &pid_tgid);
@@ -314,6 +316,10 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
             event.exit_code |= 0x80;
             bpf_map_delete_elem(&tasks_in_coredump, &pid_tgid);
         }
+
+        // should be sampled for activity dumps
+        event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
@@ -375,6 +381,18 @@ int hook_exit_itimers(ctx_t *ctx) {
             bpf_probe_read_str(pc->entry.tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
         }
     }
+
+    return 0;
+}
+
+int __attribute__((always_inline)) fill_exec_context() {
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
+    if (!syscall) {
+        return 0;
+    }
+
+    // call it here before the memory get replaced
+    fill_span_context(&syscall->exec.span_context);
 
     return 0;
 }
@@ -663,6 +681,13 @@ int hook_setup_arg_pages(ctx_t *ctx) {
         return 0;
     }
 
+    u64 tgid_tid = bpf_get_current_pid_tgid();
+    u32 tgid = tgid_tid >> 32;
+    struct pid_cache_t *pid_entry = get_pid_cache(tgid);
+    if (pid_entry) {
+        flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
+    }
+
     if (syscall->exec.args_envs_ctx.envs_offset != 0) {
         bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_PARSE_ARGS_ENVS_SPLIT);
     } else {
@@ -700,7 +725,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
             },
             .exec_timestamp = now,
         },
-        .container = {},
+        .cgroup = {},
     };
     fill_file(syscall->exec.dentry, &pc.entry.executable);
     bpf_get_current_comm(&pc.entry.comm, sizeof(pc.entry.comm));
@@ -717,14 +742,14 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         if (parent_pc) {
             parent_inode = parent_pc->entry.executable.path_key.ino;
 
-            // inherit the parent container context
-            fill_container_context(parent_pc, &pc.container);
+            // inherit the parent cgroup context
+            fill_cgroup_context(parent_pc, &pc.cgroup);
             dec_mount_ref(ctx, parent_pc->entry.executable.path_key.mount_id);
         }
     }
 
     // Insert new proc cache entry (Note: do not move the order of this block with the previous one, we need to inherit
-    // the container ID before saving the entry in proc_cache. Modifying entry after insertion won't work.)
+    // the cgroup before saving the entry in proc_cache. Modifying entry after insertion won't work.)
     u64 cookie = rand64();
     bpf_map_update_elem(&proc_cache, &cookie, &pc, BPF_ANY);
 
@@ -749,7 +774,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     }
 
     // copy proc_cache data
-    fill_container_context(&pc, &event->container);
+    fill_cgroup_context(&pc, &event->cgroup);
     copy_proc_entry(&pc.entry, &event->proc_entry);
 
     // copy pid_cache entry data
@@ -766,7 +791,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     fill_args_envs(event, syscall);
 
     // [activity_dump] check if this process should be traced
-    should_trace_new_process(ctx, now, tgid, &event->container);
+    should_trace_new_process_cgroup(ctx, now, tgid, &event->cgroup);
 
     // add interpreter path info
     event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;
@@ -774,6 +799,8 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // syscall context
     event->syscall_ctx.id = syscall->ctx_id;
 
+    // Through symlink
+    event->is_through_symlink = syscall->exec.is_through_symlink;
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 
@@ -800,3 +827,12 @@ int hook_mprotect_fixup(ctx_t *ctx) {
 }
 
 #endif
+HOOK_ENTRY("security_inode_follow_link")
+int hook_security_inode_follow_link(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+    syscall->exec.is_through_symlink = 1;    
+    return 0;
+}

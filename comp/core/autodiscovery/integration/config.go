@@ -107,6 +107,12 @@ type Config struct {
 	// LogsExcluded is whether logs collection is disabled (set by container
 	// listeners only)
 	LogsExcluded bool `json:"logs_excluded"` // (include in digest: false)
+
+	// PodNamespace is the k8s namespace for the container being monitored if any
+	PodNamespace string `json:"pod_namespace"` // (include in digest: false)
+
+	// ImageName is the container image name if any
+	ImageName string `json:"image_name"` // (include in digest: false)
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
@@ -128,8 +134,15 @@ type CommonGlobalConfig struct {
 // AdvancedADIdentifier contains user-defined autodiscovery information
 // It replaces ADIdentifiers for advanced use-cases. Typically, file-based k8s service and endpoint checks.
 type AdvancedADIdentifier struct {
-	KubeService   KubeNamespacedName `yaml:"kube_service,omitempty"`
-	KubeEndpoints KubeNamespacedName `yaml:"kube_endpoints,omitempty"`
+	KubeService   KubeNamespacedName      `yaml:"kube_service,omitempty"`
+	KubeEndpoints KubeEndpointsIdentifier `yaml:"kube_endpoints,omitempty"`
+}
+
+// KubeEndpointsIdentifier identifies a kubernetes endpoints object
+// alongside the method to resolve the endpoints.
+type KubeEndpointsIdentifier struct {
+	KubeNamespacedName `yaml:",inline"`
+	Resolve            string `yaml:"resolve,omitempty"` // Endpoint resolve mode: "auto" (default) or "ip"
 }
 
 // KubeNamespacedName identifies a kubernetes object.

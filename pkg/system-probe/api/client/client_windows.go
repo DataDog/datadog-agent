@@ -9,6 +9,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 
@@ -32,9 +33,14 @@ func DialContextFunc(namedPipePath string) func(context.Context, string, string)
 
 		namedPipe, err := winio.DialPipe(namedPipePath, &timeout)
 		if err != nil {
-			// This important error may not get reported upstream, making connection failures
-			// very difficult to diagnose. Explicitly log the error here too for diagnostics.
-			return nil, log.Errorf("error connecting to named pipe %q: %s", namedPipePath, err)
+			// Since connection errors can be expected at startup we must not
+			// log an error here above debug level. We expect this error to be
+			// silenced for a startup period before being logged by the caller,
+			// see IgnoreStartupError.
+			err = fmt.Errorf("error connecting to named pipe %q: %w", namedPipePath, err)
+			// We log here at debug level for diagnostics in case it is not logged by a caller.
+			log.Debugf("%s", err)
+			return nil, err
 		}
 
 		return namedPipe, nil

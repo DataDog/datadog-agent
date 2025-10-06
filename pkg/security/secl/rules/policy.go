@@ -9,12 +9,14 @@ package rules
 import (
 	"fmt"
 	"io"
+	"iter"
 	"reflect"
 	"slices"
 
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v3"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 )
 
@@ -46,17 +48,51 @@ func (m *PolicyMacro) MergeWith(m2 *PolicyMacro) error {
 
 // PolicyRule represents a rule loaded from a policy
 type PolicyRule struct {
-	Def        *RuleDefinition
-	Actions    []*Action
-	Accepted   bool
-	Error      error
+	Def      *RuleDefinition
+	Actions  []*Action
+	Accepted bool
+	Error    error
+	// FilterType is used to keep track of the type of filter that caused the rule to be filtered out
+	FilterType FilterType
 	Policy     PolicyInfo
 	ModifiedBy []PolicyInfo
 	UsedBy     []PolicyInfo
 }
 
+// AreActionsSupported returns true if the actions defined on the rule are supported given a list of enabled event types
+func (r *PolicyRule) AreActionsSupported(eventTypeEnabled map[eval.EventType]bool) error {
+	for _, action := range r.Def.Actions {
+		if err := action.IsActionSupported(eventTypeEnabled); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Policies returns an iterator over the policies that this rule is part of.
+func (r *PolicyRule) Policies(includeInternalPolicies bool) iter.Seq[*PolicyInfo] {
+	return func(yield func(*PolicyInfo) bool) {
+		if !r.Policy.IsInternal || includeInternalPolicies {
+			if !yield(&r.Policy) {
+				return
+			}
+		}
+		for _, policy := range r.UsedBy {
+			if !policy.IsInternal || includeInternalPolicies {
+				if !yield(&policy) {
+					return
+				}
+			}
+		}
+	}
+}
+
 func (r *PolicyRule) isAccepted() bool {
 	return r.Accepted && r.Error == nil
+}
+
+func (r *PolicyRule) isFiltered() bool {
+	return !r.Accepted && r.Error == nil
 }
 
 func applyOverride(rd1, rd2 *PolicyRule) {
@@ -161,6 +197,8 @@ type PolicyInfo struct {
 	Type PolicyType
 	// Version is the version of the policy, this field is copied from the policy definition
 	Version string
+	// ReplacePolicyID is the ID that this policy should replace
+	ReplacePolicyID string
 	// IsInternal is true if the policy is internal
 	IsInternal bool
 }
@@ -206,6 +244,19 @@ func (p *Policy) GetAcceptedRules() []*PolicyRule {
 		}
 	}
 	return acceptedRules
+}
+
+// GetFilteredRules returns the list of filtered rules that are part of the policy
+func (p *Policy) GetFilteredRules() []*PolicyRule {
+	var filteredRules []*PolicyRule
+	for _, rules := range p.rules {
+		for _, rule := range rules {
+			if rule.isFiltered() {
+				filteredRules = append(filteredRules, rule)
+			}
+		}
+	}
+	return filteredRules
 }
 
 // SetInternalCallbackAction adds an internal callback action for the given rule IDs
@@ -273,6 +324,7 @@ RULES:
 			}
 
 			if !rule.Accepted {
+				rule.FilterType = filter.GetType()
 				continue RULES
 			}
 		}
@@ -308,6 +360,7 @@ RULES:
 func LoadPolicyFromDefinition(info *PolicyInfo, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	if def != nil && def.Version != "" {
 		info.Version = def.Version
+		info.ReplacePolicyID = def.ReplacePolicyID
 	}
 
 	p := &Policy{

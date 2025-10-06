@@ -22,6 +22,7 @@ import (
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -37,8 +38,9 @@ func (a *logAgent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
 	wmeta option.Option[workloadmeta.Component],
 	_ integrations.Component,
+	fingerprintConfig types.FingerprintConfig,
 ) {
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, nil)
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, a.hostname)
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
@@ -70,7 +72,8 @@ func (a *logAgent) SetupPipeline(
 		fileScanPeriod,
 		fileWildcardSelectionMode,
 		a.flarecontroller,
-		a.tagger))
+		a.tagger,
+		fingerprintConfig))
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider
@@ -84,7 +87,7 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	if err != nil {
 		return nil, err
 	}
-	if env.IsServerless() {
+	if env.IsLambda() {
 		// in AWS Lambda, we never want the batch strategy to flush with a tick
 		config.BatchWait = 365 * 24 * time.Hour
 	}

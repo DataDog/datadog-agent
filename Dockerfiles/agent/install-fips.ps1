@@ -11,18 +11,19 @@ if ("$env:WITH_FIPS" -ne "true") {
     exit 0
 }
 
-$maven_sha512 = '2e24dbea0407489d45b4d8214afff96fb57b54a5ef2bb6878f65fbce9b4141685b878ec5c53e9d07d4b1bf166bb5c4f80d540a13013b133a250ec9d85effa37c'
+$maven_sha512 = '03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8d0f05b0479e699a5f34679250c49c8e52e961262ded468a20de0be254d8207076'
+$maven_version = '3.9.11'
 
 if ("$env:WITH_JMX" -ne "false") {
     cd \fips-build
-    Invoke-WebRequest -Outfile maven.zip https://dlcdn.apache.org/maven/maven-3/3.9.10/binaries/apache-maven-3.9.10-bin.zip
+    Invoke-WebRequest -Outfile maven.zip https://archive.apache.org/dist/maven/maven-3/${maven_version}/binaries/apache-maven-${maven_version}-bin.zip
     if ((Get-FileHash -Algorithm SHA512 maven.zip).Hash -eq $maven_sha512) {
         Write-Host "Maven checksum match"
     } else {
         Write-Error "Checksum mismatch"
     }
     Expand-Archive -Force -Path maven.zip -DestinationPath .
-    .\apache-maven-3.9.10\bin\mvn -D maven.repo.local=maven-repo dependency:copy-dependencies
+    & ".\apache-maven-${maven_version}\bin\mvn" -D maven.repo.local=maven-repo dependency:copy-dependencies
     New-Item -Force -ItemType directory -Path 'C:/Program Files/Datadog/BouncyCastle FIPS/'
     Move-Item -Force -Path @("target/dependency/*.jar", "java.security", "bc-fips.policy") 'C:/Program Files/Datadog/BouncyCastle FIPS/'
     \java\bin\java --module-path 'C:\Program Files\Datadog\BouncyCastle FIPS' org.bouncycastle.util.DumpInfo

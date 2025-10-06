@@ -67,16 +67,16 @@ func postInstallDatadogInstaller(ctx HookContext) (err error) {
 		return fmt.Errorf("error ensuring dd-agent user and group: %w", err)
 	}
 	// 2. Ensure the installer and agent directories exist and have the correct permissions
-	if err = installerDirectories.Ensure(); err != nil {
+	if err = installerDirectories.Ensure(ctx); err != nil {
 		return fmt.Errorf("error ensuring installer directories: %w", err)
 	}
-	if err = agentDirectories.Ensure(); err != nil {
+	if err = agentDirectories.Ensure(ctx); err != nil {
 		return fmt.Errorf("error ensuring agent directories: %w", err)
 	}
-	if err = file.EnsureSymlink("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", installerSymlink); err != nil {
+	if err = file.EnsureSymlink(ctx, "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", installerSymlink); err != nil {
 		return fmt.Errorf("error creating symlink /usr/bin/datadog-installer: %w", err)
 	}
-	if err = file.EnsureSymlink("/opt/datadog-packages/run", "/var/run/datadog-installer"); err != nil {
+	if err = file.EnsureSymlink(ctx, "/opt/datadog-packages/run", "/var/run/datadog-installer"); err != nil {
 		return fmt.Errorf("error creating symlink /var/run/datadog-installer: %w", err)
 	}
 	// 3. Install the installer systemd units

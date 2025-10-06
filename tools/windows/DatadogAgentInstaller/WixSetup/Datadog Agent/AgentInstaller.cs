@@ -573,6 +573,9 @@ namespace WixSetup.Datadog_Agent
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     }
             );
+            var scriptsBinDir = new Dir(new Id("SCRIPTS"), "scripts",
+                 new Files($@"{InstallerSource}\bin\scripts\*")
+            );
             var securityAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentsecurityservice"),
                 Constants.SecurityAgentServiceName,
@@ -628,8 +631,14 @@ namespace WixSetup.Datadog_Agent
                         Account = "LocalSystem",
                         Vital = true
                     }
-                )
+                ),
+                scriptsBinDir
             );
+            // TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
+            if (_agentFlavor.FlavorName != Constants.FipsFlavor)
+            {
+                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.SecretGenericConnector));
+            }
 
             return targetBinFolder;
         }

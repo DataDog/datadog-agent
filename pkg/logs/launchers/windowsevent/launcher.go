@@ -44,10 +44,8 @@ func NewLauncher() *Launcher {
 	}
 }
 
-// Start starts the launcher.
-//
-//nolint:revive // TODO(WINA) Fix revive linter
-func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
+// Start starts the launcher by setting up Windows event log sources and beginning to tail them.
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, _ *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
 	l.sources = sourceProvider.GetAddedForType(config.WindowsEventType)
 	l.registry = registry

@@ -14,7 +14,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sqllexer "github.com/DataDog/go-sqllexer"
 	"github.com/outcaste-io/ristretto/z"
 )
@@ -317,7 +316,7 @@ func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig, o
 	if optsStr == "" {
 		var optsBytes []byte
 		// Ideally we should never fallback to this because it's expensive
-		log.Warn("falling back to JSON marshalling of SQLConfig options, this should be avoided if possible")
+		o.log.Warnf("falling back to JSON marshalling of SQLConfig options, this should be avoided if possible")
 		optsBytes, optsStrError = json.Marshal(opts)
 		optsStr = string(optsBytes)
 	}
@@ -483,6 +482,7 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 			sqllexer.WithReplaceBoolean(!opts.KeepBoolean),
 			sqllexer.WithReplaceNull(!opts.KeepNull),
 			sqllexer.WithKeepJsonPath(opts.KeepJSONPath),
+			sqllexer.WithReplaceBindParameter(opts.ReplaceBindParameter),
 		)
 	}
 

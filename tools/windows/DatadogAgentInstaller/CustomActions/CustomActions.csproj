@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Datadog.CustomActions</RootNamespace>
     <AssemblyName>CustomActions</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <NuGetPackageImportStamp>
@@ -96,6 +96,7 @@
     <Compile Include="ServiceCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />
     <Compile Include="SetupInstallerCustomAction.cs" />
+    <Compile Include="UpdateInstallSourceCustomAction.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />
     <Compile Include="Extensions\SessionExtensions.cs" />
     <Compile Include="Interfaces\ISession.cs" />

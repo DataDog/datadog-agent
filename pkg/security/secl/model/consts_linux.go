@@ -867,6 +867,18 @@ var (
 		"RLIMIT_RTTIME":     unix.RLIMIT_RTTIME,
 	}
 
+	// SocketTypeConstants is the list of socket types
+	// generate_constants:Socket types,Socket types are the supported socket types.
+	SocketTypeConstants = map[string]int{
+		"SOCK_STREAM":    syscall.SOCK_STREAM,
+		"SOCK_DGRAM":     syscall.SOCK_DGRAM,
+		"SOCK_RAW":       syscall.SOCK_RAW,
+		"SOCK_RDM":       syscall.SOCK_RDM,
+		"SOCK_SEQPACKET": syscall.SOCK_SEQPACKET,
+		"SOCK_DCCP":      syscall.SOCK_DCCP,
+		"SOCK_PACKET":    syscall.SOCK_PACKET,
+	}
+
 	// SetSockoptLevelConstants is the list of available levels for setsockopt events
 	// generate_constants:SetSockopt Levels,SetSockopt Levels are the supported levels for the setsockopt event.
 	SetSockoptLevelConstants = map[string]int{
@@ -878,14 +890,11 @@ var (
 		"IPPROTO_ICMPV6": syscall.IPPROTO_ICMPV6,
 	}
 
-	// SetSockOptOptNameConstants is the list of available options for setsockopt events
-	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event.
-	SetSockOptOptNameConstants = map[string]int{
+	// SetSockOptOptNameConstantsIP is the list of available options for setsockopt events when the level is IPPROTO_IP
+	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event when the level is IPPROTO_IP.
+	SetSockOptOptNameConstantsIP = map[string]int{
 		// All the values were added according to the Linux kernel headers:
 		// https://elixir.bootlin.com/linux/v5.15.86/source/include/uapi/linux/in.h
-		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/socket.h
-		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/tcp.h
-		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/in6.h
 
 		// IPPROTO_IP options
 		"IP_TOS":                    syscall.IP_TOS,
@@ -932,7 +941,11 @@ var (
 		"MCAST_LEAVE_SOURCE_GROUP":  unix.MCAST_LEAVE_SOURCE_GROUP,
 		"MCAST_MSFILTER":            unix.MCAST_MSFILTER,
 		"IP_MULTICAST_ALL":          unix.IP_MULTICAST_ALL,
-		"IP_UNICAST_IF":             unix.IP_UNICAST_IF,
+		"IP_UNICAST_IF":             unix.IP_UNICAST_IF}
+	// SetSockOptOptNameConstantsSolSocket is the list of available options for setsockopt events when the level is SOL_SOCKET
+	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event when the level is SOL_SOCKET.
+	SetSockOptOptNameConstantsSolSocket = map[string]int{
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/socket.h
 		// SOL_SOCKET options
 		"SO_DEBUG":                         syscall.SO_DEBUG,
 		"SO_REUSEADDR":                     syscall.SO_REUSEADDR,
@@ -1015,7 +1028,12 @@ var (
 		"SO_DEVMEM_DMABUF":                 unix.SO_DEVMEM_DMABUF,
 		"SO_DEVMEM_DONTNEED":               unix.SO_DEVMEM_DONTNEED,
 		"SCM_TS_OPT_ID":                    unix.SCM_TS_OPT_ID,
-		"SO_RCVPRIORITY":                   82,
+		"SO_RCVPRIORITY":                   82}
+
+	// SetSockOptOptNameConstantsTCP is the list of available options for setsockopt events when the level is IPPROTO_TCP
+	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event when the level is IPPROTO_TCP.
+	SetSockOptOptNameConstantsTCP = map[string]int{
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/tcp.h
 		// IPPROTO_TCP options
 		"TCP_NODELAY":              syscall.TCP_NODELAY,
 		"TCP_MAXSEG":               syscall.TCP_MAXSEG,
@@ -1052,7 +1070,12 @@ var (
 		"TCP_FASTOPEN_NO_COOKIE":   unix.TCP_FASTOPEN_NO_COOKIE,
 		"TCP_ZEROCOPY_RECEIVE":     unix.TCP_ZEROCOPY_RECEIVE,
 		"TCP_INQ":                  unix.TCP_INQ,
-		"TCP_TX_DELAY":             unix.TCP_TX_DELAY,
+		"TCP_TX_DELAY":             unix.TCP_TX_DELAY}
+
+	// SetSockOptOptNameConstantsIPv6 is the list of available options for setsockopt events when the level is IPPROTO_IPV6.
+	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event when the level is IPPROTO_IPV6.
+	SetSockOptOptNameConstantsIPv6 = map[string]int{
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/in6.h
 		// IPPROTO_IPV6 options
 		"IPV6_ADDRFORM":             syscall.IPV6_ADDRFORM,
 		"IPV6_2292PKTINFO":          syscall.IPV6_2292PKTINFO,
@@ -1107,6 +1130,71 @@ var (
 		"IPV6_UNICAST_IF":           unix.IPV6_UNICAST_IF,
 		"IPV6_RECVFRAGSIZE":         unix.IPV6_RECVFRAGSIZE,
 		"IPV6_FREEBIND":             unix.IPV6_FREEBIND,
+	}
+	// PrCtlOptionConstants is the list of available options for prctl events
+	// generate_constants:PrCtl Options,PrCtl Options are the supported options for the prctl event
+	PrCtlOptionConstants = map[string]int{
+		"PR_CAP_AMBIENT":                unix.PR_CAPBSET_READ,
+		"PR_CAPBSET_READ":               unix.PR_CAPBSET_READ,
+		"PR_CAPBSET_DROP":               unix.PR_CAPBSET_DROP,
+		"PR_SET_CHILD_SUBREAPER":        unix.PR_SET_CHILD_SUBREAPER,
+		"PR_GET_CHILD_SUBREAPER":        unix.PR_GET_CHILD_SUBREAPER,
+		"PR_SET_DUMPABLE":               unix.PR_SET_DUMPABLE,
+		"PR_GET_DUMPABLE":               unix.PR_GET_DUMPABLE,
+		"PR_SET_ENDIAN":                 unix.PR_SET_ENDIAN,
+		"PR_GET_ENDIAN":                 unix.PR_GET_ENDIAN,
+		"PR_SET_FP_MODE":                unix.PR_SET_FP_MODE,
+		"PR_GET_FP_MODE":                unix.PR_GET_FP_MODE,
+		"PR_SET_FPEMU":                  unix.PR_SET_FPEMU,
+		"PR_GET_FPEMU":                  unix.PR_GET_FPEMU,
+		"PR_SET_FPEXC":                  unix.PR_SET_FPEXC,
+		"PR_GET_FPEXC":                  unix.PR_GET_FPEXC,
+		"PR_SET_IO_FLUSHER":             unix.PR_SET_IO_FLUSHER,
+		"PR_GET_IO_FLUSHER":             unix.PR_GET_IO_FLUSHER,
+		"PR_SET_KEEPCAPS":               unix.PR_SET_KEEPCAPS,
+		"PR_GET_KEEPCAPS":               unix.PR_GET_KEEPCAPS,
+		"PR_MCE_KILL":                   unix.PR_MCE_KILL,
+		"PR_MCE_KILL_GET":               unix.PR_MCE_KILL_GET,
+		"PR_SET_MM":                     unix.PR_SET_MM,
+		"PR_SET_VMA":                    unix.PR_SET_VMA,
+		"PR_MPX_ENABLE_MANAGEMENT":      unix.PR_MPX_ENABLE_MANAGEMENT,
+		"PR_MPX_DISABLE_MANAGEMENT":     unix.PR_MPX_DISABLE_MANAGEMENT,
+		"PR_SET_NAME":                   unix.PR_SET_NAME,
+		"PR_GET_NAME":                   unix.PR_GET_NAME,
+		"PR_SET_NO_NEW_PRIVS":           unix.PR_SET_NO_NEW_PRIVS,
+		"PR_GET_NO_NEW_PRIVS":           unix.PR_GET_NO_NEW_PRIVS,
+		"PR_PAC_RESET_KEYS":             unix.PR_PAC_RESET_KEYS,
+		"PR_SET_PDEATHSIG":              unix.PR_SET_PDEATHSIG,
+		"PR_GET_PDEATHSIG":              unix.PR_GET_PDEATHSIG,
+		"PR_SET_PTRACER":                unix.PR_SET_PTRACER,
+		"PR_SET_SECCOMP":                unix.PR_SET_SECCOMP,
+		"PR_GET_SECCOMP":                unix.PR_GET_SECCOMP,
+		"PR_SET_SECUREBITS":             unix.PR_SET_SECUREBITS,
+		"PR_GET_SECUREBITS":             unix.PR_GET_SECUREBITS,
+		"PR_GET_SPECULATION_CTRL":       unix.PR_GET_SPECULATION_CTRL,
+		"PR_SET_SPECULATION_CTRL":       unix.PR_SET_SPECULATION_CTRL,
+		"PR_SVE_SET_VL":                 unix.PR_SVE_SET_VL,
+		"PR_SVE_GET_VL":                 unix.PR_SVE_GET_VL,
+		"PR_SET_SYSCALL_USER_DISPATCH":  unix.PR_SET_SYSCALL_USER_DISPATCH,
+		"PR_SET_TAGGED_ADDR_CTRL":       unix.PR_SET_TAGGED_ADDR_CTRL,
+		"PR_GET_TAGGED_ADDR_CTRL":       unix.PR_GET_TAGGED_ADDR_CTRL,
+		"PR_TASK_PERF_EVENTS_DISABLE":   unix.PR_TASK_PERF_EVENTS_DISABLE,
+		"PR_TASK_PERF_EVENTS_ENABLE":    unix.PR_TASK_PERF_EVENTS_ENABLE,
+		"PR_SET_THP_DISABLE":            unix.PR_SET_THP_DISABLE,
+		"PR_GET_THP_DISABLE":            unix.PR_GET_THP_DISABLE,
+		"PR_GET_TID_ADDRESS":            unix.PR_GET_TID_ADDRESS,
+		"PR_SET_TIMERSLACK":             unix.PR_SET_TIMERSLACK,
+		"PR_GET_TIMERSLACK":             unix.PR_GET_TIMERSLACK,
+		"PR_SET_TIMING":                 unix.PR_SET_TIMING,
+		"PR_GET_TIMING":                 unix.PR_GET_TIMING,
+		"PR_SET_TSC":                    unix.PR_SET_TSC,
+		"PR_GET_TSC":                    unix.PR_GET_TSC,
+		"PR_SET_UNALIGN":                unix.PR_SET_UNALIGN,
+		"PR_GET_UNALIGN":                unix.PR_GET_UNALIGN,
+		"PR_GET_AUXV":                   unix.PR_GET_AUXV,
+		"PR_SET_MDWE":                   unix.PR_SET_MDWE,
+		"PR_GET_MDWE":                   unix.PR_GET_MDWE,
+		"PR_RISCV_SET_ICACHE_FLUSH_CTX": unix.PR_RISCV_SET_ICACHE_FLUSH_CTX,
 	}
 )
 
@@ -1259,11 +1347,51 @@ func initSysCtlActionConstants() {
 func initSetSockOptLevelConstants() {
 	for k, v := range SetSockoptLevelConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		setsockoptLevelStrings[v] = k
 	}
 }
-func initSetSockOptOptNameConstants() {
-	for k, v := range SetSockOptOptNameConstants {
+func initSetSockOptOptNameConstantsSolSocket() {
+	for k, v := range SetSockOptOptNameConstantsSolSocket {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		setsockoptOptNameStringsSolSocket[v] = k
+	}
+}
+func initSetSockOptOptNameConstantsIP() {
+	for k, v := range SetSockOptOptNameConstantsIP {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		setsockoptOptNameStringsIP[v] = k
+	}
+}
+
+func initSetSockOptOptNameConstantsTCP() {
+	for k, v := range SetSockOptOptNameConstantsTCP {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		setsockoptOptNameStringsTCP[v] = k
+	}
+}
+
+func initSetSockOptOptNameConstantsIPv6() {
+	for k, v := range SetSockOptOptNameConstantsIPv6 {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		setsockoptOptNameStringsIPv6[v] = k
+	}
+}
+func initSocketTypeConstants() {
+	for k, v := range SocketTypeConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		socketTypeStrings[v] = k
+	}
+}
+
+func initSocketFamilyConstants() {
+	for k, v := range addressFamilyConstants {
+		socketFamilyStrings[v] = k
+	}
+}
+
+func initSocketProtocolConstants() {
+	for k, v := range SetSockoptLevelConstants {
+		socketProtocolStrings[v] = k
 	}
 }
 
@@ -1282,6 +1410,12 @@ func initRlimitConstants() {
 	}
 }
 
+func initPrCtlOptionConstants() {
+	for k, v := range PrCtlOptionConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		prctlOptionStrings[v] = k
+	}
+}
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
 	var strs []string
 	var result int
@@ -2147,24 +2281,34 @@ func (sig Signal) String() string {
 }
 
 var (
-	openFlagsStrings          = map[int]string{}
-	fileModeStrings           = map[int]string{}
-	inodeModeStrings          = map[int]string{}
-	unlinkFlagsStrings        = map[int]string{}
-	kernelCapabilitiesStrings = map[uint64]string{}
-	bpfCmdStrings             = map[uint32]string{}
-	bpfHelperFuncStrings      = map[uint32]string{}
-	bpfMapTypeStrings         = map[uint32]string{}
-	bpfProgramTypeStrings     = map[uint32]string{}
-	bpfAttachTypeStrings      = map[uint32]string{}
-	ptraceFlagsStrings        = map[uint32]string{}
-	vmStrings                 = map[uint64]string{}
-	protStrings               = map[uint64]string{}
-	mmapFlagStrings           = map[uint64]string{}
-	signalStrings             = map[int]string{}
-	pipeBufFlagStrings        = map[int]string{}
-	sysctlActionStrings       = map[uint32]string{}
-	rlimitStrings             = map[int]string{}
+	openFlagsStrings                  = map[int]string{}
+	fileModeStrings                   = map[int]string{}
+	inodeModeStrings                  = map[int]string{}
+	unlinkFlagsStrings                = map[int]string{}
+	kernelCapabilitiesStrings         = map[uint64]string{}
+	bpfCmdStrings                     = map[uint32]string{}
+	bpfHelperFuncStrings              = map[uint32]string{}
+	bpfMapTypeStrings                 = map[uint32]string{}
+	bpfProgramTypeStrings             = map[uint32]string{}
+	bpfAttachTypeStrings              = map[uint32]string{}
+	ptraceFlagsStrings                = map[uint32]string{}
+	vmStrings                         = map[uint64]string{}
+	protStrings                       = map[uint64]string{}
+	mmapFlagStrings                   = map[uint64]string{}
+	signalStrings                     = map[int]string{}
+	pipeBufFlagStrings                = map[int]string{}
+	sysctlActionStrings               = map[uint32]string{}
+	rlimitStrings                     = map[int]string{}
+	setsockoptOptNameStringsIP        = map[int]string{}
+	setsockoptOptNameStringsSolSocket = map[int]string{}
+	setsockoptOptNameStringsTCP       = map[int]string{}
+	setsockoptOptNameStringsIPv6      = map[int]string{}
+
+	setsockoptLevelStrings = map[int]string{}
+	socketTypeStrings      = map[int]string{}
+	socketFamilyStrings    = map[uint16]string{}
+	socketProtocolStrings  = map[int]string{}
+	prctlOptionStrings     = map[int]string{}
 )
 
 // SysCtlAction is used to define the action of a sysctl event
@@ -2182,3 +2326,66 @@ const (
 	// SysCtlWriteAction sysctl action type
 	SysCtlWriteAction
 )
+
+// SetSockOptOptNameIP is used to define the optname for setsockopt when the level is IP
+type SetSockOptOptNameIP int
+
+func (s SetSockOptOptNameIP) String() string {
+	return setsockoptOptNameStringsIP[int(s)]
+}
+
+// SetSockOptOptNameTCP is used to define the optname for setsockopt when the level is TCP
+type SetSockOptOptNameTCP int
+
+func (s SetSockOptOptNameTCP) String() string {
+	return setsockoptOptNameStringsTCP[int(s)]
+}
+
+// SetSockOptOptNameSolSocket is used to define the optname for setsockopt when the level is SOL_SOCKET
+type SetSockOptOptNameSolSocket int
+
+func (s SetSockOptOptNameSolSocket) String() string {
+	return setsockoptOptNameStringsSolSocket[int(s)]
+}
+
+// SetSockOptOptNameIPv6 is used to define the optname for setsockopt when the level is IPV6
+type SetSockOptOptNameIPv6 int
+
+func (s SetSockOptOptNameIPv6) String() string {
+	return setsockoptOptNameStringsIPv6[int(s)]
+}
+
+// SetSockOptLevel is used to define the level of a socket in setsockopt
+type SetSockOptLevel int
+
+func (s SetSockOptLevel) String() string {
+	return setsockoptLevelStrings[int(s)]
+}
+
+// SocketType is used to define the type of a socket in setsockopt
+type SocketType int
+
+func (s SocketType) String() string {
+	return socketTypeStrings[int(s)]
+}
+
+// SocketFamily is used to define the family of a socket in setsockopt
+type SocketFamily int
+
+func (s SocketFamily) String() string {
+	return socketFamilyStrings[uint16(s)]
+}
+
+// SocketProtocol is used to define the protocol of a socket in setsockopt
+type SocketProtocol int
+
+func (s SocketProtocol) String() string {
+	return socketProtocolStrings[int(s)]
+}
+
+// PrCtlOption is used to define the option of a process control in prctl
+type PrCtlOption int
+
+func (p PrCtlOption) String() string {
+	return prctlOptionStrings[int(p)]
+}

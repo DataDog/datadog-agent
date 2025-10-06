@@ -7,8 +7,27 @@ package workloadfilter
 
 import (
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
+
+// Scope defines the scope of the filters.
+type Scope string
+
+// Predefined scopes for the filters.
+const (
+	GlobalFilter  Scope = "GlobalFilter"
+	MetricsFilter Scope = "MetricsFilter"
+	LogsFilter    Scope = "LogsFilter"
+)
+
+// FilterBundle represents a bundle of filters for a given resource type.
+type FilterBundle interface {
+	// IsExcluded checks if the given object is excluded by the filter bundle.
+	IsExcluded(obj Filterable) bool
+	// GetResult returns the result of the filter evaluation.
+	GetResult(obj Filterable) Result
+	// GetErrors returns any errors during initialization of the filters.
+	GetErrors() []error
+}
 
 // Result is an enumeration that represents the possible results of a filter evaluation.
 type Result int
@@ -26,6 +45,10 @@ type Filterable interface {
 	Serialize() any
 	// Type returns the resource type of the object.
 	Type() ResourceType
+	// GetAnnotations returns the annotations of the object.
+	GetAnnotations() map[string]string
+	// GetName returns the name of the object.
+	GetName() string
 }
 
 // ResourceType defines the type of resource.
@@ -35,8 +58,10 @@ type ResourceType string
 const (
 	ContainerType ResourceType = "container"
 	PodType       ResourceType = "pod"
-	ServiceType   ResourceType = "service"
-	EndpointType  ResourceType = "endpoint"
+	ServiceType   ResourceType = "kube_service"
+	EndpointType  ResourceType = "kube_endpoint"
+	ImageType     ResourceType = "image"
+	ProcessType   ResourceType = "process"
 )
 
 //
@@ -49,36 +74,44 @@ type Container struct {
 	Owner Filterable
 }
 
-// CreateContainer creates a Filterable Container object from a workloadmeta.Container and an owner.
-func CreateContainer(container *workloadmeta.Container, owner Filterable) *Container {
-	if container == nil {
-		return nil
+var _ Filterable = &Container{}
+
+// Serialize converts the Container object to a filterable object.
+func (c *Container) Serialize() any {
+	return c.FilterContainer
+}
+
+// Type returns the resource type of the container.
+func (c *Container) Type() ResourceType {
+	return ContainerType
+}
+
+// GetAnnotations returns the annotations of the container.
+func (c *Container) GetAnnotations() map[string]string {
+	// The container object itself does not have annotations.
+	// Annotations are stored in the parent pod object.
+	if c.FilterContainer.GetPod() != nil {
+		return c.FilterContainer.GetPod().GetAnnotations()
 	}
+	return nil
+}
 
-	c := &typedef.FilterContainer{
-		Id:    container.ID,
-		Name:  container.Name,
-		Image: container.Image.RawName,
-	}
-
-	setContainerOwner(c, owner)
-
+// CreateContainerImage creates a Filterable Container Image object.
+// This is used only for container image filtering
+func CreateContainerImage(name string) *Container {
 	return &Container{
-		FilterContainer: c,
-		Owner:           owner,
+		FilterContainer: &typedef.FilterContainer{
+			Image: name,
+		},
 	}
 }
 
-// CreateContainerFromOrch creates a Filterable Container object from a workloadmeta.OrchestratorContainer and an owner.
-func CreateContainerFromOrch(container *workloadmeta.OrchestratorContainer, owner Filterable) *Container {
-	if container == nil {
-		return nil
-	}
-
+// CreateContainer creates a Filterable Container object from a name, image and an (optional) owner.
+func CreateContainer(id, name, img string, owner Filterable) *Container {
 	c := &typedef.FilterContainer{
-		Id:    container.ID,
-		Name:  container.Name,
-		Image: container.Image.RawName,
+		Id:    id,
+		Name:  name,
+		Image: img,
 	}
 
 	setContainerOwner(c, owner)
@@ -103,18 +136,6 @@ func setContainerOwner(c *typedef.FilterContainer, owner Filterable) {
 			}
 		}
 	}
-}
-
-var _ Filterable = &Container{}
-
-// Serialize converts the Container object to a filterable object.
-func (c *Container) Serialize() any {
-	return c.FilterContainer
-}
-
-// Type returns the resource type of the container.
-func (c *Container) Type() ResourceType {
-	return ContainerType
 }
 
 // ContainerFilter defines the type of container filter.
@@ -143,22 +164,6 @@ type Pod struct {
 	*typedef.FilterPod
 }
 
-// CreatePod creates a Filterable Pod object from a workloadmeta.KubernetesPod.
-func CreatePod(pod *workloadmeta.KubernetesPod) *Pod {
-	if pod == nil {
-		return nil
-	}
-
-	return &Pod{
-		FilterPod: &typedef.FilterPod{
-			Id:          pod.ID,
-			Name:        pod.Name,
-			Namespace:   pod.Namespace,
-			Annotations: pod.Annotations,
-		},
-	}
-}
-
 var _ Filterable = &Pod{}
 
 // Serialize converts the Pod object to a filterable object.
@@ -171,14 +176,26 @@ func (p *Pod) Type() ResourceType {
 	return PodType
 }
 
+// CreatePod creates a Filterable Pod object.
+func CreatePod(id, name, namespace string, annotations map[string]string) *Pod {
+	return &Pod{
+		FilterPod: &typedef.FilterPod{
+			Id:          id,
+			Name:        name,
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+	}
+}
+
 // PodFilter defines the type of pod filter.
 type PodFilter int
 
 // Defined Pod filter kinds
 const (
-	PodMetrics PodFilter = iota
-	PodLogs
-	PodGlobal
+	LegacyPod PodFilter = iota
+	PodADAnnotationsMetrics
+	PodADAnnotations
 )
 
 //
@@ -220,6 +237,8 @@ type ServiceFilter int
 const (
 	LegacyServiceMetrics ServiceFilter = iota
 	LegacyServiceGlobal
+	ServiceADAnnotationsMetrics
+	ServiceADAnnotations
 )
 
 //
@@ -254,6 +273,40 @@ func (e *Endpoint) Type() ResourceType {
 	return EndpointType
 }
 
+//
+// Process Definition
+//
+
+// Process represents a filterable process object.
+type Process struct {
+	*typedef.FilterProcess
+}
+
+var _ Filterable = &Process{}
+
+// GetAnnotations returns the annotations of the process.
+func (p *Process) GetAnnotations() map[string]string {
+	return nil
+}
+
+// Serialize converts the Process object to a filterable object.
+func (p *Process) Serialize() any {
+	return p.FilterProcess
+}
+
+// Type returns the resource type of the process.
+func (p *Process) Type() ResourceType {
+	return ProcessType
+}
+
+// ProcessFilter defines the type of process filter.
+type ProcessFilter int
+
+// Defined Process filter kinds.
+const (
+	LegacyProcessExcludeList ProcessFilter = iota
+)
+
 // EndpointFilter defines the type of endpoint filter.
 type EndpointFilter int
 
@@ -261,4 +314,6 @@ type EndpointFilter int
 const (
 	LegacyEndpointMetrics EndpointFilter = iota
 	LegacyEndpointGlobal
+	EndpointADAnnotationsMetrics
+	EndpointADAnnotations
 )

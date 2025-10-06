@@ -630,11 +630,11 @@ func TestService(t *testing.T) {
 	*api = mockAPI{}
 
 	root3 := []byte(`{"signatures": "testroot3", "signed": "signed"}`)
-	canonicalRoot3 := []byte(`{"signatures":"testroot3","signed":"signed"}`)
+	canonicalRoot3 := []byte(`{"signatures": "testroot3", "signed": "signed"}`)
 	root4 := []byte(`{"signed": "signed", "signatures": "testroot4"}`)
-	canonicalRoot4 := []byte(`{"signatures":"testroot4","signed":"signed"}`)
+	canonicalRoot4 := []byte(`{"signed": "signed", "signatures": "testroot4"}`)
 	targets := []byte(`{"signatures": "testtargets", "signed": "stuff"}`)
-	canonicalTargets := []byte(`{"signatures":"testtargets","signed":"stuff"}`)
+	canonicalTargets := []byte(`{"signatures": "testtargets", "signed": "stuff"}`)
 	testTargetsCustom := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`)
 	client := &pbgo.Client{
 		Id: "testid",
@@ -733,6 +733,14 @@ func TestService(t *testing.T) {
 	assert.Equal(t, 2, len(stateResponse.DirectorState))
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
+
+	_, err = service.ConfigResetState()
+	assert.NoError(t, err)
+
+	// The state should be reset, so we should not be able to get the state again
+	// because the state is empty.
+	_, err = service.ConfigGetState()
+	assert.Error(t, err)
 }
 
 // Test for client predicates
@@ -1428,7 +1436,7 @@ func TestHTTPClientRecentUpdate(t *testing.T) {
 	require.Len(t, u.ClientConfigs, 1)
 	require.Equal(t, "datadog/2/TESTING1/id/1", u.ClientConfigs[0])
 	require.Len(t, u.TUFRoots, 1)
-	require.Equal(t, []byte(`{"signatures":"testroot1","signed":"one"}`), u.TUFRoots[0])
+	require.Equal(t, []byte(`{"signatures": "testroot1", "signed": "one"}`), u.TUFRoots[0])
 }
 
 // TestHTTPClientUpdateSuccess tests that a stale state will trigger an update of the cached state
@@ -1480,7 +1488,7 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 			require.Len(t, u.ClientConfigs, 1)
 			require.Equal(t, "datadog/2/TESTING1/id/1", u.ClientConfigs[0])
 			require.Len(t, u.TUFRoots, 1)
-			require.Equal(t, []byte(`{"signatures":"testroot1","signed":"one"}`), u.TUFRoots[0])
+			require.Equal(t, []byte(`{"signatures": "testroot1", "signed": "one"}`), u.TUFRoots[0])
 		})
 	}
 }

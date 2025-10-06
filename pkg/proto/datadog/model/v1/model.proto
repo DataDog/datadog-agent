@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package datadog.model.v1;
 
+import "google/protobuf/struct.proto";
+
 option go_package = "pkg/proto/pbgo/core";  // golang
 
 
@@ -138,4 +140,34 @@ message TaggerState {
 
 message TaggerStateResponse {
     bool loaded = 1;
+}
+
+message ConfigStreamRequest {
+  // The name of the client subscribing to the config stream.
+  string name = 1;
+}
+
+message ConfigSetting {
+  string source = 1;
+  string key = 2;
+  google.protobuf.Value value = 3;
+}
+
+message ConfigSnapshot {
+  string origin = 1;
+  int32 sequence_id = 2;
+  repeated ConfigSetting settings = 3;
+ }
+
+message ConfigUpdate {
+  string origin = 1;
+  int32 sequence_id = 2;
+  ConfigSetting setting = 3;
+}
+
+message ConfigEvent {
+  oneof event {
+    ConfigSnapshot snapshot = 1;
+    ConfigUpdate update = 2;
+  }
 }

@@ -8,6 +8,7 @@ enum WorkloadmetaKind {
   CONTAINER = 0;
   KUBERNETES_POD = 1;
   ECS_TASK = 2;
+  PROCESS = 3;
 }
 
 enum WorkloadmetaSource {
@@ -100,6 +101,13 @@ message ContainerAllocatedResource {
   string ID = 2;
 }
 
+message ContainerResources {
+  optional double cpuRequest = 1;
+  optional double cpuLimit = 2;
+  optional uint64 memoryRequest = 3;
+  optional uint64 memoryLimit = 4;
+}
+
 message Container {
   WorkloadmetaEntityId entityId = 1;
   EntityMeta entityMeta = 2;
@@ -114,6 +122,8 @@ message Container {
   repeated string collectorTags = 11;
   string cgroupPath = 12;
   repeated ContainerAllocatedResource resolvedAllocatedResources = 13;
+  ContainerResources resources = 14;
+  WorkloadmetaEntityId owner = 15;
 }
 
 message KubernetesPodOwner {
@@ -143,6 +153,7 @@ message KubernetesPod {
   map<string, string> namespaceLabels = 12;
   repeated OrchestratorContainer InitContainers = 13;
   string runtimeClass = 14;
+  repeated OrchestratorContainer ephemeralContainers = 15;
 }
 
 enum ECSLaunchType {
@@ -165,11 +176,65 @@ message ECSTask {
   string awsAccountID = 12;
 }
 
+message TracerMetadata {
+  string runtimeId = 1;
+  string serviceName = 2;
+}
+
+message UST {
+  string service = 1;
+  string env = 2;
+  string version = 3;
+}
+
+message Service {
+  string generatedName = 1;
+  string generatedNameSource = 2;
+  repeated string additionalGeneratedNames = 4;
+  repeated TracerMetadata tracerMetadata = 5;
+  repeated int32 tcpPorts = 7;
+  repeated int32 udpPorts = 8;
+  string apmInstrumentation = 9;
+  UST ust = 17;
+}
+
+message Language {
+  string name = 1;
+  string version = 2;
+}
+
+enum InjectionState {
+	INJECTION_UNKNOWN = 0;
+	INJECTION_INJECTED = 1;
+	INJECTION_NOT_INJECTED = 2;
+}
+
+message Process {
+  WorkloadmetaEntityId entityId = 1;
+  int32 pid = 2;
+  int32 nspid = 3;
+  int32 ppid = 4;
+  string name = 5;
+  string cwd = 6;
+  string exe = 7;
+  string comm = 8;
+  repeated string cmdline = 9;
+  repeated int32 uids = 10;
+  repeated int32 gids = 11;
+  string containerId = 12;
+  int64 creationTime = 13;
+  Language language = 14;
+  WorkloadmetaEntityId owner = 15;
+  Service service = 16;
+  InjectionState injectionState = 17;
+}
+
 message WorkloadmetaEvent {
   WorkloadmetaEventType type = 1;
   Container container = 2;
   KubernetesPod kubernetesPod = 3;
   ECSTask ecsTask = 4;
+  Process process = 5;
 }
 
 message WorkloadmetaStreamResponse {

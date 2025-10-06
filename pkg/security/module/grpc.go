@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 // GRPCServer defines a gRPC server
@@ -34,10 +35,13 @@ func NewGRPCServer(family string, address string) *GRPCServer {
 		}
 	}
 
+	// Add gRPC metrics interceptors
+	opts := grpcutil.ServerOptionsWithMetrics()
+
 	return &GRPCServer{
 		family:  family,
 		address: address,
-		server:  grpc.NewServer(),
+		server:  grpc.NewServer(opts...),
 	}
 }
 

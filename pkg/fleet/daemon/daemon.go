@@ -20,11 +20,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -69,7 +70,7 @@ type Daemon interface {
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
-	StartConfigExperiment(ctx context.Context, pkg string, hash string) error
+	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
 	StopConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -102,7 +103,7 @@ func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
 }
 
 // NewDaemon returns a new daemon.
-func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, error) {
+func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconfig.Reader) (Daemon, error) {
 	installerBin, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("could not get installer executable path: %w", err)
@@ -110,6 +111,9 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 	installerBin, err = filepath.EvalSymlinks(installerBin)
 	if err != nil {
 		return nil, fmt.Errorf("could not get resolve installer executable path: %w", err)
+	}
+	if runtime.GOOS != "windows" {
+		installerBin = filepath.Join(filepath.Dir(installerBin), "..", "..", "embedded", "bin", "installer")
 	}
 	dbPath := filepath.Join(paths.RunPath, "installer_tasks.db")
 	taskDB, err := newTaskDB(dbPath)
@@ -250,6 +254,19 @@ func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
 		return Package{}, fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
 	return catalogPackage, nil
+}
+
+func (d *daemonImpl) getConfig(version string) (installerConfig, error) {
+	configs := d.configs
+	if len(d.configsOverride) > 0 {
+		configs = d.configsOverride
+	}
+
+	config, ok := configs[version]
+	if !ok {
+		return installerConfig{}, fmt.Errorf("config version %s not found in available configs", version)
+	}
+	return config, nil
 }
 
 // SetCatalog sets the catalog.
@@ -434,36 +451,24 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 }
 
 // StartConfigExperiment starts a config experiment with the given package.
-func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, version string) error {
+func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startConfigExperiment(ctx, url, version)
+	return d.startConfigExperiment(ctx, pkg, operations)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, operations config.Operations) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	log.Infof("Daemon: Starting config experiment version %s for package %s", version, pkg)
-	configs := d.configs
-	if len(d.configsOverride) > 0 {
-		configs = d.configsOverride
-	}
-	config, ok := configs[version]
-	if !ok {
-		return fmt.Errorf("could not find config version %s", version)
-	}
-	serializedConfigFiles, err := json.Marshal(config.Files)
-	if err != nil {
-		return fmt.Errorf("could not serialize config files: %w", err)
-	}
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigFiles)
+	log.Infof("Daemon: Starting config experiment for package %s (deployment id: %s)", pkg, operations.DeploymentID)
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, operations)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
-	log.Infof("Daemon: Successfully started config experiment version %s for package %s", version, pkg)
+	log.Infof("Daemon: Successfully started config experiment for package %s (deployment id: %s)", pkg, operations.DeploymentID)
 	return nil
 }
 
@@ -618,7 +623,20 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
 		log.Infof("Installer: Received remote request %s to start config experiment for package %s", request.ID, request.Package)
-		return d.startConfigExperiment(ctx, request.Package, params.Version)
+		c, err := d.getConfig(params.Version)
+		if err != nil {
+			return fmt.Errorf("could not get config: %w", err)
+		}
+		var ops config.Operations
+		ops.DeploymentID = c.ID
+		for _, operation := range c.FileOperations {
+			ops.FileOperations = append(ops.FileOperations, config.FileOperation{
+				FileOperationType: config.FileOperationType(operation.FileOperationType),
+				FilePath:          operation.FilePath,
+				Patch:             operation.Patch,
+			})
+		}
+		return d.startConfigExperiment(ctx, request.Package, ops)
 
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)

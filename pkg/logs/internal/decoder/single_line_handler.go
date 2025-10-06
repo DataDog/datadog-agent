@@ -68,15 +68,11 @@ func (h *SingleLineHandler) process(msg *message.Message) {
 		// adding the truncated flag the end of the content
 		content = append(content, message.TruncatedFlag...)
 		metrics.LogsTruncated.Add(1)
-		if msg == nil || msg.Origin == nil {
-			metrics.TlmTruncatedCount.Inc("", "")
-		} else {
-			metrics.TlmTruncatedCount.Inc(msg.Origin.Service(), msg.Origin.Source())
-		}
 
 	}
 
 	if lastWasTruncated || h.shouldTruncate {
+		msg.ParsingExtra.IsTruncated = true
 		addTruncatedTag(msg)
 	}
 	msg.SetContent(content) // refresh the content in the message

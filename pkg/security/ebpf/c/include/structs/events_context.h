@@ -32,10 +32,6 @@ struct process_context_t {
     u64 inode;
 };
 
-typedef char container_id_t[CONTAINER_ID_LEN];
-
-typedef char cgroup_prefix_t[256];
-
 struct ktimeval {
     long tv_sec;
     long tv_nsec;
@@ -60,13 +56,7 @@ struct file_t {
 };
 
 struct cgroup_context_t {
-    u64 cgroup_flags;
     struct path_key_t cgroup_file;
-};
-
-struct container_context_t {
-    container_id_t container_id;
-    struct cgroup_context_t cgroup_context;
 };
 
 #endif

@@ -26,10 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -50,6 +50,26 @@ import (
 )
 
 const defaultWaitInterval = time.Second
+
+func waitForWorkloadMeta(logger log.Component, wm workloadmeta.Component) {
+	logger.Info("Waiting for workloadmeta to be initialized...")
+	timeout := time.After(10 * time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			logger.Warn("Workloadmeta is not ready after 10 seconds, proceeding anyway")
+			return
+		case <-ticker.C:
+			if wm.IsInitialized() {
+				logger.Info("Workloadmeta is ready, proceeding with checks")
+				return
+			}
+		}
+	}
+}
 
 type CliParams struct {
 	*command.GlobalParams
@@ -124,6 +144,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 			return fxutil.OneShot(RunCheckCmd,
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
+				secretsfx.Module(),
 				// Provide workloadmeta module
 
 				// Provide eventplatformimpl module
@@ -142,12 +163,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				}),
 
 				// Tagger must be initialized after agent config has been setup
-				remoteTaggerfx.Module(tagger.RemoteParams{
-					RemoteTarget: func(c config.Component) (string, error) {
-						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-					},
-					RemoteFilter: taggerTypes.NewMatchAllFilter(),
-				}),
+				remoteTaggerfx.Module(tagger.NewRemoteParams()),
 				processComponent.Bundle(),
 				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
@@ -185,6 +201,10 @@ func RunCheckCmd(deps Dependencies) error {
 			c()
 		}
 	}()
+
+	// Wait for Workloadmeta to be initialized otherwise results may be empty as this is a hard dependency
+	// for some checks
+	waitForWorkloadMeta(deps.Log, deps.WorkloadMeta)
 
 	names := make([]string, 0, len(deps.Checks))
 	for _, checkComponent := range deps.Checks {

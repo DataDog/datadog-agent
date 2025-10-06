@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type DeploymentCollector struct {
 // NewDeploymentCollector creates a new collector for the Kubernetes Deployment
 // resource.
 func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentCollector {
-	resourceType := getResourceType(deploymentName, deploymentVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.DeploymentName, utilTypes.DeploymentVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentColl
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 deploymentName,
+			Name:                                 utilTypes.DeploymentName,
 			Kind:                                 kubernetes.DeploymentKind,
 			NodeType:                             orchestrator.K8sDeployment,
-			Version:                              deploymentVersion,
+			Version:                              utilTypes.DeploymentVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

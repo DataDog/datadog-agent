@@ -39,6 +39,7 @@ type ClusterChecksConfigProvider struct {
 	lastChange       int64
 	identifier       string
 	flushedConfigs   bool
+	nodeType         types.NodeType
 }
 
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
@@ -53,6 +54,7 @@ func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.Configuration
 		graceDuration:    defaultGraceDuration,
 		degradedDuration: defaultDegradedDeadline,
 		heartbeat:        atomic.NewTime(time.Now()),
+		nodeType:         types.NodeTypeCLCRunner,
 	}
 
 	c.identifier = pkgconfigsetup.Datadog().GetString("clc_runner_id")
@@ -66,6 +68,13 @@ func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.Configuration
 				c.identifier = boshID
 			}
 		}
+	}
+
+	// Set nodeType based on config
+	if pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
+		c.nodeType = types.NodeTypeCLCRunner
+	} else {
+		c.nodeType = types.NodeTypeNodeAgent
 	}
 
 	if providerConfig.GraceTimeSeconds > 0 {
@@ -118,6 +127,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 
 	status := types.NodeStatus{
 		LastChange: c.lastChange,
+		NodeType:   c.nodeType,
 	}
 
 	reply, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
@@ -216,6 +226,7 @@ func (c *ClusterChecksConfigProvider) postHeartbeat(ctx context.Context) error {
 
 	status := types.NodeStatus{
 		LastChange: types.ExtraHeartbeatLastChangeValue,
+		NodeType:   c.nodeType,
 	}
 
 	_, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)

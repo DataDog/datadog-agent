@@ -65,7 +65,10 @@ func (e eventProgramAttached) String() string {
 	if e.program == nil {
 		return "eventProgramAttached{program: nil}"
 	}
-	return fmt.Sprintf("eventProgramAttached{programID: %v, processID: %v}", e.program.ir.ID, e.program.procID)
+	return fmt.Sprintf(
+		"eventProgramAttached{programID: %v, processID: %v}",
+		e.program.programID, e.program.processID,
+	)
 }
 
 type eventProgramAttachingFailed struct {
@@ -76,7 +79,10 @@ type eventProgramAttachingFailed struct {
 }
 
 func (e eventProgramAttachingFailed) String() string {
-	return fmt.Sprintf("eventProgramAttachingFailed{programID: %v, processID: %v, err: %v}", e.programID, e.processID, e.err)
+	return fmt.Sprintf(
+		"eventProgramAttachingFailed{programID: %v, processID: %v, err: %v}",
+		e.programID, e.processID, e.err,
+	)
 }
 
 // Note that we'll send this even if the detachment fails.
@@ -87,7 +93,22 @@ type eventProgramDetached struct {
 }
 
 func (e eventProgramDetached) String() string {
-	return fmt.Sprintf("eventProgramDetached{programID: %v, processID: %v}", e.programID, e.processID)
+	return fmt.Sprintf(
+		"eventProgramDetached{programID: %v, processID: %v}",
+		e.programID, e.processID,
+	)
+}
+
+// eventProgramUnloaded is emitted once a program has been fully unloaded
+// (BPF program closed, sink closed, and unregistered from the dispatcher).
+// It signals to the state-machine that the resources can now be dropped.
+type eventProgramUnloaded struct {
+	baseEvent
+	programID ir.ProgramID
+}
+
+func (e eventProgramUnloaded) String() string {
+	return fmt.Sprintf("eventProgramUnloaded{programID: %v}", e.programID)
 }
 
 type eventShutdown struct {

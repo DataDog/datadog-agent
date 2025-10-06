@@ -5,7 +5,7 @@
 
 //go:build kubelet || docker
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package container provides container-related log tailers
 package container
 
 import (

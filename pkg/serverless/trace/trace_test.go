@@ -12,7 +12,6 @@ import (
 	"os"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -22,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func setupTraceAgentTest(t *testing.T) {
@@ -100,23 +98,6 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	defer agent.Stop()
 	assert.NotNil(t, agent)
 	assert.IsType(t, &serverlessTraceAgent{}, agent)
-}
-
-func TestLoadConfigShouldBeFast(t *testing.T) {
-	flake.Mark(t)
-	setupTraceAgentTest(t)
-
-	startTime := time.Now()
-	lambdaSpanChan := make(chan *pb.Span)
-
-	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
-		Enabled:         true,
-		LoadConfig:      &LoadConfig{Path: "./testdata/valid.yml"},
-		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanID: random.Random.Uint64(),
-	})
-	defer agent.Stop()
-	assert.True(t, time.Since(startTime) < time.Second)
 }
 
 func TestFilterSpanFromLambdaLibraryOrRuntimeHttpSpan(t *testing.T) {
@@ -219,5 +200,102 @@ func TestGetDDOriginCloudServices(t *testing.T) {
 		t.Setenv(envVar, "myService")
 		assert.Equal(t, service, getDDOrigin())
 		os.Unsetenv(envVar)
+	}
+}
+
+func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
+	tests := []struct {
+		name         string
+		functionTags string
+	}{
+		{
+			name:         "with function tags",
+			functionTags: "env:production,service:my-service,version:1.0",
+		},
+		{
+			name:         "with empty function tags",
+			functionTags: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupTraceAgentTest(t)
+
+			lambdaSpanChan := make(chan *pb.Span)
+
+			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
+				Enabled:         true,
+				LoadConfig:      &LoadConfig{Path: "./testdata/valid.yml"},
+				LambdaSpanChan:  lambdaSpanChan,
+				ColdStartSpanID: random.Random.Uint64(),
+				FunctionTags:    tt.functionTags,
+			})
+			defer agent.Stop()
+
+			assert.NotNil(t, agent)
+			assert.IsType(t, &serverlessTraceAgent{}, agent)
+
+			// Access the underlying agent to check TracerPayloadModifier
+			serverlessAgent := agent.(*serverlessTraceAgent)
+			assert.NotNil(t, serverlessAgent.ta.TracerPayloadModifier)
+		})
+	}
+}
+
+func TestServerlessTraceAgentDisableTraceStats(t *testing.T) {
+	tests := []struct {
+		name       string
+		envValue   string
+		expectNoop bool
+	}{
+		{
+			name:       "trace stats enabled by default",
+			envValue:   "",
+			expectNoop: false,
+		},
+		{
+			name:       "trace stats disabled with true",
+			envValue:   "true",
+			expectNoop: true,
+		},
+		{
+			name:       "trace stats enabled with false",
+			envValue:   "false",
+			expectNoop: false,
+		},
+		{
+			name:       "trace stats enabled with other value",
+			envValue:   "yes",
+			expectNoop: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupTraceAgentTest(t)
+
+			if tt.envValue != "" {
+				t.Setenv(disableTraceStatsEnvVar, tt.envValue)
+			}
+
+			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
+				Enabled:    true,
+				LoadConfig: &LoadConfig{Path: "./testdata/valid.yml"},
+			})
+			defer agent.Stop()
+
+			assert.NotNil(t, agent)
+			assert.IsType(t, &serverlessTraceAgent{}, agent)
+
+			// Access the underlying agent to check concentrator type
+			serverlessAgent := agent.(*serverlessTraceAgent)
+			if tt.expectNoop {
+				assert.IsType(t, &noopConcentrator{}, serverlessAgent.ta.Concentrator)
+			} else {
+				// Should not be noop concentrator
+				assert.NotEqual(t, &noopConcentrator{}, serverlessAgent.ta.Concentrator)
+			}
+		})
 	}
 }

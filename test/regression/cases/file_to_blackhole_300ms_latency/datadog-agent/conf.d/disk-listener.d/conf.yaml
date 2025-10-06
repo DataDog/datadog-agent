@@ -1,5 +1,0 @@
-logs:
-  - type: file
-    path: "/smp-shared/*.log"
-    service: "my-service"
-    source: "my-client-app"

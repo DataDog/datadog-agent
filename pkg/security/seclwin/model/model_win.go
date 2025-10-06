@@ -94,12 +94,14 @@ type Event struct {
 	ChangePermission ChangePermissionEvent `field:"change_permission" event:"change_permission" ` // [7.55] [Registry] A permission change was made
 }
 
-var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+// NewEventZeroer returns a function that can be used to zero an Event
+func NewEventZeroer() func(*Event) {
+	var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
 
-// Zero the event
-func (e *Event) Zero() {
-	*e = eventZero
-	*e.BaseEvent.ContainerContext = containerContextZero
+	return func(e *Event) {
+		*e = eventZero
+		*e.BaseEvent.ContainerContext = containerContextZero
+	}
 }
 
 // FileEvent is the common file event type
@@ -107,6 +109,7 @@ type FileEvent struct {
 	FileObject  uint64 `field:"-"`                                                                                      // handle numeric value
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length|gen_getters" op_override:"eval.WindowsPathCmp"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"`     // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
+	Extension   string `field:"extension,handler:ResolveFileExtension" op_override:"eval.CaseInsensitiveCmp"`           // SECLDoc[extension] Definition:`File's extension`
 }
 
 // FimFileEvent is the common file event type
@@ -115,6 +118,7 @@ type FimFileEvent struct {
 	PathnameStr     string `field:"device_path,handler:ResolveFimFilePath,opts:length" op_override:"eval.WindowsPathCmp"`  // SECLDoc[device_path] Definition:`File's path` Example:`create.file.device_path == "\device\harddisk1\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
 	UserPathnameStr string `field:"path,handler:ResolveFileUserPath,opts:length" op_override:"eval.WindowsPathCmp"`        // SECLDoc[path] Definition:`File's path` Example:`create.file.path == "c:\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
 	BasenameStr     string `field:"name,handler:ResolveFimFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`create.file.name == "cmd.bat"` Description:`Matches the creation of any file named cmd.bat.`
+	Extension       string `field:"extension,handler:ResolveFimFileExtension" op_override:"eval.CaseInsensitiveCmp"`       // SECLDoc[extension] Definition:`File's extension`
 }
 
 // RegistryEvent is the common registry event type

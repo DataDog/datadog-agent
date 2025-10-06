@@ -50,15 +50,16 @@ state:
 ---
 event: !loaded {program_id: 1}
 effects:
+  - !unload-program {program_id: 1}
   - !spawn-bpf-loading {executable: /usr/bin/app2@0.0m0.0, probes: [probe2], process_id: 1002, program_id: 2}
 state:
   currently_loading: 1 -> 2
   queued_programs: '[2] -> []'
   processes:
-    1001: WaitingForProgram (prog 1) -> <nil>
+    1001: WaitingForProgram (prog 1)
     1002: WaitingForProgram (prog 2)
   programs:
-    1: LoadingAborted (proc 1001) -> <nil>
+    1: LoadingAborted (proc 1001) -> Unloading (proc 1001)
     2: Queued (proc 1002) -> Loading (proc 1002)
 ---
 event: !loaded {program_id: 2}
@@ -68,6 +69,8 @@ state:
   currently_loading: 2 -> <nil>
   queued_programs: '[]'
   processes:
+    1001: WaitingForProgram (prog 1)
     1002: WaitingForProgram (prog 2) -> Attaching (prog 2)
   programs:
+    1: Unloading (proc 1001)
     2: Loading (proc 1002) -> Loaded (proc 1002)

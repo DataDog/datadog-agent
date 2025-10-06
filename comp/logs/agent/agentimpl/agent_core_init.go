@@ -28,11 +28,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // NewAgent returns a new Logs Agent
-func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component) {
+func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
 	destinationsCtx := client.NewDestinationsContext()
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
@@ -66,7 +67,9 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 		fileScanPeriod,
 		fileWildcardSelectionMode,
 		a.flarecontroller,
-		a.tagger))
+		a.tagger,
+		fingerprintConfig,
+	))
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())

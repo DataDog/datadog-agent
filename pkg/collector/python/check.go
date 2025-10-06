@@ -64,6 +64,7 @@ type PythonCheck struct {
 	initConfig     string
 	instanceConfig string
 	haSupported    bool
+	cancelled      bool
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -97,6 +98,10 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 		return err
 	}
 	defer gstate.unlock()
+
+	if c.cancelled {
+		return fmt.Errorf("check %s is already cancelled", c.ModuleName)
+	}
 
 	log.Debugf("Running python check %s (version: '%s', id: '%s')", c.ModuleName, c.version, c.id)
 
@@ -164,6 +169,7 @@ func (c *PythonCheck) Cancel() {
 	if err := getRtLoaderError(); err != nil {
 		log.Warnf("failed to cancel check %s: %s", c.id, err)
 	}
+	c.cancelled = true
 }
 
 // String representation (for debug and logging)

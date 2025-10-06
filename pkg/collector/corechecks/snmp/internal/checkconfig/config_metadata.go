@@ -247,8 +247,8 @@ var TopologyMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
-// VPNMetadataConfig contains VPN tunnels metadata
-var VPNMetadataConfig = profiledefinition.MetadataConfig{
+// VPNTunnelMetadataConfig contains VPN tunnels metadata
+var VPNTunnelMetadataConfig = profiledefinition.MetadataConfig{
 	"cisco_ipsec_tunnel": {
 		Fields: map[string]profiledefinition.MetadataField{
 			"local_outside_ip": {
@@ -261,6 +261,24 @@ var VPNMetadataConfig = profiledefinition.MetadataConfig{
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.5",
 					Name: "cipSecTunRemoteAddr",
+				},
+			},
+			"status": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.51",
+					Name: "cipSecTunStatus",
+				},
+			},
+			"life_size": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.8",
+					Name: "cipSecTunLifeSize",
+				},
+			},
+			"life_time": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.9",
+					Name: "cipSecTunLifeTime",
 				},
 			},
 		},
@@ -337,7 +355,7 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 		mergeMetadata(newConfig, TopologyMetadataConfig)
 	}
 	if collectVPN {
-		mergeMetadata(newConfig, VPNMetadataConfig)
+		mergeMetadata(newConfig, VPNTunnelMetadataConfig)
 		mergeMetadata(newConfig, RouteMetadataConfig)
 		mergeMetadata(newConfig, TunnelMetadataConfig)
 	}

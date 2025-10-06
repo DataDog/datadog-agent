@@ -147,7 +147,7 @@ func TestNTPError(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 	assert.Error(t, err)
-	assert.EqualError(t, err, "failed to get clock offset from any ntp host: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org ]")
+	assert.EqualError(t, err, "failed to get clock offset from any ntp host: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org ]. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue")
 }
 
 func TestNTPInvalid(t *testing.T) {

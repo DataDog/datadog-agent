@@ -12,13 +12,17 @@ import (
 	"math"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/cpu"
 
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -46,12 +50,13 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface, grpcServerTLSConfig *tls.Config) *ProcessCheck {
+func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface, grpcServerTLSConfig *tls.Config, tagger taggerdef.Component) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
 	check := &ProcessCheck{
 		config:              config,
+		sysConfig:           sysprobeYamlConfig,
 		scrubber:            procutil.NewDefaultDataScrubber(),
 		lookupIdProbe:       NewLookupIDProbe(config),
 		serviceExtractor:    parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
@@ -59,6 +64,8 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		gpuSubscriber:       gpuSubscriber,
 		statsd:              statsd,
 		grpcServerTLSConfig: grpcServerTLSConfig,
+		tagger:              tagger,
+		clock:               clock.New(),
 	}
 
 	return check
@@ -75,7 +82,8 @@ const (
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
-	config pkgconfigmodel.Reader
+	config    pkgconfigmodel.Reader
+	sysConfig pkgconfigmodel.Reader
 
 	probe procutil.Probe
 	// scrubber is a DataScrubber to hide command line sensitive words
@@ -87,7 +95,12 @@ type ProcessCheck struct {
 	// determine if zombies process will be collected
 	ignoreZombieProcesses bool
 
+	// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+	// that determines if linux process collection will use WLM
+	useWLMProcessCollection bool
+
 	hostInfo                   *HostInfo
+	clock                      clock.Clock
 	lastCPUTime                cpu.TimesStat
 	lastProcs                  map[int32]*procutil.Process
 	lastRun                    time.Time
@@ -132,6 +145,8 @@ type ProcessCheck struct {
 	gpuSubscriber gpusubscriber.Component
 
 	grpcServerTLSConfig *tls.Config
+
+	tagger taggerdef.Component
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -177,7 +192,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
-	if !oneShot && workloadmeta.Enabled(p.config) {
+	if !oneShot && workloadmeta.Enabled(p.config) && !p.useWLMCollection() {
 		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
 
 		// The server is only needed on the process agent
@@ -191,16 +206,23 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 		p.extractors = append(p.extractors, p.workloadMetaExtractor)
 	}
+
+	// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+	p.useWLMProcessCollection = p.useWLMCollection()
+
 	return nil
 }
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
+	// TODO: this will eventually be removed once this config is baselined (hardcoded to true)
 	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 
-	return p.config.GetBool("process_config.process_collection.enabled")
+	// we want the check to be run for process collection or when the new service discovery collection is enabled
+	return p.config.GetBool("process_config.process_collection.enabled") ||
+		(p.sysConfig.GetBool("discovery.enabled") && p.config.GetBool("process_config.process_collection.use_wlm"))
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
@@ -234,7 +256,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return nil, errEmptyCPUTime
 	}
 
-	procs, err := p.probe.ProcessesByPID(time.Now(), true)
+	procs, err := p.processesByPID()
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +319,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, time.Now())
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -314,7 +336,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun)
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -469,6 +491,8 @@ func fmtProcesses(
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
 	pidToGPUTags map[int32][]string,
+	tagger taggerdef.Component,
+	now time.Time,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
@@ -489,16 +513,28 @@ func fmtProcesses(
 			CreateTime:             fp.Stats.CreateTime,
 			OpenFdCount:            fp.Stats.OpenFdCount,
 			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
-			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun),
+			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, now, lastRun),
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
+			// SERVICE DISCOVERY FIELDS
+			PortInfo:         formatPorts(fp.PortsCollected, fp.TCPPorts, fp.UDPPorts), // only populated if service discovery is enabled + linux
+			Language:         formatLanguage(fp.Language),                              // only populated if language detection is enabled + linux
+			ServiceDiscovery: formatServiceDiscovery(fp.Service),                       // only populated if service discovery is enabled + linux
+			InjectionState:   formatInjectionState(fp.InjectionState),                  // only populated if service discovery is enabled + linux
 		}
 
 		if tags, ok := pidToGPUTags[fp.Pid]; ok {
 			log.Debugf("Detected GPU, and process is in activePids, adding GPU tags to pid: %d, tags: %v", fp.Pid, tags)
 			proc.Tags = append(proc.Tags, tags...)
+		}
+
+		if tagger != nil {
+			processEntityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(fp.Pid)))
+			if processTags, err := tagger.Tag(processEntityID, taggertypes.HighCardinality); err == nil && len(processTags) > 0 {
+				proc.Tags = append(proc.Tags, processTags...)
+			}
 		}
 
 		_, ok := procsByCtr[proc.ContainerId]
@@ -525,7 +561,7 @@ func formatCommand(fp *procutil.Process) *model.Command {
 	}
 }
 
-func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.Time) *model.IOStat {
+func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, now time.Time, before time.Time) *model.IOStat {
 	if fp.IORateStat != nil {
 		return formatIORates(fp.IORateStat)
 	}
@@ -534,7 +570,7 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 		return &model.IOStat{}
 	}
 
-	diff := time.Now().Unix() - before.Unix()
+	diff := now.Unix() - before.Unix()
 	if before.IsZero() || diff <= 0 {
 		return &model.IOStat{}
 	}

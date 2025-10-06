@@ -235,6 +235,77 @@ var (
 			"tx_event_counter",
 			"tx_dma_mapping_error",
 		},
+		// ethtool output on an instance with mlx5_core (filtered):
+		// ch_arm: 0
+		// ch_eq_rearm: 0
+		// ch_poll: 0
+		// link_down_events_phy: 0
+		// module_bad_shorted: 0
+		// module_bus_stuck: 0
+		// module_high_temp: 0
+		// rx_bytes: 0
+		// rx_crc_errors_phy: 0
+		// rx_csum_complete: 0
+		// rx_csum_none: 0
+		// rx_csum_unnecessary: 0
+		// rx_discards_phy: 0
+		// rx_fragments_phy: 0
+		// rx_in_range_len_errors_phy: 0
+		// rx_jabbers_phy: 0
+		// rx_out_of_buffer: 0
+		// rx_out_of_range_len_phy: 0
+		// rx_oversize_pkts_buffer: 0
+		// rx_oversize_pkts_phy: 0
+		// rx_oversize_pkts_sw_drop: 0
+		// rx_packets: 0
+		// rx_pp_alloc_empty: 0
+		// rx_steer_missed_packets: 0
+		// rx_symbol_err_phy: 0
+		// rx_undersize_pkts_phy: 0
+		// rx_unsupported_op_phy: 0
+		// rx_xdp_drop: 0
+		// rx_xdp_redirect: 0
+		// rx_xdp_tx_err: 0
+		// rx_xsk_buff_alloc_err: 0
+		// tx_bytes: 0
+		// tx_discards_phy: 0
+		// tx_errors_phy: 0
+		// tx_packets: 0
+		// tx_queue_dropped: 0
+		// tx_queue_stopped: 0
+		// tx_queue_stopped: 0
+		// tx_queue_wake: 0
+		// tx_queue_wake: 0
+		// tx_xdp_err: 0
+		// tx_xsk_err: 0
+		// tx_xsk_full: 0
+		// rx0_arfs_err: 0
+		// rx0_buff_alloc_err: 0
+		// rx0_recover: 0
+		// rx0_tls_err: 0
+		// rx0_tls_resync_req_skip: 0
+		// rx0_tls_resync_res_retry: 0
+		// rx0_tls_resync_res_skip: 0
+		// rx0_wqe_err: 0
+		// rx0_xdp_tx_err: 0
+		// rx0_xdp_tx_full: 0
+		// tx0_cqe_err: 0
+		// tx0_dropped: 0
+		// tx0_recover: 0
+		"mlx5_core": {
+			"rx_arfs_err",
+			"rx_buff_alloc_err",
+			"rx_recover",
+			"rx_tls_err",
+			"rx_tls_resync_res_retry",
+			"rx_tls_resync_res_skip",
+			"rx_wqe_err",
+			"rx_xdp_tx_err",
+			"rx_xdp_tx_full",
+			"tx_cqe_err",
+			"tx_dropped",
+			"tx_recover",
+		},
 	}
 )
 
@@ -266,6 +337,61 @@ var (
 			"page_alloc_fail",
 			"dma_mapping_error",
 		},
+		"mlx5_core": {
+			"ch_arm",
+			"ch_eq_rearm",
+			"ch_poll",
+			"link_down_events_phy",
+			"module_bad_shorted",
+			"module_bus_stuck",
+			"module_high_temp",
+			"rx_bytes",
+			"rx_crc_errors_phy",
+			"rx_csum_complete",
+			"rx_csum_none",
+			"rx_csum_unnecessary",
+			"rx_discards_phy",
+			"rx_fragments_phy",
+			"rx_in_range_len_errors_phy",
+			"rx_jabbers_phy",
+			"rx_out_of_buffer",
+			"rx_out_of_range_len_phy",
+			"rx_oversize_pkts_buffer",
+			"rx_oversize_pkts_phy",
+			"rx_oversize_pkts_sw_drop",
+			"rx_packets",
+			"rx_pp_alloc_empty",
+			"rx_steer_missed_packets",
+			"rx_symbol_err_phy",
+			"rx_undersize_pkts_phy",
+			"rx_unsupported_op_phy",
+			"rx_xdp_drop",
+			"rx_xdp_redirect",
+			"rx_xdp_tx_err",
+			"rx_xsk_buff_alloc_err",
+			"tx_bytes",
+			"tx_discards_phy",
+			"tx_errors_phy",
+			"tx_packets",
+			"tx_queue_dropped",
+			"tx_queue_stopped",
+			"tx_queue_wake",
+			"tx_xdp_err",
+			"tx_xsk_err",
+			"tx_xsk_full",
+		},
+	}
+)
+
+var (
+	enaMetricPrefix = "aws.ec2."
+	enaMetricNames  = []string{
+		"bw_in_allowance_exceeded",
+		"bw_out_allowance_exceeded",
+		"conntrack_allowance_exceeded",
+		"linklocal_allowance_exceeded",
+		"pps_allowance_exceeded",
+		"conntrack_allowance_available",
 	}
 )
 
@@ -349,11 +475,12 @@ var (
 			"FIN-WAIT-1": "closing",
 			"FIN-WAIT-2": "closing",
 			"TIME-WAIT":  "time_wait",
-			"UNCONN":     "closing",
 			"CLOSE-WAIT": "closing",
 			"LAST-ACK":   "closing",
 			"LISTEN":     "listening",
 			"CLOSING":    "closing",
+			"UNCONN":     "closing",
+			"NONE":       "connections", // sole UDP mapping
 		},
 		"netstat": {
 			"ESTABLISHED": "established",
@@ -367,11 +494,8 @@ var (
 			"LAST_ACK":    "closing",
 			"LISTEN":      "listening",
 			"CLOSING":     "closing",
+			"NONE":        "connections", // sole UDP mapping
 		},
-	}
-
-	udpStateMetricsSuffixMapping = map[string]string{
-		"NONE": "connections",
 	}
 
 	procfsSubdirectories = []string{"netstat", "snmp"}

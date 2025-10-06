@@ -7,7 +7,6 @@ import "datadog/remoteagent/remoteagent.proto";
 import "datadog/remoteconfig/remoteconfig.proto";
 import "datadog/workloadmeta/workloadmeta.proto";
 import "datadog/autodiscovery/autodiscovery.proto";
-import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 
 option go_package = "pkg/proto/pbgo/core"; // golang
@@ -44,6 +43,8 @@ service AgentSecure {
 
     rpc GetConfigStateHA(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse);
 
+    rpc ResetConfigState(google.protobuf.Empty) returns (datadog.config.ResetStateConfigResponse);
+
     // Subscribes to added, removed, or changed entities in the Workloadmeta and
     // streams them to clients as events.
     rpc WorkloadmetaStreamEntities(datadog.workloadmeta.WorkloadmetaStreamRequest) returns (stream datadog.workloadmeta.WorkloadmetaStreamResponse);
@@ -57,6 +58,9 @@ service AgentSecure {
     // Get the host tags
     rpc GetHostTags(datadog.model.v1.HostTagRequest) returns (datadog.model.v1.HostTagReply);
 
+    // Streams config events to the remote agent.
+    rpc StreamConfigEvents(datadog.model.v1.ConfigStreamRequest) returns (stream datadog.model.v1.ConfigEvent);
+
 }
 
 // Service exposed by remote agents to allow querying by the Core Agent.
@@ -69,4 +73,6 @@ service RemoteAgent {
 
   // Gets the telemetry data of a remote agent.
   rpc GetTelemetry(datadog.remoteagent.GetTelemetryRequest) returns (datadog.remoteagent.GetTelemetryResponse);
+
+
 }

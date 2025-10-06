@@ -27,14 +27,14 @@ type kFilter interface {
 // KFilters defines kfilter map
 type KFilters map[any]kFilter
 
-func newKFilters(kfilters ...kFilter) (ak KFilters) {
-	ak = make(KFilters)
+func newKFilters(kfilters ...kFilter) KFilters {
+	ak := make(KFilters)
 	for _, kfilter := range kfilters {
 		if kfilter != nil {
 			ak.Add(kfilter)
 		}
 	}
-	return
+	return ak
 }
 
 // HasKey returns if a filter exists

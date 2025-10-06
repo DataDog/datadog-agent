@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -47,7 +47,7 @@ type KubeEndpointsListener struct {
 	delService         chan<- Service
 	targetAllEndpoints bool
 	m                  sync.RWMutex
-	filterStore        filter.Component
+	filterStore        workloadfilter.Component
 	telemetryStore     *telemetry.Store
 }
 
@@ -59,6 +59,7 @@ type KubeEndpointService struct {
 	ports           []ContainerPort
 	metricsExcluded bool
 	globalExcluded  bool
+	namespace       string
 }
 
 // Make sure KubeEndpointService implements the Service interface
@@ -307,23 +308,7 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 		tags = []string{}
 	}
 
-	eps := processEndpoints(kep, tags)
-
-	for i := 0; i < len(eps); i++ {
-		if l.filterStore == nil {
-			eps[i].metricsExcluded = false
-			eps[i].globalExcluded = false
-			continue
-		}
-		eps[i].metricsExcluded = l.filterStore.IsEndpointExcluded(
-			filter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations()),
-			nil,
-		)
-		eps[i].globalExcluded = l.filterStore.IsEndpointExcluded(
-			filter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations()),
-			nil,
-		)
-	}
+	eps := processEndpoints(kep, tags, l.filterStore)
 
 	l.m.Lock()
 	l.endpoints[kep.UID] = eps
@@ -345,8 +330,17 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 
 // processEndpoints parses a kubernetes Endpoints object
 // and returns a slice of KubeEndpointService per endpoint
-func processEndpoints(kep *v1.Endpoints, tags []string) []*KubeEndpointService {
+func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilter.Component) []*KubeEndpointService {
 	var eps []*KubeEndpointService
+
+	metricsExcluded := false
+	globalExcluded := false
+	if filterStore != nil {
+		filterableEndpoint := workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations())
+		metricsExcluded = filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
+		globalExcluded = filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
+	}
+
 	for i := range kep.Subsets {
 		ports := []ContainerPort{}
 		// Ports
@@ -365,6 +359,9 @@ func processEndpoints(kep *v1.Endpoints, tags []string) []*KubeEndpointService {
 					fmt.Sprintf("kube_namespace:%s", kep.Namespace),
 					fmt.Sprintf("kube_endpoint_ip:%s", host.IP),
 				},
+				metricsExcluded: metricsExcluded,
+				globalExcluded:  globalExcluded,
+				namespace:       kep.Namespace,
 			}
 			ep.tags = append(ep.tags, tags...)
 			eps = append(eps, ep)
@@ -492,11 +489,11 @@ func (s *KubeEndpointService) IsReady() bool {
 
 // HasFilter returns whether the kube endpoint should not collect certain metrics
 // due to filtering applied.
-func (s *KubeEndpointService) HasFilter(fs filter.Scope) bool {
+func (s *KubeEndpointService) HasFilter(fs workloadfilter.Scope) bool {
 	switch fs {
-	case filter.MetricsFilter:
+	case workloadfilter.MetricsFilter:
 		return s.metricsExcluded
-	case filter.GlobalFilter:
+	case workloadfilter.GlobalFilter:
 		return s.globalExcluded
 	default:
 		return false
@@ -504,10 +501,19 @@ func (s *KubeEndpointService) HasFilter(fs filter.Scope) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeEndpointService) GetExtraConfig(_ string) (string, error) {
+func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
+	switch key {
+	case "namespace":
+		return s.namespace, nil
+	}
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
 func (s *KubeEndpointService) FilterTemplates(map[string]integration.Config) {
+}
+
+// GetImageName does nothing
+func (s *KubeEndpointService) GetImageName() string {
+	return ""
 }

@@ -11,28 +11,44 @@ import (
 	"fmt"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // MsgSender defines a message sender
-type MsgSender interface {
-	Send(msg *api.SecurityEventMessage, expireFnc func(*api.SecurityEventMessage))
+type MsgSender[T any] interface {
+	Send(msg *T, expireFnc func(*T))
+	SendTelemetry(statsd.ClientInterface)
 }
 
+// EndpointsStatusFetcher defines an interface to get the status of the endpoints
+type EndpointsStatusFetcher interface {
+	GetEndpointsStatus() []string
+}
+
+// EventMsgSender defines a message sender for security events
+type EventMsgSender = MsgSender[api.SecurityEventMessage]
+
+// ActivityDumpMsgSender defines a message sender for activity dump messages
+type ActivityDumpMsgSender = MsgSender[api.ActivityDumpStreamMessage]
+
 // ChanMsgSender defines a chan message sender
-type ChanMsgSender struct {
-	msgs chan *api.SecurityEventMessage
+type ChanMsgSender[T any] struct {
+	msgs chan *T
 }
 
 // Send the message
-func (cs *ChanMsgSender) Send(msg *api.SecurityEventMessage, expireFnc func(*api.SecurityEventMessage)) {
+func (cs *ChanMsgSender[T]) Send(msg *T, expireFnc func(*T)) {
 	select {
 	case cs.msgs <- msg:
 		break
@@ -58,25 +74,40 @@ func (cs *ChanMsgSender) Send(msg *api.SecurityEventMessage, expireFnc func(*api
 	}
 }
 
+// SendTelemetry sends telemetry data
+func (cs *ChanMsgSender[T]) SendTelemetry(statsd.ClientInterface) {}
+
 // NewChanMsgSender returns a new chan sender
-func NewChanMsgSender(msgs chan *api.SecurityEventMessage) *ChanMsgSender {
-	return &ChanMsgSender{
+func NewChanMsgSender[T any](msgs chan *T) *ChanMsgSender[T] {
+	return &ChanMsgSender[T]{
 		msgs: msgs,
 	}
 }
 
-// DirectMsgSender defines a direct sender
-type DirectMsgSender struct {
-	reporter common.RawReporter
+// DirectEventMsgSender defines a direct sender
+type DirectEventMsgSender struct {
+	reporter  common.RawReporter
+	endpoints *logsconfig.Endpoints
 }
 
+var _ MsgSender[api.SecurityEventMessage] = &DirectEventMsgSender{}
+var _ EndpointsStatusFetcher = &DirectEventMsgSender{}
+
 // Send the message
-func (ds *DirectMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
+func (ds *DirectEventMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
 	ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
 }
 
-// NewDirectMsgSender returns a new direct sender
-func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Component, ipc ipc.Component) (*DirectMsgSender, error) {
+// SendTelemetry sends telemetry data
+func (ds *DirectEventMsgSender) SendTelemetry(statsd.ClientInterface) {}
+
+// GetEndpointsStatus returns the status of the endpoints
+func (ds *DirectEventMsgSender) GetEndpointsStatus() []string {
+	return ds.endpoints.GetStatus()
+}
+
+// NewDirectEventMsgSender returns a new direct sender
+func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.Component, ipc ipc.Component) (*DirectEventMsgSender, error) {
 	useSecRuntimeTrack := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_secruntime_track")
 
 	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
@@ -100,7 +131,50 @@ func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Compo
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}
 
-	return &DirectMsgSender{
-		reporter: reporter,
+	return &DirectEventMsgSender{
+		reporter:  reporter,
+		endpoints: endpoints,
 	}, nil
+}
+
+// DirectActivityDumpMsgSender defines a direct activity dump sender
+type DirectActivityDumpMsgSender struct {
+	backend *backend.ActivityDumpRemoteBackend
+}
+
+var _ MsgSender[api.ActivityDumpStreamMessage] = &DirectActivityDumpMsgSender{}
+var _ EndpointsStatusFetcher = &DirectActivityDumpMsgSender{}
+
+// NewDirectActivityDumpMsgSender returns a new direct activity dump sender
+func NewDirectActivityDumpMsgSender() (*DirectActivityDumpMsgSender, error) {
+	backend, err := backend.NewActivityDumpRemoteBackend()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create activity dump backend: %w", err)
+	}
+
+	return &DirectActivityDumpMsgSender{
+		backend: backend,
+	}, nil
+}
+
+// Send the message
+func (ds *DirectActivityDumpMsgSender) Send(msg *api.ActivityDumpStreamMessage, _ func(*api.ActivityDumpStreamMessage)) {
+	selector := msg.GetSelector()
+	image := selector.GetName()
+	tag := selector.GetTag()
+
+	err := ds.backend.HandleActivityDump(image, tag, msg.GetHeader(), msg.GetData())
+	if err != nil {
+		seclog.Errorf("couldn't handle activity dump: %v", err)
+	}
+}
+
+// SendTelemetry sends telemetry data
+func (ds *DirectActivityDumpMsgSender) SendTelemetry(statsd statsd.ClientInterface) {
+	ds.backend.SendTelemetry(statsd)
+}
+
+// GetEndpointsStatus returns the status of the endpoints
+func (ds *DirectActivityDumpMsgSender) GetEndpointsStatus() []string {
+	return ds.backend.GetEndpointsStatus()
 }

@@ -11,8 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -64,6 +70,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestUpgradeAgentPackageWithAltDir tests that an Agent installed with the MSI
@@ -103,6 +110,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 // This is a regression test for WINA-1469, where the Agent account password and
 // password from the LSA did not match after rollback to a version before LSA support was added.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
+	flake.Mark(s.T())
 	// Arrange
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
@@ -126,6 +134,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestRunAgentMSIAfterExperiment tests that the Agent can be upgraded after
@@ -190,6 +199,7 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestExperimentForNonExistingPackageFails tests that starting an experiment
@@ -453,6 +463,38 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 		WithIdentity(identity)
 }
 
+func (s *testAgentUpgradeSuite) getNewHostname() string {
+	// add a random string to the hostname
+	randomString := uuid.New().String()
+
+	// truncate to 15 characters
+	// this is to deal with the fact that the hostname is limited to 15 characters
+	return randomString[0:15]
+}
+
+// TestUpgradeWithHostNameChange tests that the agent can be upgraded when the host name changes.
+func (s *testAgentUpgradeSuite) TestUpgradeWithHostNameChange() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+
+	// Act
+	// change the host name
+	newHostname := s.getNewHostname()
+	// this also deals with retries as it will always make it a new hostname
+	err := windowscommon.RenameComputer(s.Env().RemoteHost, newHostname)
+	s.Require().NoError(err)
+
+	// Assert
+	// start experiment
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err = s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+}
+
 // TestUpgradeWithAgentUser tests that the agent user is preserved across remote upgrades.
 func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 	// Arrange
@@ -488,9 +530,82 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 		WithIdentity(identity)
 }
 
+// TestUpgradeWithLocalSystemUser tests that the agent user is preserved across remote upgrades.
+// Also serves as a regression test for WINA-1742, since it will upgrade with DDAGENTUSER_NAME="NT AUTHORITY\SYSTEM"
+// which contains a space.
+func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
+	// Arrange
+	s.setAgentConfig()
+	agentUserInput := "LocalSystem"
+	agentDomainExpected := "NT AUTHORITY"
+	agentUserExpected := "SYSTEM"
+	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUserInput, "the custom user should be different from the default user")
+	s.installPreviousAgentVersion(
+		installerwindows.WithOption(installerwindows.WithAgentUser(agentUserInput)),
+	)
+	// sanity check that the agent is running as the custom user
+	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUserInput)
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedDomain", agentDomainExpected).
+		WithValueEqual("installedUser", agentUserExpected).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err = s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedDomain", agentDomainExpected).
+		WithValueEqual("installedUser", agentUserExpected).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+}
+
+// TestDowngradeWithMissingInstallSource tests that a downgrade will succeed even if the original install source is missing
+func (s *testAgentUpgradeSuite) TestDowngradeWithMissingInstallSource() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	s.removeWindowsInstallerCache()
+
+	// Act
+	s.MustStartExperimentPreviousVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
+}
+
 func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 	// Set HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout to timeout
 	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", timeout)
+	s.Require().NoError(err)
+}
+
+func (s *testAgentUpgradeSuite) setTerminatePolicy(terminatePolicy bool) {
+	termValue := 0
+	if terminatePolicy {
+		termValue = 1
+	}
+	// Set HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\TerminatePolicy to terminatePolicy
+	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "TerminatePolicy", termValue)
 	s.Require().NoError(err)
 }
 
@@ -540,9 +655,21 @@ func (s *testAgentUpgradeSuite) setAgentConfig() {
 func (s *testAgentUpgradeSuite) setAgentConfigWithAltDir(path string) {
 	s.Env().RemoteHost.MkdirAll(path)
 	configPath := path + `\datadog.yaml`
+	// Ensure the API key is set for telemetry
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		var err error
+		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if apiKey == "" || err != nil {
+			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+		}
+	}
+
 	s.Env().RemoteHost.WriteFile(configPath, []byte(`
-api_key: aaaaaaaaa
+api_key: `+apiKey+`
+site: datadoghq.com
 remote_updates: true
+log_level: debug
 `))
 }
 
@@ -578,6 +705,11 @@ func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version strin
 func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
 	s.T().Helper()
 
+	// service must be running before we can get the PID
+	// might be redundant in some cases but we keep forgetting to ensure it
+	// in others and it keeps causing flakes.
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+
 	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 	s.Require().NoError(err)
 	s.Require().Greater(originalPID, 0)
@@ -610,6 +742,10 @@ func TestAgentUpgradesFromGA(t *testing.T) {
 func (s *testAgentUpgradeFromGASuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
+
 	// Wrap the installer in the InstallerGA type to handle the special cases for 7.65.x
 	s.SetInstaller(&installerwindows.DatadogInstallerGA{
 		DatadogInstaller: s.Installer().(*installerwindows.DatadogInstaller),
@@ -618,8 +754,8 @@ func (s *testAgentUpgradeFromGASuite) BeforeTest(suiteName, testName string) {
 
 // createStableAgent provides AgentVersionManager for the 7.65.0 Agent release to the suite
 func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.AgentVersionManager, error) {
-	previousVersion := "7.65.0-rc.10"
-	previousVersionPackage := "7.65.0-rc.10-1"
+	previousVersion := "7.65.2"
+	previousVersionPackage := "7.65.2-1"
 
 	// Get previous version OCI package
 	previousOCI, err := installerwindows.NewPackageConfig(
@@ -631,7 +767,7 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
 	// Get previous version MSI package
-	url, err := windowsagent.GetChannelURL("beta")
+	url, err := windowsagent.GetChannelURL("stable")
 	s.Require().NoError(err)
 	previousMSI, err := windowsagent.NewPackage(
 		windowsagent.WithVersion(previousVersionPackage),
@@ -667,4 +803,35 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 func (s *testAgentUpgradeSuite) setExperimentMSIArgs(args []string) {
 	err := windowscommon.SetRegistryMultiString(s.Env().RemoteHost, `HKLM:SOFTWARE\Datadog\Datadog Agent`, "StartExperimentMSIArgs", args)
 	s.Require().NoError(err)
+}
+
+// removeWindowsInstallerCache clears the Windows Installer cache and install sources
+func (s *testAgentUpgradeSuite) removeWindowsInstallerCache() {
+	_, err := s.Env().RemoteHost.Execute("Remove-Item -Path C:\\Windows\\Installer\\* -Recurse -Force")
+	s.Require().NoError(err)
+	s.T().Logf("Removed Windows Installer cache")
+
+	// Remove the MSI URL Install Source
+	compressedProductCode, err := s.Env().RemoteHost.Execute("(@(Get-ChildItem -Path 'HKLM:SOFTWARE\\Classes\\Installer\\Products' -Recurse) | Where {$_.GetValue('ProductName') -like 'Datadog Agent' }).PSChildName")
+	s.Require().NoError(err)
+	s.T().Logf("Compressed Product Code: %s", compressedProductCode)
+
+	registryKey := "Registry::HKEY_CLASSES_ROOT\\Installer\\Products\\" + compressedProductCode + "\\SourceList\\URL"
+	s.T().Logf("Registry Key: %s", registryKey)
+	exists, err := windowscommon.RegistryKeyExists(s.Env().RemoteHost, registryKey)
+	s.Require().NoError(err)
+	if exists {
+		{
+			err = windowscommon.DeleteRegistryKey(s.Env().RemoteHost, registryKey)
+			s.Require().NoError(err)
+			s.T().Logf("Removed MSI URL Install Source")
+		}
+
+	}
+
+	registryKey = "Registry::HKEY_CLASSES_ROOT\\Installer\\Products\\" + compressedProductCode + "\\SourceList\\Net"
+	err = windowscommon.SetTypedRegistryValue(s.Env().RemoteHost, registryKey, "2", "C:\\Windows\\FakePath", "ExpandString")
+	s.Require().NoError(err)
+	s.T().Logf("Set Fake MSI Install Source")
+
 }

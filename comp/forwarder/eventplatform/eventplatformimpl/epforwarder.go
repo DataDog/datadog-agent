@@ -50,6 +50,7 @@ const (
 	eventTypeDBMMetrics  = "dbm-metrics"
 	eventTypeDBMActivity = "dbm-activity"
 	eventTypeDBMMetadata = "dbm-metadata"
+	eventTypeDBMHealth   = "dbm-health"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
@@ -65,9 +66,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    10e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
@@ -81,9 +80,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:   eventTypeDBMMetadata,
@@ -100,9 +97,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		defaultInputChanSize: 500,
 	},
 	{
 		eventType:              eventTypeDBMActivity,
@@ -116,11 +111,23 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxContentSize:    20e6,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
-		defaultInputChanSize:  500,
-		forceCompressionKind:  config.GzipCompressionKind,
-		forceCompressionLevel: config.GzipCompressionLevel,
+		defaultInputChanSize: 500,
 	},
 	{
+		eventType:   eventTypeDBMHealth,
+		contentType: logshttp.JSONContentType,
+		// set the endpoint config to "metrics" since health will hit the same endpoint
+		// as metrics, so there is no need to add an extra config endpoint.
+		endpointsConfigPrefix:  "database_monitoring.metrics.",
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
+		intakeTrackType:        "dbmhealth",
+		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    20e6,
+		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+		defaultInputChanSize: 500,
+	}, {
 		eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
 		category:                      "NDM",
 		contentType:                   logshttp.JSONContentType,
@@ -218,12 +225,24 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultInputChanSize: 1000,
 	},
 	{
-		eventType:                     eventplatform.EventTypeServiceDiscovery,
-		category:                      "Service Discovery",
+		eventType:                     eventplatform.EventTypeSoftwareInventory,
+		category:                      "EUDM",
 		contentType:                   logshttp.JSONContentType,
-		endpointsConfigPrefix:         "service_discovery.forwarder.",
-		hostnameEndpointPrefix:        "instrumentation-telemetry-intake.",
-		intakeTrackType:               "apmtelemetry",
+		endpointsConfigPrefix:         "software_inventory.forwarder.",
+		hostnameEndpointPrefix:        "event-platform-intake.",
+		intakeTrackType:               "softinv",
+		defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+	},
+	{
+		eventType:                     eventplatform.EventTypeSynthetics,
+		category:                      "Synthetics",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "synthetics.forwarder.",
+		hostnameEndpointPrefix:        "http-synthetics.",
+		intakeTrackType:               "synthetics",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
@@ -442,6 +461,7 @@ func newHTTPPassthroughPipeline(
 		destinationsContext,
 		desc.eventType,
 		desc.contentType,
+		desc.category,
 		sender.DefaultQueuesCount,
 		sender.DefaultWorkersPerQueue,
 		endpoints.BatchMaxConcurrentSend,
@@ -464,7 +484,6 @@ func newHTTPPassthroughPipeline(
 			senderImpl.In(),
 			make(chan struct{}),
 			serverlessMeta,
-			sender.NewArraySerializer(),
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,

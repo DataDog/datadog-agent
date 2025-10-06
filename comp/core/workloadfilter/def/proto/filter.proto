@@ -21,6 +21,12 @@ message FilterPod {
   map<string, string> annotations = 4;
 }
 
+message FilterProcess {
+  string name = 1;
+  string cmdline = 2;
+  repeated string args = 3;
+}
+
 message FilterECSTask {
   string id = 1;
   string arn = 2;
@@ -37,4 +43,8 @@ message FilterKubeEndpoint {
   string name = 1;
   string namespace = 2;
   map<string, string> annotations = 3;
+}
+
+message FilterImage {
+  string name = 1;
 }

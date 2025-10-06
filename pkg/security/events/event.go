@@ -19,17 +19,18 @@ import (
 // AgentContext serializes the agent context to JSON
 // easyjson:json
 type AgentContext struct {
-	RuleID        string            `json:"rule_id"`
-	RuleVersion   string            `json:"rule_version,omitempty"`
-	RuleActions   []json.RawMessage `json:"rule_actions,omitempty"`
-	PolicyName    string            `json:"policy_name,omitempty"`
-	PolicyVersion string            `json:"policy_version,omitempty"`
-	Version       string            `json:"version,omitempty"`
-	OS            string            `json:"os,omitempty"`
-	Arch          string            `json:"arch,omitempty"`
-	Origin        string            `json:"origin,omitempty"`
-	KernelVersion string            `json:"kernel_version,omitempty"`
-	Distribution  string            `json:"distribution,omitempty"`
+	RuleID         string            `json:"rule_id"`
+	OriginalRuleID string            `json:"original_rule_id"`
+	RuleVersion    string            `json:"rule_version,omitempty"`
+	RuleActions    []json.RawMessage `json:"rule_actions,omitempty"`
+	PolicyName     string            `json:"policy_name,omitempty"`
+	PolicyVersion  string            `json:"policy_version,omitempty"`
+	Version        string            `json:"version,omitempty"`
+	OS             string            `json:"os,omitempty"`
+	Arch           string            `json:"arch,omitempty"`
+	Origin         string            `json:"origin,omitempty"`
+	KernelVersion  string            `json:"kernel_version,omitempty"`
+	Distribution   string            `json:"distribution,omitempty"`
 }
 
 // BackendEvent - Rule event wrapper used to send an event to the backend
@@ -50,5 +51,5 @@ type Event interface {
 
 // EventSender defines an event sender
 type EventSender interface {
-	SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string)
+	SendEvent(rule *rules.Rule, event Event, extTagsCb func() ([]string, bool), service string)
 }

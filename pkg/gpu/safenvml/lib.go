@@ -50,6 +50,7 @@ func getNonCriticalAPIs() []string {
 		"nvmlGpmSampleGet",
 		toNativeName("GetArchitecture"),
 		toNativeName("GetAttributes"),
+		toNativeName("GetBAR1MemoryInfo"),
 		toNativeName("GetClockInfo"),
 		toNativeName("GetComputeRunningProcesses"),
 		toNativeName("GetCurrentClocksThrottleReasons"),
@@ -61,6 +62,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetMaxClockInfo"),
 		toNativeName("GetMaxMigDeviceCount"),
 		toNativeName("GetMemoryBusWidth"),
+		toNativeName("GetMemoryInfo_v2"),
 		toNativeName("GetMigDeviceHandleByIndex"),
 		toNativeName("GetMigMode"),
 		toNativeName("GetNvLinkState"),
@@ -68,12 +70,14 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetPerformanceState"),
 		toNativeName("GetPowerManagementLimit"),
 		toNativeName("GetPowerUsage"),
+		toNativeName("GetProcessUtilization"),
 		toNativeName("GetRemappedRows"),
 		toNativeName("GetSamples"),
 		toNativeName("GetTemperature"),
 		toNativeName("GetTotalEnergyConsumption"),
 		toNativeName("GetUtilizationRates"),
 		toNativeName("IsMigDeviceHandle"),
+		toNativeName("GetVirtualizationMode"),
 	}
 }
 
@@ -244,7 +248,7 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 		libpath = cfg.GetString(strings.Join([]string{consts.GPUNS, "nvml_lib_path"}, "."))
 	} else {
 		cfg := pkgconfigsetup.Datadog()
-		libpath = cfg.GetString("nvml_lib_path")
+		libpath = cfg.GetString("gpu.nvml_lib_path")
 	}
 
 	lib := nvmlNewFunc(nvml.WithLibraryPath(libpath))

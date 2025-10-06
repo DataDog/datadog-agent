@@ -14,7 +14,6 @@ from invoke.exceptions import Exit
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     cancel_pipeline,
-    get_gitlab_bot_token,
     get_gitlab_repo,
     gitlab_configuration_is_modified,
     refresh_pipeline,
@@ -97,9 +96,6 @@ def auto_cancel_previous_pipelines(ctx):
     """
     Automatically cancel previous pipelines running on the same ref
     """
-
-    if not os.environ.get('GITLAB_TOKEN'):
-        raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
 
     git_ref = os.environ["CI_COMMIT_REF_NAME"]
     if git_ref == "":
@@ -329,7 +325,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     Use --variable to specify the environment variables that should be passed to the child pipeline.
     You can pass the argument multiple times for each new variable you wish to forward
 
-    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
+    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails.
 
     Use --timeout to set up a timeout shorter than the default 2 hours, to anticipate failures if any.
 
@@ -342,15 +338,9 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     if not os.environ.get('CI_JOB_TOKEN'):
         raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
 
-    if not os.environ.get('GITLAB_TOKEN'):
-        if follow:
-            raise Exit("GITLAB_TOKEN variable needed to follow child pipelines.", 1)
-        else:
-            # The Gitlab lib requires `GITLAB_TOKEN` to be
-            # set, but trigger_pipeline doesn't use it
-            os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
-
-    repo = get_gitlab_repo(project_name)
+    # Use the CI_JOB_TOKEN which is passed from gitlab
+    token = None if follow else os.environ['CI_JOB_TOKEN']
+    repo = get_gitlab_repo(project_name, token=token)
 
     # Fill the environment variables to pass to the child pipeline.
     variables = {}
@@ -410,10 +400,11 @@ def parse(commit_str):
 
 def is_system_probe(owners, files):
     target = {
-        ("TEAM", "@DataDog/Networks"),
         ("TEAM", "@DataDog/universal-service-monitoring"),
         ("TEAM", "@DataDog/ebpf-platform"),
         ("TEAM", "@DataDog/agent-security"),
+        ("TEAM", "@DataDog/cloud-network-monitoring"),
+        ("TEAM", "@DataDog/debugger-go"),
     }
     for f in files:
         match_teams = set(owners.of(f)) & target
@@ -457,8 +448,8 @@ def changelog(ctx, new_commit_sha):
     empty_changelog_msg = "No new System Probe related commits in this release :cricket:"
     no_commits_msg = "No new commits in this release :cricket:"
     slack_message = (
-        "The nightly deployment is rolling out to Staging :siren: \n"
-        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
+        f"The nightly deployment is rolling out to Staging :siren: \n"
+        f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
     )
 
     if old_commit_sha == new_commit_sha:
@@ -528,7 +519,7 @@ def get_schedules(_, repo: str = 'DataDog/datadog-agent'):
     Pretty-print all pipeline schedules on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     for schedule in gitlab_repo.pipelineschedules.list(per_page=100, all=True):
         schedule.pprint()
@@ -540,7 +531,7 @@ def get_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     Pretty-print a single pipeline schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.get(schedule_id)
 
@@ -555,7 +546,7 @@ def create_schedule(_, description, ref, cron, cron_timezone=None, active=False,
     Note that unless you explicitly specify the --active flag, the schedule will be created as inactive.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.create(
         {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone, 'active': active}
@@ -572,7 +563,7 @@ def edit_schedule(
     Edit an existing pipeline schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     data = {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone}
     data = {key: value for (key, value) in data.items() if value is not None}
@@ -588,7 +579,7 @@ def activate_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     Activate an existing pipeline schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.update(schedule_id, {'active': True})
 
@@ -601,7 +592,7 @@ def deactivate_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     Deactivate an existing pipeline schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.update(schedule_id, {'active': False})
 
@@ -614,7 +605,7 @@ def delete_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     Delete an existing pipeline schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     gitlab_repo.pipelineschedules.delete(schedule_id)
 
@@ -627,7 +618,7 @@ def create_schedule_variable(_, schedule_id, key, value, repo: str = 'DataDog/da
     Create a variable for an existing schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.get(schedule_id)
     schedule.variables.create({'key': key, 'value': value})
@@ -641,7 +632,7 @@ def edit_schedule_variable(_, schedule_id, key, value, repo: str = 'DataDog/data
     Edit an existing variable for a schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.get(schedule_id)
     schedule.variables.update(key, {'value': value})
@@ -655,7 +646,7 @@ def delete_schedule_variable(_, schedule_id, key, repo: str = 'DataDog/datadog-a
     Delete an existing variable for a schedule on the repository.
     """
 
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
+    gitlab_repo = get_gitlab_repo(repo)
 
     schedule = gitlab_repo.pipelineschedules.get(schedule_id)
     schedule.variables.delete(key)
@@ -747,7 +738,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
             print('You might want to run these commands to restore the current state:')
             print('\n'.join(restore_commands))
 
-            exit(1)
+            raise Exit(code=1)
 
     # Show links
     repo = f'https://github.com/DataDog/datadog-agent/tree/{owner}/{branch}'
@@ -815,7 +806,8 @@ def test_merge_queue(ctx):
 @task
 def compare_to_itself(ctx):
     """
-    Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline
+    Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline.
+    This is used to verify that the gitlab ci is not broken by the changes when merged on the base branch.
     """
     if not gitlab_configuration_is_modified(ctx):
         print("No modification in the gitlab configuration, ignoring this test.")
@@ -851,34 +843,25 @@ def compare_to_itself(ctx):
 
     ctx.run("git commit -am 'Commit to compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
-    max_attempts = 6
-    compare_to_pipeline = None
-    for attempt in range(max_attempts):
-        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created {attempt + 1}/{max_attempts}")
-        time.sleep(30)
-        pipelines = agent.pipelines.list(ref=new_branch, get_all=True)
-        for pipeline in pipelines:
-            commit = agent.commits.get(pipeline.sha)
-            if commit.author_name == BOT_NAME and commit.title == "Commit to compare to itself":
-                if pipeline.status == "skipped":
-                    # DDCI: we need to trigger the pipeline
-                    print(f"Triggering the CI execution for {new_branch}")
-                    trigger_agent_pipeline(repo=agent, ref=new_branch)
-                    continue
-                else:
-                    compare_to_pipeline = pipeline
-                    print(f"Test pipeline found: {pipeline.web_url}")
-        if compare_to_pipeline:
-            break
-        if attempt == max_attempts - 1:
-            # Clean up the branch and possible pipelines
-            for pipeline in pipelines:
-                cancel_pipeline(pipeline)
-            ctx.run(f"git checkout {current_branch}", hide=True)
-            ctx.run(f"git branch -D {new_branch}", hide=True)
-            ctx.run(f"git push origin :{new_branch}", hide=True)
-            raise RuntimeError(f"No pipeline found for {new_branch}")
+
     try:
+        max_attempts = 18
+        compare_to_pipeline = None
+        for attempt in range(max_attempts):
+            print(f"[{datetime.now()}] Waiting 10s for the branch to be created {attempt + 1}/{max_attempts}")
+            time.sleep(10)
+            if agent.branches.get(new_branch, raise_exception=False):
+                break
+        else:
+            print(f"{color_message('ERROR', Color.RED)}: Branch {new_branch} not created", file=sys.stderr)
+            raise RuntimeError(f"No branch found for {new_branch}")
+
+        print('Branch created, triggering the pipeline')
+
+        # Trigger the pipeline on the last commit of this branch
+        compare_to_pipeline = agent.pipelines.create({'ref': new_branch})
+        print(f"Pipeline created: {compare_to_pipeline.web_url}")
+
         if len(compare_to_pipeline.jobs.list(get_all=False)) == 0:
             print(
                 f"[{color_message('ERROR', Color.RED)}] Failed to generate a pipeline for {new_branch}, please check {compare_to_pipeline.web_url}"
@@ -887,11 +870,51 @@ def compare_to_itself(ctx):
         else:
             print(f"Pipeline correctly created, {color_message('congrats', Color.GREEN)}")
     finally:
-        # Clean up
-        print("Cleaning up the pipelines")
+        pipelines = agent.pipelines.list(ref=new_branch, get_all=True)
+        print(f"Cleaning up the pipelines: {' '.join([str(p.id) for p in pipelines])}")
         for pipeline in pipelines:
             cancel_pipeline(pipeline)
         print("Cleaning up git")
         ctx.run(f"git checkout {current_branch}", hide=True)
         ctx.run(f"git branch -D {new_branch}", hide=True)
         ctx.run(f"git push origin :{new_branch}", hide=True)
+
+
+@task
+def is_dev_branch(_):
+    """
+    Check if the current branch is not a dev branch.
+    """
+    # Mirror logic from .fast_on_dev_branch_only in .gitlab-ci.yml
+    # Not a dev branch if any of the following is true:
+    # - On main branch
+    # - On a release branch (e.g., 7.42.x)
+    # - On a tagged commit
+    # - In a triggered pipeline
+
+    current_branch = os.getenv("CI_COMMIT_BRANCH", "")
+
+    # Main branch
+    if current_branch == "main":
+        print("false")
+        return
+
+    # Release branch: matches \d+.\d+.x
+    if re.match(r"^\d+\.\d+\.x$", current_branch):
+        print("false")
+        return
+
+    # Tagged commit (prefer CI variable if present)
+    ci_commit_tag = os.getenv("CI_COMMIT_TAG", "")
+    if ci_commit_tag is not None and ci_commit_tag != "":
+        print("false")
+        return
+
+    # Triggered pipeline (CI context)
+    ci_pipeline_source = os.getenv("CI_PIPELINE_SOURCE", "")
+    if ci_pipeline_source in ("trigger", "pipeline"):
+        print("false")
+        return
+
+    # Otherwise, consider it a dev branch
+    print("true")

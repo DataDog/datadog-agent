@@ -36,13 +36,13 @@ func TestServer(t *testing.T) {
 	require.NoError(t, err)
 	server := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
-		fx.Replace(config.MockParams{
-			Overrides: map[string]interface{}{
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
 				"confd_path":                                   confdPath,
 				"network_devices.snmp_traps.enabled":           true,
 				"network_devices.snmp_traps.port":              freePort,
 				"network_devices.snmp_traps.community_strings": []string{"public"},
-			},
+			})
 		}),
 		Module(),
 	)
@@ -59,13 +59,13 @@ func TestNonBlockingFailure(t *testing.T) {
 	require.NoError(t, err)
 	server := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
-		fx.Replace(config.MockParams{
-			Overrides: map[string]interface{}{
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
 				"confd_path":                                   confdPath,
 				"network_devices.snmp_traps.enabled":           true,
 				"network_devices.snmp_traps.port":              freePort,
 				"network_devices.snmp_traps.community_strings": []string{"public"},
-			},
+			})
 		}),
 		Module(),
 	)
@@ -77,10 +77,10 @@ func TestNonBlockingFailure(t *testing.T) {
 func TestDisabled(t *testing.T) {
 	server := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
-		fx.Replace(config.MockParams{
-			Overrides: map[string]interface{}{
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
 				"network_devices.snmp_traps.enabled": false,
-			},
+			})
 		}),
 		Module(),
 	)

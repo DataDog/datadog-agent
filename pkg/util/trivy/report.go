@@ -12,28 +12,38 @@ package trivy
 import (
 	"context"
 
-	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+	"github.com/DataDog/datadog-agent/pkg/sbom/bomconvert"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/types"
 )
 
 // Report describes a trivy report along with its marshaler
 type Report struct {
-	*types.Report
-	id        string
-	marshaler cyclonedx.Marshaler
+	id  string
+	bom *cyclonedx_v1_4.Bom
 }
 
-// ToCycloneDX returns the report as a CycloneDX SBOM
-func (r *Report) ToCycloneDX() (*cyclonedxgo.BOM, error) {
-	bom, err := r.marshaler.MarshalReport(context.TODO(), *r.Report)
+func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler) (*Report, error) {
+	bom, err := marshaler.MarshalReport(context.TODO(), *report)
 	if err != nil {
 		return nil, err
 	}
 
 	// We don't need the dependencies attribute. Remove to save memory.
 	bom.Dependencies = nil
-	return bom, nil
+
+	bom14 := bomconvert.ConvertBOM(bom)
+
+	return &Report{
+		id:  id,
+		bom: bom14,
+	}, nil
+}
+
+// ToCycloneDX returns the report as a CycloneDX SBOM
+func (r *Report) ToCycloneDX() *cyclonedx_v1_4.Bom {
+	return r.bom
 }
 
 // ID returns the report identifier

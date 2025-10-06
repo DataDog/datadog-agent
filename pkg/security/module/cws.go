@@ -20,6 +20,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -86,7 +87,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		}
 	}
 
-	family := config.GetFamilyAddress(cfg.SocketPath)
+	family := common.GetFamilyAddress(cfg.SocketPath)
 
 	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
 	if err != nil {
@@ -224,7 +225,7 @@ func (c *CWSConsumer) Start() error {
 	}
 
 	// do not wait external api connection, send directly running metrics
-	if c.config.SendEventFromSystemProbe {
+	if c.config.SendPayloadsFromSystemProbe {
 		c.startRunningMetrics()
 	}
 
@@ -315,7 +316,7 @@ func (c *CWSConsumer) HandleCustomEvent(rule *rules.Rule, event *events.CustomEv
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
 // Implements the EventSender interface
-func (c *CWSConsumer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
+func (c *CWSConsumer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
 	if c.rateLimiter.Allow(rule.ID, event) {
 		c.eventSender.SendEvent(rule, event, extTagsCb, service)
 	} else {
@@ -330,15 +331,7 @@ func (c *CWSConsumer) APIServer() *APIServer {
 
 // HandleActivityDump sends an activity dump to the backend
 func (c *CWSConsumer) HandleActivityDump(imageName string, imageTag string, header []byte, data []byte) error {
-	msg := &api.ActivityDumpStreamMessage{
-		Selector: &api.WorkloadSelectorMessage{
-			Name: imageName,
-			Tag:  imageTag,
-		},
-		Header: header,
-		Data:   data,
-	}
-	c.apiServer.SendActivityDump(msg)
+	c.apiServer.SendActivityDump(imageName, imageTag, header, data)
 	return nil
 }
 
@@ -397,4 +390,9 @@ func (c *CWSConsumer) GetRuleEngine() *rulesmodule.RuleEngine {
 func (c *CWSConsumer) PrepareForFunctionalTests() {
 	// no need for container running telemetry in functional tests
 	c.crtelemetry = nil
+}
+
+// GetStatus returns the status of the module
+func (c *CWSConsumer) GetStatus(ctx context.Context) (*api.Status, error) {
+	return c.apiServer.GetStatus(ctx, &api.GetStatusParams{})
 }

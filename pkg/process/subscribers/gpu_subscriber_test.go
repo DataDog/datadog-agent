@@ -163,8 +163,8 @@ func TestGPUDetection(t *testing.T) {
 			mockWmeta.Notify(tt.events)
 
 			// Eventually, GPU detector should finish processing all events
-			assert.Eventually(t, func() bool {
-				return assert.Equal(t, tt.expectedGPUDetected, gpuDetector.IsGPUDetected())
+			assert.EventuallyWithT(t, func(t *assert.CollectT) {
+				assert.Equal(t, tt.expectedGPUDetected, gpuDetector.IsGPUDetected())
 			}, 1*time.Second, 100*time.Millisecond)
 		})
 	}

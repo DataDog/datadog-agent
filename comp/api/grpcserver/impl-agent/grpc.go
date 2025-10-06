@@ -15,10 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
+	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -57,6 +59,7 @@ type Requires struct {
 	RemoteAgentRegistry remoteagentregistry.Component
 	Telemetry           telemetry.Component
 	Hostname            hostnameinterface.Component
+	ConfigStream        configstream.Component
 }
 
 type server struct {
@@ -73,6 +76,7 @@ type server struct {
 	configComp          config.Component
 	telemetry           telemetry.Component
 	hostname            hostnameinterface.Component
+	configStream        configstream.Component
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -80,13 +84,14 @@ func (s *server) BuildServer() http.Handler {
 
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
-	opts := []googleGrpc.ServerOption{
+	// Use the convenience function that combines metrics and auth interceptors
+	opts := grpcutil.ServerOptionsWithMetricsAndAuth(
+		grpc_auth.UnaryServerInterceptor(authInterceptor),
+		grpc_auth.StreamServerInterceptor(authInterceptor),
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
-		googleGrpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
-		googleGrpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
-	}
+	)
 
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
@@ -105,6 +110,7 @@ func (s *server) BuildServer() http.Handler {
 		remoteAgentRegistry: s.remoteAgentRegistry,
 		autodiscovery:       s.autodiscovery,
 		configComp:          s.configComp,
+		configStreamServer:  configstreamServer.NewServer(s.configComp, s.configStream),
 	})
 
 	return grpcServer
@@ -132,6 +138,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			configComp:          reqs.Cfg,
 			telemetry:           reqs.Telemetry,
 			hostname:            reqs.Hostname,
+			configStream:        reqs.ConfigStream,
 		},
 	}
 	return provides, nil

@@ -14,16 +14,17 @@ import (
 )
 
 // LegacyServiceMetricsProgram creates a program for filtering service metrics
-func LegacyServiceMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
-	return program.CELProgram{
-		Name:    "LegacyServiceMetricsProgram",
-		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.ServiceType, logger),
-		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.ServiceType, logger),
-	}
+func LegacyServiceMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
+	programName := "LegacyServiceMetricsProgram"
+	include := config.GetStringSlice("container_include_metrics")
+	exclude := config.GetStringSlice("container_exclude_metrics")
+	return createFromOldFilters(programName, include, exclude, workloadfilter.ServiceType, logger)
 }
 
 // LegacyServiceGlobalProgram creates a program for filtering services globally
-func LegacyServiceGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyServiceGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
+	programName := "LegacyServiceGlobalProgram"
+
 	includeList := config.GetStringSlice("container_include")
 	excludeList := config.GetStringSlice("container_exclude")
 	if len(includeList) == 0 {
@@ -34,10 +35,5 @@ func LegacyServiceGlobalProgram(config config.Component, logger log.Component) p
 		// fallback and support legacy "ac_exclude" config
 		excludeList = config.GetStringSlice("ac_exclude")
 	}
-
-	return program.CELProgram{
-		Name:    "LegacyServiceGlobalProgram",
-		Include: createProgramFromOldFilters(includeList, workloadfilter.ServiceType, logger),
-		Exclude: createProgramFromOldFilters(excludeList, workloadfilter.ServiceType, logger),
-	}
+	return createFromOldFilters(programName, includeList, excludeList, workloadfilter.ServiceType, logger)
 }

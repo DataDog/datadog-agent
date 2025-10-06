@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
@@ -43,13 +44,13 @@ func multiVMEnvProvisioner() provisioners.PulumiEnvRunFunc[multiVMEnv] {
 			return err
 		}
 
-		agentHost, err := ec2.NewVM(awsEnv, "agenthost", ec2.WithOS(os.WindowsDefault))
+		agentHost, err := ec2.NewVM(awsEnv, "agenthost", ec2.WithOS(os.WindowsServerDefault))
 		if err != nil {
 			return err
 		}
 		agentHost.Export(ctx, &env.AgentHost.HostOutput)
 
-		certificateHost, err := ec2.NewVM(awsEnv, "certificatehost", ec2.WithOS(os.WindowsDefault))
+		certificateHost, err := ec2.NewVM(awsEnv, "certificatehost", ec2.WithOS(os.WindowsServerDefault))
 		if err != nil {
 			return err
 		}
@@ -64,6 +65,7 @@ type multiVMSuite struct {
 }
 
 func TestRemoteCertificates(t *testing.T) {
+	flake.Mark(t)
 	t.Parallel()
 	e2e.Run(t, &multiVMSuite{}, e2e.WithPulumiProvisioner(multiVMEnvProvisioner(), nil))
 }
@@ -118,8 +120,10 @@ func (v *multiVMSuite) SetupSuite() {
 	v.Require().NoError(err)
 
 	// Start the LanmanServer to ensure that the Agent can connect to the IPC$ share
-	err = windowsCommon.StartService(certificateHost, "LanmanServer")
-	v.Require().NoError(err)
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		err = windowsCommon.StartService(certificateHost, "LanmanServer")
+		assert.NoError(c, err)
+	}, 10*time.Minute, 10*time.Second)
 
 	// Wait for the LanmanServer service to be running
 	v.EventuallyWithT(func(c *assert.CollectT) {

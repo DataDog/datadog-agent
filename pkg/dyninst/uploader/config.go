@@ -9,6 +9,7 @@ package uploader
 
 import (
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -23,7 +24,9 @@ const (
 type config struct {
 	batcherConfig
 	client *http.Client
-	url    string
+	url    *url.URL
+	// Key-value pairs to be added to all upload HTTP requests as headers.
+	headers [][2]string
 }
 
 type batcherConfig struct {
@@ -35,9 +38,11 @@ type batcherConfig struct {
 	maxBufferDuration time.Duration
 }
 
-func defaultConfig() *config {
-	return &config{
+func defaultConfig() config {
+	return config{
 		client: http.DefaultClient,
+		url:    nil,
+
 		batcherConfig: batcherConfig{
 			maxBatchItems:     defaultMaxBatchItems,
 			maxBatchSizeBytes: defaultMaxBatchSizeBytes,
@@ -57,9 +62,9 @@ func WithClient(client *http.Client) Option {
 }
 
 // WithURL sets the URL for the uploader.
-func WithURL(url string) Option {
+func WithURL(u *url.URL) Option {
 	return func(c *config) {
-		c.url = url
+		c.url = u
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
@@ -66,7 +67,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:               reqs.Log,
 	}
 	// Register a callback to refresh the client when the api_key or app_key changes
-	reqs.Config.OnUpdate(func(setting string, _, _ any, _ uint64) {
+	reqs.Config.OnUpdate(func(setting string, _ model.Source, _, _ any, _ uint64) {
 		if setting == "api_key" || setting == "app_key" {
 			dc.refreshClient()
 		}

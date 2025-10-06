@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -32,7 +33,7 @@ var (
 
 const (
 	toolInstaller = "installer"
-	execTimeout   = 30 * time.Second
+	execTimeout   = 5 * time.Second
 )
 
 func init() {
@@ -42,17 +43,30 @@ func init() {
 }
 
 // WriteInstallInfo writes install info and signature files.
-func WriteInstallInfo(installType string) error {
-	return writeInstallInfo(installInfoFile, installSigFile, installType, time.Now(), uuid.New().String())
+func WriteInstallInfo(ctx context.Context, installType string) error {
+	return writeInstallInfo(ctx, installInfoFile, installSigFile, installType, time.Now(), uuid.New().String())
 }
 
-func writeInstallInfo(installInfoFile string, installSigFile string, installType string, time time.Time, uuid string) error {
+func writeInstallInfo(ctx context.Context, installInfoFile string, installSigFile string, installType string, time time.Time, uuid string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "write_install_info")
+	defer func() {
+		span.Finish(err)
+	}()
+	span.SetTag("install_type", installType)
+	span.SetTag("install_time", time.Unix())
+	span.SetTag("install_id", strings.ToLower(uuid))
+	span.SetTag("install_info_file", installInfoFile)
+	span.SetTag("install_sig_file", installSigFile)
+
 	// Don't overwrite existing install info file.
 	if _, err := os.Stat(installInfoFile); err == nil {
 		return nil
 	}
 
-	tool, toolVersion, installerVersion := getToolVersion(installType)
+	tool, toolVersion, installerVersion := getToolVersion(ctx, installType)
+	span.SetTag("tool", tool)
+	span.SetTag("tool_version", toolVersion)
+	span.SetTag("installer_version", installerVersion)
 
 	info := map[string]map[string]string{
 		"install_method": {
@@ -93,13 +107,13 @@ func RemoveInstallInfo() {
 	}
 }
 
-func getToolVersion(installType string) (tool string, toolVersion string, installerVersion string) {
+func getToolVersion(ctx context.Context, installType string) (tool string, toolVersion string, installerVersion string) {
 	tool = toolInstaller
 	toolVersion = version.AgentVersion
 	installerVersion = fmt.Sprintf("%s_package", installType)
 	if _, err := exec.LookPath("dpkg-query"); err == nil {
 		tool = "dpkg"
-		toolVersion, err = getDpkgVersion()
+		toolVersion, err = getDpkgVersion(ctx)
 		if err != nil {
 			toolVersion = "unknown"
 		}
@@ -107,7 +121,7 @@ func getToolVersion(installType string) (tool string, toolVersion string, instal
 	}
 	if _, err := exec.LookPath("rpm"); err == nil {
 		tool = "rpm"
-		toolVersion, err = getRPMVersion()
+		toolVersion, err = getRPMVersion(ctx)
 		if err != nil {
 			toolVersion = "unknown"
 		}
@@ -116,15 +130,23 @@ func getToolVersion(installType string) (tool string, toolVersion string, instal
 	return
 }
 
-func getRPMVersion() (string, error) {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+func getRPMVersion(ctx context.Context) (version string, err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "get_rpm_version")
+	defer func() {
+		span.Finish(err)
+	}()
+	cancelctx, cancelfunc := context.WithTimeout(ctx, execTimeout)
 	defer cancelfunc()
 	output, err := exec.CommandContext(cancelctx, "rpm", "-q", "-f", "/bin/rpm", "--queryformat", "%%{VERSION}").Output()
 	return string(output), err
 }
 
-func getDpkgVersion() (string, error) {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+func getDpkgVersion(ctx context.Context) (version string, err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "get_dpkg_version")
+	defer func() {
+		span.Finish(err)
+	}()
+	cancelctx, cancelfunc := context.WithTimeout(ctx, execTimeout)
 	defer cancelfunc()
 	cmd := exec.CommandContext(cancelctx, "dpkg-query", "--showformat=${Version}", "--show", "dpkg")
 	output, err := cmd.Output()

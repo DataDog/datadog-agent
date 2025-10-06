@@ -248,11 +248,7 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	}
 }
 
-func detectNVML(features FeatureMap, cfg model.Reader) {
-	if !cfg.GetBool("enable_nvml_detection") {
-		return
-	}
-
+func detectNVML(features FeatureMap, _ model.Reader) {
 	// Use dlopen to search for the library to avoid importing the go-nvml package here,
 	// which is 1MB in size and would increase the agent binary size, when we don't really
 	// need it for anything else.

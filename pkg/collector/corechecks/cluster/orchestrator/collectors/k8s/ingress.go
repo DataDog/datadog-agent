@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type IngressCollector struct {
 // NewIngressCollector creates a new collector for the Kubernetes Ingress
 // resource.
 func NewIngressCollector(metadataAsTags utils.MetadataAsTags) *IngressCollector {
-	resourceType := getResourceType(ingressName, ingressVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.IngressName, utilTypes.IngressVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewIngressCollector(metadataAsTags utils.MetadataAsTags) *IngressCollector 
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 ingressName,
+			Name:                                 utilTypes.IngressName,
 			Kind:                                 kubernetes.IngressKind,
 			NodeType:                             orchestrator.K8sIngress,
-			Version:                              ingressVersion,
+			Version:                              utilTypes.IngressVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

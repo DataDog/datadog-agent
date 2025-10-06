@@ -23,8 +23,10 @@ func execute(sshClient *ssh.Client, command string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create session: %v", err)
 	}
+	defer session.Close()
+
 	stdout, err := session.CombinedOutput(command)
-	return string(stdout), err
+	return suppressGoCoverWarning(string(stdout)), err
 }
 
 func start(sshClient *ssh.Client, command string) (*ssh.Session, io.WriteCloser, io.Reader, error) {
@@ -150,6 +152,52 @@ func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) err
 				return err
 			}
 		}
+	}
+	return nil
+}
+func downloadFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) error {
+	srcFiles, err := sftpClient.ReadDir(srcFolder)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(dstFolder, 0755); err != nil {
+		return err
+	}
+
+	for _, f := range srcFiles {
+		if f.IsDir() {
+			err = downloadFolder(sftpClient, path.Join(srcFolder, f.Name()), path.Join(dstFolder, f.Name()))
+			if err != nil {
+				return err
+			}
+		} else {
+			err = downloadFile(sftpClient, path.Join(srcFolder, f.Name()), path.Join(dstFolder, f.Name()))
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func downloadFile(sftpClient *sftp.Client, src string, dst string) error {
+	srcFile, err := sftpClient.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+	folder := path.Dir(dst)
+	if err := os.MkdirAll(folder, 0755); err != nil {
+		return err
+	}
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+	if _, err := srcFile.WriteTo(dstFile); err != nil {
+		return err
 	}
 	return nil
 }

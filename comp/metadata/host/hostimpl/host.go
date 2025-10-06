@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -36,6 +37,9 @@ import (
 // run the host metadata collector every 1800 seconds (30 minutes)
 const defaultCollectInterval = 1800 * time.Second
 
+// start the host metadata collector with an early interval of 300 seconds (5 minutes)
+const defaultEarlyInterval = 300 * time.Second
+
 // the host metadata collector interval can be set through configuration within acceptable bounds
 const minAcceptedInterval = 300   // 5min
 const maxAcceptedInterval = 14400 // 4h
@@ -48,9 +52,9 @@ type host struct {
 	resources    resources.Component
 	hostnameComp hostnameinterface.Component
 
-	hostname        string
-	collectInterval time.Duration
-	serializer      serializer.MetricSerializer
+	hostname      string
+	serializer    serializer.MetricSerializer
+	backoffPolicy *backoff.ExponentialBackOff
 }
 
 // Module defines the fx options for this component.
@@ -83,6 +87,7 @@ type provides struct {
 
 func newHostProvider(deps dependencies) provides {
 	collectInterval := defaultCollectInterval
+	earlyInterval := defaultEarlyInterval
 	confProviders, err := configUtils.GetMetadataProviders(deps.Config)
 	if err != nil {
 		deps.Log.Errorf("Error parsing metadata provider configuration, falling back to default behavior: %s", err)
@@ -93,23 +98,48 @@ func newHostProvider(deps dependencies) provides {
 					deps.Log.Errorf("Ignoring host metadata interval: %v is outside of accepted values (min: %v, max: %v)", p.Interval, minAcceptedInterval, maxAcceptedInterval)
 					break
 				}
-
 				// user configured interval take precedence over the default one
 				collectInterval = p.Interval * time.Second
+
+				if p.EarlyInterval > 0 {
+					if p.EarlyInterval < minAcceptedInterval || p.EarlyInterval > maxAcceptedInterval {
+						deps.Log.Errorf("Ignoring host metadata early interval: %v is outside of accepted values (min: %v, max: %v)", p.EarlyInterval, minAcceptedInterval, maxAcceptedInterval)
+						break
+					}
+					if p.EarlyInterval > p.Interval {
+						deps.Log.Errorf("Ignoring host metadata early interval: %v is greater than main interval %v", p.EarlyInterval, p.Interval)
+						break
+					}
+					// user configured early interval take precedence over the default one
+					earlyInterval = p.EarlyInterval * time.Second
+				}
+
 				break
 			}
 		}
 	}
 
 	hname, _ := deps.Hostname.Get(context.Background())
+
+	// exponential backoff for collection intervals which arrives at user's configured interval
+	bo := &backoff.ExponentialBackOff{
+		InitialInterval:     earlyInterval, // start with the early interval
+		RandomizationFactor: 0,
+		Multiplier:          3.0,
+		MaxInterval:         collectInterval, // max interval is the user configured interval
+		MaxElapsedTime:      0,
+		Clock:               backoff.SystemClock,
+	}
+	bo.Reset()
+
 	h := host{
-		log:             deps.Log,
-		config:          deps.Config,
-		resources:       deps.Resources,
-		hostnameComp:    deps.Hostname,
-		hostname:        hname,
-		collectInterval: collectInterval,
-		serializer:      deps.Serializer,
+		log:           deps.Log,
+		config:        deps.Config,
+		resources:     deps.Resources,
+		hostnameComp:  deps.Hostname,
+		hostname:      hname,
+		serializer:    deps.Serializer,
+		backoffPolicy: bo,
 	}
 	return provides{
 		Comp:             &h,
@@ -126,10 +156,20 @@ func newHostProvider(deps dependencies) provides {
 
 func (h *host) collect(ctx context.Context) time.Duration {
 	payload := h.getPayload(ctx)
+
+	nextInterval := h.backoffPolicy.NextBackOff()
+	if nextInterval <= 0 || nextInterval > h.backoffPolicy.MaxInterval {
+		nextInterval = h.backoffPolicy.MaxInterval
+	}
+
+	// Debug log to show the actual interval that will be used
+	h.log.Debugf("Next host metadata collection scheduled in %s", nextInterval)
+
 	if err := h.serializer.SendHostMetadata(payload); err != nil {
 		h.log.Errorf("unable to submit host metadata payload, %s", err)
 	}
-	return h.collectInterval
+
+	return nextInterval
 }
 
 func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {

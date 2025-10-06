@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type ReplicaSetCollector struct {
 // NewReplicaSetCollector creates a new collector for the Kubernetes ReplicaSet
 // resource.
 func NewReplicaSetCollector(metadataAsTags utils.MetadataAsTags) *ReplicaSetCollector {
-	resourceType := getResourceType(replicaSetName, replicaSetVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.ReplicaSetName, utilTypes.ReplicaSetVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewReplicaSetCollector(metadataAsTags utils.MetadataAsTags) *ReplicaSetColl
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 replicaSetName,
+			Name:                                 utilTypes.ReplicaSetName,
 			Kind:                                 kubernetes.ReplicaSetKind,
 			NodeType:                             orchestrator.K8sReplicaSet,
-			Version:                              replicaSetVersion,
+			Version:                              utilTypes.ReplicaSetVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

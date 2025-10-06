@@ -13,6 +13,7 @@ import (
 	"maps"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -141,7 +142,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	if ia.Enabled {
 		ia.initData()
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string, _, _ any, _ uint64) { ia.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) { ia.Refresh() })
 	}
 
 	return provides{
@@ -187,6 +188,14 @@ func (ia *inventoryagent) initData() {
 	ia.data["agent_version"] = version.AgentVersion
 	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
+
+	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
+	// agent-configuration: This validation should be done by the Config once we have such mechanism
+	if !slices.Contains([]string{"full", "end_user_device", "basic"}, infraMode) {
+		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
+		infraMode = "full"
+	}
+	ia.data["infrastructure_mode"] = infraMode
 }
 
 type configGetter interface {
@@ -248,6 +257,9 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
 
 	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("fleet_layers")
+
+	// Synthetics
+	ia.data["feature_synthetics_collector_enabled"] = ia.conf.GetBool("synthetics.collector.enabled")
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
@@ -312,14 +324,15 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// Service monitoring / system-probe
 
 	ia.data["feature_networks_enabled"] = sysProbeConf.GetBool("network_config.enabled")
-	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_monitoring")
+	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http.enabled")
 	ia.data["feature_networks_https_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.native.enabled")
+	ia.data["feature_traceroute_enabled"] = sysProbeConf.GetBool("traceroute.enabled")
 
 	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
-	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_kafka_monitoring")
-	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_postgres_monitoring")
-	ia.data["feature_usm_redis_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_redis_monitoring")
-	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http2_monitoring")
+	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.kafka.enabled")
+	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.postgres.enabled")
+	ia.data["feature_usm_redis_enabled"] = sysProbeConf.GetBool("service_monitoring_config.redis.enabled")
+	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http2.enabled")
 	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
 	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
 
@@ -482,6 +495,10 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	maps.Copy(data, ia.data)
 
 	ia.getConfigs(data)
+
+	if !ia.conf.GetBool("inventories_diagnostics_enabled") {
+		delete(data, "diagnostics")
+	}
 
 	return &Payload{
 		Hostname:  ia.hostname,

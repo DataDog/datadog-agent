@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from time import sleep
 
 from gitlab import GitlabError
@@ -293,13 +293,33 @@ def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
 
 
 @task
-def finish(ctx, release_branch, upstream="origin"):
+def finish(ctx, release_branch, upstream="origin", release_date=None):
     """Updates the release.json file for the new version.
+
+    Args:
+        release_branch: The Git branch from which the release is being finalized.
+            This branch should correspond to the release line you are finishing
+            (for example, "7.69.x"). It is used to determine the major version,
+            update module dependencies, and generate the release artifacts.
+        release_date: Date when the release was done. Expected format YYYY-MM-DD,
+            like '2025-09-03'. (default: today's date)
+        upstream: The name of the remote repository to push the finalized release
+            branch to. This is typically "origin", but can be changed if working
+            with a fork or a differently named remote. (default: "origin")
 
     Updates internal module dependencies with the new version.
     """
-
     # Step 1: Preparation
+
+    # Validate release_date (if provided)
+    if release_date:
+        try:
+            datetime.strptime(release_date, "%Y-%m-%d")
+        except ValueError as err:
+            raise Exit(
+                color_message(f"Invalid date `{release_date}`. Date should be valid and in format YYYY-MM-DD.", "red"),
+                code=1,
+            ) from err
 
     major_version = get_version_major(release_branch)
     print(f"Finishing release for major version {major_version}")
@@ -363,10 +383,10 @@ def finish(ctx, release_branch, upstream="origin"):
 
         # Step 4: Add release changelog preludes
         print(color_message("Adding Agent release changelog prelude", "bold"))
-        _add_prelude(ctx, str(new_version))
+        _add_prelude(ctx, str(new_version), release_date)
 
         print(color_message("Adding DCA release changelog prelude", "bold"))
-        _add_dca_prelude(ctx, str(new_version))
+        _add_dca_prelude(ctx, str(new_version), release_date)
 
         ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
         if not ok:
@@ -429,8 +449,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         Commits the above changes, and then creates a PR on the upstream repository with the change.
 
     Notes:
-        This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-        with 'repo' permissions.
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
@@ -628,7 +646,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
 
         # tag_version only takes the highest version (Agent 7 currently), and creates
         # the tags for all supported versions
-        # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
+        # TODO(team:agent-delivery): make it possible to do Agent 6-only or Agent 7-only tags?
         tag_version(ctx, version=str(new_version), force=False, start_qual=start_qual)
         tag_modules(ctx, version=str(new_version), force=False)
 
@@ -693,11 +711,10 @@ def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, 
         release_json = load_release_json()
         path = key.split('::')
         current_node = release_json
-        for key_idx in range(len(path)):
-            key = path[key_idx]
+        for idx, key in enumerate(path):
             if key not in current_node:
                 raise Exit(code=1, message=f"Couldn't find '{key}' in release.json")
-            if key_idx == len(path) - 1:
+            if idx == len(path) - 1:
                 current_node[key] = value
                 break
             else:
@@ -766,8 +783,7 @@ def create_and_update_release_branch(
             _main()
 
 
-# TODO: unfreeze is the former name of this task, kept for backward compatibility. Remove in a few weeks.
-@task(help={'upstream': "Remote repository name (default 'origin')"}, aliases=["unfreeze"])
+@task(help={'upstream': "Remote repository name (default 'origin')"})
 def create_release_branches(
     ctx, commit, base_directory="~/dd", major_version: int = 7, upstream="origin", check_state=True
 ):
@@ -784,22 +800,20 @@ def create_release_branches(
         use_worktree: If True, will go to datadog-agent-worktree instead of datadog-agent.
 
     Notes:
-        This requires a GitHub token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-        with 'repo' permissions.
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
 
-    current = current_version(ctx, major_version)
-    current.rc = False
-    current.devel = False
-
-    # Strings with proper branch/tag names
-    release_branch = current.branch()
-
     with agent_context(ctx, commit=commit):
+        current = current_version(ctx, major_version)
+        current.rc = False
+        current.devel = False
+
+        # Strings with proper branch/tag names
+        release_branch = current.branch()
+
         # Step 0: checks
         ctx.run("git fetch")
 
@@ -1215,13 +1229,13 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
     with agent_context(ctx, release_branch):
         next_version = next_rc_version(ctx, release_branch)
         repo_data = generate_repo_data(ctx, warning_mode, next_version, release_branch)
-        changes = 'false'
+        return_code = 0  # no changes
         message = [f":warning: Please add the `{next_version}` tag on the head of `{release_branch}` for:\n"]
         for repo_name, repo in repo_data.items():
             head_commit = get_last_commit(ctx, repo_name, repo['branch'])
             last_tag_commit, last_tag_name = get_last_release_tag(ctx, repo_name, next_version.tag_pattern())
             if last_tag_commit != "" and last_tag_commit != head_commit:
-                changes = 'true'
+                return_code = 69
                 print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)
                 if warning_mode:
                     team = "agent-integrations"
@@ -1235,7 +1249,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                 # This repo has changes, the next check is not needed
                 continue
             if repo_name != "datadog-agent" and last_tag_name != repo['previous_tag']:
-                changes = 'true'
+                return_code = 69
                 print(
                     f"{repo_name} has a new tag {last_tag_name} since last release candidate (was {repo['previous_tag']})",
                     file=sys.stderr,
@@ -1245,7 +1259,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
             message.append("Make sure to tag them before merging the next RC PR.")
             warn_new_tags("".join(message))
         # Send a value for the create_rc_pr.yml workflow
-        print(changes)
+        sys.exit(return_code)
 
 
 @task

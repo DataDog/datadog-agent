@@ -14,16 +14,17 @@ import (
 )
 
 // LegacyEndpointsMetricsProgram creates a program for filtering endpoints metrics
-func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
-	return program.CELProgram{
-		Name:    "LegacyEndpointsMetricsProgram",
-		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.EndpointType, logger),
-		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.EndpointType, logger),
-	}
+func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
+	programName := "LegacyEndpointsMetricsProgram"
+	include := config.GetStringSlice("container_include_metrics")
+	exclude := config.GetStringSlice("container_exclude_metrics")
+	return createFromOldFilters(programName, include, exclude, workloadfilter.EndpointType, logger)
 }
 
 // LegacyEndpointsGlobalProgram creates a program for filtering endpoints globally
-func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
+	programName := "LegacyEndpointsGlobalProgram"
+
 	includeList := config.GetStringSlice("container_include")
 	excludeList := config.GetStringSlice("container_exclude")
 	if len(includeList) == 0 {
@@ -34,10 +35,5 @@ func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component)
 		// fallback and support legacy "ac_exclude" config
 		excludeList = config.GetStringSlice("ac_exclude")
 	}
-
-	return program.CELProgram{
-		Name:    "LegacyEndpointsGlobalProgram",
-		Include: createProgramFromOldFilters(includeList, workloadfilter.EndpointType, logger),
-		Exclude: createProgramFromOldFilters(excludeList, workloadfilter.EndpointType, logger),
-	}
+	return createFromOldFilters(programName, includeList, excludeList, workloadfilter.EndpointType, logger)
 }

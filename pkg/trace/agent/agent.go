@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/payload"
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -118,6 +119,11 @@ type Agent struct {
 	// subsequent SpanModifier calls.
 	SpanModifier SpanModifier
 
+	// TracerPayloadModifier will be called on all tracer payloads early on in
+	// their processing. In particular this happens before trace chunks are
+	// meaningfully filtered or modified.
+	TracerPayloadModifier TracerPayloadModifier
+
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
 
@@ -137,6 +143,10 @@ type Agent struct {
 type SpanModifier interface {
 	ModifySpan(*pb.TraceChunk, *pb.Span)
 }
+
+// TracerPayloadModifier is an interface that allows tracer implementations to
+// modify a TracerPayload as it is processed in the Agent's Process method.
+type TracerPayloadModifier = payload.TracerPayloadModifier
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
@@ -211,6 +221,7 @@ func (a *Agent) Run() {
 		go a.work()
 	}
 
+	log.Infof("trace-agent running...")
 	a.loop()
 }
 
@@ -264,6 +275,8 @@ func (a *Agent) loop() {
 	if err := a.Receiver.Stop(); err != nil {
 		log.Error(err)
 	}
+	// All receivers have stopped, now safe to close the In channel
+	close(a.In)
 
 	//Wait to process any leftover payloads in flight before closing components that might be needed
 	a.processWg.Wait()
@@ -337,6 +350,10 @@ func (a *Agent) Process(p *api.Payload) {
 		} else {
 			p.ContainerTags = cTags
 		}
+	}
+
+	if a.TracerPayloadModifier != nil {
+		a.TracerPayloadModifier.Modify(p.TracerPayload)
 	}
 
 	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
@@ -580,8 +597,13 @@ func mergeDuplicates(s *pb.ClientStatsBucket) {
 }
 
 // ProcessStats processes incoming client stats in from the given tracer.
-func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) {
-	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID, obfuscationVersion)
+func (a *Agent) ProcessStats(ctx context.Context, in *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) error {
+	select {
+	case a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID, obfuscationVersion):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept
@@ -674,19 +696,24 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 
 	if a.conf.ProbabilisticSamplerEnabled {
 		samplerName = sampler.NameProbabilistic
+		probKeep := false
+
 		if rare {
 			samplerName = sampler.NameRare
-			return true, true
-		}
-		if a.ProbabilisticSampler.Sample(pt.Root) {
+			probKeep = true
+		} else if a.ProbabilisticSampler.Sample(pt.Root) {
 			pt.TraceChunk.Tags[tagDecisionMaker] = probabilitySampling
-			return true, true
-		}
-		if traceContainsError(pt.TraceChunk.Spans, false) {
+			probKeep = true
+		} else if traceContainsError(pt.TraceChunk.Spans, false) {
 			samplerName = sampler.NameError
-			return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
+			probKeep = a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 		}
-		return false, true
+		if probKeep {
+			pt.TraceChunk.Priority = int32(sampler.PriorityAutoKeep)
+		} else {
+			pt.TraceChunk.Priority = int32(sampler.PriorityAutoDrop)
+		}
+		return probKeep, true
 	}
 
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)

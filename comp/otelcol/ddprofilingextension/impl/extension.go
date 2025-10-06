@@ -19,10 +19,11 @@ import (
 	ddprofilingextensiondef "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 )
 
 var (
@@ -111,11 +112,6 @@ func (e *ddExtension) startForOCB() error {
 		profilerOptions = append(profilerOptions, profiler.WithSite(string(e.cfg.API.Site)))
 	}
 
-	source, err := e.sourceProvider.Source(context.Background())
-	if err != nil {
-		return err
-	}
-
 	var tags strings.Builder
 	// agent_version is required by profiling backend. Use version of comp/trace/agent/def, and fallback to 7.64.0.
 	agentVersion := "7.64.0"
@@ -131,15 +127,6 @@ func (e *ddExtension) startForOCB() error {
 	tags.WriteString(",source:oss-ddprofilingextension")
 	if e.cfg.ProfilerOptions.Env != "" {
 		tags.WriteString(fmt.Sprintf(",default_env:%s", e.cfg.ProfilerOptions.Env))
-	}
-
-	if source.Kind == "host" {
-		profilerOptions = append(profilerOptions, profiler.WithHostname(source.Identifier))
-		tags.WriteString(fmt.Sprintf(",host:%s", source.Identifier))
-	}
-
-	if source.Kind == "task_arn" {
-		tags.WriteString(fmt.Sprintf(",orchestrator:fargate_ecs,task_arn:%s", source.Identifier))
 	}
 
 	cl := new(http.Client)

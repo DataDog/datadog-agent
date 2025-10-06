@@ -87,9 +87,9 @@ func BenchmarkProcessHTTPTransactions(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for p := 0; p < numPaths; p++ {
 			b.StopTimer()
-			//we use subset of unique endpoints, but those will occur over and over again like in regular target application
+			// we use subset of unique endpoints, but those will occur over and over again like in regular target application
 			path := "/testpath/blablabla/dsadas/isdaasd/asdasadsadasd" + strconv.Itoa(p%uniqPaths)
-			//we simulate different conn tuples by increasing the port number
+			// we simulate different conn tuples by increasing the port number
 			newSourcePort := sourcePort + (p % 30)
 			statusCode := (i%5 + 1) * 100
 			latency := time.Duration(i%5+1) * time.Millisecond
@@ -102,7 +102,8 @@ func BenchmarkProcessHTTPTransactions(b *testing.B) {
 }
 
 func BenchmarkProcessSameConn(b *testing.B) {
-	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 1000
 	tel := NewTelemetry("http")
 	sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
 	tx := generateIPv4HTTPTransaction(
@@ -298,6 +299,30 @@ func TestHTTPCorrectness(t *testing.T) {
 		require.Len(t, stats, 0)
 	})
 
+	t.Run("invalid status code", func(t *testing.T) {
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
+		libtelemetry.Clear()
+		tel := NewTelemetry("http")
+		sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
+		tx := generateIPv4HTTPTransaction(
+			util.AddressFromString("1.1.1.1"),
+			util.AddressFromString("2.2.2.2"),
+			1234,
+			8080,
+			"/get",
+			700,
+			30*time.Millisecond,
+		)
+
+		sk.Process(tx)
+		tel.Log()
+		require.Equal(t, int64(1), tel.invalidStatusCode.Get())
+
+		stats := sk.GetAndResetAllStats()
+		require.Len(t, stats, 0)
+	})
+
 	t.Run("Empty path", func(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
@@ -356,4 +381,86 @@ func TestStatkeeperSortedRules(t *testing.T) {
 	require.Equal(t, sk.replaceRules[2].Re.String(), "/users/[A-z0-9]+")
 	require.NotEmpty(t, sk.replaceRules[3].Repl)
 	require.Equal(t, sk.replaceRules[3].Re.String(), "/payment2/[0-9]+")
+}
+
+func TestGRPCQuantizationBehavior(t *testing.T) {
+	var (
+		sourceIP   = util.AddressFromString("1.1.1.1")
+		sourcePort = 1234
+		destIP     = util.AddressFromString("2.2.2.2")
+		destPort   = 8080
+		statusCode = 200
+		latency    = time.Second
+	)
+
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 1000
+	cfg.EnableUSMQuantization = true
+	tel := NewTelemetry("http2")
+	sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
+
+	t.Run("gRPC paths should not be quantized", func(t *testing.T) {
+		grpcPaths := []string{
+			"/google.pubsub.v1.Publisher/Publish",
+			"/helloworld.Greeter/SayHello",
+			"/package.service.v2/method",
+			"/com.example.MyService/DoSomething",
+		}
+
+		for _, path := range grpcPaths {
+			tx := generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, path, statusCode, latency)
+			tx.SetRequestMethod(MethodPost)
+			sk.Process(tx)
+		}
+
+		stats := sk.GetAndResetAllStats()
+		require.Len(t, stats, len(grpcPaths))
+
+		// Verify all gRPC paths remain unquantized
+		foundPaths := make(map[string]bool)
+		for key := range stats {
+			foundPaths[key.Path.Content.Get()] = true
+		}
+
+		for _, expectedPath := range grpcPaths {
+			assert.True(t, foundPaths[expectedPath], "Expected gRPC path %s to remain unquantized", expectedPath)
+		}
+	})
+
+	t.Run("non-gRPC paths should be quantized", func(t *testing.T) {
+		nonGrpcPaths := []string{
+			"/orders/123/view",
+			"/users/456/profile",
+			"/api/v1/items/789",
+		}
+
+		for _, path := range nonGrpcPaths {
+			tx := generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, path, statusCode, latency)
+			tx.SetRequestMethod(MethodPost)
+			sk.Process(tx)
+		}
+
+		stats := sk.GetAndResetAllStats()
+		require.Len(t, stats, len(nonGrpcPaths))
+
+		// Verify all non-gRPC paths are quantized
+		for key := range stats {
+			path := key.Path.Content.Get()
+			assert.Contains(t, path, "*", "Expected non-gRPC path to be quantized but got: %s", path)
+		}
+	})
+
+	t.Run("non-POST gRPC-like paths should be quantized", func(t *testing.T) {
+		tx := generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/google.pubsub.v1.Publisher/Publish", statusCode, latency)
+		tx.SetRequestMethod(MethodGet)
+		sk.Process(tx)
+
+		stats := sk.GetAndResetAllStats()
+		require.Len(t, stats, 1)
+
+		for key := range stats {
+			path := key.Path.Content.Get()
+			assert.NotEqual(t, "/google.pubsub.v1.Publisher/Publish", path, "GET requests with gRPC-like paths should be quantized")
+		}
+	})
 }

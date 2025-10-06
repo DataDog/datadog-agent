@@ -181,9 +181,11 @@ func buildAndSpawnGrpcServer(listenAddr string, server pbcore.RemoteAgentServer)
 		return "", fmt.Errorf("unable to generate authentication token: %v", err)
 	}
 
+	// For testing purposes, we only need auth interceptors, not metrics interceptors
+	// since this remote agent doesn't send metrics to COAT
 	serverOpts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewServerTLSFromCert(tlsKeyPair)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(authToken))),
+		grpc.Creds(credentials.NewServerTLSFromCert(tlsKeyPair)),
 	}
 
 	grpcServer := grpc.NewServer(serverOpts...)

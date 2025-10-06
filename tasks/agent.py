@@ -81,9 +81,10 @@ AGENT_CORECHECKS = [
     "orchestrator_ecs",
     "cisco_sdwan",
     "network_path",
-    "service_discovery",
     "gpu",
     "wlan",
+    "discovery",
+    "versa",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -450,10 +451,12 @@ def hacky_dev_image_build(
     target_image="agent",
     process_agent=False,
     trace_agent=False,
+    system_probe=False,
     push=False,
     race=False,
     signed_pull=False,
     arch=None,
+    development=True,
 ):
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
@@ -485,13 +488,15 @@ def hacky_dev_image_build(
             f"docker run --platform linux/{arch} --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
         )
 
-        os.environ["DELVE"] = "1"
+        if development:
+            os.environ["DELVE"] = "1"
         os.environ["LD_LIBRARY_PATH"] = (
             os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
         )
         build(
             ctx,
             race=race,
+            development=development,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(
@@ -509,6 +514,12 @@ def hacky_dev_image_build(
 
         trace_agent_build(ctx)
         copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
+
+    if system_probe:
+        from tasks.system_probe import build as system_probe_build
+
+        system_probe_build(ctx)
+        copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -611,7 +622,16 @@ def check_supports_python_version(check_dir, python):
         if 'requires-python' not in project_metadata:
             return True
 
-        specifier = SpecifierSet(project_metadata['requires-python'])
+        requires_python = project_metadata['requires-python']
+        # Handle malformed requires-python values (e.g., just ">=" without version)
+        if not requires_python or requires_python.strip() in ['>=', '>', '<=', '<', '==', '!=', '~=', '===']:
+            return True
+
+        try:
+            specifier = SpecifierSet(requires_python)
+        except Exception:
+            # If the specifier is malformed, assume it supports the Python version
+            return True
         # It might be e.g. `>=3.8` which would not immediatelly contain `3`
         for minor_version in range(100):
             if specifier.contains(f'{python}.{minor_version}'):

@@ -58,6 +58,9 @@ func (c *collector) parseTasksFromV4Endpoint(ctx context.Context) ([]workloadmet
 
 // getTaskWithTagsFromV4Endpoint fetches task and tags from the metadata v4 API
 func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.Task) (v3or4.Task, error) {
+	// Get tags from the cache
+	rt := c.resourceTags[task.Arn]
+
 	var metaURI string
 	for _, taskContainer := range task.Containers {
 		containerID := taskContainer.DockerID
@@ -81,18 +84,61 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 		return v1TaskToV4Task(task), errors.New(err)
 	}
 
-	taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTaskWithTags(ctx)
-	if err != nil {
-		// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
-		if errors.Is(err, context.DeadlineExceeded) {
-			log.Debugf("timeout while getting task with tags from metadata v4 API: %s", err)
-		} else {
-			log.Warnf("failed to get task with tags from metadata v4 API: %s", err)
+	var returnTask v3or4.Task
+	// If we have tags, are collecting tags and have zero tags present in the cache
+	// Call getTaskWithTags
+	if c.hasResourceTags && c.collectResourceTags && len(rt.tags) == 0 && len(rt.containerInstanceTags) == 0 {
+		// No tags in the cache, fetch from metadata v4 API
+		taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTaskWithTags(ctx)
+		if err != nil {
+			// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
+			if errors.Is(err, context.DeadlineExceeded) {
+				log.Debugf("timeout while getting task with tags from metadata v4 API: %s", err)
+			} else {
+				log.Warnf("failed to get task with tags from metadata v4 API: %s", err)
+			}
+			return v1TaskToV4Task(task), err
 		}
-		return v1TaskToV4Task(task), err
+
+		// Add tags to the cache
+		rt = resourceTags{
+			tags:                  taskWithTags.TaskTags,
+			containerInstanceTags: taskWithTags.ContainerInstanceTags,
+		}
+
+		c.resourceTags[task.Arn] = rt
+		returnTask = *taskWithTags
+	} else {
+		// Do not query for tags, but use them if they exist
+		taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTask(ctx)
+		if err != nil {
+			// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
+			if errors.Is(err, context.DeadlineExceeded) {
+				log.Debugf("timeout while getting task from metadata v4 API: %s", err)
+			} else {
+				log.Warnf("failed to get task from metadata v4 API: %s", err)
+			}
+			return v1TaskToV4Task(task), err
+		}
+		// Add tags if they exist
+		if len(rt.tags) > 0 {
+			taskWithTags.TaskTags = rt.tags
+		}
+		if len(rt.containerInstanceTags) > 0 {
+			taskWithTags.ContainerInstanceTags = rt.containerInstanceTags
+		}
+
+		returnTask = *taskWithTags
 	}
 
-	return *taskWithTags, nil
+	// Tasks might contain errors behind the scenes in ecs agent
+	if len(returnTask.Errors) > 0 {
+		for _, err := range returnTask.Errors {
+			log.Warnf("error while getting task information from metadata v4 API: %+v", err)
+		}
+	}
+
+	return returnTask, nil
 }
 
 func v1TaskToV4Task(task v1.Task) v3or4.Task {

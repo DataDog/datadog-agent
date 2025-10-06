@@ -13,8 +13,11 @@ const (
 	// LibsetCrypto is the libset that contains the crypto libraries (libssl, libcrypto, libgnutls)
 	LibsetCrypto Libset = "crypto"
 
-	// LibsetGPU contains the libraryes for GPU monitoring (libcudart)
+	// LibsetGPU contains the libraries for GPU monitoring (libcudart)
 	LibsetGPU Libset = "gpu"
+
+	// LibsetLibc is the libset that contains the libc library (libc.so)
+	LibsetLibc Libset = "libc"
 )
 
 // LibsetToLibSuffixes maps a libset to a list of regexes that match the shared libraries that belong to that libset. Should be
@@ -22,6 +25,7 @@ const (
 var LibsetToLibSuffixes = map[Libset][]string{
 	LibsetCrypto: {"libssl", "crypto", "gnutls"},
 	LibsetGPU:    {"libcudart"},
+	LibsetLibc:   {"libc"},
 }
 
 // IsLibsetValid checks if the given libset is valid (i.e., it's in the LibsetToLibSuffixes map)

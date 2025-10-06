@@ -111,8 +111,7 @@ func withConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string) f
 		overrides["network_devices.snmp_traps"] = rawTrapConfig
 	}
 	return fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 	)
 }
 
@@ -208,7 +207,7 @@ func TestMinimalConfig(t *testing.T) {
 		Config *TrapsConfig
 		Logger log.Component
 	}](t,
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		testOptions(t),
 	)
 	config := deps.Config
@@ -243,7 +242,7 @@ func TestDefaultUsers(t *testing.T) {
 func TestBuildAuthoritativeEngineID(t *testing.T) {
 	for name, engineID := range expectedEngineIDs {
 		config := fxutil.Test[*TrapsConfig](t,
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(buildConfig),
 			hostnameimpl.MockModule(),
 			fx.Replace(hostnameimpl.MockHostname(name)),

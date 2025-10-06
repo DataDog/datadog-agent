@@ -19,7 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -69,10 +70,10 @@ func listCommands(_ *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -92,10 +93,10 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -145,10 +146,10 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(generateActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -223,10 +224,10 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -284,10 +285,10 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(diffActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
+					ConfigParams: config.NewAgentParams(""),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}

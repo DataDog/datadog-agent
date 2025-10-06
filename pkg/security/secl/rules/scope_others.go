@@ -14,6 +14,7 @@ var VariableScopes = []string{
 	ScopeContainer,
 }
 
-func getStateScopes() map[Scope]VariableProviderFactory {
+// DefaultStateScopes returns the default state scopes for variables
+func DefaultStateScopes() map[Scope]VariableProviderFactory {
 	return getCommonStateScopes()
 }

@@ -55,6 +55,7 @@ type KubeServiceService struct {
 	ports           []ContainerPort
 	metricsExcluded bool
 	globalExcluded  bool
+	namespace       string
 }
 
 // Make sure KubeServiceService implements the Service interface
@@ -234,17 +235,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 		return
 	}
 
-	svc := processService(ksvc)
-
-	svc.metricsExcluded = l.filterStore.IsServiceExcluded(
-		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
-		nil,
-	)
-
-	svc.globalExcluded = l.filterStore.IsServiceExcluded(
-		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
-		nil,
-	)
+	svc := processService(ksvc, l.filterStore)
 
 	l.m.Lock()
 	l.services[ksvc.UID] = svc
@@ -256,10 +247,15 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 	}
 }
 
-func processService(ksvc *v1.Service) *KubeServiceService {
+func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *KubeServiceService {
 	svc := &KubeServiceService{
-		entity: apiserver.EntityForService(ksvc),
+		entity:    apiserver.EntityForService(ksvc),
+		namespace: ksvc.Namespace,
 	}
+
+	filterableService := workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations())
+	svc.metricsExcluded = filterStore.GetServiceAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableService)
+	svc.globalExcluded = filterStore.GetServiceAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableService)
 
 	// Service tags
 	svc.tags = []string{
@@ -385,10 +381,19 @@ func (s *KubeServiceService) HasFilter(fs workloadfilter.Scope) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeServiceService) GetExtraConfig(_ string) (string, error) {
+func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
+	switch key {
+	case "namespace":
+		return s.namespace, nil
+	}
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
 func (s *KubeServiceService) FilterTemplates(map[string]integration.Config) {
+}
+
+// GetImageName does nothing
+func (s *KubeServiceService) GetImageName() string {
+	return ""
 }

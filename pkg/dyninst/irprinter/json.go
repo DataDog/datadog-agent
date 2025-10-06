@@ -9,6 +9,7 @@ package irprinter
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"reflect"
 	"slices"
@@ -73,11 +74,32 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 			return enc.WriteToken(jsontext.String(v.String()))
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v uint64) error {
-			if v < 1_000_000 {
+			if v < 10_000 {
 				return json.SkipFunc
 			}
 			return enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", v)))
-		}))
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.DynamicSizeClass) error {
+			switch v {
+			case ir.DynamicSizeSlice:
+				return enc.WriteToken(jsontext.String("slice"))
+			case ir.DynamicSizeString:
+				return enc.WriteToken(jsontext.String("string"))
+			case ir.DynamicSizeHashmap:
+				return enc.WriteToken(jsontext.String("hashmap"))
+			case ir.StaticSize:
+				return enc.WriteToken(jsontext.String("static"))
+			default:
+				return fmt.Errorf("unknown dynamic size class: %d", v)
+			}
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.RootExpressionKind) error {
+			return enc.WriteToken(jsontext.String(v.String()))
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.EventKind) error {
+			return enc.WriteToken(jsontext.String(v.String()))
+		}),
+	)
 	probeMarshalers := json.JoinMarshalers(
 		basicMarshalers,
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v *ir.Subprogram) error {
@@ -157,7 +179,12 @@ func marshalTypeMap(enc *jsontext.Encoder, tm map[ir.TypeID]ir.Type) error {
 	for id := range tm {
 		ids = append(ids, id)
 	}
-	slices.Sort(ids)
+	slices.SortFunc(ids, func(a, b ir.TypeID) int {
+		return cmp.Or(
+			cmp.Compare(tm[a].GetName(), tm[b].GetName()),
+			cmp.Compare(tm[a].GetID(), tm[b].GetID()),
+		)
+	})
 	if err := enc.WriteToken(jsontext.BeginArray); err != nil {
 		return err
 	}
@@ -258,6 +285,8 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.GoSwissMapHeaderType)(nil)),
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
+	reflect.TypeOf((*ir.VoidPointerType)(nil)),
+	reflect.TypeOf((*ir.UnresolvedPointeeType)(nil)),
 }
 
 var typeMarshalers map[reflect.Type]*typeMarshaler

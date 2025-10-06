@@ -9,18 +9,22 @@ package irgen_test
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path"
+	"slices"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 var rewriteFromEnv = func() bool {
@@ -31,41 +35,100 @@ var rewrite = flag.Bool("rewrite", rewriteFromEnv, "rewrite the test files")
 
 const snapshotDir = "testdata/snapshot"
 
-var cases = []string{"simple"}
-
 func TestSnapshotTesting(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
-	for _, caseName := range cases {
-		t.Run(caseName, func(t *testing.T) {
+	progs := testprogs.MustGetPrograms(t)
+	sem := dyninsttest.MakeSemaphore()
+	for _, prog := range progs {
+		t.Run(prog, func(t *testing.T) {
+			t.Parallel()
 			for _, cfg := range cfgs {
 				t.Run(cfg.String(), func(t *testing.T) {
-					runTest(t, cfg, caseName)
+					t.Parallel()
+					defer sem.Acquire()()
+					runTest(t, cfg, prog)
 				})
 			}
 		})
 	}
 }
 
-func runTest(
-	t *testing.T,
-	cfg testprogs.Config,
-	caseName string,
-) {
-	binPath := testprogs.MustGetBinary(t, caseName, cfg)
-	probesCfgs := testprogs.MustGetProbeDefinitions(t, caseName)
-	elfFile, err := safeelf.Open(binPath)
-	require.NoError(t, err)
-	obj, err := object.NewElfObject(elfFile)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, elfFile.Close()) }()
-	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
-	require.NoError(t, err)
-	require.Empty(t, ir.Issues)
+func probeConfigsWithMaxReferenceDepth(
+	probesCfgs []ir.ProbeDefinition, limit int,
+) []ir.ProbeDefinition {
+	for _, cfg := range probesCfgs {
+		switch cfg := cfg.(type) {
+		case *rcjson.LogProbe:
+			if cfg.Capture == nil {
+				cfg.Capture = new(rcjson.Capture)
+				cfg.Capture.MaxReferenceDepth = &limit
+			}
+		case *rcjson.SnapshotProbe:
+			if cfg.Capture == nil {
+				cfg.Capture = new(rcjson.Capture)
+				cfg.Capture.MaxReferenceDepth = &limit
+			}
+		}
+	}
+	return probesCfgs
+}
 
-	marshaled, err := irprinter.PrintYAML(ir)
+func runTest(t *testing.T, cfg testprogs.Config, prog string) {
+	binPath := testprogs.MustGetBinary(t, prog, cfg)
+	probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
+	obj, err := object.OpenElfFileWithDwarf(binPath)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, obj.Close()) }()
+
+	// Make sure things work with the default limits, but don't actually
+	// use the results because they might be huge.
+	irWithDefaultLimits, err := irgen.GenerateIR(1, obj, probesCfgs)
+	require.NoError(t, err)
+	require.Empty(t, irWithDefaultLimits.Issues)
+	{
+		_, err := irprinter.PrintYAML(irWithDefaultLimits)
+		require.NoError(t, err)
+	}
+
+	// Make sure that the IR eventually gets to the same set of types as
+	// when we don't have a limit.
+	var irWithLimit1 *ir.Program
+	for i := 1; ; i++ {
+		probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
+		probesCfgs = probeConfigsWithMaxReferenceDepth(probesCfgs, i)
+		irWithLimit, err := irgen.GenerateIR(1, obj, probesCfgs)
+		require.NoError(t, err)
+		require.Empty(t, irWithLimit.Issues)
+		if i == 1 {
+			irWithLimit1 = irWithLimit
+		}
+		typeNames := func(p *ir.Program) []string {
+			var names []string
+			for _, t := range p.Types {
+				names = append(names, fmt.Sprintf("%T:%s", t, t.GetName()))
+			}
+			slices.Sort(names)
+			return names
+		}
+		if slices.Equal(typeNames(irWithDefaultLimits), typeNames(irWithLimit)) {
+			t.Logf("types converged with limit %d", i)
+			break
+		}
+		require.Less(t, i, 100, "types did not converge in 100 iterations")
+		t.Logf(
+			"limit %d has %d types < %d types",
+			i, len(irWithLimit.Types), len(irWithDefaultLimits.Types),
+		)
+	}
+
+	// Use the default probe definitions so it's less noisy.
+	for i := range irWithLimit1.Probes {
+		irWithLimit1.Probes[i].ProbeDefinition = irWithDefaultLimits.Probes[i].ProbeDefinition
+	}
+	marshaled, err := irprinter.PrintYAML(irWithLimit1)
 	require.NoError(t, err)
 
-	outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".yaml")
+	outputFile := path.Join(snapshotDir, prog+"."+cfg.String()+".yaml")
 	if *rewrite {
 		tmpFile, err := os.CreateTemp(snapshotDir, "ir.yaml")
 		require.NoError(t, err)

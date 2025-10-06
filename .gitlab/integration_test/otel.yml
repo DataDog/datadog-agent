@@ -4,8 +4,8 @@
 
 integration_tests_otel:
   stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
   script:
     - !reference [.retrieve_linux_go_deps]
@@ -16,14 +16,12 @@ integration_tests_otel:
     - !reference [.except_mergequeue]
     - when: on_success
 
-
 docker_image_build_otel:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  needs: ["go_deps","integration_tests_otel"]
+  needs: ["integration_tests_otel"]
   tags: ["docker-in-docker:amd64"]
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - mkdir -p /tmp/otel-ci
     - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
     - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/
@@ -45,8 +43,8 @@ docker_image_build_otel:
 
 datadog_otel_components_ocb_build:
   stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
   artifacts:
     paths:
@@ -64,3 +62,112 @@ datadog_otel_components_ocb_build:
     - !reference [.except_mergequeue]
     - when: on_success
   timeout: 15 minutes
+
+# Test that the BYOC packages can be built with the existing Dockerfile
+ddot_byoc_package_build_test_rpm:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64  
+  needs: ["integration_tests_otel"]
+  tags: ["docker-in-docker:amd64"]
+  before_script:
+    - !reference [docker_image_build_otel, before_script]
+  script:
+    - !reference [.login_to_docker_readonly]
+    - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
+    - |
+      docker build \
+        --target artifact \
+        --output type=local,dest=./ \
+        --build-arg AGENT_BRANCH=$CI_COMMIT_REF_NAME \
+        --build-arg PACKAGE_TYPE=rpm \
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+    - |
+      RPM_PATH=ddot-byoc/datadog-agent-ddot-byoc-${AGENT_VERSION}-1.x86_64.rpm
+      if [ ! -f "$RPM_PATH" ]; then
+        echo "ERROR: Expected RPM package not found in output directory!" >&2
+        exit 1
+      fi
+      rpm2archive - < "$RPM_PATH" | tar -tz | grep /opt/datadog-agent/embedded/bin/otel-agent || { echo "ERROR: otel-agent binary not found in RPM package"; exit 1; }
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+
+ddot_byoc_package_build_test_deb:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  needs: ["integration_tests_otel"]
+  tags: ["docker-in-docker:amd64"]
+  before_script:
+    - !reference [docker_image_build_otel, before_script]
+  script:
+    - !reference [.login_to_docker_readonly]
+    - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
+    - |
+      docker build \
+        --target artifact \
+        --output type=local,dest=./ \
+        --build-arg AGENT_BRANCH=$CI_COMMIT_REF_NAME \
+        --build-arg PACKAGE_TYPE=deb \
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+    - |
+      DEB_PATH=ddot-byoc/datadog-agent-ddot-byoc_${AGENT_VERSION}_amd64.deb
+      if [ ! -f "$DEB_PATH" ]; then
+        echo "ERROR: Expected DEB package not found in output directory!" >&2
+        exit 1
+      fi
+      dpkg -c "$DEB_PATH" | grep /opt/datadog-agent/embedded/bin/otel-agent || { echo "ERROR: otel-agent binary not found in DEB package"; exit 1; }
+    # Check conflicts field for generated package
+    - |
+      [ "$(dpkg -f ${DEB_PATH} Conflicts)" = "datadog-agent-ddot" ] || { echo "ERROR: missing expected value for 'Conflicts'"; exit 1; }
+    # Check runtime dependencies for generated package
+    - |
+      dpkg -f "${DEB_PATH}" Depends | grep datadog-agent || { echo "ERROR: package should depend on datadog-agent"; exit 1; }
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+
+ddot_byoc_binary_build_test_ubuntu2004:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  needs: ["integration_tests_otel"]
+  tags: ["docker-in-docker:amd64"]
+  before_script:
+    - !reference [docker_image_build_otel, before_script]
+  script:
+    - !reference [.login_to_docker_readonly]
+    - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
+    - |
+      docker build \
+        --target artifact \
+        --output type=local,dest=./ \
+        --build-arg AGENT_BRANCH=$CI_COMMIT_REF_NAME \
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        --build-arg UBUNTU_VERSION=20.04 \
+        -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+    - |
+      BIN_PATH=ddot-byoc/otel-agent
+      if [ ! -f "$BIN_PATH" ]; then
+        echo "ERROR: Expected otel-agent binary not found in output directory!" >&2
+        exit 1
+      fi
+    # Check GLIBC compatibility (must be <= 2.31, given we built with Ubuntu 20.04)
+    - |
+      ALLOWED_GLIBC=2.31
+      REQUIRED_GLIBC=$(objdump -T "$BIN_PATH" 2>/dev/null | grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/[^0-9.]//g' | sort -V | tail -1)
+      echo "Detected required GLIBC version: ${REQUIRED_GLIBC:-unknown} (allowed max: $ALLOWED_GLIBC)"
+      if [ -z "$REQUIRED_GLIBC" ]; then
+        echo "WARNING: Could not detect GLIBC requirement from binary; proceeding without hard failure." >&2
+      else
+        # This amounts to reporting an error when $REQUIRED_GLIBC > $ALLOWED_GLIBC
+        highest_version=$(printf '%s\n%s\n' "$REQUIRED_GLIBC" "$ALLOWED_GLIBC" | sort -V | tail -1)
+        if [[ "$REQUIRED_GLIBC" != "$ALLOWED_GLIBC" && "$highest_version" == "$REQUIRED_GLIBC" ]]; then
+          echo "ERROR: otel-agent requires GLIBC_$REQUIRED_GLIBC which exceeds expected GLIBC_$ALLOWED_GLIBC" >&2
+          objdump -T "$BIN_PATH" | grep 'GLIBC'
+          exit 1
+        fi
+      fi
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success

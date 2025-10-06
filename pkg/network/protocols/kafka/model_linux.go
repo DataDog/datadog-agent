@@ -48,35 +48,17 @@ func (tx *EbpfTx) ErrorCode() int8 {
 
 // RequestLatency returns the latency of the request in nanoseconds
 func (tx *EbpfTx) RequestLatency() float64 {
-	if uint64(tx.Transaction.Request_started) == 0 || uint64(tx.Transaction.Response_last_seen) == 0 {
+	if tx.Transaction.Request_started == 0 || tx.Transaction.Response_last_seen == 0 {
+		return 0
+	}
+	if tx.Transaction.Response_last_seen < tx.Transaction.Request_started {
 		return 0
 	}
 	return protocols.NSTimestampToFloat(tx.Transaction.Response_last_seen - tx.Transaction.Request_started)
 }
 
 // String returns a string representation of the kafka eBPF telemetry.
-func formatAPIVersionHits(hits []uint64) string {
-	var result string
-	nonZeroKeys := make([]int, 0)
-	for i := 0; i < len(hits); i++ {
-		if hits[i] == 0 {
-			continue
-		}
-		nonZeroKeys = append(nonZeroKeys, i)
-	}
-	if len(nonZeroKeys) == 0 {
-		return "\"no hits\""
-	}
-	for _, nonZeroKey := range nonZeroKeys {
-		result += fmt.Sprintf("\t\t\"api version %d\": %d,\n", nonZeroKey, hits[nonZeroKey])
-	}
-	return "{\n" + result + "\t}"
-}
-
 func (t *RawKernelTelemetry) String() string {
-	fetchVersionsHits := formatAPIVersionHits(t.Classified_fetch_api_version_hits[:])
-	produceVersionsHits := formatAPIVersionHits(t.Classified_produce_api_version_hits[:])
-
 	return fmt.Sprintf(`
 RawKernelTelemetry{
 	"topic name size distribution": {
@@ -92,9 +74,7 @@ RawKernelTelemetry{
 		"in range [91, 255]": %d,
 	}
 	"produce no required acks": %d,
-	"classified consume api version hits": %s,
-	"classified produce api version hits": %s
 }`, t.Topic_name_size_buckets[0], t.Topic_name_size_buckets[1], t.Topic_name_size_buckets[2], t.Topic_name_size_buckets[3],
 		t.Topic_name_size_buckets[4], t.Topic_name_size_buckets[5], t.Topic_name_size_buckets[6], t.Topic_name_size_buckets[7],
-		t.Topic_name_size_buckets[8], t.Topic_name_size_buckets[9], t.Produce_no_required_acks, fetchVersionsHits, produceVersionsHits)
+		t.Topic_name_size_buckets[8], t.Topic_name_size_buckets[9], t.Produce_no_required_acks)
 }

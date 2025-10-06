@@ -67,12 +67,12 @@ func TestConcurrencyUnmarshalling(_ *testing.T) {
 func TestGetConfigEnvVars(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	config.BindEnv("app_key")
+	config.BindEnv("app_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	assert.Contains(t, config.GetEnvVars(), "DD_APP_KEY")
-	config.BindEnv("logs_config.run_path")
+	config.BindEnv("logs_config.run_path") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	assert.Contains(t, config.GetEnvVars(), "DD_LOGS_CONFIG_RUN_PATH")
 
-	config.BindEnv("config_option", "DD_CONFIG_OPTION")
+	config.BindEnv("config_option", "DD_CONFIG_OPTION") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	assert.Contains(t, config.GetEnvVars(), "DD_CONFIG_OPTION")
 }
 
@@ -82,8 +82,8 @@ func TestGetConfigEnvVars(t *testing.T) {
 func TestGetConfigEnvVarsDedupe(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	config.BindEnv("config_option_1", "DD_CONFIG_OPTION")
-	config.BindEnv("config_option_2", "DD_CONFIG_OPTION")
+	config.BindEnv("config_option_1", "DD_CONFIG_OPTION") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("config_option_2", "DD_CONFIG_OPTION") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	count := 0
 	for _, v := range config.GetEnvVars() {
 		if v == "DD_CONFIG_OPTION" {
@@ -155,13 +155,13 @@ func TestIsKnown(t *testing.T) {
 				config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 				if tc.setKnown {
-					config.SetKnown(configName)
+					config.SetKnown(configName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 				}
 				if tc.setDefault {
 					config.SetDefault(configName, configDefault)
 				}
 				if tc.setEnv {
-					config.BindEnv(configName, configEnv)
+					config.BindEnv(configName, configEnv) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 				}
 
 				assert.Equal(t, tc.expected, config.IsKnown(configName))
@@ -209,12 +209,12 @@ func TestNotification(t *testing.T) {
 	updatedKeyCB1 := []string{}
 	updatedKeyCB2 := []string{}
 
-	config.OnUpdate(func(key string, _, _ any, _ uint64) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+	config.OnUpdate(func(key string, _ model.Source, _, _ any, _ uint64) { updatedKeyCB1 = append(updatedKeyCB1, key) })
 
 	config.Set("foo", "bar", model.SourceFile)
 	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
 
-	config.OnUpdate(func(key string, _, _ any, _ uint64) { updatedKeyCB2 = append(updatedKeyCB2, key) })
+	config.OnUpdate(func(key string, _ model.Source, _, _ any, _ uint64) { updatedKeyCB2 = append(updatedKeyCB2, key) })
 
 	config.Set("foo", "bar2", model.SourceFile)
 	config.Set("foo2", "bar2", model.SourceFile)
@@ -227,7 +227,7 @@ func TestNotificationNoChange(t *testing.T) {
 
 	updatedKeyCB1 := []string{}
 
-	config.OnUpdate(func(key string, _, newValue any, _ uint64) {
+	config.OnUpdate(func(key string, _ model.Source, _, newValue any, _ uint64) {
 		updatedKeyCB1 = append(updatedKeyCB1, key+":"+newValue.(string))
 	})
 
@@ -247,7 +247,7 @@ func TestNotificationNoChange(t *testing.T) {
 func TestCheckKnownKey(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig) // nolint: forbidigo
 
-	config.SetKnown("foo")
+	config.SetKnown("foo") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.Get("foo")
 	assert.Empty(t, config.unknownKeys)
 
@@ -341,7 +341,7 @@ func TestMergeFleetPolicy(t *testing.T) {
 func TestParseEnvAsStringSlice(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	config.BindEnv("slice_of_string")
+	config.BindEnv("slice_of_string") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.ParseEnvAsStringSlice("slice_of_string", func(string) []string { return []string{"a", "b", "c"} })
 
 	t.Setenv("DD_SLICE_OF_STRING", "__some_data__")
@@ -351,7 +351,7 @@ func TestParseEnvAsStringSlice(t *testing.T) {
 func TestParseEnvAsMapStringInterface(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	config.BindEnv("map_of_float")
+	config.BindEnv("map_of_float") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.ParseEnvAsMapStringInterface("map_of_float", func(string) map[string]interface{} { return map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0} })
 
 	t.Setenv("DD_MAP_OF_FLOAT", "__some_data__")
@@ -362,7 +362,7 @@ func TestParseEnvAsMapStringInterface(t *testing.T) {
 func TestParseEnvAsSliceMapString(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	config.BindEnv("map")
+	config.BindEnv("map") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.ParseEnvAsSliceMapString("map", func(string) []map[string]string { return []map[string]string{{"a": "a", "b": "b", "c": "c"}} })
 
 	t.Setenv("DD_MAP", "__some_data__")
@@ -374,7 +374,7 @@ func TestListenersUnsetForSource(t *testing.T) {
 
 	// Create a listener that will keep track of the changes
 	logLevels := []string{}
-	config.OnUpdate(func(_ string, _, next any, _ uint64) {
+	config.OnUpdate(func(_ string, _ model.Source, _, next any, _ uint64) {
 		nextString := next.(string)
 		logLevels = append(logLevels, nextString)
 	})
@@ -388,7 +388,7 @@ func TestListenersUnsetForSource(t *testing.T) {
 
 func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	cfg := NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.BindEnv("api_key")
+	cfg.BindEnv("api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BuildSchema()
 
 	// api_key is not in the config (does not have a default value)
@@ -468,4 +468,24 @@ func TestSequenceID(t *testing.T) {
 
 	config.UnsetForSource("foo", model.SourceAgentRuntime)
 	assert.Equal(t, uint64(3), config.GetSequenceID())
+}
+
+func TestMultipleTransformersRaisesError(t *testing.T) {
+	config := NewViperConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.BindEnvAndSetDefault("list_of_nums", []float64{}, "TEST_LIST_OF_NUMS")
+
+	assert.NotPanics(t, func() {
+		config.ParseEnvAsStringSlice("list_of_nums", func(in string) []string {
+			return strings.Split(in, ",")
+		})
+	}, "env transform for list_of_nums works if set once")
+
+	assert.PanicsWithValue(t, "env transform for list_of_strings already exists", func() {
+		config.ParseEnvAsStringSlice("list_of_strings", func(_ string) []string {
+			return []string{"a", "b"}
+		})
+		config.ParseEnvAsStringSlice("list_of_strings", func(in string) []string {
+			return strings.Split(in, ",")
+		})
+	})
 }

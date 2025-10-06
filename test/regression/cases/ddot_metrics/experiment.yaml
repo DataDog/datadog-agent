@@ -4,11 +4,12 @@ erratic: false
 target:
   name: datadog-agent
   cpu_allotment: 4
-  memory_allotment: 7.5 GiB
+  memory_allotment: 2GiB
 
   environment:
     DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
+    DD_AUTH_TOKEN_FILE_PATH: /tmp/agent-auth-token
     DD_OTELCOLLECTOR_ENABLED: true
 
   profiling_environment:
@@ -20,7 +21,7 @@ target:
     DD_INTERNAL_PROFILING_CPU_DURATION: 1m
     # destination
     DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
-
+    
     # tags
     DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:ddot_metrics
     DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:ddot_metrics

@@ -334,7 +334,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	rs := e.probe.NewRuleSet(e.getEventTypeEnabled())
 
-	loadErrs := rs.LoadPolicies(e.policyLoader, e.policyOpts)
+	filteredRules, loadErrs := rs.LoadPolicies(e.policyLoader, e.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {
 		logLoadingErrors("error while loading policies: %+v", loadErrs)
 	}
@@ -364,7 +364,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	}
 	seclog.Debugf("Filter Report: %s", filterReport)
 
-	policies := monitor.NewPoliciesState(rs, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
+	policies := monitor.NewPoliciesState(rs, filteredRules, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
 	rulesetLoadedEvent := monitor.NewRuleSetLoadedEvent(e.probe.GetAgentContainerContext(), rs, policies, filterReport)
 
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
@@ -399,9 +399,32 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
-	var seclVariables = make(map[string]*api.SECLVariableState)
-	for name, value := range rs.GetVariables() {
+type seclVariableEventPreparator struct {
+	ctxPool *eval.ContextPool
+	event   *model.Event
+}
+
+func (e *RuleEngine) newSECLVariableEventPreparator() *seclVariableEventPreparator {
+	return &seclVariableEventPreparator{
+		ctxPool: eval.NewContextPool(),
+		event:   e.probe.PlatformProbe.NewEvent(),
+	}
+}
+
+var eventZeroer = model.NewEventZeroer()
+
+func (p *seclVariableEventPreparator) get(f func(event *model.Event)) *eval.Context {
+	eventZeroer(p.event)
+	f(p.event)
+	return p.ctxPool.Get(p.event)
+}
+
+func (p *seclVariableEventPreparator) put(ctx *eval.Context) {
+	p.ctxPool.Put(ctx)
+}
+
+func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVariable, seclVariables map[string]*api.SECLVariableState, preparator *seclVariableEventPreparator) {
+	for name, value := range rsVariables {
 		if strings.HasPrefix(name, "process.") {
 			scopedVariable := value.(eval.ScopedVariable)
 			if !scopedVariable.IsMutable() {
@@ -412,15 +435,17 @@ func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.S
 				entry.Retain()
 				defer entry.Release()
 
-				event := e.probe.PlatformProbe.NewEvent()
-				event.ProcessCacheEntry = entry
-				ctx := eval.NewContext(event)
-				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
+				ctx := preparator.get(func(event *model.Event) {
+					event.ProcessCacheEntry = entry
+				})
+				defer preparator.put(ctx)
+
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
 					return
 				}
 
+				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
 				scopedValue := fmt.Sprintf("%+v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
@@ -441,7 +466,6 @@ func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.S
 			}
 		}
 	}
-	return seclVariables
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
@@ -520,17 +544,14 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	// which can be modified during queuing
 	service := e.probe.GetService(ev)
 
-	var extTagsCb func() []string
+	var extTagsCb func() ([]string, bool)
 
 	if ev.ContainerContext.ContainerID != "" {
 		// copy the container ID here to avoid later data race
 		containerID := ev.ContainerContext.ContainerID
 
-		// the container tags might not be resolved yet
-		if time.Unix(0, int64(ev.ContainerContext.CreatedAt)).Add(TagMaxResolutionDelay).After(time.Now()) {
-			extTagsCb = func() []string {
-				return e.probe.GetEventTags(containerID)
-			}
+		extTagsCb = func() ([]string, bool) {
+			return e.probe.GetEventTags(containerID), true
 		}
 	}
 
@@ -569,15 +590,19 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
-	if e.probe.IsNetworkEnabled() {
-		if eventTypes, exists := categories[model.NetworkCategory]; exists {
-			for _, eventType := range eventTypes {
-				switch eventType {
-				case model.RawPacketEventType.String():
-					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
-				case model.NetworkFlowMonitorEventType.String():
-					enabled[eventType] = e.probe.IsNetworkFlowMonitorEnabled()
-				default:
+	if eventTypes, exists := categories[model.NetworkCategory]; exists {
+		for _, eventType := range eventTypes {
+			switch eventType {
+			case model.RawPacketFilterEventType.String():
+				enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+			case model.RawPacketActionEventType.String():
+				enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+			case model.NetworkFlowMonitorEventType.String():
+				enabled[eventType] = e.probe.IsNetworkFlowMonitorEnabled()
+			default:
+				if model.EventTypeDependsOnInterfaceTracking(eventType) {
+					enabled[eventType] = e.probe.IsNetworkEnabled()
+				} else {
 					enabled[eventType] = true
 				}
 			}
@@ -678,11 +703,7 @@ func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []stri
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
-		for _, pInfo := range rule.UsedBy {
-			if rule.Policy.IsInternal && !includeInternalPolicies {
-				continue
-			}
-
+		for pInfo := range rule.Policies(includeInternalPolicies) {
 			version := pInfo.Version
 			if _, exists := cache[version]; !exists {
 				cache[version] = true

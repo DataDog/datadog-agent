@@ -25,6 +25,19 @@ var (
 	errAppendNotSupported = errors.New("append is not supported")
 )
 
+// Telemetry tracks the values of evaluation metrics
+type Telemetry struct {
+	TotalVariables Gauge
+}
+
+// Gauge tracks the amount of a metric
+type Gauge interface {
+	// Inc increments the Gauge value.
+	Inc(tagsValue ...string)
+	// Sub subtracts the value to the Gauge value.
+	Sub(value float64, tagsValue ...string)
+}
+
 // SECLVariable describes a SECL variable value
 type SECLVariable interface {
 	GetEvaluator() interface{}
@@ -966,11 +979,33 @@ type VariableOpts struct {
 	TTL       time.Duration
 	Private   bool // When a variable is marked as private, it will not be included in the serialized event
 	Inherited bool
+	Telemetry *Telemetry
 }
 
 // NewVariables returns a new set of global variables
 func NewVariables() *Variables {
 	return &Variables{}
+}
+
+func getVariableType(value interface{}) string {
+	switch value.(type) {
+	case bool:
+		return "bool"
+	case int:
+		return "integer"
+	case string:
+		return "string"
+	case net.IPNet:
+		return "ip"
+	case []string:
+		return "strings"
+	case []int:
+		return "integers"
+	case []net.IPNet:
+		return "ips"
+	default:
+		panic("unsupported variable type")
+	}
 }
 
 func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable, error) {
@@ -995,7 +1030,12 @@ func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable,
 }
 
 // NewSECLVariable returns new variable of the type of the specified value
-func (v *Variables) NewSECLVariable(_ string, value interface{}, opts VariableOpts) (SECLVariable, error) {
+func (v *Variables) NewSECLVariable(_ string, value interface{}, _ string, opts VariableOpts) (SECLVariable, error) {
+	varType := getVariableType(value)
+	if opts.Telemetry != nil {
+		opts.Telemetry.TotalVariables.Inc(varType, "global")
+	}
+
 	seclVariable, err := newSECLVariable(value, opts)
 	if err != nil {
 		return nil, err
@@ -1028,6 +1068,7 @@ type MutableSECLVariable interface {
 
 // ScopedVariables holds a set of scoped variables
 type ScopedVariables struct {
+	scoperName     string
 	scoper         Scoper
 	vars           map[string]map[string]MutableSECLVariable
 	expirablesLock sync.RWMutex
@@ -1040,7 +1081,7 @@ func (v *ScopedVariables) Len() int {
 }
 
 // NewSECLVariable returns new variable of the type of the specified value
-func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts VariableOpts) (SECLVariable, error) {
+func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName string, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context) MutableSECLVariable {
 		scope := v.scoper(ctx)
 		if scope == nil {
@@ -1060,16 +1101,21 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 		return vars[name]
 	}
 
-	setVariable := func(ctx *Context, value interface{}) error {
+	setVariable := func(ctx *Context, value any) error {
 		scope := v.scoper(ctx)
 		if scope == nil {
-			return fmt.Errorf("failed to scope variable '%s'", name)
+			return fmt.Errorf("`%s` scoper failed to scope variable '%s'", v.scoperName, name)
 		}
 
 		key := scope.Hash()
 		vars := v.vars[key]
+		varType := getVariableType(value)
+
 		if vars == nil {
 			scope.AppendReleaseCallback(func() {
+				if opts.Telemetry != nil {
+					opts.Telemetry.TotalVariables.Sub(float64(len(v.vars[key])), varType, scopeName)
+				}
 				v.ReleaseVariable(key)
 			})
 
@@ -1077,6 +1123,10 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 		}
 
 		if _, found := v.vars[key][name]; !found {
+			if opts.Telemetry != nil {
+				opts.Telemetry.TotalVariables.Inc(varType, scopeName)
+			}
+
 			seclVariable, err := newSECLVariable(value, opts)
 			if err != nil {
 				return err
@@ -1175,8 +1225,9 @@ func (v *ScopedVariables) ReleaseVariable(key string) {
 }
 
 // NewScopedVariables returns a new set of scope variables
-func NewScopedVariables(scoper Scoper) *ScopedVariables {
+func NewScopedVariables(scoperName string, scoper Scoper) *ScopedVariables {
 	return &ScopedVariables{
+		scoperName: scoperName,
 		scoper:     scoper,
 		vars:       make(map[string]map[string]MutableSECLVariable),
 		expirables: make(map[string][]expirableVariable),

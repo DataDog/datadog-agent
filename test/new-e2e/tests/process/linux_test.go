@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -268,6 +269,39 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgent() {
 	requireProcessNotCollected(t, payloads, "process-agent")
 }
 
+func (s *linuxTestSuite) TestProcessChecksWLM() {
+	t := s.T()
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentWLMProcessCollectorConfigStr))))
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{}, false)
+	}, 1*time.Minute, 5*time.Second)
+
+	// Verify that the process agent is not running
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		status := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent status")
+		assert.Contains(c, status, "The Process Agent is not running")
+	}, 1*time.Minute, 5*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	var payloads []*aggregator.ProcessPayload
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		var err error
+		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+
+		// Wait for two payloads, as processes must be detected in two check runs to be returned
+		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+	}, 2*time.Minute, 10*time.Second)
+
+	assertProcessCollected(t, payloads, false, "stress")
+
+	// check that the process agent is not collected as it should not be running
+	requireProcessNotCollected(t, payloads, "process-agent")
+}
+
 func (s *linuxTestSuite) TestProcessChecksInCoreAgentWithNPM() {
 	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr))))
@@ -317,23 +351,31 @@ func (s *linuxTestSuite) TestProcessChecksWithNPM() {
 }
 
 func (s *linuxTestSuite) TestManualProcessCheck() {
-	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr))))
 
-	assertManualProcessCheck(s.T(), check, false, "stress")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+		assertManualProcessCheck(c, check, false, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
-	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
-
-	assertManualProcessDiscoveryCheck(s.T(), check, "stress")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
+		assertManualProcessDiscoveryCheck(c, check, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
+	// https://datadoghq.atlassian.net/browse/CXP-2594
+	flake.Mark(s.T())
+
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
 		agentparams.WithAgentConfig(processCheckConfigStr),
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
 
-	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
-
-	assertManualProcessCheck(s.T(), check, true, "stress")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+		assertManualProcessCheck(c, check, true, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }

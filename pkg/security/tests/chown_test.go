@@ -255,7 +255,7 @@ func TestChown(t *testing.T) {
 		})
 	}))
 
-	test.Run(t, "pipe-chown-discarded", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "pipe-chown-discarded", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		_ = test.GetSignal(t, func() error {
 			syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 			if err != nil {

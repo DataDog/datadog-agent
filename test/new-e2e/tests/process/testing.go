@@ -31,6 +31,9 @@ var processDiscoveryCheckConfigStr string
 //go:embed config/process_check_in_core_agent.yaml
 var processCheckInCoreAgentConfigStr string
 
+//go:embed config/process_check_in_core_agent_wlm_process_collector.yaml
+var processCheckInCoreAgentWLMProcessCollectorConfigStr string
+
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
 
@@ -210,7 +213,8 @@ func findProcess(
 	return found, populated
 }
 
-func filterProcessPayloadsByName(payloads []*aggregator.ProcessPayload, processName string) []*agentmodel.Process {
+// FilterProcessPayloadsByName returns processes which match the given process name
+func FilterProcessPayloadsByName(payloads []*aggregator.ProcessPayload, processName string) []*agentmodel.Process {
 	var procs []*agentmodel.Process
 	for _, payload := range payloads {
 		procs = append(procs, filterProcesses(processName, payload.Processes)...)
@@ -232,7 +236,7 @@ func filterProcesses(name string, processes []*agentmodel.Process) []*agentmodel
 // matchProcess returns whether the given process matches the given name in the Args or Exe
 func matchProcess(process *agentmodel.Process, name string) bool {
 	return len(process.Command.Args) > 0 &&
-		(process.Command.Args[0] == name || process.Command.Exe == name)
+		(process.Command.Args[0] == name || process.Command.Exe == name || process.Command.Comm == name)
 }
 
 // processHasData asserts that the given process has the expected data populated
@@ -378,13 +382,7 @@ func assertManualContainerCheck(t require.TestingT, check string, expectedContai
 
 // assertManualProcessDiscoveryCheck asserts that the given process is collected and reported in
 // the output of the manual process_discovery check
-func assertManualProcessDiscoveryCheck(t *testing.T, check string, process string) {
-	defer func() {
-		if t.Failed() {
-			t.Logf("Check output:\n%s\n", check)
-		}
-	}()
-
+func assertManualProcessDiscoveryCheck(t require.TestingT, check string, process string) {
 	var checkOutput struct {
 		ProcessDiscoveries []*agentmodel.ProcessDiscovery `json:"processDiscoveries"`
 	}

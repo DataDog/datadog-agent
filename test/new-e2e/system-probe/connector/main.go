@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
+	"github.com/cenkalti/backoff/v4"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/metric"
@@ -35,6 +36,9 @@ const (
 	failWait    = "wait_fail"
 	success     = "success"
 	fail        = "fail"
+
+	sshRetryInterval = 2 * time.Second
+	sshMaxRetries    = 10
 )
 
 type args struct {
@@ -150,9 +154,16 @@ func run() (err error) {
 	}
 
 	ctx := context.Background()
-	if err := communicator.Connect(ctx); err != nil {
-		failType = failConnect
-		return fmt.Errorf("connect: %s", err)
+
+	if err := backoff.Retry(func() error {
+		if err := communicator.Connect(ctx); err != nil {
+			failType = failConnect
+			return fmt.Errorf("connect: %s", err)
+		}
+
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(sshRetryInterval), sshMaxRetries)); err != nil {
+		return err
 	}
 
 	for _, envVar := range args.sendEnvVars {

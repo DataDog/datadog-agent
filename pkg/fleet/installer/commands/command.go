@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -371,10 +372,10 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <version> <config>",
+		Use:     "install-config-experiment <package> <operations>",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.ExactArgs(3),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -382,8 +383,15 @@ func installConfigExperimentCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
-			i.span.SetTag("params.version", args[1])
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], []byte(args[2]))
+
+			var operations config.Operations
+			err = json.Unmarshal([]byte(args[1]), &operations)
+			if err != nil {
+				return err
+			}
+			i.span.SetTag("params.deployment_id", operations.DeploymentID)
+			i.span.SetTag("params.operations", operations.FileOperations)
+			return i.InstallConfigExperiment(i.ctx, args[0], operations)
 		},
 	}
 	return cmd

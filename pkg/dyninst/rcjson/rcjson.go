@@ -150,12 +150,14 @@ type Value struct {
 // Capture specifies how much data to capture from the application.
 type Capture struct {
 	// MaxReferenceDepth is the maximum depth of nested objects to capture.
-	MaxReferenceDepth int `json:"maxReferenceDepth"`
+	MaxReferenceDepth *int `json:"maxReferenceDepth,omitempty"`
 	// MaxFieldCount is the maximum number of fields to capture from an object.
-	MaxFieldCount int `json:"maxFieldCount,omitempty"`
+	MaxFieldCount *int `json:"maxFieldCount,omitempty"`
+	// MaxLength is the maximum length of a string to capture.
+	MaxLength *int `json:"maxLength,omitempty"`
 	// MaxCollectionSize is the maximum number of elements to capture from a
 	// collection.
-	MaxCollectionSize int `json:"maxCollectionSize,omitempty"`
+	MaxCollectionSize *int `json:"maxCollectionSize,omitempty"`
 }
 
 // Sampling specifies how often to trigger a probe.
@@ -315,15 +317,24 @@ func (w *functionWhere) Location() string {
 
 func (w *functionWhere) Where() {}
 
+type lineWhere Where
+
+var _ ir.LineWhere = (*lineWhere)(nil)
+
+func (w *lineWhere) Line() (string, string, string) {
+	return w.MethodName, w.SourceFile, w.Lines[0]
+}
+
+func (w *lineWhere) Where() {}
+
 func getWhere(where *Where) ir.Where {
 	if where == nil {
 		return noWhere{}
 	}
-	if where.MethodName != "" {
-		return (*functionWhere)(where)
+	if len(where.Lines) > 0 {
+		return (*lineWhere)(where)
 	}
-	// TODO: support other where types like lines.
-	return noWhere{}
+	return (*functionWhere)(where)
 }
 
 type irCaptureConfig Capture
@@ -331,22 +342,31 @@ type irCaptureConfig Capture
 var _ ir.CaptureConfig = (*irCaptureConfig)(nil)
 
 func (c *irCaptureConfig) GetMaxReferenceDepth() uint32 {
-	if c == nil || c.MaxReferenceDepth == 0 {
+	if c == nil || c.MaxReferenceDepth == nil {
 		return math.MaxUint32
 	}
-	return uint32(c.MaxReferenceDepth)
+	if *c.MaxReferenceDepth == 0 {
+		panic("maxReferenceDepth is 0")
+	}
+	return uint32(*c.MaxReferenceDepth)
 }
 func (c *irCaptureConfig) GetMaxFieldCount() uint32 {
-	if c == nil || c.MaxFieldCount == 0 {
+	if c == nil || c.MaxFieldCount == nil {
 		return math.MaxUint32
 	}
-	return uint32(c.MaxFieldCount)
+	return uint32(*c.MaxFieldCount)
+}
+func (c *irCaptureConfig) GetMaxLength() uint32 {
+	if c == nil || c.MaxLength == nil {
+		return math.MaxUint32
+	}
+	return uint32(*c.MaxLength)
 }
 func (c *irCaptureConfig) GetMaxCollectionSize() uint32 {
-	if c == nil || c.MaxCollectionSize == 0 {
+	if c == nil || c.MaxCollectionSize == nil {
 		return math.MaxUint32
 	}
-	return uint32(c.MaxCollectionSize)
+	return uint32(*c.MaxCollectionSize)
 }
 
 type noCaptureConfig struct{}
@@ -355,6 +375,7 @@ var _ ir.CaptureConfig = noCaptureConfig{}
 
 func (noCaptureConfig) GetMaxReferenceDepth() uint32 { return 0 }
 func (noCaptureConfig) GetMaxFieldCount() uint32     { return 0 }
+func (noCaptureConfig) GetMaxLength() uint32         { return 0 }
 func (noCaptureConfig) GetMaxCollectionSize() uint32 { return 0 }
 
 type logThrottleConfig Sampling
@@ -388,14 +409,19 @@ func validateWhere(where *Where) error {
 	if where == nil {
 		return errors.New("where is required")
 	}
-	if where.SourceFile != "" && len(where.Lines) > 0 {
-		return errors.New("sourceFile and lines are not supported")
-	}
 	if where.Signature != "" {
 		return errors.New("signature is not supported")
 	}
 	if where.MethodName == "" {
 		return errors.New("methodName must be set for probes")
+	}
+	if len(where.Lines) > 0 {
+		if where.SourceFile == "" {
+			return errors.New("sourceFile must be set for lines")
+		}
+		if len(where.Lines) != 1 {
+			return errors.New("lines must be a single line number")
+		}
 	}
 	return nil
 }

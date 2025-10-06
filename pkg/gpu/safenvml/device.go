@@ -22,6 +22,8 @@ type SafeDevice interface {
 	GetArchitecture() (nvml.DeviceArchitecture, error)
 	// GetAttributes returns the attributes of the device
 	GetAttributes() (nvml.DeviceAttributes, error)
+	// GetBAR1MemoryInfo returns BAR1 memory information of the device
+	GetBAR1MemoryInfo() (nvml.BAR1Memory, error)
 	// GetClockInfo returns the current clock speed for the given clock type
 	GetClockInfo(clockType nvml.ClockType) (uint32, error)
 	// GetComputeRunningProcesses returns the list of compute processes running on the device
@@ -51,6 +53,8 @@ type SafeDevice interface {
 	GetMemoryBusWidth() (uint32, error)
 	// GetMemoryInfo returns memory information of the device
 	GetMemoryInfo() (nvml.Memory, error)
+	// GetMemoryInfoV2 returns extended memory information of the device (includes reserved memory)
+	GetMemoryInfoV2() (nvml.Memory_v2, error)
 	// GetMigDeviceHandleByIndex returns the MIG device handle at the given index
 	GetMigDeviceHandleByIndex(index int) (SafeDevice, error)
 	// GetMigMode returns the MIG mode of the device
@@ -69,6 +73,8 @@ type SafeDevice interface {
 	GetPowerManagementLimit() (uint32, error)
 	// GetPowerUsage returns the power usage in milliwatts
 	GetPowerUsage() (uint32, error)
+	// GetProcessUtilization returns process utilization samples since the given timestamp
+	GetProcessUtilization(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, error)
 	// GetRemappedRows returns the remapped rows information
 	GetRemappedRows() (int, int, bool, bool, error)
 	// GetSamples returns samples for the specified counter type
@@ -81,12 +87,14 @@ type SafeDevice interface {
 	GetUUID() (string, error)
 	// GetUtilizationRates returns the utilization rates for the device
 	GetUtilizationRates() (nvml.Utilization, error)
-	// IsMigDeviceHandle returns true if the device is a MIG device or false for a physical device
-	IsMigDeviceHandle() (bool, error)
 	// GpmQueryDeviceSupport returns true if the device supports GPM
 	GpmQueryDeviceSupport() (nvml.GpmSupport, error)
 	// GpmSampleGet gets a sample for GPM
 	GpmSampleGet(sample nvml.GpmSample) error
+	// IsMigDeviceHandle returns true if the device is a MIG device or false for a physical device
+	IsMigDeviceHandle() (bool, error)
+	// GetVirtualizationMode returns the virtualization mode of the device
+	GetVirtualizationMode() (nvml.GpuVirtualizationMode, error)
 }
 
 // DeviceInfo holds common cached properties for a GPU device

@@ -32,6 +32,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `accept` | Network | An accept was executed | 7.63 |
 | `bind` | Network | A bind was executed | 7.37 |
 | `bpf` | Kernel | A BPF command was executed | 7.33 |
+| `capabilities` | Process | [Experimental] A process used some capabilities | 7.70 |
 | `capset` | Process | A process changed its capacity set | 7.27 |
 | `cgroup_write` | Kernel | A process migrated another process to a cgroup | 7.68 |
 | `chdir` | File | [Experimental] A process changed the current directory | 7.52 |
@@ -51,6 +52,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `network_flow_monitor` | Network | A network monitor event was sent | 7.63 |
 | `open` | File | A file was opened | 7.27 |
 | `packet` | Network | A raw network packet was captured | 7.60 |
+| `prctl` | Process | A prctl command was executed | 7.71 |
 | `ptrace` | Kernel | A ptrace command was executed | 7.35 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
@@ -67,6 +69,59 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `unlink` | File | A file was deleted | 7.27 |
 | `unload_module` | Kernel | A kernel module was deleted | 7.35 |
 | `utimes` | File | Change file access/modification times | 7.27 |
+
+## FIM triggers
+
+In addition to regular triggers, `fim.write.file.*` fields allow to write rules that fire
+on all file events.
+
+For example, the following rule:
+
+{{< code-block lang="javascript" >}}
+(fim.write.file.path == "/tmp/test" || fim.write.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+{{< /code-block >}}
+
+will expand into the following rules under the hood:
+
+{{< code-block lang="javascript" >}}
+open: ((open.file.path == "/tmp/test" || open.file.name == "abc")
+  && open.flags & (O_CREAT|O_TRUNC|O_APPEND|O_RDWR|O_WRONLY) > 0
+  && process.file.name == "def"
+  && container.id != "")
+
+chmod: (chmod.file.path == "/tmp/test" || chmod.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+chown: (chown.file.path == "/tmp/test" || chown.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+link: (link.file.path == "/tmp/test" || link.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+rename: (rename.file.path == "/tmp/test" || rename.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+rename: (rename.file.destination.path == "/tmp/test" || rename.file.destination.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+unlink: (unlink.file.path == "/tmp/test" || unlink.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+utimes: (utimes.file.path == "/tmp/test" || utimes.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+{{< /code-block >}}
+
+and match on all file-related events matching the path provided in the rule. Common fields are retained across all
+expanded rules.
 
 ## Variables
 SECL variables are predefined variables that can be used as values or as part of values.
@@ -128,11 +183,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
-| [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
@@ -140,6 +193,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.rule.tags`](#event-rule-tags-doc) | Tags associated with the rule that's used to evaluate the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
+| [`event.source`](#event-source-doc) | [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'. |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
@@ -150,10 +204,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`process.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`process.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -166,6 +221,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`process.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -174,10 +230,16 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.ancestors.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`process.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.ancestors.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`process.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`process.ancestors.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`process.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.ancestors.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`process.ancestors.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`process.ancestors.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`process.ancestors.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.ancestors.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
@@ -192,6 +254,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`process.ancestors.group`](#common-credentials-group-doc) | Group of the process |
 | [`process.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.ancestors.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -200,10 +263,16 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.ancestors.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`process.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.ancestors.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`process.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`process.ancestors.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`process.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.ancestors.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`process.ancestors.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`process.ancestors.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`process.ancestors.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -233,10 +302,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`process.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`process.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.id`](#common-process-container-id-doc) | Container ID |
@@ -249,6 +319,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`process.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -257,10 +328,16 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`process.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`process.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`process.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`process.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`process.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`process.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`process.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.file.path`](#common-fileevent-path-doc) | File's path |
@@ -275,6 +352,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`process.group`](#common-credentials-group-doc) | Group of the process |
 | [`process.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -283,10 +361,16 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`process.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`process.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`process.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`process.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`process.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`process.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`process.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -306,10 +390,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`process.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`process.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -322,6 +407,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`process.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -330,10 +416,16 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.parent.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`process.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.parent.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`process.parent.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`process.parent.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`process.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.parent.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`process.parent.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`process.parent.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`process.parent.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.parent.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.parent.file.path`](#common-fileevent-path-doc) | File's path |
@@ -348,6 +440,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`process.parent.group`](#common-credentials-group-doc) | Group of the process |
 | [`process.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.parent.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -356,10 +449,16 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.parent.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`process.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.parent.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`process.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`process.parent.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`process.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.parent.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`process.parent.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`process.parent.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`process.parent.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -431,6 +530,17 @@ A BPF command was executed
 | [`bpf.prog.type`](#bpf-prog-type-doc) | Type of the eBPF program |
 | [`bpf.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
+### Event `capabilities`
+
+_This event type is experimental and may change in the future._
+
+A process used some capabilities
+
+| Property | Definition |
+| -------- | ------------- |
+| [`capabilities.attempted`](#capabilities-attempted-doc) | Bitmask of the capabilities that the process attempted to use since it started running |
+| [`capabilities.used`](#capabilities-used-doc) | Bitmask of the capabilities that the process successfully used since it started running |
+
 ### Event `capset`
 
 A process changed its capacity set
@@ -447,6 +557,7 @@ A process migrated another process to a cgroup
 | Property | Definition |
 | -------- | ------------- |
 | [`cgroup_write.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`cgroup_write.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`cgroup_write.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`cgroup_write.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`cgroup_write.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -455,10 +566,16 @@ A process migrated another process to a cgroup
 | [`cgroup_write.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`cgroup_write.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`cgroup_write.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`cgroup_write.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`cgroup_write.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`cgroup_write.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`cgroup_write.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`cgroup_write.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`cgroup_write.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`cgroup_write.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`cgroup_write.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`cgroup_write.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`cgroup_write.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`cgroup_write.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`cgroup_write.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`cgroup_write.file.path`](#common-fileevent-path-doc) | File's path |
@@ -477,6 +594,7 @@ A process changed the current directory
 | Property | Definition |
 | -------- | ------------- |
 | [`chdir.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`chdir.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`chdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`chdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`chdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -485,10 +603,16 @@ A process changed the current directory
 | [`chdir.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`chdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`chdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`chdir.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`chdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`chdir.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`chdir.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`chdir.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`chdir.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`chdir.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`chdir.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`chdir.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`chdir.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`chdir.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`chdir.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`chdir.file.path`](#common-fileevent-path-doc) | File's path |
@@ -508,6 +632,7 @@ A file's permissions were changed
 | [`chmod.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`chmod.file.destination.mode`](#chmod-file-destination-mode-doc) | New mode of the chmod-ed file |
 | [`chmod.file.destination.rights`](#chmod-file-destination-rights-doc) | New rights of the chmod-ed file |
+| [`chmod.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`chmod.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`chmod.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`chmod.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -516,10 +641,16 @@ A file's permissions were changed
 | [`chmod.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`chmod.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`chmod.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`chmod.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`chmod.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`chmod.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`chmod.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`chmod.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`chmod.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`chmod.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`chmod.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`chmod.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`chmod.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`chmod.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`chmod.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`chmod.file.path`](#common-fileevent-path-doc) | File's path |
@@ -542,6 +673,7 @@ A file's owner was changed
 | [`chown.file.destination.group`](#chown-file-destination-group-doc) | New group of the chown-ed file's owner |
 | [`chown.file.destination.uid`](#chown-file-destination-uid-doc) | New UID of the chown-ed file's owner |
 | [`chown.file.destination.user`](#chown-file-destination-user-doc) | New user of the chown-ed file's owner |
+| [`chown.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`chown.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`chown.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`chown.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -550,10 +682,16 @@ A file's owner was changed
 | [`chown.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`chown.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`chown.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`chown.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`chown.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`chown.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`chown.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`chown.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`chown.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`chown.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`chown.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`chown.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`chown.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`chown.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`chown.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`chown.file.path`](#common-fileevent-path-doc) | File's path |
@@ -605,6 +743,7 @@ A DNS request was sent
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.type`](#common-networkcontext-type-doc) | Type of the network packet |
 
 ### Event `exec`
 
@@ -621,10 +760,11 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`exec.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`exec.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`exec.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`exec.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.id`](#common-process-container-id-doc) | Container ID |
@@ -637,6 +777,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`exec.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`exec.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exec.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exec.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exec.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exec.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -653,10 +794,16 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.file.metadata.type`](#exec-file-metadata-type-doc) | [Experimental] Type of the file |
 | [`exec.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`exec.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`exec.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`exec.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exec.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`exec.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exec.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`exec.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`exec.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`exec.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`exec.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`exec.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`exec.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`exec.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`exec.file.path`](#common-fileevent-path-doc) | File's path |
@@ -671,6 +818,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`exec.group`](#common-credentials-group-doc) | Group of the process |
 | [`exec.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exec.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exec.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exec.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exec.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -679,10 +827,16 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`exec.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`exec.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`exec.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exec.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`exec.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exec.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`exec.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`exec.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`exec.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`exec.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`exec.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`exec.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`exec.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`exec.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -719,11 +873,12 @@ A process was terminated
 | [`exit.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`exit.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`exit.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
 | [`exit.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exit.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`exit.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`exit.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
@@ -737,6 +892,7 @@ A process was terminated
 | [`exit.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`exit.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`exit.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exit.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exit.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exit.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exit.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -745,10 +901,16 @@ A process was terminated
 | [`exit.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exit.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`exit.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`exit.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`exit.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exit.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`exit.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exit.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`exit.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`exit.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`exit.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`exit.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`exit.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`exit.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`exit.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`exit.file.path`](#common-fileevent-path-doc) | File's path |
@@ -763,6 +925,7 @@ A process was terminated
 | [`exit.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`exit.group`](#common-credentials-group-doc) | Group of the process |
 | [`exit.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exit.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exit.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exit.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exit.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -771,10 +934,16 @@ A process was terminated
 | [`exit.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exit.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`exit.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`exit.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`exit.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exit.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`exit.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exit.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`exit.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`exit.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`exit.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`exit.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`exit.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`exit.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`exit.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`exit.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -820,6 +989,7 @@ An IMDS event was captured
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.type`](#common-networkcontext-type-doc) | Type of the network packet |
 
 ### Event `link`
 
@@ -829,6 +999,7 @@ Create a new name/alias for a file
 | -------- | ------------- |
 | [`link.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`link.file.destination.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`link.file.destination.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`link.file.destination.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`link.file.destination.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`link.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -837,10 +1008,16 @@ Create a new name/alias for a file
 | [`link.file.destination.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`link.file.destination.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`link.file.destination.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`link.file.destination.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`link.file.destination.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`link.file.destination.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`link.file.destination.name`](#common-fileevent-name-doc) | File's basename |
 | [`link.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`link.file.destination.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`link.file.destination.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`link.file.destination.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`link.file.destination.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`link.file.destination.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`link.file.destination.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`link.file.destination.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`link.file.destination.path`](#common-fileevent-path-doc) | File's path |
@@ -848,6 +1025,7 @@ Create a new name/alias for a file
 | [`link.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`link.file.destination.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`link.file.destination.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`link.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`link.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`link.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`link.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -856,10 +1034,16 @@ Create a new name/alias for a file
 | [`link.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`link.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`link.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`link.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`link.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`link.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`link.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`link.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`link.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`link.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`link.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`link.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`link.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`link.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`link.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`link.file.path`](#common-fileevent-path-doc) | File's path |
@@ -881,6 +1065,7 @@ A new kernel module was loaded
 | [`load_module.args_truncated`](#load_module-args_truncated-doc) | Indicates if the arguments were truncated or not |
 | [`load_module.argv`](#load_module-argv-doc) | Parameters (as an array) of the new kernel module |
 | [`load_module.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`load_module.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`load_module.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`load_module.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`load_module.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -889,10 +1074,16 @@ A new kernel module was loaded
 | [`load_module.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`load_module.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`load_module.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`load_module.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`load_module.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`load_module.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`load_module.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`load_module.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`load_module.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`load_module.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`load_module.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`load_module.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`load_module.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`load_module.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`load_module.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`load_module.file.path`](#common-fileevent-path-doc) | File's path |
@@ -913,6 +1104,7 @@ A directory was created
 | [`mkdir.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`mkdir.file.destination.mode`](#mkdir-file-destination-mode-doc) | Mode of the new directory |
 | [`mkdir.file.destination.rights`](#mkdir-file-destination-rights-doc) | Rights of the new directory |
+| [`mkdir.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`mkdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`mkdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`mkdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -921,10 +1113,16 @@ A directory was created
 | [`mkdir.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`mkdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`mkdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`mkdir.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`mkdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`mkdir.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`mkdir.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`mkdir.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`mkdir.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`mkdir.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`mkdir.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`mkdir.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`mkdir.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`mkdir.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`mkdir.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`mkdir.file.path`](#common-fileevent-path-doc) | File's path |
@@ -943,6 +1141,7 @@ A mmap command was executed
 | Property | Definition |
 | -------- | ------------- |
 | [`mmap.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`mmap.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`mmap.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`mmap.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`mmap.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -951,10 +1150,16 @@ A mmap command was executed
 | [`mmap.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`mmap.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`mmap.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`mmap.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`mmap.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`mmap.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`mmap.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`mmap.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`mmap.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`mmap.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`mmap.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`mmap.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`mmap.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`mmap.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`mmap.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`mmap.file.path`](#common-fileevent-path-doc) | File's path |
@@ -974,6 +1179,7 @@ A filesystem was mounted
 
 | Property | Definition |
 | -------- | ------------- |
+| [`mount.detached`](#mount-detached-doc) | Mount is detached from the VFS |
 | [`mount.fs_type`](#mount-fs_type-doc) | Type of the mounted file system |
 | [`mount.mountpoint.path`](#mount-mountpoint-path-doc) | Path of the mount point |
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
@@ -982,6 +1188,7 @@ A filesystem was mounted
 | [`mount.syscall.fs_type`](#mount-syscall-fs_type-doc) | File system type argument of the syscall |
 | [`mount.syscall.mountpoint.path`](#mount-syscall-mountpoint-path-doc) | Mount point path argument of the syscall |
 | [`mount.syscall.source.path`](#mount-syscall-source-path-doc) | Source path argument of the syscall |
+| [`mount.visible`](#mount-visible-doc) | Mount is not visible in the VFS |
 
 ### Event `mprotect`
 
@@ -1022,6 +1229,7 @@ A file was opened
 | -------- | ------------- |
 | [`open.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`open.file.destination.mode`](#open-file-destination-mode-doc) | Mode of the created file |
+| [`open.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`open.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`open.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`open.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1030,10 +1238,16 @@ A file was opened
 | [`open.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`open.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`open.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`open.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`open.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`open.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`open.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`open.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`open.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`open.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`open.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`open.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`open.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`open.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`open.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`open.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1053,6 +1267,18 @@ A raw network packet was captured
 
 | Property | Definition |
 | -------- | ------------- |
+| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
+| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
+| [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
+| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
+| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.type`](#common-networkcontext-type-doc) | Type of the network packet |
 | [`packet.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`packet.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`packet.destination.port`](#common-ipportcontext-port-doc) | Port number |
@@ -1066,6 +1292,18 @@ A raw network packet was captured
 | [`packet.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`packet.source.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.tls.version`](#packet-tls-version-doc) | TLS version |
+| [`packet.type`](#common-networkcontext-type-doc) | Type of the network packet |
+
+### Event `prctl`
+
+A prctl command was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`prctl.is_name_truncated`](#prctl-is_name_truncated-doc) | Indicates that the name field is truncated |
+| [`prctl.new_name`](#prctl-new_name-doc) | New name of the process |
+| [`prctl.option`](#prctl-option-doc) | prctl option |
+| [`prctl.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `ptrace`
 
@@ -1084,10 +1322,11 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`ptrace.tracee.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`ptrace.tracee.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1100,6 +1339,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`ptrace.tracee.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1108,10 +1348,16 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.ancestors.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`ptrace.tracee.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.ancestors.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`ptrace.tracee.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`ptrace.tracee.ancestors.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`ptrace.tracee.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.ancestors.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`ptrace.tracee.ancestors.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`ptrace.tracee.ancestors.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`ptrace.tracee.ancestors.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.ancestors.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1126,6 +1372,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`ptrace.tracee.ancestors.group`](#common-credentials-group-doc) | Group of the process |
 | [`ptrace.tracee.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1134,10 +1381,16 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`ptrace.tracee.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`ptrace.tracee.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`ptrace.tracee.ancestors.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`ptrace.tracee.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.ancestors.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`ptrace.tracee.ancestors.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`ptrace.tracee.ancestors.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`ptrace.tracee.ancestors.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1167,10 +1420,11 @@ A ptrace command was executed
 | [`ptrace.tracee.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`ptrace.tracee.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`ptrace.tracee.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1183,6 +1437,7 @@ A ptrace command was executed
 | [`ptrace.tracee.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`ptrace.tracee.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1191,10 +1446,16 @@ A ptrace command was executed
 | [`ptrace.tracee.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`ptrace.tracee.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`ptrace.tracee.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`ptrace.tracee.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`ptrace.tracee.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`ptrace.tracee.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`ptrace.tracee.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`ptrace.tracee.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1209,6 +1470,7 @@ A ptrace command was executed
 | [`ptrace.tracee.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`ptrace.tracee.group`](#common-credentials-group-doc) | Group of the process |
 | [`ptrace.tracee.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1217,10 +1479,16 @@ A ptrace command was executed
 | [`ptrace.tracee.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`ptrace.tracee.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`ptrace.tracee.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`ptrace.tracee.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`ptrace.tracee.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`ptrace.tracee.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`ptrace.tracee.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`ptrace.tracee.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1240,10 +1508,11 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`ptrace.tracee.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`ptrace.tracee.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1256,6 +1525,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`ptrace.tracee.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1264,10 +1534,16 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.parent.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`ptrace.tracee.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.parent.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`ptrace.tracee.parent.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`ptrace.tracee.parent.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`ptrace.tracee.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.parent.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`ptrace.tracee.parent.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`ptrace.tracee.parent.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`ptrace.tracee.parent.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.parent.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.parent.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1282,6 +1558,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`ptrace.tracee.parent.group`](#common-credentials-group-doc) | Group of the process |
 | [`ptrace.tracee.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.parent.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1290,10 +1567,16 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.parent.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`ptrace.tracee.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.parent.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`ptrace.tracee.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`ptrace.tracee.parent.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`ptrace.tracee.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.parent.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`ptrace.tracee.parent.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`ptrace.tracee.parent.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`ptrace.tracee.parent.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1332,6 +1615,7 @@ Remove extended attributes
 | [`removexattr.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`removexattr.file.destination.name`](#common-setxattrevent-file-destination-name-doc) | Name of the extended attribute |
 | [`removexattr.file.destination.namespace`](#common-setxattrevent-file-destination-namespace-doc) | Namespace of the extended attribute |
+| [`removexattr.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`removexattr.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`removexattr.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`removexattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1340,10 +1624,16 @@ Remove extended attributes
 | [`removexattr.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`removexattr.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`removexattr.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`removexattr.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`removexattr.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`removexattr.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`removexattr.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`removexattr.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`removexattr.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`removexattr.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`removexattr.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`removexattr.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`removexattr.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`removexattr.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`removexattr.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`removexattr.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1361,6 +1651,7 @@ A file/directory was renamed
 | -------- | ------------- |
 | [`rename.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`rename.file.destination.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`rename.file.destination.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`rename.file.destination.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`rename.file.destination.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`rename.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1369,10 +1660,16 @@ A file/directory was renamed
 | [`rename.file.destination.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`rename.file.destination.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`rename.file.destination.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`rename.file.destination.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`rename.file.destination.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`rename.file.destination.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`rename.file.destination.name`](#common-fileevent-name-doc) | File's basename |
 | [`rename.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`rename.file.destination.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`rename.file.destination.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`rename.file.destination.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`rename.file.destination.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`rename.file.destination.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`rename.file.destination.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`rename.file.destination.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`rename.file.destination.path`](#common-fileevent-path-doc) | File's path |
@@ -1380,6 +1677,7 @@ A file/directory was renamed
 | [`rename.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`rename.file.destination.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`rename.file.destination.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`rename.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`rename.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`rename.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`rename.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1388,10 +1686,16 @@ A file/directory was renamed
 | [`rename.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`rename.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`rename.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`rename.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`rename.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`rename.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`rename.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`rename.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`rename.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`rename.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`rename.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`rename.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`rename.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`rename.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`rename.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`rename.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1410,6 +1714,7 @@ A directory was removed
 | Property | Definition |
 | -------- | ------------- |
 | [`rmdir.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`rmdir.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`rmdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`rmdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`rmdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1418,10 +1723,16 @@ A directory was removed
 | [`rmdir.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`rmdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`rmdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`rmdir.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`rmdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`rmdir.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`rmdir.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`rmdir.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`rmdir.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`rmdir.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`rmdir.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`rmdir.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`rmdir.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`rmdir.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`rmdir.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`rmdir.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1475,10 +1786,11 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`setrlimit.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`setrlimit.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`setrlimit.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`setrlimit.target.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`setrlimit.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1491,6 +1803,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`setrlimit.target.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1499,10 +1812,16 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`setrlimit.target.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`setrlimit.target.ancestors.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`setrlimit.target.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`setrlimit.target.ancestors.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`setrlimit.target.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`setrlimit.target.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`setrlimit.target.ancestors.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`setrlimit.target.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`setrlimit.target.ancestors.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`setrlimit.target.ancestors.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`setrlimit.target.ancestors.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`setrlimit.target.ancestors.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`setrlimit.target.ancestors.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`setrlimit.target.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1517,6 +1836,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`setrlimit.target.ancestors.group`](#common-credentials-group-doc) | Group of the process |
 | [`setrlimit.target.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.ancestors.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1525,10 +1845,16 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`setrlimit.target.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`setrlimit.target.ancestors.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`setrlimit.target.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`setrlimit.target.ancestors.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`setrlimit.target.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`setrlimit.target.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`setrlimit.target.ancestors.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`setrlimit.target.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`setrlimit.target.ancestors.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`setrlimit.target.ancestors.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`setrlimit.target.ancestors.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`setrlimit.target.ancestors.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`setrlimit.target.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`setrlimit.target.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1558,10 +1884,11 @@ A setrlimit command was executed
 | [`setrlimit.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`setrlimit.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`setrlimit.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`setrlimit.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`setrlimit.target.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`setrlimit.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1574,6 +1901,7 @@ A setrlimit command was executed
 | [`setrlimit.target.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`setrlimit.target.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1582,10 +1910,16 @@ A setrlimit command was executed
 | [`setrlimit.target.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`setrlimit.target.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`setrlimit.target.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`setrlimit.target.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`setrlimit.target.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`setrlimit.target.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`setrlimit.target.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`setrlimit.target.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`setrlimit.target.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`setrlimit.target.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`setrlimit.target.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`setrlimit.target.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`setrlimit.target.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`setrlimit.target.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`setrlimit.target.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1600,6 +1934,7 @@ A setrlimit command was executed
 | [`setrlimit.target.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`setrlimit.target.group`](#common-credentials-group-doc) | Group of the process |
 | [`setrlimit.target.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1608,10 +1943,16 @@ A setrlimit command was executed
 | [`setrlimit.target.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`setrlimit.target.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`setrlimit.target.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`setrlimit.target.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`setrlimit.target.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`setrlimit.target.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`setrlimit.target.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`setrlimit.target.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`setrlimit.target.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`setrlimit.target.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`setrlimit.target.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`setrlimit.target.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`setrlimit.target.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`setrlimit.target.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`setrlimit.target.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1631,10 +1972,11 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`setrlimit.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`setrlimit.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`setrlimit.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`setrlimit.target.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`setrlimit.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1647,6 +1989,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`setrlimit.target.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1655,10 +1998,16 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`setrlimit.target.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`setrlimit.target.parent.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`setrlimit.target.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`setrlimit.target.parent.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`setrlimit.target.parent.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`setrlimit.target.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`setrlimit.target.parent.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`setrlimit.target.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`setrlimit.target.parent.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`setrlimit.target.parent.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`setrlimit.target.parent.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`setrlimit.target.parent.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`setrlimit.target.parent.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`setrlimit.target.parent.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1673,6 +2022,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`setrlimit.target.parent.group`](#common-credentials-group-doc) | Group of the process |
 | [`setrlimit.target.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.parent.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1681,10 +2031,16 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`setrlimit.target.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`setrlimit.target.parent.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`setrlimit.target.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`setrlimit.target.parent.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`setrlimit.target.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`setrlimit.target.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`setrlimit.target.parent.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`setrlimit.target.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`setrlimit.target.parent.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`setrlimit.target.parent.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`setrlimit.target.parent.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`setrlimit.target.parent.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`setrlimit.target.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`setrlimit.target.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1720,9 +2076,17 @@ A setsockopt was executed
 
 | Property | Definition |
 | -------- | ------------- |
+| [`setsockopt.filter_hash`](#setsockopt-filter_hash-doc) | Hash of the socket filter using sha256 |
+| [`setsockopt.filter_instructions`](#setsockopt-filter_instructions-doc) | Filter instructions |
+| [`setsockopt.filter_len`](#setsockopt-filter_len-doc) | Length of the filter |
+| [`setsockopt.is_filter_truncated`](#setsockopt-is_filter_truncated-doc) | Indicates that the filter is truncated |
 | [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
 | [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
 | [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`setsockopt.socket_family`](#setsockopt-socket_family-doc) | Socket family |
+| [`setsockopt.socket_protocol`](#setsockopt-socket_protocol-doc) | Socket protocol |
+| [`setsockopt.socket_type`](#setsockopt-socket_type-doc) | Socket type |
+| [`setsockopt.used_immediates`](#setsockopt-used_immediates-doc) | List of immediate values used in the filter |
 
 ### Event `setuid`
 
@@ -1746,6 +2110,7 @@ Set exteneded attributes
 | [`setxattr.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`setxattr.file.destination.name`](#common-setxattrevent-file-destination-name-doc) | Name of the extended attribute |
 | [`setxattr.file.destination.namespace`](#common-setxattrevent-file-destination-namespace-doc) | Namespace of the extended attribute |
+| [`setxattr.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setxattr.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setxattr.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setxattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1754,10 +2119,16 @@ Set exteneded attributes
 | [`setxattr.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setxattr.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`setxattr.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`setxattr.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`setxattr.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`setxattr.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`setxattr.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`setxattr.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`setxattr.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`setxattr.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`setxattr.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`setxattr.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`setxattr.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`setxattr.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`setxattr.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`setxattr.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1784,10 +2155,11 @@ A signal was sent
 | [`signal.target.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`signal.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`signal.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1800,6 +2172,7 @@ A signal was sent
 | [`signal.target.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`signal.target.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1808,10 +2181,16 @@ A signal was sent
 | [`signal.target.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.ancestors.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`signal.target.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.ancestors.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`signal.target.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`signal.target.ancestors.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`signal.target.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.ancestors.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`signal.target.ancestors.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`signal.target.ancestors.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`signal.target.ancestors.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.ancestors.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1826,6 +2205,7 @@ A signal was sent
 | [`signal.target.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`signal.target.ancestors.group`](#common-credentials-group-doc) | Group of the process |
 | [`signal.target.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.ancestors.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1834,10 +2214,16 @@ A signal was sent
 | [`signal.target.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.ancestors.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`signal.target.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.ancestors.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`signal.target.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`signal.target.ancestors.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`signal.target.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.ancestors.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`signal.target.ancestors.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`signal.target.ancestors.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`signal.target.ancestors.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1867,10 +2253,11 @@ A signal was sent
 | [`signal.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`signal.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`signal.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1883,6 +2270,7 @@ A signal was sent
 | [`signal.target.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`signal.target.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1891,10 +2279,16 @@ A signal was sent
 | [`signal.target.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`signal.target.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`signal.target.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`signal.target.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`signal.target.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`signal.target.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`signal.target.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`signal.target.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1909,6 +2303,7 @@ A signal was sent
 | [`signal.target.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`signal.target.group`](#common-credentials-group-doc) | Group of the process |
 | [`signal.target.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1917,10 +2312,16 @@ A signal was sent
 | [`signal.target.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`signal.target.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`signal.target.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`signal.target.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`signal.target.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`signal.target.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`signal.target.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`signal.target.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1940,10 +2341,11 @@ A signal was sent
 | [`signal.target.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
 | [`signal.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`signal.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1956,6 +2358,7 @@ A signal was sent
 | [`signal.target.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`signal.target.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1964,10 +2367,16 @@ A signal was sent
 | [`signal.target.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.parent.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`signal.target.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.parent.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`signal.target.parent.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`signal.target.parent.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`signal.target.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.parent.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`signal.target.parent.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`signal.target.parent.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`signal.target.parent.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.parent.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.parent.file.path`](#common-fileevent-path-doc) | File's path |
@@ -1982,6 +2391,7 @@ A signal was sent
 | [`signal.target.parent.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`signal.target.parent.group`](#common-credentials-group-doc) | Group of the process |
 | [`signal.target.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.parent.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1990,10 +2400,16 @@ A signal was sent
 | [`signal.target.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.parent.interpreter.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`signal.target.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.parent.interpreter.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`signal.target.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`signal.target.parent.interpreter.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`signal.target.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.parent.interpreter.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`signal.target.parent.interpreter.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`signal.target.parent.interpreter.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`signal.target.parent.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
@@ -2031,6 +2447,7 @@ A splice command was executed
 | Property | Definition |
 | -------- | ------------- |
 | [`splice.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`splice.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`splice.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`splice.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`splice.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -2039,10 +2456,16 @@ A splice command was executed
 | [`splice.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`splice.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`splice.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`splice.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`splice.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`splice.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`splice.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`splice.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`splice.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`splice.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`splice.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`splice.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`splice.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`splice.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`splice.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`splice.file.path`](#common-fileevent-path-doc) | File's path |
@@ -2076,6 +2499,7 @@ A file was deleted
 | Property | Definition |
 | -------- | ------------- |
 | [`unlink.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`unlink.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`unlink.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`unlink.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`unlink.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -2084,10 +2508,16 @@ A file was deleted
 | [`unlink.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`unlink.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`unlink.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`unlink.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`unlink.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`unlink.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`unlink.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`unlink.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`unlink.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`unlink.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`unlink.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`unlink.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`unlink.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`unlink.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`unlink.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`unlink.file.path`](#common-fileevent-path-doc) | File's path |
@@ -2117,6 +2547,7 @@ Change file access/modification times
 | Property | Definition |
 | -------- | ------------- |
 | [`utimes.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`utimes.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`utimes.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`utimes.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`utimes.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -2125,10 +2556,16 @@ Change file access/modification times
 | [`utimes.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`utimes.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`utimes.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`utimes.file.mount_detached`](#common-fileevent-mount_detached-doc) | Indicates whether the file's mount is detached from the VFS |
 | [`utimes.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`utimes.file.mount_visible`](#common-fileevent-mount_visible-doc) | Indicates whether the file's mount is visible in the VFS |
 | [`utimes.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`utimes.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`utimes.file.package.epoch`](#common-fileevent-package-epoch-doc) | [Experimental] Epoch of the package that provided this file |
 | [`utimes.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`utimes.file.package.release`](#common-fileevent-package-release-doc) | [Experimental] Release of the package that provided this file |
+| [`utimes.file.package.source_epoch`](#common-fileevent-package-source_epoch-doc) | [Experimental] Epoch of the source package of the package that provided this file |
+| [`utimes.file.package.source_release`](#common-fileevent-package-source_release-doc) | [Experimental] Release of the source package of the package that provided this file |
 | [`utimes.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`utimes.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`utimes.file.path`](#common-fileevent-path-doc) | File's path |
@@ -2274,6 +2711,30 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `*.caps_attempted` {#common-process-caps_attempted-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process attempted to use
+
+`*.caps_attempted` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `*.caps_used` {#common-process-caps_used-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process successfully used
+
+`*.caps_used` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `*.change_time` {#common-filefields-change_time-doc}
 Type: int
 
@@ -2380,6 +2841,15 @@ Definition: Effective user of the process
 
 `*.euser` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.extension` {#common-fileevent-extension-doc}
+Type: string
+
+Definition: File's extension
+
+`*.extension` has 46 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.file.destination.name` {#common-setxattrevent-file-destination-name-doc}
@@ -2631,15 +3101,6 @@ Definition: Length of the corresponding element
 `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
-### `*.manager` {#common-cgroupcontext-manager-doc}
-Type: string
-
-Definition: [Experimental] Lifecycle manager of the cgroup
-
-`*.manager` has 15 possible prefixes:
-`cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
-
-
 ### `*.mode` {#common-filefields-mode-doc}
 Type: int
 
@@ -2661,6 +3122,15 @@ Definition: Modification time (mtime) of the file
 `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
+### `*.mount_detached` {#common-fileevent-mount_detached-doc}
+Type: bool
+
+Definition: Indicates whether the file's mount is detached from the VFS
+
+`*.mount_detached` has 46 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
 ### `*.mount_id` {#common-pathkey-mount_id-doc}
 Type: int
 
@@ -2668,6 +3138,15 @@ Definition: Mount ID of the file
 
 `*.mount_id` has 61 possible prefixes:
 `cgroup.file` `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.cgroup.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.cgroup.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.cgroup.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.mount_visible` {#common-fileevent-mount_visible-doc}
+Type: bool
+
+Definition: Indicates whether the file's mount is visible in the VFS
+
+`*.mount_visible` has 46 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.name` {#common-fileevent-name-doc}
@@ -2700,12 +3179,48 @@ Constants: [Network directions](#network-directions)
 
 
 
+### `*.package.epoch` {#common-fileevent-package-epoch-doc}
+Type: int
+
+Definition: [Experimental] Epoch of the package that provided this file
+
+`*.package.epoch` has 46 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
 ### `*.package.name` {#common-fileevent-package-name-doc}
 Type: string
 
 Definition: [Experimental] Name of the package that provided this file
 
 `*.package.name` has 46 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.package.release` {#common-fileevent-package-release-doc}
+Type: string
+
+Definition: [Experimental] Release of the package that provided this file
+
+`*.package.release` has 46 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.package.source_epoch` {#common-fileevent-package-source_epoch-doc}
+Type: int
+
+Definition: [Experimental] Epoch of the source package of the package that provided this file
+
+`*.package.source_epoch` has 46 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.package.source_release` {#common-fileevent-package-source_release-doc}
+Type: string
+
+Definition: [Experimental] Release of the source package of the package that provided this file
+
+`*.package.source_release` has 46 possible prefixes:
 `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
@@ -2794,8 +3309,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 26 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 27 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -2838,6 +3353,18 @@ Definition: Name of the TTY associated with the process
 
 `*.tty_name` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.type` {#common-networkcontext-type-doc}
+Type: int
+
+Definition: Type of the network packet
+
+`*.type` has 2 possible prefixes:
+`network` `packet`
+
+Constants: [Network Protocol Types](#network-protocol-types)
+
 
 
 ### `*.uid` {#common-credentials-uid-doc}
@@ -2993,6 +3520,26 @@ Constants: [BPF program types](#bpf-program-types)
 
 
 
+### `capabilities.attempted` {#capabilities-attempted-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process attempted to use since it started running
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `capabilities.used` {#capabilities-used-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process successfully used since it started running
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `capset.cap_effective` {#capset-cap_effective-doc}
 Type: int
 
@@ -3145,13 +3692,6 @@ Definition: ID of the container
 
 
 
-### `container.runtime` {#container-runtime-doc}
-Type: string
-
-Definition: Runtime managing the container
-
-
-
 ### `container.tags` {#container-tags-doc}
 Type: string
 
@@ -3256,6 +3796,13 @@ Definition: Tags associated with the rule that's used to evaluate the event
 Type: string
 
 Definition: Service associated with the event
+
+
+
+### `event.source` {#event-source-doc}
+Type: string
+
+Definition: [Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.
 
 
 
@@ -3514,6 +4061,13 @@ Constants: [Protection constants](#protection-constants)
 
 
 
+### `mount.detached` {#mount-detached-doc}
+Type: bool
+
+Definition: Mount is detached from the VFS
+
+
+
 ### `mount.fs_type` {#mount-fs_type-doc}
 Type: string
 
@@ -3560,6 +4114,13 @@ Definition: Mount point path argument of the syscall
 Type: string
 
 Definition: Source path argument of the syscall
+
+
+
+### `mount.visible` {#mount-visible-doc}
+Type: bool
+
+Definition: Mount is not visible in the VFS
 
 
 
@@ -3655,6 +4216,27 @@ Definition: pcap filter expression
 Type: int
 
 Definition: TLS version
+
+
+
+### `prctl.is_name_truncated` {#prctl-is_name_truncated-doc}
+Type: bool
+
+Definition: Indicates that the name field is truncated
+
+
+
+### `prctl.new_name` {#prctl-new_name-doc}
+Type: string
+
+Definition: New name of the process
+
+
+
+### `prctl.option` {#prctl-option-doc}
+Type: int
+
+Definition: prctl option
 
 
 
@@ -3783,6 +4365,34 @@ Definition: Maximum (hard) limit value
 
 
 
+### `setsockopt.filter_hash` {#setsockopt-filter_hash-doc}
+Type: string
+
+Definition: Hash of the socket filter using sha256
+
+
+
+### `setsockopt.filter_instructions` {#setsockopt-filter_instructions-doc}
+Type: string
+
+Definition: Filter instructions
+
+
+
+### `setsockopt.filter_len` {#setsockopt-filter_len-doc}
+Type: int
+
+Definition: Length of the filter
+
+
+
+### `setsockopt.is_filter_truncated` {#setsockopt-is_filter_truncated-doc}
+Type: bool
+
+Definition: Indicates that the filter is truncated
+
+
+
 ### `setsockopt.level` {#setsockopt-level-doc}
 Type: int
 
@@ -3794,6 +4404,34 @@ Definition: Socket level
 Type: int
 
 Definition: Socket option name
+
+
+
+### `setsockopt.socket_family` {#setsockopt-socket_family-doc}
+Type: int
+
+Definition: Socket family
+
+
+
+### `setsockopt.socket_protocol` {#setsockopt-socket_protocol-doc}
+Type: int
+
+Definition: Socket protocol
+
+
+
+### `setsockopt.socket_type` {#setsockopt-socket_type-doc}
+Type: int
+
+Definition: Socket type
+
+
+
+### `setsockopt.used_immediates` {#setsockopt-used_immediates-doc}
+Type: int
+
+Definition: List of immediate values used in the filter
 
 
 
@@ -4967,6 +5605,24 @@ Network Address Family constants are the supported network address families.
 | `AF_XDP` | all |
 | `AF_MAX` | all |
 
+### `Network Protocol Types` {#network-protocol-types}
+Types of specific network protocols.
+
+| Name | Architectures |
+| ---- |---------------|
+| `ICMP_ECHO_REQUEST` | all |
+| `ICMP_ECHO_REPLY` | all |
+| `ICMP_ROUTER_SOLICITATION` | all |
+| `ICMP_ROUTER_ADVERTISEMENT` | all |
+| `ICMP_NEIGHBOR_SOLICITATION` | all |
+| `ICMP_NEIGHBOR_ADVERTISEMENT` | all |
+| `ICMP_V6_ECHO_REQUEST` | all |
+| `ICMP_V6_ECHO_REPLY` | all |
+| `ICMP_V6_ROUTER_SOLICITATION` | all |
+| `ICMP_V6_ROUTER_ADVERTISEMENT` | all |
+| `ICMP_V6_NEIGHBOR_SOLICITATION` | all |
+| `ICMP_V6_NEIGHBOR_ADVERTISEMENT` | all |
+
 ### `Network directions` {#network-directions}
 Network directions are the supported directions of network packets.
 
@@ -5014,6 +5670,73 @@ Pipe buffer flags are the supported flags for a pipe buffer.
 | `PIPE_BUF_FLAG_CAN_MERGE` | all |
 | `PIPE_BUF_FLAG_WHOLE` | all |
 | `PIPE_BUF_FLAG_LOSS` | all |
+
+### `PrCtl Options` {#prctl-options}
+PrCtl Options are the supported options for the prctl event
+
+| Name | Architectures |
+| ---- |---------------|
+| `PR_CAP_AMBIENT` | all |
+| `PR_CAPBSET_READ` | all |
+| `PR_CAPBSET_DROP` | all |
+| `PR_SET_CHILD_SUBREAPER` | all |
+| `PR_GET_CHILD_SUBREAPER` | all |
+| `PR_SET_DUMPABLE` | all |
+| `PR_GET_DUMPABLE` | all |
+| `PR_SET_ENDIAN` | all |
+| `PR_GET_ENDIAN` | all |
+| `PR_SET_FP_MODE` | all |
+| `PR_GET_FP_MODE` | all |
+| `PR_SET_FPEMU` | all |
+| `PR_GET_FPEMU` | all |
+| `PR_SET_FPEXC` | all |
+| `PR_GET_FPEXC` | all |
+| `PR_SET_IO_FLUSHER` | all |
+| `PR_GET_IO_FLUSHER` | all |
+| `PR_SET_KEEPCAPS` | all |
+| `PR_GET_KEEPCAPS` | all |
+| `PR_MCE_KILL` | all |
+| `PR_MCE_KILL_GET` | all |
+| `PR_SET_MM` | all |
+| `PR_SET_VMA` | all |
+| `PR_MPX_ENABLE_MANAGEMENT` | all |
+| `PR_MPX_DISABLE_MANAGEMENT` | all |
+| `PR_SET_NAME` | all |
+| `PR_GET_NAME` | all |
+| `PR_SET_NO_NEW_PRIVS` | all |
+| `PR_GET_NO_NEW_PRIVS` | all |
+| `PR_PAC_RESET_KEYS` | all |
+| `PR_SET_PDEATHSIG` | all |
+| `PR_GET_PDEATHSIG` | all |
+| `PR_SET_PTRACER` | all |
+| `PR_SET_SECCOMP` | all |
+| `PR_GET_SECCOMP` | all |
+| `PR_SET_SECUREBITS` | all |
+| `PR_GET_SECUREBITS` | all |
+| `PR_GET_SPECULATION_CTRL` | all |
+| `PR_SET_SPECULATION_CTRL` | all |
+| `PR_SVE_SET_VL` | all |
+| `PR_SVE_GET_VL` | all |
+| `PR_SET_SYSCALL_USER_DISPATCH` | all |
+| `PR_SET_TAGGED_ADDR_CTRL` | all |
+| `PR_GET_TAGGED_ADDR_CTRL` | all |
+| `PR_TASK_PERF_EVENTS_DISABLE` | all |
+| `PR_TASK_PERF_EVENTS_ENABLE` | all |
+| `PR_SET_THP_DISABLE` | all |
+| `PR_GET_THP_DISABLE` | all |
+| `PR_GET_TID_ADDRESS` | all |
+| `PR_SET_TIMERSLACK` | all |
+| `PR_GET_TIMERSLACK` | all |
+| `PR_SET_TIMING` | all |
+| `PR_GET_TIMING` | all |
+| `PR_SET_TSC` | all |
+| `PR_GET_TSC` | all |
+| `PR_SET_UNALIGN` | all |
+| `PR_GET_UNALIGN` | all |
+| `PR_GET_AUXV` | all |
+| `PR_SET_MDWE` | all |
+| `PR_GET_MDWE` | all |
+| `PR_RISCV_SET_ICACHE_FLUSH_CTX` | all |
 
 ### `Protection constants` {#protection-constants}
 Protection constants are the supported protections for the mmap syscall.
@@ -5121,7 +5844,7 @@ SetSockopt Levels are the supported levels for the setsockopt event.
 | `IPPROTO_ICMPV6` | all |
 
 ### `SetSockopt Options` {#setsockopt-options}
-SetSockopt Options are the supported options for the setsockopt event.
+SetSockopt Options are the supported options for the setsockopt event when the level is IPPROTO_IP.
 
 | Name | Architectures |
 | ---- |---------------|
@@ -5380,6 +6103,19 @@ Signal constants are the supported signals for the kill syscall.
 | `SIGPOLL` | all |
 | `SIGPWR` | all |
 | `SIGSYS` | all |
+
+### `Socket types` {#socket-types}
+Socket types are the supported socket types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `SOCK_STREAM` | all |
+| `SOCK_DGRAM` | all |
+| `SOCK_RAW` | all |
+| `SOCK_RDM` | all |
+| `SOCK_SEQPACKET` | all |
+| `SOCK_DCCP` | all |
+| `SOCK_PACKET` | all |
 
 ### `SysCtl Actions` {#sysctl-actions}
 SysCtl Actions are the supported actions for the sysctl event.

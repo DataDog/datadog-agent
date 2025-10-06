@@ -5,7 +5,6 @@
 
 //go:build linux && nvml
 
-// Package testutil holds different utilities and stubs for testing
 package testutil
 
 import (
@@ -85,6 +84,9 @@ var DefaultTotalMemory = uint64(1024 * 1024 * 1024)
 
 // DefaultMaxClockRates is an array of Max SM clock and Max Mem Clock rates for the default device
 var DefaultMaxClockRates = [2]uint32{1000, 2000}
+
+// DevicesWithMIGChildren is a list of device indexes that have MIG children.
+var DevicesWithMIGChildren = []int{5, 6}
 
 // MIGChildrenPerDevice is a map of device index to the number of MIG children for that device.
 var MIGChildrenPerDevice = map[int]int{
@@ -169,6 +171,9 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 		},
 		GpmQueryDeviceSupportFunc: func() (nvml.GpmSupport, nvml.Return) {
 			return nvml.GpmSupport{IsSupportedDevice: 1}, nvml.SUCCESS
+		},
+		GetVirtualizationModeFunc: func() (nvml.GpuVirtualizationMode, nvml.Return) {
+			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
 		},
 	}
 

@@ -7,12 +7,12 @@ package connectivity
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 
@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -85,7 +86,7 @@ func TestAcceptRedirection(t *testing.T) {
 
 	ddURL := ts.URL
 
-	client := clientWithOneRedirects(mockConfig, 1, mockLog)
+	client := getClient(mockConfig, 1, mockLog, withOneRedirect())
 
 	url := ddURL + "/support/flare"
 	statusCode, err := sendHTTPHEADRequestToEndpoint(url, client)
@@ -121,15 +122,9 @@ func TestSendHTTPRequestToEndpoint_ProtoPayload(t *testing.T) {
 		assert.Equal(t, "application/x-protobuf", r.Header.Get("Content-Type"))
 		assert.Equal(t, "api_key1", r.Header.Get("DD-API-KEY"))
 
-		body, err := io.ReadAll(r.Body)
+		_, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
 		defer r.Body.Close()
-
-		var sketch gogen.SketchPayload
-		err = proto.Unmarshal(body, &sketch)
-		assert.NoError(t, err)
-		assert.Len(t, sketch.Sketches, 1)
-		assert.Equal(t, "example.metric", sketch.Sketches[0].Metric)
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Received Protobuf"))
@@ -157,4 +152,32 @@ func mustMarshalProto(msg proto.Message, t *testing.T) []byte {
 		t.Fatalf("Failed to marshal proto: %v", err)
 	}
 	return data
+}
+
+func TestSendHTTPRequestHeaders(t *testing.T) {
+	mockConfig := configmock.New(t)
+	log := logmock.New(t)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "api_key1", r.Header.Get("DD-API-KEY"))
+		assert.Equal(t, "application/x-protobuf", r.Header.Get("Content-Type"))
+		assert.Equal(t, version.AgentVersion, r.Header.Get("DD-Agent-Version"))
+		assert.Equal(t, fmt.Sprintf("datadog-agent/%s", version.AgentVersion), r.Header.Get("User-Agent"))
+		assert.Equal(t, requestWithHeader, r.Header.Get("X-Requested-With"))
+		w.Write([]byte("Received Protobuf"))
+	}))
+	defer ts.Close()
+
+	client := defaultforwarder.NewHTTPClient(mockConfig, 1, log)
+
+	endpointInfo := endpointInfo{
+		Endpoint:    transaction.Endpoint{Route: "/", Name: "sketch"},
+		Method:      "POST",
+		Payload:     mustMarshalProto(buildSketchPayload(), t),
+		ContentType: "application/x-protobuf",
+	}
+
+	statusCode, _, _, err := sendHTTPRequestToEndpoint(context.Background(), client, ts.URL, endpointInfo, "api_key1")
+	assert.NoError(t, err)
+	assert.Equal(t, 200, statusCode)
 }

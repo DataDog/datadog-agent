@@ -14,30 +14,38 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 // Reader reads DWARF loclists.
 type Reader struct {
-	data              []byte
-	debugAddr         []byte
-	ptrSize           uint8
-	unitVersionGetter func(unit *dwarf.Entry) (uint8, bool)
+	dataLoc      []byte
+	dataLocLists []byte
+	debugAddr    []byte
+	ptrSize      uint8
+	unitHeaders  map[dwarf.Offset]dwarfutil.CompileUnitHeader
 }
 
-// NewReader creates a new Reader.
-func NewReader(
-	data []byte,
+// MakeReader creates a new Reader.
+func MakeReader(
+	dataLoc []byte,
+	dataLocLists []byte,
 	debugAddr []byte,
 	ptrSize uint8,
-	unitVersionGetter func(unit *dwarf.Entry) (uint8, bool),
-) *Reader {
-	return &Reader{
-		data:              data,
-		debugAddr:         debugAddr,
-		ptrSize:           ptrSize,
-		unitVersionGetter: unitVersionGetter,
+	unitHeaders []dwarfutil.CompileUnitHeader,
+) Reader {
+	r := Reader{
+		dataLoc:      dataLoc,
+		dataLocLists: dataLocLists,
+		debugAddr:    debugAddr,
+		ptrSize:      ptrSize,
+		unitHeaders:  make(map[dwarf.Offset]dwarfutil.CompileUnitHeader),
 	}
+	for _, header := range unitHeaders {
+		r.unitHeaders[header.Offset] = header
+	}
+	return r
 }
 
 // Loclist represents a DWARF loclist.
@@ -47,18 +55,38 @@ type Loclist struct {
 }
 
 func (r *Reader) Read(unit *dwarf.Entry, offset int64, typeByteSize uint32) (Loclist, error) {
-	unitVersion, ok := r.unitVersionGetter(unit)
+	hdr, ok := r.unitHeaders[unit.Offset]
 	if !ok {
 		return Loclist{}, fmt.Errorf("no unit version found for unit at offset 0x%x", unit.Offset)
 	}
+	unitVersion := hdr.Version
 	if unitVersion < 2 {
 		return Loclist{}, fmt.Errorf("unsupported unit version: %d", unitVersion)
 	}
-
-	if offset > int64(len(r.data)) {
-		return Loclist{}, fmt.Errorf("loclist offset %d out of bounds for section length %d", offset, len(r.data))
+	var section []byte
+	if unitVersion < 5 {
+		if r.dataLoc == nil {
+			unitName, _ := unit.Val(dwarf.AttrName).(string)
+			return Loclist{}, fmt.Errorf(
+				"missing .debug_loc section for unit %q (offset 0x%x) with version %d",
+				unitName, unit.Offset, unitVersion,
+			)
+		}
+		section = r.dataLoc
+	} else {
+		if r.dataLocLists == nil {
+			unitName, _ := unit.Val(dwarf.AttrName).(string)
+			return Loclist{}, fmt.Errorf(
+				"missing .debug_loclists section for unit %q (offset 0x%x) with version %d",
+				unitName, unit.Offset, unitVersion,
+			)
+		}
+		section = r.dataLocLists
 	}
-	data := r.data[offset:]
+	if offset > int64(len(section)) {
+		return Loclist{}, fmt.Errorf("loclist offset %d out of bounds for section length %d", offset, len(section))
+	}
+	data := section[offset:]
 	var loclist Loclist
 	var err error
 	if unitVersion < 5 {

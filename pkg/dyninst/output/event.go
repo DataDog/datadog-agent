@@ -19,10 +19,43 @@ const (
 	dataItemHeaderSize = int(unsafe.Sizeof(DataItemHeader{}))
 )
 
+// EventPairingExpectation returns the event pairing expectation.
+type EventPairingExpectation uint8
+
+// This must be kept in sync with the event_pairing_expectation enum in the
+// ebpf/framing.h file.
+const (
+	EventPairingExpectationNone                  EventPairingExpectation = 0
+	EventPairingExpectationEntryPairingExpected  EventPairingExpectation = 1
+	EventPairingExpectationReturnPairingExpected EventPairingExpectation = 2
+	EventPairingExpectationCallMapFull           EventPairingExpectation = 3
+	EventPairingExpectationCallCountExceeded     EventPairingExpectation = 4
+	EventPairingExpectationBufferFull            EventPairingExpectation = 5
+)
+
+const (
+	// DataItemFailedReadMask is a mask on the type field of a data item header that
+	// can be used to check if a data item was marked as a failed read.
+	DataItemFailedReadMask = uint32(1 << 31)
+	// DataItemTypeMask is a mask on the type field of a data item header that can be
+	// used to get the type of a data item without the failed read mask.
+	DataItemTypeMask = ^DataItemFailedReadMask
+)
+
 // DataItem represents a single data item in an event.
 type DataItem struct {
 	header *DataItemHeader
 	data   []byte
+}
+
+// IsFailedRead returns true if the data item was marked as a failed read.
+func (d *DataItem) IsFailedRead() bool {
+	return d.header.Type&DataItemFailedReadMask != 0
+}
+
+// Type returns the type of the data item without the failed read mask.
+func (d *DataItem) Type() uint32 {
+	return d.header.Type & DataItemTypeMask
 }
 
 // Header returns the header of the data item.
@@ -30,9 +63,12 @@ func (d *DataItem) Header() *DataItemHeader {
 	return d.header
 }
 
-// Data returns the data of the data item.
-func (d *DataItem) Data() []byte {
-	return d.data
+// Data returns the data of the data item if it was not marked as a failed read.
+func (d *DataItem) Data() ([]byte, bool) {
+	if d.header.Type&DataItemFailedReadMask != 0 {
+		return nil, false
+	}
+	return d.data, true
 }
 
 func nextMultipleOf8(v int) int {
@@ -41,6 +77,18 @@ func nextMultipleOf8(v int) int {
 
 // Event represents a single event from the BPF program.
 type Event []byte
+
+var errNoDataItems = errors.New("no data items found")
+
+// FirstDataItemHeader returns the header of the first data item in the event.
+func (e Event) FirstDataItemHeader() (*DataItemHeader, error) {
+	var item DataItem
+	err := errNoDataItems
+	for item, err = range e.DataItems() {
+		break
+	}
+	return item.header, err
+}
 
 // Header decodes and returns the header of the event.
 //
@@ -127,7 +175,7 @@ func (e Event) DataItems() iter.Seq2[DataItem, error] {
 				))
 				return
 			}
-			data := e[idx : idx+dataLen]
+			data := e[idx : idx+dataLen : idx+dataLen]
 			idx = nextMultipleOf8(idx + dataLen)
 			item := DataItem{
 				header: header,

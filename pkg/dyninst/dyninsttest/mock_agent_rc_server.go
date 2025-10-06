@@ -14,6 +14,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"sync"
@@ -27,8 +28,10 @@ import (
 // http.Handler. It pretends to be the agent and serves the config endpoint
 // that dd-trace-go uses to fetch the config.
 type MockAgentRCServer struct {
-	mux *http.ServeMux
-	mu  struct {
+	mux       *http.ServeMux
+	closeOnce sync.Once
+	closeChan chan struct{}
+	mu        struct {
 		sync.Mutex
 		configResp     *core.ClientGetConfigsResponse
 		configVersion  int64
@@ -40,7 +43,8 @@ type MockAgentRCServer struct {
 // NewMockAgentRCServer creates a new mock remote-config server.
 func NewMockAgentRCServer() *MockAgentRCServer {
 	s := &MockAgentRCServer{
-		mux: http.NewServeMux(),
+		mux:       http.NewServeMux(),
+		closeChan: make(chan struct{}),
 	}
 	s.mu.configResp = &core.ClientGetConfigsResponse{}
 	s.mu.clientVersions = make(map[string]int64)
@@ -75,10 +79,13 @@ func (s *MockAgentRCServer) UpdateRemoteConfig(
 	var clientConfigs []string
 
 	// local structs to build the targets.json
+	type customVersion struct {
+		V int `json:"v"`
+	}
 	type fileMeta struct {
 		Length int64             `json:"length"`
 		Hashes map[string]string `json:"hashes"`
-		Custom json.RawMessage   `json:"custom,omitempty"`
+		Custom customVersion     `json:"custom,omitempty"`
 	}
 	type signedTargets struct {
 		Type        string              `json:"_type"`
@@ -89,7 +96,6 @@ func (s *MockAgentRCServer) UpdateRemoteConfig(
 	}
 
 	targetsMap := make(map[string]fileMeta)
-	customVersion := json.RawMessage(`{"v": 1}`)
 
 	for path, fileContents := range entries {
 		hash := sha256.Sum256(fileContents)
@@ -98,7 +104,7 @@ func (s *MockAgentRCServer) UpdateRemoteConfig(
 			Hashes: map[string]string{
 				"sha256": hex.EncodeToString(hash[:]),
 			},
-			Custom: customVersion,
+			Custom: customVersion{V: int(s.mu.configVersion)},
 		}
 
 		targetFiles = append(targetFiles, &core.File{
@@ -141,6 +147,13 @@ func (s *MockAgentRCServer) UpdateRemoteConfig(
 	}
 }
 
+// Close closes the server. It makes all requests return an error.
+func (s *MockAgentRCServer) Close() {
+	s.closeOnce.Do(func() {
+		close(s.closeChan)
+	})
+}
+
 type pendingConfigRequest struct {
 	s        *MockAgentRCServer
 	clientID string
@@ -162,6 +175,8 @@ func (pcr *pendingConfigRequest) getResponse(
 		return pcr.s.getWaitedResponse(pcr.waitChan, pcr.clientID), nil
 	case <-pcr.waitChan:
 		return pcr.s.getWaitedResponse(pcr.waitChan, pcr.clientID), nil
+	case <-pcr.s.closeChan:
+		return nil, errors.New("server closed")
 	case <-ctx.Done():
 		pcr.s.getWaitedResponse(pcr.waitChan, pcr.clientID)
 		return nil, ctx.Err()
@@ -233,6 +248,8 @@ func (s *MockAgentRCServer) handleConfig(w http.ResponseWriter, r *http.Request)
 	pcr := s.getPendingConfigRequest(clientID)
 	resp, err := pcr.getResponse(r.Context(), time.Second)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 

@@ -8,6 +8,7 @@
         - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
 - !loaded {program_id: 1}
 - !attaching-failed {program_id: 1, process_id: 1001, error: "eBPF attaching failed"}
+- !unloaded {program_id: 1}
 ---
 event: !processes-updated
   updated:
@@ -38,11 +39,20 @@ state:
 ---
 event: !attaching-failed {program_id: 1, process_id: 1001, error: "eBPF attaching failed"}
 effects:
-  - !close-sink {program_id: 1}
+  - !unload-program {program_id: 1}
 state:
   currently_loading: <nil>
   queued_programs: '[]'
   processes:
-    1001: Attaching (prog 1) -> LoadingFailed
+    1001: Attaching (prog 1) -> LoadingFailed (prog 1)
   programs:
-    1: Loaded (proc 1001) -> <nil>
+    1: Loaded (proc 1001) -> Unloading (proc 1001)
+---
+event: !unloaded {program_id: 1}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: LoadingFailed (prog 1) -> LoadingFailed
+  programs:
+    1: Unloading (proc 1001) -> <nil>

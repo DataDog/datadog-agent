@@ -134,24 +134,38 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case ProcessGoHmapOp:
+		bytes := make([]byte, 0, 12)
+		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.BucketsType.GetID()))
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.BucketType.GetByteSize())
+		bytes = append(bytes, op.FlagsOffset)
+		bytes = append(bytes, op.BOffset)
+		bytes = append(bytes, op.BucketsOffset)
+		bytes = append(bytes, op.OldBucketsOffset)
 		return staticInstruction{
 			opcode: OpcodeProcessGoHmap,
-			bytes:  binary.LittleEndian.AppendUint32(nil, uint32(op.BucketsArray.GetID())),
+			bytes:  bytes,
 		}
 
 	case ProcessGoSwissMapOp:
-		bytes := make([]byte, 0, 8)
+		bytes := make([]byte, 0, 16)
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.TablePtrSlice.GetID()))
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.Group.GetID()))
+		bytes = append(bytes, op.DirPtrOffset)
+		bytes = append(bytes, op.DirLenOffset)
 		return staticInstruction{
 			opcode: OpcodeProcessGoSwissMap,
 			bytes:  bytes,
 		}
 
 	case ProcessGoSwissMapGroupsOp:
+		bytes := make([]byte, 0, 16)
+		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.GroupSlice.GetID()))
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.Group.GetByteSize())
+		bytes = append(bytes, op.DataOffset)
+		bytes = append(bytes, op.LengthMaskOffset)
 		return staticInstruction{
 			opcode: OpcodeProcessGoSwissMapGroups,
-			bytes:  binary.LittleEndian.AppendUint32(nil, uint32(op.Group.GetID())),
+			bytes:  bytes,
 		}
 
 	case ChasePointersOp:

@@ -33,8 +33,8 @@ func wrapEventForYAML(ev event) yamlEvent {
 }
 
 // MarshalYAML implements custom YAML marshaling for events.
-func (ye yamlEvent) MarshalYAML() (interface{}, error) {
-	encodeNodeTag := func(tag string, data interface{}) (*yaml.Node, error) {
+func (ye yamlEvent) MarshalYAML() (rv any, err error) {
+	encodeNodeTag := func(tag string, data any) (*yaml.Node, error) {
 		node := &yaml.Node{}
 		err := node.Encode(data)
 		if err != nil {
@@ -106,8 +106,8 @@ func (ye yamlEvent) MarshalYAML() (interface{}, error) {
 
 	case eventProgramAttached:
 		return encodeNodeTag("!attached", map[string]int{
-			"program_id": int(ev.program.ir.ID),
-			"process_id": int(ev.program.procID.PID),
+			"program_id": int(ev.program.programID),
+			"process_id": int(ev.program.processID.PID),
 		})
 
 	case eventProgramAttachingFailed:
@@ -121,6 +121,11 @@ func (ye yamlEvent) MarshalYAML() (interface{}, error) {
 		return encodeNodeTag("!detached", map[string]int{
 			"program_id": int(ev.programID),
 			"process_id": int(ev.processID.PID),
+		})
+
+	case eventProgramUnloaded:
+		return encodeNodeTag("!unloaded", map[string]int{
+			"program_id": int(ev.programID),
 		})
 
 	case eventShutdown:
@@ -224,7 +229,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		ye.event = eventProgramLoaded{
 			programID: ir.ProgramID(eventData.ProgramID),
 			loaded: &loadedProgram{
-				ir: &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
+				programID: ir.ProgramID(eventData.ProgramID),
 			},
 		}
 
@@ -251,8 +256,10 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		ye.event = eventProgramAttached{
 			program: &attachedProgram{
-				ir:     &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
-				procID: ProcessID{PID: int32(eventData.ProcessID)},
+				loadedProgram: &loadedProgram{
+					programID: ir.ProgramID(eventData.ProgramID),
+				},
+				processID: ProcessID{PID: int32(eventData.ProcessID)},
 			},
 		}
 
@@ -282,6 +289,17 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		ye.event = eventProgramDetached{
 			programID: ir.ProgramID(eventData.ProgramID),
 			processID: ProcessID{PID: int32(eventData.ProcessID)},
+		}
+
+	case "unloaded":
+		var eventData struct {
+			ProgramID int `yaml:"program_id"`
+		}
+		if err := node.Decode(&eventData); err != nil {
+			return fmt.Errorf("failed to decode unloaded event: %w", err)
+		}
+		ye.event = eventProgramUnloaded{
+			programID: ir.ProgramID(eventData.ProgramID),
 		}
 
 	case "shutdown":

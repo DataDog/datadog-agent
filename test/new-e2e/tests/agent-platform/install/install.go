@@ -28,10 +28,13 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 
 	if params.PipelineID != "" && params.MajorVersion != "5" {
 		testEnvVars := []string{}
-		testEnvVars = append(testEnvVars, "TESTING_APT_URL=s3.amazonaws.com/apttesting.datad0g.com")
+		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_APT_URL=s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%v-a%v", params.PipelineID, params.MajorVersion))
+		if params.TestingKeysURL != "" {
+			testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_KEYS_URL=%s", params.TestingKeysURL))
+		}
 		// apt testing repo
 		// TESTING_APT_REPO_VERSION="pipeline-xxxxx-ay y"
-		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="pipeline-%v-a%v-%s %v"`, params.PipelineID, params.MajorVersion, params.Arch, params.MajorVersion))
+		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="stable-%v %v"`, params.Arch, params.MajorVersion))
 		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=s3.amazonaws.com/yumtesting.datad0g.com")
 		// yum testing repo
 		// TESTING_YUM_VERSION_PATH="testing/pipeline-xxxxx-ay/y"
@@ -78,4 +81,32 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 		tt.Log(output)
 		require.NoError(tt, err, "agent installation should not return any error: ", err)
 	})
+}
+
+// MacOS install the agent from install script, by default will install the agent 7 build corresponding to the CI if running in the CI, else the latest Agent 7 version
+func MacOS(t *testing.T, client ExecutorWithRetry, options ...installparams.Option) {
+	params := installparams.NewParams(options...)
+	exports := []string{}
+
+	if params.PipelineID != "" {
+		exports = append(exports, fmt.Sprintf("DD_REPO_URL=https://dd-agent-macostesting.s3.amazonaws.com/ci/datadog-agent/pipeline-%s-%s", params.PipelineID, params.Arch))
+	}
+
+	var apikey string
+	if params.APIKey == "" {
+		apikey = "aaaaaaaaaa"
+	} else {
+		apikey = params.APIKey
+	}
+	exports = append(exports, fmt.Sprintf("DD_SYSTEMDAEMON_USER_GROUP=%s:staff", params.Username))
+	exports = append(exports, "DD_SYSTEMDAEMON_INSTALL=true")
+	env := strings.Join(exports, " ")
+	// Retry curl few times
+	cmd := fmt.Sprintf(`for i in {1..5}; do curl -fsSL https://install.datadoghq.com/scripts/install_mac_os.sh -o install-script.sh && break || sleep $((2**$i)); done && for i in {1..3}; do DD_API_KEY=%s %s DD_INSTALL_ONLY=true bash install-script.sh && exit 0 || sleep $((2**$i)); done; exit 1`, apikey, env)
+
+	t.Run("Installing the agent", func(tt *testing.T) {
+		_, err := client.ExecuteWithRetry(cmd)
+		require.NoError(tt, err, "failed to install the agent: ", err)
+	})
+
 }

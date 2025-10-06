@@ -15,11 +15,7 @@ package nvidia
 import (
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
 
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,17 +24,28 @@ import (
 // errUnsupportedDevice is returned when the device does not support the given collector
 var errUnsupportedDevice = errors.New("device does not support the given collector")
 
+// MetricPriority represents the priority level of a metric
+type MetricPriority int
+
+const (
+	// Low priority is the default priority level (0)
+	Low MetricPriority = 0
+	// High priority level (10)
+	High MetricPriority = 10
+)
+
 // CollectorName is the name of the nvml sub-collectors
 type CollectorName string
 
 const (
-	field        CollectorName = "fields"
-	clock        CollectorName = "clocks"
-	device       CollectorName = "device"
-	remappedRows CollectorName = "remapped_rows"
-	samples      CollectorName = "samples"
-	nvlink       CollectorName = "nvlink"
-	gpm          CollectorName = "gpm"
+	// Consolidated collectors
+	stateless CollectorName = "stateless" // Consolidates memory, device, clock, remappedRows
+	sampling  CollectorName = "sampling"  // Consolidates process, samples
+
+	// Specialized collectors (kept separate)
+	field CollectorName = "fields"
+	gpm   CollectorName = "gpm"
+	ebpf  CollectorName = "ebpf"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -46,7 +53,8 @@ type Metric struct {
 	Name     string  // Name holds the name of the metric.
 	Value    float64 // Value holds the value of the metric.
 	Type     metrics.MetricType
-	Priority int // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. 0 (default) is the lowest priority.
+	Priority MetricPriority // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. Low (default) is the lowest priority.
+	Tags     []string       // Tags holds optional metric-specific tags (e.g., process ID).
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
@@ -64,17 +72,17 @@ type Collector interface {
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
 // the tags associated with the device, the collector should use them when generating metrics.
-type subsystemBuilder func(device ddnvml.SafeDevice) (Collector, error)
+type subsystemBuilder func(device ddnvml.Device) (Collector, error)
 
 // factory is a map of all the subsystems that can be used to collect metrics from NVML.
 var factory = map[CollectorName]subsystemBuilder{
-	field:        newFieldsCollector,
-	device:       newDeviceCollector,
-	remappedRows: newRemappedRowsCollector,
-	clock:        newClocksCollector,
-	samples:      newSamplesCollector,
-	nvlink:       newNVLinkCollector,
-	gpm:          newGPMCollector,
+	// Consolidated collectors that combine multiple collector types into single instances
+	stateless: newStatelessCollector, // Consolidates memory, device, clocks, remappedrows
+	sampling:  newSamplingCollector,  // Consolidates process, samples
+
+	// Specialized collectors that remain unchanged (complex or unique logic)
+	field: newFieldsCollector,
+	gpm:   newGPMCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
@@ -84,14 +92,22 @@ type CollectorDependencies struct {
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
-func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
-	return buildCollectors(deps, factory)
+// If spCache is provided, additional system-probe virtual collectors will be created for all devices.
+func BuildCollectors(deps *CollectorDependencies, spCache *SystemProbeCache) ([]Collector, error) {
+	return buildCollectors(deps, factory, spCache)
 }
 
-func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
+func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder, spCache *SystemProbeCache) ([]Collector, error) {
 	var collectors []Collector
 
-	for _, dev := range deps.DeviceCache.All() {
+	// Step 1: Build NVML collectors for physical devices only,
+	// (since most of NVML API doesn't support MIG devices)
+	allPhysicalDevices, err := deps.DeviceCache.AllPhysicalDevices()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all physical devices: %w", err)
+	}
+
+	for _, dev := range allPhysicalDevices {
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
@@ -106,47 +122,18 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 		}
 	}
 
+	// Step 2: Build system-probe virtual collectors for ALL devices (if cache provided)
+	if spCache != nil {
+		log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
+		for _, dev := range allPhysicalDevices {
+			spCollector, err := newEbpfCollector(dev, spCache)
+			if err != nil {
+				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
+				continue
+			}
+			collectors = append(collectors, spCollector)
+		}
+	}
+
 	return collectors, nil
-}
-
-// GetDeviceTagsMapping returns the mapping of tags per GPU device.
-func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Component) map[string][]string {
-	devCount := deviceCache.Count()
-	if devCount == 0 {
-		return nil
-	}
-
-	tagsMapping := make(map[string][]string, devCount)
-
-	for _, dev := range deviceCache.All() {
-		uuid := dev.GetDeviceInfo().UUID
-		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
-		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
-		if err != nil {
-			log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
-		}
-
-		if len(tags) == 0 {
-			// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
-			// add at least the UUID as a tag to distinguish the values.
-			tags = []string{fmt.Sprintf("gpu_uuid:%s", uuid)}
-		}
-
-		tagsMapping[uuid] = tags
-	}
-
-	return tagsMapping
-}
-
-// RemoveDuplicateMetrics removes duplicate metrics from the given list, keeping the highest priority metric.
-func RemoveDuplicateMetrics(metrics []Metric) []Metric {
-	metricsByName := make(map[string]Metric)
-
-	for _, metric := range metrics {
-		if existing, ok := metricsByName[metric.Name]; !ok || existing.Priority < metric.Priority {
-			metricsByName[metric.Name] = metric
-		}
-	}
-
-	return slices.Collect(maps.Values(metricsByName))
 }

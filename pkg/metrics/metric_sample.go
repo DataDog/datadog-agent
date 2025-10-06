@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -37,9 +38,6 @@ var (
 		DistributionType: {},
 	}
 )
-
-// EnrichTagsfn can be used to Enrich tags with origin detection tags.
-type EnrichTagsfn func(tb tagset.TagsAccumulator, origin taggertypes.OriginInfo)
 
 // String returns a string representation of MetricType
 func (m MetricType) String() string {
@@ -81,7 +79,7 @@ type MetricSampleContext interface {
 	// Implementations should call `Append` or `AppendHashed` on the provided accumulators.
 	// Tags from origin detection should be appended to taggerBuffer. Client-provided tags
 	// should be appended to the metricBuffer.
-	GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, fn EnrichTagsfn)
+	GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, tagger tagger.Component)
 
 	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
 	GetMetricType() MetricType
@@ -102,7 +100,7 @@ type MetricSample struct {
 	Tags            []string
 	Host            string
 	SampleRate      float64
-	Timestamp       float64
+	Timestamp       float64 // Seconds since epoch (accepts fractional seconds)
 	FlushFirstValue bool
 	OriginInfo      taggertypes.OriginInfo
 	ListenerID      string
@@ -123,9 +121,9 @@ func (m *MetricSample) GetHost() string {
 }
 
 // GetTags returns the metric sample tags
-func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, fn EnrichTagsfn) {
+func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, tagger tagger.Component) {
 	metricBuffer.Append(m.Tags...)
-	fn(taggerBuffer, m.OriginInfo)
+	tagger.EnrichTags(taggerBuffer, m.OriginInfo)
 }
 
 // GetMetricType implements MetricSampleContext#GetMetricType.

@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // MinimumKernelVersion is the minimum kernel version required by the ebpf program.
@@ -43,6 +43,23 @@ func SkipIfKernelNotSupported(t *testing.T) {
 	if curKernelVersion < MinimumKernelVersion {
 		t.Skipf("Kernel version %v is not supported", curKernelVersion)
 	}
+}
+
+// Semaphore is a semaphore that can be used to limit the number of concurrent
+// operations.
+type Semaphore chan struct{}
+
+// MakeSemaphore creates a new semaphore with a number of slots equal to the
+// number of CPUs.
+func MakeSemaphore() Semaphore {
+	return make(Semaphore, max(runtime.GOMAXPROCS(0), 1))
+}
+
+// Acquire acquires a slot in the semaphore. It returns a function that must be
+// called to release the slot.
+func (s Semaphore) Acquire() (release func()) {
+	s <- struct{}{}
+	return func() { <-s }
 }
 
 // SetupLogging is used to have a consistent logging setup for all tests.
@@ -94,17 +111,14 @@ func GenerateIr(
 	tempDir string,
 	binPath string,
 	cfgName string,
-) (*object.ElfFile, *ir.Program) {
-	binary, err := safeelf.Open(binPath)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, binary.Close()) }()
-
+	options ...irgen.Option,
+) (*object.ElfFileWithDwarf, *ir.Program) {
 	probes := testprogs.MustGetProbeDefinitions(t, cfgName)
 
-	obj, err := object.NewElfObject(binary)
+	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 
-	irp, err := irgen.GenerateIR(1, obj, probes)
+	irp, err := irgen.GenerateIR(1, obj, probes, options...)
 	require.NoError(t, err)
 	require.Empty(t, irp.Issues)
 
@@ -162,14 +176,14 @@ func StartProcess(ctx context.Context, t *testing.T, tempDir string, binPath str
 func AttachBPFProbes(
 	t *testing.T,
 	binPath string,
-	obj *object.ElfFile,
+	obj object.File,
 	pid int,
 	program *loader.Program,
 ) func() {
 	sampleLink, err := link.OpenExecutable(binPath)
 	require.NoError(t, err)
-	textSection, err := object.FindTextSectionHeader(obj.File)
-	require.NoError(t, err)
+	textSection := obj.Section(".text")
+	require.NotNil(t, textSection)
 
 	var allAttached []link.Link
 	for _, attachpoint := range program.Attachpoints {

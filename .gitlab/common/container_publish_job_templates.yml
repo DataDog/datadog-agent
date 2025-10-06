@@ -8,13 +8,12 @@
 
 .docker_publish_job_definition:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   variables:
     <<: *docker_variables
     IMG_VARIABLES: ""
     IMG_SIGNING: ""
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - |
       if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMG_SOURCES" =~ "$SRC_AGENT" || "$IMG_SOURCES" =~ "$SRC_DCA" || "$IMG_SOURCES" =~ "$SRC_CWS_INSTRUMENTATION" || "$IMG_VARIABLES" =~ "$SRC_AGENT" || "$IMG_VARIABLES" =~ "$SRC_DCA" || "$IMG_VARIABLES" =~ "$SRC_CWS_INSTRUMENTATION" ) ]]; then
         export ECR_RELEASE_SUFFIX="-nightly"

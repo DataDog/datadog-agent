@@ -113,7 +113,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 2)
 	assert.Equal(suite.T(), "nginx", changes[0].Spec.Containers[0].Name)
-	require.True(suite.T(), IsPodReady(changes[0]))
+	require.False(suite.T(), IsPodReady(changes[0]))
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherWithInitContainers() {
@@ -389,7 +389,7 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())
 
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json", "")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json", "", "")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.StartTLS()
 	defer os.Remove(kubelet.testingCertificate)

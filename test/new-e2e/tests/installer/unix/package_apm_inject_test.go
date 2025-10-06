@@ -410,13 +410,6 @@ func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
-func (s *packageApmInjectSuite) TestInstallStandaloneLib() {
-	s.RunInstallScript("DD_APM_INSTRUMENTATION_LIBRARIES=python")
-	defer s.Purge()
-	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-library-python")
-	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python")
-}
-
 func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",

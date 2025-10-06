@@ -6,7 +6,7 @@ from collections import OrderedDict
 
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.gitlab_api import get_test_infra_def_version
+from tasks.libs.ciproviders.gitlab_api import get_buildimages_version, get_test_infra_def_version
 from tasks.libs.common.constants import TAG_FOUND_TEMPLATE
 from tasks.libs.common.git import get_default_branch, is_agent6
 from tasks.libs.releasing.documentation import _stringify_config
@@ -40,7 +40,7 @@ UNFREEZE_REPOS = INTERNAL_DEPS_REPOS + [UNFREEZE_REPO_AGENT] + ["datadog-agent-b
 DEFAULT_BRANCHES = {
     "omnibus-ruby": "datadog-5.5.0",
     "datadog-agent": "main",
-    "datadog-agent-buildimages": "main",
+    "datadog-agent-buildimages": get_buildimages_version(),
     "test-infra-definitions": get_test_infra_def_version(),
 }
 DEFAULT_BRANCHES_AGENT6 = {

@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"expvar"
 
-	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/richardartoul/molecule"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -79,58 +78,57 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	return pb.payloads, nil
 }
 
-// MarshalSplitCompressMultiple uses the stream compressor to marshal and
-// compress one sketch list into two sets of payloads.  One set of payloads
-// contains all metrics, and the other contains only those that pass the
-// provided filter function.  This function exists because we need a way to
-// build both payloads in a single pass over the input data, which cannot be
-// iterated over twice.
-func (sl SketchSeriesList) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFunc func(ss *metrics.SketchSeries) bool, logger log.Component) (transaction.BytesPayloads, transaction.BytesPayloads, error) {
+// MarshalSplitCompressPipelines uses the stream compressor to marshal and
+// compress sketch series payloads across multiple pipelines. Each pipeline
+// defines a filter function and destination, enabling selective routing of
+// sketches to different endpoints (e.g., preaggregation vs standard).
+func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines []Pipeline, logger log.Component) (transaction.BytesPayloads, error) {
 	var err error
 
-	bufferContext := marshaler.NewBufferContext()
-	bufferContext2 := marshaler.NewBufferContext()
+	// Create payload builders for each pipeline
+	pbs := make([]*payloadsBuilder, len(pipelines))
+	for i := range pbs {
+		bufferContext := marshaler.NewBufferContext()
+		pb := newPayloadsBuilder(bufferContext, config, strategy, logger)
+		pbs[i] = &pb
 
-	pb := newPayloadsBuilder(bufferContext, config, strategy, logger)
-	pb2 := newPayloadsBuilder(bufferContext2, config, strategy, logger)
-
-	// start things off
-	err = pb.startPayload()
-	if err != nil {
-		return nil, nil, err
-	}
-	err = pb2.startPayload()
-	if err != nil {
-		return nil, nil, err
+		err = pbs[i].startPayload()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	for sl.MoveNext() {
 		ss := sl.Current()
-		err = pb.marshal(ss)
-		if err != nil {
-			return nil, nil, err
-		}
-		if filterFunc(ss) {
-			err = pb2.marshal(ss)
-			if err != nil {
-				return nil, nil, err
+		for i, pipeline := range pipelines {
+			if pipeline.FilterFunc(ss) {
+				err := pbs[i].marshal(ss)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
 
-	err = pb.finishPayload()
-	if err != nil {
-		logger.Debugf("Failed to finish payload with err %v", err)
-		return nil, nil, err
+	for i := range pbs {
+		err := pbs[i].finishPayload()
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	err = pb2.finishPayload()
-	if err != nil {
-		logger.Debugf("Failed to finish payload with err %v", err)
-		return nil, nil, err
+	for i, pipeline := range pipelines {
+		for _, payload := range pbs[i].payloads {
+			payload.Destination = pipeline.Destination
+		}
 	}
 
-	return pb.payloads, pb2.payloads, nil
+	payloads := make([]*transaction.BytesPayload, 0)
+	for _, pb := range pbs {
+		payloads = append(payloads, pb.payloads...)
+	}
+
+	return payloads, nil
 }
 
 func newPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component, logger log.Component) payloadsBuilder {
@@ -416,93 +414,4 @@ func (pb *payloadsBuilder) finishPayload() error {
 	pb.payloads = append(pb.payloads, transaction.NewBytesPayload(payload, pb.pointCount))
 
 	return nil
-}
-
-// Marshal encodes this series list.
-func (sl SketchSeriesList) Marshal() ([]byte, error) {
-	pb := &gogen.SketchPayload{
-		Sketches: make([]gogen.SketchPayload_Sketch, 0),
-	}
-
-	for sl.MoveNext() {
-		ss := sl.Current()
-		dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 0, len(ss.Points))
-
-		for _, p := range ss.Points {
-			b := p.Sketch.Basic
-			k, n := p.Sketch.Cols()
-			dsl = append(dsl, gogen.SketchPayload_Sketch_Dogsketch{
-				Ts:  p.Ts,
-				Cnt: b.Cnt,
-				Min: b.Min,
-				Max: b.Max,
-				Avg: b.Avg,
-				Sum: b.Sum,
-				K:   k,
-				N:   n,
-			})
-		}
-
-		sketch := gogen.SketchPayload_Sketch{
-			Metric:      ss.Name,
-			Host:        ss.Host,
-			Tags:        ss.Tags.UnsafeToReadOnlySliceString(),
-			Dogsketches: dsl,
-		}
-
-		// Add origin mapping to metadata
-		if ss.Source != 0 {
-			sketch.Metadata = &gogen.Metadata{
-				Origin: &gogen.Origin{
-					OriginProduct:  uint32(metricSourceToOriginProduct(ss.Source)),
-					OriginCategory: uint32(metricSourceToOriginCategory(ss.Source)),
-					OriginService:  uint32(metricSourceToOriginService(ss.Source)),
-				},
-			}
-		}
-
-		pb.Sketches = append(pb.Sketches, sketch)
-	}
-	return pb.Marshal()
-}
-
-// SplitPayload breaks the payload into times number of pieces
-func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
-	var sketches SketchSeriesSlice
-	for sl.MoveNext() {
-		ss := sl.Current()
-		sketches = append(sketches, ss)
-	}
-	if len(sketches) == 0 {
-		return []marshaler.AbstractMarshaler{}, nil
-	}
-	return sketches.SplitPayload(times)
-}
-
-//nolint:revive // TODO(AML) Fix revive linter
-type SketchSeriesSlice []*metrics.SketchSeries
-
-// SplitPayload breaks the payload into times number of pieces
-func (sl SketchSeriesSlice) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
-	// Only break it down as much as possible
-	if len(sl) < times {
-		times = len(sl)
-	}
-	splitPayloads := make([]marshaler.AbstractMarshaler, times)
-	batchSize := len(sl) / times
-	n := 0
-	for i := 0; i < times; i++ {
-		var end int
-		// In many cases the batchSize is not perfect
-		// so the last one will be a bit bigger or smaller than the others
-		if i < times-1 {
-			end = n + batchSize
-		} else {
-			end = len(sl)
-		}
-		newSL := sl[n:end]
-		splitPayloads[i] = newSL
-		n += batchSize
-	}
-	return splitPayloads, nil
 }

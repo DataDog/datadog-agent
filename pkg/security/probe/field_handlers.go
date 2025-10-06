@@ -11,6 +11,7 @@ package probe
 import (
 	"cmp"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -115,9 +116,21 @@ func (bfh *BaseFieldHandlers) ResolveIsIPPublic(_ *model.Event, ipCtx *model.IPP
 	return ipCtx.IsPublic
 }
 
-// ResolveHostname resolve the hostname
+// ResolveHostname resolves the hostname
 func (bfh *BaseFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
 	return bfh.hostname
+}
+
+// ResolveSource resolves the source of the event
+func (bfh *BaseFieldHandlers) ResolveSource(ev *model.Event, _ *model.BaseEvent) string {
+	if ev.Source == "" {
+		if ev.IsSnapshotEvent() {
+			ev.Source = "snapshot"
+		} else {
+			ev.Source = "runtime"
+		}
+	}
+	return ev.Source
 }
 
 // ResolveService returns the service tag based on the process context
@@ -137,4 +150,14 @@ func (bfh *BaseFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent
 	}
 
 	return service
+}
+
+// ResolveFileExtension resolves the extension of a file
+func (bfh *BaseFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
+	if f.Extension == "" {
+		if baseName := ev.FieldHandlers.ResolveFileBasename(ev, f); baseName != "" {
+			f.Extension = filepath.Ext(baseName)
+		}
+	}
+	return f.Extension
 }

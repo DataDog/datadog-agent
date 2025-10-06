@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,6 +54,7 @@ const (
 	resourceName      = "resource_name"
 	functionTarget    = "build_function_target"
 	functionSignature = "function_signature_type"
+	cloudRunPrefix    = "gpc.run"
 )
 
 var metadataHelperFunc = GetMetaData
@@ -128,21 +132,40 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 	return tags
 }
 
+// GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
+func (c *CloudRun) GetDefaultLogsSource() string {
+	return CloudRunOrigin
+}
+
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *CloudRun) GetOrigin() string {
 	return CloudRunOrigin
 }
 
-// GetPrefix returns the prefix that we're prefixing all
-// metrics with.
-func (c *CloudRun) GetPrefix() string {
-	return "gcp.run"
+// GetSource returns the metrics source
+func (c *CloudRun) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceGoogleCloudRunEnhanced
 }
 
 // Init is empty for CloudRun
 func (c *CloudRun) Init() error {
 	return nil
+}
+
+// Shutdown emits the shutdown metric for CloudRun
+func (c *CloudRun) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
+	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", cloudRunPrefix), 1.0, c.GetSource(), agent)
+}
+
+// GetStartMetricName returns the metric name for container start (coldstart) events
+func (c *CloudRun) GetStartMetricName() string {
+	return fmt.Sprintf("%s.enhanced.cold_start", cloudRunPrefix)
+}
+
+// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
+func (c *CloudRun) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return false
 }
 
 func isCloudRunService() bool {

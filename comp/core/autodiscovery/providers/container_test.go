@@ -29,7 +29,7 @@ import (
 
 func TestProcessEvents(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -410,19 +410,58 @@ func TestGenerateConfig(t *testing.T) {
 			},
 			containerCollectAll: true,
 		},
+		{
+			name: "check defined for ephemeral container",
+			entity: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Annotations: map[string]string{
+						"ad.datadoghq.com/apache.checks": `{
+							"http_check": {
+								"instances": [
+									{
+										"name": "My service",
+										"url": "http://%%host%%",
+										"timeout": 1
+									}
+								]
+							}
+						}`,
+					},
+				},
+				EphemeralContainers: []workloadmeta.OrchestratorContainer{ // Targeted by the annotation
+					{
+						Name: "apache",
+						ID:   "ephemeral-id",
+					},
+				},
+				Containers: []workloadmeta.OrchestratorContainer{ // Not targeted by the annotation
+					{
+						Name: "nginx",
+						ID:   "non-ephemeral-id",
+					},
+				},
+			},
+			expectedConfigs: []integration.Config{
+				{
+					Name:          "http_check",
+					ADIdentifiers: []string{"docker://ephemeral-id"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					Source:        "container:docker://ephemeral-id",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			overrides := map[string]interface{}{
-				"logs_config.container_collect_all": tt.containerCollectAll,
-			}
-
 			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-				config.MockModule(),
+				fx.Provide(func() config.Component {
+					return config.NewMockWithOverrides(t, map[string]interface{}{
+						"logs_config.container_collect_all": tt.containerCollectAll,
+					})
+				}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Replace(config.MockParams{Overrides: overrides}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 

@@ -20,11 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/util/quantile"
-	"github.com/DataDog/datadog-agent/pkg/util/quantile/summary"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -32,6 +27,12 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile/summary"
 )
 
 func TestIsCumulativeMonotonic(t *testing.T) {
@@ -131,6 +132,7 @@ type metric struct {
 	name      string
 	typ       DataType
 	timestamp uint64
+	interval  int64
 	value     float64
 	tags      []string
 	host      string
@@ -140,6 +142,7 @@ type sketch struct {
 	name      string
 	basic     summary.Summary
 	timestamp uint64
+	interval  int64
 	tags      []string
 	host      string
 }
@@ -155,6 +158,7 @@ func (m *mockTimeSeriesConsumer) ConsumeTimeSeries(
 	dimensions *Dimensions,
 	typ DataType,
 	ts uint64,
+	interval int64,
 	val float64,
 ) {
 	m.metrics = append(m.metrics,
@@ -162,6 +166,7 @@ func (m *mockTimeSeriesConsumer) ConsumeTimeSeries(
 			name:      dimensions.Name(),
 			typ:       typ,
 			timestamp: ts,
+			interval:  interval,
 			value:     val,
 			tags:      dimensions.Tags(),
 			host:      dimensions.Host(),
@@ -965,6 +970,66 @@ func TestMapIntMonotonicReportRateForFirstValue(t *testing.T) {
 		},
 	)
 	assert.Empty(t, rmt.Languages)
+}
+
+func secondsAfterStart(i int) pcommon.Timestamp {
+	return seconds(int(getProcessStartTime()) + 1 + i)
+}
+
+func buildIntPoints(startTs int, deltas []int64) pmetric.NumberDataPointSlice {
+	slice := pmetric.NewNumberDataPointSlice()
+	val := int64(0)
+	for i, delta := range deltas {
+		val += delta
+		point := slice.AppendEmpty()
+		point.SetStartTimestamp(secondsAfterStart(startTs))
+		point.SetTimestamp(secondsAfterStart(i + 1))
+		point.SetIntValue(val)
+	}
+	return slice
+}
+
+// Regression Test: Check initial point drop behavior based on the value of
+// InitialCumulMonoValueMode and whether the metric series started before or after the Agent.
+// Notably, we want to make sure that the "auto" value drops the initial point iff the series
+// started before the metrics translator.
+func TestInitialCumulMonoValueMode(t *testing.T) {
+	ctx := context.Background()
+
+	deltas := []int64{1, 2, 3}
+
+	agentRestartInput := buildIntPoints(-20, deltas)
+	appRestartInput := buildIntPoints(0, deltas)
+
+	var keepOutput []metric
+	for i, delta := range deltas {
+		keepOutput = append(keepOutput, newCount(exampleDims, uint64(secondsAfterStart(i+1)), float64(delta)))
+	}
+	dropOutput := keepOutput[1:]
+
+	type testCase struct {
+		name   string
+		mode   InitialCumulMonoValueMode
+		input  pmetric.NumberDataPointSlice
+		output []metric
+	}
+	testCases := []testCase{
+		{"auto/agent-restart", InitialCumulMonoValueModeAuto, agentRestartInput, dropOutput},
+		{"auto/app-restart", InitialCumulMonoValueModeAuto, appRestartInput, keepOutput},
+		{"drop/agent-restart", InitialCumulMonoValueModeDrop, agentRestartInput, dropOutput},
+		{"drop/app-restart", InitialCumulMonoValueModeDrop, appRestartInput, dropOutput},
+		{"keep/agent-restart", InitialCumulMonoValueModeKeep, agentRestartInput, keepOutput},
+		{"keep/app-restart", InitialCumulMonoValueModeKeep, appRestartInput, keepOutput},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tr := newTranslator(t, zap.NewNop())
+			tr.cfg.InitialCumulMonoValueMode = tc.mode
+			consumer := mockFullConsumer{}
+			tr.mapNumberMonotonicMetrics(ctx, &consumer, exampleDims, tc.input)
+			assert.Equal(t, tc.output, consumer.metrics)
+		})
+	}
 }
 
 func TestMapRuntimeMetricsHasMapping(t *testing.T) {
@@ -1998,12 +2063,13 @@ type mockFullConsumer struct {
 	sketches []sketch
 }
 
-func (c *mockFullConsumer) ConsumeSketch(_ context.Context, dimensions *Dimensions, ts uint64, sk *quantile.Sketch) {
+func (c *mockFullConsumer) ConsumeSketch(_ context.Context, dimensions *Dimensions, ts uint64, interval int64, sk *quantile.Sketch) {
 	c.sketches = append(c.sketches,
 		sketch{
 			name:      dimensions.Name(),
 			basic:     sk.Basic,
 			timestamp: ts,
+			interval:  interval,
 			tags:      dimensions.Tags(),
 			host:      dimensions.Host(),
 		},
@@ -2279,4 +2345,56 @@ var statsPayloads = []*pb.ClientStatsPayload{
 			},
 		},
 	},
+}
+
+func TestInferInterval(t *testing.T) {
+	tests := []struct {
+		name        string
+		startTs, ts uint64
+		expected    int64
+	}{
+		{
+			name:     "exact difference",
+			startTs:  1e9,
+			ts:       11e9,
+			expected: 10,
+		},
+		{
+			name:     "under within tolerance",
+			startTs:  1e9,
+			ts:       11e9 - 30e6,
+			expected: 10,
+		},
+		{
+			name:     "over within tolerance",
+			startTs:  1e9,
+			ts:       11e9 + 30e6,
+			expected: 10,
+		},
+		{
+			name:     "outside tolerance",
+			startTs:  1e9,
+			ts:       11e9 + 50e7,
+			expected: 0,
+		},
+		{
+			name:     "no starttimestamp",
+			startTs:  0,
+			ts:       11e9,
+			expected: 0,
+		},
+		{
+			name:     "malformed data",
+			startTs:  710000000,
+			ts:       0,
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := inferDeltaInterval(tt.startTs, tt.ts)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
 }

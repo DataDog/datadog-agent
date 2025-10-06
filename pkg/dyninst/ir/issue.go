@@ -7,8 +7,8 @@ package ir
 
 // ProbeIssue is an issue that was encountered while processing a probe.
 type ProbeIssue struct {
-	ProbeDefinition
-	Issue
+	ProbeDefinition `json:"probe_definition"`
+	Issue           `json:"issue"`
 }
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=IssueKind -trimprefix=IssueKind
@@ -34,6 +34,9 @@ const (
 	// IssueKindInvalidDWARF is an issue that was encountered while processing
 	// a probe definition that uses an invalid DWARF.
 	IssueKindInvalidDWARF
+	// IssueKindDisassemblyFailed is an issue that was encountered while
+	// disassembling an instruction.
+	IssueKindDisassemblyFailed
 )
 
 // Issue is an issue that was encountered while processing a probe.

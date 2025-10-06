@@ -15,6 +15,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -213,7 +214,7 @@ func (at *ActivityTree) AppendChild(node *ProcessNode) {
 }
 
 // AppendImageTag appends the given image tag
-func (at *ActivityTree) AppendImageTag(_ string) {
+func (at *ActivityTree) AppendImageTag(_ string, _ time.Time) {
 }
 
 // GetParent returns nil for the ActivityTree
@@ -393,7 +394,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
 	at.Stats.counts[event.GetEventType()].processedCount.Inc()
-
+	node.AppendImageTag(imageTag, event.ResolveEventTime())
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.ExecEventType:
@@ -412,6 +413,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertSyscalls(event, imageTag, at.SyscallsMask, at.Stats, dryRun), nil
 	case model.NetworkFlowMonitorEventType:
 		return node.InsertNetworkFlowMonitorEvent(event, imageTag, generationType, at.Stats, dryRun), nil
+	case model.CapabilitiesEventType:
+		return node.InsertCapabilitiesUsageEvent(event, imageTag, at.Stats, dryRun), nil
 	case model.ExitEventType:
 		// Update the exit time of the process (this is purely informative, do not rely on timestamps to detect
 		// execed children)
@@ -842,9 +845,9 @@ func (at *ActivityTree) SendStats(client statsd.ClientInterface) error {
 }
 
 // TagAllNodes tags all the activity tree's nodes with the given image tag
-func (at *ActivityTree) TagAllNodes(imageTag string) {
+func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	for _, rootNode := range at.ProcessNodes {
-		rootNode.TagAllNodes(imageTag)
+		rootNode.TagAllNodes(imageTag, timestamp)
 	}
 }
 
@@ -954,4 +957,29 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 		}
 	})
 	return syscalls
+}
+
+// EvictUnusedNodes evicts all nodes that haven't been touched since the given timestamp
+// and returns the total number of nodes evicted
+func (at *ActivityTree) EvictUnusedNodes(before time.Time) int {
+	totalEvicted := 0
+
+	// Iterate through all process nodes and evict unused nodes
+	for i := len(at.ProcessNodes) - 1; i >= 0; i-- {
+		node := at.ProcessNodes[i]
+		if node == nil {
+			continue
+		}
+		evicted := node.EvictUnusedNodes(before)
+		totalEvicted += evicted
+
+		// If the process node itself has no image tags left after eviction, remove it entirely
+		if len(node.Seen) == 0 {
+			// Remove the node
+			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
+			totalEvicted++
+		}
+	}
+
+	return totalEvicted
 }

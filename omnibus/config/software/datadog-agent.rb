@@ -24,6 +24,8 @@ unless do_repackage?
   dependency "libjemalloc" if linux_target?
 
   dependency 'datadog-agent-dependencies'
+
+  dependency "installer" if linux_target? and !heroku_target?
 end
 
 source path: '..',
@@ -92,21 +94,21 @@ build do
     if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
-    command "dda inv -- -e rtloader.clean"
-    command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\" \\\"-DCMAKE_BUILD_TYPE=RelWithDebInfo\\\"\"", :env => env
+    command "dda inv -- -e rtloader.clean", :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\" \\\"-DCMAKE_BUILD_TYPE=RelWithDebInfo\\\"\"", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
-    command "dda inv -- -e systray.build --major-version #{major_version_arg}", env: env
+    command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e systray.build --major-version #{major_version_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
-    command "dda inv -- -e rtloader.clean"
-    command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
-    command "dda inv -- -e rtloader.install"
+    command "dda inv -- -e rtloader.clean", :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e rtloader.install", :live_stream => Omnibus.logger.live_stream(:info)
 
     include_sds = ""
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env
+    command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   if osx_target?
@@ -132,11 +134,22 @@ build do
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
+    mkdir "#{install_dir}/bin/scripts/"
+    copy "#{project_dir}/omnibus/windows-scripts/iis-instrumentation.bat", "#{install_dir}/bin/scripts/"
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
   platform = windows_arch_i386? ? "x86" : "x64"
-  command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+  command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+
+  if linux_target? and !heroku_target?
+      move "#{install_dir}/bin/installer/installer", "#{install_dir}/embedded/bin"
+  end
+
+  unless windows_target?
+    command "dda inv -- -e loader.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
+  end
 
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
@@ -146,7 +159,7 @@ build do
 
   # Process agent
   if not heroku_target?
-    command "dda inv -- -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    command "dda inv -- -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   if windows_target?
@@ -158,10 +171,10 @@ build do
   # System-probe
   if sysprobe_enabled? || osx_target? || (windows_target? && do_windows_sysprobe != "")
     if linux_target?
-      command "dda inv -- -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env
+      command "dda inv -- -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
       command "!(objdump -p ./bin/system-probe/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
     else
-      command "dda inv -- -e system-probe.build #{fips_args}", env: env
+      command "dda inv -- -e system-probe.build #{fips_args}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     end
 
     if windows_target?
@@ -205,7 +218,7 @@ build do
   # Security agent
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
   if secagent_support
-    command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
+    command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
     else
@@ -217,7 +230,7 @@ build do
   # CWS Instrumentation
   cws_inst_support = !heroku_target? && linux_target?
   if cws_inst_support
-    command "dda inv -- -e cws-instrumentation.build #{fips_args}", :env => env
+    command "dda inv -- -e cws-instrumentation.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
@@ -256,7 +269,8 @@ build do
     systray_build_dir = "#{project_dir}/comp/core/gui/guiimpl/systray"
     # Target OSX 10.10 (it brings significant changes to Cocoa and Foundation APIs, and older versions of OSX are EOL'ed)
     # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
-    command 'swiftc -O -swift-version "5" -target "x86_64-apple-macosx10.10" -Xlinker \'-rpath\' -Xlinker \'@executable_path/../Frameworks\' Sources/*.swift -o gui', cwd: systray_build_dir
+    target = arm_target? ? 'arm64-apple-macos11.0' : 'x86_64-apple-macosx10.10'
+    command "swiftc -O -swift-version \"5\" -target \"#{target}\" -Xlinker '-rpath' -Xlinker '@executable_path/../Frameworks' Sources/*.swift -o gui", cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
   end
@@ -265,6 +279,11 @@ build do
   if linux_target?
     command "dda inv -- agent.generate-config --build-type application-monitoring --output-file ./bin/agent/dist/application_monitoring.yaml", :env => env
     move 'bin/agent/dist/application_monitoring.yaml', "#{conf_dir}/application_monitoring.yaml.example"
+  end
+
+  # Allows the agent to be installed in a custom location
+  if linux_target?
+    command "touch #{install_dir}/.install_root"
   end
 
   # TODO: move this to omnibus-ruby::health-check.rb

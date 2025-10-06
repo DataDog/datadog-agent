@@ -7,16 +7,26 @@
 
 package rcscrape
 
-import "github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+import "github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 
 // GetTrackedProcesses returns the set of processes that the scraper is
 // tracking. This is a utility function for testing.
-func (s *Scraper) GetTrackedProcesses() []actuator.ProcessID {
+func (s *Scraper) GetTrackedProcesses() []procmon.ProcessID {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var processes []actuator.ProcessID
-	for _, p := range s.mu.debouncer.processes {
-		processes = append(processes, p.processID)
+	var processes []procmon.ProcessID
+	for pid := range s.mu.processes {
+		processes = append(processes, pid)
 	}
 	return processes
 }
+
+// NewScraperWithIRGenerator creates a new Scraper with a custom IR generator
+// for testing.
+func NewScraperWithIRGenerator[A Actuator[AT], AT ActuatorTenant](
+	a A, d Dispatcher, loader Loader, irGenerator IRGenerator,
+) *Scraper {
+	return newScraper(a, d, loader, irGenerator)
+}
+
+type IRGeneratorImpl = irGenerator

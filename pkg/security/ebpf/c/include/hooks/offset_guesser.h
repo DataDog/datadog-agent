@@ -14,12 +14,11 @@ int hook_get_pid_task_numbers(ctx_t *ctx) {
     u64 pid_expected;
     LOAD_CONSTANT("pid_expected", pid_expected);
 
-    u32 offset = 0, success = 0;
+    u32 success = 0;
+    u32 root_nr = 0;
 
 #pragma unroll
-    for (int i = MIN_PID_OFFSET; i != MAX_PID_OFFSET; i++) {
-        u32 root_nr = 0;
-
+    for (u32 offset = MIN_PID_OFFSET; offset < MAX_PID_OFFSET; offset += sizeof(root_nr)) {
         int read_ok = bpf_probe_read(&root_nr, sizeof(root_nr), (void *)pid + offset);
         if (!read_ok && root_nr == pid_expected) {
             // found it twice, thus error
@@ -28,8 +27,6 @@ int hook_get_pid_task_numbers(ctx_t *ctx) {
             }
             success = offset;
         }
-
-        offset++;
     }
 
     if (success) {
