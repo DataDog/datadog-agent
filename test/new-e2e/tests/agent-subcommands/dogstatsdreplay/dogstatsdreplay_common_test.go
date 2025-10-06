@@ -50,8 +50,6 @@ func (v *baseDogstatsdReplaySuite) TestReplayWithTagEnrichment() {
 		metrics, err := v.Env().FakeIntake.Client().FilterMetrics("custom.metric")
 		assert.NoError(t, err)
 		assert.NotEmpty(t, metrics, "Expected custom.metric metric to be received")
-
-		assert.Greater(t, len(metrics), 0, "Expected to have received a custom metric")
 		foundMetric := metrics[0]
 		tagString := strings.Join(foundMetric.Tags, ",")
 
