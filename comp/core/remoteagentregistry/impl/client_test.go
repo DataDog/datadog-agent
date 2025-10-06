@@ -191,10 +191,8 @@ func TestRemoteAgentServiceDiscovery(t *testing.T) {
 	// Set a short timeout for testing
 	config.SetWithoutSource("remote_agent_registry.query_timeout", 1*time.Second)
 
-	// Agent without reflection service
-	agentWithoutReflectionService := buildRemoteAgent(t, ipcComp, "without-reflection-service", "Without Reflection Service", "1111",
-		withoutReflectionService(),
-	)
+	// Agent without any services (empty services list)
+	agentWithoutServices := buildRemoteAgent(t, ipcComp, "without-services", "Without Services", "1111")
 	// Agent without status provider
 	agentWithoutStatusProvider := buildRemoteAgent(t, ipcComp, "without-status-provider", "Without Status Provider", "2222")
 	// Agent with status provider
@@ -212,7 +210,7 @@ func TestRemoteAgentServiceDiscovery(t *testing.T) {
 		expectedServices []remoteAgentServiceName
 		shouldFail       bool
 	}{
-		{name: "without-reflection-service", agent: agentWithoutReflectionService, expectedServices: nil, shouldFail: true},
+		{name: "without-services", agent: agentWithoutServices, expectedServices: []remoteAgentServiceName{}, shouldFail: false},
 		{name: "without-status-provider", agent: agentWithoutStatusProvider, expectedServices: []remoteAgentServiceName{}, shouldFail: false},
 		{name: "with-status-provider", agent: agentWithStatusProvider, expectedServices: []remoteAgentServiceName{StatusServiceName}, shouldFail: false},
 	}

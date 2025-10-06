@@ -222,6 +222,7 @@ func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRem
 		AgentFlavor:      in.Flavor,
 		AgentDisplayName: in.DisplayName,
 		APIEndpointURI:   in.ApiEndpointUri,
+		Services:         in.Services,
 	}
 	sessionID, recommendedRefreshIntervalSecs, err := s.remoteAgentRegistry.RegisterRemoteAgent(registration)
 	if err != nil {

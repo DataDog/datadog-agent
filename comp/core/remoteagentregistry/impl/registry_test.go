@@ -18,7 +18,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/reflection"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -152,8 +151,7 @@ type testRemoteAgentServer struct {
 	fakeSessionID       string // if overrideSessionID is true, send this instead of the correct session ID
 
 	// gRPC embedded
-	server                          *grpc.Server
-	shouldRegisterReflectionService bool // if false, don't register reflection service
+	server *grpc.Server
 	pb.UnimplementedStatusProviderServer
 	pb.UnimplementedFlareProviderServer
 	pb.UnimplementedTelemetryProviderServer
@@ -199,6 +197,8 @@ func WithFlareProvider(flareFiles map[string][]byte) func(*grpc.Server, *testRem
 	return func(s *grpc.Server, tras *testRemoteAgentServer) {
 		tras.flareFiles = flareFiles
 		pb.RegisterFlareProviderServer(s, tras)
+		// Add flare service to the registration data
+		tras.RegistrationData.Services = append(tras.RegistrationData.Services, "datadog.remoteagent.flare.v1.FlareProvider")
 	}
 }
 func withStatusProvider(statusMain map[string]string, statusNamed map[string]map[string]string) func(*grpc.Server, *testRemoteAgentServer) {
@@ -206,12 +206,16 @@ func withStatusProvider(statusMain map[string]string, statusNamed map[string]map
 		tras.statusMain = statusMain
 		tras.statusNamed = statusNamed
 		pb.RegisterStatusProviderServer(s, tras)
+		// Add status service to the registration data
+		tras.RegistrationData.Services = append(tras.RegistrationData.Services, "datadog.remoteagent.status.v1.StatusProvider")
 	}
 }
 func withTelemetryProvider(promText string) func(*grpc.Server, *testRemoteAgentServer) {
 	return func(s *grpc.Server, tras *testRemoteAgentServer) {
 		tras.promText = promText
 		pb.RegisterTelemetryProviderServer(s, tras)
+		// Add telemetry service to the registration data
+		tras.RegistrationData.Services = append(tras.RegistrationData.Services, "datadog.remoteagent.telemetry.v1.TelemetryProvider")
 	}
 }
 
@@ -228,21 +232,14 @@ func withFakeSessionID(fakeSessionID string) func(*grpc.Server, *testRemoteAgent
 	}
 }
 
-func withoutReflectionService() func(*grpc.Server, *testRemoteAgentServer) {
-	return func(_ *grpc.Server, tras *testRemoteAgentServer) {
-		tras.shouldRegisterReflectionService = false
-	}
-}
-
 func buildRemoteAgent(t *testing.T, ipcComp ipc.Component, agentFlavor string, agentName string, agentPID string, mockProviders ...mockProvider) *testRemoteAgentServer {
 	testServer := &testRemoteAgentServer{
 		RegistrationData: remoteagent.RegistrationData{
 			AgentFlavor:      agentFlavor,
 			AgentPID:         agentPID,
 			AgentDisplayName: agentName,
+			Services:         []string{}, // Will be populated by mock providers
 		},
-		// By default, register reflection service
-		shouldRegisterReflectionService: true,
 	}
 
 	// Make sure we can listen on the intended address.
@@ -288,11 +285,6 @@ func buildRemoteAgent(t *testing.T, ipcComp ipc.Component, agentFlavor string, a
 	server := grpc.NewServer(serverOpts...)
 	for _, provider := range mockProviders {
 		provider(server, testServer)
-	}
-
-	// Register reflection service on gRPC server.
-	if testServer.shouldRegisterReflectionService {
-		reflection.RegisterV1(server)
 	}
 
 	go func() {

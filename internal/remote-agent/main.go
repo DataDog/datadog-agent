@@ -21,11 +21,19 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/reflection"
 
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
+
+// StatusServiceName is the service name for remote agent status provider
+const StatusServiceName = "datadog.remoteagent.status.v1.StatusProvider"
+
+// FlareServiceName is the service name for remote agent flare provider
+const FlareServiceName = "datadog.remoteagent.flare.v1.FlareProvider"
+
+// TelemetryServiceName is the service name for remote agent telemetry provider
+const TelemetryServiceName = "datadog.remoteagent.telemetry.v1.TelemetryProvider"
 
 type remoteAgentServer struct {
 	started time.Time
@@ -96,6 +104,7 @@ func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName
 		Flavor:         agentFlavor,
 		DisplayName:    displayName,
 		ApiEndpointUri: listenAddr,
+		Services:       []string{StatusServiceName, FlareServiceName, TelemetryServiceName},
 	}
 
 	log.Printf("Registering with Core Agent at %s...", agentIpcAddress)
@@ -251,9 +260,6 @@ func buildAndSpawnGrpcServer(listenAddr string, server *remoteAgentServer, authT
 	pbcore.RegisterStatusProviderServer(grpcServer, server)
 	pbcore.RegisterFlareProviderServer(grpcServer, server)
 	pbcore.RegisterTelemetryProviderServer(grpcServer, server)
-
-	// Register reflection service on gRPC server.
-	reflection.RegisterV1(grpcServer)
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {

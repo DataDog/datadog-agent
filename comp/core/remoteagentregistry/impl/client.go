@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/reflection/grpc_reflection_v1"
 
 	"github.com/google/uuid"
 
@@ -30,13 +29,13 @@ import (
 type remoteAgentServiceName = string
 
 // StatusServiceName is the service name for remote agent status provider
-const StatusServiceName = "datadog.remoteagent.StatusProvider"
+const StatusServiceName = "datadog.remoteagent.status.v1.StatusProvider"
 
 // FlareServiceName is the service name for remote agent flare provider
-const FlareServiceName = "datadog.remoteagent.FlareProvider"
+const FlareServiceName = "datadog.remoteagent.flare.v1.FlareProvider"
 
 // TelemetryServiceName is the service name for remote agent telemetry provider
-const TelemetryServiceName = "datadog.remoteagent.TelemetryProvider"
+const TelemetryServiceName = "datadog.remoteagent.telemetry.v1.TelemetryProvider"
 
 type remoteAgentClient struct {
 	// agent variables
@@ -46,7 +45,6 @@ type remoteAgentClient struct {
 	unhealthy bool // marks agent for removal during next cleanup cycle
 
 	// gRPC relative
-	grpc_reflection_v1.ServerReflectionClient
 	pb.FlareProviderClient
 	pb.StatusProviderClient
 	pb.TelemetryProviderClient
@@ -75,59 +73,15 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 			SessionID:            uuid.New().String(),
 		},
 		// gRPC relative
-		ServerReflectionClient:  grpc_reflection_v1.NewServerReflectionClient(conn),
 		conn:                    conn,
 		StatusProviderClient:    pb.NewStatusProviderClient(conn),
 		FlareProviderClient:     pb.NewFlareProviderClient(conn),
 		TelemetryProviderClient: pb.NewTelemetryProviderClient(conn),
 	}
 
-	// retrieve remote Agent exposed services via gRPC reflection
-	services, err := client.fetchSupportedServices(ra.remoteAgentServices)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create remoteAgent client: %w", err)
-	}
-	client.services = services
+	client.services = registration.Services
 
 	return client, nil
-}
-
-func (rac *remoteAgentClient) fetchSupportedServices(remoteAgentServices map[remoteAgentServiceName]struct{}) ([]remoteAgentServiceName, error) {
-	// Initialize the reflection
-	streamCtx, streamCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer streamCancel()
-	stream, err := rac.ServerReflectionInfo(streamCtx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create reflection stream: %v", err)
-	}
-
-	// Discover services using the stored stream (always initialized in constructor)
-	err = stream.Send(&grpc_reflection_v1.ServerReflectionRequest{
-		MessageRequest: &grpc_reflection_v1.ServerReflectionRequest_ListServices{},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("unable to send reflection request: %v", err)
-	}
-
-	resp, err := stream.Recv()
-	if err != nil {
-		return nil, fmt.Errorf("unable to receive reflection response: %v", err)
-	}
-
-	listServicesResp := resp.GetListServicesResponse()
-	if listServicesResp == nil {
-		return nil, fmt.Errorf("invalid reflection response: expected ListServicesResponse")
-	}
-
-	availableServices := []remoteAgentServiceName{}
-
-	for _, service := range listServicesResp.Service {
-		if _, ok := remoteAgentServices[service.Name]; ok {
-			availableServices = append(availableServices, service.Name)
-		}
-	}
-
-	return availableServices, nil
 }
 
 // validateSessionID extracts and validates the session_id from gRPC response metadata
@@ -159,7 +113,7 @@ func (rac *remoteAgentClient) validateSessionID(responseMetadata metadata.MD) er
 //
 // Parameters:
 //   - registry:     The remote agent registry containing all known agents.
-//   - service:  The service to query (e.g., statusProvider, flareProvider).
+//   - service:  The full service name (e.g., datadog.remoteagent.status.v1.StatusProvider).
 //   - grpcCall:   Function to perform the gRPC call for a given agent.
 //   - resultProcessor:    Function to transform the gRPC response (or error) into the desired output type.
 //

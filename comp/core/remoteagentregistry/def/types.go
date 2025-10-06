@@ -44,4 +44,5 @@ type RegistrationData struct {
 	AgentDisplayName string
 	AgentPID         string
 	APIEndpointURI   string
+	Services         []string
 }
