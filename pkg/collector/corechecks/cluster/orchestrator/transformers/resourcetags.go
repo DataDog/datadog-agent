@@ -10,6 +10,8 @@ package transformers
 
 import (
 	"fmt"
+	"strings"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -60,14 +62,23 @@ func RetrieveMetadataTags(
 	for name, value := range labels {
 		if tagKey, ok := labelsAsTags[name]; ok {
 			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, value))
+		} else if templateKey, ok := labelsAsTags["*"]; ok {
+			tags = append(tags, replaceTemplate(templateKey, "%%label%%", name, value))
 		}
 	}
 
 	for name, value := range annotations {
 		if tagKey, ok := annotationsAsTags[name]; ok {
 			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, value))
+		} else if templateKey, ok := annotationsAsTags["*"]; ok {
+			tags = append(tags, replaceTemplate(templateKey, "%%annotation%%", name, value))
 		}
 	}
 
 	return tags
+}
+
+func replaceTemplate(s string, old string, new string, value string) string {
+	replacedKey := strings.ReplaceAll(s, old, new)
+	return fmt.Sprintf("%s:%s", replacedKey, value)
 }

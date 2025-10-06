@@ -111,6 +111,67 @@ func TestRetrieveMetadataTags(t *testing.T) {
 			annotationsAsTags: map[string]string{"annotation-key": "annotation_key"},
 			want:              []string{"application:my-app"},
 		},
+		{
+			name: "has only wildcards with no prefix",
+			labels: map[string]string{
+				"app":  "my-app",
+				"team": "my-team",
+			},
+			annotations: map[string]string{
+				"random-annotation":  "value",
+				"another-annotation": "another-value",
+			},
+			labelsAsTags:      map[string]string{"*": "%%label%%"},
+			annotationsAsTags: map[string]string{"*": "%%annotation%%"},
+			want: []string{"app:my-app", "team:my-team",
+				"random-annotation:value", "another-annotation:another-value"},
+		},
+		{
+			name: "has wildcards with prefix",
+			labels: map[string]string{
+				"app":  "my-app",
+				"team": "my-team",
+			},
+			annotations: map[string]string{
+				"random-annotation":  "value",
+				"another-annotation": "another-value",
+			},
+			labelsAsTags:      map[string]string{"*": "prefix_%%label%%"},
+			annotationsAsTags: map[string]string{"*": "prefix_%%annotation%%"},
+			want: []string{"prefix_app:my-app", "prefix_team:my-team",
+				"prefix_random-annotation:value", "prefix_another-annotation:another-value"},
+		},
+		{
+			name: "has wildcards with prefix",
+			labels: map[string]string{
+				"app":  "my-app",
+				"team": "my-team",
+			},
+			annotations: map[string]string{
+				"random-annotation":  "value",
+				"another-annotation": "another-value",
+			},
+			labelsAsTags:      map[string]string{"*": "prefix_%%label%%"},
+			annotationsAsTags: map[string]string{"*": "prefix_%%annotation%%"},
+			want: []string{"prefix_app:my-app", "prefix_team:my-team",
+				"prefix_random-annotation:value", "prefix_another-annotation:another-value"},
+		},
+		{
+			name: "has wildcards with prefix and specific tag mapping",
+			labels: map[string]string{
+				"app":  "my-app",
+				"team": "my-team",
+			},
+			annotations: map[string]string{
+				"random-annotation":  "value",
+				"another-annotation": "another-value",
+			},
+
+			labelsAsTags:      map[string]string{"*": "prefix_%%label%%", "app": "application"}, // expecting that app maps to application and not prefix_app
+			annotationsAsTags: map[string]string{"*": "prefix_%%annotation%%"},
+			want: []string{"application:my-app", "prefix_team:my-team",
+				"prefix_random-annotation:value", "prefix_another-annotation:another-value"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
