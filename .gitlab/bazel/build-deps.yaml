@@ -8,7 +8,15 @@
 bazel:build-deps:linux-amd64:
   extends: [ .bazel:build-deps, .linux_x64 ]
   tags: ["linux-persistent:amd64", "specific:true"]
-  cache: []
+  cache:
+    - key:
+        prefix: bazel-$CI_RUNNER_DESCRIPTION
+        files: [ .bazelversion ]
+      paths:
+        - .cache/bazelisk
+        - .cache/bazel/install
+      policy: pull-push
+      when: on_success
   script:
   # Wrapper in tools/bazel expects these directories to exist
   # TODO(agent-build): make the wrapper to create these directories
