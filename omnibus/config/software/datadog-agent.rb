@@ -146,6 +146,11 @@ build do
       move "#{install_dir}/bin/installer/installer", "#{install_dir}/embedded/bin"
   end
 
+  unless windows_target?
+    command "dda inv -- -e loader.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
+  end
+
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
   else
