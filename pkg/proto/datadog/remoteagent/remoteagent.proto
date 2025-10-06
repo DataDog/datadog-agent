@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package datadog.remoteagent;
+package datadog.remoteagent.v1;
 
 option go_package = "pkg/proto/pbgo/core"; // golang
 
@@ -24,6 +24,10 @@ message RegisterRemoteAgentRequest {
   //     Currently supported transport layers: ["tcp"]
   // MUST be secured with TLS if using TCP, and SHOULD present a valid certificate where possible.
   string api_endpoint_uri = 4;
+
+  // List of services that the remote agent supports.
+  // service name MUST be the full name of the service, such as "datadog.remoteagent.status.v1.StatusProvider".
+  repeated string services = 5;
 }
 
 message RegisterRemoteAgentResponse {

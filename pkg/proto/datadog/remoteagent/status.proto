@@ -1,12 +1,12 @@
 syntax = "proto3";
 
-package datadog.remoteagent;
+package datadog.remoteagent.status.v1;
 option go_package = "pkg/proto/pbgo/core"; // golang
 
 
 service StatusProvider {
   // Gets the status details of a remote agent.
-  rpc GetStatusDetails(datadog.remoteagent.GetStatusDetailsRequest) returns (datadog.remoteagent.GetStatusDetailsResponse);
+  rpc GetStatusDetails(datadog.remoteagent.status.v1.GetStatusDetailsRequest) returns (datadog.remoteagent.status.v1.GetStatusDetailsResponse);
 }
 
 message StatusSection {

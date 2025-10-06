@@ -167,21 +167,21 @@ var File_datadog_remoteagent_status_proto protoreflect.FileDescriptor
 
 const file_datadog_remoteagent_status_proto_rawDesc = "" +
 	"\n" +
-	" datadog/remoteagent/status.proto\x12\x13datadog.remoteagent\"\x92\x01\n" +
-	"\rStatusSection\x12F\n" +
-	"\x06fields\x18\x01 \x03(\v2..datadog.remoteagent.StatusSection.FieldsEntryR\x06fields\x1a9\n" +
+	" datadog/remoteagent/status.proto\x12\x1ddatadog.remoteagent.status.v1\"\x9c\x01\n" +
+	"\rStatusSection\x12P\n" +
+	"\x06fields\x18\x01 \x03(\v28.datadog.remoteagent.status.v1.StatusSection.FieldsEntryR\x06fields\x1a9\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x19\n" +
-	"\x17GetStatusDetailsRequest\"\xb0\x02\n" +
-	"\x18GetStatusDetailsResponse\x12E\n" +
-	"\fmain_section\x18\x01 \x01(\v2\".datadog.remoteagent.StatusSectionR\vmainSection\x12g\n" +
-	"\x0enamed_sections\x18\x02 \x03(\v2@.datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntryR\rnamedSections\x1ad\n" +
+	"\x17GetStatusDetailsRequest\"\xce\x02\n" +
+	"\x18GetStatusDetailsResponse\x12O\n" +
+	"\fmain_section\x18\x01 \x01(\v2,.datadog.remoteagent.status.v1.StatusSectionR\vmainSection\x12q\n" +
+	"\x0enamed_sections\x18\x02 \x03(\v2J.datadog.remoteagent.status.v1.GetStatusDetailsResponse.NamedSectionsEntryR\rnamedSections\x1an\n" +
 	"\x12NamedSectionsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x128\n" +
-	"\x05value\x18\x02 \x01(\v2\".datadog.remoteagent.StatusSectionR\x05value:\x028\x012\x81\x01\n" +
-	"\x0eStatusProvider\x12o\n" +
-	"\x10GetStatusDetails\x12,.datadog.remoteagent.GetStatusDetailsRequest\x1a-.datadog.remoteagent.GetStatusDetailsResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\x03key\x18\x01 \x01(\tR\x03key\x12B\n" +
+	"\x05value\x18\x02 \x01(\v2,.datadog.remoteagent.status.v1.StatusSectionR\x05value:\x028\x012\x96\x01\n" +
+	"\x0eStatusProvider\x12\x83\x01\n" +
+	"\x10GetStatusDetails\x126.datadog.remoteagent.status.v1.GetStatusDetailsRequest\x1a7.datadog.remoteagent.status.v1.GetStatusDetailsResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var (
 	file_datadog_remoteagent_status_proto_rawDescOnce sync.Once
@@ -197,19 +197,19 @@ func file_datadog_remoteagent_status_proto_rawDescGZIP() []byte {
 
 var file_datadog_remoteagent_status_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_datadog_remoteagent_status_proto_goTypes = []any{
-	(*StatusSection)(nil),            // 0: datadog.remoteagent.StatusSection
-	(*GetStatusDetailsRequest)(nil),  // 1: datadog.remoteagent.GetStatusDetailsRequest
-	(*GetStatusDetailsResponse)(nil), // 2: datadog.remoteagent.GetStatusDetailsResponse
-	nil,                              // 3: datadog.remoteagent.StatusSection.FieldsEntry
-	nil,                              // 4: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry
+	(*StatusSection)(nil),            // 0: datadog.remoteagent.status.v1.StatusSection
+	(*GetStatusDetailsRequest)(nil),  // 1: datadog.remoteagent.status.v1.GetStatusDetailsRequest
+	(*GetStatusDetailsResponse)(nil), // 2: datadog.remoteagent.status.v1.GetStatusDetailsResponse
+	nil,                              // 3: datadog.remoteagent.status.v1.StatusSection.FieldsEntry
+	nil,                              // 4: datadog.remoteagent.status.v1.GetStatusDetailsResponse.NamedSectionsEntry
 }
 var file_datadog_remoteagent_status_proto_depIdxs = []int32{
-	3, // 0: datadog.remoteagent.StatusSection.fields:type_name -> datadog.remoteagent.StatusSection.FieldsEntry
-	0, // 1: datadog.remoteagent.GetStatusDetailsResponse.main_section:type_name -> datadog.remoteagent.StatusSection
-	4, // 2: datadog.remoteagent.GetStatusDetailsResponse.named_sections:type_name -> datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry
-	0, // 3: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry.value:type_name -> datadog.remoteagent.StatusSection
-	1, // 4: datadog.remoteagent.StatusProvider.GetStatusDetails:input_type -> datadog.remoteagent.GetStatusDetailsRequest
-	2, // 5: datadog.remoteagent.StatusProvider.GetStatusDetails:output_type -> datadog.remoteagent.GetStatusDetailsResponse
+	3, // 0: datadog.remoteagent.status.v1.StatusSection.fields:type_name -> datadog.remoteagent.status.v1.StatusSection.FieldsEntry
+	0, // 1: datadog.remoteagent.status.v1.GetStatusDetailsResponse.main_section:type_name -> datadog.remoteagent.status.v1.StatusSection
+	4, // 2: datadog.remoteagent.status.v1.GetStatusDetailsResponse.named_sections:type_name -> datadog.remoteagent.status.v1.GetStatusDetailsResponse.NamedSectionsEntry
+	0, // 3: datadog.remoteagent.status.v1.GetStatusDetailsResponse.NamedSectionsEntry.value:type_name -> datadog.remoteagent.status.v1.StatusSection
+	1, // 4: datadog.remoteagent.status.v1.StatusProvider.GetStatusDetails:input_type -> datadog.remoteagent.status.v1.GetStatusDetailsRequest
+	2, // 5: datadog.remoteagent.status.v1.StatusProvider.GetStatusDetails:output_type -> datadog.remoteagent.status.v1.GetStatusDetailsResponse
 	5, // [5:6] is the sub-list for method output_type
 	4, // [4:5] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name
@@ -267,7 +267,7 @@ func NewStatusProviderClient(cc grpc.ClientConnInterface) StatusProviderClient {
 
 func (c *statusProviderClient) GetStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetStatusDetailsResponse, error) {
 	out := new(GetStatusDetailsResponse)
-	err := c.cc.Invoke(ctx, "/datadog.remoteagent.StatusProvider/GetStatusDetails", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/datadog.remoteagent.status.v1.StatusProvider/GetStatusDetails", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func _StatusProvider_GetStatusDetails_Handler(srv interface{}, ctx context.Conte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/datadog.remoteagent.StatusProvider/GetStatusDetails",
+		FullMethod: "/datadog.remoteagent.status.v1.StatusProvider/GetStatusDetails",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(StatusProviderServer).GetStatusDetails(ctx, req.(*GetStatusDetailsRequest))
@@ -311,7 +311,7 @@ func _StatusProvider_GetStatusDetails_Handler(srv interface{}, ctx context.Conte
 }
 
 var _StatusProvider_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "datadog.remoteagent.StatusProvider",
+	ServiceName: "datadog.remoteagent.status.v1.StatusProvider",
 	HandlerType: (*StatusProviderServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

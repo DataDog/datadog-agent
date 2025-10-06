@@ -1,12 +1,12 @@
 syntax = "proto3";
 
-package datadog.remoteagent;
+package datadog.remoteagent.flare.v1;
 option go_package = "pkg/proto/pbgo/core"; // golang
 
 
 service FlareProvider {
   // Gets all relevant flare files of a remote agent.
-  rpc GetFlareFiles(datadog.remoteagent.GetFlareFilesRequest) returns (datadog.remoteagent.GetFlareFilesResponse);
+  rpc GetFlareFiles(datadog.remoteagent.flare.v1.GetFlareFilesRequest) returns (datadog.remoteagent.flare.v1.GetFlareFilesResponse);
 }
 
 message GetFlareFilesRequest {}

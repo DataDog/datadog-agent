@@ -116,16 +116,16 @@ var File_datadog_remoteagent_flare_proto protoreflect.FileDescriptor
 
 const file_datadog_remoteagent_flare_proto_rawDesc = "" +
 	"\n" +
-	"\x1fdatadog/remoteagent/flare.proto\x12\x13datadog.remoteagent\"\x16\n" +
-	"\x14GetFlareFilesRequest\"\x9e\x01\n" +
-	"\x15GetFlareFilesResponse\x12K\n" +
-	"\x05files\x18\x01 \x03(\v25.datadog.remoteagent.GetFlareFilesResponse.FilesEntryR\x05files\x1a8\n" +
+	"\x1fdatadog/remoteagent/flare.proto\x12\x1cdatadog.remoteagent.flare.v1\"\x16\n" +
+	"\x14GetFlareFilesRequest\"\xa7\x01\n" +
+	"\x15GetFlareFilesResponse\x12T\n" +
+	"\x05files\x18\x01 \x03(\v2>.datadog.remoteagent.flare.v1.GetFlareFilesResponse.FilesEntryR\x05files\x1a8\n" +
 	"\n" +
 	"FilesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05value:\x028\x012w\n" +
-	"\rFlareProvider\x12f\n" +
-	"\rGetFlareFiles\x12).datadog.remoteagent.GetFlareFilesRequest\x1a*.datadog.remoteagent.GetFlareFilesResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\x05value\x18\x02 \x01(\fR\x05value:\x028\x012\x89\x01\n" +
+	"\rFlareProvider\x12x\n" +
+	"\rGetFlareFiles\x122.datadog.remoteagent.flare.v1.GetFlareFilesRequest\x1a3.datadog.remoteagent.flare.v1.GetFlareFilesResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var (
 	file_datadog_remoteagent_flare_proto_rawDescOnce sync.Once
@@ -141,14 +141,14 @@ func file_datadog_remoteagent_flare_proto_rawDescGZIP() []byte {
 
 var file_datadog_remoteagent_flare_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_datadog_remoteagent_flare_proto_goTypes = []any{
-	(*GetFlareFilesRequest)(nil),  // 0: datadog.remoteagent.GetFlareFilesRequest
-	(*GetFlareFilesResponse)(nil), // 1: datadog.remoteagent.GetFlareFilesResponse
-	nil,                           // 2: datadog.remoteagent.GetFlareFilesResponse.FilesEntry
+	(*GetFlareFilesRequest)(nil),  // 0: datadog.remoteagent.flare.v1.GetFlareFilesRequest
+	(*GetFlareFilesResponse)(nil), // 1: datadog.remoteagent.flare.v1.GetFlareFilesResponse
+	nil,                           // 2: datadog.remoteagent.flare.v1.GetFlareFilesResponse.FilesEntry
 }
 var file_datadog_remoteagent_flare_proto_depIdxs = []int32{
-	2, // 0: datadog.remoteagent.GetFlareFilesResponse.files:type_name -> datadog.remoteagent.GetFlareFilesResponse.FilesEntry
-	0, // 1: datadog.remoteagent.FlareProvider.GetFlareFiles:input_type -> datadog.remoteagent.GetFlareFilesRequest
-	1, // 2: datadog.remoteagent.FlareProvider.GetFlareFiles:output_type -> datadog.remoteagent.GetFlareFilesResponse
+	2, // 0: datadog.remoteagent.flare.v1.GetFlareFilesResponse.files:type_name -> datadog.remoteagent.flare.v1.GetFlareFilesResponse.FilesEntry
+	0, // 1: datadog.remoteagent.flare.v1.FlareProvider.GetFlareFiles:input_type -> datadog.remoteagent.flare.v1.GetFlareFilesRequest
+	1, // 2: datadog.remoteagent.flare.v1.FlareProvider.GetFlareFiles:output_type -> datadog.remoteagent.flare.v1.GetFlareFilesResponse
 	2, // [2:3] is the sub-list for method output_type
 	1, // [1:2] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
@@ -206,7 +206,7 @@ func NewFlareProviderClient(cc grpc.ClientConnInterface) FlareProviderClient {
 
 func (c *flareProviderClient) GetFlareFiles(ctx context.Context, in *GetFlareFilesRequest, opts ...grpc.CallOption) (*GetFlareFilesResponse, error) {
 	out := new(GetFlareFilesResponse)
-	err := c.cc.Invoke(ctx, "/datadog.remoteagent.FlareProvider/GetFlareFiles", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/datadog.remoteagent.flare.v1.FlareProvider/GetFlareFiles", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func _FlareProvider_GetFlareFiles_Handler(srv interface{}, ctx context.Context, 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/datadog.remoteagent.FlareProvider/GetFlareFiles",
+		FullMethod: "/datadog.remoteagent.flare.v1.FlareProvider/GetFlareFiles",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(FlareProviderServer).GetFlareFiles(ctx, req.(*GetFlareFilesRequest))
@@ -250,7 +250,7 @@ func _FlareProvider_GetFlareFiles_Handler(srv interface{}, ctx context.Context, 
 }
 
 var _FlareProvider_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "datadog.remoteagent.FlareProvider",
+	ServiceName: "datadog.remoteagent.flare.v1.FlareProvider",
 	HandlerType: (*FlareProviderServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

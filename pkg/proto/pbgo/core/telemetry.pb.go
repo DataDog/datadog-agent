@@ -136,13 +136,13 @@ var File_datadog_remoteagent_telemetry_proto protoreflect.FileDescriptor
 
 const file_datadog_remoteagent_telemetry_proto_rawDesc = "" +
 	"\n" +
-	"#datadog/remoteagent/telemetry.proto\x12\x13datadog.remoteagent\"\x15\n" +
+	"#datadog/remoteagent/telemetry.proto\x12 datadog.remoteagent.telemetry.v1\"\x15\n" +
 	"\x13GetTelemetryRequest\"@\n" +
 	"\x14GetTelemetryResponse\x12\x1d\n" +
 	"\tprom_text\x18\x01 \x01(\tH\x00R\bpromTextB\t\n" +
-	"\apayload2x\n" +
-	"\x11TelemetryProvider\x12c\n" +
-	"\fGetTelemetry\x12(.datadog.remoteagent.GetTelemetryRequest\x1a).datadog.remoteagent.GetTelemetryResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\apayload2\x92\x01\n" +
+	"\x11TelemetryProvider\x12}\n" +
+	"\fGetTelemetry\x125.datadog.remoteagent.telemetry.v1.GetTelemetryRequest\x1a6.datadog.remoteagent.telemetry.v1.GetTelemetryResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var (
 	file_datadog_remoteagent_telemetry_proto_rawDescOnce sync.Once
@@ -158,12 +158,12 @@ func file_datadog_remoteagent_telemetry_proto_rawDescGZIP() []byte {
 
 var file_datadog_remoteagent_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_datadog_remoteagent_telemetry_proto_goTypes = []any{
-	(*GetTelemetryRequest)(nil),  // 0: datadog.remoteagent.GetTelemetryRequest
-	(*GetTelemetryResponse)(nil), // 1: datadog.remoteagent.GetTelemetryResponse
+	(*GetTelemetryRequest)(nil),  // 0: datadog.remoteagent.telemetry.v1.GetTelemetryRequest
+	(*GetTelemetryResponse)(nil), // 1: datadog.remoteagent.telemetry.v1.GetTelemetryResponse
 }
 var file_datadog_remoteagent_telemetry_proto_depIdxs = []int32{
-	0, // 0: datadog.remoteagent.TelemetryProvider.GetTelemetry:input_type -> datadog.remoteagent.GetTelemetryRequest
-	1, // 1: datadog.remoteagent.TelemetryProvider.GetTelemetry:output_type -> datadog.remoteagent.GetTelemetryResponse
+	0, // 0: datadog.remoteagent.telemetry.v1.TelemetryProvider.GetTelemetry:input_type -> datadog.remoteagent.telemetry.v1.GetTelemetryRequest
+	1, // 1: datadog.remoteagent.telemetry.v1.TelemetryProvider.GetTelemetry:output_type -> datadog.remoteagent.telemetry.v1.GetTelemetryResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -224,7 +224,7 @@ func NewTelemetryProviderClient(cc grpc.ClientConnInterface) TelemetryProviderCl
 
 func (c *telemetryProviderClient) GetTelemetry(ctx context.Context, in *GetTelemetryRequest, opts ...grpc.CallOption) (*GetTelemetryResponse, error) {
 	out := new(GetTelemetryResponse)
-	err := c.cc.Invoke(ctx, "/datadog.remoteagent.TelemetryProvider/GetTelemetry", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/datadog.remoteagent.telemetry.v1.TelemetryProvider/GetTelemetry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func _TelemetryProvider_GetTelemetry_Handler(srv interface{}, ctx context.Contex
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/datadog.remoteagent.TelemetryProvider/GetTelemetry",
+		FullMethod: "/datadog.remoteagent.telemetry.v1.TelemetryProvider/GetTelemetry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TelemetryProviderServer).GetTelemetry(ctx, req.(*GetTelemetryRequest))
@@ -268,7 +268,7 @@ func _TelemetryProvider_GetTelemetry_Handler(srv interface{}, ctx context.Contex
 }
 
 var _TelemetryProvider_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "datadog.remoteagent.TelemetryProvider",
+	ServiceName: "datadog.remoteagent.telemetry.v1.TelemetryProvider",
 	HandlerType: (*TelemetryProviderServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

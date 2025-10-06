@@ -1,12 +1,12 @@
 syntax = "proto3";
 
-package datadog.remoteagent;
+package datadog.remoteagent.telemetry.v1;
 option go_package = "pkg/proto/pbgo/core"; // golang
 
 
 service TelemetryProvider {
   // Gets the telemetry data of a remote agent.
-  rpc GetTelemetry(datadog.remoteagent.GetTelemetryRequest) returns (datadog.remoteagent.GetTelemetryResponse);
+  rpc GetTelemetry(datadog.remoteagent.telemetry.v1.GetTelemetryRequest) returns (datadog.remoteagent.telemetry.v1.GetTelemetryResponse);
 }
 
 message GetTelemetryRequest {}

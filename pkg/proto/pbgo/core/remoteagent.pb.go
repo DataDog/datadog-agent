@@ -44,8 +44,11 @@ type RegisterRemoteAgentRequest struct {
 	//
 	// MUST be secured with TLS if using TCP, and SHOULD present a valid certificate where possible.
 	ApiEndpointUri string `protobuf:"bytes,4,opt,name=api_endpoint_uri,json=apiEndpointUri,proto3" json:"api_endpoint_uri,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// List of services that the remote agent supports.
+	// service name MUST be the full name of the service, such as "datadog.remoteagent.status.v1.StatusProvider".
+	Services      []string `protobuf:"bytes,5,rep,name=services,proto3" json:"services,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RegisterRemoteAgentRequest) Reset() {
@@ -104,6 +107,13 @@ func (x *RegisterRemoteAgentRequest) GetApiEndpointUri() string {
 		return x.ApiEndpointUri
 	}
 	return ""
+}
+
+func (x *RegisterRemoteAgentRequest) GetServices() []string {
+	if x != nil {
+		return x.Services
+	}
+	return nil
 }
 
 type RegisterRemoteAgentResponse struct {
@@ -253,12 +263,13 @@ var File_datadog_remoteagent_remoteagent_proto protoreflect.FileDescriptor
 
 const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\n" +
-	"%datadog/remoteagent/remoteagent.proto\x12\x13datadog.remoteagent\"\x93\x01\n" +
+	"%datadog/remoteagent/remoteagent.proto\x12\x16datadog.remoteagent.v1\"\xaf\x01\n" +
 	"\x1aRegisterRemoteAgentRequest\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\tR\x03pid\x12\x16\n" +
 	"\x06flavor\x18\x02 \x01(\tR\x06flavor\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12(\n" +
-	"\x10api_endpoint_uri\x18\x04 \x01(\tR\x0eapiEndpointUri\"\x87\x01\n" +
+	"\x10api_endpoint_uri\x18\x04 \x01(\tR\x0eapiEndpointUri\x12\x1a\n" +
+	"\bservices\x18\x05 \x03(\tR\bservices\"\x87\x01\n" +
 	"\x1bRegisterRemoteAgentResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12I\n" +
@@ -282,10 +293,10 @@ func file_datadog_remoteagent_remoteagent_proto_rawDescGZIP() []byte {
 
 var file_datadog_remoteagent_remoteagent_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_datadog_remoteagent_remoteagent_proto_goTypes = []any{
-	(*RegisterRemoteAgentRequest)(nil),  // 0: datadog.remoteagent.RegisterRemoteAgentRequest
-	(*RegisterRemoteAgentResponse)(nil), // 1: datadog.remoteagent.RegisterRemoteAgentResponse
-	(*RefreshRemoteAgentRequest)(nil),   // 2: datadog.remoteagent.RefreshRemoteAgentRequest
-	(*RefreshRemoteAgentResponse)(nil),  // 3: datadog.remoteagent.RefreshRemoteAgentResponse
+	(*RegisterRemoteAgentRequest)(nil),  // 0: datadog.remoteagent.v1.RegisterRemoteAgentRequest
+	(*RegisterRemoteAgentResponse)(nil), // 1: datadog.remoteagent.v1.RegisterRemoteAgentResponse
+	(*RefreshRemoteAgentRequest)(nil),   // 2: datadog.remoteagent.v1.RefreshRemoteAgentRequest
+	(*RefreshRemoteAgentResponse)(nil),  // 3: datadog.remoteagent.v1.RefreshRemoteAgentResponse
 }
 var file_datadog_remoteagent_remoteagent_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
