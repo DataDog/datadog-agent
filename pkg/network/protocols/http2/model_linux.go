@@ -35,15 +35,6 @@ var interner = intern.NewStringInterner()
 // We use this wrapper to avoid recomputing the same values (path/method/status code) multiple times.
 type EventWrapper struct {
 	*EbpfTx
-
-	pathSet bool
-	path    *intern.StringValue
-
-	methodSet bool
-	method    http.Method
-
-	statusCodeSet bool
-	statusCode    uint16
 }
 
 // validatePath validates the given path.
@@ -108,11 +99,6 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8, output []byte) ([]b
 
 // Path returns the URL from the request fragment captured in eBPF.
 func (ew *EventWrapper) Path(buffer []byte) ([]byte, bool) {
-	if ew.pathSet {
-		n := copy(buffer, ew.path.Get())
-		return buffer[:n], true
-	}
-
 	var err error
 
 	if ew.Stream.Path.Static_table_entry != 0 {
@@ -120,9 +106,7 @@ func (ew *EventWrapper) Path(buffer []byte) ([]byte, bool) {
 		if !ok {
 			return nil, false
 		}
-		ew.path = value
-		ew.pathSet = true
-		n := copy(buffer, ew.path.Get())
+		n := copy(buffer, value.Get())
 		return buffer[:n], true
 	}
 
@@ -163,8 +147,6 @@ func (ew *EventWrapper) Path(buffer []byte) ([]byte, bool) {
 	if queryStart == -1 {
 		queryStart = len(buffer)
 	}
-	ew.path = interner.Get(buffer[:queryStart])
-	ew.pathSet = true
 	return buffer[:queryStart], true
 }
 
@@ -209,10 +191,6 @@ func (ew *EventWrapper) Method() http.Method {
 	var method string
 	var err error
 
-	if ew.methodSet {
-		return ew.method
-	}
-
 	if ew.Stream.Request_method.Static_table_entry != 0 {
 		value, ok := methodStaticTable[ew.Stream.Request_method.Static_table_entry]
 		if ok {
@@ -249,8 +227,7 @@ func (ew *EventWrapper) Method() http.Method {
 		return http.MethodUnknown
 	}
 
-	ew.SetRequestMethod(http2Method)
-	return ew.method
+	return http2Method
 }
 
 // StatusCode returns the status code of the transaction.
@@ -258,14 +235,9 @@ func (ew *EventWrapper) Method() http.Method {
 // Otherwise, f the status code is huffman encoded, then we decode it and convert it from string to int.
 // Otherwise, we convert the status code from byte array to int.
 func (ew *EventWrapper) StatusCode() uint16 {
-	if ew.statusCodeSet {
-		return ew.statusCode
-	}
-
 	if ew.Stream.Status_code.Static_table_entry != 0 {
 		value, ok := statusStaticTable[ew.Stream.Status_code.Static_table_entry]
 		if ok {
-			ew.SetStatusCode(value)
 			return value
 		}
 		return 0
@@ -282,22 +254,23 @@ func (ew *EventWrapper) StatusCode() uint16 {
 			return 0
 		}
 
-		ew.SetStatusCode(uint16(code))
-		return ew.statusCode
+		return uint16(code)
 	}
 
 	code, err := strconv.Atoi(string(ew.Stream.Status_code.Raw_buffer[:]))
 	if err != nil {
 		return 0
 	}
-	ew.SetStatusCode(uint16(code))
-	return ew.statusCode
+	return uint16(code)
 }
 
 // SetStatusCode sets the HTTP status code of the transaction.
 func (ew *EventWrapper) SetStatusCode(code uint16) {
-	ew.statusCode = code
-	ew.statusCodeSet = true
+	val := strconv.Itoa(int(code))
+	if len(val) > http2RawStatusCodeMaxLength {
+		return
+	}
+	copy(ew.Stream.Status_code.Raw_buffer[:], val)
 }
 
 // ResponseLastSeen returns the last seen response.
@@ -318,8 +291,8 @@ func (ew *EventWrapper) RequestStarted() uint64 {
 
 // SetRequestMethod sets the HTTP method of the transaction.
 func (ew *EventWrapper) SetRequestMethod(method http.Method) {
-	ew.method = method
-	ew.methodSet = true
+	// if we set Static_table_entry to be different from 0, and no indexed value, it will default to 0 which is "UNKNOWN"
+	ew.Stream.Request_method.Static_table_entry = 1
 }
 
 // StaticTags returns the static tags of the transaction.
