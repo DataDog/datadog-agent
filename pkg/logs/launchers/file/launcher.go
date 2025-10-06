@@ -206,7 +206,7 @@ func (s *Launcher) scan() {
 					log.Debugf("Pass 1: Rotation detected for %s, calling rotateTailerWithoutRestart", file.Path)
 					s.rotateTailerWithoutRestart(tailered, file)
 					continue
-				}
+			}
 			} else {
 				log.Debugf("Pass 1: Checking rotation for %s via filesystem (fingerprinting disabled)", file.Path)
 				didRotate, err = tailered.DidRotate()
@@ -237,6 +237,10 @@ func (s *Launcher) scan() {
 	s.flarecontroller.SetAllFiles(allFiles)
 
 	for _, tailer := range s.tailers.All() {
+		if s.isRotatedTailer(tailer) {
+			log.Debugf("Pass 1: Tailer %s is draining a rotated file; skipping stop", tailer.GetID())
+			continue
+		}
 		// stop all tailers which have not been selected
 		_, shouldTail := filesTailed[tailer.GetID()]
 		if !shouldTail {
@@ -320,7 +324,7 @@ func (s *Launcher) scan() {
 // cleanUpRotatedTailers removes any rotated tailers that have stopped from the list
 func (s *Launcher) cleanUpRotatedTailers() {
 	if len(s.rotatedTailers) > 0 {
-		log.Tracef("Rotation cleanup: checking %d tracked tailers", len(s.rotatedTailers))
+		log.Debugf("Rotation cleanup: checking %d tracked tailers", len(s.rotatedTailers))
 	}
 	pendingTailers := []*tailer.Tailer{}
 	for _, tailer := range s.rotatedTailers {
@@ -328,10 +332,19 @@ func (s *Launcher) cleanUpRotatedTailers() {
 			log.Debugf("Rotation cleanup: tailer %s finished draining rotated file (bytesRead=%d)", tailer.GetID(), tailer.Source().BytesRead.Get())
 			continue
 		}
-		log.Tracef("Rotation cleanup: tailer %s still draining rotated file (bytesRead=%d)", tailer.GetID(), tailer.Source().BytesRead.Get())
+		log.Debugf("Rotation cleanup: tailer %s still draining rotated file (bytesRead=%d)", tailer.GetID(), tailer.Source().BytesRead.Get())
 		pendingTailers = append(pendingTailers, tailer)
 	}
 	s.rotatedTailers = pendingTailers
+}
+
+func (s *Launcher) isRotatedTailer(candidate *tailer.Tailer) bool {
+	for _, rotated := range s.rotatedTailers {
+		if rotated == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
@@ -525,13 +538,6 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 	log.Info("Log rotation happened to ", file.Path)
 	log.Debugf("Pass 1: rotateTailerWithoutRestart invoked for %s (tailerID=%s, bytesRead=%d)", file.Path, oldTailer.GetID(), oldTailer.Source().BytesRead.Get())
 	oldTailer.StopAfterFileRotation()
-
-	// Remove the rotated tailer from the active container so it is not
-	// stopped immediately during this scan iteration. The tailer keeps
-	// running (and draining the rotated file) via StopAfterFileRotation,
-	// and we continue to track it separately in rotatedTailers.
-	s.tailers.Remove(oldTailer)
-	log.Debugf("Pass 1: Removed rotated tailer for %s from active container to allow drain", file.Path)
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()
