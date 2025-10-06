@@ -162,16 +162,26 @@ var hostCCRIDDetectors = map[string]cloudProviderCCRIDDetector{
 }
 
 // GetHostCCRID returns the host CCRID from the first provider that works
-func GetHostCCRID(ctx context.Context, cloudname string) string {
-	if callback, found := hostCCRIDDetectors[cloudname]; found {
+func GetHostCCRID(ctx context.Context, detectedCloud string) string {
+	// Try the cloud that was previously detected
+	if callback, found := hostCCRIDDetectors[detectedCloud]; found {
 		hostCCRID, err := callback(ctx)
 		if err != nil {
-			log.Debugf("Could not fetch %s Host CCRID: %s", cloudname, err)
+			log.Debugf("Could not fetch %s Host CCRID: %s", detectedCloud, err)
 			return ""
 		}
 		return hostCCRID
 	}
-	log.Infof("No Host CCRID found")
+	// When running in k8s, kubelet may be detected by GetHostAliases (this is
+	// non-deterministic). For such cases, we try each of the possible CCRID
+	// cloud providers that we know about.
+	for _, callback := range hostCCRIDDetectors {
+		hostCCRID, err := callback(ctx)
+		if err == nil {
+			return hostCCRID
+		}
+	}
+	log.Infof("No Host CCRID found for cloudprovider: %q", detectedCloud)
 	return ""
 }
 
