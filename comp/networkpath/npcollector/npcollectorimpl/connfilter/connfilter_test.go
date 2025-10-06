@@ -78,7 +78,7 @@ filters:
 			},
 		},
 		{
-			name: "single ip exclude",
+			name: "single ip exclude IPv4",
 			config: `
 filters:
   - match_ip: 10.10.10.10
@@ -88,6 +88,18 @@ filters:
 				{ip: "10.10.10.10", shouldMatch: false},
 				{ip: "10.10.10.9", shouldMatch: true},
 				{ip: "10.10.10.11", shouldMatch: true},
+			},
+		},
+		{
+			name: "single ip exclude IPv6",
+			config: `
+filters:
+  - match_ip: 2001:4860:4860::8888
+    type: exclude
+`,
+			expectedMatches: []expectedMatch{
+				{ip: "2001:4860:4860::8888", shouldMatch: false},
+				{ip: "2001:4860:4860::8844", shouldMatch: true},
 			},
 		},
 		{
@@ -106,7 +118,7 @@ filters:
 			},
 		},
 		{
-			name: "cidr exclude, then include ip and cidr",
+			name: "cidr exclude, then include ip and cidr for IPv4",
 			config: `
 filters:
   - match_ip: 10.10.10.0/24
@@ -127,6 +139,21 @@ filters:
 				{ip: "10.10.10.101", shouldMatch: false},
 				{ip: "10.10.10.255", shouldMatch: false},
 				{ip: "10.10.10.256", shouldMatch: true},
+			},
+		},
+		{
+			name: "cidr exclude, then include ip and cidr for IPv6",
+			config: `
+filters:
+  - match_ip: 2001:4860:0000:0000:0000:0000:0000:0000/32
+    type: exclude
+  - match_ip: 2001:4860:0000:0000:0000:0000:0000:0010
+    type: include
+`,
+			expectedMatches: []expectedMatch{
+				{ip: "2001:4860:0000:0000:0000:0000:0000:0000", shouldMatch: false},
+				{ip: "2001:4860:ffff:ffff:ffff:ffff:ffff:ffff", shouldMatch: false},
+				{ip: "2001:4860:0000:0000:0000:0000:0000:0010", shouldMatch: true},
 			},
 		},
 		{
