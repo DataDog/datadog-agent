@@ -28,7 +28,7 @@ type myLocalKindSuite struct {
 
 func TestMyLocalKindSuite(t *testing.T) {
 	e2e.Run(t, &myLocalKindSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(localkubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
-		return dogstatsd.K8sAppDefinition(e, kubeProvider, "dogstatsd", 8125, "/var/run/datadog/dsd.socket")
+		return dogstatsd.K8sAppDefinition(e, kubeProvider, "dogstatsd", 8125, "/var/run/datadog/dsd.socket", false)
 	}))))
 }
 

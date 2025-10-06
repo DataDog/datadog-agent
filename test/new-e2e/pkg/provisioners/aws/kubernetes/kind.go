@@ -217,18 +217,18 @@ agents:
 	// Deploy testing workload
 	if params.deployTestWorkload {
 		// dogstatsd clients that report to the Agent
-		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", false, dependsOnDDAgent /* for admission */); err != nil {
 			return err
 		}
 
 		if params.deployDogstatsd {
 			// dogstatsd clients that report to the dogstatsd standalone deployment
-			if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, dependsOnDDAgent /* for admission */); err != nil {
+			if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, false, dependsOnDDAgent /* for admission */); err != nil {
 				return err
 			}
 		}
 
-		if _, err := tracegen.K8sAppDefinition(&awsEnv, kubeProvider, "workload-tracegen"); err != nil {
+		if _, err := tracegen.K8sAppDefinition(&awsEnv, kubeProvider, "workload-tracegen", false); err != nil {
 			return err
 		}
 
