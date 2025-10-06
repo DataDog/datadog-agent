@@ -35,21 +35,23 @@ func (c columnFetchStrategy) String() string {
 }
 
 // Fetch oid values from device
-func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSize int,
+func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptimizers *OidBatchSizeOptimizers,
 	bulkMaxRepetitions uint32) (*valuestore.ResultValueStore, error) {
+	if batchSizeOptimizers.isOutdated() {
+		batchSizeOptimizers.refreshFailuresCount()
+	}
+
 	// fetch scalar values
-	scalarResults, err := fetchScalarOidsWithBatching(sess, scalarOIDs, batchSize)
+	scalarResults, err := fetchScalarOidsWithBatching(sess, scalarOIDs, batchSizeOptimizers.snmpGetOptimizer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
 	}
 
-	columnResults, err := fetchColumnOidsWithBatching(sess, columnOIDs, batchSize,
-		bulkMaxRepetitions, useGetBulk)
+	columnResults, err := fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetBulkOptimizer, bulkMaxRepetitions, useGetBulk)
 	if err != nil {
 		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
 
-		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSize, bulkMaxRepetitions,
-			useGetNext)
+		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetNextOptimizer, bulkMaxRepetitions, useGetNext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}

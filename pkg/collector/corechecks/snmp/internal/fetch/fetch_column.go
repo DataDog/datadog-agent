@@ -6,6 +6,7 @@
 package fetch
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"sort"
@@ -19,10 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeOptimizer *oidBatchSizeOptimizer, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 
-	batches, err := common.CreateStringBatches(oids, oidBatchSize)
+	batches, err := common.CreateStringBatches(oids, batchSizeOptimizer.batchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
 	}
@@ -30,7 +31,15 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSi
 	for _, batchColumnOids := range batches {
 		results, err := fetchColumnOids(sess, batchColumnOids, bulkMaxRepetitions, fetchStrategy)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch column oids: %s", err)
+			var fetchErr *fetchError
+			if errors.As(err, &fetchErr) {
+				shouldRetry := batchSizeOptimizer.onBatchSizeFailure()
+				if shouldRetry {
+					return fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, bulkMaxRepetitions, fetchStrategy)
+				}
+			}
+
+			return nil, fmt.Errorf("failed to fetch column oids: %s", err.Error())
 		}
 
 		for columnOid, instanceOids := range results {
@@ -41,6 +50,9 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSi
 			maps.Copy(retValues[columnOid], instanceOids)
 		}
 	}
+
+	batchSizeOptimizer.onBatchSizeSuccess()
+
 	return retValues, nil
 }
 
@@ -94,8 +106,14 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 		// snmp v1 doesn't support GetBulk
 		getNextResults, err := sess.GetNext(requestOids)
 		if err != nil {
-			log.Debugf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
-			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
+			fetchErr := &fetchError{
+				oidType: columnOid,
+				oids:    requestOids,
+				op:      snmpGetNext,
+				err:     err,
+			}
+			log.Debugf(fetchErr.Error())
+			return nil, fetchErr
 		}
 		results = getNextResults
 		if log.ShouldLog(log.DebugLvl) {
@@ -104,8 +122,14 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 	} else {
 		getBulkResults, err := sess.GetBulk(requestOids, bulkMaxRepetitions)
 		if err != nil {
-			log.Debugf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)
-			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)
+			fetchErr := &fetchError{
+				oidType: columnOid,
+				oids:    requestOids,
+				op:      snmpGetBulk,
+				err:     err,
+			}
+			log.Debugf(fetchErr.Error())
+			return nil, fetchErr
 		}
 		results = getBulkResults
 		if log.ShouldLog(log.DebugLvl) {

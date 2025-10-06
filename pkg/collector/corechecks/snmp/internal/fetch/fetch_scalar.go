@@ -6,6 +6,7 @@
 package fetch
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -21,10 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchScalarOidsWithBatching(sess session.Session, oids []string, oidBatchSize int) (valuestore.ScalarResultValuesType, error) {
+func fetchScalarOidsWithBatching(sess session.Session, oids []string, batchSizeOptimizer *oidBatchSizeOptimizer) (valuestore.ScalarResultValuesType, error) {
 	retValues := make(valuestore.ScalarResultValuesType, len(oids))
 
-	batches, err := common.CreateStringBatches(oids, oidBatchSize)
+	batches, err := common.CreateStringBatches(oids, batchSizeOptimizer.batchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create oid batches: %s", err)
 	}
@@ -32,10 +33,21 @@ func fetchScalarOidsWithBatching(sess session.Session, oids []string, oidBatchSi
 	for _, batchOids := range batches {
 		results, err := fetchScalarOids(sess, batchOids)
 		if err != nil {
+			var fetchErr *fetchError
+			if errors.As(err, &fetchErr) {
+				shouldRetry := batchSizeOptimizer.onBatchSizeFailure()
+				if shouldRetry {
+					return fetchScalarOidsWithBatching(sess, oids, batchSizeOptimizer)
+				}
+			}
+
 			return nil, fmt.Errorf("failed to fetch scalar oids: %s", err.Error())
 		}
 		maps.Copy(retValues, results)
 	}
+
+	batchSizeOptimizer.onBatchSizeSuccess()
+
 	return retValues, nil
 }
 
@@ -122,8 +134,14 @@ func doDoFetchScalarOids(session session.Session, oids []string) (*gosnmp.SnmpPa
 	log.Debugf("fetch scalar: request oids: %v", oids)
 	results, err := session.Get(oids)
 	if err != nil {
-		log.Debugf("fetch scalar: error getting oids `%v`: %v", oids, err)
-		return nil, fmt.Errorf("fetch scalar: error getting oids `%v`: %v", oids, err)
+		fetchErr := &fetchError{
+			oidType: scalarOid,
+			oids:    oids,
+			op:      snmpGet,
+			err:     err,
+		}
+		log.Debugf(fetchErr.Error())
+		return nil, fetchErr
 	}
 	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("fetch scalar: results: %s", gosnmplib.PacketAsString(results))
