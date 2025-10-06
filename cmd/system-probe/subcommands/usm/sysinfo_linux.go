@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package usm provides debugging and diagnostic commands for Universal Service Monitoring.
+//go:build linux
+
 package usm
 
 import (

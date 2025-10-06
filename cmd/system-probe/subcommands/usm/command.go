@@ -21,7 +21,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	usmCmd.AddCommand(makeConfigCommand(globalParams))
-	usmCmd.AddCommand(makeSysinfoCommand(globalParams))
+
+	// Add sysinfo command if available on this platform
+	if sysinfoCmd := makeSysinfoCommand(globalParams); sysinfoCmd != nil {
+		usmCmd.AddCommand(sysinfoCmd)
+	}
 
 	return []*cobra.Command{usmCmd}
 }
