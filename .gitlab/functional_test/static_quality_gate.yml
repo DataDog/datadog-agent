@@ -10,8 +10,6 @@ static_quality_gates:
   needs:
     - agent_deb-x64-a7
     - agent_deb-x64-a7-fips
-    - agent_deb-arm64-a7
-    - agent_deb-arm64-a7-fips
     - agent_rpm-x64-a7
     - agent_rpm-x64-a7-fips
     - agent_rpm-arm64-a7
@@ -31,14 +29,6 @@ static_quality_gates:
     - docker_build_cws_instrumentation_arm64
     - docker_build_dogstatsd_amd64
     - docker_build_dogstatsd_arm64
-    - docker_build_agent7_windows1809
-    - docker_build_agent7_windows1809_core
-    - docker_build_agent7_windows1809_core_jmx
-    - docker_build_agent7_windows1809_jmx
-    - docker_build_agent7_windows2022
-    - docker_build_agent7_windows2022_core
-    - docker_build_agent7_windows2022_core_jmx
-    - docker_build_agent7_windows2022_jmx
     - dogstatsd_deb-x64
     - dogstatsd_deb-arm64
     - dogstatsd_rpm-x64
@@ -47,8 +37,6 @@ static_quality_gates:
     - iot_agent_deb-arm64
     - iot_agent_deb-armhf
     - iot_agent_rpm-x64
-    - iot_agent_rpm-arm64
-    - iot_agent_rpm-armhf
     - iot_agent_suse-x64
     - windows_msi_and_bosh_zip_x64-a7
   script:
