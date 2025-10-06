@@ -170,14 +170,39 @@ filters:
 				{ip: "10.10.10.100", shouldMatch: true},
 			},
 		},
-
-		// TODO: TEST FOR ALL CASES
+		{
+			name: "invalid domain",
+			config: `
+filters:
+  - match_domain: '*//$[.google.com'
+    match_domain_strategy: 'regex'
+    type: exclude
+`,
+			expectedErr: "error building regex",
+		},
+		{
+			name: "invalid domain and valid domain",
+			config: `
+filters:
+  - match_domain: '*//$[.google.com'
+    match_domain_strategy: 'regex'
+    type: exclude
+  - match_domain: 'zoom.us'
+    type: exclude
+`,
+			expectedMatches: []expectedMatch{
+				{domain: "zoom.us", shouldMatch: false},
+				{domain: "dns.google.com", shouldMatch: true},
+				{domain: "abc.google.com", shouldMatch: true},
+			},
+			expectedErr: "error building regex",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			connFilter, err := getConnFilter(t, tt.config)
 			if tt.expectedErr != "" {
-				assert.EqualError(t, err, tt.expectedErr)
+				assert.ErrorContains(t, err, tt.expectedErr)
 			} else {
 				require.NoError(t, err)
 			}

@@ -19,7 +19,7 @@ func getConnFilter(t *testing.T, configString string) (*ConnFilter, error) {
 	}
 	connFilter, errs := NewConnFilter(configs)
 	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
+		err = errors.Join(errs...)
 	}
-	return connFilter, nil
+	return connFilter, err
 }
