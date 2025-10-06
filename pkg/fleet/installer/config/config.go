@@ -252,20 +252,19 @@ func (a *FileOperation) apply(root *os.Root) error {
 			return err
 		}
 
-		// TODO: this is 1.25+ only
-		err = root.MkdirAll(destinationPath, 0755)
+		// Create the destination with os.Root to ensure the path is clean
+		destFile, err := root.Create(destinationPath)
 		if err != nil {
 			return err
 		}
+		defer destFile.Close()
 
-		// Create the destination with os.Root to ensure the path is clean
-		err = root.WriteFile(destinationPath, srcContent, 0644)
+		_, err = destFile.Write(srcContent)
 		if err != nil {
 			return err
 		}
 		return nil
 	case FileOperationMove:
-		// TODO(go.1.25): os.Root.Rename is only available starting go 1.25 so we'll use it instead
 		err := ensureDir(root, destinationPath)
 		if err != nil {
 			return err
@@ -276,14 +275,14 @@ func (a *FileOperation) apply(root *os.Root) error {
 			return err
 		}
 
-		// TODO: this is 1.25+ only
-		err = root.MkdirAll(destinationPath, 0755)
+		// Create the destination with os.Root to ensure the path is clean
+		destFile, err := root.Create(destinationPath)
 		if err != nil {
 			return err
 		}
+		defer destFile.Close()
 
-		// Create the destination with os.Root to ensure the path is clean
-		err = root.WriteFile(destinationPath, srcContent, 0644)
+		_, err = destFile.Write(srcContent)
 		if err != nil {
 			return err
 		}
