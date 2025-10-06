@@ -7,7 +7,10 @@
 package workloadselectionimpl
 
 import (
+	"bytes"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 
@@ -18,8 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-// var configPath = filepath.Join(config.DefaultConfPath, "wls-policy.bin") // TODO: is this the right path?
-var configPath = "/tmp/wls-policy.json"
+var (
+	configPath          = filepath.Join(config.DefaultConfPath, "wls-policy.bin") // TODO: is this the right path?
+	ddPolicyCompilePath = filepath.Join(config.InstallPath, "embedded", "bin", "dd-policy-compile")
+)
 
 // Requires defines the dependencies for the workloadselection component
 type Requires struct {
@@ -68,6 +73,20 @@ func isCompilePolicyBinaryAvailable() bool {
 	return err == nil
 }
 
+func compilePolicyBinary(rawConfig []byte) error {
+	if err := os.WriteFile(configPath, rawConfig, 0644); err != nil {
+		return err
+	}
+	cmd := exec.Command(ddPolicyCompilePath, "--json-input", configPath, "--output", configPath)
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("error executing dd-policy-compile (%w); out: '%s'; err: '%s'", err, stdoutBuf.String(), stderrBuf.String())
+	}
+	return nil
+}
+
 func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	c.log.Debugf("workload selection config update received: %d", len(updates))
 	if len(updates) == 0 {
@@ -111,9 +130,7 @@ func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.Raw
 
 func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) error {
 	c.log.Debugf("Writing workload selection config: %s", configPath)
-	// TODO: call dd-policy-compile instead
-	// TODO: shouldn't write in containerised environments (should the feature even run in containerised environments?)
-	return os.WriteFile(configPath, rawConfig, 0644)
+	return compilePolicyBinary(rawConfig)
 }
 
 func (c *workloadselectionComponent) removeConfig() error {
