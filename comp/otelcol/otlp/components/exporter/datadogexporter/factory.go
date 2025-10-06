@@ -27,6 +27,7 @@ import (
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -117,6 +118,11 @@ func CreateDefaultConfig() component.Config {
 	ddcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config)
 	ddcfg.Traces.TracesConfig.ComputeTopLevelBySpanKind = true
 	ddcfg.Logs.Endpoint = "https://agent-http-intake.logs.datadoghq.com"
+	ddcfg.QueueSettings.Batch = configoptional.Some(exporterhelper.BatchConfig{
+		Sizer:        exporterhelper.RequestSizerTypeItems,
+		FlushTimeout: 10 * time.Second,
+		MinSize:      int64(8192),
+	})
 	return ddcfg
 }
 
