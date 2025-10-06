@@ -164,6 +164,8 @@ func TestCallAgentsForService(t *testing.T) {
 				deadAgent := buildAndRegisterRemoteAgent(t, ipcComp, component, "dead-agent", "Dead Agent", "3333",
 					withStatusProvider(map[string]string{"status": "dead"}, nil),
 				)
+				// let the deadAgent start its server
+				time.Sleep(500 * time.Millisecond)
 				deadAgent.Stop()
 			}
 
