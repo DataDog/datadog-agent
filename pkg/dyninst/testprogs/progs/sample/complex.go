@@ -7,6 +7,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -199,6 +200,26 @@ func testStringType1(a *stringType1) {}
 //go:noinline
 func testStringType2(a **stringType2) {}
 
+//go:noinline
+func testLongFunctionWithChangingState() {
+	s := 3
+	a := 0
+	b := 1
+	fmt.Println(s, a, b)
+	// This loop and the following print statement reproduce
+	// https://github.com/golang/go/issues/75615
+	for _ = range 10 {
+		a, b = b, a+b
+	}
+	s += a
+	fmt.Println(s, a, b)
+	for _ = range 10 {
+		a, b = b-a, a
+	}
+	s += b
+	fmt.Println(s, a, b)
+}
+
 //nolint:all
 func executeComplexFuncs() {
 	o := outer{
@@ -264,4 +285,6 @@ func executeComplexFuncs() {
 	s2p := &s2
 	testStringType1(&s1)
 	testStringType2(&s2p)
+
+	testLongFunctionWithChangingState()
 }
