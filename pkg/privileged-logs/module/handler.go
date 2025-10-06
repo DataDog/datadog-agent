@@ -32,6 +32,24 @@ func (f *privilegedLogsModule) sendErrorResponse(unixConn *net.UnixConn, message
 	}
 }
 
+// logFileAccess informs about uses of this endpoint.  To avoid frequent logging
+// for the same files (log rotation detection in the core agent tries to open
+// tailed files every 10 seconds), we only log the first access for each path.
+func (f *privilegedLogsModule) logFileAccess(path string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.informedPaths != nil {
+		if _, found := f.informedPaths.Get(path); found {
+			return
+		}
+
+		f.informedPaths.Add(path, struct{}{})
+	}
+
+	log.Infof("Received request to open file: %s", path)
+}
+
 // openFileHandler handles requests to open a file and transfer its file descriptor
 func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Request) {
 	// We need to read the body fully before hijacking the connection
@@ -65,7 +83,7 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	log.Infof("Received request to open file: %s", req.Path)
+	f.logFileAccess(req.Path)
 
 	file, err := validateAndOpen(req.Path)
 	if err != nil {

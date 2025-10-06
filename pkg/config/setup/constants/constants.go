@@ -15,6 +15,8 @@ const (
 	DefaultEBPFLessProbeAddr = "localhost:5678"
 	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
 	ClusterIDCacheKey = "orchestratorClusterID"
+	// NodeKubeDistributionKey is the key name for the node kube distribution in the agent in-mem cache
+	NodeKubeDistributionKey = "nodeKubeDistribution"
 )
 
 // getDefaultInfraBasicAllowedChecks returns the default list of allowed checks for infra basic mode
