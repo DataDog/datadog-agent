@@ -22,7 +22,8 @@ import (
 )
 
 var (
-	configPath          = filepath.Join(config.DefaultConfPath, "wls-policy.bin") // TODO: is this the right path?
+	configCompiledPath  = filepath.Join(config.DefaultConfPath, "wls-policy.bin")
+	configJSONPath      = filepath.Join(config.DefaultConfPath, "wls-policy.json")
 	ddPolicyCompilePath = filepath.Join(config.InstallPath, "embedded", "bin", "dd-policy-compile")
 )
 
@@ -74,16 +75,17 @@ func isCompilePolicyBinaryAvailable() bool {
 }
 
 func compilePolicyBinary(rawConfig []byte) error {
-	if err := os.WriteFile(configPath, rawConfig, 0644); err != nil {
+	if err := os.WriteFile(configJSONPath, rawConfig, 0644); err != nil {
 		return err
 	}
-	cmd := exec.Command(ddPolicyCompilePath, "--json-input", configPath, "--output", configPath)
+	cmd := exec.Command(ddPolicyCompilePath, "--input-json", configJSONPath, "--output", configCompiledPath)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error executing dd-policy-compile (%w); out: '%s'; err: '%s'", err, stdoutBuf.String(), stderrBuf.String())
 	}
+	// TODO: shall we remove the JSON file?
 	return nil
 }
 
@@ -129,12 +131,18 @@ func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.Raw
 }
 
 func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) error {
-	c.log.Debugf("Writing workload selection config: %s", configPath)
+	c.log.Debugf("Writing workload selection config")
 	return compilePolicyBinary(rawConfig)
 }
 
 func (c *workloadselectionComponent) removeConfig() error {
 	// os.RemoveAll does not fail if the path doesn't exist, it returns nil
-	c.log.Debugf("Removing workload selection config: %s", configPath)
-	return os.RemoveAll(configPath)
+	c.log.Debugf("Removing workload selection config")
+	if err := os.RemoveAll(configCompiledPath); err != nil {
+		return fmt.Errorf("failed to remove workload selection binary policy: %w", err)
+	}
+	if err := os.RemoveAll(configJSONPath); err != nil {
+		return fmt.Errorf("failed to remove workload selection JSON policy: %w", err)
+	}
+	return nil
 }
