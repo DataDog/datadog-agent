@@ -38,6 +38,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
 	ddnvml.WithMockNVML(t, nvmlMock)
+	deviceCache := ddnvml.NewDeviceCache()
 	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
 	deps := &CollectorDependencies{Devices: devices}
