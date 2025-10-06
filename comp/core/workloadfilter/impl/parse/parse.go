@@ -23,7 +23,7 @@ func GetProductConfigs(config workloadfilter.CELFilterConfig) (map[workloadfilte
 }
 
 // consolidateRulesByProduct merges all rules for the same product
-func consolidateRulesByProduct(productRules []workloadfilter.RuleBundles) map[workloadfilter.Product]map[workloadfilter.ResourceType][]string {
+func consolidateRulesByProduct(productRules []workloadfilter.RuleBundle) map[workloadfilter.Product]map[workloadfilter.ResourceType][]string {
 	productRulesMap := make(map[workloadfilter.Product]map[workloadfilter.ResourceType][]string)
 
 	for _, productRule := range productRules {

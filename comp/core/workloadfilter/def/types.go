@@ -10,10 +10,10 @@ import (
 )
 
 // CELFilterConfig represents the top-level configuration structure
-type CELFilterConfig []RuleBundles
+type CELFilterConfig []RuleBundle
 
-// RuleBundles defines rules that apply to specific products
-type RuleBundles struct {
+// RuleBundle defines rules that apply to specific products
+type RuleBundle struct {
 	Products []Product                 `yaml:"products" json:"products" mapstructure:"products"`
 	Rules    map[ResourceType][]string `yaml:"rules" json:"rules" mapstructure:"rules"`
 }

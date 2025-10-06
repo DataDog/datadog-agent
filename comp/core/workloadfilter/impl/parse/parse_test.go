@@ -33,7 +33,8 @@ func TestGetProductConfigs(t *testing.T) {
 				workloadfilter.ResourceType("containers"): {
 					"container.image.contains('alpine')",
 				},
-				workloadfilter.ResourceType("pods"): { // This should generate a warning for SBOM
+				// This should be deleted as pods are not supported for SBOM
+				workloadfilter.ResourceType("pods"): {
 					"pod.name.matches('agent.*')",
 				},
 			},
@@ -46,9 +47,19 @@ func TestGetProductConfigs(t *testing.T) {
 				},
 			},
 		},
+		{
+			// This should be deleted as an unrecognized product
+			Products: []workloadfilter.Product{workloadfilter.Product("non-existent")},
+			Rules: map[workloadfilter.ResourceType][]string{
+				workloadfilter.ResourceType("containers"): {
+					"container.name == 'should-not-matter'",
+				},
+			},
+		},
 	}
 
 	results, errs := GetProductConfigs(config)
+	assert.Len(t, errs, 2) // should have 2 errors: 1 for SBOM pod rule, 1 for unrecognized product
 
 	// Should have results for all 4 products (metrics, logs, sbom, global)
 	assert.Len(t, results, 4)
@@ -68,7 +79,6 @@ func TestGetProductConfigs(t *testing.T) {
 	require.True(t, exists)
 	assert.Len(t, sbomRules[workloadfilter.ContainerType], 1)
 	assert.Len(t, sbomRules[workloadfilter.PodType], 0) // should drop invalid pod rule
-	assert.Len(t, errs, 1)                              // should have one error for unsupported pod rule in SBOM
 
 	// Check global product
 	globalRules, exists := results[workloadfilter.ProductGlobal]
@@ -103,22 +113,49 @@ func TestConsolidateRulesByProduct(t *testing.T) {
 	assert.Equal(t, []string{"pod_rule1"}, metricsRules[workloadfilter.PodType])
 }
 
-func TestYAMLParser_ValidateConfig(t *testing.T) {
-	// Set up config with invalid rule type for SBOM using YAML format
+func TestYAMLUnmarshal(t *testing.T) {
 	yamlConfig := `
 cel_workload_exclude:
+- products: ["metrics"]
+  rules:
+    kube_services: ["true"]
+    pods: ["false"]
 - products:
+    - logs
     - sbom
   rules:
     containers:
-      - "container.name == 'valid'"
-    pods:
-      - "pod.name == 'invalid_for_sbom'"
-    kube_services:
-      - "service.name == 'also_invalid_for_sbom'"
+      - "container.name != 67"
+- products: x,y
+  rules:
+    foo: bar,baz
 `
 	configComponent := configcomp.NewMockFromYAML(t, yamlConfig)
 	var filterConfig workloadfilter.CELFilterConfig
 	err := configComponent.UnmarshalKey("cel_workload_exclude", &filterConfig)
+
 	require.NoError(t, err)
+	assert.Len(t, filterConfig, 3)
+
+	assert.Contains(t, filterConfig, workloadfilter.RuleBundle{
+		Products: []workloadfilter.Product{workloadfilter.ProductMetrics},
+		Rules: map[workloadfilter.ResourceType][]string{
+			workloadfilter.ResourceType("kube_services"): {"true"},
+			workloadfilter.ResourceType("pods"):          {"false"},
+		},
+	})
+
+	assert.Contains(t, filterConfig, workloadfilter.RuleBundle{
+		Products: []workloadfilter.Product{workloadfilter.ProductLogs, workloadfilter.ProductSBOM},
+		Rules: map[workloadfilter.ResourceType][]string{
+			workloadfilter.ResourceType("containers"): {"container.name != 67"},
+		},
+	})
+
+	assert.Contains(t, filterConfig, workloadfilter.RuleBundle{
+		Products: []workloadfilter.Product{"x", "y"},
+		Rules: map[workloadfilter.ResourceType][]string{
+			workloadfilter.ResourceType("foo"): {"bar", "baz"},
+		},
+	})
 }
