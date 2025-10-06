@@ -26,6 +26,7 @@
         --release-version $RELEASE_VERSION \
         --target-repo $TARGET_REPO \
         --target-channel $BUCKET_BRANCH \
+        --target-branch 7.71.x \
         $AUTO_RELEASE \
         $FOLLOW
   dependencies: []

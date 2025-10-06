@@ -238,7 +238,7 @@ variables:
   VIRUS_TOTAL: virus-total # windows-products
   # End vault variables
 
-  DD_PKG_VERSION: "latest"
+  DD_PKG_VERSION: "0.5.0"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job cloning strategy
