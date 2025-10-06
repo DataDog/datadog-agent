@@ -50,3 +50,4 @@ func initSocketTypeConstants()                 {}
 func initSocketFamilyConstants()               {}
 func initSocketProtocolConstants()             {}
 func initPrCtlOptionConstants()                {}
+func initUserSessionTypes()                    {}

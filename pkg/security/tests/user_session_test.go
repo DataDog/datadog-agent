@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -72,7 +71,7 @@ func TestK8SUserSession(t *testing.T) {
 			test.validateUserSessionSchema(t, event)
 
 			assert.NotEqual(t, 0, event.ProcessContext.UserSession.ID)
-			assert.Equal(t, usersession.UserSessionTypes["k8s"], event.ProcessContext.UserSession.SessionType)
+			assert.Equal(t, model.UserSessionTypeK8S, event.ProcessContext.UserSession.SessionType)
 			assert.Equal(t, "qwerty.azerty@datadoghq.com", event.ProcessContext.UserSession.K8SUsername)
 			assert.Equal(t, "azerty.qwerty@datadoghq.com", event.ProcessContext.UserSession.K8SUID)
 			assert.Equal(t, []string{

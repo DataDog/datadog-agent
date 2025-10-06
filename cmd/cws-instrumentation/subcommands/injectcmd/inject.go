@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/flags"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 const (
@@ -85,8 +85,16 @@ func injectUserSession(params *InjectCliParams) error {
 	if len(params.Data) > UserSessionDataMaxSize {
 		return fmt.Errorf("user session context too long: %d", len(params.Data))
 	}
-	usersession.InitUserSessionTypes()
-	sessionType := usersession.UserSessionTypes[params.SessionType]
+	var sessionType uint8
+	switch params.SessionType {
+	case "k8s":
+		sessionType = model.UserSessionTypeK8S
+	case "ssh":
+		sessionType = model.UserSessionTypeSSH
+	default:
+		sessionType = model.UserSessionTypeUnknown
+	}
+
 	if sessionType == 0 {
 		return fmt.Errorf("unknown user session type: %v", params.SessionType)
 	}
