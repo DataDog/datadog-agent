@@ -47,13 +47,15 @@ func New(api evtapi.API) *PublisherMetadataCache {
 }
 
 func (c *PublisherMetadataCache) deleteEntry(publisherName string) {
+	c.handleMu.Lock()
+	defer c.handleMu.Unlock()
 	if value, found := c.cache.Load(publisherName); found {
 		entry := value.(CacheEntry)
-		c.handleMu.Lock()
-		evtapi.EvtClosePublisherMetadata(c.evtapi, entry.Handle)
-		c.handleMu.Unlock()
+		if entry.Handle != InvalidHandle {
+			evtapi.EvtClosePublisherMetadata(c.evtapi, entry.Handle)
+		}
+		c.cache.Delete(publisherName)
 	}
-	c.cache.Delete(publisherName)
 }
 
 // Get retrieves a cached EventPublisherMetadataHandle for the given publisher name.
@@ -124,9 +126,13 @@ func (c *PublisherMetadataCache) FormatMessage(publisherName string, event evtap
 
 // Flush cleans up all cached handles when the component shuts down
 func (c *PublisherMetadataCache) Flush() {
+	c.handleMu.Lock()
+	defer c.handleMu.Unlock()
 	c.cache.Range(func(key, value interface{}) bool {
 		entry := value.(CacheEntry)
-		evtapi.EvtClosePublisherMetadata(c.evtapi, entry.Handle)
+		if entry.Handle != InvalidHandle {
+			evtapi.EvtClosePublisherMetadata(c.evtapi, entry.Handle)
+		}
 		c.cache.Delete(key)
 		return true
 	})
