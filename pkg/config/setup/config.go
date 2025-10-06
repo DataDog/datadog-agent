@@ -1481,6 +1481,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
 	config.BindEnvAndSetDefault("serializer_use_events_marshaler_v2", true)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api_series", false)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
