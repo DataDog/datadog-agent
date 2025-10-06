@@ -40,6 +40,10 @@ func generate(outputDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create directory for deb-rpm: %w", err)
 	}
+	err = os.MkdirAll(filepath.Join(outputDir, "sysvinit"), 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create directory for sysvinit: %w", err)
+	}
 	for unit, content := range systemdUnitsOCI {
 		filePath := filepath.Join(outputDir, "oci", unit)
 		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
@@ -51,6 +55,15 @@ func generate(outputDir string) error {
 	}
 	for unit, content := range systemdUnitsDebRpm {
 		filePath := filepath.Join(outputDir, "debrpm", unit)
+		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
+		}
+		if err := os.WriteFile(filePath, content, 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", unit, err)
+		}
+	}
+	for unit, content := range sysvinitScripts {
+		filePath := filepath.Join(outputDir, "sysvinit", unit)
 		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 			return fmt.Errorf("failed to create directory for %s: %w", unit, err)
 		}
@@ -84,6 +97,14 @@ func mustReadSystemdUnit(name string, data systemdTemplateData) []byte {
 		panic(err)
 	}
 	return buf.Bytes()
+}
+
+func mustReadSysvinitScript(name string) []byte {
+	content, err := os.ReadFile(filepath.Join("gen/sysvinit", name))
+	if err != nil {
+		panic(err)
+	}
+	return content
 }
 
 func systemdUnits(stableData, expData, ddotStableData, ddotExpData systemdTemplateData, includeInstaller bool) map[string][]byte {
@@ -154,6 +175,12 @@ var (
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/experiment",
 		PIDDir:           "/opt/datadog-packages/datadog-agent/experiment",
 		Stable:           false,
+	}
+	sysvinitScripts = map[string][]byte{
+		"sysvinit_debian.erb":          mustReadSysvinitScript("sysvinit_debian.erb"),
+		"sysvinit_debian.process.erb":  mustReadSysvinitScript("sysvinit_debian.process.erb"),
+		"sysvinit_debian.security.erb": mustReadSysvinitScript("sysvinit_debian.security.erb"),
+		"sysvinit_debian.trace.erb":    mustReadSysvinitScript("sysvinit_debian.trace.erb"),
 	}
 
 	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, ddotStableDataOCI, ddotExpDataOCI, true)
