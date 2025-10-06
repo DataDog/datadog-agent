@@ -181,11 +181,16 @@ func (r *ResourceTypeCache) refreshCache(ctx context.Context) error {
 		r.lock.Unlock()
 
 		// wait for refresh to complete
-		<-waitCh
-		r.lock.RLock()
-		err := r.refreshErr
-		r.lock.RUnlock()
-		return err
+		select {
+		case <-waitCh:
+			r.lock.RLock()
+			err := r.refreshErr
+			r.lock.RUnlock()
+			return err
+		case <-ctx.Done():
+			return fmt.Errorf("context deadline reached while waiting to repopulate: %w", ctx.Err())
+		}
+
 	}
 
 	// no refresh in progress -> set state and create wait channel
@@ -230,13 +235,14 @@ func (r *ResourceTypeCache) refreshCache(ctx context.Context) error {
 		_ = refreshRetrier.TriggerRetry()
 		status := refreshRetrier.RetryStatus()
 
-		if status == retry.OK {
+		switch status {
+		case retry.OK:
 			return nil
-		}
-		if status == retry.PermaFail {
+		case retry.PermaFail:
 			le := refreshRetrier.LastError()
 			runErr = le.Unwrap()
 			return runErr
+
 		}
 
 		// wait until next retry or context timeout.
