@@ -129,6 +129,26 @@ filters:
 				{ip: "10.10.10.256", shouldMatch: true},
 			},
 		},
+		{
+			name: "exclude all domain, then include",
+			config: `
+filters:
+  - match_domain: '*'
+    type: exclude
+  - match_domain: 'abc.google.com'
+    type: include
+  - match_domain: '*.datadoghq.com'
+    type: include
+`,
+			expectedMatches: []expectedMatch{
+				{domain: "zoom.us", shouldMatch: false},
+				{domain: "dns.google.com", shouldMatch: false},
+				{domain: "123.google.com", shouldMatch: false},
+				{domain: "abc.google.com", shouldMatch: true},
+				{domain: "abc.datadoghq.com", shouldMatch: true},
+				{domain: "123.datadoghq.com", shouldMatch: true},
+			},
+		},
 
 		// TODO: TEST FOR ALL CASES
 	}
