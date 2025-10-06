@@ -259,7 +259,7 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 
-	if !s.filter.Match(domain, conn.Raddr.GetIp()) {
+	if !s.filter.IsIncluded(domain, conn.Raddr.GetIp()) {
 		return false
 	}
 	if domain != "" {

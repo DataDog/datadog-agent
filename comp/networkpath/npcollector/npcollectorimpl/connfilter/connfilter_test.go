@@ -142,7 +142,7 @@ filters:
 			}
 			for _, expMatch := range tt.expectedMatches {
 				require.NotNil(t, connFilter)
-				assert.Equal(t, connFilter.Match(expMatch.domain, expMatch.ip), expMatch.shouldMatch)
+				assert.Equal(t, connFilter.IsIncluded(expMatch.domain, expMatch.ip), expMatch.shouldMatch, expMatch)
 			}
 		})
 	}

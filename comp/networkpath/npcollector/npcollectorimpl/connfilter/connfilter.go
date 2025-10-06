@@ -120,17 +120,25 @@ func NewConnFilter(config []Config) (*ConnFilter, []error) {
 	}, errs
 }
 
-func (f *ConnFilter) Match(domain string, ip string) bool {
-	matched := true
+func (f *ConnFilter) IsIncluded(domain string, ip string) bool {
+	isIncluded := true
 	for _, filter := range f.filters {
+		matched := false
 		if filter.matchDomain != nil { // TODO: TEST ME
 			if filter.matchDomain.MatchString(domain) {
-				matched = isMatched(filter.Type)
+				matched = true
 			}
 		}
 		if filter.matchIPCidr != nil { // TODO: TEST ME
 			if filter.matchIPCidr.Contains(net.ParseIP(ip)) {
-				matched = isMatched(filter.Type)
+				matched = true
+			}
+		}
+		if matched {
+			if filter.Type == filterTypeExclude {
+				isIncluded = false
+			} else {
+				isIncluded = true
 			}
 		}
 	}
@@ -143,12 +151,5 @@ func (f *ConnFilter) Match(domain string, ip string) bool {
 	//for _, filters := range f.filters {
 	//	//filters.
 	//}
-	return matched
-}
-
-func isMatched(t Type) bool {
-	if t == filterTypeExclude {
-		return false
-	}
-	return true
+	return isIncluded
 }
