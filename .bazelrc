@@ -5,7 +5,7 @@ startup --max_idle_secs=28800
 
 common --enable_platform_specific_config # Supported OS identifiers are linux, macos, windows, freebsd, and openbsd
 
-build --verbose_failures
+build --verbose_failures --config=cache
 # Do not leak local environment variables into the build context
 build --incompatible_strict_action_env
 build:linux --strategy=sandboxed
@@ -16,7 +16,6 @@ build:windows --strategy=standalone # Valid values are: [dynamic_worker, standal
 build:windows --noexperimental_convenience_symlinks
 
 
-# Remote cache: opt in by adding `common --config=cache` to either `user.bazelrc` (workspace) or `~/.bazelrc` (home)
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
 # If entry isn't found in datadog-agent, it will be searched in remote-caching.
 common:cache --remote_instance_name=remote-caching/datadog-agent
