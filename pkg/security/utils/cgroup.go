@@ -209,7 +209,7 @@ func (cfs *CGroupFS) removeMountPointFromCGroupPath(cpath string) string {
 }
 
 // FindCGroupContext returns the container ID, cgroup context and sysfs cgroup path the process belongs to.
-// Returns "" as container ID and sysfs cgroup path, and an empty CGroupContext if the process does not belong to a container.
+// Returns "" as container ID if the process does not belong to a container.
 func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, CGroupContext, string, error) {
 	if len(cfs.cGroupMountPoints) == 0 {
 		return "", CGroupContext{}, "", ErrNoCGroupMountpoint

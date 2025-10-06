@@ -26,6 +26,15 @@ var recordPool = sync.Pool{
 	},
 }
 
+// MakeTestingMessage creates a Message for testing purposes.
+func MakeTestingMessage(data []byte) Message {
+	return Message{
+		rec: &ringbuf.Record{
+			RawSample: data,
+		},
+	}
+}
+
 // Event returns the event corresponding to the message.
 //
 // The caller should not access the event or its data anymore after calling
