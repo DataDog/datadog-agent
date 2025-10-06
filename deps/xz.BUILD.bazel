@@ -6,6 +6,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "pkg_mklink")
+load("@@//bazel/rules:pkgconfig.bzl", "gen_pkgconfig")
 
 package(
     default_applicable_licenses = [":license"],
@@ -233,10 +234,24 @@ pkg_files(
     prefix = "include",
 )
 
+gen_pkgconfig(
+    name = "gen_pkgconfig",
+    template = "@@//deps/pkgconfig:liblzma.pc.in",
+    prefix = "/opt/datadog-agent/embedded/",
+    version = "5.4.2",
+)
+
+pkg_files(
+    name = "pkgconfig",
+    srcs = [":gen_pkgconfig"],
+    prefix = "lib/pkgconfig",
+)
+
 pkg_install(
     name = "install",
     srcs = [
         ":hdr_files",
         ":lib_files",
+        ":pkgconfig",
     ],
 )
