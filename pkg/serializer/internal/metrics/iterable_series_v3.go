@@ -40,6 +40,7 @@ const (
 )
 
 const (
+	// References to a dictionary entry have suffix Ref
 	columnDictNameStr = 1 + iota
 	columnDictTagsStr
 	columnDictTagsets
@@ -48,11 +49,11 @@ const (
 	columnDictResourceType
 	columnDictResourceName
 	columnDictSourceTypeName
-	columnDictOriginInfo
+	columnDictOrigin
 	columnType
-	columnName
-	columnTags
-	columnResources
+	columnNameRef
+	columnTagsRef
+	columnResourcesRef
 	columnInterval
 	columnNumPoints
 	columnTimestamp
@@ -62,8 +63,8 @@ const (
 	columnSketchNBins
 	columnSketchBinKeys
 	columnSketchBinCounts
-	columnSourceTypeName
-	columnOriginInfo
+	columnSourceTypeNameRef
+	columnOriginRef
 	numberOfColumns
 )
 
@@ -357,18 +358,18 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 
 func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	pb.txn.Reset()
-	pb.txn.Sint64(columnName, pb.deltaName.encode(pb.dict.internName(serie.Name)))
-	pb.txn.Sint64(columnTags, pb.deltaTags.encode(pb.dict.internTags(serie.Tags)))
+	pb.txn.Sint64(columnNameRef, pb.deltaName.encode(pb.dict.internName(serie.Name)))
+	pb.txn.Sint64(columnTagsRef, pb.deltaTags.encode(pb.dict.internTags(serie.Tags)))
 	pb.txn.Sint64(columnInterval, pb.deltaInterval.encode(serie.Interval))
 
 	pb.renderResources(serie)
-	pb.txn.Sint64(columnResources,
+	pb.txn.Sint64(columnResourcesRef,
 		pb.deltaResources.encode(pb.dict.internResources(pb.resourcesBuf)))
 
-	pb.txn.Sint64(columnSourceTypeName,
+	pb.txn.Sint64(columnSourceTypeNameRef,
 		pb.deltaSourceTypeName.encode(pb.dict.internSourceTypeName(serie.SourceTypeName)))
 
-	pb.txn.Sint64(columnOriginInfo, pb.deltaOriginInfo.encode(
+	pb.txn.Sint64(columnOriginRef, pb.deltaOriginInfo.encode(
 		pb.dict.internOriginInfo(originInfo{
 			product:  metricSourceToOriginProduct(serie.Source),
 			category: metricSourceToOriginCategory(serie.Source),
@@ -523,7 +524,7 @@ func newDictionaryBuilder(txn *stream.ColumnTransaction) *dictionaryBuilder {
 
 		sourceTypeNameInterner: newInterner[istr](txn, columnDictSourceTypeName),
 
-		originInfoInterner: newInterner[originInfo](txn, columnDictOriginInfo),
+		originInfoInterner: newInterner[originInfo](txn, columnDictOrigin),
 
 		tagsIndex:      make(map[tagsKey]int64),
 		resourcesIndex: make(map[any]int64),
