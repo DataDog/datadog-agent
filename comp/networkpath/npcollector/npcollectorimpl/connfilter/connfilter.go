@@ -142,14 +142,5 @@ func (f *ConnFilter) IsIncluded(domain string, ip string) bool {
 			}
 		}
 	}
-	//net.ParseCIDR
-	//cidr := net.IPNet{}
-	//cidr.Contains(net.ParseIP(domain))
-
-	// domain included by default
-	// ip included by default
-	//for _, filters := range f.filters {
-	//	//filters.
-	//}
 	return isIncluded
 }
