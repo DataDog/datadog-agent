@@ -43,33 +43,40 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
-    # TODO(celian): Restore short lived token generation
-    if running_in_ci():
-        # Get the token from fetch_secrets
-        token_cmd = ctx.run(
-            f"{os.environ['CI_PROJECT_DIR']}/tools/ci/fetch_secret.sh gitlab-token write_api", hide=True
-        )
-        if not token_cmd.ok:
-            raise RuntimeError(
-                f'Failed to retrieve Gitlab token, request failed with code {token_cmd.return_code}:\n{token_cmd.stderr}'
-            )
+    # # TODO(celian): Restore short lived token generation
+    # if running_in_ci():
+    #     # Get the token from fetch_secrets
+    #     token_cmd = ctx.run(
+    #         f"{os.environ['CI_PROJECT_DIR']}/tools/ci/fetch_secret.sh gitlab-token write_api", hide=True
+    #     )
+    #     if not token_cmd.ok:
+    #         raise RuntimeError(
+    #             f'Failed to retrieve Gitlab token, request failed with code {token_cmd.return_code}:\n{token_cmd.stderr}'
+    #         )
 
-        return token_cmd.stdout.strip()
+    #     return token_cmd.stdout.strip()
 
     infra_token = datadog_infra_token(ctx, audience="sdm")
     url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
 
-    res = requests.get(url, headers={'Authorization': infra_token}, timeout=10)
+    import time
+    start_time = time.perf_counter()
+    res = requests.get(url, headers={'Authorization': infra_token}, timeout=30)
+    end_time = time.perf_counter()
+    print(f'Got Gitlab token in {end_time - start_time:.2f}s')
 
     if not res.ok:
         raise RuntimeError(f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}')
 
     token_info = res.json()
-    if verbose:
+    # if verbose:
+    if True:
         # Prints also the scopes + the expiration date
         print('Got Gitlab token, extra information:', {k: v for k, v in token_info.items() if k != 'token'})
 
     token = token_info['token']
+
+    assert token.startswith('glpat-'), "Got empty Gitlab token"
 
     return token
 
