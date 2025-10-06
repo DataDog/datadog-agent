@@ -280,6 +280,7 @@ func TestCacheRefreshOnMiss(t *testing.T) {
 	}
 
 	close(start)
+	// Give followers time to reach refreshCache() and start waiting on the leader.
 	time.Sleep(2 * time.Second)
 	close(blockingFakeDiscovery.gate)
 

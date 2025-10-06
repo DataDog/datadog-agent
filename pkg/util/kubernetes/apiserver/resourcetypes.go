@@ -39,6 +39,7 @@ type ResourceTypeCache struct {
 	refreshing      bool
 	refreshWaitCh   chan struct{}
 	refreshErr      error
+	refreshTTL      time.Duration
 }
 
 // InitializeGlobalResourceTypeCache initializes the global cache if it hasn't been already.
@@ -48,6 +49,7 @@ func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterf
 			kindGroupToType: make(map[string]string),
 			typeGroupToKind: make(map[string]string),
 			discoveryClient: discoveryClient,
+			refreshTTL:      5 * time.Second,
 		}
 
 		err := initRetry.SetupRetrier(&retry.Config{
@@ -120,7 +122,7 @@ func (r *ResourceTypeCache) getResourceType(kind, apiGroup string) (string, erro
 	}
 
 	// repopulating the cache on miss.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), r.refreshTTL)
 	defer cancel()
 
 	err := r.refreshCache(ctx)
@@ -153,7 +155,7 @@ func (r *ResourceTypeCache) getResourceKind(resource, apiGroup string) (string, 
 	}
 
 	// repopulating the cache on miss.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), r.refreshTTL)
 	defer cancel()
 
 	err := r.refreshCache(ctx)
