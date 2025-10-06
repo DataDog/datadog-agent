@@ -124,12 +124,28 @@ func (c *SSHClient) RetrieveRunningConfig() ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
-	return c.retrieveConfiguration(commands)
+	config, err := c.retrieveConfiguration(commands)
+	if err != nil {
+		return []byte{}, err
+	}
+	err = c.prof.ValidateOutput(profile.Running, config)
+	if err != nil {
+		return []byte{}, err
+	}
+	return config, err
 }
 
 // RetrieveStartupConfig retrieves the startup configuration for the device connected via SSH
 func (c *SSHClient) RetrieveStartupConfig() ([]byte, error) {
 	commands, err := c.prof.GetCommandValues(profile.Startup)
+	if err != nil {
+		return []byte{}, err
+	}
+	config, err := c.retrieveConfiguration(commands)
+	if err != nil {
+		return []byte{}, err
+	}
+	err = c.prof.ValidateOutput(profile.Startup, config)
 	if err != nil {
 		return []byte{}, err
 	}

@@ -27,7 +27,7 @@ var testProfile = &NCMProfile{
 		Running: {
 			Values: []string{"show running-config"},
 			ProcessingRules: ProcessingRules{
-				metadataRules: []MetadataRule{
+				MetadataRules: []MetadataRule{
 					{
 						Type:   Timestamp,
 						Regex:  `Last configuration change at (.+)`,
@@ -38,12 +38,12 @@ var testProfile = &NCMProfile{
 						Regex: `Current configuration : (?P<Size>\d+)`,
 					},
 				},
-				validationRules: []ValidationRule{
+				ValidationRules: []ValidationRule{
 					{
 						Pattern: "Building configuration...",
 					},
 				},
-				redactionRules: []RedactionRule{
+				RedactionRules: []RedactionRule{
 					{Type: SensitiveData, Regex: `(username .+ (password|secret) \d) .+`},
 				},
 			},
@@ -134,8 +134,8 @@ func Test_extractMetadata(t *testing.T) {
 			commandType: Running,
 			configBytes: []byte(expected),
 			expected: &ExtractedMetadata{
-				timestamp:  1755204807,
-				configSize: 3144,
+				Timestamp:  1755204807,
+				ConfigSize: 3144,
 			},
 		},
 		{
@@ -207,7 +207,7 @@ func Test_validateOutput(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.profile.validateOutput(tt.commandType, tt.configBytes)
+			err := tt.profile.ValidateOutput(tt.commandType, tt.configBytes)
 			if tt.expected != nil {
 				assert.Equal(t, tt.expected, err)
 			}

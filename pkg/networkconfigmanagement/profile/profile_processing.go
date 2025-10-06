@@ -19,16 +19,16 @@ import (
 
 // ProcessingRules represent different rules for "processing" including extracting, validating, redacting information from cmd line output
 type ProcessingRules struct {
-	metadataRules   []MetadataRule
-	validationRules []ValidationRule
-	redactionRules  []RedactionRule
+	MetadataRules   []MetadataRule   `json:"metadata" yaml:"metadata"`
+	ValidationRules []ValidationRule `json:"validation" yaml:"validation"`
+	RedactionRules  []RedactionRule  `json:"redaction" yaml:"redaction"`
 }
 
 // MetadataRule represents the rules for parsing metadata from a network device's command
 type MetadataRule struct {
-	Type   MetadataType
-	Regex  string
-	Format string
+	Type   MetadataType `json:"type" yaml:"type"`
+	Regex  string       `json:"regex" yaml:"regex"`
+	Format string       `json:"format" yaml:"format"`
 }
 
 // MetadataType represents enums for "types" of things than can be typically extracted for NCM
@@ -43,14 +43,14 @@ const (
 
 // ValidationRule represents patterns that should be expected from valid output from a command
 type ValidationRule struct {
-	Type    string
-	Pattern string
+	Type    string `json:"type" yaml:"type"`
+	Pattern string `json:"pattern" yaml:"pattern"`
 }
 
 // RedactionRule represents rules for patterns that warrant removal to protect sensitive data or irrelevant information
 type RedactionRule struct {
-	Type  RedactionType
-	Regex string
+	Type  RedactionType `json:"type" yaml:"type"`
+	Regex string        `json:"regex" yaml:"regex"`
 }
 
 // RedactionType represents types of rules and how to deal with their removal/redaction
@@ -64,8 +64,8 @@ const (
 
 // ExtractedMetadata is a means to hold metadata to be emitted as metrics or sent as part of the payload
 type ExtractedMetadata struct {
-	timestamp  int64
-	configSize int
+	Timestamp  int64
+	ConfigSize int
 }
 
 // ProcessCommandOutput is for applying redactions, validating, and extracting metadata from a configuration pulled from a device
@@ -78,7 +78,7 @@ func (p *NCMProfile) ProcessCommandOutput(ct CommandType, output []byte) ([]byte
 	if err != nil {
 		return []byte{}, nil, err
 	}
-	if err = p.validateOutput(ct, output); err != nil {
+	if err = p.ValidateOutput(ct, output); err != nil {
 		return []byte{}, nil, err
 	}
 
@@ -91,7 +91,7 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 		return nil, fmt.Errorf("no metadata found for command type %s in profile %s", ct, p.Name)
 	}
 	result := &ExtractedMetadata{}
-	metadataParsingRules := commandInfo.ProcessingRules.metadataRules
+	metadataParsingRules := commandInfo.ProcessingRules.MetadataRules
 	// TODO: iron out a better way to organize parsing these (i.e. by particular units, etc.) and funnel into the correct field
 	// TODO: should this just return the `NetworkDeviceConfig` pre-filled with the metadata?
 	// TODO: send metrics once retrieved by the main functionality (access to metrics sender for the device)
@@ -110,7 +110,7 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 				log.Warnf("could not parse timestamp for profile %s", p.Name)
 				continue
 			}
-			result.timestamp = timestamp.Unix()
+			result.Timestamp = timestamp.Unix()
 		case ConfigSize:
 			re := regexp.MustCompile(rule.Regex)
 			matches := re.FindSubmatch(output)
@@ -124,18 +124,19 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 				log.Warnf("could not parse config size for profile %s", p.Name)
 				continue
 			}
-			result.configSize = size
+			result.ConfigSize = size
 		}
 	}
 	return result, nil
 }
 
-func (p *NCMProfile) validateOutput(ct CommandType, output []byte) error {
+// ValidateOutput is a function that will confirm if the output from the CLI command is considered "valid" and returned successfully
+func (p *NCMProfile) ValidateOutput(ct CommandType, output []byte) error {
 	commandInfo, ok := p.Commands[ct]
 	if !ok {
 		return fmt.Errorf("no metadata found for command type %s in profile %s", ct, p.Name)
 	}
-	validationRules := commandInfo.ProcessingRules.validationRules
+	validationRules := commandInfo.ProcessingRules.ValidationRules
 	for _, rule := range validationRules {
 		re := regexp.MustCompile(rule.Pattern)
 		if !re.Match(output) {
@@ -150,7 +151,7 @@ func (p *NCMProfile) applyRedactions(ct CommandType, output []byte) ([]byte, err
 	if !ok {
 		return []byte{}, fmt.Errorf("no metadata found for command type %s in profile %s", ct, p.Name)
 	}
-	redactionRules := commandInfo.ProcessingRules.redactionRules
+	redactionRules := commandInfo.ProcessingRules.RedactionRules
 	for _, rule := range redactionRules {
 		switch rule.Type {
 		case SensitiveData:

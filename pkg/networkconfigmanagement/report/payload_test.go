@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,16 +25,19 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	deviceID := "default:10.0.0.1"
 	deviceIP := "10.0.0.1"
 	configType := RUNNING
-	timestamp := now
+
+	metadata := &profile.ExtractedMetadata{
+		Timestamp: now,
+	}
 	tags := []string{"device_type:router", "vendor:cisco"}
 	content := []byte("version 15.1\nhostname Router1")
 
-	config := ToNetworkDeviceConfig(deviceID, deviceIP, configType, now, tags, content)
+	config := ToNetworkDeviceConfig(deviceID, deviceIP, configType, metadata, tags, content)
 
 	assert.Equal(t, deviceID, config.DeviceID)
 	assert.Equal(t, deviceIP, config.DeviceIP)
 	assert.Equal(t, string(configType), config.ConfigType)
-	assert.Equal(t, timestamp, config.Timestamp)
+	assert.Equal(t, now, config.Timestamp)
 	assert.Equal(t, tags, config.Tags)
 	assert.Equal(t, content, config.Content)
 }
@@ -57,8 +61,11 @@ func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		metadata := &profile.ExtractedMetadata{
+			Timestamp: 0,
+		}
 		t.Run(tt.name, func(t *testing.T) {
-			config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", tt.configType, 0, nil, []byte(""))
+			config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", tt.configType, metadata, nil, []byte(""))
 			assert.Equal(t, tt.expected, config.ConfigType)
 		})
 	}

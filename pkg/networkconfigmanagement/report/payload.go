@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 )
 
@@ -55,12 +56,12 @@ func ToNCMPayload(namespace string, integration integrations.Integration, config
 }
 
 // ToNetworkDeviceConfig converts the given parameters into a NetworkDeviceConfig, representing a single device's configuration in a point in time.
-func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ConfigType, timestamp int64, tags []string, content []byte) NetworkDeviceConfig {
+func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ConfigType, extractedMetadata *profile.ExtractedMetadata, tags []string, content []byte) NetworkDeviceConfig {
 	return NetworkDeviceConfig{
 		DeviceID:   deviceID,
 		DeviceIP:   deviceIP,
 		ConfigType: string(configType),
-		Timestamp:  timestamp,
+		Timestamp:  extractedMetadata.Timestamp,
 		Tags:       tags,
 		Content:    content,
 	}

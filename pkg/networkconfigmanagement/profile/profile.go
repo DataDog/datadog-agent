@@ -37,7 +37,7 @@ const (
 type Commands struct {
 	CommandType     CommandType     `json:"type" yaml:"type"`
 	Values          []string        `json:"values" yaml:"values"`
-	ProcessingRules ProcessingRules `json:"processingRules" yaml:"processingRules"`
+	ProcessingRules ProcessingRules `json:"processing_rules" yaml:"processing_rules"`
 }
 
 // Map represents the mapping profile name to profiles from the loaded directory

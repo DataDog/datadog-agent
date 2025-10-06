@@ -16,7 +16,7 @@ commands:
           required: true
       redaction:
         - type: sensitive_data
-          regex: ""
+          regex: "(username .+ (password|secret) \\d) .+"
   - type: startup
     values:
       - "show startup-config"
