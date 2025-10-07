@@ -42,9 +42,13 @@ copy_file(
     out = "src/liblzma/api/config.h",  # minimize the number of exported include paths
 )
 
-_PUBLIC_HEADERS = [
+_MAIN_HEADER = glob([
     "src/liblzma/api/lzma.h",
-]
+])
+
+_API_HEADERS = glob([
+    "src/liblzma/api/lzma/*.h",
+])
 
 cc_library(
     name = "lzma",
@@ -61,7 +65,7 @@ cc_library(
             "src/liblzma/**/*_tablegen.c",
         ],
     ),
-    hdrs = _PUBLIC_HEADERS,
+    hdrs = _MAIN_HEADER + _API_HEADERS,
     copts = select({
         "@platforms//os:windows": [],
         "//conditions:default": ["-std=c99"],
@@ -229,9 +233,15 @@ pkg_files(
 )
 
 pkg_files(
-    name = "hdr_files",
-    srcs = _PUBLIC_HEADERS,
+    name = "main_header",
+    srcs = _MAIN_HEADER,
     prefix = "include",
+)
+
+pkg_files(
+    name = "api_headers",
+    srcs = _API_HEADERS,
+    prefix = "include/lzma",
 )
 
 gen_pkgconfig(
@@ -250,7 +260,8 @@ pkg_files(
 pkg_install(
     name = "install",
     srcs = [
-        ":hdr_files",
+        ":main_header",
+        ":api_headers",
         ":lib_files",
         ":pkgconfig",
     ],
