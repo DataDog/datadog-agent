@@ -328,14 +328,32 @@ func (w *TraceWriter) report() {
 	// update aggregated stats before reseting them.
 	w.statsLastMinute.Acc(w.stats)
 
-	_ = w.statsd.Count("datadog.trace_agent.trace_writer.payloads", w.stats.Payloads.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", w.stats.BytesUncompressed.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.trace_writer.retries", w.stats.Retries.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.trace_writer.bytes", w.stats.Bytes.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.trace_writer.errors", w.stats.Errors.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.trace_writer.traces", w.stats.Traces.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.trace_writer.events", w.stats.Events.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.trace_writer.spans", w.stats.Spans.Swap(0), nil, 1)
+	payloads := w.stats.Payloads.Swap(0)
+	bytesUncompressed := w.stats.BytesUncompressed.Swap(0)
+	retries := w.stats.Retries.Swap(0)
+	bytes := w.stats.Bytes.Swap(0)
+	errors := w.stats.Errors.Swap(0)
+	traces := w.stats.Traces.Swap(0)
+	events := w.stats.Events.Swap(0)
+	spans := w.stats.Spans.Swap(0)
+
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.payloads", payloads, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", bytesUncompressed, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.retries", retries, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.bytes", bytes, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.errors", errors, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.traces", traces, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.events", events, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.trace_writer.spans", spans, nil, 1)
+
+	traceWriterTelemetry.payloads.Add(float64(payloads))
+	traceWriterTelemetry.bytesUncompressed.Add(float64(bytesUncompressed))
+	traceWriterTelemetry.retries.Add(float64(retries))
+	traceWriterTelemetry.bytes.Add(float64(bytes))
+	traceWriterTelemetry.errors.Add(float64(errors))
+	traceWriterTelemetry.traces.Add(float64(traces))
+	traceWriterTelemetry.events.Add(float64(events))
+	traceWriterTelemetry.spans.Add(float64(spans))
 }
 
 var _ eventRecorder = (*TraceWriter)(nil)
@@ -345,6 +363,8 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 	if data != nil {
 		_ = w.statsd.Histogram("datadog.trace_agent.trace_writer.connection_fill", data.connectionFill, nil, 1)
 		_ = w.statsd.Histogram("datadog.trace_agent.trace_writer.queue_fill", data.queueFill, nil, 1)
+		traceWriterTelemetry.connectionFill.Observe(data.connectionFill)
+		traceWriterTelemetry.queueFill.Observe(data.queueFill)
 	}
 	switch t {
 	case eventTypeRetry:
@@ -368,5 +388,7 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 		w.easylog.Warn("Trace Payload dropped (%.2fKB).", float64(data.bytes)/1024)
 		_ = w.statsd.Count("datadog.trace_agent.trace_writer.dropped", 1, nil, 1)
 		_ = w.statsd.Count("datadog.trace_agent.trace_writer.dropped_bytes", int64(data.bytes), nil, 1)
+		traceWriterTelemetry.dropped.Inc()
+		traceWriterTelemetry.droppedBytes.Add(float64(data.bytes))
 	}
 }
