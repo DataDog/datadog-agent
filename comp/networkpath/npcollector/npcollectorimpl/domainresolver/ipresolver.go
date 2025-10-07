@@ -5,19 +5,19 @@
 
 package domainresolver
 
-// IpToDomainResolver handle ip to domain resolution
-type IpToDomainResolver struct {
+// IPToDomainResolver handle ip to domain resolution
+type IPToDomainResolver struct {
 	ipToDomainMap map[string]string
 }
 
-// NewIpToDomainResolver constructor
-func NewIpToDomainResolver(ipToDomainMap map[string]string) *IpToDomainResolver {
-	return &IpToDomainResolver{
+// NewIPToDomainResolver constructor
+func NewIPToDomainResolver(ipToDomainMap map[string]string) *IPToDomainResolver {
+	return &IPToDomainResolver{
 		ipToDomainMap: ipToDomainMap,
 	}
 }
 
 // ResolveIPToDomain returns a domain for an IP
-func (r *IpToDomainResolver) ResolveIPToDomain(ip string) string {
+func (r *IPToDomainResolver) ResolveIPToDomain(ip string) string {
 	return r.ipToDomainMap[ip]
 }

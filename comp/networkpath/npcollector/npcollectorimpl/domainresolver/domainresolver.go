@@ -29,9 +29,9 @@ func NewDomainResolver() *DomainResolver {
 }
 
 // GetIPResolverForDomains returns an IP Resolver based on a list of domains
-func (d *DomainResolver) GetIPResolverForDomains(domains []string) (*IpToDomainResolver, []error) {
+func (d *DomainResolver) GetIPResolverForDomains(domains []string) (*IPToDomainResolver, []error) {
 	domainMap, errors := d.getIPToDomainMap(domains)
-	return NewIpToDomainResolver(domainMap), errors
+	return NewIPToDomainResolver(domainMap), errors
 }
 
 func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, []error) {
