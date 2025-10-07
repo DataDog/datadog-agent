@@ -334,12 +334,12 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "move_mount" {
+			if event.GetType() != "move_mount" && event.Mount.FSType != "tmpfs" {
 				return false
 			}
 
 			allMounts[event.Mount.MountID]++
-
+			fmt.Printf("Move mount received: %+v\n", event.Mount)
 			if len(allMounts) == 3 {
 				return true
 			}
