@@ -1,6 +1,6 @@
 logs:
   - type: file
     path: 'C:\logs\e2e_test_logs\hello-world.log'
-    service: ella-e2e-test
+    service: hello
     source: custom_log
    
