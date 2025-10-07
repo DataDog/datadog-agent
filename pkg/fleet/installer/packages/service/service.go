@@ -40,7 +40,8 @@ func GetServiceManagerType() Type {
 }
 
 func getServiceManagerType() Type {
-	if _, err := os.Stat("/run/systemd/system"); err == nil {
+	_, err := os.Stat("/run/systemd/system")
+	if err == nil {
 		return SystemdType
 	}
 	_, err = exec.LookPath("initctl")
