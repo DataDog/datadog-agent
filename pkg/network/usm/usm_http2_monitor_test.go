@@ -26,6 +26,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1798,14 +1799,20 @@ func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map
 			if statusCode == 0 {
 				statusCode = 200
 			}
-			hasTag := stat.Data[statusCode].StaticTags == ebpftls.ConnTagGo
+			statusCodeStats, ok := stat.Data[statusCode]
+			if !ok {
+				t.Logf("Bug was found; Path: %q; Status Code: %d; data: %#v", key.Path.Content.Get(), statusCode, stat.Data)
+				return false
+			}
+			hasTag := statusCodeStats.StaticTags == ebpftls.ConnTagGo
 			if hasTag != isTLS {
 				continue
 			}
-			count := stat.Data[statusCode].Count
+			count := statusCodeStats.Count
 			newKey := usmhttp.Key{
-				Path:   usmhttp.Path{Content: key.Path.Content},
-				Method: key.Method,
+				ConnectionKey: key.ConnectionKey,
+				Path:          usmhttp.Path{Content: key.Path.Content},
+				Method:        key.Method,
 			}
 			if _, ok := res[newKey]; !ok {
 				res[newKey] = count
@@ -1820,6 +1827,7 @@ func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map
 	}
 
 	for key, endpointCount := range res {
+		key.ConnectionKey = types.ConnectionKey{}
 		_, ok := expectedEndpoints[key]
 		if !ok {
 			return false
