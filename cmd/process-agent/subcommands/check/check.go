@@ -14,37 +14,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
-	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
-	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -115,10 +102,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
 			FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
 		}
-	}, "check", checkAllowlist, wmcatalogremote.GetCatalog(), workloadmeta.Remote)}
+	}, "check", checkAllowlist, getProcessAgentFxOptions)}
 }
 
-func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, allowlist []string, wlmCatalog fx.Option, wlmAgentType workloadmeta.AgentType) *cobra.Command {
+func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, allowlist []string, getFxOptions func(cliParams *CliParams, bundleParams core.BundleParams) []fx.Option) *cobra.Command {
 	cliParams := &CliParams{
 		GlobalParams: globalParamsGetter(),
 	}
@@ -142,43 +129,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				bundleParams.LogParams = log.ForOneShot(string(command.LoggerName), "off", true)
 			}
 
-			return fxutil.OneShot(RunCheckCmd,
-				fx.Supply(cliParams, bundleParams),
-				core.Bundle(),
-				secretsfx.Module(),
-
-				// Provide eventplatformimpl module
-				eventplatformreceiverimpl.Module(),
-				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
-
-				// Provide rdnsquerier module
-				rdnsquerierfx.Module(),
-
-				// Provide npcollector module
-				npcollectorimpl.Module(),
-				// Provide the corresponding workloadmeta Params to configure the catalog
-				wlmCatalog,
-
-				// Provide workloadmeta module
-				workloadmetafx.Module(workloadmeta.Params{
-					AgentType: wlmAgentType,
-				}),
-
-				// Tagger must be initialized after agent config has been setup
-				dualTaggerfx.Module(common.DualTaggerParams()),
-				processComponent.Bundle(),
-				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
-				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
-				// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
-				// we can include the tagger as part of the workloadmeta component.
-				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
-					proccontainers.InitSharedContainerProvider(wmeta, tagger)
-				}),
-				fx.Provide(func() statsd.ClientInterface {
-					return &statsd.NoOpClient{}
-				}),
-				ipcfx.ModuleReadOnly(),
-			)
+			return fxutil.OneShot(RunCheckCmd, getFxOptions(cliParams, bundleParams)...)
 		},
 		SilenceUsage: true,
 	}
