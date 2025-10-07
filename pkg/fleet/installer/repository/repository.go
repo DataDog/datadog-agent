@@ -522,10 +522,6 @@ func (l *link) Target() string {
 	return ""
 }
 
-func (l *link) HasTarget() bool {
-	return l.Target() != ""
-}
-
 func (l *link) Set(path string) error {
 	err := symlink.Set(l.linkPath, path)
 	if err != nil {
