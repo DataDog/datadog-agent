@@ -17,7 +17,7 @@ import (
 )
 
 func TestGetProductConfigs(t *testing.T) {
-	config := workloadfilter.CELFilterConfig{
+	config := []workloadfilter.RuleBundle{
 		{
 			Products: []workloadfilter.Product{workloadfilter.ProductMetrics, workloadfilter.ProductLogs},
 			Rules: map[workloadfilter.ResourceType][]string{
@@ -87,7 +87,7 @@ func TestGetProductConfigs(t *testing.T) {
 }
 
 func TestConsolidateRulesByProduct(t *testing.T) {
-	config := workloadfilter.CELFilterConfig{
+	config := []workloadfilter.RuleBundle{
 		{
 			Products: []workloadfilter.Product{workloadfilter.ProductMetrics},
 			Rules: map[workloadfilter.ResourceType][]string{
@@ -131,7 +131,7 @@ cel_workload_exclude:
     foo: bar,baz
 `
 	configComponent := configcomp.NewMockFromYAML(t, yamlConfig)
-	var filterConfig workloadfilter.CELFilterConfig
+	var filterConfig []workloadfilter.RuleBundle
 	err := configComponent.UnmarshalKey("cel_workload_exclude", &filterConfig)
 
 	require.NoError(t, err)

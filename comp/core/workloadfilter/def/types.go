@@ -9,9 +9,6 @@ import (
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 )
 
-// CELFilterConfig represents the top-level configuration structure
-type CELFilterConfig []RuleBundle
-
 // RuleBundle defines rules that apply to specific products
 type RuleBundle struct {
 	Products []Product                 `yaml:"products" json:"products" mapstructure:"products"`

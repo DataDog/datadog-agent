@@ -11,7 +11,7 @@ import (
 )
 
 // GetProductConfigs parses the configuration and returns raw rule strings organized by product
-func GetProductConfigs(config workloadfilter.CELFilterConfig) (map[workloadfilter.Product]map[workloadfilter.ResourceType][]string, []error) {
+func GetProductConfigs(config []workloadfilter.RuleBundle) (map[workloadfilter.Product]map[workloadfilter.ResourceType][]string, []error) {
 	if config == nil {
 		return nil, nil
 	}

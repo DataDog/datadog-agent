@@ -44,7 +44,7 @@ func isRuleTypeSupported(product workloadfilter.Product, resourceType workloadfi
 }
 
 func removeInvalidConfig(productRules map[workloadfilter.Product]map[workloadfilter.ResourceType][]string) []error {
-	unsupportedErrors := []error{}
+	var unsupportedErrors []error
 	resourceTypeSet := makeSet(workloadfilter.GetAllResourceTypes())
 	productSet := makeSet(workloadfilter.GetAllProducts())
 
