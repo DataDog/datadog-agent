@@ -24,8 +24,6 @@ unless do_repackage?
   dependency "libjemalloc" if linux_target?
 
   dependency 'datadog-agent-dependencies'
-
-  dependency "installer" if linux_target? and !heroku_target?
 end
 
 source path: '..',
@@ -142,8 +140,19 @@ build do
   platform = windows_arch_i386? ? "x86" : "x64"
   command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
+  # Build the installer
+  # We do this in the same software definition to avoid redundant copying, as it's based on the same source
   if linux_target? and !heroku_target?
-      move "#{install_dir}/bin/installer/installer", "#{install_dir}/embedded/bin"
+    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    move 'bin/installer/installer', "#{install_dir}/embedded/bin"
+  elsif windows_target?
+    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
+  end
+
+  unless windows_target?
+    command "dda inv -- -e loader.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
   end
 
   if windows_target?

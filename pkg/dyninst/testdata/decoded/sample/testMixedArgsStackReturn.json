@@ -1,0 +1,146 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMixedArgsStackReturn",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testMixedArgsStackReturn",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 322
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 425
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testMixedArgsStackReturn",
+          "location": {
+            "method": "main.testMixedArgsStackReturn"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "int",
+                "value": "31"
+              },
+              "b": {
+                "type": "int",
+                "value": "32"
+              },
+              "c": {
+                "type": "int",
+                "value": "33"
+              },
+              "d": {
+                "type": "int",
+                "value": "34"
+              },
+              "e": {
+                "type": "int",
+                "value": "35"
+              },
+              "f": {
+                "type": "int",
+                "value": "36"
+              },
+              "g": {
+                "type": "int",
+                "value": "37"
+              },
+              "h": {
+                "type": "int",
+                "value": "38"
+              },
+              "s": {
+                "type": "string",
+                "value": "overflow"
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "main.largeStruct",
+                "fields": {
+                  "a": {
+                    "type": "int",
+                    "value": "310"
+                  },
+                  "b": {
+                    "type": "int",
+                    "value": "320"
+                  },
+                  "c": {
+                    "type": "int",
+                    "value": "330"
+                  },
+                  "d": {
+                    "type": "int",
+                    "value": "340"
+                  },
+                  "e": {
+                    "type": "int",
+                    "value": "350"
+                  },
+                  "f": {
+                    "type": "int",
+                    "value": "360"
+                  },
+                  "g": {
+                    "type": "int",
+                    "value": "370"
+                  },
+                  "h": {
+                    "type": "int",
+                    "value": "380"
+                  },
+                  "i": {
+                    "type": "int",
+                    "value": "8"
+                  },
+                  "j": {
+                    "type": "int",
+                    "value": "0"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]
