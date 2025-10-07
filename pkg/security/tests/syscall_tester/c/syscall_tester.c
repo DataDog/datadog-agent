@@ -1379,12 +1379,8 @@ int test_bind_and_listen(int argc, char **argv) {
 
     int opt = 1;
 
-    // REUSEADDR and REUSEPORT for the listening socket
-    if (setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
-        perror("setsockopt SO_REUSEPORT");
-        close(s);
-        exit(EXIT_FAILURE);
-    }
+        // REUSEADDR for the listening socket
+
     if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         perror("setsockopt SO_REUSEADDR");
         close(s);
@@ -1398,7 +1394,7 @@ int test_bind_and_listen(int argc, char **argv) {
     addr.sin_port = htons(port);
 
     if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        perror("bind");
+        perror("bind");           // fails with EADDRINUSE if the port is already in use with the same protocol
         close(s);
         return EXIT_FAILURE;
     }
@@ -1407,15 +1403,14 @@ int test_bind_and_listen(int argc, char **argv) {
 
     // If TCP, listen for incoming connections
     if (sock_type == SOCK_STREAM) {
-        printf("Listening on port %d for TCP connections...\n", port);
-        fflush(stdout);  // Send Pid to GO and syncrhonize with it
-
         if (listen(s, 10) < 0) {
             perror("listen");
             close(s);
             return EXIT_FAILURE;
         }
-
+        printf("Listening on port %d for TCP connections...\n", port);
+        fflush(stdout);
+        
         // Accept one connection and read data
         int conn = accept(s, NULL, NULL);
         if (conn < 0) {
