@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
 
 const (
@@ -438,12 +439,6 @@ var (
 		"STATIC":  Static,
 		"DYNAMIC": Dynamic,
 	}
-	// UserSessionTypes is the list of available types of usersessions
-	// generate_constants:UserSessionTypes,UserSessionTypes are the supported types of usersessions.
-	UserSessionTypes = map[string]int{
-		"K8S": int(UserSessionTypeK8S),
-		"SSH": int(UserSessionTypeSSH),
-	}
 )
 
 var (
@@ -461,7 +456,6 @@ var (
 	compressionTypeStrings     = map[CompressionType]string{}
 	fileTypeStrings            = map[FileType]string{}
 	linkageTypeStrings         = map[LinkageType]string{}
-	userSessionTypeStrings     = map[int]string{}
 )
 
 // File flags
@@ -492,30 +486,6 @@ func (r SyscallDriftEventReason) String() string {
 		return "Exit"
 	}
 	return "Unknown"
-}
-
-// User session types
-var (
-	// UserSessionTypeUnknown is the unknown user session type
-	UserSessionTypeUnknown uint8
-	// UserSessionTypeK8S is the k8s user session type
-	UserSessionTypeK8S uint8
-	// UserSessionTypeSSH is the ssh user session type
-	UserSessionTypeSSH uint8
-)
-
-func initUserSessionTypes() {
-	for k, v := range UserSessionTypes {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
-		userSessionTypeStrings[v] = k
-	}
-}
-
-// UserSessionType is used to define the type of a user session
-type UserSessionType int
-
-func (t UserSessionType) String() string {
-	return userSessionTypeStrings[int(t)]
 }
 
 func initErrorConstants() {
@@ -665,6 +635,7 @@ func initConstants() {
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
 	initAUIDConstants()
+	usersession.InitUserSessionTypes()
 	initSSLVersionConstants()
 	initSysCtlActionConstants()
 	initSetSockOptLevelConstants()
@@ -682,7 +653,6 @@ func initConstants() {
 	initSocketFamilyConstants()
 	initSocketProtocolConstants()
 	initPrCtlOptionConstants()
-	initUserSessionTypes()
 }
 
 // RetValError represents a syscall return error value

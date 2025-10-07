@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -32,7 +33,7 @@ type UserSessionKey struct {
 
 // UserSessionData stores user session context data retrieved from the kernel
 type UserSessionData struct {
-	SessionType uint8
+	SessionType usersession.Type
 	RawData     string
 }
 
@@ -42,7 +43,7 @@ func (e *UserSessionData) UnmarshalBinary(data []byte) error {
 		return model.ErrNotEnoughSpace
 	}
 
-	e.SessionType = uint8(data[0])
+	e.SessionType = usersession.Type(data[0])
 	e.RawData += model.NullTerminatedString(data[1:240])
 	return nil
 }
@@ -113,7 +114,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 
 	ctx := &model.UserSessionContext{
 		ID:          id,
-		SessionType: value.SessionType,
+		SessionType: int(value.SessionType),
 	}
 	// parse the content of the user session context
 	err = json.Unmarshal([]byte(value.RawData), ctx)

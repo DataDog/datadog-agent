@@ -299,7 +299,7 @@ func (e *Event) ResolveService() string {
 // Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
 type UserSessionContext struct {
 	ID          uint64 `field:"id"`           // SECLDoc[id] Definition:`Unique identifier of the user session on the host`
-	SessionType uint8  `field:"session_type"` // SECLDoc[session_type] Definition:`Type of the user session`
+	SessionType int    `field:"session_type"` // SECLDoc[session_type] Definition:`Type of the user session`
 	Resolved    bool   `field:"-"`
 	// Kubernetes User Session context
 	K8SUsername string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`

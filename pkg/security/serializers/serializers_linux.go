@@ -23,6 +23,7 @@ import (
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -979,7 +980,7 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 
 	return &UserSessionContextSerializer{
 		ID:          fmt.Sprintf("%x", ctx.ID),
-		SessionType: model.UserSessionType(ctx.SessionType).String(),
+		SessionType: usersession.Type(ctx.SessionType).String(),
 		K8SUsername: ctx.K8SUsername,
 		K8SUID:      ctx.K8SUID,
 		K8SGroups:   ctx.K8SGroups,

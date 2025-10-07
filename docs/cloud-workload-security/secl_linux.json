@@ -21272,21 +21272,6 @@
       ]
     },
     {
-      "name": "UserSessionTypes",
-      "link": "usersessiontypes",
-      "description": "UserSessionTypes are the supported types of usersessions.",
-      "all": [
-        {
-          "name": "K8S",
-          "architecture": "all"
-        },
-        {
-          "name": "SSH",
-          "architecture": "all"
-        }
-      ]
-    },
-    {
       "name": "Virtual Memory flags",
       "link": "virtual-memory-flags",
       "description": "Virtual Memory flags define the protection of a virtual memory segment.",

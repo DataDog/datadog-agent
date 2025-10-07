@@ -1416,7 +1416,6 @@ func initPrCtlOptionConstants() {
 		prctlOptionStrings[v] = k
 	}
 }
-
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
 	var strs []string
 	var result int
