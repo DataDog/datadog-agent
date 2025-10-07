@@ -117,7 +117,7 @@ func mergeProfileDefinition(targetDefinition *profiledefinition.ProfileDefinitio
 				resource.Fields = make(map[string]profiledefinition.MetadataField, len(baseResource.Fields))
 			}
 			for field, symbol := range baseResource.Fields {
-				if _, ok := resource.Fields[field]; !ok {
+				if value, ok := resource.Fields[field]; !ok || value.IsEmpty() {
 					resource.Fields[field] = symbol
 				}
 			}
