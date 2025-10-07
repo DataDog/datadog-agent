@@ -25,6 +25,7 @@ import (
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wlmcatalogcore "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -50,13 +51,10 @@ func getCoreAgentFxOptions(cliParams *check.CliParams, bundleParams core.BundleP
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		wlmcatalogcore.GetCatalog(),
 		// Provide workloadmeta module
-		workloadmetafx.Module(workloadmeta.Params{
-			AgentType: workloadmeta.NodeAgent,
-		}),
-		workloadfilterfx.Module(),
-
+		workloadmetafx.Module(defaults.DefaultParams()),
 		// Tagger must be initialized after agent config has been setup
 		dualTaggerfx.Module(common.DualTaggerParams()),
+		workloadfilterfx.Module(),
 		processComponent.Bundle(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
