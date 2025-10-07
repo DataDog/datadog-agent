@@ -19,18 +19,20 @@ import (
 )
 
 const (
-	agentUnit      = "datadog-agent.service"
-	agentUnitXP    = "datadog-agent-exp.service"
-	ddotUnit       = "datadog-agent-ddot.service"
-	ddotUnitXP     = "datadog-agent-ddot-exp.service"
-	traceUnit      = "datadog-agent-trace.service"
-	traceUnitXP    = "datadog-agent-trace-exp.service"
-	processUnit    = "datadog-agent-process.service"
-	processUnitXP  = "datadog-agent-process-exp.service"
-	probeUnit      = "datadog-agent-sysprobe.service"
-	probeUnitXP    = "datadog-agent-sysprobe-exp.service"
-	securityUnit   = "datadog-agent-security.service"
-	securityUnitXP = "datadog-agent-security-exp.service"
+	agentUnit       = "datadog-agent.service"
+	agentUnitXP     = "datadog-agent-exp.service"
+	ddotUnit        = "datadog-agent-ddot.service"
+	ddotUnitXP      = "datadog-agent-ddot-exp.service"
+	traceUnit       = "datadog-agent-trace.service"
+	traceUnitXP     = "datadog-agent-trace-exp.service"
+	processUnit     = "datadog-agent-process.service"
+	processUnitXP   = "datadog-agent-process-exp.service"
+	probeUnit       = "datadog-agent-sysprobe.service"
+	probeUnitXP     = "datadog-agent-sysprobe-exp.service"
+	securityUnit    = "datadog-agent-security.service"
+	securityUnitXP  = "datadog-agent-security-exp.service"
+	dataPlaneUnit   = "datadog-agent-data-plane.service"
+	dataPlaneUnitXP = "datadog-agent-data-plane-exp.service"
 )
 
 type packageAgentSuite struct {
@@ -48,6 +50,7 @@ func (s *packageAgentSuite) TestInstall() {
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
 
 	state := s.host.State()
 	s.assertUnits(state, true)
@@ -75,9 +78,12 @@ func (s *packageAgentSuite) TestInstall() {
 }
 
 func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
-	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
-	state.AssertUnitsEnabled(agentUnit)
-	state.AssertUnitsRunning(agentUnit, traceUnit) //cannot assert process-agent because it may be running or dead based on timing
+	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit)
+	state.AssertUnitsEnabled(agentUnit, traceUnit, processUnit, securityUnit, dataPlaneUnit)
+
+	// we cannot assert here on process-agent/agent-data-plane being either running or dead due to timing issues,
+	// so it has to be checked prior (i.e., using WaitForUnitExited)
+	state.AssertUnitsRunning(agentUnit, traceUnit)
 	state.AssertUnitsDead(probeUnit, securityUnit)
 
 	systemdPath := "/etc/systemd/system"
@@ -98,7 +104,7 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 		}
 	}
 
-	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit} {
+	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit} {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
 }

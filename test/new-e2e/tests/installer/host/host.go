@@ -198,6 +198,15 @@ func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 	}
 }
 
+func (h *Host) WaitForUnitExited(t *testing.T, exitCode int, units ...string) {
+	for _, unit := range units {
+		assert.Eventually(t, func() bool {
+			_, err := h.remote.Execute(fmt.Sprintf("grep -q \"(code=exited, status=%d/\" <(sudo systemctl status %s)", exitCode, unit))
+			return err == nil
+		}, time.Second*90, time.Second*2, "unit %s did not exit or exit with expected code. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+	}
+}
+
 // WaitForFileExists waits for a file to exist on the host
 func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 	sudo := ""
