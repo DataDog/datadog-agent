@@ -1130,7 +1130,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	p.monitors.eventStreamMonitor.CountEvent(eventType, event, dataLen, CPU, !p.useRingBuffers)
 
 	// some events don't need to be dispatched and return early after unmarshaling
-	if !p.handleEarlyReturnEvents(eventType, event, offset, dataLen, data, newEntryCb) {
+	if !p.handleEarlyReturnEvents(event, offset, dataLen, data, newEntryCb) {
 		return
 	}
 	// unmarshall contexts
@@ -1147,7 +1147,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	})
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
-	if !p.handleBeforeProcessContext(eventType, event, data, offset, dataLen, newEntryCb) {
+	if !p.handleBeforeProcessContext(event, data, offset, dataLen, newEntryCb) {
 		return
 	}
 	// resolve process context
@@ -1159,7 +1159,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// handle regular events
-	if !p.handleRegularEvent(eventType, event, offset, dataLen, data, newEntryCb) {
+	if !p.handleRegularEvent(event, offset, dataLen, data, newEntryCb) {
 		return
 	}
 
@@ -1183,9 +1183,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 // handleRegularEvent performs the standard unmarshaling process common to all events.
 // It returns false if an error occurs during processing, indicating the event should be dropped.
-func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
 	var read int
+	eventType := event.GetEventType()
 	switch eventType {
 
 	case model.FileMountEventType, model.FileMoveMountEventType:
@@ -1577,8 +1578,9 @@ func (p *EBPFProbe) handleRegularEvent(eventType model.EventType, event *model.E
 
 // handleBeforeProcessContext unmarshals and populates the process cache entry for fork and exec events before setting the process context.
 // It returns false if the event should be dropped due to processing errors.
-func (p *EBPFProbe) handleBeforeProcessContext(eventType model.EventType, event *model.Event, data []byte, offset int, dataLen uint64, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, offset int, dataLen uint64, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
+	eventType := event.GetEventType()
 	switch eventType {
 	case model.ForkEventType:
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
@@ -1608,8 +1610,9 @@ func (p *EBPFProbe) handleBeforeProcessContext(eventType model.EventType, event 
 
 // handleEarlyReturnEvents processes events that may require early termination of the event handling pipeline.
 // It returns false if an error occurs or if the event should not be dispatched further, true otherwise
-func (p *EBPFProbe) handleEarlyReturnEvents(eventType model.EventType, event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, dataLen uint64, data []byte, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	var err error
+	eventType := event.GetEventType()
 	switch eventType {
 	case model.MountReleasedEventType:
 		if !p.regularUnmarshalEvent(&event.MountReleased, eventType, offset, dataLen, data) {
