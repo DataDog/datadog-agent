@@ -74,15 +74,17 @@ func defaultConfig() component.Config {
 		// TODO: This is a temporary config, it will be updated to use the same config values
 		// as dd-otel-host-profiler in a later PR.
 		SymbolUploader: reporter.SymbolUploaderConfig{
-			Enabled:                        true,
-			UploadDynamicSymbols:           false,
-			UploadGoPCLnTab:                true,
-			UseHTTP2:                       false,
-			SymbolQueryInterval:            time.Second * 5,
-			DisableDebugSectionCompression: false,
-			DryRun:                         false,
-			SymbolEndpoints:                nil,
+			SymbolUploaderOptions: reporter.SymbolUploaderOptions{
+				Enabled:              true,
+				UploadDynamicSymbols: false,
+				UploadGoPCLnTab:      true,
+				UseHTTP2:             false,
+				SymbolQueryInterval:  time.Second * 5,
+				DryRun:               false,
+				SymbolEndpoints:      nil,
+			},
 			Version:                        "0.0.0",
+			DisableDebugSectionCompression: false,
 		},
 	}
 }
