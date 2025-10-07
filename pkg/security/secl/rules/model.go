@@ -438,6 +438,9 @@ func (d *HumanReadableDuration) GetDuration() time.Duration {
 
 // MarshalYAML marshals a duration to a human readable format
 func (d *HumanReadableDuration) MarshalYAML() (interface{}, error) {
+	if d == nil || d.Duration == 0 {
+		return nil, nil
+	}
 	return d.String(), nil
 }
 
