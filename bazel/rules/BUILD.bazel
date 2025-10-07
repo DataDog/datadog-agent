@@ -1,1 +1,4 @@
-# Package delimiter
+sh_binary(
+    name = "replace_prefix",
+    srcs = ["replace_prefix.sh"],
+)

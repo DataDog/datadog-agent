@@ -5,7 +5,7 @@
 # You can do whatever you want with this file.
 #
 
-prefix={{PREFIX}}
+prefix=##PREFIX##
 exec_prefix=${prefix}
 libdir=${prefix}/lib
 includedir=${prefix}/include

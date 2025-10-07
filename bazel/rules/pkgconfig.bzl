@@ -4,7 +4,6 @@ def _gen_pkgconfig_impl(ctx):
         output = out,
         template = ctx.file.template,
         substitutions = {
-            "{{PREFIX}}": ctx.attr.prefix,
             "{{VERSION}}": ctx.attr.version
         }
     )
@@ -13,7 +12,6 @@ def _gen_pkgconfig_impl(ctx):
 gen_pkgconfig = rule(
     implementation = _gen_pkgconfig_impl,
     attrs = {
-        "prefix": attr.string(mandatory = True),
         "version": attr.string(mandatory = True),
         "template": attr.label(
             allow_single_file = [".pc.in"],

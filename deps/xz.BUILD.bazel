@@ -247,7 +247,6 @@ pkg_files(
 gen_pkgconfig(
     name = "gen_pkgconfig",
     template = "@@//deps/pkgconfig:liblzma.pc.in",
-    prefix = "/opt/datadog-agent/embedded/",
     version = "5.4.2",
 )
 

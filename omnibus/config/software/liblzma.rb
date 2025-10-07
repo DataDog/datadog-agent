@@ -32,4 +32,8 @@ relative_path "xz-#{version}"
 build do
   command "bazelisk run -- @xz//:install --destdir='#{install_dir}/embedded'", \
 	cwd: "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent"
+  command "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
+    "#{install_dir}/embedded/lib/pkgconfig/liblzma.pc " \
+    "#{install_dir}/embedded/lib/liblzma.so", \
+	cwd: "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent"
 end
