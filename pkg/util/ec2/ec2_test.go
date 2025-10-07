@@ -108,7 +108,25 @@ func TestGetInstanceID(t *testing.T) {
 	conf := configmock.New(t)
 	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
-	setupDMIForEC2(t)
+
+	// Ensure failures if we fail to use the local mock metadata server
+	setupDMIForNotEC2(t)
+	conf.SetWithoutSource("ec2_use_dmi", true)
+
+	// Ensure that the local server is up before checking values
+	assert.EventuallyWithT(
+		t,
+		func(c *assert.CollectT) {
+			resp, err := http.Get(ts.URL)
+			require.NoError(c, err)
+			assert.Equal(c, http.StatusUnauthorized, resp.StatusCode)
+			resp.Body.Close()
+		},
+		time.Second,
+		10*time.Millisecond,
+		"Mock AWS metadata server was unable to be reached (%v)",
+		ts.URL,
+	)
 
 	// API successful, should return API result
 	responseCode = http.StatusOK
