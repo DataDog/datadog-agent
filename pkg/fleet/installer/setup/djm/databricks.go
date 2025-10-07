@@ -85,7 +85,9 @@ var (
 
 // SetupDatabricks sets up the Databricks environment
 func SetupDatabricks(s *common.Setup) error {
-	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
+	if os.Getenv("DD_NO_AGENT_INSTALL") != "true" {
+		s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
+	}
 	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
 
