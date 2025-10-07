@@ -979,7 +979,7 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 
 	return &UserSessionContextSerializer{
 		ID:          fmt.Sprintf("%x", ctx.ID),
-		SessionType: fmt.Sprintf("%d", ctx.SessionType),
+		SessionType: model.UserSessionType(ctx.SessionType).String(),
 		K8SUsername: ctx.K8SUsername,
 		K8SUID:      ctx.K8SUID,
 		K8SGroups:   ctx.K8SGroups,
