@@ -52,7 +52,7 @@ require (
 require github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.0.0-20251003153905-4e3e64f07b69 // indirect
 
 require (
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.253.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.254.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.44.0 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
 	golang.org/x/tools/godoc v0.1.0-deprecated // indirect
