@@ -108,6 +108,7 @@ func TestGetInstanceID(t *testing.T) {
 	conf := configmock.New(t)
 	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	setupDMIForEC2(t)
 
 	// API successful, should return API result
 	responseCode = http.StatusOK
