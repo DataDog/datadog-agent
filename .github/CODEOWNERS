@@ -369,6 +369,7 @@
 /comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/networkdeviceconfig @DataDog/network-device-monitoring
+/comp/publishermetadatacache @DataDog/windows-products
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
@@ -715,7 +716,6 @@
 /test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/ndm-core
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/ndm-integrations
-/test/fakeintake/aggregator/servicediscovery* @DataDog/agent-discovery
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-devx
 /test/new-e2e/pkg/testcommon/check            @DataDog/agent-runtimes
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx

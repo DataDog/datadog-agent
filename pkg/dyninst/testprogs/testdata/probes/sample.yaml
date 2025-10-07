@@ -305,11 +305,18 @@ probes:
     where:
       methodName: main.testArrayOfArraysOfArrays
     captureSnapshot: true
-  # - id: testArrayOfStructs
-  #   type: LOG_PROBE
-  #   where:
-  #     methodName: main.testArrayOfStructs
-  #   captureSnapshot: true
+  - id: testArrayOfStructs
+    type: LOG_PROBE
+    where:
+      methodName: main.testArrayOfStructs
+    captureSnapshot: true
+  - id: testArrayEmptyStructs
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testArrayEmptyStructs
+    captureSnapshot: true
   - id: testUintSlice
     type: LOG_PROBE
     tags:
@@ -395,6 +402,13 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testNilSlice
+    captureSnapshot: true
+  - id: testSliceEmptyStructs
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testSliceEmptyStructs
     captureSnapshot: true
   - id: testStruct
     type: LOG_PROBE
@@ -656,6 +670,27 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testMapLargeKeyLargeValue
+    captureSnapshot: true
+  - id: testMapEmptyKey
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMapEmptyKey
+    captureSnapshot: true
+  - id: testMapEmptyValue
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMapEmptyValue
+    captureSnapshot: true
+  - id: testMapEmptyKeyAndValue
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMapEmptyKeyAndValue
     captureSnapshot: true
   - id: testStructWithMap
     type: LOG_PROBE
@@ -989,3 +1024,123 @@ probes:
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
+  - id: testReturnsPrimitives
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsPrimitives
+    captureSnapshot: true
+  - id: testReturnsManyFloats
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsManyFloats
+    captureSnapshot: true
+  - id: testReturnsComplex
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsComplex
+    captureSnapshot: true
+  - id: testReturnsLargeStruct
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsLargeStruct
+    captureSnapshot: true
+  - id: testReturnsArray
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsArray
+    captureSnapshot: true
+  - id: testReturnsArrayOne
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsArrayOne
+    captureSnapshot: true
+  - id: testReturnsArrayZero
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsArrayZero
+    captureSnapshot: true
+  - id: testReturnsMixedStruct
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsMixedStruct
+    captureSnapshot: true
+  - id: testReturnsBacktrackInt
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsBacktrackInt
+    captureSnapshot: true
+  - id: testReturnsWideStruct
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsWideStruct
+    captureSnapshot: true
+  - id: testReturnsMixed
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsMixed
+    captureSnapshot: true
+  - id: testReturnsStructWithArray
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsStructWithArray
+    captureSnapshot: true
+  - id: testReturnsOnlyFloat
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsOnlyFloat
+    captureSnapshot: true
+  - id: testReturnsMultipleFloats
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsMultipleFloats
+    captureSnapshot: true
+  - id: testReturnsBoolAndUintptr
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsBoolAndUintptr
+    captureSnapshot: true
+  - id: testLargeArgAndReturn
+    type: LOG_PROBE
+    where:
+      methodName: main.testLargeArgAndReturn
+    captureSnapshot: true
+  - id: testArrayArgAndReturn
+    type: LOG_PROBE
+    where:
+      methodName: main.testArrayArgAndReturn
+    captureSnapshot: true
+  - id: testMultipleLargeArgs
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleLargeArgs
+    captureSnapshot: true
+  - id: testManyArgsArrayReturn
+    type: LOG_PROBE
+    where:
+      methodName: main.testManyArgsArrayReturn
+    captureSnapshot: true
+  - id: testMixedArgsStackReturn
+    type: LOG_PROBE
+    where:
+      methodName: main.testMixedArgsStackReturn
+    captureSnapshot: true
+  - id: testStackArgRegReturns
+    type: LOG_PROBE
+    where:
+      methodName: main.testStackArgRegReturns
+    captureSnapshot: true
+  - id: testMultipleArrayArgs
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleArrayArgs
+    captureSnapshot: true
+  - id: testStructWithArrayArg
+    type: LOG_PROBE
+    where:
+      methodName: main.testStructWithArrayArg
+    captureSnapshot: true
+  - id: testZeroSizeArgAndReturn
+    type: LOG_PROBE
+    where:
+      methodName: main.testZeroSizeArgAndReturn
+    captureSnapshot: true

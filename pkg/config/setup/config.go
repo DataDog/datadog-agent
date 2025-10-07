@@ -1171,7 +1171,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", time.Duration(0))
 
 	// Remote agents
-	config.BindEnvAndSetDefault("remote_agent_registry.enabled", false)
+	config.BindEnvAndSetDefault("remote_agent_registry.enabled", true)
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
@@ -1480,7 +1480,6 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
-	config.BindEnvAndSetDefault("serializer_use_events_marshaler_v2", true)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -2264,7 +2263,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
-		if pkgconfigenv.IsServerless() {
+		if pkgconfigenv.IsLambda() {
 			log.Debug("No config file detected, using environment variable based configuration only")
 			// The remaining code in LoadCustom is not run to keep a low cold start time
 			return nil

@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/pkg/config/model
 
 go 1.24.0
 
-require github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
+require github.com/go-viper/mapstructure/v2 v2.4.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

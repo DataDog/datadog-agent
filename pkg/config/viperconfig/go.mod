@@ -5,8 +5,8 @@ go 1.24.0
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.62.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
-	github.com/DataDog/viper v1.14.1-0.20251002211519-52225e3aeac8
-	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
+	github.com/DataDog/viper v1.14.1-0.20251007072727-5a2ac1ff821e
+	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
