@@ -136,6 +136,72 @@ func TestMaxUSMConcurrentRequests(t *testing.T) {
 	})
 }
 
+func TestUSMDirectBufferWakeupCount(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, 8, cfg.DirectConsumerBufferWakeupCountPerCPU)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.buffer_wakeup_count_per_cpu", 64)
+		cfg := New()
+		assert.Equal(t, 64, cfg.DirectConsumerBufferWakeupCountPerCPU)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_BUFFER_WAKEUP_COUNT_PER_CPU", "128")
+		cfg := New()
+		assert.Equal(t, 128, cfg.DirectConsumerBufferWakeupCountPerCPU)
+	})
+}
+
+func TestUSMDirectChannelSize(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, 1000, cfg.DirectConsumerChannelSize)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.channel_size", 2000)
+		cfg := New()
+		assert.Equal(t, 2000, cfg.DirectConsumerChannelSize)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_CHANNEL_SIZE", "3000")
+		cfg := New()
+		assert.Equal(t, 3000, cfg.DirectConsumerChannelSize)
+	})
+}
+
+func TestUSMDirectKernelBufferSize(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, 65536, cfg.DirectConsumerKernelBufferSizePerCPU)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.kernel_buffer_size_per_cpu", 131072)
+		cfg := New()
+		assert.Equal(t, 131072, cfg.DirectConsumerKernelBufferSizePerCPU)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_KERNEL_BUFFER_SIZE_PER_CPU", "262144")
+		cfg := New()
+		assert.Equal(t, 262144, cfg.DirectConsumerKernelBufferSizePerCPU)
+	})
+}
+
 // ========================================
 // HTTP Protocol Configuration Tests
 // ========================================
@@ -1682,5 +1748,30 @@ func TestHTTPConfigMigration(t *testing.T) {
 		assert.Equal(t, int64(512), cfg.HTTPMaxRequestFragment)
 		assert.Equal(t, 300*time.Second, cfg.HTTPMapCleanerInterval)
 		assert.Equal(t, 30*time.Second, cfg.HTTPIdleConnectionTTL)
+	})
+}
+
+func TestHTTPUseDirectConsumer(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.False(t, cfg.HTTPUseDirectConsumer)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.use_direct_consumer", true)
+		cfg := New()
+
+		assert.True(t, cfg.HTTPUseDirectConsumer)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_USE_DIRECT_CONSUMER", "true")
+		cfg := New()
+
+		assert.True(t, cfg.HTTPUseDirectConsumer)
 	})
 }

@@ -45,6 +45,7 @@ import (
 	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	coresettings "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -123,10 +124,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         c,
-					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), false),
 				}),
+				secretfx.Module(),
 				flare.Module(flare.NewLocalParams(
 					defaultpaths.GetDistPath(),
 					defaultpaths.PyChecksPath,

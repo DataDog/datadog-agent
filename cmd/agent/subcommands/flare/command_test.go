@@ -24,7 +24,6 @@ import (
 	profiler "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -282,8 +281,7 @@ func (c *commandTestSuite) TestCommand() {
 		Commands(&command.GlobalParams{}),
 		[]string{"flare", "1234"},
 		makeFlare,
-		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, []string{"1234"}, cliParams.args)
-			require.Equal(t, true, secretParams.Enabled)
 		})
 }

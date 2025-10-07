@@ -27,6 +27,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -59,7 +60,6 @@ func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command 
 	return commandsWrapped(func() core.BundleParams {
 		return core.BundleParams{
 			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 			LogParams:            log.ForOneShot(command.LoggerName, "info", true),
 		}
@@ -92,6 +92,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
 				core.Bundle(),
+				secretsfx.Module(),
 				logscompressionfx.Module(),
 				statsd.Module(),
 				ipcfx.ModuleReadOnly(),

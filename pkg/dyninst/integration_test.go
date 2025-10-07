@@ -30,6 +30,8 @@ import (
 	"testing"
 	"time"
 
+	jsonv2 "github.com/go-json-experiment/json"
+	"github.com/go-json-experiment/json/jsontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -106,6 +108,7 @@ func TestDyninst(t *testing.T) {
 func testDyninst(
 	t *testing.T,
 	service string,
+	testProgConfig testprogs.Config,
 	servicePath string,
 	probes []ir.ProbeDefinition,
 	rewriteEnabled bool,
@@ -203,6 +206,8 @@ func testDyninst(
 		for _, d := range testServer.getDiags() {
 			if d.diagnosticMessage.Debugger.Status == uploader.StatusInstalled {
 				installedProbeIDs[d.diagnosticMessage.Debugger.ProbeID] = struct{}{}
+			} else if d.diagnosticMessage.Debugger.Status == uploader.StatusError {
+				t.Fatalf("probe %s installation failed: %s", d.diagnosticMessage.Debugger.ProbeID, d.diagnosticMessage.Debugger.DiagnosticException.Message)
 			}
 		}
 		assert.Equal(c, allProbeIDs, installedProbeIDs)
@@ -252,8 +257,10 @@ func testDyninst(
 	m.Close()
 	retMap := make(map[string][]json.RawMessage)
 	debugEnabled := os.Getenv("DEBUG") != ""
+	redactors := append(defaultRedactors[:len(defaultRedactors):len(defaultRedactors)],
+		makeRedactorForManyFloats(testProgConfig.GOARCH))
 	for _, log := range testServer.getLogs() {
-		redacted := redactJSON(t, "", log.body, defaultRedactors)
+		redacted := redactJSON(t, "", log.body, redactors)
 		if debugEnabled {
 			t.Logf("Output: %v\n", string(log.body))
 			t.Logf("Sorted and redacted: %v\n", string(redacted))
@@ -317,7 +324,7 @@ func runIntegrationTestSuite(
 				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) map[string][]json.RawMessage {
 					t.Parallel()
 					actual := testDyninst(
-						t, service, bin, probeSlice, rewrite, expectedOutput,
+						t, service, cfg, bin, probeSlice, rewrite, expectedOutput,
 						debug, sem,
 					)
 					if t.Failed() {
@@ -385,7 +392,12 @@ func validateAndSaveOutputs(
 	}
 	for testName, testOutputs := range byTest {
 		for id, out := range testOutputs {
-			marshaled, err := json.MarshalIndent(out, "", "  ")
+			marshaled, err := jsonv2.Marshal(
+				out,
+				jsontext.WithIndent("  "),
+				jsontext.EscapeForHTML(false),
+				jsontext.EscapeForJS(false),
+			)
 			require.NoError(t, err)
 			prev, ok := byProbe[id]
 			if !ok {
@@ -684,3 +696,40 @@ func (f *fakeScraper) putUpdates(outputs []rcscrape.ProcessUpdate) {
 }
 
 var _ module.Scraper = (*fakeScraper)(nil)
+
+// Make a redactor for the onlyOnAmd64_17 float
+// return value in the testReturnsManyFloats function. This function is expected
+// to have different behavior based on the architecture, and we need to
+// compensate for that.
+func makeRedactorForManyFloats(arch string) jsonRedactor {
+	return redactor(
+		exactMatcher(
+			"/debugger/snapshot/captures/return/locals/onlyOnAmd64_16",
+		),
+		replacerFunc(func(v jsontext.Value) jsontext.Value {
+			// If we've already redacted this, don't do it again.
+			if v.Kind() == '"' {
+				return v
+			}
+			// Try to read the value.
+			var value struct {
+				Value             string `json:"value"`
+				NotCapturedReason string `json:"notCapturedReason"`
+			}
+			if err := json.Unmarshal(v, &value); err != nil {
+				marshaled, _ := json.Marshal(err.Error())
+				return jsontext.Value(marshaled)
+			}
+			if arch == "amd64" {
+				if value.Value != "16" {
+					return v
+				}
+			} else {
+				if value.NotCapturedReason != "unavailable" {
+					return v
+				}
+			}
+			return jsontext.Value(`"[onlyOnAmd64]"`)
+		}),
+	)
+}

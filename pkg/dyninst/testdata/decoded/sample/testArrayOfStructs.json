@@ -1,0 +1,92 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testArrayOfStructs",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testArrayOfStructs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go",
+            "lineNumber": 83
+          },
+          {
+            "function": "main.executeArrayFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go",
+            "lineNumber": 121
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 30
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testArrayOfStructs",
+          "location": {
+            "method": "main.testArrayOfStructs"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "[2]main.nestedStruct",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "main.nestedStruct",
+                    "fields": {
+                      "anotherInt": {
+                        "type": "int",
+                        "value": "42"
+                      },
+                      "anotherString": {
+                        "type": "string",
+                        "value": "foo"
+                      }
+                    }
+                  },
+                  {
+                    "type": "main.nestedStruct",
+                    "fields": {
+                      "anotherInt": {
+                        "type": "int",
+                        "value": "24"
+                      },
+                      "anotherString": {
+                        "type": "string",
+                        "value": "bar"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

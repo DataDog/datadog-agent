@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package datadog.remoteagent.flare.v1;
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+
+service FlareProvider {
+  // Gets all relevant flare files of a remote agent.
+  rpc GetFlareFiles(datadog.remoteagent.flare.v1.GetFlareFilesRequest) returns (datadog.remoteagent.flare.v1.GetFlareFilesResponse);
+}
+
+message GetFlareFilesRequest {}
+
+message GetFlareFilesResponse {
+  // Set of files to add to the flare.
+  //
+  // The key is the name of the file, and the value is the contents of the file.
+  //
+  // The key SHOULD be an ASCII string with no path separators (`/`), and will be sanitized as necessary to ensure it can be
+  // used as a valid filename. The key SHOULD have a file extension that is applicable to the file contents, such as
+  // `.yaml` for YAML data.
+  map<string, bytes> files = 1;
+}

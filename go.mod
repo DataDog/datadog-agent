@@ -34,11 +34,11 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.166
 	github.com/DataDog/appsec-internal-go v1.14.0
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.69.4
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/config v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/configsync v0.64.0
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.70.0
@@ -49,10 +49,11 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx v0.70.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.71.0-devel.0.20250902202452-61c2536752eb
-	github.com/DataDog/datadog-agent/comp/core/status v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.0.0-20251003153905-4e3e64f07b69
+	github.com/DataDog/datadog-agent/comp/core/status v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.69.4
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote v0.0.0-20250129172314-517df3f51a84
@@ -139,7 +140,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/status/health v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/tagset v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/template v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/trace v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.71.0-rc.1
@@ -171,7 +172,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/version v0.71.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
@@ -324,7 +325,7 @@ require (
 	github.com/safchain/ethtool v0.6.2
 	github.com/samber/lo v1.49.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil/v4 v4.25.8
+	github.com/shirou/gopsutil/v4 v4.25.9
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/sirupsen/logrus v1.9.3
@@ -565,7 +566,7 @@ require (
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/eapache/queue/v2 v2.0.0-20230407133247-75960ed334e4 // indirect
-	github.com/ebitengine/purego v0.8.4 // indirect
+	github.com/ebitengine/purego v0.9.0 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/elastic/go-grok v0.3.1 // indirect
 	github.com/elastic/go-licenser v0.4.2 // indirect
@@ -1043,6 +1044,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ./comp/core/secrets/fx
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ./comp/core/secrets/impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock => ./comp/core/secrets/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl => ./comp/core/secrets/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ./comp/core/secrets/utils
 	github.com/DataDog/datadog-agent/comp/core/status => ./comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ./comp/core/status/statusimpl

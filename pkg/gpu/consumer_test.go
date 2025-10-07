@@ -298,3 +298,20 @@ func TestHandleStreamEventHandlesGetStreamError(t *testing.T) {
 	err := consumer.handleStreamEvent(&event.Header, unsafe.Pointer(&event), gpuebpf.SizeofCudaKernelLaunch)
 	require.Error(t, err)
 }
+
+func TestConsumerHandlesUnknownEventTypes(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
+	cfg := config.New()
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
+
+	// Send an unknown event type
+	event := gpuebpf.CudaEventHeader{
+		Type: uint32(18967123),
+	}
+
+	err := consumer.handleEvent(&event, nil, 0)
+	require.Error(t, err)
+}

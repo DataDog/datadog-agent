@@ -88,7 +88,6 @@ func TestDebugInfo(t *testing.T) {
 	debugInfo := make(map[string]interface{})
 	resolver.getDebugInfo(debugInfo, false)
 
-	assert.True(t, debugInfo["enabled"].(bool))
 	assert.True(t, debugInfo["backendCommandSet"].(bool))
 	assert.Equal(t, resolver.backendCommand, debugInfo["executable"].(string))
 	assert.Equal(t, "OK, the executable has the correct permissions", debugInfo["executablePermissions"].(string))
@@ -148,7 +147,6 @@ func TestDebugInfoError(t *testing.T) {
 	debugInfo := make(map[string]interface{})
 	resolver.getDebugInfo(debugInfo, false)
 
-	assert.True(t, debugInfo["enabled"].(bool))
 	assert.True(t, debugInfo["backendCommandSet"].(bool))
 	assert.Equal(t, "some_command", debugInfo["executable"].(string))
 	assert.Equal(t, "error: the executable does not have the correct permissions", debugInfo["executablePermissions"].(string))

@@ -63,9 +63,6 @@ var apiV2NDMFlow []byte
 //go:embed fixtures/api_v2_netpath_response
 var apiV2Netpath []byte
 
-//go:embed fixtures/api_v2_telemetry_response
-var apiV2Teleemtry []byte
-
 func NewServer(handler http.Handler) *httptest.Server {
 	handlerWitHeader := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Fakeintake-ID", "20000000-0000-0000-0000-000000000000")
@@ -637,17 +634,6 @@ func TestClient(t *testing.T) {
 		err := client.getNetpathEvents()
 		require.NoError(t, err)
 		assert.True(t, client.netpathAggregator.ContainsPayloadName("api.datadoghq.eu:443 TCP"))
-	})
-
-	t.Run("getServiceDiscoveries", func(t *testing.T) {
-		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Write(apiV2Teleemtry)
-		}))
-		defer ts.Close()
-
-		client := NewClient(ts.URL)
-		err := client.getServiceDiscoveries()
-		require.NoError(t, err)
 	})
 
 	t.Run("test strict fakeintakeid check mode", func(t *testing.T) {

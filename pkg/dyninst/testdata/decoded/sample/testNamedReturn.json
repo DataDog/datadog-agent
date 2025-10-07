@@ -18,12 +18,12 @@
           {
             "function": "main.testNamedReturn",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 68
+            "lineNumber": 91
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 104
+            "lineNumber": 393
           },
           {
             "function": "main.main",
@@ -60,7 +60,7 @@
             "locals": {
               "result": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "value": "80"
               }
             }
           }

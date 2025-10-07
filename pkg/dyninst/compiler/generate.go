@@ -630,6 +630,11 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 		// in different registers and/or stack (represented with multiple loclist pieces) are not padded.
 		// Consecutive pieces of data stored in the same loclist piece are padded (this only happens when
 		// the location is a stack, Go never packs multiple data pieces into same register).
+
+		if op.Variable.Type.GetByteSize() == 0 {
+			// Nothing needs to be read.
+			return ops, nil
+		}
 		layoutPieces, err := g.typeMemoryLayout(op.Variable.Type)
 		if err != nil {
 			return nil, err
@@ -641,7 +646,7 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 		}
 		for _, piece := range loclist.Pieces {
 			if layoutIdx >= len(layoutPieces) {
-				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout")
+				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout for %s : %s", op.Variable.Name, op.Variable.Type.GetName())
 			}
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx

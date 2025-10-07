@@ -1,0 +1,110 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testReturnsWideStruct",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testReturnsWideStruct",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 210
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 407
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testReturnsWideStruct",
+          "location": {
+            "method": "main.testReturnsWideStruct"
+          }
+        },
+        "captures": {
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "main.wideStruct",
+                "fields": {
+                  "a": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "b": {
+                    "type": "int",
+                    "value": "2"
+                  },
+                  "c": {
+                    "type": "int",
+                    "value": "3"
+                  },
+                  "d": {
+                    "type": "int",
+                    "value": "4"
+                  },
+                  "e": {
+                    "type": "int",
+                    "value": "5"
+                  },
+                  "f": {
+                    "type": "int",
+                    "value": "6"
+                  },
+                  "g": {
+                    "type": "int",
+                    "value": "7"
+                  },
+                  "h": {
+                    "type": "int",
+                    "value": "8"
+                  },
+                  "i": {
+                    "type": "int",
+                    "value": "9"
+                  },
+                  "j": {
+                    "type": "int",
+                    "value": "10"
+                  },
+                  "k": {
+                    "type": "int",
+                    "value": "11"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]

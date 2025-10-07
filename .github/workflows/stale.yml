@@ -31,6 +31,7 @@ jobs:
           # Stale configuration
           days-before-stale: 15
           days-before-close: 30
+          operations-per-run: 100
 
           # Issue configuration
           stale-issue-message: |
