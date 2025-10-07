@@ -980,6 +980,8 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 
 		// Try a fallback if the node is in the process cache
 		// Check if this specific image/tag/filepath combination exists in the cache
+		// The filepath might not be sufficient to uniquely identify the node, but it's a good enough approximation for now
+		// Edge case: foo->bar->foo, if the second foo is no longer in the process cache, it will still be refreshed because of the first foo
 		filepath := node.Process.FileEvent.PathnameStr
 		key := ImageProcessKey{
 			ImageName: profileImageName,
