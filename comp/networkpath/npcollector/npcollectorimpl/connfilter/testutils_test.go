@@ -9,7 +9,7 @@ import (
 )
 
 func getConnFilter(t *testing.T, configString string, ddSite string) (*ConnFilter, error) {
-	var configs []Config
+	var configs []ConnFilterConfig
 
 	cfg := configComponent.NewMockFromYAML(t, configString)
 	err := structure.UnmarshalKey(cfg, "filters", &configs)

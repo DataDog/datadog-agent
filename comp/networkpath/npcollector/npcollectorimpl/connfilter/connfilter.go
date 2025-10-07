@@ -20,8 +20,8 @@ const (
 	matchDomainStrategyRegex    matchDomainStrategyType = "regex"
 )
 
-// Config represent one filter
-type Config struct {
+// ConnFilterConfig represent one filter
+type ConnFilterConfig struct {
 	Type                Type                    `mapstructure:"type"`
 	MatchDomain         string                  `mapstructure:"match_domain"`
 	MatchDomainStrategy matchDomainStrategyType `mapstructure:"match_domain_strategy"`
@@ -60,7 +60,7 @@ type ConnFilter struct {
 //        # match_protocol: <TCP | UDP | ICMP>            # add later if user ask for it
 //        type: exclude
 
-func NewConnFilter(config []Config, site string) (*ConnFilter, []error) {
+func NewConnFilter(config []ConnFilterConfig, site string) (*ConnFilter, []error) {
 	// TODO: test compile error
 	defaultConfig := getDefaultConnFilters(site)
 	newConfigs := append(defaultConfig, config...)
