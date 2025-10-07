@@ -23,9 +23,9 @@ type ReporterConfig struct {
 
 // Config is the configuration for the profiles receiver.
 type Config struct {
-	*ebpfcollector.Config `mapstructure:",squash"`
-	SymbolUploader        reporter.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
-	ReporterConfig        ReporterConfig                `mapstructure:"reporter"`
+	Ebpfcollector  *ebpfcollector.Config         `mapstructure:"ebpfcollector"`
+	SymbolUploader reporter.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
+	ReporterConfig ReporterConfig                `mapstructure:"reporter"`
 }
 
 var _ xconfmap.Validator = (*Config)(nil)
@@ -34,12 +34,12 @@ var _ xconfmap.Validator = (*Config)(nil)
 // This is automatically called by the config parser as it implements the xconfmap.Validator interface.
 func (c *Config) Validate() error {
 	if c.ReporterConfig.CollectContext {
-		includeTracers, err := types.Parse(c.Config.Tracers)
+		includeTracers, err := types.Parse(c.Ebpfcollector.Tracers)
 		if err != nil {
 			return err
 		}
 		includeTracers.Enable(types.Labels)
-		c.Config.Tracers = includeTracers.String()
+		c.Ebpfcollector.Tracers = includeTracers.String()
 	}
 	return nil
 }
@@ -50,7 +50,7 @@ func defaultConfig() component.Config {
 	cfg.Tracers = getDefaultTracersString()
 
 	return Config{
-		Config: cfg,
+		Ebpfcollector: cfg,
 		SymbolUploader: reporter.SymbolUploaderConfig{
 			SymbolUploaderOptions: reporter.SymbolUploaderOptions{
 				Enabled:              config.DefaultUploadSymbols,

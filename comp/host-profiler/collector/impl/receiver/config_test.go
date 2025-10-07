@@ -17,15 +17,15 @@ func TestTracers(t *testing.T) {
 	config := defaultConfig()
 	cfg := config.(Config)
 
-	require.Greater(t, len(cfg.Tracers), 0)
-	require.NotContains(t, cfg.Tracers, "go")
-	require.NotContains(t, cfg.Tracers, "labels")
+	require.Greater(t, len(cfg.Ebpfcollector.Tracers), 0)
+	require.NotContains(t, cfg.Ebpfcollector.Tracers, "go")
+	require.NotContains(t, cfg.Ebpfcollector.Tracers, "labels")
 
 	cfg.ReporterConfig.CollectContext = false
 	require.NoError(t, cfg.Validate())
-	require.NotContains(t, cfg.Tracers, "labels")
+	require.NotContains(t, cfg.Ebpfcollector.Tracers, "labels")
 
 	cfg.ReporterConfig.CollectContext = true
 	require.NoError(t, cfg.Validate())
-	require.Contains(t, cfg.Tracers, "labels")
+	require.Contains(t, cfg.Ebpfcollector.Tracers, "labels")
 }
