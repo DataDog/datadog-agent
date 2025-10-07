@@ -12,7 +12,11 @@ import (
 	"context"
 	"os"
 
+	"go.uber.org/zap"
+
 	"github.com/DataDog/dd-otel-host-profiler/reporter"
+	"github.com/DataDog/dd-otel-host-profiler/runner"
+
 	ebpfreporter "go.opentelemetry.io/ebpf-profiler/reporter"
 )
 
@@ -22,18 +26,12 @@ type executableReporter struct {
 	symbolUploader *reporter.DatadogSymbolUploader
 }
 
-func newExecutableReporter(config *reporter.SymbolUploaderConfig) (*executableReporter, error) {
-	// TODO: Use the same logic as https://github.com/DataDog/dd-otel-host-profiler/blob/0b49a0b150a52d450612688e5d0be05c47336128/runner/runner.go#L206-L224
-	// for SymbolEndpoints.
-	if len(config.SymbolEndpoints) == 0 {
-		config.SymbolEndpoints = []reporter.SymbolEndpoint{
-			{
-				APIKey: os.Getenv("DD_API_KEY"),
-				AppKey: os.Getenv("DD_APP_KEY"),
-				Site:   os.Getenv("DD_SITE"),
-			},
-		}
-	}
+func newExecutableReporter(config *reporter.SymbolUploaderConfig, logger *zap.Logger) (*executableReporter, error) {
+	config.SymbolEndpoints = runner.GetValidSymbolEndpoints(
+		config.SymbolEndpoints,
+		os.Getenv("DD_SITE"), os.Getenv("DD_API_KEY"), os.Getenv("DD_APP_KEY"),
+		func(msg string) { logger.Info(msg) }, func(msg string) { logger.Warn(msg) })
+
 	symbolUploader, err := reporter.NewDatadogSymbolUploader(config)
 	if err != nil {
 		return nil, err
