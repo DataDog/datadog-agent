@@ -91,7 +91,7 @@ func (b *Backend) PromoteConfigExperiment() error {
 	return nil
 }
 
-// RemoteConfigStatus returns the status of the remote config.
+// RemoteConfigStatusPackage returns the status of the remote config for a given package.
 func (b *Backend) RemoteConfigStatusPackage(packageName string) (RemoteConfigStatePackage, error) {
 	status, err := b.RemoteConfigStatus()
 	if err != nil {
