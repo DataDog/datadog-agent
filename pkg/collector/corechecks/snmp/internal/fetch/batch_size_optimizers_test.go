@@ -115,7 +115,7 @@ func Test_batchSizeOptimizer_onBatchSizeFailure(t *testing.T) {
 		batchSize                  int
 		failuresByBatchSize        map[int]int
 		expectedBatchSizeOptimizer *oidBatchSizeOptimizer
-		expectedShouldRetry        bool
+		expectedBatchSizeChanged   bool
 	}{
 		{
 			name:            "batch size is 1",
@@ -134,7 +134,7 @@ func Test_batchSizeOptimizer_onBatchSizeFailure(t *testing.T) {
 					1: 1,
 				},
 			},
-			expectedShouldRetry: false,
+			expectedBatchSizeChanged: false,
 		},
 		{
 			name:            "batch size should be decreased",
@@ -150,7 +150,7 @@ func Test_batchSizeOptimizer_onBatchSizeFailure(t *testing.T) {
 					4: 2,
 				},
 			},
-			expectedShouldRetry: true,
+			expectedBatchSizeChanged: true,
 		},
 	}
 
@@ -161,9 +161,9 @@ func Test_batchSizeOptimizer_onBatchSizeFailure(t *testing.T) {
 				batchSize:           tt.batchSize,
 				failuresByBatchSize: tt.failuresByBatchSize,
 			}
-			shouldRetry := batchSizeOptimizer.onBatchSizeFailure()
+			batchSizeChanged := batchSizeOptimizer.onBatchSizeFailure()
 			assert.Equal(t, tt.expectedBatchSizeOptimizer, batchSizeOptimizer)
-			assert.Equal(t, tt.expectedShouldRetry, shouldRetry)
+			assert.Equal(t, tt.expectedBatchSizeChanged, batchSizeChanged)
 		})
 	}
 }
