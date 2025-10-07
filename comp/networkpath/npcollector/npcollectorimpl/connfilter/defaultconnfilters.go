@@ -5,8 +5,8 @@
 
 package connfilter
 
-func getDefaultConnFilters(site string) []ConnFilterConfig {
-	defaultConfig := []ConnFilterConfig{
+func getDefaultConnFilters(site string) []Config {
+	defaultConfig := []Config{
 		{
 			Type:        filterTypeExclude,
 			MatchDomain: "*.datadog.pool.ntp.org",
