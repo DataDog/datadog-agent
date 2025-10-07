@@ -15,23 +15,19 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
-// type remoteAPIRequest struct {
-// 	ID            string          `json:"id"`
-// 	Package       string          `json:"package_name"`
-// 	TraceID       string          `json:"trace_id"`
-// 	ParentSpanID  string          `json:"parent_span_id"`
-// 	ExpectedState expectedState   `json:"expected_state"`
-// 	Method        string          `json:"method"`
-// 	Params        json.RawMessage `json:"params"`
-// }
+// RemoteConfigState is the state of the remote config.
+type RemoteConfigState struct {
+	Packages []RemoteConfigStatePackage `json:"remote_config_state"`
+}
 
-// type expectedState struct {
-// 	InstallerVersion string `json:"installer_version"`
-// 	Stable           string `json:"stable"`
-// 	Experiment       string `json:"experiment"`
-// 	StableConfig     string `json:"stable_config"`
-// 	ExperimentConfig string `json:"experiment_config"`
-// }
+// RemoteConfigStatePackage is the state of a package in the remote config.
+type RemoteConfigStatePackage struct {
+	Package                 string `json:"package"`
+	StableVersion           string `json:"stable_version"`
+	ExperimentVersion       string `json:"experiment_version"`
+	StableConfigVersion     string `json:"stable_config_version"`
+	ExperimentConfigVersion string `json:"experiment_config_version"`
+}
 
 // Backend is the fake fleet backend.
 type Backend struct {
@@ -69,15 +65,58 @@ type FileOperation struct {
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
-// ConfigureAgent configures the agent with the given operations.
-func (b *Backend) ConfigureAgent(_ ConfigOperations) error {
-	status, err := b.RemoteConfigStatus()
-	return fmt.Errorf("TEST ERROR: %s\n\n%v", status, err)
+// StartConfigExperiment starts a config experiment for the given package.
+func (b *Backend) StartConfigExperiment(operations ConfigOperations) error {
+	b.t().Logf("Starting config experiment")
+	rawOperations, err := json.Marshal(operations)
+	if err != nil {
+		return err
+	}
+	output, err := b.runDaemonCommand("start-config-experiment", "datadog-agent", string(rawOperations))
+	if err != nil {
+		return fmt.Errorf("%w, output: %s", err, output)
+	}
+	b.t().Logf("Config experiment started")
+	return nil
+}
+
+// PromoteConfigExperiment promotes a config experiment for the given package.
+func (b *Backend) PromoteConfigExperiment() error {
+	b.t().Logf("Promoting config experiment")
+	output, err := b.runDaemonCommand("promote-config-experiment", "datadog-agent")
+	if err != nil {
+		return fmt.Errorf("%w, output: %s", err, output)
+	}
+	b.t().Logf("Config experiment promoted")
+	return nil
 }
 
 // RemoteConfigStatus returns the status of the remote config.
-func (b *Backend) RemoteConfigStatus() (string, error) {
-	return b.runDaemonCommand("rc-status")
+func (b *Backend) RemoteConfigStatusPackage(packageName string) (RemoteConfigStatePackage, error) {
+	status, err := b.RemoteConfigStatus()
+	if err != nil {
+		return RemoteConfigStatePackage{}, err
+	}
+	for _, pkg := range status.Packages {
+		if pkg.Package == packageName {
+			return pkg, nil
+		}
+	}
+	return RemoteConfigStatePackage{}, fmt.Errorf("package %s not found", packageName)
+}
+
+// RemoteConfigStatus returns the status of the remote config.
+func (b *Backend) RemoteConfigStatus() (RemoteConfigState, error) {
+	status, err := b.runDaemonCommand("rc-status")
+	if err != nil {
+		return RemoteConfigState{}, err
+	}
+	var remoteConfigState RemoteConfigState
+	err = json.Unmarshal([]byte(status), &remoteConfigState)
+	if err != nil {
+		return RemoteConfigState{}, err
+	}
+	return remoteConfigState, nil
 }
 
 func (b *Backend) runDaemonCommand(command string, args ...string) (string, error) {

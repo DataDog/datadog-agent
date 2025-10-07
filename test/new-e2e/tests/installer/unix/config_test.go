@@ -27,10 +27,12 @@ func (s *configSuite) TestConfig() {
 	s.RunInstallScript()
 	defer s.Purge()
 
-	err := s.backend.ConfigureAgent(fakefleetbackend.ConfigOperations{
+	err := s.backend.StartConfigExperiment(fakefleetbackend.ConfigOperations{
 		DeploymentID:   "123",
 		FileOperations: []fakefleetbackend.FileOperation{{FileOperationType: fakefleetbackend.FileOperationPatch, FilePath: "datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
 	})
+	require.NoError(s.T(), err)
+	err = s.backend.PromoteConfigExperiment()
 	require.NoError(s.T(), err)
 
 	config, err := s.agent.Configuration()
