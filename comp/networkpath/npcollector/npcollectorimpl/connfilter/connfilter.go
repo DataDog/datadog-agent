@@ -60,12 +60,23 @@ type ConnFilter struct {
 //        # match_protocol: <TCP | UDP | ICMP>            # add later if user ask for it
 //        type: exclude
 
-func NewConnFilter(config []Config) (*ConnFilter, []error) {
+func NewConnFilter(config []Config, site string) (*ConnFilter, []error) {
 	// TODO: test compile error
+	defaultConfig := []Config{
+		{
+			Type:        filterTypeExclude,
+			MatchDomain: "*.datadoghq.com",
+		},
+		{
+			Type:        filterTypeExclude,
+			MatchDomain: "*." + site,
+		},
+	}
+	newConfigs := append(defaultConfig, config...)
 
-	filters := make([]Filter, 0, len(config))
+	var filters []Filter
 	var errs []error
-	for _, cfg := range config {
+	for _, cfg := range newConfigs {
 		var matchDomainRe *regexp.Regexp
 		var matchIPCidr *net.IPNet
 		if cfg.MatchDomain != "" {

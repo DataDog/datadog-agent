@@ -38,6 +38,7 @@ type collectorConfigs struct {
 	disableWindowsDriver         bool
 	filterConfig                 []connfilter.Config
 	monitorIPWithoutDomain       bool
+	ddSite                       string
 }
 
 func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
@@ -76,6 +77,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 		filterConfig:              collectorFilter,
 		monitorIPWithoutDomain:    agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),
+		ddSite:                    agentConfig.GetString("site"),
 	}
 }
 

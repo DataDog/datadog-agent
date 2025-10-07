@@ -16,6 +16,7 @@ func TestNewConnFilter(t *testing.T) {
 	tests := []struct {
 		name            string
 		config          string
+		ddSite          string
 		expectedMatches []expectedMatch
 		expectedErr     string
 	}{
@@ -224,10 +225,21 @@ filters:
 			},
 			expectedErr: "error building regex",
 		},
+		{
+			name:   "default datadog domain excluded",
+			config: ``,
+			ddSite: "datad0g.com",
+			expectedMatches: []expectedMatch{
+				{domain: "zoom.us", shouldMatch: true},
+				{domain: "dns.datadoghq.com", shouldMatch: false},
+				{domain: "abc.datad0g.com", shouldMatch: false},
+			},
+			expectedErr: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			connFilter, err := getConnFilter(t, tt.config)
+			connFilter, err := getConnFilter(t, tt.config, tt.ddSite)
 			if tt.expectedErr != "" {
 				assert.ErrorContains(t, err, tt.expectedErr)
 			} else {

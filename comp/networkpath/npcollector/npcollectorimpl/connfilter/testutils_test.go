@@ -8,16 +8,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
-func getConnFilter(t *testing.T, configString string) (*ConnFilter, error) {
+func getConnFilter(t *testing.T, configString string, ddSite string) (*ConnFilter, error) {
 	var configs []Config
 
 	cfg := configComponent.NewMockFromYAML(t, configString)
-
 	err := structure.UnmarshalKey(cfg, "filters", &configs)
 	if err != nil {
 		return nil, err
 	}
-	connFilter, errs := NewConnFilter(configs)
+	connFilter, errs := NewConnFilter(configs, ddSite)
 	if len(errs) > 0 {
 		err = errors.Join(errs...)
 	}

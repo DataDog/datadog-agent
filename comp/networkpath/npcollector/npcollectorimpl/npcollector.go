@@ -98,7 +98,7 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 
 func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component, statsd ddgostatsd.ClientInterface) *npCollectorImpl {
 	logger.Infof("New NpCollector %+v", collectorConfigs)
-	filter, errs := connfilter.NewConnFilter(collectorConfigs.filterConfig)
+	filter, errs := connfilter.NewConnFilter(collectorConfigs.filterConfig, collectorConfigs.ddSite)
 
 	if len(errs) > 0 {
 		logger.Errorf("connection filter errors: %s", errors.Join(errs...))
