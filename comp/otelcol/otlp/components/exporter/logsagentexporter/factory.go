@@ -99,7 +99,6 @@ func (f *factory) createLogsExporter(
 
 	ctx, cancel := context.WithCancel(ctx)
 	// cancel() runs on shutdown
-	fmt.Printf("---- LOGSAGENTEXPORTER: %v ----\n", cfg.QueueSettings.Batch.Get())
 	return exporterhelper.NewLogs(
 		ctx,
 		set,
