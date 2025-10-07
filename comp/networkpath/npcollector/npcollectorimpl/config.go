@@ -42,8 +42,8 @@ type collectorConfigs struct {
 }
 
 func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
-	var collectorFilter []connfilter.Config
-	err := agentConfig.UnmarshalKey("network_path.collector.filters", &collectorFilter)
+	var filterConfigs []connfilter.Config
+	err := agentConfig.UnmarshalKey("network_path.collector.filters", &filterConfigs)
 	if err != nil {
 		// TODO: TEST ME
 		logger.Errorf("Error unmarshalling network_path.collector.filters")
@@ -75,7 +75,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		e2eQueries:                agentConfig.GetInt("network_path.collector.e2e_queries"),
 		disableWindowsDriver:      agentConfig.GetBool("network_path.collector.disable_windows_driver"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
-		filterConfig:              collectorFilter,
+		filterConfig:              filterConfigs,
 		monitorIPWithoutDomain:    agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),
 		ddSite:                    agentConfig.GetString("site"),
 	}

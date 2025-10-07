@@ -84,6 +84,16 @@ filters:
 			},
 		},
 		{
+			name: "invalid strategy",
+			config: `
+filters:
+  - match_domain: '.*\.google\.com'
+    match_domain_strategy: 'invalid'
+    type: exclude
+`,
+			expectedErr: "invalid match domain strategy: invalid",
+		},
+		{
 			name: "single ip exclude IPv4",
 			config: `
 filters:
@@ -161,6 +171,15 @@ filters:
 				{ip: "2001:4860:ffff:ffff:ffff:ffff:ffff:ffff", shouldMatch: false},
 				{ip: "2001:4860:0000:0000:0000:0000:0000:0010", shouldMatch: true},
 			},
+		},
+		{
+			name: "cidr parsing error",
+			config: `
+filters:
+  - match_ip: 2001:4860:0000:0000:0000:0000:0000:0000/999
+    type: exclude
+`,
+			expectedErr: "failed to parsing match_ip",
 		},
 		{
 			name: "exclude all domain, then include",
@@ -241,6 +260,15 @@ filters:
 				{domain: "1.datadog.pool.ntp.org", shouldMatch: false},
 			},
 			expectedErr: "",
+		},
+		{
+			name: "invalid filter type",
+			config: `
+filters:
+  - match_domain: 'zoom.us'
+    type: invalid
+`,
+			expectedErr: "invalid filter type: invalid",
 		},
 	}
 	for _, tt := range tests {

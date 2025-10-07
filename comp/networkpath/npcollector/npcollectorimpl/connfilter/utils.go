@@ -24,7 +24,6 @@ func buildRegex(matchRe string, matchType matchDomainStrategyType) (*regexp.Rege
 			return nil, fmt.Errorf("invalid wildcard match pattern `%s`, it should not contain consecutive `*`", matchRe)
 		}
 		matchRe = strings.ReplaceAll(matchRe, ".", "\\.")
-		// TODO: why do we need ^ in "([^.]*)" ??
 		matchRe = strings.ReplaceAll(matchRe, "*", ".*")
 	}
 	regex, err := regexp.Compile("^" + matchRe + "$")
