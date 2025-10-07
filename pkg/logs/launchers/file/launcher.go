@@ -539,6 +539,11 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 	log.Debugf("Pass 1: rotateTailerWithoutRestart invoked for %s (tailerID=%s, bytesRead=%d)", file.Path, oldTailer.GetID(), oldTailer.Source().BytesRead.Get())
 	oldTailer.StopAfterFileRotation()
 
+	// Remove the rotated tailer from the active container so a fresh tailer can
+	// be created for the new file while this one finishes draining the old file.
+	s.tailers.Remove(oldTailer)
+	log.Debugf("Pass 1: Removed rotated tailer for %s from active container to allow drain", file.Path)
+
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()
 
