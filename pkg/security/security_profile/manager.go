@@ -694,10 +694,15 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 
 	cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
 		cgceTags := cgce.GetTags()
-		image_name := utils.GetTagValue("image_name", cgceTags)
-		image_tag := utils.GetTagValue("image_tag", cgceTags)
-		if image_tag == "" {
-			image_tag = "latest"
+		imageName := utils.GetTagValue("image_name", cgceTags)
+		imageTag := utils.GetTagValue("image_tag", cgceTags)
+		if imageTag == "" {
+			imageTag = "latest"
+		}
+
+		key := activity_tree.ImageProcessKey{
+			ImageName: imageName,
+			ImageTag:  imageTag,
 		}
 
 		// Resolve filepaths for each PID
@@ -708,15 +713,11 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 				continue
 			}
 
-			key := activity_tree.ImageProcessKey{
-				ImageName: image_name,
-				ImageTag:  image_tag,
-				Filepath:  pce.FileEvent.PathnameStr,
-			}
+			key.Filepath = pce.FileEvent.PathnameStr
 			result[key] = true
 		}
 
-		return true
+		return false
 	})
 
 	return result

@@ -482,6 +482,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		processNode.AppendImageTag("very-old-tag", veryOldTime)
 		processNode.AppendImageTag("old-tag", oldTime)
 		processNode.AppendImageTag("recent-tag", recentTime)
+		processNode.AppendImageTag("test-tag", oldTime) // Add the profile tag that can be refreshed
 		tree.ProcessNodes = []*ProcessNode{processNode}
 
 		// Set eviction time to 1 hour ago (very-old-tag and old-tag should be evicted)
@@ -499,19 +500,21 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, 0, evicted, "Expected 0 nodes to be evicted")
 		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
 
-		// Verify that expired tags were refreshed
+		// Verify that only the profile's image tag was refreshed
 		node := tree.ProcessNodes[0]
 		veryOldTagTimes := node.Seen["very-old-tag"]
 		oldTagTimes := node.Seen["old-tag"]
 		recentTagTimes := node.Seen["recent-tag"]
+		testTagTimes := node.Seen["test-tag"]
 
-		assert.NotNil(t, veryOldTagTimes, "Expected very-old-tag to still exist")
-		assert.NotNil(t, oldTagTimes, "Expected old-tag to still exist")
+		// The very-old-tag and old-tag should have been evicted since they weren't refreshed
+		assert.Nil(t, veryOldTagTimes, "Expected very-old-tag to be evicted")
+		assert.Nil(t, oldTagTimes, "Expected old-tag to be evicted")
 		assert.NotNil(t, recentTagTimes, "Expected recent-tag to still exist")
+		assert.NotNil(t, testTagTimes, "Expected test-tag to still exist")
 
-		// The expired tags should have been refreshed to current time
-		assert.True(t, veryOldTagTimes.LastSeen.After(evictionTime), "Expected very-old-tag LastSeen to be updated")
-		assert.True(t, oldTagTimes.LastSeen.After(evictionTime), "Expected old-tag LastSeen to be updated")
+		// The test-tag should have been refreshed to current time (it's the profile tag)
+		assert.True(t, testTagTimes.LastSeen.After(evictionTime), "Expected test-tag LastSeen to be updated")
 		// Recent tag should remain unchanged since it wasn't expired
 		assert.True(t, recentTagTimes.LastSeen.Equal(recentTime), "Expected recent-tag LastSeen to remain unchanged")
 	})

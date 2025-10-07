@@ -596,7 +596,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGro
 }
 
 // ResolveCGroupTags resolves the tags of the cgroup
-func (fh *EBPFFieldHandlers) ResolveCGroupTags(ev *model.Event, e *model.CGroupContext) []string {
+func (fh *EBPFFieldHandlers) ResolveCGroupTags(_ *model.Event, e *model.CGroupContext) []string {
 	if len(e.Tags) == 0 && e.CGroupID != "" {
 		e.Tags = fh.resolvers.TagsResolver.Resolve(e.CGroupID)
 	}

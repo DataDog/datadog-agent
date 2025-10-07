@@ -978,26 +978,8 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 			continue
 		}
 
-		// Try a fallback if the node is in the process cache
-		// Check if this specific image/tag/filepath combination exists in the cache
-		// The filepath might not be sufficient to uniquely identify the node, but it's a good enough approximation for now
-		// Edge case: foo->bar->foo, if the second foo is no longer in the process cache, it will still be refreshed because of the first foo
-		filepath := node.Process.FileEvent.PathnameStr
-		key := ImageProcessKey{
-			ImageName: profileImageName,
-			ImageTag:  profileImageTag,
-			Filepath:  filepath,
-		}
-
-		if filepathsInProcessCache[key] {
-			// check if the node was supposed to be removed, then update the last seen to now
-			evictableImageTags := node.NodeBase.GetEvictableImageTags(before)
-			for _, imageTag := range evictableImageTags {
-				node.NodeBase.AppendImageTag(imageTag, time.Now())
-			}
-		}
-
-		evicted := node.EvictUnusedNodes(before)
+		// Evict unused nodes
+		evicted := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag)
 		totalEvicted += evicted
 
 		// If the process node itself has no image tags left after eviction, remove it entirely

@@ -68,17 +68,6 @@ func (b *NodeBase) EvictBeforeTimestamp(before time.Time) int {
 	return removed
 }
 
-// GetEvictableImageTags returns all imageTags whose LastSeen is before the given timestamp.
-func (b *NodeBase) GetEvictableImageTags(before time.Time) []string {
-	evictable := []string{}
-	for imageTag, times := range b.Seen {
-		if times.LastSeen.Before(before) {
-			evictable = append(evictable, imageTag)
-		}
-	}
-	return evictable
-}
-
 // HasImageTag returns true if the imageTag exists in the Seen map.
 func (b *NodeBase) HasImageTag(imageTag string) bool {
 	_, exists := b.Seen[imageTag]

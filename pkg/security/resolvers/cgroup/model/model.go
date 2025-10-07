@@ -78,13 +78,13 @@ func (cgce *CacheEntry) AddPID(pid uint32) {
 	cgce.PIDs[pid] = true
 }
 
+// GetTags returns the tags for the workload
 func (cgce *CacheEntry) GetTags() []string {
 	if cgce.CGroupID != "" {
 		return cgce.CGroupContext.Tags
 	} else if cgce.ContainerID != "" {
 		return cgce.ContainerContext.Tags
-	} else {
-		seclog.Errorf("unknown workload id type: %T", cgce)
-		return []string{}
 	}
+	seclog.Errorf("unknown workload id type: %T", cgce)
+	return []string{}
 }
