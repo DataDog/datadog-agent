@@ -242,6 +242,7 @@ func (a *FileOperation) apply(root *os.Root) error {
 		}
 		return err
 	case FileOperationCopy:
+		// TODO(go.1.25): os.Root.MkdirAll and os.Root.WriteFile are only available starting go 1.25
 		err := ensureDir(root, destinationPath)
 		if err != nil {
 			return err
@@ -271,6 +272,7 @@ func (a *FileOperation) apply(root *os.Root) error {
 		}
 		return nil
 	case FileOperationMove:
+		// TODO(go.1.25): os.Root.Rename is only available starting go 1.25 so we'll use it instead
 		err := ensureDir(root, destinationPath)
 		if err != nil {
 			return err
