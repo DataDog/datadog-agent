@@ -47,6 +47,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 	if err != nil {
 		// TODO: TEST ME
 		logger.Errorf("Error unmarshalling network_path.collector.filters")
+		filterConfigs = nil
 	}
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
