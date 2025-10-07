@@ -90,7 +90,7 @@ func parseProcControlGroupsData(data []byte, validateCgroupEntry func(string, st
 			return err
 		}
 
-		if isValid, err = validateCgroupEntry(id, ctrl, path); isValid && err != nil {
+		if isValid, err = validateCgroupEntry(id, ctrl, path); isValid && err == nil {
 			return nil
 		}
 
