@@ -414,11 +414,7 @@
             "arguments": {
               "b": {
                 "type": "main.behavior",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           }
