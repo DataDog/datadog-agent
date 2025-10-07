@@ -174,7 +174,7 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 	// Compute fingerprint using the bytes read (partial or full)
 	actualData := buffer[:bytesRead]
 	checksum := crc64.Checksum(actualData, crc64Table)
-	log.Debugf("Actual data: %s", string(actualData))
+	log.Debugf("Actual data used in fingerprint: %s", string(actualData))
 	log.Debugf("Computed fingerprint for %q: %x [%d bytes]", filePath, checksum, bytesRead)
 
 	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig, BytesUsed: bytesRead}, nil

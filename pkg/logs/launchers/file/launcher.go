@@ -206,7 +206,7 @@ func (s *Launcher) scan() {
 					log.Debugf("Pass 1: Rotation detected for %s, calling rotateTailerWithoutRestart", file.Path)
 					s.rotateTailerWithoutRestart(tailered, file)
 					continue
-			}
+				}
 			} else {
 				log.Debugf("Pass 1: Checking rotation for %s via filesystem (fingerprinting disabled)", file.Path)
 				didRotate, err = tailered.DidRotate()
