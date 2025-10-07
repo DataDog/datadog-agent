@@ -171,30 +171,32 @@ func (fh *forwarderHealth) healthCheckLoop() {
 func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []string) {
 	fh.keyMapMutex.Lock()
 
-	apiDomain := getAPIDomain(domain)
-	newList := []string{}
+	// rebuild keysPerAPIEndpoint map so all domains get the updated keys.
+	fh.keysPerAPIEndpoint = make(map[string][]string)
 
-	// We need to go through all the resolvers to build up the api keys for a given
-	// api domain incase multiple resolvers have the same api endpoint.
 	for domainURL, resolver := range fh.domainResolvers {
-		if getAPIDomain(domainURL) == apiDomain {
-			newList = append(newList, resolver.GetAPIKeys()...)
-		}
+		apiDomain := getAPIDomain(domainURL)
+		fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], resolver.GetAPIKeys()...)
 	}
-	fh.keysPerAPIEndpoint[apiDomain] = newList
 
 	// remove old key messages, then check apiKey validity and update the messages
 	for _, oldKey := range old {
-		// Need to check the old key doesn't exist in the list
-		// Even if it has been replaced here, it may still belong to another
-		// resolver sharing the same api endpoint and so shouldn't be removed.
-		if !slices.Contains(newList, oldKey) {
+		// Check if this old key is still present in any domain
+		stillExists := false
+		for _, keys := range fh.keysPerAPIEndpoint {
+			if slices.Contains(keys, oldKey) {
+				stillExists = true
+				break
+			}
+		}
+		if !stillExists {
 			fh.setAPIKeyStatus(oldKey, "", &apiKeyRemove)
 		}
 	}
 	fh.keyMapMutex.Unlock()
 
-	// Check our new API keys
+	// Check the new API keys for the domain that triggered this update
+	apiDomain := getAPIDomain(domain)
 	fh.checkValidAPIKeys(apiDomain, new)
 }
 
