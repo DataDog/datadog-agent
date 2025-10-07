@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/confmap"
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
@@ -31,10 +30,9 @@ import (
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -78,24 +76,6 @@ type cliParams struct {
 
 	// pidfilePath contains the value of the --pidfile flag.
 	pidfilePath string
-}
-
-// MakeCommand creates the `run` command
-func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Command {
-	params := &cliParams{}
-
-	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Starting OpenTelemetry Collector",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			globalParams := globalConfGetter()
-			params.GlobalParams = globalParams
-			return runOTelAgentCommand(context.Background(), params)
-		},
-	}
-	cmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
-
-	return cmd
 }
 
 type orchestratorinterfaceimpl struct {
@@ -174,7 +154,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			return acfg, nil
 		}),
 		fxutil.ProvideOptional[coreconfig.Component](),
-		fxutil.ProvideNoneOptional[secrets.Component](),
+		secretsnoopfx.Module(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
@@ -225,10 +205,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		}),
 
 		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
-		remoteTaggerFx.Module(tagger.RemoteParams{
-			RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-			RemoteFilter: taggerTypes.NewMatchAllFilter(),
-		}),
+		remoteTaggerFx.Module(tagger.NewRemoteParams()),
 		telemetryimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())

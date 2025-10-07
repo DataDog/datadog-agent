@@ -72,11 +72,12 @@ const (
 )
 
 var extendedCollectors = map[string]string{
-	"deployments": "apps/v1, Resource=deployments_extended",
-	"replicasets": "apps/v1, Resource=replicasets_extended",
-	"jobs":        "batch/v1, Resource=jobs_extended",
-	"nodes":       "core/v1, Resource=nodes_extended",
-	"pods":        "core/v1, Resource=pods_extended",
+	"deployments":  "apps/v1, Resource=deployments_extended",
+	"replicasets":  "apps/v1, Resource=replicasets_extended",
+	"statefulsets": "apps/v1, Resource=statefulsets_extended",
+	"jobs":         "batch/v1, Resource=jobs_extended",
+	"nodes":        "core/v1, Resource=nodes_extended",
+	"pods":         "core/v1, Resource=pods_extended",
 }
 
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
@@ -87,6 +88,8 @@ var collectorNameReplacement = map[string]string{
 	// verticalpodautoscalers were removed from the built-in KSM metrics in KSM 2.9, and the changes made to
 	// the KSM builder in KSM 2.9 result in the detected custom resource store name being different.
 	"verticalpodautoscalers": "autoscaling.k8s.io/v1, Resource=verticalpodautoscalers",
+	// controllerrevisions are not natively supported by KSM as a collector, so we register it as a custom resource
+	"controllerrevisions": "apps/v1, Resource=controllerrevisions",
 }
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
@@ -249,6 +252,7 @@ type KSMCheck struct {
 	metadataMetricsRegex *regexp.Regexp
 	initRetry            retry.Retrier
 	workloadmetaStore    workloadmeta.Component
+	rolloutTracker       *customresources.RolloutTracker
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -450,6 +454,18 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 				return err
 			}
 
+			// Register event callbacks before building stores
+			eventCallbacks := k.getEventCallbacks()
+
+			var callbackResourceTypes []string
+			for resourceType, config := range eventCallbacks {
+				builder.RegisterStoreEventCallback(resourceType, config.EventType, config.Handler)
+				callbackResourceTypes = append(callbackResourceTypes, resourceType)
+			}
+
+			// Configure builder to enable callbacks for specific resource types
+			builder.WithCallbacksForResources(callbackResourceTypes)
+
 			// Start the collection process
 			k.allStores = builder.BuildStores()
 
@@ -539,8 +555,10 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewExtendedNodeFactory(c),
 		customresources.NewExtendedPodFactory(c),
 		customresources.NewVerticalPodAutoscalerFactory(c),
-		customresources.NewDeploymentRolloutFactory(c),
-		customresources.NewReplicaSetRolloutFactory(c),
+		customresources.NewDeploymentRolloutFactory(c, k.rolloutTracker),
+		customresources.NewReplicaSetRolloutFactory(c, k.rolloutTracker),
+		customresources.NewStatefulSetRolloutFactory(c, k.rolloutTracker),
+		customresources.NewControllerRevisionRolloutFactory(c, k.rolloutTracker),
 	}
 
 	factories = manageResourcesReplacement(c, factories, resources)
@@ -604,6 +622,13 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	return factories
 }
 
+func (k *KSMCheck) shouldDropForMetadata(name string) bool {
+	if strings.HasPrefix(name, "kube_customresource") {
+		return false
+	}
+	return k.metadataMetricsRegex.MatchString(name)
+}
+
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
 	if err := k.initRetry.TriggerRetry(); err != nil {
@@ -663,8 +688,6 @@ func (k *KSMCheck) Run() error {
 			var metricsStore *ksmstore.MetricsStore
 			if ms, ok := store.(*ksmstore.MetricsStore); ok {
 				metricsStore = ms
-			} else if rolloutStore, ok := store.(*ksmstore.RolloutMetricsStore); ok {
-				metricsStore = rolloutStore.MetricsStore
 			}
 
 			if metricsStore != nil {
@@ -680,8 +703,6 @@ func (k *KSMCheck) Run() error {
 			var metricsStore *ksmstore.MetricsStore
 			if ms, ok := store.(*ksmstore.MetricsStore); ok {
 				metricsStore = ms
-			} else if rolloutStore, ok := store.(*ksmstore.RolloutMetricsStore); ok {
-				metricsStore = rolloutStore.MetricsStore
 			}
 
 			if metricsStore != nil {
@@ -740,9 +761,9 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if _, found := k.metricAggregators[metricFamily.Name]; found {
 				continue
 			}
-			if k.metadataMetricsRegex.MatchString(metricFamily.Name) {
+			if k.shouldDropForMetadata(metricFamily.Name) {
 				// metadata metrics are only used by the check for label joins
-				// they shouldn't be forwarded to Datadog
+				// they shouldn't be forwarded to Datadog unless they're customresource metrics
 				continue
 			}
 			// ignore the metric if it doesn't have a transformer
@@ -1103,7 +1124,7 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 }
 
 func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component, wmeta workloadmeta.Component) *KSMCheck {
-	return &KSMCheck{
+	k := &KSMCheck{
 		CheckBase:            base,
 		instance:             instance,
 		telemetry:            newTelemetryCache(),
@@ -1112,13 +1133,18 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 		metricNamesMapper:    defaultMetricNamesMapper(),
 		metricAggregators:    defaultMetricAggregators(),
-		metricTransformers:   defaultMetricTransformers(),
 		workloadmetaStore:    wmeta,
+		rolloutTracker:       customresources.NewRolloutTracker(),
 
 		// metadata metrics are useful for label joins
 		// but shouldn't be submitted to Datadog
 		metadataMetricsRegex: regexp.MustCompile(".*_(info|labels|status_reason)"),
 	}
+
+	// Initialize metricTransformers after k is created since it needs a reference to k
+	k.metricTransformers = defaultMetricTransformers(k)
+
+	return k
 }
 
 // mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping
@@ -1134,7 +1160,7 @@ func mergeLabelsOrAnnotationAsTags(extra, instanceMap map[string]map[string]stri
 	}
 
 	for resource, mapping := range extra {
-		var singularName = resource
+		singularName := resource
 		var err error
 		if shouldTransformResource && !isNodeAgent {
 			// modify the resource name to the singular form of the resource
@@ -1294,4 +1320,48 @@ func toSingularResourceName(resourceGroup string) (string, error) {
 	resourceType, group, _ := strings.Cut(resourceGroup, ".")
 	kind, err := apiserver.GetResourceKind(resourceType, group)
 	return strings.ToLower(kind), err
+}
+
+// EventCallbackConfig holds the configuration for a resource event callback
+type EventCallbackConfig struct {
+	EventType ksmstore.StoreEventType
+	Handler   ksmstore.StoreEventCallback
+}
+
+// getEventCallbacks returns a map of resource types to their corresponding event callback configurations
+func (k *KSMCheck) getEventCallbacks() map[string]EventCallbackConfig {
+	return map[string]EventCallbackConfig{
+		"*v1.Deployment":         {ksmstore.EventDelete, k.handleDeploymentEvent},
+		"*v1.ReplicaSet":         {ksmstore.EventDelete, k.handleReplicaSetEvent},
+		"*v1.StatefulSet":        {ksmstore.EventDelete, k.handleStatefulSetEvent},
+		"*v1.ControllerRevision": {ksmstore.EventDelete, k.handleControllerRevisionEvent},
+	}
+}
+
+// handleDeploymentEvent handles events for deployments
+func (k *KSMCheck) handleDeploymentEvent(eventType ksmstore.StoreEventType, _, namespace, name string, _ interface{}) {
+	if eventType == ksmstore.EventDelete {
+		k.rolloutTracker.CleanupDeployment(namespace, name)
+	}
+}
+
+// handleReplicaSetEvent handles events for replicasets
+func (k *KSMCheck) handleReplicaSetEvent(eventType ksmstore.StoreEventType, _, namespace, name string, _ interface{}) {
+	if eventType == ksmstore.EventDelete {
+		k.rolloutTracker.CleanupReplicaSet(namespace, name)
+	}
+}
+
+// handleStatefulSetEvent handles events for statefulsets
+func (k *KSMCheck) handleStatefulSetEvent(eventType ksmstore.StoreEventType, _, namespace, name string, _ interface{}) {
+	if eventType == ksmstore.EventDelete {
+		k.rolloutTracker.CleanupStatefulSet(namespace, name)
+	}
+}
+
+// handleControllerRevisionEvent handles events for controllerrevisions
+func (k *KSMCheck) handleControllerRevisionEvent(eventType ksmstore.StoreEventType, _, namespace, name string, _ interface{}) {
+	if eventType == ksmstore.EventDelete {
+		k.rolloutTracker.CleanupControllerRevision(namespace, name)
+	}
 }

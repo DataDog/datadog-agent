@@ -64,6 +64,7 @@ type Requires struct {
 	// and shutdown hooks.
 	Lc         compdef.Lifecycle
 	Shutdowner compdef.Shutdowner
+	Context    context.Context
 
 	CollectorContrib collectorcontrib.Component
 	URIs             []string
@@ -163,7 +164,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.135.0",
+	Version:     "v0.136.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }
@@ -212,6 +213,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		OnStart: c.start,
 		OnStop:  c.stop,
 	})
+
+	setupShutdown(reqs.Context, reqs.Log, reqs.Shutdowner)
+
 	return Provides{
 		Comp: c,
 	}, nil

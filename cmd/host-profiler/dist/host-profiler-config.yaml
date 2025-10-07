@@ -1,0 +1,20 @@
+receivers:
+  ddprofiling:
+processors:
+  infraattributes/default:
+    cardinality: 2 #HighCardinality
+exporters:
+  debug: {}
+  otlphttp:
+    endpoint: https://intake.profile.datad0g.com/api/v2/profotlp
+    headers:
+      dd-api-key: ${env:DD_API_KEY}
+    profiles_endpoint: https://intake.profile.datad0g.com/api/v2/profotlp
+service:
+  pipelines:
+    profiles:
+      receivers: [ddprofiling]
+      # infraattributes/default is automatically removed when the Agent Core is not available  
+      processors: [infraattributes/default]
+      exporters: [otlphttp, debug]   
+ 
