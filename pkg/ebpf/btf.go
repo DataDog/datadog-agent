@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -24,7 +25,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -310,7 +310,7 @@ func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
 			return nil, fmt.Errorf("extract kernel BTF from tarball: %w", err)
 		}
 	} else if strings.HasSuffix(btfRelativeEmbeddedFilename, ".btf") {
-		if err := filesystem.CopyFile(btfIntermediatePath, absExtractFile); err != nil {
+		if err := copyFile(btfIntermediatePath, absExtractFile); err != nil {
 			return nil, fmt.Errorf("copy kernel BTF: %w", err)
 		}
 	} else {
@@ -489,4 +489,37 @@ var loadKernelSpec = funcs.CacheWithCallback[btf.Spec](btf.LoadKernelSpec, btf.F
 // it's very important that the caller of this function does not modify the returned value
 func GetKernelSpec() (*btf.Spec, error) {
 	return loadKernelSpec.Do()
+}
+
+// copyFile copies file path `src“ to file path `dst`.
+func copyFile(src, dst string) error {
+	fi, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	out, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fi.Mode().Perm())
+	if err != nil {
+		return fmt.Errorf("open file %s: %w", dst, err)
+	}
+
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		out.Close()
+		os.Remove(dst)
+		return err
+	}
+
+	err = out.Close()
+	if err != nil {
+		os.Remove(dst)
+		return err
+	}
+	return nil
 }
