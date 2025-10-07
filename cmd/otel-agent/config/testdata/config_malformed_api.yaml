@@ -11,5 +11,4 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: []
       exporters: [datadog]

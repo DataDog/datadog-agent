@@ -254,6 +254,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		return nil, err
 	}
 
+	fmt.Printf("---- SERIALIZER EXPORTER: %v ----\n", cfg.QueueBatchConfig.Batch.Get())
 	exporter, err := exporterhelper.NewMetrics(ctx, params, cfg, newExp.ConsumeMetrics,
 		exporterhelper.WithQueue(cfg.QueueBatchConfig),
 		exporterhelper.WithTimeout(cfg.TimeoutConfig),

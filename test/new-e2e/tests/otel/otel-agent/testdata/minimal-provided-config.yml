@@ -58,6 +58,10 @@ exporters:
       randomization_factor: 0.5
     sending_queue:
       batch:
+        flush_timeout: 10s
+        max_size: 0
+        min_size: 8192
+        sizer: {}
       block_on_overflow: false
       enabled: true
       num_consumers: 10
@@ -77,7 +81,7 @@ exporters:
       span_name_remappings: {}
       trace_buffer: 0
 extensions: {}
-processors:
+processors: {}
 receivers:
   otlp:
     protocols:
@@ -104,26 +108,26 @@ service:
     logs:
       exporters:
         - datadog
-      processors:
+      processors: []
       receivers:
         - otlp
     metrics:
       exporters:
         - datadog
-      processors:
+      processors: []
       receivers:
         - otlp
         - datadog/connector
     traces:
       exporters:
         - datadog/connector
-      processors:
+      processors: []
       receivers:
         - otlp
     traces/send:
       exporters:
         - datadog
-      processors:
+      processors: []
       receivers:
         - otlp
   telemetry:

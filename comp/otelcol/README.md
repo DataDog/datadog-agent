@@ -102,7 +102,6 @@ service:
   pipelines:
     traces: # this pipeline computes APM stats
       receivers: [otlp]
-      processors: []
       exporters: [datadog/connector]
     traces/sampling: # this pipeline uses sampling and sends traces
       receivers: [otlp]

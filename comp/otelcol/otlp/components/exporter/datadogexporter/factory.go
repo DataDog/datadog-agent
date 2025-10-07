@@ -180,6 +180,8 @@ func (f *factory) createTracesExporter(
 
 	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces, f.reporter)
 
+	fmt.Printf("---- CREATETRACESEXPORTER: %v ----\n", cfg.QueueSettings.Batch.Get())
+
 	return exporterhelper.NewTraces(
 		ctx,
 		set,
@@ -218,6 +220,8 @@ func (f *factory) createMetricsExporter(
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
 	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
+
+	fmt.Printf("---- CREATEMETRICSEXPORTER: %v ----\n", cfg.QueueSettings.Batch.Get())
 
 	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter)
 	ex := &serializerexporter.ExporterConfig{
@@ -285,6 +289,8 @@ func (f *factory) createLogsExporter(
 	if _, err := f.Reporter(set, cfg.HostMetadata.ReporterPeriod, cfg.HostMetadata.Enabled); err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("---- CREATELOGSEXPORTER: %v ----\n", cfg.QueueSettings.Batch.Get())
 
 	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.reporter)
 	lc := &logsagentexporter.Config{
