@@ -163,6 +163,11 @@ var hostCCRIDDetectors = map[string]cloudProviderCCRIDDetector{
 
 // GetHostCCRID returns the host CCRID from the first provider that works
 func GetHostCCRID(ctx context.Context, detectedCloud string) string {
+	if detectedCloud == "" {
+		log.Infof("No Host CCRID, no cloudprovider detected")
+		return ""
+	}
+
 	// Try the cloud that was previously detected
 	if callback, found := hostCCRIDDetectors[detectedCloud]; found {
 		hostCCRID, err := callback(ctx)
