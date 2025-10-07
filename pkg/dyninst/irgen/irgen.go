@@ -1874,8 +1874,9 @@ type rootVisitor struct {
 	// present).
 	unitOffsets []dwarf.Offset
 
-	// Dwarf offsets of all out-of-line subprograms. These may either be
-	// non-inlined subprograms or out-of-line instances of inlined subprograms.
+	// Dwarf offsets of all out-of-line subprograms that contain inlined
+	// subprograms. These may either be non-inlined subprograms or out-of-line
+	// instances of inlined subprograms.
 	//
 	// This is used to find the root PC ranges for inlined instances of inlined
 	// subprograms.
@@ -1979,7 +1980,6 @@ func (v *unitChildVisitor) push(
 	// subprograms.
 	switch entry.Tag {
 	case dwarf.TagSubprogram:
-		v.root.outOfLineSubprogramOffsets = append(v.root.outOfLineSubprogramOffsets, entry.Offset)
 		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
 		if err != nil {
 			return nil, err
@@ -1996,7 +1996,8 @@ func (v *unitChildVisitor) push(
 			})
 
 			return &inlinedSubroutineChildVisitor{
-				root: v.root,
+				root:      v.root,
+				outOfLine: true,
 			}, nil
 		}
 		probesCfgs := v.root.interests.subprograms[name]
@@ -2203,11 +2204,15 @@ func findStructSizeAndMemberOffset(
 	return 0, 0, fmt.Errorf("member %q not found", memberName)
 }
 
-func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
+func (v *unitChildVisitor) pop(entry *dwarf.Entry, childVisitor visitor) error {
 	switch t := childVisitor.(type) {
 	case nil:
 		return nil
 	case *subprogramChildVisitor:
+		if t.hasInlinedSubprograms {
+			v.root.outOfLineSubprogramOffsets = append(
+				v.root.outOfLineSubprogramOffsets, t.subprogramEntry.Offset)
+		}
 		if len(t.probesCfgs) > 0 {
 			var spName string
 			if n, ok, _ := maybeGetAttr[string](t.subprogramEntry, dwarf.AttrName); ok {
@@ -2245,6 +2250,10 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 		}
 		return nil
 	case *inlinedSubroutineChildVisitor:
+		if t.outOfLine && t.hasInlinedSubprograms {
+			v.root.outOfLineSubprogramOffsets = append(
+				v.root.outOfLineSubprogramOffsets, entry.Offset)
+		}
 		return nil
 	case *abstractSubprogramVisitor:
 		return nil
@@ -2772,7 +2781,8 @@ type subprogramChildVisitor struct {
 	subprogramEntry *dwarf.Entry
 	probesCfgs      []ir.ProbeDefinition
 	// Discovery: collect variable DIEs for later materialization.
-	variableEntries []*dwarf.Entry
+	variableEntries       []*dwarf.Entry
+	hasInlinedSubprograms bool
 }
 
 func (v *subprogramChildVisitor) push(
@@ -2780,6 +2790,7 @@ func (v *subprogramChildVisitor) push(
 ) (childVisitor visitor, err error) {
 	switch entry.Tag {
 	case dwarf.TagInlinedSubroutine:
+		v.hasInlinedSubprograms = true
 		v := &inlinedSubroutineChildVisitor{root: v.root}
 		return v.push(entry)
 	case dwarf.TagFormalParameter:
@@ -2904,7 +2915,9 @@ type inlinedSubprogram struct {
 }
 
 type inlinedSubroutineChildVisitor struct {
-	root *rootVisitor
+	root                  *rootVisitor
+	outOfLine             bool
+	hasInlinedSubprograms bool
 }
 
 func (v *inlinedSubroutineChildVisitor) push(
@@ -2912,6 +2925,7 @@ func (v *inlinedSubroutineChildVisitor) push(
 ) (childVisitor visitor, err error) {
 	switch entry.Tag {
 	case dwarf.TagInlinedSubroutine:
+		v.hasInlinedSubprograms = true
 		abstractOrigin, err := getAttr[dwarf.Offset](entry, dwarf.AttrAbstractOrigin)
 		if err != nil {
 			return nil, err
