@@ -86,7 +86,7 @@ func (m *MockSender) AssertMetricMissing(t *testing.T, method string, metric str
 // AssertEvent assert the expectedEvent was emitted with the following values:
 // AggregationKey, Priority, SourceTypeName, EventType, Host and a Ts range weighted with the parameter allowedDelta
 func (m *MockSender) AssertEvent(t *testing.T, expectedEvent event.Event, allowedDelta time.Duration) bool {
-	return m.Mock.AssertCalled(t, "Event", MatchEventLike(expectedEvent, allowedDelta))
+	return m.Mock.AssertCalled(t, "Event", MatchEventLikeWithCompare(expectedEvent, allowedDelta, nil))
 }
 
 // AssertEventWithCompareFunc assert the expectedEvent was emitted with the following values:
@@ -104,7 +104,7 @@ func (m *MockSender) AssertEventPlatformEvent(t *testing.T, expectedRawEvent []b
 // AssertEventMissing assert the expectedEvent was never emitted with the following values:
 // AggregationKey, Priority, SourceTypeName, EventType, Host and a Ts range weighted with the parameter allowedDelta
 func (m *MockSender) AssertEventMissing(t *testing.T, expectedEvent event.Event, allowedDelta time.Duration) bool {
-	return m.Mock.AssertNotCalled(t, "Event", MatchEventLike(expectedEvent, allowedDelta))
+	return m.Mock.AssertNotCalled(t, "Event", MatchEventLikeWithCompare(expectedEvent, allowedDelta, nil))
 }
 
 // AnythingBut match everything except the argument
@@ -139,11 +139,16 @@ func AssertFloatInRange(min float64, max float64) interface{} {
 	})
 }
 
-// MatchEventLike is a mock.argumentMatcher builder to be used in asserts.
+// EventCompareFunc lets tests define extra comparison
+type EventCompareFunc func(expected, actual event.Event) bool
+
+// MatchEventLikeWithCompare is a mock.argumentMatcher builder with a pluggable comparator to be used in asserts.
 // It allows to check if an event is Equal on the following Event elements:
 // AggregationKey, Priority, SourceTypeName, EventType, Host and Tag list
 // Also do a timestamp comparison with a tolerance defined by allowedDelta
-func MatchEventLike(expected event.Event, allowedDelta time.Duration) interface{} {
+// The provided compare function enables additional, test-specific validation logic
+func MatchEventLikeWithCompare(expected event.Event, allowedDelta time.Duration, compare EventCompareFunc) interface{} {
+
 	return mock.MatchedBy(func(actual event.Event) bool {
 		expectedTime := time.Unix(expected.Ts, 0)
 		actualTime := time.Unix(actual.Ts, 0)
@@ -151,7 +156,13 @@ func MatchEventLike(expected event.Event, allowedDelta time.Duration) interface{
 		if dt < -allowedDelta || dt > allowedDelta {
 			return false
 		}
-		return eventLike(expected, actual)
+		if !eventLike(expected, actual) {
+			return false
+		}
+		if compare != nil && !compare(expected, actual) {
+			return false
+		}
+		return true
 	})
 }
 
@@ -175,27 +186,4 @@ func expectedInActual(expected, actual []string) bool {
 		}
 	}
 	return len(expected) == expectedCount
-}
-
-// EventCompareFunc lets tests define extra comparison
-type EventCompareFunc func(expected, actual event.Event) bool
-
-// MatchEventLikeWithCompare is same as MatchEventLike, but with a pluggable comparator
-// If compare is nil, we default to "no extra check" to keep behavior predictable
-func MatchEventLikeWithCompare(expected event.Event, allowedDelta time.Duration, compare EventCompareFunc) interface{} {
-	if compare == nil {
-		compare = func(_, _ event.Event) bool { return true }
-	}
-	return mock.MatchedBy(func(actual event.Event) bool {
-		expectedTime := time.Unix(expected.Ts, 0)
-		actualTime := time.Unix(actual.Ts, 0)
-		dt := expectedTime.Sub(actualTime)
-		if dt < -allowedDelta || dt > allowedDelta {
-			return false
-		}
-		if !eventLike(expected, actual) {
-			return false
-		}
-		return compare(expected, actual)
-	})
 }
