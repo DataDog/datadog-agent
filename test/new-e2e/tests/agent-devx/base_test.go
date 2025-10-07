@@ -21,6 +21,7 @@ func TestAgentBaselineSuite(t *testing.T) {
 	e2e.Run(t, &agentBaselineSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
-func (s *agentBaselineSuite) TestCheckRuns() {
-	s.True(true, "This is a baseline test")
+func (s *agentBaselineSuite) TestAgentuns() {
+	_, err := s.Env().Agent.Client.StatusWithError()
+	s.NoError(err)
 }
