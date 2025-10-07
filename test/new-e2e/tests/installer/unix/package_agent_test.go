@@ -113,7 +113,7 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	s.host.SetupFakeAgentExp().
 		SetStopWithSigtermExit0("core-agent").
@@ -163,7 +163,7 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	s.host.SetupFakeAgentExp().
 		SetStopWithSigkill("core-agent").
@@ -228,7 +228,7 @@ func (s *packageAgentSuite) TestExperimentExits() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	xpAgent := s.host.SetupFakeAgentExp()
 
@@ -281,7 +281,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	s.host.SetupFakeAgentExp()
 
