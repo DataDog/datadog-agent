@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -271,7 +272,7 @@ func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
 }
 
 func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
-	btfRelativeTarballFilename, err := b.embeddedPath()
+	btfRelativeEmbeddedFilename, err := b.embeddedPath()
 	if err != nil {
 		return nil, err
 	}
@@ -280,8 +281,9 @@ func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
 		return nil, fmt.Errorf("kernel release: %s", err)
 	}
 	// <relative_path_in_tarball>/<kernel_version>
-	extractDir := filepath.Join(filepath.Dir(btfRelativeTarballFilename), kernelVersion)
+	extractDir := filepath.Join(filepath.Dir(btfRelativeEmbeddedFilename), kernelVersion)
 	absExtractDir := filepath.Join(b.btfOutputDir, extractDir)
+	absExtractFile := filepath.Join(absExtractDir, kernelVersion+".btf")
 
 	// If we've previously extracted the BTF file in question, we can just load it
 	ret, err := b.checkforBTF(extractDir)
@@ -290,22 +292,31 @@ func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
 	}
 	log.Debugf("extracted btf file not found at %s: attempting to extract from embedded archive", absExtractDir)
 
-	// The embedded BTFs are compressed twice: the individual BTFs themselves are compressed, and the collection
+	// The embedded BTFs may be compressed twice: the individual BTFs themselves may be compressed, and the collection
 	// of BTFs as a whole is also compressed.
-	// This means that we'll need to first extract the specific BTF which we're looking for from the collection
+	// This means that we may need to first extract the specific BTF which we're looking for from the collection
 	// tarball, and then unarchive it.
-	btfTarball := filepath.Join(b.btfOutputDir, btfRelativeTarballFilename)
-	b.resultMetadata.tarballUsed = btfTarball
-	if _, err := os.Stat(btfTarball); errors.Is(err, fs.ErrNotExist) {
+	btfIntermediatePath := filepath.Join(b.btfOutputDir, btfRelativeEmbeddedFilename)
+	b.resultMetadata.tarballUsed = btfIntermediatePath
+	if _, err := os.Stat(btfIntermediatePath); errors.Is(err, fs.ErrNotExist) {
 		collectionTarball := filepath.Join(b.embeddedDir, btfArchiveName)
-		if err := archive.TarXZExtractFile(collectionTarball, btfRelativeTarballFilename, b.btfOutputDir); err != nil {
+		if err := archive.TarXZExtractFile(collectionTarball, btfRelativeEmbeddedFilename, b.btfOutputDir); err != nil {
 			return nil, fmt.Errorf("extract kernel BTF tarball from collection: %w", err)
 		}
 	}
 
-	if err := archive.TarXZExtractAll(btfTarball, absExtractDir); err != nil {
-		return nil, fmt.Errorf("extract kernel BTF from tarball: %w", err)
+	if strings.HasSuffix(btfRelativeEmbeddedFilename, ".btf.tar.xz") {
+		if err := archive.TarXZExtractAll(btfIntermediatePath, absExtractDir); err != nil {
+			return nil, fmt.Errorf("extract kernel BTF from tarball: %w", err)
+		}
+	} else if strings.HasSuffix(btfRelativeEmbeddedFilename, ".btf") {
+		if err := filesystem.CopyFile(btfIntermediatePath, absExtractFile); err != nil {
+			return nil, fmt.Errorf("copy kernel BTF: %w", err)
+		}
+	} else {
+		return nil, fmt.Errorf("unsupported BTF file: %s", btfRelativeEmbeddedFilename)
 	}
+
 	ret, err = b.checkforBTF(extractDir)
 	if err != nil || ret != nil {
 		return ret, err
@@ -345,8 +356,8 @@ var kernelVersionPatterns = []struct {
 
 var errIncorrectOSReleaseMount = errors.New("please mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this")
 
-func relativeBTFTarballPath(platform btfPlatform, platformVersion, kernelVersion string) string {
-	btfTarball := kernelVersion + ".btf.tar.xz"
+func relativeBTFTarballPath(platform btfPlatform, platformVersion, kernelVersion, extension string) string {
+	btfTarball := kernelVersion + extension
 	btfRelativePath := filepath.Join(platform.String(), btfTarball)
 	if platform == platformUbuntu {
 		// Ubuntu BTFs are stored in subdirectories corresponding to platform version.
@@ -360,14 +371,17 @@ func relativeBTFTarballPath(platform btfPlatform, platformVersion, kernelVersion
 // getEmbeddedBTF returns the relative path to the BTF *tarball* file
 func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion, kernelVersion string) (string, error) {
 	btfTarball := kernelVersion + ".btf.tar.xz"
-	possiblePaths := b.searchEmbeddedCollection(btfTarball)
+	btfRaw := kernelVersion + ".btf"
+	possiblePaths := b.searchEmbeddedCollection(btfTarball, btfRaw)
 	if len(possiblePaths) == 0 {
 		return "", fmt.Errorf("no BTF file in embedded collection matching kernel version `%s`", kernelVersion)
 	}
 
-	btfRelativePath := relativeBTFTarballPath(platform, platformVersion, kernelVersion)
-	if slices.Contains(possiblePaths, btfRelativePath) {
-		return btfRelativePath, nil
+	for _, ext := range []string{".btf.tar.xz", ".btf"} {
+		btfRelativePath := relativeBTFTarballPath(platform, platformVersion, kernelVersion, ext)
+		if slices.Contains(possiblePaths, btfRelativePath) {
+			return btfRelativePath, nil
+		}
 	}
 	for i, p := range possiblePaths {
 		log.Debugf("possible embedded BTF file path: `%s` (%d of %d)", p, i+1, len(possiblePaths))
@@ -430,17 +444,19 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion,
 	return "", fmt.Errorf("BTF platform incorrectly detected as `%s`. It is likely one of `%s`, but we are unable to automatically decide. %w", platform, strings.Join(platformStrings, ","), errIncorrectOSReleaseMount)
 }
 
-func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
+func (b *orderedBTFLoader) searchEmbeddedCollection(filenames ...string) []string {
 	var matchingPaths []string
 	collectionTarball := filepath.Join(b.embeddedDir, btfArchiveName)
 	// ignore error because we only care if there are matching paths
 	_ = archive.WalkTarXZArchive(collectionTarball, func(_ *tar.Reader, hdr *tar.Header) error {
 		if hdr.Typeflag == tar.TypeReg {
-			if filepath.Base(hdr.Name) == filename {
-				pform := strings.Split(hdr.Name, string(os.PathSeparator))[0]
-				// must be a recognized platform
-				if _, err := btfPlatformFromString(pform); err == nil {
-					matchingPaths = append(matchingPaths, hdr.Name)
+			for _, filename := range filenames {
+				if filepath.Base(hdr.Name) == filename {
+					pform := strings.Split(hdr.Name, string(os.PathSeparator))[0]
+					// must be a recognized platform
+					if _, err := btfPlatformFromString(pform); err == nil {
+						matchingPaths = append(matchingPaths, hdr.Name)
+					}
 				}
 			}
 		}

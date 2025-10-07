@@ -1760,10 +1760,6 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
         nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
         nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
-        nw.rule(
-            name="compress_minimized_btf",
-            command="tar --mtime=@0 -cJf $out -C $tar_working_directory $rel_in && rm $in",
-        )
 
         for root, dirs, files in os.walk(source_dir):
             path_from_root = os.path.relpath(root, source_dir)
@@ -1794,16 +1790,6 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     outputs=[minimized_btf_path],
                     variables={
                         "input_bpf_programs": bpf_programs,
-                    },
-                )
-
-                nw.build(
-                    rule="compress_minimized_btf",
-                    inputs=[minimized_btf_path],
-                    outputs=[f"{minimized_btf_path}.tar.xz"],
-                    variables={
-                        "tar_working_directory": os.path.join(output_dir, path_from_root),
-                        "rel_in": btf_filename,
                     },
                 )
 
