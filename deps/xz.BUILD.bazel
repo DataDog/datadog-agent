@@ -189,45 +189,45 @@ cc_library(
     strip_include_prefix = "src/liblzma/simple",
 )
 
-cc_shared_library(
-    name = "liblzma_so",
-    shared_lib_name = "liblzma.so.5.4.2",
-    deps = [":lzma"],
-    user_link_flags = select({
-        "@platforms//os:windows": [],
-        "@platforms//os:macos": ["-Wl,-install_name","-Wl,'@rpath/liblzma.so.5'",],
-        "//conditions:default": [],
-    }),
-    visibility = ["//visibility:public"],
-)
+# cc_shared_library(
+#     name = "liblzma_so",
+#     shared_lib_name = "liblzma.so.5.4.2",
+#     deps = [":lzma"],
+#     user_link_flags = select({
+#         "@platforms//os:windows": [],
+#         "@platforms//os:macos": ["-Wl,-install_name","-Wl,'@rpath/liblzma.so.5'",],
+#         "//conditions:default": [],
+#     }),
+#     visibility = ["//visibility:public"],
+# )
 
-pkg_mklink(
-    name = "so_major_minor",
-    link_name = "liblzma.so.5.4.2",
-    target = ":liblzma_so",
-)
-
-pkg_mklink(
-    name = "so_major",
-    link_name = "liblzma.so.5",
-    target = ":liblzma_so",
-)
-
-pkg_mklink(
-    name = "so",
-    link_name = "liblzma.so",
-    target = ":liblzma_so",
-)
+# pkg_mklink(
+#     name = "so_major_minor",
+#     link_name = "liblzma.so.5.4.2",
+#     target = ":liblzma_so",
+# )
+#
+# pkg_mklink(
+#     name = "so_major",
+#     link_name = "liblzma.so.5",
+#     target = ":liblzma_so",
+# )
+#
+# pkg_mklink(
+#     name = "so",
+#     link_name = "liblzma.so",
+#     target = ":liblzma_so",
+# )
 
 pkg_files(
     name = "lib_files",
     srcs = [
-        ":liblzma_so",
+        ":lzma",
         # TODO(agent-build): These are silently ingored by rules_pkg.  We have to
         # fix that upstream, or find another method.
-        ":so_major_minor",
-        ":so_major",
-        ":so",
+        # ":so_major_minor",
+        # ":so_major",
+        # ":so",
     ],
     prefix = "lib",
 )
