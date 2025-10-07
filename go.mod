@@ -176,8 +176,9 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
 	github.com/DataDog/datadog-traceroute v0.1.28
+	github.com/DataDog/dd-trace-go/v2 v2.0.0
 	github.com/DataDog/ebpf-manager v0.7.14
-	github.com/DataDog/go-libddwaf/v4 v4.3.2
+	github.com/DataDog/go-libddwaf/v4 v4.3.0
 	github.com/DataDog/go-sqllexer v0.1.8
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
@@ -949,7 +950,6 @@ require (
 )
 
 require (
-	github.com/DataDog/dd-trace-go/v2 v2.2.3
 	github.com/google/btree v1.1.3
 	go.opentelemetry.io/ebpf-profiler v0.0.202539
 )
