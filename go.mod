@@ -184,7 +184,7 @@ require (
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.7
-	github.com/DataDog/viper v1.14.1-0.20251002211519-52225e3aeac8
+	github.com/DataDog/viper v1.14.1-0.20251007072727-5a2ac1ff821e
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
 	github.com/DataDog/zstd v1.5.7
@@ -194,7 +194,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Microsoft/hcsshim v0.12.9
 	github.com/NVIDIA/go-nvml v0.13.0-1
-	github.com/ProtonMail/go-crypto v1.1.6
+	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
