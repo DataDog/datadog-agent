@@ -6,6 +6,8 @@
 package sharedlibrary
 
 /*
+#include <stdlib.h>
+
 #include "shared_library.h"
 
 void SubmitMetricSo(char *, metric_type_t, char *, double, char **, char *, bool);
@@ -59,6 +61,7 @@ type SharedLibraryCheck struct {
 	telemetry      bool   // whether or not the telemetry is enabled for this check
 	initConfig     string // json string of check common config
 	instanceConfig string // json string of specific instance config
+	cancelled      bool
 }
 
 // NewSharedLibraryCheck conveniently creates a SharedLibraryCheck instance
@@ -81,6 +84,10 @@ func (c *SharedLibraryCheck) Run() error {
 // runCheckImpl runs the check implementation with its Run symbol
 // This function is created to allow passing the commitMetrics parameter (not possible due to the Check interface)
 func (c *SharedLibraryCheck) runCheckImpl(commitMetrics bool) error {
+	if c.cancelled {
+		return fmt.Errorf("check %s is already cancelled", c.libName)
+	}
+
 	cID := C.CString(string(c.id))
 	defer C.free(unsafe.Pointer(cID))
 
@@ -93,8 +100,10 @@ func (c *SharedLibraryCheck) runCheckImpl(commitMetrics bool) error {
 	// retrieve callbacks
 	cAggregator := C.get_aggregator()
 
+	var cErr *C.char
+
 	// run check implementation by using the symbol handle
-	cErr := C.run_shared_library(c.libHandles.run, cID, cInitConfig, cInstanceConfig, cAggregator)
+	C.run_shared_library(c.libHandles.run, cID, cInitConfig, cInstanceConfig, cAggregator, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Run failed: %s", C.GoString(cErr))
@@ -116,7 +125,11 @@ func (c *SharedLibraryCheck) Stop() {}
 
 // Cancel closes the associated shared library and unschedules the check
 func (c *SharedLibraryCheck) Cancel() {
-	C.close_shared_library(c.libHandles.lib)
+	var cErr *C.char
+
+	C.close_shared_library(c.libHandles.lib, &cErr)
+
+	c.cancelled = true
 
 	// TODO: unschedule check
 }

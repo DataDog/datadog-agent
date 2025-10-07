@@ -29,7 +29,7 @@ import (
 #include "shared_library.h"
 
 static char *mock_run_symbol(char *check_id, char *init_config, char *instance_config, const aggregator_t *callbacks) {
-	printf("mock run symbol");
+	//printf("mock run symbol");
 	return NULL;
 }
 
@@ -62,6 +62,19 @@ func testRunCheckWithNullSymbol(t *testing.T) {
 
 	err = check.runCheckImpl(false)
 	assert.Error(t, err, "pointer to shared library 'Run' symbol is NULL")
+}
+
+func testCancelCheck(t *testing.T) {
+	check, err := NewSharedLibraryFakeCheck(aggregator.NewNoOpSenderManager())
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	check.Cancel()
+	assert.True(t, check.cancelled)
+
+	err = check.runCheckImpl(false)
+	assert.Error(t, err, "check %s is already cancelled", check.libName)
 }
 
 // NewSharedLibraryFakeCheck creates a fake SharedLibraryCheck

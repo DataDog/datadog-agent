@@ -6,6 +6,8 @@
 package sharedlibrary
 
 /*
+#include <stdlib.h>
+
 #include "shared_library.h"
 */
 import "C"

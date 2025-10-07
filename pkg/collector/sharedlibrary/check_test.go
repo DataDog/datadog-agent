@@ -14,3 +14,7 @@ func TestRunCheck(t *testing.T) {
 func TestRunCheckWithNullSymbol(t *testing.T) {
 	testRunCheckWithNullSymbol(t)
 }
+
+func TestCancelCheck(t *testing.T) {
+	testCancelCheck(t)
+}

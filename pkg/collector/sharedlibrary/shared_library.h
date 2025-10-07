@@ -15,9 +15,6 @@
 */
 
 #include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 
 // shared libraries handler
 #ifdef _WIN32
@@ -85,7 +82,7 @@ typedef struct aggregator_s {
 
 // run function callback, entrypoint of checks
 // (check_id, init_config, instance_config, callbacks)
-typedef char *(run_function_t)(char *, char *, char *, const aggregator_t *);
+typedef void (run_function_t)(char *, char *, char *, const aggregator_t *, const char **);
 
 // handles_t contains pointers to shared library and its Run symbol
 typedef struct handles_s {
@@ -93,110 +90,9 @@ typedef struct handles_s {
     run_function_t *run;    // handle to the run function symbol
 } handles_t;
 
-#ifdef _WIN32
-static handles_t load_shared_library(const char *lib_name, const char **error) {
-	handles_t lib_handles;
+// shared library interface functions
+handles_t load_shared_library(const char *lib_name, const char **error);
+void close_shared_library(void *lib_handle, const char **error);
+void run_shared_library(run_function_t *run_handle, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator, const char **error);
 
-    // resolve the library full name
-    size_t lib_full_name_length = strlen(lib_name) + strlen(LIB_EXTENSION) + 2;
-    char *lib_full_name = (char *)malloc(lib_full_name_length);
-	if (!lib_full_name) {
-		*error = strdup("memory allocation for library name failed");
-		goto done;
-	}
-	snprintf(lib_full_name, lib_full_name_length, "%s.%s", lib_name, LIB_EXTENSION);
-
-    // load the library
-    lib_handles.lib = LoadLibraryA(lib_full_name);
-    if (!lib_handles.lib) {
-        char error_msg[256];
-        int error_code = GetLastError();
-        snprintf(error_msg, sizeof(error_msg), "unable to open shared library, error code: %d", error_code);
-		*error = strdup(error_msg);
-		goto done;
-    }
-
-    // get symbol pointers of 'Run' and 'Free' functions
-    lib_handles.run = (run_function_t *)GetProcAddress(lib_handles.lib, "Run");
-    if (!lib_handles.run) {
-        char error_msg[256];
-        int error_code = GetLastError();
-        snprintf(error_msg, sizeof(error_msg), "unable to get shared library 'Run' symbol, error code: %d", error_code);
-		*error = strdup(error_msg);
-		goto done;
-    }
-
-done:
-	free(lib_full_name);
-	return lib_handles;
-}
-
-static void close_shared_library(void *lib_handle) {
-	// verify pointer
-	if (!lib_handle) {
-		return;
-	}
-    
-	FreeLibrary(lib_handle);
-}
-#else
-static handles_t load_shared_library(const char *lib_name, const char **error) {
-	handles_t lib_handles;
-    const char *dlsym_error = NULL;
-
-    // resolve the library full name
-    size_t lib_full_name_length = strlen(lib_name) + strlen(LIB_EXTENSION) + 2;
-    char *lib_full_name = (char *)malloc(lib_full_name_length);
-	if (!lib_full_name) {
-		*error = strdup("memory allocation for library name failed");
-		goto done;
-	}
-	snprintf(lib_full_name, lib_full_name_length, "%s.%s", lib_name, LIB_EXTENSION);
-
-    // load the library
-    lib_handles.lib = dlopen(lib_full_name, RTLD_LAZY | RTLD_GLOBAL);
-    dlsym_error = dlerror();
-    if (dlsym_error) {
-		*error = strdup(dlsym_error);
-		goto done;
-    }
-
-    // get symbol pointer of 'Run' function
-    lib_handles.run = (run_function_t *)dlsym(lib_handles.lib, "Run");
-    dlsym_error = dlerror();
-    if (dlsym_error) {
-		dlclose(lib_handles.lib);
-		*error = strdup(dlsym_error);
-		goto done;
-    }
-
-done:
-	free(lib_full_name);
-	return lib_handles;
-}
-
-static void close_shared_library(void *lib_handle) {
-	// verify pointer
-	if (!lib_handle) {
-		return;
-	}
-
-	dlclose(lib_handle);
-}
-#endif
-
-static char *run_shared_library(run_function_t *run_handle, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator) {
-	// verify pointers
-    if (!run_handle) {
-        return strdup("pointer to shared library 'Run' symbol is NULL");
-    }
-
-    // run the shared library check and return any error has occurred
-    char *error = (run_handle)(check_id, init_config, instance_config, aggregator);
-    if (error) {
-        return strdup(error);
-    }
-
-    return NULL;
-}
 #endif
