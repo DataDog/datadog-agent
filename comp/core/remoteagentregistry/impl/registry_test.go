@@ -89,6 +89,10 @@ func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {
 	require.Equal(t, "Test Agent", agents[0].DisplayName)
 	require.Equal(t, "test-agent", agents[0].SanitizedDisplayName)
 
+	// wait a bit to make sure the remoteAgent gRPC server had the time to start
+	// otherwise it will return the error `grpc: the server has been stopped`
+	time.Sleep(1 * time.Second)
+
 	// Stopping the remote agent should remove it from the registry
 	remoteAgent.Stop()
 	time.Sleep(10 * time.Second)
