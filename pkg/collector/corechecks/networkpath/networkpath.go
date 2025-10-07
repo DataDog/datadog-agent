@@ -58,7 +58,10 @@ func (c *Check) Run() error {
 		Protocol:                  c.config.Protocol,
 		TCPMethod:                 c.config.TCPMethod,
 		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
+		DisableWindowsDriver:      c.config.DisableWindowsDriver,
 		ReverseDNS:                true,
+		TracerouteQueries:         c.config.TracerouteQueries,
+		E2eQueries:                c.config.E2eQueries,
 	}
 
 	tr, err := traceroute.New(cfg, c.telemetryComp)

@@ -1017,31 +1017,40 @@ func (s *goSliceHeaderType) encodeValueFields(
 	}
 
 	elementSize := int(s.Data.Element.GetByteSize())
-	sliceDataItem, ok := c.getPtr(address, s.Data.GetID())
-	if !ok {
-		return writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonPruned,
-		)
+	var sliceData []byte
+	var sliceLength int
+	if elementSize > 0 {
+		sliceDataItem, ok := c.getPtr(address, s.Data.GetID())
+		if !ok {
+			return writeTokens(enc,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonPruned,
+			)
+		}
+		sliceData, ok = sliceDataItem.Data()
+		if !ok {
+			return writeTokens(enc,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonUnavailable,
+			)
+		}
+		sliceLength = int(len(sliceData)) / elementSize
+	} else {
+		sliceLength = int(length)
 	}
 	if err := writeTokens(enc,
 		jsontext.String("elements"),
 		jsontext.BeginArray); err != nil {
 		return err
 	}
-	sliceData, ok := sliceDataItem.Data()
-	if !ok {
-		return writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonUnavailable,
-		)
-	}
-	sliceLength := int(len(sliceData)) / elementSize
 	elementByteSize := int(s.Data.Element.GetByteSize())
 	elementName := s.Data.Element.GetName()
 	elementID := s.Data.Element.GetID()
 	for i := range int(sliceLength) {
-		elementData := sliceData[i*elementByteSize : (i+1)*elementByteSize]
+		var elementData []byte
+		if elementSize > 0 {
+			elementData = sliceData[i*elementByteSize : (i+1)*elementByteSize]
+		}
 		if err := encodeValue(
 			c, enc, elementID, elementData, elementName,
 		); err != nil {
