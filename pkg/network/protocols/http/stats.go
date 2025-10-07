@@ -44,34 +44,7 @@ const (
 	MethodPatch
 	// MethodTrace represents the TRACE request method
 	MethodTrace
-	// MethodConnect represents the CONNECT request method
-	MethodConnect
 )
-
-var (
-	methods = []Method{
-		MethodPut,
-		MethodDelete,
-		MethodHead,
-		MethodOptions,
-		MethodPatch,
-		MethodGet,
-		MethodPost,
-		MethodTrace,
-		MethodConnect,
-	}
-	// StringToMethod maps string representations of the methods to their enums.
-	StringToMethod = map[string]Method{}
-	// MethodToString maps the enums to their string representations
-	MethodToString = map[Method]string{}
-)
-
-func init() {
-	for _, method := range methods {
-		StringToMethod[method.String()] = method
-		MethodToString[method] = method.String()
-	}
-}
 
 // Method returns a string representing the HTTP method of the request
 func (m Method) String() string {
@@ -92,8 +65,6 @@ func (m Method) String() string {
 		return "PATCH"
 	case MethodTrace:
 		return "TRACE"
-	case MethodConnect:
-		return "CONNECT"
 	default:
 		return "UNKNOWN"
 	}
