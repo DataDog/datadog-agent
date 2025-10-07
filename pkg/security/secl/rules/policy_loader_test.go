@@ -134,8 +134,8 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 							Source: PolicyProviderTypeRC,
 							Type:   DefaultPolicyType,
 						},
-						macros: map[string][]*PolicyMacro{},
-						rules: map[string][]*PolicyRule{
+						Macros: map[string][]*PolicyMacro{},
+						Rules: map[string][]*PolicyRule{
 							"foo": {
 								{
 									Def: &RuleDefinition{
@@ -172,8 +172,8 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 							Source: PolicyProviderTypeRC,
 							Type:   CustomPolicyType,
 						},
-						macros: map[string][]*PolicyMacro{},
-						rules: map[string][]*PolicyRule{
+						Macros: map[string][]*PolicyMacro{},
+						Rules: map[string][]*PolicyRule{
 							"foo": {
 								{
 									Def: &RuleDefinition{
@@ -210,8 +210,8 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 							Source: PolicyProviderTypeDir,
 							Type:   CustomPolicyType,
 						},
-						macros: map[string][]*PolicyMacro{},
-						rules: map[string][]*PolicyRule{
+						Macros: map[string][]*PolicyMacro{},
+						Rules: map[string][]*PolicyRule{
 							"foo": {
 								{
 									Def: &RuleDefinition{
@@ -320,8 +320,8 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 							Source: PolicyProviderTypeRC,
 							Type:   CustomPolicyType,
 						},
-						macros: map[string][]*PolicyMacro{},
-						rules: map[string][]*PolicyRule{
+						Macros: map[string][]*PolicyMacro{},
+						Rules: map[string][]*PolicyRule{
 							"foo": {
 								{
 									Def: &RuleDefinition{
@@ -358,8 +358,8 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 							Source: PolicyProviderTypeDir,
 							Type:   CustomPolicyType,
 						},
-						macros: map[string][]*PolicyMacro{},
-						rules: map[string][]*PolicyRule{
+						Macros: map[string][]*PolicyMacro{},
+						Rules: map[string][]*PolicyRule{
 							"foo": {
 								{
 									Def: &RuleDefinition{
@@ -452,8 +452,8 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 							Source: PolicyProviderTypeDir,
 							Type:   CustomPolicyType,
 						},
-						macros: map[string][]*PolicyMacro{},
-						rules: map[string][]*PolicyRule{
+						Macros: map[string][]*PolicyMacro{},
+						Rules: map[string][]*PolicyRule{
 							"foo": {
 								{
 									Def: &RuleDefinition{
@@ -548,8 +548,8 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 							Source: PolicyProviderTypeDir,
 							Type:   CustomPolicyType,
 						},
-						macros: map[string][]*PolicyMacro{},
-						rules: map[string][]*PolicyRule{
+						Macros: map[string][]*PolicyMacro{},
+						Rules: map[string][]*PolicyRule{
 							"foo": {
 								{
 									Def: &RuleDefinition{
@@ -649,8 +649,8 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 							Source: PolicyProviderTypeRC,
 							Type:   CustomPolicyType,
 						},
-						macros: map[string][]*PolicyMacro{},
-						rules:  map[string][]*PolicyRule{},
+						Macros: map[string][]*PolicyMacro{},
+						Rules:  map[string][]*PolicyRule{},
 					},
 					{
 						Info: PolicyInfo{
@@ -658,8 +658,8 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 							Source: PolicyProviderTypeDir,
 							Type:   CustomPolicyType,
 						},
-						macros: map[string][]*PolicyMacro{},
-						rules: map[string][]*PolicyRule{
+						Macros: map[string][]*PolicyMacro{},
+						Rules: map[string][]*PolicyRule{
 							"foo": {
 								{
 									Def: &RuleDefinition{
@@ -2308,8 +2308,8 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 							Source: PolicyProviderTypeRC,
 							Type:   CustomPolicyType,
 						},
-						macros: map[string][]*PolicyMacro{},
-						rules: map[string][]*PolicyRule{
+						Macros: map[string][]*PolicyMacro{},
+						Rules: map[string][]*PolicyRule{
 							"rule3": {
 								{
 									Def: &RuleDefinition{
@@ -2332,8 +2332,8 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 							Source: PolicyProviderTypeDir,
 							Type:   CustomPolicyType,
 						},
-						macros: map[string][]*PolicyMacro{},
-						rules: map[string][]*PolicyRule{
+						Macros: map[string][]*PolicyMacro{},
+						Rules: map[string][]*PolicyRule{
 							"rule1": {
 								{
 									Def: &RuleDefinition{

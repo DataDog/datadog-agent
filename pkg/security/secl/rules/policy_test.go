@@ -2254,8 +2254,8 @@ rules:
 					Source: PolicyProviderTypeRC,
 					Type:   CustomPolicyType,
 				},
-				rules:  map[string][]*PolicyRule{},
-				macros: map[string][]*PolicyMacro{},
+				Rules:  map[string][]*PolicyRule{},
+				Macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2295,7 +2295,7 @@ broken
 					Source: PolicyProviderTypeRC,
 					Type:   CustomPolicyType,
 				},
-				rules: map[string][]*PolicyRule{
+				Rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
 							Def: &RuleDefinition{
@@ -2312,7 +2312,7 @@ broken
 						},
 					},
 				},
-				macros: map[string][]*PolicyMacro{},
+				Macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2336,7 +2336,7 @@ broken
 					Source: PolicyProviderTypeRC,
 					Type:   CustomPolicyType,
 				},
-				rules: map[string][]*PolicyRule{
+				Rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
 							Def: &RuleDefinition{
@@ -2353,7 +2353,7 @@ broken
 						},
 					},
 				},
-				macros: map[string][]*PolicyMacro{},
+				Macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
