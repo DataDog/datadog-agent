@@ -441,9 +441,8 @@ var (
 	// UserSessionTypes is the list of available types of usersessions
 	// generate_constants:UserSessionTypes,UserSessionTypes are the supported types of usersessions.
 	UserSessionTypes = map[string]int{
-		"UNKNOWN": int(UserSessionTypeUnknown),
-		"K8S":     int(UserSessionTypeK8S),
-		"SSH":     int(UserSessionTypeSSH),
+		"K8S": int(UserSessionTypeK8S),
+		"SSH": int(UserSessionTypeSSH),
 	}
 )
 

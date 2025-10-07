@@ -6183,7 +6183,6 @@ UserSessionTypes are the supported types of usersessions.
 
 | Name | Architectures |
 | ---- |---------------|
-| `UNKNOWN` | all |
 | `K8S` | all |
 | `SSH` | all |
 
