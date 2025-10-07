@@ -351,13 +351,13 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 
 		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 		for i := range allMounts {
-			mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(i, 0, 0, "")
-			if len(mount.Path) == 0 {
+			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0, 0, "")
+			if len(path) == 0 {
 				// Some paths aren't being fully resolved due to missing mounts in the chain
 				// Need to figure out what are these mount points and why they aren't to be found anywhere
 				continue
 			}
-			assert.True(t, strings.Contains(mount.Path, te.submountDirDst), fmt.Sprintf("Path %s wasn't moved.", mount.Path))
+			assert.True(t, strings.Contains(path, te.submountDirDst), "Path wasn't moved")
 		}
 	})
 }
