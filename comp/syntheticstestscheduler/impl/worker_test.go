@@ -245,6 +245,54 @@ func TestNetworkPathToTestResult(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "100% packet loss",
+			worker: workerResult{
+				tracerouteResult: payload.NetworkPath{
+					E2eProbe: payload.E2eProbe{
+						PacketsSent:          0,
+						PacketsReceived:      0,
+						PacketLossPercentage: 100,
+						Jitter:               0,
+						RTT: payload.E2eProbeRttLatency{
+							Avg: 0, Min: 0, Max: 0,
+						},
+					},
+					Traceroute: payload.Traceroute{
+						HopCount: payload.HopCountStats{Avg: 5, Min: 4, Max: 6},
+					},
+				},
+				tracerouteCfg: trCfg,
+				testCfg: SyntheticsTestCtx{
+					cfg: common.SyntheticsTestConfig{
+						PublicID: "pub-123",
+						Type:     "network",
+						Version:  1,
+						Config: struct {
+							Assertions []common.Assertion   `json:"assertions"`
+							Request    common.ConfigRequest `json:"request"`
+						}{
+							Request: common.ICMPConfigRequest{
+								Host: "8.8.8.8",
+								NetworkConfigRequest: common.NetworkConfigRequest{
+									SourceService:      &src,
+									DestinationService: &dst,
+									MaxTTL:             &icmpTTL,
+									Timeout:            &icmpTimeout,
+								},
+							},
+						},
+					},
+				},
+				triggeredAt: now.Add(-3 * time.Second),
+				startedAt:   now.Add(-2 * time.Second),
+				finishedAt:  now,
+				duration:    2 * time.Second,
+				hostname:    "agent-host",
+			},
+			expectFail:  true,
+			expectError: false,
+		},
+		{
 			name: "failure case",
 			worker: workerResult{
 				tracerouteResult: payload.NetworkPath{},

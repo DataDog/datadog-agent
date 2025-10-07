@@ -300,11 +300,17 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		RunType: w.testCfg.cfg.RunType,
 	}
 
-	if w.tracerouteError != nil {
+	if w.tracerouteError != nil || result.Netstats.PacketLossPercentage == 100 {
 		result.Status = "failed"
+		errMsg := ""
+		if w.tracerouteError != nil {
+			errMsg = w.tracerouteError.Error()
+		} else {
+			errMsg = "no connection established"
+		}
 		result.Failure = common.APIError{
 			Code:    "UNKNOWN",
-			Message: w.tracerouteError.Error(),
+			Message: errMsg,
 		}
 	} else {
 		for _, res := range w.assertionResult {
