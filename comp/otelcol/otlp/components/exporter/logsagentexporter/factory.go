@@ -8,7 +8,6 @@ package logsagentexporter
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
