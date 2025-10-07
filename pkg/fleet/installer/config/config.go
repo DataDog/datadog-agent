@@ -152,7 +152,7 @@ func (o *Operations) Apply(rootPath string) error {
 			return err
 		}
 	}
-	err = os.WriteFile(filepath.Join(rootPath, deploymentIDFile), []byte(o.DeploymentID), 0644)
+	err = os.WriteFile(filepath.Join(rootPath, deploymentIDFile), []byte(o.DeploymentID), 0640)
 	if err != nil {
 		return err
 	}
@@ -178,7 +178,7 @@ func (a *FileOperation) apply(root *os.Root) error {
 		if err != nil {
 			return err
 		}
-		file, err := root.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
+		file, err := root.OpenFile(path, os.O_RDWR|os.O_CREATE, 0640)
 		if err != nil {
 			return err
 		}
