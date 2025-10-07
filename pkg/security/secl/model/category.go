@@ -117,6 +117,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		DNSEventType.String(),
 		FullDNSResponseEventType.String(),
 		ShortDNSResponseEventType.String(),
+		FailedDNSEventType.String(),
 		IMDSEventType.String(),
 		RawPacketFilterEventType.String(),
 		RawPacketActionEventType.String(),
@@ -147,6 +148,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		MountReleasedEventType.String(),
 		StatEventType.String(),
 		FileFsmountEventType.String(),
+		FileMoveMountEventType.String(),
 		FileOpenTreeEventType.String():
 		return FIMCategory
 	}

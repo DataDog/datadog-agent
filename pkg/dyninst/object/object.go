@@ -13,6 +13,7 @@ import (
 	"debug/dwarf"
 	"io"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
@@ -42,6 +43,8 @@ type Dwarf interface {
 	// LoclistReader returns a reader that can be used to read
 	// loclist entries. The reader is not safe for concurrent use.
 	LoclistReader() *loclist.Reader
+	// UnitHeaders returns the DWARF unit headers.
+	UnitHeaders() []dwarfutil.CompileUnitHeader
 }
 
 // FileWithDwarf is an interface that represents an object file with DWARF

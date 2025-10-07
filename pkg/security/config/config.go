@@ -293,6 +293,8 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileMaxCount int
 	// SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
 	SecurityProfileDNSMatchMaxDepth int
+	// SecurityProfileNodeEvictionTimeout defines the timeout after which non-touched nodes are evicted from profiles
+	SecurityProfileNodeEvictionTimeout time.Duration
 
 	// SecurityProfileAutoSuppressionEnabled do not send event if part of a profile
 	SecurityProfileAutoSuppressionEnabled bool
@@ -583,13 +585,14 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
 		// security profiles
-		SecurityProfileEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
-		SecurityProfileMaxImageTags:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
-		SecurityProfileDir:              pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),
-		SecurityProfileWatchDir:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
-		SecurityProfileCacheSize:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.cache_size"),
-		SecurityProfileMaxCount:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
-		SecurityProfileDNSMatchMaxDepth: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
+		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileMaxImageTags:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
+		SecurityProfileDir:                 pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),
+		SecurityProfileWatchDir:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
+		SecurityProfileCacheSize:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.cache_size"),
+		SecurityProfileMaxCount:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
+		SecurityProfileDNSMatchMaxDepth:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
+		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
 
 		// auto suppression
 		SecurityProfileAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.auto_suppression.enabled"),
@@ -683,7 +686,7 @@ func isRemoteConfigEnabled() bool {
 		return false
 	}
 
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		return true
 	}
 
