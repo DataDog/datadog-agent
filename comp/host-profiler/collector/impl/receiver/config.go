@@ -8,6 +8,8 @@
 package receiver
 
 import (
+	"strings"
+
 	"github.com/DataDog/dd-otel-host-profiler/config"
 	"github.com/DataDog/dd-otel-host-profiler/reporter"
 	"go.opentelemetry.io/collector/component"
@@ -23,9 +25,10 @@ type ReporterConfig struct {
 
 // Config is the configuration for the profiles receiver.
 type Config struct {
-	Ebpfcollector  *ebpfcollector.Config         `mapstructure:"ebpfcollector"`
-	SymbolUploader reporter.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
-	ReporterConfig ReporterConfig                `mapstructure:"reporter"`
+	Ebpfcollector        *ebpfcollector.Config         `mapstructure:"ebpfcollector"`
+	SymbolUploader       reporter.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
+	ReporterConfig       ReporterConfig                `mapstructure:"reporter"`
+	EnableSplitByService bool                          `mapstructure:"enable_split_by_service"`
 }
 
 var _ xconfmap.Validator = (*Config)(nil)
@@ -41,6 +44,14 @@ func (c *Config) Validate() error {
 		includeTracers.Enable(types.Labels)
 		c.Ebpfcollector.Tracers = includeTracers.String()
 	}
+	if c.EnableSplitByService {
+		includeEnvVars := reporter.ServiceNameEnvVars
+		if c.Ebpfcollector.IncludeEnvVars != "" {
+			includeEnvVars = append(includeEnvVars, c.Ebpfcollector.IncludeEnvVars)
+		}
+		c.Ebpfcollector.IncludeEnvVars = strings.Join(includeEnvVars, ",")
+	}
+
 	return nil
 }
 
@@ -64,6 +75,7 @@ func defaultConfig() component.Config {
 			Version:                        "0.0.0",
 			DisableDebugSectionCompression: false,
 		},
+		EnableSplitByService: true,
 	}
 }
 

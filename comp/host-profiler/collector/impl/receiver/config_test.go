@@ -8,8 +8,10 @@
 package receiver
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/DataDog/dd-otel-host-profiler/reporter"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,4 +30,16 @@ func TestTracers(t *testing.T) {
 	cfg.ReporterConfig.CollectContext = true
 	require.NoError(t, cfg.Validate())
 	require.Contains(t, cfg.Ebpfcollector.Tracers, "labels")
+}
+
+func TestServiceNameEnvVars(t *testing.T) {
+	config := defaultConfig()
+	cfg := config.(Config)
+	cfg.EnableSplitByService = false
+	require.NoError(t, cfg.Validate())
+	require.Equal(t, "", cfg.Ebpfcollector.IncludeEnvVars)
+
+	cfg.EnableSplitByService = true
+	require.NoError(t, cfg.Validate())
+	require.Equal(t, strings.Join(reporter.ServiceNameEnvVars, ","), cfg.Ebpfcollector.IncludeEnvVars)
 }
