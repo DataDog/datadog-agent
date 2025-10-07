@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package connfilter manages connection filter configurations
 package connfilter
 
 import (
@@ -65,6 +66,7 @@ type ConnFilter struct {
 //        # match_protocol: <TCP | UDP | ICMP>            # add later if user ask for it
 //        type: exclude
 
+// NewConnFilter constructor
 func NewConnFilter(config []ConnFilterConfig, site string) (*ConnFilter, []error) {
 	// TODO: test compile error
 	defaultConfig := getDefaultConnFilters(site)

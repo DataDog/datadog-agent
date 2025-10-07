@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package domainresolver manages domain related resolutions
 package domainresolver
 
 import (
@@ -15,14 +16,22 @@ import (
 
 const domainLookupExpiration = 5 * time.Minute
 
+// DomainResolver handles domain resolution
 type DomainResolver struct {
 	lookupHostFn func(host string) (addrs []string, err error)
 }
 
+// NewDomainResolver constructor
 func NewDomainResolver() *DomainResolver {
 	return &DomainResolver{
 		lookupHostFn: net.LookupHost,
 	}
+}
+
+// GetIPResolverForDomains returns an IP Resolver based on a list of domains
+func (d *DomainResolver) GetIPResolverForDomains(domains []string) (*IpToDomainResolver, []error) {
+	domainMap, errors := d.getIPToDomainMap(domains)
+	return NewIpToDomainResolver(domainMap), errors
 }
 
 func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, []error) {
@@ -42,9 +51,4 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 		}
 	}
 	return ipToDomain, errList
-}
-
-func (d *DomainResolver) GetIPResolverForDomains(domains []string) (*IpToDomainResolver, []error) {
-	domainMap, errors := d.getIPToDomainMap(domains)
-	return NewIpToDomainResolver(domainMap), errors
 }
