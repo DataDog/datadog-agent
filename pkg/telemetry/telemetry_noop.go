@@ -8,11 +8,18 @@
 package telemetry
 
 import (
+	"net/http"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 )
 
-// GetCompatComponent returns a component wrapping telemetry global variables
+// GetCompatComponent returns a component wrapping telemetry global variables.
 func GetCompatComponent() telemetry.Component {
 	return noopsimpl.GetCompatComponent()
+}
+
+// Handler exposes the Prometheus HTTP handler backed by the noop telemetry registry.
+func Handler() http.Handler {
+	return GetCompatComponent().Handler()
 }
