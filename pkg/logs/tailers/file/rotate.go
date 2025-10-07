@@ -86,7 +86,13 @@ func (t *Tailer) compareFullFingerprints(current, new *logstypes.Fingerprint) (b
 		return false, nil
 	}
 
-	// Different fingerprints = rotation (includes truncation case where new fingerprint is invalid)
+	// If current fingerprint is invalid (file was empty/unreadable), new content is not necessarily a rotation
+	// Likely still same file getting data for the first time, not a rotation
+	if (!current.IsValidFingerprint() || !new.IsValidFingerprint()) {
+		return t.fallbackToFilesystemCheck()
+	}
+
+	// Both fingerprints are valid - compare them
 	rotated := !current.Equals(new)
 	if rotated {
 		log.Debugf("File rotation detected via fingerprint mismatch for %s (old: 0x%x, new: 0x%x)",
