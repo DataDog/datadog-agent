@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
+	"github.com/DataDog/test-infra-definitions/components/kubernetes/argorollouts"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -143,6 +144,17 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		}
 	}
 
+	if params.deployArgoRollout {
+		argoParams, err := argorollouts.NewParams()
+		if err != nil {
+			return err
+		}
+		_, err = argorollouts.NewHelmInstallation(&awsEnv, argoParams, pulumi.Provider(kubeProvider))
+		if err != nil {
+			return err
+		}
+	}
+
 	var fakeIntake *fakeintakeComp.Fakeintake
 	if params.fakeintakeOptions != nil {
 		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
@@ -255,6 +267,12 @@ agents:
 			}
 
 			if _, err := cpustress.K8sAppDefinition(&awsEnv, kubeProvider, "workload-cpustress"); err != nil {
+				return err
+			}
+		}
+
+		if params.deployArgoRollout {
+			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, kubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent); err != nil {
 				return err
 			}
 		}

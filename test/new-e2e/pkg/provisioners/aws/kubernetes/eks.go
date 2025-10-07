@@ -24,6 +24,7 @@ import (
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/test-infra-definitions/components/kubernetes/argorollouts"
 	"github.com/DataDog/test-infra-definitions/components/kubernetes/vpa"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
@@ -96,6 +97,17 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		return err
 	}
 	dependsOnVPA := utils.PulumiDependsOn(vpaCrd)
+
+	if params.deployArgoRollout {
+		argoParams, err := argorollouts.NewParams()
+		if err != nil {
+			return err
+		}
+		_, err = argorollouts.NewHelmInstallation(&awsEnv, argoParams, pulumi.Provider(cluster.KubeProvider))
+		if err != nil {
+			return err
+		}
+	}
 
 	var fakeIntake *fakeintakeComp.Fakeintake
 	if params.fakeintakeOptions != nil {
@@ -199,6 +211,12 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			}
 
 			if _, err := redis.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+				return err
+			}
+		}
+
+		if params.deployArgoRollout {
+			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, cluster.KubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent); err != nil {
 				return err
 			}
 		}
