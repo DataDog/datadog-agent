@@ -8,6 +8,7 @@ package installer
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
@@ -76,8 +77,8 @@ var testCatalog = catalog{
 	Packages: []packageEntry{
 		{
 			Package: string(datadogAgent),
-			Version: latestAgentImageVersion,
-			URL:     fmt.Sprintf("oci://install.datad0g.com.internal.dda-testing.com/agent-package:%s", latestAgentImageVersion),
+			Version: "testing",
+			URL:     fmt.Sprintf("oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID")),
 		},
 		{
 			Package: string(datadogApmInject),
@@ -89,9 +90,6 @@ var testCatalog = catalog{
 
 const (
 	unknownAgentImageVersion = "7.52.1-1"
-
-	// TODO: use the latest prod images when they are out
-	latestAgentImageVersion = "7.66.0-devel.git.534.4e40dec.pipeline.62473533-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
@@ -139,8 +137,8 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
 	s.setCatalog(testCatalog)
 
 	timestamp := s.host.LastJournaldTimestamp()
-	s.startExperiment(datadogAgent, latestAgentImageVersion)
-	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
+	s.startExperiment(datadogAgent, "testing")
+	s.assertSuccessfulAgentStartExperiment(timestamp, "testing")
 
 	// Assert stable symlink still exists properly
 	state = s.host.State()
@@ -149,7 +147,7 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
 
 	timestamp = s.host.LastJournaldTimestamp()
 	s.promoteExperiment(datadogAgent)
-	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+	s.assertSuccessfulAgentPromoteExperiment(timestamp, s.pipelineAgentVersion)
 	state = s.host.State()
 	state.AssertPathDoesNotExist("/opt/datadog-agent")
 }
@@ -168,8 +166,8 @@ func (s *upgradeScenarioSuite) TestBackendFailure() {
 	s.setCatalog(testCatalog)
 
 	timestamp := s.host.LastJournaldTimestamp()
-	s.startExperiment(datadogAgent, latestAgentImageVersion)
-	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
+	s.startExperiment(datadogAgent, s.pipelineAgentVersion)
+	s.assertSuccessfulAgentStartExperiment(timestamp, s.pipelineAgentVersion)
 
 	// Receive a failure from the backend, stops the experiment
 	timestamp = s.host.LastJournaldTimestamp()
@@ -542,10 +540,10 @@ func (s *upgradeScenarioSuite) getInstallerStatus() (status installerStatus) {
 
 func (s *upgradeScenarioSuite) executeAgentGoldenPath() {
 	timestamp := s.host.LastJournaldTimestamp()
-	s.startExperiment(datadogAgent, latestAgentImageVersion)
-	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
+	s.startExperiment(datadogAgent, s.pipelineAgentVersion)
+	s.assertSuccessfulAgentStartExperiment(timestamp, s.pipelineAgentVersion)
 
 	timestamp = s.host.LastJournaldTimestamp()
 	s.promoteExperiment(datadogAgent)
-	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+	s.assertSuccessfulAgentPromoteExperiment(timestamp, s.pipelineAgentVersion)
 }

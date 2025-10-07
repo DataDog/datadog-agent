@@ -474,17 +474,6 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 			log.Errorf("could not remove previous agent directory: %v", err)
 		}
 	}
-	//if env var DD_DEBUG_ARBLL is set, log the stable path
-	if os.Getenv("DD_DEBUG_ARBLL") != "" {
-		panic(fmt.Sprintf(`ARBLL DEBUG:
-rootPath: %s
-stablePath: %s
-pkgName: %s
-runtime.GOOS: %s
-strings.HasPrefix(stablePath, "/opt/datadog-packages/datadog-agent"): %t
-`, r.rootPath, stablePath, pkgName, runtime.GOOS, strings.HasPrefix(stablePath, "/opt/datadog-packages/datadog-agent")))
-	}
-
 	return nil
 }
 

@@ -7,11 +7,16 @@
 package installer
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+	"testing"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/google/go-containerregistry/pkg/crane"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/stretchr/testify/require"
 )
 
 // TestPackageConfig is a struct that regroups the fields necessary to install a package from an OCI Registry
@@ -132,4 +137,22 @@ func InstallInstallerScriptEnvWithPackages() map[string]string {
 	env["DD_SITE"] = "datadoghq.com"
 	installScriptInstallerEnv(env, PackagesConfig)
 	return env
+}
+
+func PipelineAgentVersion(t *testing.T) string {
+	ref := fmt.Sprintf("oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID"))
+	p := v1.Platform{
+		OS:           "linux",
+		Architecture: "amd64",
+	}
+	raw, err := crane.Manifest(ref, crane.WithPlatform(&p))
+	require.NoError(t, err)
+
+	var m v1.Manifest
+	if err := json.Unmarshal(raw, &m); err != nil {
+		require.NoError(t, err)
+	}
+	version, ok := m.Annotations["com.datadoghq.agent.version"]
+	require.True(t, ok, "com.datadoghq.agent.version annotation not found in manifest")
+	return version
 }
