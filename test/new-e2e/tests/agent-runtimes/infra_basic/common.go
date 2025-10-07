@@ -29,7 +29,7 @@ func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption { //nolint:unused
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(s.descriptor)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
 		),
 	))
 
