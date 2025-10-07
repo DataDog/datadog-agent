@@ -9,7 +9,7 @@ filegroup(
         "@libyaml",
         "@lua//:liblua",
         "@sqlite3",
-        "@xz//:liblzma_so",
+        "@xz//:lzma",
         "@zlib//:libz_so",
     ],
     visibility = ["//visibility:private"],
