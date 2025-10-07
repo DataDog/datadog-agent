@@ -26,9 +26,6 @@ test/new-e2e/tests/containers:
   - test: TestKindSuite/TestAdmissionControllerWithAutoDetectedLanguage
   - test: TestEKSSuite/TestAdmissionControllerWithAutoDetectedLanguage
 
-test/new-e2e/tests/installer/script:
-  - test: TestScripts
-
 pkg/trace/info:
   on-log:
     - "write: no buffer space available"
