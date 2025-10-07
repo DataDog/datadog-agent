@@ -95,7 +95,15 @@ def _impl(ctx):
                 actions = [ACTION_NAMES.cpp_link_static_library],
                 flag_groups = [
                     flag_group(
-                        flags = ["rcsD"],  # r=replace, c=create, s=index, D=deterministic
+                        flags = ["rcsD", "%{output_execpath}"],
+                    ),
+                    flag_group(
+                        iterate_over = "libraries_to_link",
+                        flag_groups = [
+                            flag_group(
+                                flags = ["%{libraries_to_link.name}"],
+                            ),
+                        ],
                     ),
                 ],
             ),
