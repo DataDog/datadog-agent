@@ -24,7 +24,7 @@ import (
 var (
 	configCompiledPath  = filepath.Join(config.DefaultConfPath, "wls-policy.bin")
 	configJSONPath      = filepath.Join(config.DefaultConfPath, "wls-policy.json")
-	ddPolicyCompilePath = filepath.Join(config.InstallPath, "embedded", "bin", "dd-policy-compile")
+	ddPolicyCompilePath = filepath.Join(config.InstallPath, "embedded", "bin", "dd-compile-policy")
 )
 
 // Requires defines the dependencies for the workloadselection component
