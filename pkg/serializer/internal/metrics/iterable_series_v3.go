@@ -34,8 +34,6 @@ var (
 )
 
 const (
-	payloadFieldMetadata   = 1
-	payloadFieldPayload    = 2
 	payloadFieldMetricData = 3
 )
 
