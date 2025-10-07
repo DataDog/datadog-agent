@@ -15,23 +15,23 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
-type remoteAPIRequest struct {
-	ID            string          `json:"id"`
-	Package       string          `json:"package_name"`
-	TraceID       string          `json:"trace_id"`
-	ParentSpanID  string          `json:"parent_span_id"`
-	ExpectedState expectedState   `json:"expected_state"`
-	Method        string          `json:"method"`
-	Params        json.RawMessage `json:"params"`
-}
+// type remoteAPIRequest struct {
+// 	ID            string          `json:"id"`
+// 	Package       string          `json:"package_name"`
+// 	TraceID       string          `json:"trace_id"`
+// 	ParentSpanID  string          `json:"parent_span_id"`
+// 	ExpectedState expectedState   `json:"expected_state"`
+// 	Method        string          `json:"method"`
+// 	Params        json.RawMessage `json:"params"`
+// }
 
-type expectedState struct {
-	InstallerVersion string `json:"installer_version"`
-	Stable           string `json:"stable"`
-	Experiment       string `json:"experiment"`
-	StableConfig     string `json:"stable_config"`
-	ExperimentConfig string `json:"experiment_config"`
-}
+// type expectedState struct {
+// 	InstallerVersion string `json:"installer_version"`
+// 	Stable           string `json:"stable"`
+// 	Experiment       string `json:"experiment"`
+// 	StableConfig     string `json:"stable_config"`
+// 	ExperimentConfig string `json:"experiment_config"`
+// }
 
 // Backend is the fake fleet backend.
 type Backend struct {
@@ -69,11 +69,13 @@ type FileOperation struct {
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
-func (b *Backend) ConfigureAgent(operations ConfigOperations) error {
+// ConfigureAgent configures the agent with the given operations.
+func (b *Backend) ConfigureAgent(_ ConfigOperations) error {
 	status, err := b.RemoteConfigStatus()
 	return fmt.Errorf("TEST ERROR: %s\n\n%v", status, err)
 }
 
+// RemoteConfigStatus returns the status of the remote config.
 func (b *Backend) RemoteConfigStatus() (string, error) {
 	return b.runDaemonCommand("rc-status")
 }
