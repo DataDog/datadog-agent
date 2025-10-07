@@ -40,6 +40,7 @@ var validProducts = map[string]struct{}{
 	ProductLiveDebuggingSymbolDB:        {},
 	ProductGradualRollout:               {},
 	ProductApmPolicies:                  {},
+	ProductSyntheticsTest:               {},
 }
 
 const (
@@ -103,7 +104,7 @@ const (
 	// ProductHaAgent is the HA Agent product
 	ProductHaAgent = "HA_AGENT"
 	// ProductSyntheticsTest is the Synthetics test product
-	ProductSyntheticsTest = "SYNTHETICS_TEST"
+	ProductSyntheticsTest = "SYNTHETIC_TEST"
 	// ProductNDMDeviceProfilesCustom receives user-created SNMP profiles for network device monitoring
 	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
 	// ProductMetricControl receives configuration for the metrics control.

@@ -36,6 +36,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("dns"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
+		eval.EventType("failed_dns"),
 		eval.EventType("imds"),
 		eval.EventType("link"),
 		eval.EventType("load_module"),

@@ -26,8 +26,5 @@ test/new-e2e/tests/containers:
   - test: TestKindSuite/TestAdmissionControllerWithAutoDetectedLanguage
   - test: TestEKSSuite/TestAdmissionControllerWithAutoDetectedLanguage
 
-test/new-e2e/tests/installer/script:
-  - test: TestScripts
-
 on-log:
   - "panic: Expected to find a single pod" # K8s Agent Executor can be flaky with the current implementation

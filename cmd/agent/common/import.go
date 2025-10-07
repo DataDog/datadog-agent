@@ -18,6 +18,7 @@ import (
 	"github.com/fatih/color"
 	yaml "gopkg.in/yaml.v2"
 
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/config/legacy"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -55,7 +56,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	cfg := pkgconfigsetup.GlobalConfigBuilder()
 
 	cfg.AddConfigPath(newConfigDir)
-	_, err = pkgconfigsetup.LoadWithoutSecret(cfg, nil)
+	_, err = pkgconfigsetup.LoadWithSecret(cfg, secretsnoop.NewComponent().Comp, nil)
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}

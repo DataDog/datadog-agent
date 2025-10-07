@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
@@ -48,17 +49,19 @@ type cudaEventConsumer struct {
 	cfg                *config.Config
 	telemetry          *cudaEventConsumerTelemetry
 	debugCollector     *eventCollector
+	ringFlusher        perf.Flusher
 }
 
 type cudaEventConsumerTelemetry struct {
 	events              telemetry.Counter
 	eventErrors         telemetry.Counter
+	streamGetErrors     telemetry.Counter
 	eventCounterByType  map[gpuebpf.CudaEventType]telemetry.SimpleCounter
 	droppedProcessExits telemetry.Counter
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
-func newCudaEventConsumer(sysCtx *systemContext, streamHandlers *streamCollection, eventHandler ddebpf.EventHandler, cfg *config.Config, telemetry telemetry.Component) *cudaEventConsumer {
+func newCudaEventConsumer(sysCtx *systemContext, streamHandlers *streamCollection, eventHandler ddebpf.EventHandler, ringFlusher perf.Flusher, cfg *config.Config, telemetry telemetry.Component) *cudaEventConsumer {
 	return &cudaEventConsumer{
 		eventHandler:       eventHandler,
 		closed:             make(chan struct{}),
@@ -68,6 +71,7 @@ func newCudaEventConsumer(sysCtx *systemContext, streamHandlers *streamCollectio
 		streamHandlers:     streamHandlers,
 		telemetry:          newCudaEventConsumerTelemetry(telemetry),
 		debugCollector:     newEventCollector(),
+		ringFlusher:        ringFlusher,
 	}
 }
 
@@ -85,6 +89,7 @@ func newCudaEventConsumerTelemetry(tm telemetry.Component) *cudaEventConsumerTel
 	return &cudaEventConsumerTelemetry{
 		events:              events,
 		eventErrors:         tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
+		streamGetErrors:     tm.NewCounter(subsystem, "stream_get_errors", nil, "Number of errors when getting a stream handler"),
 		eventCounterByType:  eventCounterByType,
 		droppedProcessExits: tm.NewCounter(subsystem, "dropped_process_exits", nil, "Number of process exits events that were dropped"),
 	}
@@ -126,6 +131,7 @@ func (c *cudaEventConsumer) Start() {
 	go func() {
 		c.running.Store(true)
 		processSync := time.NewTicker(c.cfg.ScanProcessesInterval)
+		ringBufferFlush := time.NewTicker(c.cfg.RingBufferFlushInterval)
 
 		defer func() {
 			cleanupExit()
@@ -149,6 +155,8 @@ func (c *cudaEventConsumer) Start() {
 			case <-processSync.C:
 				c.checkClosedProcesses()
 				c.sysCtx.cleanOld()
+			case <-ringBufferFlush.C:
+				c.ringFlusher.Flush()
 			case pid, ok := <-c.processExitChannel:
 				if !ok {
 					return
@@ -160,6 +168,12 @@ func (c *cudaEventConsumer) Start() {
 				}
 
 				dataLen := len(batchData.Data)
+				if dataLen == 0 {
+					// This was a flush event, with no data to process so we can skip it
+					// with no warning log.
+					continue
+				}
+
 				if dataLen < gpuebpf.SizeofCudaEventHeader {
 					if logLimitProbe.ShouldLog() {
 						log.Warnf("Not enough data to parse header, data size=%d, expecting at least %d", dataLen, gpuebpf.SizeofCudaEventHeader)
@@ -196,7 +210,14 @@ func isStreamSpecificEvent(et gpuebpf.CudaEventType) bool {
 
 func (c *cudaEventConsumer) handleEvent(header *gpuebpf.CudaEventHeader, dataPtr unsafe.Pointer, dataLen int) error {
 	eventType := gpuebpf.CudaEventType(header.Type)
-	c.telemetry.eventCounterByType[eventType].Inc()
+
+	counter, ok := c.telemetry.eventCounterByType[eventType]
+	if !ok {
+		c.telemetry.eventErrors.Inc(telemetryEventTypeUnknown, telemetryEventErrorUnknownType)
+		return fmt.Errorf("unknown event type: %d", header.Type)
+	}
+	counter.Inc()
+
 	if isStreamSpecificEvent(eventType) {
 		return c.handleStreamEvent(header, dataPtr, dataLen)
 	}
@@ -230,7 +251,11 @@ func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, d
 	streamHandler, err := c.streamHandlers.getStream(header)
 
 	if err != nil {
-		return fmt.Errorf("error getting stream handler for stream id: %d : %w ", header.Stream_id, err)
+		if logLimitProbe.ShouldLog() {
+			log.Warnf("error getting stream handler for stream id %d: %v", header.Stream_id, err)
+		}
+		c.telemetry.streamGetErrors.Inc()
+		return err
 	}
 
 	switch eventType {

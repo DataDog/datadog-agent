@@ -39,6 +39,7 @@ type Service interface {
 	IsReady() bool                                               // is the service ready
 	HasFilter(workloadfilter.Scope) bool                         // whether the service is excluded by metrics or logs exclusion config
 	GetExtraConfig(string) (string, error)                       // Extra configuration values
+	GetImageName() string                                        // container image name
 
 	// FilterTemplates filters the templates which will be resolved against
 	// this service, in a map keyed by template digest.

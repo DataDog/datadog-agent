@@ -278,14 +278,20 @@ class DiffedPackageCoverageDynTestIndexer(CoverageDynTestIndexer):
     4. Builds index only for packages with new/increased coverage
     """
 
-    def __init__(self, coverage_root: str, baseline_coverage_root: str, is_baseline_job: bool = False) -> None:
+    def __init__(
+        self,
+        coverage_root: str,
+        baseline_coverage_root: str,
+        is_baseline_job: bool = False,
+        run_all_changes_paths: list[str] = None,
+    ) -> None:
         """Initialize the differential package coverage indexer.
 
         Args:
             coverage_root: Path to the current coverage data directory
             baseline_coverage_root: Path to the baseline coverage data directory
         """
-        super().__init__(coverage_root)
+        super().__init__(coverage_root, run_all_changes_paths)
         self.baseline_coverage_root = baseline_coverage_root
         self.is_baseline_job = is_baseline_job
         if os.getenv("CI_JOB_NAME") == "new-e2e-base-coverage":

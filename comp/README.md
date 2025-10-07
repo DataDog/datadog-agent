@@ -674,6 +674,12 @@ Package payloadmodifier defines the trace payload modifier component interface
 
 Package status implements the core status component information provider interface
 
+### [comp/trace-telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace-telemetry)
+
+*Datadog Team*: agent-runtimes
+
+Package tracetelemetry sends telemetry about the trace-agent and its state
+
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
 *Datadog Team*: fleet windows-products
