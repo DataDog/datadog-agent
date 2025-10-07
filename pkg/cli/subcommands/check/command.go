@@ -75,6 +75,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -281,6 +282,14 @@ func run(
 		_ = cliParams.cmd.Help()
 		return nil
 	}
+
+	// Check if the check is allowed in infrastructure basic mode
+	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "basic" {
+		if !constants.IsCheckAllowedInInfraBasic(cliParams.checkName, pkgconfigsetup.Datadog()) {
+			return fmt.Errorf("check '%s' is not allowed in infrastructure basic mode", cliParams.checkName)
+		}
+	}
+
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	if !config.GetBool("python_lazy_loading") {

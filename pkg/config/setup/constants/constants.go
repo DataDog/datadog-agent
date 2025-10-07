@@ -69,3 +69,14 @@ func GetInfraBasicAllowedChecks(cfg pkgconfigmodel.Reader) []string {
 
 	return allowed
 }
+
+// IsCheckAllowedInInfraBasic returns true if the check is allowed in infrastructure basic mode
+func IsCheckAllowedInInfraBasic(checkName string, cfg pkgconfigmodel.Reader) bool {
+	allowed := GetInfraBasicAllowedChecks(cfg)
+	for _, allowedCheck := range allowed {
+		if allowedCheck == checkName {
+			return true
+		}
+	}
+	return false
+}

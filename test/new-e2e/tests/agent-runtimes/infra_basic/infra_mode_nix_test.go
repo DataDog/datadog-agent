@@ -20,13 +20,13 @@ type infraBasicLinuxSuite struct {
 func TestInfraBasicLinuxSuite(t *testing.T) {
 	t.Parallel()
 
-	e2e.Run(t,
-		&infraBasicLinuxSuite{
-			infraBasicSuite{
-				descriptor: e2eos.Ubuntu2204,
-			},
+	suite := &infraBasicLinuxSuite{
+		infraBasicSuite{
+			descriptor: e2eos.Ubuntu2204,
 		},
-	)
+	}
+
+	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
 
 func (s *infraBasicLinuxSuite) TestBasicChecksWork() {
