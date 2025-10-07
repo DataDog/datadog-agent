@@ -834,6 +834,47 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			},
 		},
 		{
+			name:         "domain lookup errors are logged",
+			agentConfigs: defaultagentConfigs,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.7", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "93.184.216.34", Port: int32(443)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.8", Port: int32(30001), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "93.184.216.35", Port: int32(443)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+				Domains: []string{"valid.com", "error.com", "another-error.com"},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "valid.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
+			},
+			lookupHostFn: func(host string) ([]string, error) {
+				switch host {
+				case "valid.com":
+					return []string{"93.184.216.34"}, nil
+				case "error.com":
+					return nil, fmt.Errorf("lookup failed for error.com")
+				case "another-error.com":
+					return nil, fmt.Errorf("dns timeout")
+				default:
+					return nil, fmt.Errorf("no IP found for domain: %s", host)
+				}
+			},
+			expectedLogs: []logCount{
+				{"[ERROR] ScheduleConns: GetIPResolverForDomains errors:", 1},
+				{"error looking up IPs for domain error.com: lookup failed for error.com", 1},
+				{"error looking up IPs for domain another-error.com: dns timeout", 1},
+			},
+		},
+		{
 			name: "skip IP without domain when monitorIPWithoutDomain is false",
 			agentConfigs: map[string]any{
 				"network_path.connections_monitoring.enabled":      true,

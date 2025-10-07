@@ -293,7 +293,6 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 
 	ipToDomainResolver, errs := s.domainResolver.GetIPResolverForDomains(conns.Domains)
 	if len(errs) > 0 {
-		// TODO: TEST ME
 		s.logger.Errorf("GetIPResolverForDomains errors: %s", errors.Join(errs...))
 	}
 
