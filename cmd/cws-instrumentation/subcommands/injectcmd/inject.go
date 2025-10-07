@@ -22,12 +22,17 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/flags"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 const (
 	// UserSessionDataMaxSize is the maximum size for the user session context
 	UserSessionDataMaxSize = 1024
+)
+
+// Redefinition of the user session types to avoid import model
+var (
+	// UserSessionTypeK8S is the k8s user session type
+	UserSessionTypeK8S uint8 = 1
 )
 
 // InjectCliParams contains the parameters of the inject command
@@ -88,9 +93,7 @@ func injectUserSession(params *InjectCliParams) error {
 	var sessionType uint8
 	switch params.SessionType {
 	case "k8s":
-		sessionType = model.UserSessionTypeK8S
-	default:
-		sessionType = model.UserSessionTypeUnknown
+		sessionType = UserSessionTypeK8S
 	}
 
 	if sessionType == 0 {
