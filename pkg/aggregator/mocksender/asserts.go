@@ -89,6 +89,13 @@ func (m *MockSender) AssertEvent(t *testing.T, expectedEvent event.Event, allowe
 	return m.Mock.AssertCalled(t, "Event", MatchEventLike(expectedEvent, allowedDelta))
 }
 
+// AssertEventWithCompareFunc assert the expectedEvent was emitted with the following values:
+// AggregationKey, Priority, SourceTypeName, EventType, Host and a Ts range weighted with the parameter allowedDelta
+// In addition to these standard checks, this variant accepts a compare function for comparing texts
+func (m *MockSender) AssertEventWithCompareFunc(t *testing.T, expectedEvent event.Event, allowedDelta time.Duration, compare EventCompareFunc) bool {
+	return m.Mock.AssertCalled(t, "Event", MatchEventLikeWithCompare(expectedEvent, allowedDelta, compare))
+}
+
 // AssertEventPlatformEvent assert the expected event was emitted with the following values
 func (m *MockSender) AssertEventPlatformEvent(t *testing.T, expectedRawEvent []byte, expectedEventType string) bool {
 	return m.Mock.AssertCalled(t, "EventPlatformEvent", expectedRawEvent, expectedEventType)
@@ -168,4 +175,27 @@ func expectedInActual(expected, actual []string) bool {
 		}
 	}
 	return len(expected) == expectedCount
+}
+
+// EventCompareFunc lets tests define extra comparison
+type EventCompareFunc func(expected, actual event.Event) bool
+
+// MatchEventLikeWithCompare is same as MatchEventLike, but with a pluggable comparator
+// If compare is nil, we default to "no extra check" to keep behavior predictable
+func MatchEventLikeWithCompare(expected event.Event, allowedDelta time.Duration, compare EventCompareFunc) interface{} {
+	if compare == nil {
+		compare = func(_, _ event.Event) bool { return true }
+	}
+	return mock.MatchedBy(func(actual event.Event) bool {
+		expectedTime := time.Unix(expected.Ts, 0)
+		actualTime := time.Unix(actual.Ts, 0)
+		dt := expectedTime.Sub(actualTime)
+		if dt < -allowedDelta || dt > allowedDelta {
+			return false
+		}
+		if !eventLike(expected, actual) {
+			return false
+		}
+		return compare(expected, actual)
+	})
 }
