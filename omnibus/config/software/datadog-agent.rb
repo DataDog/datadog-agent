@@ -144,12 +144,10 @@ build do
   # We do this in the same software definition to avoid redundant copying, as it's based on the same source
   if linux_target? and !heroku_target?
     command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-    mkdir "#{install_dir}/bin"
-    copy 'bin/installer', "#{install_dir}/bin/"
-    move "#{install_dir}/bin/installer/installer", "#{install_dir}/embedded/bin"
+    move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
     command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-    copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
+    move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
   unless windows_target?
