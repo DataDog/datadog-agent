@@ -258,6 +258,9 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 
 	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("fleet_layers")
 
+	// Synthetics
+	ia.data["feature_synthetics_collector_enabled"] = ia.conf.GetBool("synthetics.collector.enabled")
+
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
 

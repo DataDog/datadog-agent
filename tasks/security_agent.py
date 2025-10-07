@@ -21,7 +21,7 @@ from tasks.agent import generate_config
 from tasks.build_tags import add_fips_tags, get_default_build_tags
 from tasks.go import run_golangci_lint
 from tasks.libs.build.ninja import NinjaWriter
-from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -225,14 +225,13 @@ def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
     arch = Arch.from_str(arch)
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, static=True)
+    _, _, env = get_build_flags(ctx, arch=arch)
 
     go_build(
         ctx,
         f"{syscall_tester_go_dir}/syscall_go_tester.go",
         build_tags=["syscalltesters", "osusergo", "netgo"],
-        ldflags=ldflags,
-        gcflags=gcflags,
+        ldflags="-extldflags=-static",
         bin_path=syscall_tester_exe_file,
         env=env,
     )
@@ -345,6 +344,9 @@ def build_functional_tests(
 
     arch = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
+    common_ancestor = get_common_ancestor(ctx, "HEAD")
+    print(f"Using git ref {common_ancestor} as common ancestor between HEAD and main branch")
+    ldflags += f"-X {REPO_PATH}/{srcpath}.GitAncestorOnMain={common_ancestor} "
 
     env["CGO_ENABLED"] = "1"
 
@@ -572,6 +574,7 @@ def cws_go_generate(ctx, verbose=False):
             "./pkg/security/serializers/serializers_linux_easyjson.go",
         )
 
+    ctx.run("go generate ./pkg/security/probe/custom_events.go")
     ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
     # synchronize the seclwin package from the secl package

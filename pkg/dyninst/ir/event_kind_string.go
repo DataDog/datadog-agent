@@ -10,11 +10,12 @@ func _() {
 	var x [1]struct{}
 	_ = x[EventKindEntry-1]
 	_ = x[EventKindReturn-2]
+	_ = x[EventKindLine-3]
 }
 
-const _EventKind_name = "EntryReturn"
+const _EventKind_name = "EntryReturnLine"
 
-var _EventKind_index = [...]uint8{0, 5, 11}
+var _EventKind_index = [...]uint8{0, 5, 11, 15}
 
 func (i EventKind) String() string {
 	i -= 1

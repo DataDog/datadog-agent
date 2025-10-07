@@ -141,3 +141,4 @@ windows_zip_ddot_x64:
   extends: .windows_zip_base
   variables:
     OMNIBUS_TARGET: ddot
+
