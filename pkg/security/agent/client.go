@@ -8,7 +8,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"runtime"
 	"time"
@@ -42,8 +41,6 @@ type SecurityModuleClientWrapper interface {
 	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
 	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
 	GetRuleSetReport() (*api.GetRuleSetReportMessage, error)
-	GetEvents() (api.SecurityModule_GetEventsClient, error)
-	GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error)
 	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
 	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
 	Close()
@@ -140,24 +137,6 @@ func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportMessage
 	return response, nil
 }
 
-// GetEvents returns a stream of events
-func (c *RuntimeSecurityClient) GetEvents() (api.SecurityModule_GetEventsClient, error) {
-	stream, err := c.apiClient.GetEvents(context.Background(), &api.GetEventParams{})
-	if err != nil {
-		return nil, err
-	}
-	return stream, nil
-}
-
-// GetActivityDumpStream returns a stream of activity dumps
-func (c *RuntimeSecurityClient) GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error) {
-	stream, err := c.apiClient.GetActivityDumpStream(context.Background(), &api.ActivityDumpStreamParams{})
-	if err != nil {
-		return nil, err
-	}
-	return stream, nil
-}
-
 // ListSecurityProfiles lists the profiles held in memory by the Security Profile manager
 func (c *RuntimeSecurityClient) ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error) {
 	return c.apiClient.ListSecurityProfiles(context.Background(), &api.SecurityProfileListParams{
@@ -183,21 +162,24 @@ func (c *RuntimeSecurityClient) Close() {
 // NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
 func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
-	if socketPath == "" {
-		return nil, errors.New("runtime_security_config.socket must be set")
+	cmdSocketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.cmd_socket")
+
+	cmdSocketPath, err := common.GetCmdSocketPath(socketPath, cmdSocketPath)
+	if err != nil {
+		return nil, err
 	}
 
-	family := common.GetFamilyAddress(socketPath)
+	family := common.GetFamilyAddress(cmdSocketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("unix sockets are not supported on Windows")
 		}
 
-		socketPath = fmt.Sprintf("unix://%s", socketPath)
+		cmdSocketPath = fmt.Sprintf("unix://%s", cmdSocketPath)
 	}
 
 	conn, err := grpc.NewClient(
-		socketPath,
+		cmdSocketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithConnectParams(grpc.ConnectParams{
