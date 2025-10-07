@@ -806,6 +806,178 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:         "ipv6 conn with domain should be allowed",
+			agentConfigs: defaultagentConfigs,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "2001:db8::1", Port: int32(443)},
+						Direction: model.ConnectionDirection_outgoing,
+						Family:    model.ConnectionFamily_v6,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+				Domains: []string{"ipv6-example.com"},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "ipv6-example.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
+			},
+			lookupHostFn: func(host string) ([]string, error) {
+				switch host {
+				case "ipv6-example.com":
+					return []string{"2001:db8::1"}, nil
+				default:
+					return nil, fmt.Errorf("no IP found for domain: %s", host)
+				}
+			},
+		},
+		{
+			name: "skip IP without domain when monitorIPWithoutDomain is false",
+			agentConfigs: map[string]any{
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.monitor_ip_without_domain": false,
+			},
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{},
+		},
+		{
+			name: "allow IP without domain when monitorIPWithoutDomain is true",
+			agentConfigs: map[string]any{
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.monitor_ip_without_domain": true,
+			},
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
+			},
+		},
+		{
+			name: "exclude filter blocks matching domain",
+			agentConfigs: map[string]any{
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.monitor_ip_without_domain": true,
+				"network_path.collector.filters": []map[string]any{
+					{
+						"type":         "exclude",
+						"match_domain": "blocked.com",
+					},
+				},
+			},
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(443)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30001), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(443)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+				Domains: []string{"blocked.com", "allowed.com"},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "allowed.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId2"},
+			},
+			lookupHostFn: func(host string) ([]string, error) {
+				switch host {
+				case "blocked.com":
+					return []string{"10.0.0.4"}, nil
+				case "allowed.com":
+					return []string{"10.0.0.5"}, nil
+				default:
+					return nil, fmt.Errorf("no IP found for domain: %s", host)
+				}
+			},
+		},
+		{
+			name: "exclude filter blocks matching IP",
+			agentConfigs: map[string]any{
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.monitor_ip_without_domain": true,
+				"network_path.collector.filters": []map[string]any{
+					{
+						"type":     "exclude",
+						"match_ip": "10.0.0.4",
+					},
+				},
+			},
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30001), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "10.0.0.5", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId2"},
+			},
+		},
+		{
+			name: "exclude filter blocks matching CIDR",
+			agentConfigs: map[string]any{
+				"network_path.connections_monitoring.enabled":      true,
+				"network_path.collector.monitor_ip_without_domain": true,
+				"network_path.collector.filters": []map[string]any{
+					{
+						"type":     "exclude",
+						"match_ip": "10.0.1.0/24",
+					},
+				},
+			},
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.1.100", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30001), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "10.0.2.100", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "10.0.2.100", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId2"},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
