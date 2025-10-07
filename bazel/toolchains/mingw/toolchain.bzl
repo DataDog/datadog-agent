@@ -29,6 +29,20 @@ def _impl(ctx):
         path = ctx.attr.MINGW_PATH + "/bin/g++",
     )
 
+    gcc_tool = tool(
+        path = ctx.attr.MINGW_PATH + "/bin/gcc",
+    )
+
+    # For assembly files, GCC can act as the assembler (preprocesses and assembles .S files)
+    as_tool = tool(
+        path = ctx.attr.MINGW_PATH + "/bin/as",
+    )
+
+    # For creating static libraries (.a files)
+    ar_tool = tool(
+        path = ctx.attr.MINGW_PATH + "/bin/ar",
+    )
+
     tool_paths = []
 
     for mingw_tool in tools:
@@ -54,8 +68,36 @@ def _impl(ctx):
         ],
         env_sets = [
             env_set(
-                actions = [ACTION_NAMES.cpp_compile, ACTION_NAMES.c_compile, ACTION_NAMES.cpp_link_executable, ACTION_NAMES.cpp_link_dynamic_library],
-                env_entries = [env_entry("PATH", "{}/bin".format(ctx.attr.MINGW_PATH))],
+                actions = [
+                    ACTION_NAMES.c_compile,
+                    ACTION_NAMES.cpp_compile,
+                    ACTION_NAMES.assemble,
+                    ACTION_NAMES.preprocess_assemble,
+                    ACTION_NAMES.cpp_link_executable,
+                    ACTION_NAMES.cpp_link_dynamic_library,
+                    ACTION_NAMES.cpp_link_static_library,
+                ],
+                env_entries = [
+                    env_entry("PATH", "{}/bin".format(ctx.attr.MINGW_PATH)),
+                    env_entry("LIBRARY_PATH", "{}/lib;{}/x86_64-w64-mingw32/lib".format(ctx.attr.MINGW_PATH, ctx.attr.MINGW_PATH)),
+                    env_entry("CPATH", "{}/include;{}/x86_64-w64-mingw32/include".format(ctx.attr.MINGW_PATH, ctx.attr.MINGW_PATH)),
+                ],
+            ),
+        ],
+    )
+
+    # Feature for archiver flags (ar)
+    archiver_flags_feature = feature(
+        name = "archiver_flags",
+        enabled = True,
+        flag_sets = [
+            flag_set(
+                actions = [ACTION_NAMES.cpp_link_static_library],
+                flag_groups = [
+                    flag_group(
+                        flags = ["rcsD"],  # r=replace, c=create, s=index, D=deterministic
+                    ),
+                ],
             ),
         ],
     )
@@ -63,7 +105,7 @@ def _impl(ctx):
     return [
         cc_common.create_cc_toolchain_config_info(
             ctx = ctx,
-            features = [default_feature],
+            features = [default_feature, archiver_flags_feature],
             toolchain_identifier = "mingw-toolchain",
             host_system_name = "nothing",
             target_system_name = "nothing",
@@ -74,13 +116,34 @@ def _impl(ctx):
             abi_version = "gcc-" + ctx.attr.GCC_VERSION,
             abi_libc_version = "nothing",
             action_configs = [
-                # TODO: This requires further research on how to do properly, even
-                # though for now it does what we need: set g++ for appropriate c++ targets
+                # C compilation - use gcc
+                action_config(
+                    action_name = ACTION_NAMES.c_compile,
+                    enabled = True,
+                    tools = [gcc_tool],
+                ),
+                # C++ compilation - use g++
                 action_config(
                     action_name = ACTION_NAMES.cpp_compile,
                     enabled = True,
                     tools = [gpp_tool],
                 ),
+                # Assembly actions
+                # preprocess_assemble: for .S files (assembly with C preprocessor)
+                action_config(
+                    action_name = ACTION_NAMES.preprocess_assemble,
+                    enabled = True,
+                    tools = [gcc_tool],  # GCC can preprocess and assemble .S files
+                ),
+                # assemble: for .s files (pure assembly, no preprocessing)
+                action_config(
+                    action_name = ACTION_NAMES.assemble,
+                    enabled = True,
+                    tools = [as_tool],  # Use 'as' directly for pure assembly
+                ),
+                # Linking actions (shared between C and C++)
+                # For C projects, gcc is typically used; for C++ projects, g++ is used
+                # We'll use g++ for linking to handle both cases properly
                 action_config(
                     action_name = ACTION_NAMES.cpp_link_executable,
                     enabled = True,
@@ -90,6 +153,12 @@ def _impl(ctx):
                     action_name = ACTION_NAMES.cpp_link_dynamic_library,
                     enabled = True,
                     tools = [gpp_tool],
+                ),
+                # Static library archiving - use ar (archiver)
+                action_config(
+                    action_name = ACTION_NAMES.cpp_link_static_library,
+                    enabled = True,
+                    tools = [ar_tool],
                 ),
             ],
             tool_paths = tool_paths,
@@ -110,6 +179,11 @@ def _impl(ctx):
                     category_name = "dynamic_library",
                     prefix = "lib",
                     extension = ".dll",
+                ),
+                artifact_name_pattern(
+                    category_name = "static_library",
+                    prefix = "lib",
+                    extension = ".a",
                 ),
             ],
         ),

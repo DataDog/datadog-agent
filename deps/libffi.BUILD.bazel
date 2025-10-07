@@ -105,7 +105,14 @@ _WINDOWS_X86_64_OVERRIDES = {
     "#undef FFI_EXEC_STATIC_TRAMP": "/* #undef FFI_EXEC_STATIC_TRAMP */",
     "#undef FFI_EXEC_TRAMPOLINE_TABLE": "/* #undef FFI_EXEC_TRAMPOLINE_TABLE */",
     "#undef FFI_MMAP_EXEC_WRIT": "/* #undef FFI_MMAP_EXEC_WRIT */",
-    "#undef HAVE_AS_X86_PCREL": "#define HAVE_AS_X86_PCREL 1",
+    "#undef HAVE_ALLOCA_H": "/* #undef HAVE_ALLOCA_H */",
+    "#undef HAVE_AS_X86_PCREL": "/* #undef HAVE_AS_X86_PCREL */",
+    "#undef HAVE_DLFCN_H": "/* #undef HAVE_DLFCN_H */",
+    "#undef HAVE_STRINGS_H": "/* #undef HAVE_STRINGS_H */",
+    "#undef HAVE_UNISTD_H": "/* #undef HAVE_UNISTD_H */",
+    # Windows PE/COFF doesn't support .hidden visibility attribute
+    # This prevents the HIDDEN macro from being defined in assembly files
+    "#undef HAVE_HIDDEN_VISIBILITY_ATTRIBUTE": "/* #undef HAVE_HIDDEN_VISIBILITY_ATTRIBUTE */",
     "/* Define if you have the long double type and it is bigger than a double */\n#undef HAVE_LONG_DOUBLE": "/* #undef HAVE_LONG_DOUBLE */",
     "#undef HAVE_MEMFD_CREATE": "/* #undef HAVE_MEMFD_CREATE */",
     "#undef HAVE_SYS_MEMFD_H": "/* #undef HAVE_SYS_MEMFD_H */",
@@ -210,6 +217,15 @@ cc_library(
             "src/aarch64/internal.h",
             "src/aarch64/sysv.S",
         ],
+        # For Windows x86_64, use win64.S instead of unix64.S
+        "@//:windows_x86_64": [
+            "src/x86/asmnames.h",
+            "src/x86/ffiw64.c",
+            "src/x86/internal.h",
+            "src/x86/internal64.h",
+            "src/x86/win64.S",
+        ],
+        # For non-Windows x86_64 (Linux, macOS), use unix64.S
         "@platforms//cpu:x86_64": [
             "src/x86/asmnames.h",
             "src/x86/ffi64.c",
@@ -217,15 +233,6 @@ cc_library(
             "src/x86/internal.h",
             "src/x86/internal64.h",
             "src/x86/unix64.S",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "@platforms//os:windows": [
-            #"src/x86/ffi.c",
-            #"src/x86/sysv.S",
-            "src/x86/sysv_intel.S",
-            "src/x86/win64.S",
-            "src/x86/win64_intel.S",
         ],
         "//conditions:default": [],
     }),
@@ -236,6 +243,11 @@ cc_library(
                 # we need to set it here again to avoid having errors with
                 # system headers being included using absolute paths.
                 "@platforms//os:linux": ["-nostdinc"],
+                "@platforms//os:windows": [
+                    "-v",  # Verbose output for debugging
+                    "-DX86_WIN64",
+                    "-DFFI_BUILDING_DLL",
+                ],
                 "//conditions:default": [],
             }),
     implementation_deps = [":dlmalloc_header", ":libffi_include_headers"],
