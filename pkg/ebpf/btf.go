@@ -498,6 +498,11 @@ func copyFile(src, dst string) error {
 		return err
 	}
 
+	err = os.MkdirAll(filepath.Dir(dst), 0755)
+	if err != nil {
+		return fmt.Errorf("mkdir %s: %w", dst, err)
+	}
+
 	out, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fi.Mode().Perm())
 	if err != nil {
 		return fmt.Errorf("open file %s: %w", dst, err)
