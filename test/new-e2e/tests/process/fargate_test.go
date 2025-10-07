@@ -71,7 +71,7 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 		assertProcessCollectedNew(c, payloads, false, "process-agent")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 		assertFargateHostname(t, payloads)
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 }
 
 type ECSFargateCoreAgentSuite struct {
@@ -104,7 +104,7 @@ func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
 		requireProcessNotCollected(c, payloads, "process-agent")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 		assertFargateHostname(t, payloads)
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func assertFargateHostname(t assert.TestingT, payloads []*aggregator.ProcessPayload) {

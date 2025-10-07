@@ -26,7 +26,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/viper"
-	"github.com/mitchellh/mapstructure"
+	mapstructure "github.com/go-viper/mapstructure/v2"
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"

@@ -342,6 +342,24 @@ func generateIR(
 	}
 	issues = append(issues, probeIssues...)
 
+	// Augment return variable locations with ABI-derived information.
+	subprogrProbeMap := make(map[ir.SubprogramID][]*ir.Probe)
+	for _, probe := range probes {
+		subprogrProbeMap[probe.Subprogram.ID] = append(
+			subprogrProbeMap[probe.Subprogram.ID], probe,
+		)
+	}
+	for _, sp := range subprograms {
+		probesForSubprogram := subprogrProbeMap[sp.ID]
+		if err := augmentReturnLocationsFromABI(
+			arch, sp, probesForSubprogram,
+		); err != nil {
+			return nil, fmt.Errorf(
+				"failed to augment return locations for %q: %w", sp.Name, err,
+			)
+		}
+	}
+
 	// Finalize type information now that we have all referenced types.
 	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
 		return nil, err
@@ -1936,6 +1954,7 @@ func newProbe(
 	if returnEvent != nil {
 		events = append(events, returnEvent)
 	}
+
 	probe := &ir.Probe{
 		ProbeDefinition: probeCfg,
 		Subprogram:      subprogram,

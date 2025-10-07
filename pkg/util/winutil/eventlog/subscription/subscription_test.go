@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
@@ -154,7 +155,7 @@ func BenchmarkTestGetEventHandles(b *testing.B) {
 	}
 }
 
-func formatEventMessage(api evtapi.API, event *evtapi.EventRecord) (string, error) {
+func formatEventMessage(api evtapi.API, cache *publishermetadatacache.PublisherMetadataCache, event *evtapi.EventRecord) (string, error) {
 	// Create render context for the System values
 	c, err := api.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
 	if err != nil {
@@ -176,15 +177,9 @@ func formatEventMessage(api evtapi.API, event *evtapi.EventRecord) (string, erro
 	}
 
 	// Format Message
-	pm, err := api.EvtOpenPublisherMetadata(provider, "")
+	message, err := cache.FormatMessage(provider, event.EventRecordHandle, evtapi.EvtFormatMessageEvent)
 	if err != nil {
-		return "", fmt.Errorf("failed to open provider metadata: %w", err)
-	}
-	defer evtapi.EvtClosePublisherMetadata(api, pm)
-
-	message, err := api.EvtFormatMessage(pm, event.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
-	if err != nil {
-		return "", fmt.Errorf("failed to format event message: %w", err)
+		return "", fmt.Errorf("failed to format message: %w", err)
 	}
 
 	return message, nil
@@ -250,7 +245,9 @@ func BenchmarkTestFormatEventMessage(b *testing.B) {
 				createLog(b, ti, channel, eventSource)
 				err := ti.GenerateEvents(eventSource, v)
 				require.NoError(b, err)
+				cache := publishermetadatacache.New(ti.API())
 				b.ResetTimer()
+
 				for i := 0; i < b.N; i++ {
 					sub, err := startSubscription(b, ti, channel,
 						WithStartAtOldestRecord(),
@@ -259,7 +256,7 @@ func BenchmarkTestFormatEventMessage(b *testing.B) {
 					events, err := getEventHandles(b, ti, sub, v)
 					require.NoError(b, err)
 					for _, event := range events {
-						_, err := formatEventMessage(ti.API(), event)
+						_, err := formatEventMessage(ti.API(), cache, event)
 						require.NoError(b, err)
 						evtapi.EvtCloseRecord(ti.API(), event.EventRecordHandle)
 					}
