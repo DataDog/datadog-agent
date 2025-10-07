@@ -12,11 +12,12 @@ import (
 	"regexp"
 )
 
-type Type string
+// FilterType is the filter type struct
+type FilterType string
 
 const (
-	filterTypeInclude Type = "include"
-	filterTypeExclude Type = "exclude"
+	filterTypeInclude FilterType = "include"
+	filterTypeExclude FilterType = "exclude"
 )
 
 type matchDomainStrategyType string
@@ -28,7 +29,7 @@ const (
 
 // ConnFilterConfig represent one filter
 type ConnFilterConfig struct {
-	Type                Type                    `mapstructure:"type"`
+	Type                FilterType              `mapstructure:"type"`
 	MatchDomain         string                  `mapstructure:"match_domain"`
 	MatchDomainStrategy matchDomainStrategyType `mapstructure:"match_domain_strategy"`
 	MatchIP             string                  `mapstructure:"match_ip"`
@@ -36,7 +37,7 @@ type ConnFilterConfig struct {
 
 // Filter represent one filter
 type Filter struct {
-	Type        Type
+	Type        FilterType
 	matchDomain *regexp.Regexp
 	matchIPCidr *net.IPNet
 }
@@ -129,6 +130,7 @@ func NewConnFilter(config []ConnFilterConfig, site string) (*ConnFilter, []error
 	}, errs
 }
 
+// IsIncluded return true if the matching domain and ip of a connection should be included
 func (f *ConnFilter) IsIncluded(domain string, ip string) bool {
 	isIncluded := true
 	for _, filter := range f.filters {
