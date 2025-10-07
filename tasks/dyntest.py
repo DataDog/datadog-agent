@@ -45,7 +45,7 @@ def compute_and_upload_job_index(ctx: Context, bucket_uri: str, coverage_folder:
 
     # Diffed package coverage indexer
     indexer = DiffedPackageCoverageDynTestIndexer(
-        coverage_folder, f"{coverage_folder}/testagentbaselinesuite", run_all_paths
+        coverage_folder, f"{coverage_folder}/testagentbaselinesuite", run_all_changes_paths=run_all_paths
     )
     index_diffed = indexer.compute_index(ctx)
     uploader.upload_index(index_diffed, IndexKind.DIFFED_PACKAGE, f"{commit_sha}/{job_id}")
@@ -71,17 +71,21 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
 @task
 def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: str):
     uploader = S3Backend(bucket_uri)
-    executor = DynTestExecutor(ctx, uploader, IndexKind.PACKAGE, commit_sha)
 
-    for kind in [IndexKind.PACKAGE, IndexKind.FILE, IndexKind.DIFFED_PACKAGE]:
+    def evaluate(kind: IndexKind, changes: list[str]):
+        executor = DynTestExecutor(ctx, uploader, kind, commit_sha)
         evaluator = DatadogDynTestEvaluator(ctx, kind, executor, pipeline_id)
         if not evaluator.initialize():
             print(color_message(f"WARNING: Failed to initialize index for {kind.value} coverage", Color.ORANGE))
             return
-        changes = get_modified_files(ctx)
-        print("Detected changes:", changes)
-        results = evaluator.evaluate([os.path.dirname(change) for change in changes])
+        results = evaluator.evaluate(changes)
         evaluator.print_summary(results)
         evaluator.send_stats_to_datadog(results)
 
+    changed_files = get_modified_files(ctx)
+    changed_packages = list({os.path.dirname(change) for change in changed_files})
+    print("Detected changes:", changed_files)
+
+    for kind in [IndexKind.PACKAGE, IndexKind.FILE, IndexKind.DIFFED_PACKAGE]:
+        evaluate(kind, changed_packages + changed_files)
         sleep(10)  # small sleep to avoid rate limiting

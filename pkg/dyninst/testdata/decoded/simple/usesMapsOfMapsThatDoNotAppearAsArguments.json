@@ -47,7 +47,36 @@
             "locals": {
               "~r0": {
                 "type": "map[uint8]map[int]main.aStructNotUsedAsAnArgument",
-                "notCapturedReason": "unavailable"
+                "size": "1",
+                "entries": [
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "97"
+                    },
+                    {
+                      "type": "map[int]main.aStructNotUsedAsAnArgument",
+                      "size": "1",
+                      "entries": [
+                        [
+                          {
+                            "type": "int",
+                            "value": "0"
+                          },
+                          {
+                            "type": "main.aStructNotUsedAsAnArgument",
+                            "fields": {
+                              "a": {
+                                "type": "int",
+                                "value": "1"
+                              }
+                            }
+                          }
+                        ]
+                      ]
+                    }
+                  ]
+                ]
               }
             }
           }

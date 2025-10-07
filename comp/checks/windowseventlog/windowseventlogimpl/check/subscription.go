@@ -283,7 +283,8 @@ func (c *Check) eventMessageFilter(doneCh <-chan struct{}, inCh <-chan *eventWit
 		includedMessages:  c.includedMessages,
 		excludedMessages:  c.excludedMessages,
 		// eventlog
-		userRenderContext: c.userRenderContext,
+		userRenderContext:      c.userRenderContext,
+		publisherMetadataCache: c.publisherMetadataCache,
 	}
 	wg.Add(1)
 	go eventMessageFilter.run(wg)
@@ -321,6 +322,7 @@ func (c *Check) ddLogSubmitter(logsAgent logsAgent.Component, doneCh <-chan stru
 		logSource: sources.NewLogSource("dd_security_events", &logsConfig.LogsConfig{
 			Source: logsSource,
 		}),
+		publisherMetadataCache: c.publisherMetadataCache,
 	}
 	wg.Add(1)
 	go ddEventSubmitter.run(wg)

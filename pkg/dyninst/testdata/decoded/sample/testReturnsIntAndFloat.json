@@ -18,12 +18,12 @@
           {
             "function": "main.testReturnsIntAndFloat",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 29
+            "lineNumber": 32
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 88
+            "lineNumber": 377
           },
           {
             "function": "main.main",
@@ -60,7 +60,7 @@
             "locals": {
               "~r0": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "value": "142"
               },
               "~r1": {
                 "type": "float64",
