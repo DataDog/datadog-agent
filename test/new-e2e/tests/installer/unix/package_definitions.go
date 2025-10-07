@@ -141,7 +141,7 @@ func InstallInstallerScriptEnvWithPackages() map[string]string {
 
 // PipelineAgentVersion returns the version of the pipeline agent
 func PipelineAgentVersion(t *testing.T) string {
-	ref := fmt.Sprintf("oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID"))
+	ref := fmt.Sprintf("installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID"))
 	p := v1.Platform{
 		OS:           "linux",
 		Architecture: "amd64",
