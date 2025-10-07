@@ -2,7 +2,7 @@
     "base_branch": "7.72.x",
     "current_milestone": "7.72.0",
     "dependencies": {
-        "INTEGRATIONS_CORE_VERSION": "7.72.0-rc.1",
+        "INTEGRATIONS_CORE_VERSION": "7.72.0-rc.2",
         "OMNIBUS_RUBY_VERSION": "7.72.0-rc.1",
         "JMXFETCH_VERSION": "0.50.0",
         "JMXFETCH_HASH": "4a426b206132114484d6af06297ad520f77bd143daa7d946092929bb0a776b2e",
