@@ -17,8 +17,6 @@ if [ -z "$PREFIX" ]; then
     exit 1
 fi
 
-echo "New prefix: $PREFIX"
-echo "Replacing in file(s) $*"
 for f in "$@"; do
     if [ ! -f "$f" ]; then
         echo "$f: file not found"
