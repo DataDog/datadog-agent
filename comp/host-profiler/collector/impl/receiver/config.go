@@ -8,8 +8,7 @@
 package receiver
 
 import (
-	"time"
-
+	"github.com/DataDog/dd-otel-host-profiler/config"
 	"github.com/DataDog/dd-otel-host-profiler/reporter"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
@@ -52,17 +51,14 @@ func defaultConfig() component.Config {
 
 	return Config{
 		Config: cfg,
-
-		// TODO: This is a temporary config, it will be updated to use the same config values
-		// as dd-otel-host-profiler in a later PR.
 		SymbolUploader: reporter.SymbolUploaderConfig{
 			SymbolUploaderOptions: reporter.SymbolUploaderOptions{
-				Enabled:              true,
-				UploadDynamicSymbols: false,
-				UploadGoPCLnTab:      true,
-				UseHTTP2:             false,
-				SymbolQueryInterval:  time.Second * 5,
-				DryRun:               false,
+				Enabled:              config.DefaultUploadSymbols,
+				UploadDynamicSymbols: config.DefaultUploadDynamicSymbols,
+				UploadGoPCLnTab:      config.DefaultUploadGoPCLnTab,
+				UseHTTP2:             config.DefaultUploadSymbolsHTTP2,
+				SymbolQueryInterval:  config.DefaultSymbolQueryInterval,
+				DryRun:               config.DefaultUploadSymbolsDryRun,
 				SymbolEndpoints:      nil,
 			},
 			Version:                        "0.0.0",
