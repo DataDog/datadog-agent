@@ -43,7 +43,7 @@ class TestProduceSizeStats(unittest.TestCase):
         expected_tags = [
             "os:os",
             "package:datadog-agent",
-            "agent:version",
+            "agent:7",
             "git_ref:gitref",
             "bucket_branch:branch",
             "arch:arch",
