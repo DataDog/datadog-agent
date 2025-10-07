@@ -850,7 +850,7 @@ require (
 	go.opentelemetry.io/collector/config/configoptional v0.136.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.42.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.42.0 // indirect
-	go.opentelemetry.io/collector/confmap/xconfmap v0.136.0 // indirect
+	go.opentelemetry.io/collector/confmap/xconfmap v0.136.0
 	go.opentelemetry.io/collector/connector v0.136.0 // indirect
 	go.opentelemetry.io/collector/connector/connectortest v0.136.0 // indirect
 	go.opentelemetry.io/collector/connector/xconnector v0.136.0 // indirect
@@ -974,6 +974,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.136.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/urfave/cli/v3 v3.1.1 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 )
 
