@@ -28,6 +28,9 @@ for f in "$@"; do
         *.so)
             patchelf --set-rpath "$PREFIX" "$f"
             ;;
+        *.dylib)
+            install_name_tool -add_rpath "$PREFIX/embedded/lib" "$f"
+            ;;
         *.pc)
             sed -i "s|##PREFIX##|$PREFIX|" "$f"
             ;;
