@@ -67,21 +67,11 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !env.IsFeaturePresent(env.ECSFargate) {
-		return errors.NewDisabled(componentName, "Agent is not running on ECS Fargate")
-	}
-
-	c.store = store
-
-	var err error
-	c.metaV2, err = ecsmeta.V2()
-	if err != nil {
-		return err
-	}
-
-	c.setTaskCollectionParser()
-
-	return nil
+	// This collector is now deprecated in favor of the unified ECS collector
+	// which handles both EC2 and Fargate modes.
+	// The unified collector properly separates deployment mode (daemon/sidecar)
+	// from launch type (ec2/fargate).
+	return errors.NewDisabled(componentName, "Deprecated: ECS Fargate now handled by unified ECS collector")
 }
 
 func (c *collector) setTaskCollectionParser() {
