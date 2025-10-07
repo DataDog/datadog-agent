@@ -13,6 +13,7 @@ import (
 	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -45,16 +46,12 @@ const (
 // CollectorPriorities holds collector priorities
 var CollectorPriorities = make(map[string]types.CollectorPriority)
 
-type processor interface {
-	ProcessTagInfo([]*types.TagInfo)
-}
-
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
 	store        workloadmeta.Component
 	children     map[types.EntityID]map[types.EntityID]struct{}
-	tagProcessor processor
+	tagProcessor taggerdef.Processor
 
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
@@ -173,7 +170,7 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 }
 
 // NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
-func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
+func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store workloadmeta.Component, p taggerdef.Processor) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
 		tagProcessor:                      p,
 		store:                             store,

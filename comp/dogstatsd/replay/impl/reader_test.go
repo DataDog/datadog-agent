@@ -19,10 +19,10 @@ func readerTest(t *testing.T, path string, mmap bool) {
 	assert.NotNil(t, tc)
 
 	// read state from file
-	pidMap, entityMap, err := tc.ReadState()
+	state, err := tc.ReadState()
 	assert.Nil(t, err)
-	assert.NotNil(t, pidMap)
-	assert.NotNil(t, entityMap)
+	assert.NotNil(t, state.PidMap)
+	assert.NotNil(t, state.State)
 
 	// advance the offset to where the packets start
 	tc.Lock()
