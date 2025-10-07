@@ -58,7 +58,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.71.0-rc.1 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.46.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.47.0 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.1-0.20251007072727-5a2ac1ff821e // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
