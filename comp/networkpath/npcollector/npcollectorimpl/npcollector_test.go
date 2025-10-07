@@ -576,6 +576,9 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		count int
 	}
 	defaultagentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+	}
+	monitorIPWithoutDomainConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled":      true,
 		"network_path.collector.monitor_ip_without_domain": true,
 	}
@@ -602,7 +605,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		},
 		{
 			name:         "one outgoing TCP conn",
-			agentConfigs: defaultagentConfigs,
+			agentConfigs: monitorIPWithoutDomainConfigs,
 			conns: &model.Connections{
 				Conns: []*model.Connection{
 					{
@@ -619,7 +622,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		},
 		{
 			name:         "one outgoing UDP conn",
-			agentConfigs: defaultagentConfigs,
+			agentConfigs: monitorIPWithoutDomainConfigs,
 			conns: &model.Connections{
 				Conns: []*model.Connection{
 					{
@@ -657,7 +660,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		},
 		{
 			name:         "ignore non-outgoing conn",
-			agentConfigs: defaultagentConfigs,
+			agentConfigs: monitorIPWithoutDomainConfigs,
 			conns: &model.Connections{
 				Conns: []*model.Connection{
 					{
@@ -680,7 +683,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		},
 		{
 			name:         "no input chan",
-			agentConfigs: defaultagentConfigs,
+			agentConfigs: monitorIPWithoutDomainConfigs,
 			noInputChan:  true,
 			conns: &model.Connections{
 				Conns: []*model.Connection{
@@ -712,7 +715,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		},
 		{
 			name:         "only ipv4 supported",
-			agentConfigs: defaultagentConfigs,
+			agentConfigs: monitorIPWithoutDomainConfigs,
 			conns: &model.Connections{
 				Conns: []*model.Connection{
 					{
@@ -744,7 +747,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		},
 		{
 			name:         "one outgoing TCP conn with known hostname (DNS)",
-			agentConfigs: defaultagentConfigs,
+			agentConfigs: monitorIPWithoutDomainConfigs,
 			conns: &model.Connections{
 				Conns: []*model.Connection{
 					{
@@ -915,8 +918,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		{
 			name: "exclude filter blocks matching domain",
 			agentConfigs: map[string]any{
-				"network_path.connections_monitoring.enabled":      true,
-				"network_path.collector.monitor_ip_without_domain": true,
+				"network_path.connections_monitoring.enabled": true,
 				"network_path.collector.filters": []map[string]any{
 					{
 						"type":         "exclude",
