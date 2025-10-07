@@ -23,12 +23,13 @@ type Runtime string
 
 // Known container runtimes
 const (
-	RuntimeNameDocker     Runtime = "docker"
-	RuntimeNameContainerd Runtime = "containerd"
-	RuntimeNameCRIO       Runtime = "cri-o"
-	RuntimeNameGarden     Runtime = "garden"
-	RuntimeNamePodman     Runtime = "podman"
-	RuntimeNameECSFargate Runtime = "ecsfargate"
+	RuntimeNameDocker             Runtime = "docker"
+	RuntimeNameContainerd         Runtime = "containerd"
+	RuntimeNameCRIO               Runtime = "cri-o"
+	RuntimeNameGarden             Runtime = "garden"
+	RuntimeNamePodman             Runtime = "podman"
+	RuntimeNameECSFargate         Runtime = "ecsfargate"
+	RuntimeNameECSManagedInstance Runtime = "ecsmanagedinstance"
 )
 
 var (
@@ -56,6 +57,7 @@ var (
 		RuntimeNameGarden,
 		RuntimeNamePodman,
 		RuntimeNameECSFargate,
+		RuntimeNameECSManagedInstance,
 	}
 
 	// AllWindowsRuntimes lists all runtimes available on Windows

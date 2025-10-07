@@ -345,8 +345,9 @@ func (ContainerHealth) EnumDescriptor() ([]byte, []int) {
 type ECSLaunchType int32
 
 const (
-	ECSLaunchType_EC2     ECSLaunchType = 0
-	ECSLaunchType_FARGATE ECSLaunchType = 1
+	ECSLaunchType_EC2              ECSLaunchType = 0
+	ECSLaunchType_FARGATE          ECSLaunchType = 1
+	ECSLaunchType_MANAGED_INSTANCE ECSLaunchType = 2
 )
 
 // Enum value maps for ECSLaunchType.
@@ -354,10 +355,12 @@ var (
 	ECSLaunchType_name = map[int32]string{
 		0: "EC2",
 		1: "FARGATE",
+		2: "MANAGED_INSTANCE",
 	}
 	ECSLaunchType_value = map[string]int32{
-		"EC2":     0,
-		"FARGATE": 1,
+		"EC2":              0,
+		"FARGATE":          1,
+		"MANAGED_INSTANCE": 2,
 	}
 )
 
