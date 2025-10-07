@@ -62,16 +62,7 @@ type ConnFilter struct {
 
 func NewConnFilter(config []Config, site string) (*ConnFilter, []error) {
 	// TODO: test compile error
-	defaultConfig := []Config{
-		{
-			Type:        filterTypeExclude,
-			MatchDomain: "*.datadoghq.com",
-		},
-		{
-			Type:        filterTypeExclude,
-			MatchDomain: "*." + site,
-		},
-	}
+	defaultConfig := getDefaultConnFilters(site)
 	newConfigs := append(defaultConfig, config...)
 
 	var filters []Filter
@@ -129,6 +120,24 @@ func NewConnFilter(config []Config, site string) (*ConnFilter, []error) {
 	return &ConnFilter{
 		filters: filters,
 	}, errs
+}
+
+func getDefaultConnFilters(site string) []Config {
+	defaultConfig := []Config{
+		{
+			Type:        filterTypeExclude,
+			MatchDomain: "*.datadog.pool.ntp.org",
+		},
+		{
+			Type:        filterTypeExclude,
+			MatchDomain: "*.datadoghq.com",
+		},
+		{
+			Type:        filterTypeExclude,
+			MatchDomain: "*." + site,
+		},
+	}
+	return defaultConfig
 }
 
 func (f *ConnFilter) IsIncluded(domain string, ip string) bool {

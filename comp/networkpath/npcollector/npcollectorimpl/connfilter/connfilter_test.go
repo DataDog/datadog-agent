@@ -233,6 +233,7 @@ filters:
 				{domain: "zoom.us", shouldMatch: true},
 				{domain: "dns.datadoghq.com", shouldMatch: false},
 				{domain: "abc.datad0g.com", shouldMatch: false},
+				{domain: "1.datadog.pool.ntp.org", shouldMatch: false},
 			},
 			expectedErr: "",
 		},
