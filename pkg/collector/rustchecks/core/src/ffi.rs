@@ -4,10 +4,12 @@ macro_rules! generate_ffi {
     ($check_impl:ident) => {
         /// Entrypoint of the check
         #[unsafe(no_mangle)]
-        pub extern "C" fn Run(check_id_str: *mut std::ffi::c_char, init_config_str: *mut std::ffi::c_char, instance_config_str: *mut std::ffi::c_char, aggregator_ptr: *mut rust_check_core::Aggregator) -> *mut std::ffi::c_char {
-            match create_and_run_check(check_id_str, init_config_str, instance_config_str, aggregator_ptr) {
-                Ok(()) => std::ptr::null_mut(),
-                Err(e) => std::ffi::CString::new(e.to_string()).unwrap_or_default().into_raw(),
+        pub extern "C" fn Run(check_id_str: *mut std::ffi::c_char, init_config_str: *mut std::ffi::c_char, instance_config_str: *mut std::ffi::c_char, aggregator_ptr: *mut rust_check_core::Aggregator, error_handler: *mut *mut std::ffi::c_char) {
+            if let Err(e) = create_and_run_check(check_id_str, init_config_str, instance_config_str, aggregator_ptr) {
+                // 
+                let cstr_ptr = rust_check_core::to_cstring(&e.to_string())
+                    .unwrap_or(rust_check_core::to_cstring("").unwrap());
+                unsafe { *error_handler = cstr_ptr; };
             }
         }
 
