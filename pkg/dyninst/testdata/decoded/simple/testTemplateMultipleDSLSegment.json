@@ -50,14 +50,6 @@
                 "value": "d"
               }
             }
-          },
-          "return": {
-            "arguments": {
-              "s": {
-                "type": "string",
-                "notCapturedReason": "unavailable"
-              }
-            }
           }
         }
       }

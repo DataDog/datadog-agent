@@ -6,7 +6,7 @@ Probes:
       where: {methodName: main.HandleHTTP}
       capture: {maxReferenceDepth: 1}
       template: test log message
-      segments: [{str: test log message}]
+      segments: [test log message]
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
@@ -30,7 +30,7 @@ Probes:
       where: {methodName: main.LookAtTheRequest}
       capture: {maxReferenceDepth: 1}
       template: test log message
-      segments: [{str: test log message}]
+      segments: [test log message]
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:

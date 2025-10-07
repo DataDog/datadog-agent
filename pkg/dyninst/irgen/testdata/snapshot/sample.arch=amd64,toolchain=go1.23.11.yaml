@@ -10,14 +10,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 139}
       events:
-        - ID: 190
+        - ID: 192
           Kind: Entry
-          Type: 1312 EventRootType Probe[main.stackC]
+          Type: 1314 EventRootType Probe[main.stackC]
           InjectionPoints: [{PC: "0xd0a46a", Frameless: false}]
           Condition: null
-        - ID: 189
+        - ID: 191
           Kind: Return
-          Type: 1313 EventRootType Probe[main.stackC]Return
+          Type: 1315 EventRootType Probe[main.stackC]Return
           InjectionPoints: [{PC: "0xd0a4a5", Frameless: false}]
           Condition: null
     - id: testAny
@@ -69,14 +69,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 120}
       events:
-        - ID: 162
+        - ID: 164
           Kind: Entry
-          Type: 1284 EventRootType Probe[main.testArrayArgAndReturn]
+          Type: 1286 EventRootType Probe[main.testArrayArgAndReturn]
           InjectionPoints: [{PC: "0xd08f2e", Frameless: false}]
           Condition: null
-        - ID: 161
+        - ID: 163
           Kind: Return
-          Type: 1285 EventRootType Probe[main.testArrayArgAndReturn]Return
+          Type: 1287 EventRootType Probe[main.testArrayArgAndReturn]Return
           InjectionPoints: [{PC: "0xd08fe2", Frameless: false}]
           Condition: null
     - id: testArrayEmptyStructs
@@ -193,8 +193,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testBoolArray}
       tags: ['foo:bar']
+      message: '{x}'
       template: ""
-      segments: []
+      segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
       subprogram: {subprogram: 4}
       events:
@@ -363,9 +364,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 129}
       events:
-        - ID: 178
+        - ID: 180
           Kind: Entry
-          Type: 1301 EventRootType Probe[main.testEmptySlice]
+          Type: 1303 EventRootType Probe[main.testEmptySlice]
           InjectionPoints: [{PC: "0xd0a000", Frameless: true}]
           Condition: null
     - id: testEmptySliceOfStructs
@@ -378,9 +379,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 132}
       events:
-        - ID: 181
+        - ID: 183
           Kind: Entry
-          Type: 1304 EventRootType Probe[main.testEmptySliceOfStructs]
+          Type: 1306 EventRootType Probe[main.testEmptySliceOfStructs]
           InjectionPoints: [{PC: "0xd0a060", Frameless: true}]
           Condition: null
     - id: testEmptyString
@@ -394,9 +395,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 147}
       events:
-        - ID: 200
+        - ID: 202
           Kind: Entry
-          Type: 1323 EventRootType Probe[main.testEmptyString]
+          Type: 1325 EventRootType Probe[main.testEmptyString]
           InjectionPoints: [{PC: "0xd0a5a0", Frameless: true}]
           Condition: null
     - id: testEmptyStruct
@@ -404,14 +405,15 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testEmptyStruct}
       tags: ['foo:bar']
+      message: '{e}'
       template: ""
-      segments: []
+      segments: [{json: {ref: e}, dsl: e}]
       captureSnapshot: true
       subprogram: {subprogram: 151}
       events:
-        - ID: 206
+        - ID: 208
           Kind: Entry
-          Type: 1329 EventRootType Probe[main.testEmptyStruct]
+          Type: 1331 EventRootType Probe[main.testEmptyStruct]
           InjectionPoints: [{PC: "0xd0a9e0", Frameless: true}]
           Condition: null
     - id: testEmptyStructPointer
@@ -423,9 +425,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 152}
       events:
-        - ID: 207
+        - ID: 209
           Kind: Entry
-          Type: 1330 EventRootType Probe[main.testEmptyStructPointer]
+          Type: 1332 EventRootType Probe[main.testEmptyStructPointer]
           InjectionPoints: [{PC: "0xd0aa00", Frameless: true}]
           Condition: null
     - id: testError
@@ -611,9 +613,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 154}
       events:
-        - ID: 211
+        - ID: 213
           Kind: Entry
-          Type: 1334 EventRootType Probe[main.testInlinedBBB]
+          Type: 1336 EventRootType Probe[main.testInlinedBBB]
           InjectionPoints: [{PC: "0xd048a6", Frameless: false}]
           Condition: null
     - id: testInlinedBC
@@ -646,9 +648,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 155}
       events:
-        - ID: 212
+        - ID: 214
           Kind: Entry
-          Type: 1335 EventRootType Probe[main.testInlinedBCA]
+          Type: 1337 EventRootType Probe[main.testInlinedBCA]
           InjectionPoints: [{PC: "0xd049b3", Frameless: false}]
           Condition: null
     - id: testInlinedBCALine
@@ -664,9 +666,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 155}
       events:
-        - ID: 213
+        - ID: 215
           Kind: Line
-          Type: 1336 EventRootType Probe[main.testInlinedBCA]Line
+          Type: 1338 EventRootType Probe[main.testInlinedBCA]Line
           InjectionPoints: [{PC: "0xd049b3", Frameless: false}]
           Condition: null
     - id: testInlinedBCB
@@ -679,9 +681,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 156}
       events:
-        - ID: 214
+        - ID: 216
           Kind: Entry
-          Type: 1337 EventRootType Probe[main.testInlinedBCB]
+          Type: 1339 EventRootType Probe[main.testInlinedBCB]
           InjectionPoints: [{PC: "0xd04a66", Frameless: false}]
           Condition: null
     - id: testInlinedBCBLine
@@ -697,9 +699,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 156}
       events:
-        - ID: 215
+        - ID: 217
           Kind: Line
-          Type: 1338 EventRootType Probe[main.testInlinedBCB]Line
+          Type: 1340 EventRootType Probe[main.testInlinedBCB]Line
           InjectionPoints: [{PC: "0xd04a66", Frameless: false}]
           Condition: null
     - id: testInlinedPrint
@@ -713,9 +715,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 153}
       events:
-        - ID: 209
+        - ID: 211
           Kind: Entry
-          Type: 1331 EventRootType Probe[main.testInlinedPrint]
+          Type: 1333 EventRootType Probe[main.testInlinedPrint]
           InjectionPoints:
             - PC: "0xd0460a"
               Frameless: false
@@ -728,9 +730,9 @@ Probes:
             - PC: "0xd0492f"
               Frameless: false
           Condition: null
-        - ID: 208
+        - ID: 210
           Kind: Return
-          Type: 1332 EventRootType Probe[main.testInlinedPrint]Return
+          Type: 1334 EventRootType Probe[main.testInlinedPrint]Return
           InjectionPoints: [{PC: "0xd0464a", Frameless: false}]
           Condition: null
     - id: testInlinedPrintLine
@@ -746,9 +748,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 153}
       events:
-        - ID: 210
+        - ID: 212
           Kind: Line
-          Type: 1333 EventRootType Probe[main.testInlinedPrint]Line
+          Type: 1335 EventRootType Probe[main.testInlinedPrint]Line
           InjectionPoints:
             - PC: "0xd0460e"
               Frameless: false
@@ -771,9 +773,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 157}
       events:
-        - ID: 216
+        - ID: 218
           Kind: Entry
-          Type: 1339 EventRootType Probe[main.testInlinedSq]
+          Type: 1341 EventRootType Probe[main.testInlinedSq]
           InjectionPoints: [{PC: "0xd04ac1", Frameless: true}]
           Condition: null
     - id: testInlinedSqLine
@@ -789,9 +791,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 157}
       events:
-        - ID: 217
+        - ID: 219
           Kind: Line
-          Type: 1340 EventRootType Probe[main.testInlinedSq]Line
+          Type: 1342 EventRootType Probe[main.testInlinedSq]Line
           InjectionPoints: [{PC: "0xd04ac1", Frameless: true}]
           Condition: null
     - id: testInlinedSumArray
@@ -805,9 +807,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 158}
       events:
-        - ID: 218
+        - ID: 220
           Kind: Entry
-          Type: 1341 EventRootType Probe[main.testInlinedSumArray]
+          Type: 1343 EventRootType Probe[main.testInlinedSumArray]
           InjectionPoints:
             - PC: "0xd04b05"
               Frameless: false
@@ -913,14 +915,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 119}
       events:
-        - ID: 160
+        - ID: 162
           Kind: Entry
-          Type: 1282 EventRootType Probe[main.testLargeArgAndReturn]
+          Type: 1284 EventRootType Probe[main.testLargeArgAndReturn]
           InjectionPoints: [{PC: "0xd08dae", Frameless: false}]
           Condition: null
-        - ID: 159
+        - ID: 161
           Kind: Return
-          Type: 1283 EventRootType Probe[main.testLargeArgAndReturn]Return
+          Type: 1285 EventRootType Probe[main.testLargeArgAndReturn]Return
           InjectionPoints: [{PC: "0xd08ef3", Frameless: false}]
           Condition: null
     - id: testLinkedList
@@ -982,8 +984,14 @@ Probes:
         sourceFile: complex.go
         lines: ["220"]
       sampling: {snapshotsPerSecond: 100}
+      message: '{a} and {b}'
       template: ""
-      segments: []
+      segments:
+        - json: {ref: a}
+          dsl: a
+        - ' and '
+        - json: {ref: b}
+          dsl: b
       captureSnapshot: true
       subprogram: {subprogram: 46}
       events:
@@ -1001,14 +1009,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 122}
       events:
-        - ID: 166
+        - ID: 168
           Kind: Entry
-          Type: 1288 EventRootType Probe[main.testManyArgsArrayReturn]
+          Type: 1290 EventRootType Probe[main.testManyArgsArrayReturn]
           InjectionPoints: [{PC: "0xd09253", Frameless: false}]
           Condition: null
-        - ID: 165
+        - ID: 167
           Kind: Return
-          Type: 1289 EventRootType Probe[main.testManyArgsArrayReturn]Return
+          Type: 1291 EventRootType Probe[main.testManyArgsArrayReturn]Return
           InjectionPoints: [{PC: "0xd09462", Frameless: false}]
           Condition: null
     - id: testMapArrayToArray
@@ -1321,9 +1329,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 145}
       events:
-        - ID: 197
+        - ID: 199
           Kind: Entry
-          Type: 1320 EventRootType Probe[main.testMassiveString]
+          Type: 1322 EventRootType Probe[main.testMassiveString]
           InjectionPoints: [{PC: "0xd0a560", Frameless: true}]
           Condition: null
     - id: testMassiveStringWithSizeLimit
@@ -1337,9 +1345,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 145}
       events:
-        - ID: 198
+        - ID: 200
           Kind: Entry
-          Type: 1321 EventRootType Probe[main.testMassiveString]
+          Type: 1323 EventRootType Probe[main.testMassiveString]
           InjectionPoints: [{PC: "0xd0a560", Frameless: true}]
           Condition: null
     - id: testMixedArgsStackReturn
@@ -1351,14 +1359,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 123}
       events:
-        - ID: 168
+        - ID: 170
           Kind: Entry
-          Type: 1290 EventRootType Probe[main.testMixedArgsStackReturn]
+          Type: 1292 EventRootType Probe[main.testMixedArgsStackReturn]
           InjectionPoints: [{PC: "0xd094f3", Frameless: false}]
           Condition: null
-        - ID: 167
+        - ID: 169
           Kind: Return
-          Type: 1291 EventRootType Probe[main.testMixedArgsStackReturn]Return
+          Type: 1293 EventRootType Probe[main.testMixedArgsStackReturn]Return
           InjectionPoints: [{PC: "0xd0972b", Frameless: false}]
           Condition: null
     - id: testMultipleArrayArgs
@@ -1370,14 +1378,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 125}
       events:
-        - ID: 172
+        - ID: 174
           Kind: Entry
-          Type: 1294 EventRootType Probe[main.testMultipleArrayArgs]
+          Type: 1296 EventRootType Probe[main.testMultipleArrayArgs]
           InjectionPoints: [{PC: "0xd0986e", Frameless: false}]
           Condition: null
-        - ID: 171
+        - ID: 173
           Kind: Return
-          Type: 1295 EventRootType Probe[main.testMultipleArrayArgs]Return
+          Type: 1297 EventRootType Probe[main.testMultipleArrayArgs]Return
           InjectionPoints: [{PC: "0xd09936", Frameless: false}]
           Condition: null
     - id: testMultipleLargeArgs
@@ -1389,14 +1397,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 121}
       events:
-        - ID: 164
+        - ID: 166
           Kind: Entry
-          Type: 1286 EventRootType Probe[main.testMultipleLargeArgs]
+          Type: 1288 EventRootType Probe[main.testMultipleLargeArgs]
           InjectionPoints: [{PC: "0xd0900e", Frameless: false}]
           Condition: null
-        - ID: 163
+        - ID: 165
           Kind: Return
-          Type: 1287 EventRootType Probe[main.testMultipleLargeArgs]Return
+          Type: 1289 EventRootType Probe[main.testMultipleLargeArgs]Return
           InjectionPoints: [{PC: "0xd0922a", Frameless: false}]
           Condition: null
     - id: testMultipleNamedReturn
@@ -1408,14 +1416,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 102}
       events:
-        - ID: 126
+        - ID: 128
           Kind: Entry
-          Type: 1248 EventRootType Probe[main.testMultipleNamedReturn]
+          Type: 1250 EventRootType Probe[main.testMultipleNamedReturn]
           InjectionPoints: [{PC: "0xd083ce", Frameless: false}]
           Condition: null
-        - ID: 125
+        - ID: 127
           Kind: Return
-          Type: 1249 EventRootType Probe[main.testMultipleNamedReturn]Return
+          Type: 1251 EventRootType Probe[main.testMultipleNamedReturn]Return
           InjectionPoints: [{PC: "0xd0846f", Frameless: false}]
           Condition: null
     - id: testMultipleSimpleParams
@@ -1452,6 +1460,32 @@ Probes:
           Type: 1247 EventRootType Probe[main.testNamedReturn]Return
           InjectionPoints: [{PC: "0xd08395", Frameless: false}]
           Condition: null
+    - id: testNamedReturnWithTemplate
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.testNamedReturn}
+      message: Parameter {i} * 2 = result {result}
+      template: ""
+      segments:
+        - 'Parameter '
+        - json: {ref: i}
+          dsl: i
+        - ' * 2 = result '
+        - json: {ref: result}
+          dsl: result
+      captureSnapshot: true
+      subprogram: {subprogram: 101}
+      events:
+        - ID: 126
+          Kind: Entry
+          Type: 1248 EventRootType Probe[main.testNamedReturn]
+          InjectionPoints: [{PC: "0xd0832a", Frameless: false}]
+          Condition: null
+        - ID: 125
+          Kind: Return
+          Type: 1249 EventRootType Probe[main.testNamedReturn]Return
+          InjectionPoints: [{PC: "0xd08395", Frameless: false}]
+          Condition: null
     - id: testNilPointer
       version: 0
       type: LOG_PROBE
@@ -1477,9 +1511,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 136}
       events:
-        - ID: 185
+        - ID: 187
           Kind: Entry
-          Type: 1308 EventRootType Probe[main.testNilSlice]
+          Type: 1310 EventRootType Probe[main.testNilSlice]
           InjectionPoints: [{PC: "0xd0a0e0", Frameless: true}]
           Condition: null
     - id: testNilSliceOfStructs
@@ -1492,9 +1526,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 133}
       events:
-        - ID: 182
+        - ID: 184
           Kind: Entry
-          Type: 1305 EventRootType Probe[main.testNilSliceOfStructs]
+          Type: 1307 EventRootType Probe[main.testNilSliceOfStructs]
           InjectionPoints: [{PC: "0xd0a080", Frameless: true}]
           Condition: null
     - id: testNilSliceWithOtherParams
@@ -1507,9 +1541,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 135}
       events:
-        - ID: 184
+        - ID: 186
           Kind: Entry
-          Type: 1307 EventRootType Probe[main.testNilSliceWithOtherParams]
+          Type: 1309 EventRootType Probe[main.testNilSliceWithOtherParams]
           InjectionPoints: [{PC: "0xd0a0c0", Frameless: true}]
           Condition: null
     - id: testOneStringInStructPointer
@@ -1522,9 +1556,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 144}
       events:
-        - ID: 196
+        - ID: 198
           Kind: Entry
-          Type: 1319 EventRootType Probe[main.testOneStringInStructPointer]
+          Type: 1321 EventRootType Probe[main.testOneStringInStructPointer]
           InjectionPoints: [{PC: "0xd0a540", Frameless: true}]
           Condition: null
     - id: testPointerLoop
@@ -1637,14 +1671,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 108}
       events:
-        - ID: 138
+        - ID: 140
           Kind: Entry
-          Type: 1260 EventRootType Probe[main.testReturnsArray]
+          Type: 1262 EventRootType Probe[main.testReturnsArray]
           InjectionPoints: [{PC: "0xd0884a", Frameless: false}]
           Condition: null
-        - ID: 137
+        - ID: 139
           Kind: Return
-          Type: 1261 EventRootType Probe[main.testReturnsArray]Return
+          Type: 1263 EventRootType Probe[main.testReturnsArray]Return
           InjectionPoints: [{PC: "0xd088ad", Frameless: false}]
           Condition: null
     - id: testReturnsArrayOne
@@ -1656,14 +1690,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 109}
       events:
-        - ID: 140
+        - ID: 142
           Kind: Entry
-          Type: 1262 EventRootType Probe[main.testReturnsArrayOne]
+          Type: 1264 EventRootType Probe[main.testReturnsArrayOne]
           InjectionPoints: [{PC: "0xd088ca", Frameless: false}]
           Condition: null
-        - ID: 139
+        - ID: 141
           Kind: Return
-          Type: 1263 EventRootType Probe[main.testReturnsArrayOne]Return
+          Type: 1265 EventRootType Probe[main.testReturnsArrayOne]Return
           InjectionPoints: [{PC: "0xd0890b", Frameless: false}]
           Condition: null
     - id: testReturnsArrayZero
@@ -1675,14 +1709,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 110}
       events:
-        - ID: 142
+        - ID: 144
           Kind: Entry
-          Type: 1264 EventRootType Probe[main.testReturnsArrayZero]
+          Type: 1266 EventRootType Probe[main.testReturnsArrayZero]
           InjectionPoints: [{PC: "0xd0892a", Frameless: false}]
           Condition: null
-        - ID: 141
+        - ID: 143
           Kind: Return
-          Type: 1265 EventRootType Probe[main.testReturnsArrayZero]Return
+          Type: 1267 EventRootType Probe[main.testReturnsArrayZero]Return
           InjectionPoints: [{PC: "0xd08966", Frameless: false}]
           Condition: null
     - id: testReturnsBacktrackInt
@@ -1694,14 +1728,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 112}
       events:
-        - ID: 146
+        - ID: 148
           Kind: Entry
-          Type: 1268 EventRootType Probe[main.testReturnsBacktrackInt]
+          Type: 1270 EventRootType Probe[main.testReturnsBacktrackInt]
           InjectionPoints: [{PC: "0xd08a0e", Frameless: false}]
           Condition: null
-        - ID: 145
+        - ID: 147
           Kind: Return
-          Type: 1269 EventRootType Probe[main.testReturnsBacktrackInt]Return
+          Type: 1271 EventRootType Probe[main.testReturnsBacktrackInt]Return
           InjectionPoints: [{PC: "0xd08a8a", Frameless: false}]
           Condition: null
     - id: testReturnsBoolAndUintptr
@@ -1713,14 +1747,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 118}
       events:
-        - ID: 158
+        - ID: 160
           Kind: Entry
-          Type: 1280 EventRootType Probe[main.testReturnsBoolAndUintptr]
+          Type: 1282 EventRootType Probe[main.testReturnsBoolAndUintptr]
           InjectionPoints: [{PC: "0xd08d4a", Frameless: false}]
           Condition: null
-        - ID: 157
+        - ID: 159
           Kind: Return
-          Type: 1281 EventRootType Probe[main.testReturnsBoolAndUintptr]Return
+          Type: 1283 EventRootType Probe[main.testReturnsBoolAndUintptr]Return
           InjectionPoints: [{PC: "0xd08d90", Frameless: false}]
           Condition: null
     - id: testReturnsComplex
@@ -1732,14 +1766,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 106}
       events:
-        - ID: 134
+        - ID: 136
           Kind: Entry
-          Type: 1256 EventRootType Probe[main.testReturnsComplex]
+          Type: 1258 EventRootType Probe[main.testReturnsComplex]
           InjectionPoints: [{PC: "0xd0870a", Frameless: false}]
           Condition: null
-        - ID: 133
+        - ID: 135
           Kind: Return
-          Type: 1257 EventRootType Probe[main.testReturnsComplex]Return
+          Type: 1259 EventRootType Probe[main.testReturnsComplex]Return
           InjectionPoints: [{PC: "0xd08766", Frameless: false}]
           Condition: null
     - id: testReturnsError
@@ -1856,14 +1890,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 107}
       events:
-        - ID: 136
+        - ID: 138
           Kind: Entry
-          Type: 1258 EventRootType Probe[main.testReturnsLargeStruct]
+          Type: 1260 EventRootType Probe[main.testReturnsLargeStruct]
           InjectionPoints: [{PC: "0xd0878e", Frameless: false}]
           Condition: null
-        - ID: 135
+        - ID: 137
           Kind: Return
-          Type: 1259 EventRootType Probe[main.testReturnsLargeStruct]Return
+          Type: 1261 EventRootType Probe[main.testReturnsLargeStruct]Return
           InjectionPoints: [{PC: "0xd08813", Frameless: false}]
           Condition: null
     - id: testReturnsManyFloats
@@ -1875,14 +1909,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 105}
       events:
-        - ID: 132
+        - ID: 134
           Kind: Entry
-          Type: 1254 EventRootType Probe[main.testReturnsManyFloats]
+          Type: 1256 EventRootType Probe[main.testReturnsManyFloats]
           InjectionPoints: [{PC: "0xd0860e", Frameless: false}]
           Condition: null
-        - ID: 131
+        - ID: 133
           Kind: Return
-          Type: 1255 EventRootType Probe[main.testReturnsManyFloats]Return
+          Type: 1257 EventRootType Probe[main.testReturnsManyFloats]Return
           InjectionPoints: [{PC: "0xd086e5", Frameless: false}]
           Condition: null
     - id: testReturnsMixed
@@ -1894,14 +1928,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 114}
       events:
-        - ID: 150
+        - ID: 152
           Kind: Entry
-          Type: 1272 EventRootType Probe[main.testReturnsMixed]
+          Type: 1274 EventRootType Probe[main.testReturnsMixed]
           InjectionPoints: [{PC: "0xd08b6a", Frameless: false}]
           Condition: null
-        - ID: 149
+        - ID: 151
           Kind: Return
-          Type: 1273 EventRootType Probe[main.testReturnsMixed]Return
+          Type: 1275 EventRootType Probe[main.testReturnsMixed]Return
           InjectionPoints: [{PC: "0xd08bcc", Frameless: false}]
           Condition: null
     - id: testReturnsMixedStruct
@@ -1913,14 +1947,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 111}
       events:
-        - ID: 144
+        - ID: 146
           Kind: Entry
-          Type: 1266 EventRootType Probe[main.testReturnsMixedStruct]
+          Type: 1268 EventRootType Probe[main.testReturnsMixedStruct]
           InjectionPoints: [{PC: "0xd0898a", Frameless: false}]
           Condition: null
-        - ID: 143
+        - ID: 145
           Kind: Return
-          Type: 1267 EventRootType Probe[main.testReturnsMixedStruct]Return
+          Type: 1269 EventRootType Probe[main.testReturnsMixedStruct]Return
           InjectionPoints: [{PC: "0xd089d8", Frameless: false}]
           Condition: null
     - id: testReturnsMultipleFloats
@@ -1932,14 +1966,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 117}
       events:
-        - ID: 156
+        - ID: 158
           Kind: Entry
-          Type: 1278 EventRootType Probe[main.testReturnsMultipleFloats]
+          Type: 1280 EventRootType Probe[main.testReturnsMultipleFloats]
           InjectionPoints: [{PC: "0xd08cca", Frameless: false}]
           Condition: null
-        - ID: 155
+        - ID: 157
           Kind: Return
-          Type: 1279 EventRootType Probe[main.testReturnsMultipleFloats]Return
+          Type: 1281 EventRootType Probe[main.testReturnsMultipleFloats]Return
           InjectionPoints: [{PC: "0xd08d16", Frameless: false}]
           Condition: null
     - id: testReturnsOnlyFloat
@@ -1951,14 +1985,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 116}
       events:
-        - ID: 154
+        - ID: 156
           Kind: Entry
-          Type: 1276 EventRootType Probe[main.testReturnsOnlyFloat]
+          Type: 1278 EventRootType Probe[main.testReturnsOnlyFloat]
           InjectionPoints: [{PC: "0xd08c6a", Frameless: false}]
           Condition: null
-        - ID: 153
+        - ID: 155
           Kind: Return
-          Type: 1277 EventRootType Probe[main.testReturnsOnlyFloat]Return
+          Type: 1279 EventRootType Probe[main.testReturnsOnlyFloat]Return
           InjectionPoints: [{PC: "0xd08cae", Frameless: false}]
           Condition: null
     - id: testReturnsPrimitives
@@ -1970,14 +2004,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 104}
       events:
-        - ID: 130
+        - ID: 132
           Kind: Entry
-          Type: 1252 EventRootType Probe[main.testReturnsPrimitives]
+          Type: 1254 EventRootType Probe[main.testReturnsPrimitives]
           InjectionPoints: [{PC: "0xd0858a", Frameless: false}]
           Condition: null
-        - ID: 129
+        - ID: 131
           Kind: Return
-          Type: 1253 EventRootType Probe[main.testReturnsPrimitives]Return
+          Type: 1255 EventRootType Probe[main.testReturnsPrimitives]Return
           InjectionPoints: [{PC: "0xd085f1", Frameless: false}]
           Condition: null
     - id: testReturnsStructWithArray
@@ -1989,14 +2023,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 115}
       events:
-        - ID: 152
+        - ID: 154
           Kind: Entry
-          Type: 1274 EventRootType Probe[main.testReturnsStructWithArray]
+          Type: 1276 EventRootType Probe[main.testReturnsStructWithArray]
           InjectionPoints: [{PC: "0xd08bea", Frameless: false}]
           Condition: null
-        - ID: 151
+        - ID: 153
           Kind: Return
-          Type: 1275 EventRootType Probe[main.testReturnsStructWithArray]Return
+          Type: 1277 EventRootType Probe[main.testReturnsStructWithArray]Return
           InjectionPoints: [{PC: "0xd08c4d", Frameless: false}]
           Condition: null
     - id: testReturnsWideStruct
@@ -2008,14 +2042,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 113}
       events:
-        - ID: 148
+        - ID: 150
           Kind: Entry
-          Type: 1270 EventRootType Probe[main.testReturnsWideStruct]
+          Type: 1272 EventRootType Probe[main.testReturnsWideStruct]
           InjectionPoints: [{PC: "0xd08aae", Frameless: false}]
           Condition: null
-        - ID: 147
+        - ID: 149
           Kind: Return
-          Type: 1271 EventRootType Probe[main.testReturnsWideStruct]Return
+          Type: 1273 EventRootType Probe[main.testReturnsWideStruct]Return
           InjectionPoints: [{PC: "0xd08b34", Frameless: false}]
           Condition: null
     - id: testRuneArray
@@ -2113,8 +2147,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testSingleInt16}
       tags: ['foo:bar']
+      message: parameter = {x}
       template: ""
-      segments: []
+      segments: ['parameter = ', {json: {ref: x}, dsl: x}]
       captureSnapshot: true
       subprogram: {subprogram: 26}
       events:
@@ -2158,8 +2193,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testSingleInt8}
       tags: ['foo:bar']
+      message: parameter = {x}
       template: ""
-      segments: []
+      segments: ['parameter = ', {json: {ref: x}, dsl: x}]
       captureSnapshot: true
       subprogram: {subprogram: 25}
       events:
@@ -2188,14 +2224,15 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testSingleString}
       tags: ['foo:bar']
+      message: '{x}'
       template: ""
-      segments: []
+      segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
       subprogram: {subprogram: 140}
       events:
-        - ID: 191
+        - ID: 193
           Kind: Entry
-          Type: 1314 EventRootType Probe[main.testSingleString]
+          Type: 1316 EventRootType Probe[main.testSingleString]
           InjectionPoints: [{PC: "0xd0a4c0", Frameless: true}]
           Condition: null
     - id: testSingleUint
@@ -2283,9 +2320,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 138}
       events:
-        - ID: 188
+        - ID: 190
           Kind: Entry
-          Type: 1311 EventRootType Probe[main.testSliceEmptyStructs]
+          Type: 1313 EventRootType Probe[main.testSliceEmptyStructs]
           InjectionPoints: [{PC: "0xd0a120", Frameless: true}]
           Condition: null
     - id: testSliceOfSlices
@@ -2298,9 +2335,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 130}
       events:
-        - ID: 179
+        - ID: 181
           Kind: Entry
-          Type: 1302 EventRootType Probe[main.testSliceOfSlices]
+          Type: 1304 EventRootType Probe[main.testSliceOfSlices]
           InjectionPoints: [{PC: "0xd0a020", Frameless: true}]
           Condition: null
     - id: testSmallMap
@@ -2327,14 +2364,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 103}
       events:
-        - ID: 128
+        - ID: 130
           Kind: Entry
-          Type: 1250 EventRootType Probe[main.testSomeNamedReturn]
+          Type: 1252 EventRootType Probe[main.testSomeNamedReturn]
           InjectionPoints: [{PC: "0xd084ae", Frameless: false}]
           Condition: null
-        - ID: 127
+        - ID: 129
           Kind: Return
-          Type: 1251 EventRootType Probe[main.testSomeNamedReturn]Return
+          Type: 1253 EventRootType Probe[main.testSomeNamedReturn]Return
           InjectionPoints: [{PC: "0xd0854e", Frameless: false}]
           Condition: null
     - id: testStackArgRegReturns
@@ -2346,14 +2383,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 124}
       events:
-        - ID: 170
+        - ID: 172
           Kind: Entry
-          Type: 1292 EventRootType Probe[main.testStackArgRegReturns]
+          Type: 1294 EventRootType Probe[main.testStackArgRegReturns]
           InjectionPoints: [{PC: "0xd097ca", Frameless: false}]
           Condition: null
-        - ID: 169
+        - ID: 171
           Kind: Return
-          Type: 1293 EventRootType Probe[main.testStackArgRegReturns]Return
+          Type: 1295 EventRootType Probe[main.testStackArgRegReturns]Return
           InjectionPoints: [{PC: "0xd0983c", Frameless: false}]
           Condition: null
     - id: testStringArray
@@ -2396,9 +2433,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 134}
       events:
-        - ID: 183
+        - ID: 185
           Kind: Entry
-          Type: 1306 EventRootType Probe[main.testStringSlice]
+          Type: 1308 EventRootType Probe[main.testStringSlice]
           InjectionPoints: [{PC: "0xd0a0a0", Frameless: true}]
           Condition: null
     - id: testStringType1
@@ -2436,19 +2473,20 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testStruct}
       tags: ['foo:bar']
+      message: '{x}'
       template: ""
-      segments: []
+      segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
       subprogram: {subprogram: 150}
       events:
-        - ID: 205
+        - ID: 207
           Kind: Entry
-          Type: 1327 EventRootType Probe[main.testStruct]
+          Type: 1329 EventRootType Probe[main.testStruct]
           InjectionPoints: [{PC: "0xd0a860", Frameless: true}]
           Condition: null
-        - ID: 204
+        - ID: 206
           Kind: Return
-          Type: 1328 EventRootType Probe[main.testStruct]Return
+          Type: 1330 EventRootType Probe[main.testStruct]Return
           InjectionPoints: [{PC: "0xd0a882", Frameless: true}]
           Condition: null
     - id: testStructSlice
@@ -2461,9 +2499,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 131}
       events:
-        - ID: 180
+        - ID: 182
           Kind: Entry
-          Type: 1303 EventRootType Probe[main.testStructSlice]
+          Type: 1305 EventRootType Probe[main.testStructSlice]
           InjectionPoints: [{PC: "0xd0a040", Frameless: true}]
           Condition: null
     - id: testStructWithAny
@@ -2490,14 +2528,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 126}
       events:
-        - ID: 174
+        - ID: 176
           Kind: Entry
-          Type: 1296 EventRootType Probe[main.testStructWithArrayArg]
+          Type: 1298 EventRootType Probe[main.testStructWithArrayArg]
           InjectionPoints: [{PC: "0xd0996e", Frameless: false}]
           Condition: null
-        - ID: 173
+        - ID: 175
           Kind: Return
-          Type: 1297 EventRootType Probe[main.testStructWithArrayArg]Return
+          Type: 1299 EventRootType Probe[main.testStructWithArrayArg]Return
           InjectionPoints: [{PC: "0xd09a1a", Frameless: false}]
           Condition: null
     - id: testStructWithCyclicMaps
@@ -2509,14 +2547,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 149}
       events:
-        - ID: 203
+        - ID: 205
           Kind: Entry
-          Type: 1325 EventRootType Probe[main.testStructWithCyclicMaps]
+          Type: 1327 EventRootType Probe[main.testStructWithCyclicMaps]
           InjectionPoints: [{PC: "0xd0a720", Frameless: true}]
           Condition: null
-        - ID: 202
+        - ID: 204
           Kind: Return
-          Type: 1326 EventRootType Probe[main.testStructWithCyclicMaps]Return
+          Type: 1328 EventRootType Probe[main.testStructWithCyclicMaps]Return
           InjectionPoints: [{PC: "0xd0a73e", Frameless: true}]
           Condition: null
     - id: testStructWithCyclicSlices
@@ -2528,9 +2566,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 148}
       events:
-        - ID: 201
+        - ID: 203
           Kind: Entry
-          Type: 1324 EventRootType Probe[main.testStructWithCyclicSlices]
+          Type: 1326 EventRootType Probe[main.testStructWithCyclicSlices]
           InjectionPoints: [{PC: "0xd0a700", Frameless: true}]
           Condition: null
     - id: testStructWithMap
@@ -2558,9 +2596,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 141}
       events:
-        - ID: 192
+        - ID: 194
           Kind: Entry
-          Type: 1315 EventRootType Probe[main.testThreeStrings]
+          Type: 1317 EventRootType Probe[main.testThreeStrings]
           InjectionPoints: [{PC: "0xd0a4e0", Frameless: true}]
           Condition: null
     - id: testThreeStringsInStruct
@@ -2573,14 +2611,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 142}
       events:
-        - ID: 194
+        - ID: 196
           Kind: Entry
-          Type: 1316 EventRootType Probe[main.testThreeStringsInStruct]
+          Type: 1318 EventRootType Probe[main.testThreeStringsInStruct]
           InjectionPoints: [{PC: "0xd0a500", Frameless: true}]
           Condition: null
-        - ID: 193
+        - ID: 195
           Kind: Return
-          Type: 1317 EventRootType Probe[main.testThreeStringsInStruct]Return
+          Type: 1319 EventRootType Probe[main.testThreeStringsInStruct]Return
           InjectionPoints: [{PC: "0xd0a51e", Frameless: true}]
           Condition: null
     - id: testThreeStringsInStructPointer
@@ -2593,9 +2631,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 143}
       events:
-        - ID: 195
+        - ID: 197
           Kind: Entry
-          Type: 1318 EventRootType Probe[main.testThreeStringsInStructPointer]
+          Type: 1320 EventRootType Probe[main.testThreeStringsInStructPointer]
           InjectionPoints: [{PC: "0xd0a520", Frameless: true}]
           Condition: null
     - id: testTypeAlias
@@ -2693,8 +2731,9 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testUintPointer}
       tags: ['foo:bar']
+      message: '{x}'
       template: ""
-      segments: []
+      segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
       subprogram: {subprogram: 90}
       events:
@@ -2708,14 +2747,15 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.testUintSlice}
       tags: ['foo:bar']
+      message: '{u}'
       template: ""
-      segments: []
+      segments: [{json: {ref: u}, dsl: u}]
       captureSnapshot: true
       subprogram: {subprogram: 128}
       events:
-        - ID: 177
+        - ID: 179
           Kind: Entry
-          Type: 1300 EventRootType Probe[main.testUintSlice]
+          Type: 1302 EventRootType Probe[main.testUintSlice]
           InjectionPoints: [{PC: "0xd09fe0", Frameless: true}]
           Condition: null
     - id: testUnitializedString
@@ -2728,9 +2768,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 146}
       events:
-        - ID: 199
+        - ID: 201
           Kind: Entry
-          Type: 1322 EventRootType Probe[main.testUnitializedString]
+          Type: 1324 EventRootType Probe[main.testUnitializedString]
           InjectionPoints: [{PC: "0xd0a580", Frameless: true}]
           Condition: null
     - id: testUnsafePointer
@@ -2773,9 +2813,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 137}
       events:
-        - ID: 186
+        - ID: 188
           Kind: Entry
-          Type: 1309 EventRootType Probe[main.testVeryLargeSlice]
+          Type: 1311 EventRootType Probe[main.testVeryLargeSlice]
           InjectionPoints: [{PC: "0xd0a100", Frameless: true}]
           Condition: null
     - id: testVeryLargeSliceWithSizeLimit
@@ -2788,9 +2828,9 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 137}
       events:
-        - ID: 187
+        - ID: 189
           Kind: Entry
-          Type: 1310 EventRootType Probe[main.testVeryLargeSlice]
+          Type: 1312 EventRootType Probe[main.testVeryLargeSlice]
           InjectionPoints: [{PC: "0xd0a100", Frameless: true}]
           Condition: null
     - id: testZeroSizeArgAndReturn
@@ -2802,14 +2842,14 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 127}
       events:
-        - ID: 176
+        - ID: 178
           Kind: Entry
-          Type: 1298 EventRootType Probe[main.testZeroSizeArgAndReturn]
+          Type: 1300 EventRootType Probe[main.testZeroSizeArgAndReturn]
           InjectionPoints: [{PC: "0xd09a4e", Frameless: false}]
           Condition: null
-        - ID: 175
+        - ID: 177
           Kind: Return
-          Type: 1299 EventRootType Probe[main.testZeroSizeArgAndReturn]Return
+          Type: 1301 EventRootType Probe[main.testZeroSizeArgAndReturn]Return
           InjectionPoints: [{PC: "0xd09acc", Frameless: false}]
           Condition: null
 Subprograms:
@@ -3601,7 +3641,7 @@ Subprograms:
               Pieces: []
             - Range: 0xd04ac5..0xd04ac6
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 54
       Name: main.testFramelessArray
@@ -3624,7 +3664,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd04b1e..0xd04b23
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 55
       Name: main.testInterface
@@ -3677,7 +3717,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
             - Range: 0xd04e26..0xd04e46
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 57
       Name: main.testError
@@ -3720,7 +3760,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
             - Range: 0xd04ebe..0xd04ed4
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 59
       Name: main.testStructWithAny
@@ -4224,7 +4264,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd07c3c..0xd07c52
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: result
           Type: 9 BaseType int
@@ -4258,7 +4298,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd07cdc..0xd07cf5
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: '&result'
           Type: 93 PointerType *int
@@ -4290,12 +4330,12 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd07dc5..0xd07dde
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 17 BaseType float64
           Locations: [{Range: 0xd07d00..0xd07dde, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: resultInt
           Type: 9 BaseType int
@@ -4348,7 +4388,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
             - Range: 0xd07e26..0xd07e3b
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 98
       Name: main.testReturnsAnyAndError
@@ -4434,7 +4474,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
             - Range: 0xd07f5a..0xd07f86
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 18 GoInterfaceType error
@@ -4473,7 +4513,7 @@ Subprograms:
                   Op: {RegNo: 5, Shift: 0}
             - Range: 0xd07f5a..0xd07f86
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: val
           Type: 9 BaseType int
@@ -4547,7 +4587,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
             - Range: 0xd0816d..0xd08194
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: val
           Type: 9 BaseType int
@@ -4618,7 +4658,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
             - Range: 0xd0829c..0xd08305
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: b
           Type: 157 GoInterfaceType main.behavior
@@ -4680,7 +4720,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd08396..0xd083af
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 102
       Name: main.testMultipleNamedReturn
@@ -4703,7 +4743,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd08470..0xd08489
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: result2
           Type: 9 BaseType int
@@ -4714,7 +4754,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
             - Range: 0xd08470..0xd08489
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 103
       Name: main.testSomeNamedReturn
@@ -4739,7 +4779,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd0854f..0xd08568
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: result2
           Type: 9 BaseType int
@@ -4750,7 +4790,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
             - Range: 0xd0854f..0xd08568
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r2
           Type: 9 BaseType int
@@ -4761,7 +4801,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
             - Range: 0xd0854f..0xd08568
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 104
       Name: main.testReturnsPrimitives
@@ -4777,7 +4817,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd085f2..0xd085fe
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 97 BaseType int16
@@ -4788,7 +4828,7 @@ Subprograms:
               Pieces: [{Size: 2, Op: {RegNo: 3, Shift: 0}}]
             - Range: 0xd085f2..0xd085fe
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r2
           Type: 12 BaseType int32
@@ -4799,7 +4839,7 @@ Subprograms:
               Pieces: [{Size: 4, Op: {RegNo: 2, Shift: 0}}]
             - Range: 0xd085f2..0xd085fe
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r3
           Type: 13 BaseType int64
@@ -4810,7 +4850,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
             - Range: 0xd085f2..0xd085fe
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r4
           Type: 3 BaseType uint8
@@ -4821,7 +4861,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 4, Shift: 0}}]
             - Range: 0xd085f2..0xd085fe
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r5
           Type: 7 BaseType uint16
@@ -4832,7 +4872,7 @@ Subprograms:
               Pieces: [{Size: 2, Op: {RegNo: 8, Shift: 0}}]
             - Range: 0xd085f2..0xd085fe
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r6
           Type: 2 BaseType uint32
@@ -4843,7 +4883,7 @@ Subprograms:
               Pieces: [{Size: 4, Op: {RegNo: 9, Shift: 0}}]
             - Range: 0xd085f2..0xd085fe
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r7
           Type: 10 BaseType uint64
@@ -4854,7 +4894,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 10, Shift: 0}}]
             - Range: 0xd085f2..0xd085fe
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 105
       Name: main.testReturnsManyFloats
@@ -4864,77 +4904,77 @@ Subprograms:
         - Name: ~r0
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r2
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r3
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r4
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r5
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r6
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r7
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r8
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r9
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r10
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r11
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r12
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r13
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r14
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08600..0xd086f5, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: onlyOnAmd64_16
           Type: 17 BaseType float64
@@ -4945,7 +4985,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 0}}]
             - Range: 0xd086e6..0xd086f5
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: bothArmAndAmd64
           Type: 17 BaseType float64
@@ -4956,7 +4996,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
             - Range: 0xd086e6..0xd086f5
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 106
       Name: main.testReturnsComplex
@@ -4966,12 +5006,12 @@ Subprograms:
         - Name: ~r0
           Type: 89 BaseType complex64
           Locations: [{Range: 0xd08700..0xd08773, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 90 BaseType complex128
           Locations: [{Range: 0xd08700..0xd08773, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 107
       Name: main.testReturnsLargeStruct
@@ -4987,7 +5027,7 @@ Subprograms:
               Pieces: [{Size: 80, Op: {CfaOffset: 0}}]
             - Range: 0xd08814..0xd08825
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 108
       Name: main.testReturnsArray
@@ -5003,7 +5043,7 @@ Subprograms:
               Pieces: [{Size: 24, Op: {CfaOffset: 0}}]
             - Range: 0xd088ae..0xd088ba
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 109
       Name: main.testReturnsArrayOne
@@ -5019,7 +5059,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd0890c..0xd08918
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 110
       Name: main.testReturnsArrayZero
@@ -5035,7 +5075,7 @@ Subprograms:
               Pieces: []
             - Range: 0xd08967..0xd08973
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 111
       Name: main.testReturnsMixedStruct
@@ -5045,7 +5085,7 @@ Subprograms:
         - Name: ~r0
           Type: 249 StructureType main.mixedStruct
           Locations: [{Range: 0xd08980..0xd089e7, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 112
       Name: main.testReturnsBacktrackInt
@@ -5061,7 +5101,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd08a8b..0xd08a9a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 9 BaseType int
@@ -5072,7 +5112,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
             - Range: 0xd08a8b..0xd08a9a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r2
           Type: 9 BaseType int
@@ -5083,7 +5123,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
             - Range: 0xd08a8b..0xd08a9a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r3
           Type: 9 BaseType int
@@ -5094,7 +5134,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
             - Range: 0xd08a8b..0xd08a9a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r4
           Type: 9 BaseType int
@@ -5105,7 +5145,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 4, Shift: 0}}]
             - Range: 0xd08a8b..0xd08a9a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r5
           Type: 9 BaseType int
@@ -5116,7 +5156,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 8, Shift: 0}}]
             - Range: 0xd08a8b..0xd08a9a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r6
           Type: 9 BaseType int
@@ -5127,7 +5167,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 9, Shift: 0}}]
             - Range: 0xd08a8b..0xd08a9a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r7
           Type: 9 BaseType int
@@ -5138,7 +5178,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 10, Shift: 0}}]
             - Range: 0xd08a8b..0xd08a9a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r8
           Type: 11 GoStringHeaderType string
@@ -5149,7 +5189,7 @@ Subprograms:
               Pieces: [{Size: 16, Op: {CfaOffset: 0}}]
             - Range: 0xd08a8b..0xd08a9a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 113
       Name: main.testReturnsWideStruct
@@ -5165,7 +5205,7 @@ Subprograms:
               Pieces: [{Size: 88, Op: {CfaOffset: 0}}]
             - Range: 0xd08b35..0xd08b45
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 114
       Name: main.testReturnsMixed
@@ -5181,12 +5221,12 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd08bcd..0xd08bd9
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08b60..0xd08bd9, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r2
           Type: 9 BaseType int
@@ -5197,12 +5237,12 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
             - Range: 0xd08bcd..0xd08bd9
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r3
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08b60..0xd08bd9, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r4
           Type: 11 GoStringHeaderType string
@@ -5217,7 +5257,7 @@ Subprograms:
                   Op: {RegNo: 5, Shift: 0}
             - Range: 0xd08bcd..0xd08bd9
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 115
       Name: main.testReturnsStructWithArray
@@ -5233,7 +5273,7 @@ Subprograms:
               Pieces: [{Size: 24, Op: {CfaOffset: 0}}]
             - Range: 0xd08c4e..0xd08c5a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 116
       Name: main.testReturnsOnlyFloat
@@ -5243,7 +5283,7 @@ Subprograms:
         - Name: ~r0
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08c60..0xd08cbb, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 117
       Name: main.testReturnsMultipleFloats
@@ -5253,12 +5293,12 @@ Subprograms:
         - Name: ~r0
           Type: 16 BaseType float32
           Locations: [{Range: 0xd08cc0..0xd08d27, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 17 BaseType float64
           Locations: [{Range: 0xd08cc0..0xd08d27, Pieces: []}]
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 118
       Name: main.testReturnsBoolAndUintptr
@@ -5274,7 +5314,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd08d91..0xd08d9d
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 1 BaseType uintptr
@@ -5285,7 +5325,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
             - Range: 0xd08d91..0xd08d9d
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 119
       Name: main.testLargeArgAndReturn
@@ -5308,7 +5348,7 @@ Subprograms:
               Pieces: [{Size: 80, Op: {CfaOffset: 80}}]
             - Range: 0xd08ef4..0xd08f05
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 120
       Name: main.testArrayArgAndReturn
@@ -5331,7 +5371,7 @@ Subprograms:
               Pieces: [{Size: 24, Op: {CfaOffset: 24}}]
             - Range: 0xd08fe3..0xd08ff2
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 121
       Name: main.testMultipleLargeArgs
@@ -5361,7 +5401,7 @@ Subprograms:
               Pieces: [{Size: 80, Op: {CfaOffset: 160}}]
             - Range: 0xd0922b..0xd0923a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 122
       Name: main.testManyArgsArrayReturn
@@ -5458,7 +5498,7 @@ Subprograms:
               Pieces: [{Size: 16, Op: {CfaOffset: 0}}]
             - Range: 0xd09463..0xd094cf
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 123
       Name: main.testMixedArgsStackReturn
@@ -5557,7 +5597,7 @@ Subprograms:
               Pieces: [{Size: 80, Op: {CfaOffset: 16}}]
             - Range: 0xd0972c..0xd097ac
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 124
       Name: main.testStackArgRegReturns
@@ -5580,7 +5620,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd0983d..0xd0984c
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 9 BaseType int
@@ -5591,7 +5631,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
             - Range: 0xd0983d..0xd0984c
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r2
           Type: 9 BaseType int
@@ -5602,7 +5642,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
             - Range: 0xd0983d..0xd0984c
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 125
       Name: main.testMultipleArrayArgs
@@ -5632,7 +5672,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd09937..0xd0994a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 106 ArrayType [2]int
@@ -5643,7 +5683,7 @@ Subprograms:
               Pieces: [{Size: 16, Op: {CfaOffset: 40}}]
             - Range: 0xd09937..0xd0994a
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 126
       Name: main.testStructWithArrayArg
@@ -5666,7 +5706,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd09a1b..0xd09a2b
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 251 StructureType main.structWithArray
@@ -5677,7 +5717,7 @@ Subprograms:
               Pieces: [{Size: 24, Op: {CfaOffset: 24}}]
             - Range: 0xd09a1b..0xd09a2b
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: x
           Type: 9 BaseType int
@@ -5718,7 +5758,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd09acd..0xd09ae6
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: ~r1
           Type: 248 ArrayType [0]int
@@ -5729,7 +5769,7 @@ Subprograms:
               Pieces: []
             - Range: 0xd09acd..0xd09ae6
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 128
       Name: main.testUintSlice
@@ -5982,7 +6022,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
             - Range: 0xd0a4a6..0xd0a4b2
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
     - ID: 140
       Name: main.testSingleString
@@ -9236,10 +9276,10 @@ Types:
       GoKind: 22
       Pointee: 671 BaseType vendor/golang.org/x/net/idna.runeError
     - __kind: EventRootType
-      ID: 1312
+      ID: 1314
       Name: Probe[main.stackC]
     - __kind: EventRootType
-      ID: 1313
+      ID: 1315
       Name: Probe[main.stackC]Return
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -9319,7 +9359,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1284
+      ID: 1286
       Name: Probe[main.testArrayArgAndReturn]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -9335,7 +9375,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1285
+      ID: 1287
       Name: Probe[main.testArrayArgAndReturn]Return
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -9662,7 +9702,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1304
+      ID: 1306
       Name: Probe[main.testEmptySliceOfStructs]
       ByteSize: 33
       PresenceBitsetSize: 1
@@ -9688,7 +9728,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1301
+      ID: 1303
       Name: Probe[main.testEmptySlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -9704,7 +9744,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1323
+      ID: 1325
       Name: Probe[main.testEmptyString]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -9720,7 +9760,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1330
+      ID: 1332
       Name: Probe[main.testEmptyStructPointer]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -9736,7 +9776,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1329
+      ID: 1331
       Name: Probe[main.testEmptyStruct]
       ByteSize: 1
       PresenceBitsetSize: 1
@@ -9934,7 +9974,7 @@ Types:
       ID: 1182
       Name: Probe[main.testInlinedBBA]Return
     - __kind: EventRootType
-      ID: 1334
+      ID: 1336
       Name: Probe[main.testInlinedBBB]
     - __kind: EventRootType
       ID: 1179
@@ -9966,16 +10006,16 @@ Types:
       ID: 1180
       Name: Probe[main.testInlinedBB]Return
     - __kind: EventRootType
-      ID: 1335
+      ID: 1337
       Name: Probe[main.testInlinedBCA]
     - __kind: EventRootType
-      ID: 1336
+      ID: 1338
       Name: Probe[main.testInlinedBCA]Line
     - __kind: EventRootType
-      ID: 1337
+      ID: 1339
       Name: Probe[main.testInlinedBCB]
     - __kind: EventRootType
-      ID: 1338
+      ID: 1340
       Name: Probe[main.testInlinedBCB]Line
     - __kind: EventRootType
       ID: 1183
@@ -9984,7 +10024,7 @@ Types:
       ID: 1184
       Name: Probe[main.testInlinedBC]Return
     - __kind: EventRootType
-      ID: 1331
+      ID: 1333
       Name: Probe[main.testInlinedPrint]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -10000,7 +10040,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1333
+      ID: 1335
       Name: Probe[main.testInlinedPrint]Line
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -10016,10 +10056,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1332
+      ID: 1334
       Name: Probe[main.testInlinedPrint]Return
     - __kind: EventRootType
-      ID: 1339
+      ID: 1341
       Name: Probe[main.testInlinedSq]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -10035,7 +10075,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1340
+      ID: 1342
       Name: Probe[main.testInlinedSq]Line
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -10051,7 +10091,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1341
+      ID: 1343
       Name: Probe[main.testInlinedSumArray]
       ByteSize: 41
       PresenceBitsetSize: 1
@@ -10163,7 +10203,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1282
+      ID: 1284
       Name: Probe[main.testLargeArgAndReturn]
       ByteSize: 81
       PresenceBitsetSize: 1
@@ -10179,7 +10219,7 @@ Types:
                   Offset: 0
                   ByteSize: 80
     - __kind: EventRootType
-      ID: 1283
+      ID: 1285
       Name: Probe[main.testLargeArgAndReturn]Return
       ByteSize: 81
       PresenceBitsetSize: 1
@@ -10266,7 +10306,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1288
+      ID: 1290
       Name: Probe[main.testManyArgsArrayReturn]
       ByteSize: 74
       PresenceBitsetSize: 2
@@ -10362,7 +10402,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1289
+      ID: 1291
       Name: Probe[main.testManyArgsArrayReturn]Return
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -10698,7 +10738,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1320
+      ID: 1322
       Name: Probe[main.testMassiveString]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -10714,7 +10754,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1321
+      ID: 1323
       Name: Probe[main.testMassiveString]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -10730,7 +10770,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1290
+      ID: 1292
       Name: Probe[main.testMixedArgsStackReturn]
       ByteSize: 82
       PresenceBitsetSize: 2
@@ -10826,7 +10866,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1291
+      ID: 1293
       Name: Probe[main.testMixedArgsStackReturn]Return
       ByteSize: 81
       PresenceBitsetSize: 1
@@ -10842,7 +10882,7 @@ Types:
                   Offset: 0
                   ByteSize: 80
     - __kind: EventRootType
-      ID: 1294
+      ID: 1296
       Name: Probe[main.testMultipleArrayArgs]
       ByteSize: 41
       PresenceBitsetSize: 1
@@ -10868,7 +10908,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1295
+      ID: 1297
       Name: Probe[main.testMultipleArrayArgs]Return
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -10894,7 +10934,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1286
+      ID: 1288
       Name: Probe[main.testMultipleLargeArgs]
       ByteSize: 161
       PresenceBitsetSize: 1
@@ -10920,7 +10960,7 @@ Types:
                   Offset: 0
                   ByteSize: 80
     - __kind: EventRootType
-      ID: 1287
+      ID: 1289
       Name: Probe[main.testMultipleLargeArgs]Return
       ByteSize: 81
       PresenceBitsetSize: 1
@@ -10936,7 +10976,7 @@ Types:
                   Offset: 0
                   ByteSize: 80
     - __kind: EventRootType
-      ID: 1248
+      ID: 1250
       Name: Probe[main.testMultipleNamedReturn]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -10952,7 +10992,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1249
+      ID: 1251
       Name: Probe[main.testMultipleNamedReturn]Return
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -11050,7 +11090,39 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
+      ID: 1248
+      Name: Probe[main.testNamedReturn]
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: i
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 9 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 101, index: 0, name: i}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: EventRootType
       ID: 1247
+      Name: Probe[main.testNamedReturn]Return
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: result
+          Offset: 1
+          Kind: local
+          Expression:
+            Type: 9 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 101, index: 1, name: result}
+                  Offset: 0
+                  ByteSize: 8
+    - __kind: EventRootType
+      ID: 1249
       Name: Probe[main.testNamedReturn]Return
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -11092,7 +11164,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1305
+      ID: 1307
       Name: Probe[main.testNilSliceOfStructs]
       ByteSize: 33
       PresenceBitsetSize: 1
@@ -11118,7 +11190,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1307
+      ID: 1309
       Name: Probe[main.testNilSliceWithOtherParams]
       ByteSize: 34
       PresenceBitsetSize: 1
@@ -11154,7 +11226,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1308
+      ID: 1310
       Name: Probe[main.testNilSlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -11170,7 +11242,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1319
+      ID: 1321
       Name: Probe[main.testOneStringInStructPointer]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -11318,10 +11390,10 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1262
+      ID: 1264
       Name: Probe[main.testReturnsArrayOne]
     - __kind: EventRootType
-      ID: 1263
+      ID: 1265
       Name: Probe[main.testReturnsArrayOne]Return
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -11337,10 +11409,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1264
+      ID: 1266
       Name: Probe[main.testReturnsArrayZero]
     - __kind: EventRootType
-      ID: 1265
+      ID: 1267
       Name: Probe[main.testReturnsArrayZero]Return
       ByteSize: 1
       PresenceBitsetSize: 1
@@ -11356,10 +11428,10 @@ Types:
                   Offset: 0
                   ByteSize: 0
     - __kind: EventRootType
-      ID: 1260
+      ID: 1262
       Name: Probe[main.testReturnsArray]
     - __kind: EventRootType
-      ID: 1261
+      ID: 1263
       Name: Probe[main.testReturnsArray]Return
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -11375,10 +11447,10 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1268
+      ID: 1270
       Name: Probe[main.testReturnsBacktrackInt]
     - __kind: EventRootType
-      ID: 1269
+      ID: 1271
       Name: Probe[main.testReturnsBacktrackInt]Return
       ByteSize: 82
       PresenceBitsetSize: 2
@@ -11474,10 +11546,10 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1280
+      ID: 1282
       Name: Probe[main.testReturnsBoolAndUintptr]
     - __kind: EventRootType
-      ID: 1281
+      ID: 1283
       Name: Probe[main.testReturnsBoolAndUintptr]Return
       ByteSize: 10
       PresenceBitsetSize: 1
@@ -11503,10 +11575,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1256
+      ID: 1258
       Name: Probe[main.testReturnsComplex]
     - __kind: EventRootType
-      ID: 1257
+      ID: 1259
       Name: Probe[main.testReturnsComplex]Return
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -11702,10 +11774,10 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1258
+      ID: 1260
       Name: Probe[main.testReturnsLargeStruct]
     - __kind: EventRootType
-      ID: 1259
+      ID: 1261
       Name: Probe[main.testReturnsLargeStruct]Return
       ByteSize: 81
       PresenceBitsetSize: 1
@@ -11721,10 +11793,10 @@ Types:
                   Offset: 0
                   ByteSize: 80
     - __kind: EventRootType
-      ID: 1254
+      ID: 1256
       Name: Probe[main.testReturnsManyFloats]
     - __kind: EventRootType
-      ID: 1255
+      ID: 1257
       Name: Probe[main.testReturnsManyFloats]Return
       ByteSize: 139
       PresenceBitsetSize: 3
@@ -11900,10 +11972,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1266
+      ID: 1268
       Name: Probe[main.testReturnsMixedStruct]
     - __kind: EventRootType
-      ID: 1267
+      ID: 1269
       Name: Probe[main.testReturnsMixedStruct]Return
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -11919,10 +11991,10 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1272
+      ID: 1274
       Name: Probe[main.testReturnsMixed]
     - __kind: EventRootType
-      ID: 1273
+      ID: 1275
       Name: Probe[main.testReturnsMixed]Return
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -11978,10 +12050,10 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1278
+      ID: 1280
       Name: Probe[main.testReturnsMultipleFloats]
     - __kind: EventRootType
-      ID: 1279
+      ID: 1281
       Name: Probe[main.testReturnsMultipleFloats]Return
       ByteSize: 13
       PresenceBitsetSize: 1
@@ -12007,10 +12079,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1276
+      ID: 1278
       Name: Probe[main.testReturnsOnlyFloat]
     - __kind: EventRootType
-      ID: 1277
+      ID: 1279
       Name: Probe[main.testReturnsOnlyFloat]Return
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -12026,10 +12098,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1252
+      ID: 1254
       Name: Probe[main.testReturnsPrimitives]
     - __kind: EventRootType
-      ID: 1253
+      ID: 1255
       Name: Probe[main.testReturnsPrimitives]Return
       ByteSize: 31
       PresenceBitsetSize: 1
@@ -12115,10 +12187,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1274
+      ID: 1276
       Name: Probe[main.testReturnsStructWithArray]
     - __kind: EventRootType
-      ID: 1275
+      ID: 1277
       Name: Probe[main.testReturnsStructWithArray]Return
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -12134,10 +12206,10 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1270
+      ID: 1272
       Name: Probe[main.testReturnsWideStruct]
     - __kind: EventRootType
-      ID: 1271
+      ID: 1273
       Name: Probe[main.testReturnsWideStruct]Return
       ByteSize: 89
       PresenceBitsetSize: 1
@@ -12329,7 +12401,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
     - __kind: EventRootType
-      ID: 1314
+      ID: 1316
       Name: Probe[main.testSingleString]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -12425,7 +12497,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1311
+      ID: 1313
       Name: Probe[main.testSliceEmptyStructs]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -12441,7 +12513,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1302
+      ID: 1304
       Name: Probe[main.testSliceOfSlices]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -12473,7 +12545,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1250
+      ID: 1252
       Name: Probe[main.testSomeNamedReturn]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -12489,7 +12561,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1251
+      ID: 1253
       Name: Probe[main.testSomeNamedReturn]Return
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -12525,7 +12597,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1292
+      ID: 1294
       Name: Probe[main.testStackArgRegReturns]
       ByteSize: 41
       PresenceBitsetSize: 1
@@ -12541,7 +12613,7 @@ Types:
                   Offset: 0
                   ByteSize: 40
     - __kind: EventRootType
-      ID: 1293
+      ID: 1295
       Name: Probe[main.testStackArgRegReturns]Return
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -12609,7 +12681,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1306
+      ID: 1308
       Name: Probe[main.testStringSlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -12657,7 +12729,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1303
+      ID: 1305
       Name: Probe[main.testStructSlice]
       ByteSize: 33
       PresenceBitsetSize: 1
@@ -12699,7 +12771,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1296
+      ID: 1298
       Name: Probe[main.testStructWithArrayArg]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -12715,7 +12787,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1297
+      ID: 1299
       Name: Probe[main.testStructWithArrayArg]Return
       ByteSize: 33
       PresenceBitsetSize: 1
@@ -12741,7 +12813,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1325
+      ID: 1327
       Name: Probe[main.testStructWithCyclicMaps]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -12757,10 +12829,10 @@ Types:
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
-      ID: 1326
+      ID: 1328
       Name: Probe[main.testStructWithCyclicMaps]Return
     - __kind: EventRootType
-      ID: 1324
+      ID: 1326
       Name: Probe[main.testStructWithCyclicSlices]
       ByteSize: 145
       PresenceBitsetSize: 1
@@ -12792,7 +12864,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1327
+      ID: 1329
       Name: Probe[main.testStruct]
       ByteSize: 57
       PresenceBitsetSize: 1
@@ -12808,10 +12880,10 @@ Types:
                   Offset: 0
                   ByteSize: 56
     - __kind: EventRootType
-      ID: 1328
+      ID: 1330
       Name: Probe[main.testStruct]Return
     - __kind: EventRootType
-      ID: 1318
+      ID: 1320
       Name: Probe[main.testThreeStringsInStructPointer]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -12827,7 +12899,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1316
+      ID: 1318
       Name: Probe[main.testThreeStringsInStruct]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -12843,10 +12915,10 @@ Types:
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
-      ID: 1317
+      ID: 1319
       Name: Probe[main.testThreeStringsInStruct]Return
     - __kind: EventRootType
-      ID: 1315
+      ID: 1317
       Name: Probe[main.testThreeStrings]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -12994,7 +13066,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1300
+      ID: 1302
       Name: Probe[main.testUintSlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -13010,7 +13082,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1322
+      ID: 1324
       Name: Probe[main.testUnitializedString]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -13058,7 +13130,7 @@ Types:
                   Offset: 0
                   ByteSize: 800
     - __kind: EventRootType
-      ID: 1309
+      ID: 1311
       Name: Probe[main.testVeryLargeSlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -13074,7 +13146,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1310
+      ID: 1312
       Name: Probe[main.testVeryLargeSlice]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -13090,7 +13162,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1298
+      ID: 1300
       Name: Probe[main.testZeroSizeArgAndReturn]
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -13116,7 +13188,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1299
+      ID: 1301
       Name: Probe[main.testZeroSizeArgAndReturn]Return
       ByteSize: 9
       PresenceBitsetSize: 1
@@ -20168,7 +20240,7 @@ Types:
       ByteSize: 4
       GoRuntimeType: 952224
       GoKind: 5
-MaxTypeID: 1341
+MaxTypeID: 1343
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x175c760", TypesOffset: 296}
 CommonTypes:

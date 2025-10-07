@@ -247,10 +247,12 @@ Probes:
       message: hello {s}, and hello to {s}
       template: ""
       segments:
-        - str: 'hello '
-        - dsl: {json: {ref: s}, dsl: s}
-        - str: ', and hello to '
-        - dsl: {json: {ref: s}, dsl: s}
+        - 'hello '
+        - json: {ref: s}
+          dsl: s
+        - ', and hello to '
+        - json: {ref: s}
+          dsl: s
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
@@ -272,8 +274,10 @@ Probes:
       message: '{s}{s}'
       template: ""
       segments:
-        - dsl: {json: {ref: s}, dsl: s}
-        - dsl: {json: {ref: s}, dsl: s}
+        - json: {ref: s}
+          dsl: s
+        - json: {ref: s}
+          dsl: s
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
@@ -294,7 +298,7 @@ Probes:
       tags: ['foo:bar']
       message: hello world!
       template: ""
-      segments: [{str: 'hello '}, {str: world}, {str: '!'}]
+      segments: ['hello ', world, '!']
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
@@ -315,7 +319,7 @@ Probes:
       tags: ['foo:bar']
       message: hello {s}
       template: ""
-      segments: [{str: 'hello '}, {dsl: {json: {ref: s}, dsl: s}}]
+      segments: ['hello ', {json: {ref: s}, dsl: s}]
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
@@ -336,7 +340,7 @@ Probes:
       tags: ['foo:bar']
       message: hello
       template: ""
-      segments: [{str: hello}]
+      segments: [hello]
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
@@ -516,7 +520,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xb5b25..0xb5b40
               Pieces: []
-          IsParameter: true
+          IsParameter: false
           IsReturn: true
         - Name: m
           Type: 121 GoMapType map[string]map[int]main.aStructNotUsedAsAnArgument
@@ -1107,54 +1111,15 @@ Types:
     - __kind: EventRootType
       ID: 167
       Name: Probe[main.stringArg]Return
-      ByteSize: 17
-      PresenceBitsetSize: 1
-      Expressions:
-        - Name: s
-          Offset: 1
-          Kind: argument
-          Expression:
-            Type: 10 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 2, index: 0, name: s}
-                  Offset: 0
-                  ByteSize: 16
     - __kind: EventRootType
       ID: 169
       Name: Probe[main.stringArg]Return
-      ByteSize: 17
-      PresenceBitsetSize: 1
-      Expressions:
-        - Name: s
-          Offset: 1
-          Kind: argument
-          Expression:
-            Type: 10 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 2, index: 0, name: s}
-                  Offset: 0
-                  ByteSize: 16
     - __kind: EventRootType
       ID: 171
       Name: Probe[main.stringArg]Return
     - __kind: EventRootType
       ID: 173
       Name: Probe[main.stringArg]Return
-      ByteSize: 17
-      PresenceBitsetSize: 1
-      Expressions:
-        - Name: s
-          Offset: 1
-          Kind: argument
-          Expression:
-            Type: 10 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 2, index: 0, name: s}
-                  Offset: 0
-                  ByteSize: 16
     - __kind: EventRootType
       ID: 175
       Name: Probe[main.stringArg]Return
