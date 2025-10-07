@@ -14,7 +14,11 @@ package(
 
 license(
     name = "license",
-    # This is the current SPDX known version of the bzip2 license
+    # TODO(aiuto): The omnibus script claimed this is a BSD-2-Clause license.
+    # That is incorrect, but probably close enough from the point of view of
+    # how we use it. For now we will go with a correct designation and worry
+    # about the BSD declaration when we rewrite the license gathering code.
+    # This is the current SPDX known version of the bzip2 license.
     license_kinds = ["@rules_license//licenses/spdx:bzip2-1.0.6"],
     license_text = "LICENSE",
     visibility = ["//visibility:public"],
@@ -149,6 +153,8 @@ pkg_files(
     name = "lib_files",
     srcs = [
         ":libbz2_so",
+        # Note: you would think you can put :so and other links here, but pkg_files
+        # seems to drop links in srcs.
     ],
     prefix = "lib",
 )
