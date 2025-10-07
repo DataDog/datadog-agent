@@ -672,7 +672,7 @@ func (m *Manager) evictUnusedNodes() {
 			continue
 		}
 
-		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache)
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
 		if evicted > 0 {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
@@ -685,30 +685,39 @@ func (m *Manager) evictUnusedNodes() {
 	}
 }
 
-// GetNodesInProcessCache returns a map of all the filepaths in the process cache
-func (m *Manager) GetNodesInProcessCache() map[string]bool {
+// GetNodesInProcessCache returns a map with ImageProcessKey as key and bool as value for all filepaths in the process cache
+func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]bool {
 
 	cgr := m.resolvers.CGroupResolver
 	pr := m.resolvers.ProcessResolver
+	result := make(map[activity_tree.ImageProcessKey]bool)
 
-	filepaths := make(map[string]bool)
-
-	pids := make(map[uint32]bool)
 	cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
-		for pid := range cgce.PIDs {
-			pids[pid] = true
+		cgceTags := cgce.GetTags()
+		image_name := utils.GetTagValue("image_name", cgceTags)
+		image_tag := utils.GetTagValue("image_tag", cgceTags)
+		if image_tag == "" {
+			image_tag = "latest"
 		}
+
+		// Resolve filepaths for each PID
+		for pid := range cgce.PIDs {
+			pce := pr.Resolve(pid, pid, 0, true, nil)
+			if pce == nil {
+				seclog.Errorf("couldn't resolve process cache entry for pid %d", pid)
+				continue
+			}
+
+			key := activity_tree.ImageProcessKey{
+				ImageName: image_name,
+				ImageTag:  image_tag,
+				Filepath:  pce.FileEvent.PathnameStr,
+			}
+			result[key] = true
+		}
+
 		return true
 	})
 
-	for pid := range pids {
-		pce := pr.Resolve(pid, pid, 0, true, nil)
-		if pce == nil {
-			seclog.Errorf("couldn't resolve process cache entry for pid %d", pid)
-			continue
-		}
-		filepaths[pce.FileEvent.PathnameStr] = true
-	}
-
-	return filepaths
+	return result
 }

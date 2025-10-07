@@ -417,6 +417,9 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 				return
 			}
 
+			// apply the eviction mechanism right away
+			p.ActivityTree.EvictUnusedNodes(time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout), m.GetNodesInProcessCache())
+
 			// insert the profile in the list of active profiles
 			m.profiles[selector] = p
 		} else {

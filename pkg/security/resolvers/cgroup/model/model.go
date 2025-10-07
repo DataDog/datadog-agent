@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // CacheEntry cgroup resolver cache entry
@@ -75,4 +76,15 @@ func (cgce *CacheEntry) AddPID(pid uint32) {
 	defer cgce.Unlock()
 
 	cgce.PIDs[pid] = true
+}
+
+func (cgce *CacheEntry) GetTags() []string {
+	if cgce.CGroupID != "" {
+		return cgce.CGroupContext.Tags
+	} else if cgce.ContainerID != "" {
+		return cgce.ContainerContext.Tags
+	} else {
+		seclog.Errorf("unknown workload id type: %T", cgce)
+		return []string{}
+	}
 }

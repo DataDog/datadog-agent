@@ -595,6 +595,14 @@ func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGro
 	return e.CGroupVersion
 }
 
+// ResolveCGroupTags resolves the tags of the cgroup
+func (fh *EBPFFieldHandlers) ResolveCGroupTags(ev *model.Event, e *model.CGroupContext) []string {
+	if len(e.Tags) == 0 && e.CGroupID != "" {
+		e.Tags = fh.resolvers.TagsResolver.Resolve(e.CGroupID)
+	}
+	return e.Tags
+}
+
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {

@@ -959,9 +959,16 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 	return syscalls
 }
 
+// ImageProcessKey represents a unique key for process cache entries by image name, tag, and filepath
+type ImageProcessKey struct {
+	ImageName string
+	ImageTag  string
+	Filepath  string
+}
+
 // EvictUnusedNodes evicts all nodes that haven't been touched since the given timestamp
 // and returns the total number of nodes evicted
-func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[string]bool) int {
+func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName, profileImageTag string) int {
 	totalEvicted := 0
 
 	// Iterate through all process nodes and evict unused nodes
@@ -972,7 +979,15 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 		}
 
 		// Try a fallback if the node is in the process cache
-		if filepathsInProcessCache[node.Process.FileEvent.PathnameStr] {
+		// Check if this specific image/tag/filepath combination exists in the cache
+		filepath := node.Process.FileEvent.PathnameStr
+		key := ImageProcessKey{
+			ImageName: profileImageName,
+			ImageTag:  profileImageTag,
+			Filepath:  filepath,
+		}
+
+		if filepathsInProcessCache[key] {
 			// check if the node was supposed to be removed, then update the last seen to now
 			evictableImageTags := node.NodeBase.GetEvictableImageTags(before)
 			for _, imageTag := range evictableImageTags {

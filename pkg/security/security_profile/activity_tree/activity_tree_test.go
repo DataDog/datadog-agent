@@ -354,10 +354,10 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		evictionTime := time.Now().Add(-1 * time.Hour)
 
 		// Empty process cache (node is not active)
-		filepathsInProcessCache := map[string]bool{}
+		filepathsInProcessCache := map[ImageProcessKey]bool{}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache)
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
 
 		// The node should be evicted since it's not in the process cache
 		assert.Equal(t, 1, evicted, "Expected 1 node to be evicted")
@@ -388,12 +388,12 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		evictionTime := time.Now().Add(-1 * time.Hour)
 
 		// Process cache contains this filepath (node is active)
-		filepathsInProcessCache := map[string]bool{
-			"/usr/bin/protected": true,
+		filepathsInProcessCache := map[ImageProcessKey]bool{
+			{ImageName: "test-image", ImageTag: "test-tag", Filepath: "/usr/bin/protected"}: true,
 		}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache)
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
 
 		// The node should NOT be evicted since it's in the process cache
 		assert.Equal(t, 0, evicted, "Expected 0 nodes to be evicted")
@@ -441,12 +441,12 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		evictionTime := time.Now().Add(-1 * time.Hour)
 
 		// Process cache only contains the protected filepath
-		filepathsInProcessCache := map[string]bool{
-			"/usr/bin/protected": true,
+		filepathsInProcessCache := map[ImageProcessKey]bool{
+			{ImageName: "test-image", ImageTag: "test-tag", Filepath: "/usr/bin/protected"}: true,
 		}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache)
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
 
 		// Only the expired node should be evicted
 		assert.Equal(t, 1, evicted, "Expected 1 node to be evicted")
@@ -488,12 +488,12 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		evictionTime := time.Now().Add(-1 * time.Hour)
 
 		// Process cache contains this filepath (node is active)
-		filepathsInProcessCache := map[string]bool{
-			"/usr/bin/multi-tag": true,
+		filepathsInProcessCache := map[ImageProcessKey]bool{
+			{ImageName: "test-image", ImageTag: "test-tag", Filepath: "/usr/bin/multi-tag"}: true,
 		}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache)
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
 
 		// The node should NOT be evicted, but expired tags should be refreshed
 		assert.Equal(t, 0, evicted, "Expected 0 nodes to be evicted")
@@ -552,10 +552,10 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		evictionTime := time.Now().Add(-1 * time.Hour)
 
 		// Empty process cache
-		filepathsInProcessCache := map[string]bool{}
+		filepathsInProcessCache := map[ImageProcessKey]bool{}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache)
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
 
 		// Both nodes should be evicted
 		assert.Equal(t, 2, evicted, "Expected 2 nodes to be evicted")
