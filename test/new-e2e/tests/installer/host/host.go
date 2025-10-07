@@ -198,6 +198,7 @@ func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 	}
 }
 
+// WaitForUnitExited waits for a systemd unit to exit with a specific exit code
 func (h *Host) WaitForUnitExited(t *testing.T, exitCode int, units ...string) {
 	for _, unit := range units {
 		assert.Eventually(t, func() bool {
