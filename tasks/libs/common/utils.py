@@ -57,10 +57,6 @@ def running_in_gitlab_ci():
     return os.environ.get("GITLAB_CI") == "true"
 
 
-def running_in_ci():
-    return running_in_github_actions() or running_in_gitlab_ci()
-
-
 def bin_name(name):
     """
     Generate platform dependent names for binaries

@@ -129,7 +129,7 @@ def gen_config_from_ci_pipeline(
     """
     Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
     """
-    gitlab = Gitlab("DataDog/datadog-agent", str(get_gitlab_token(ctx)))
+    gitlab = Gitlab("DataDog/datadog-agent", str(get_gitlab_token()))
     vms = set()
     local_arch = full_arch("local")
 

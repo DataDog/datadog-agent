@@ -327,7 +327,7 @@ def is_get_parameter_call(file):
 
 
 @task
-def gitlab_ci(ctx, test="all", custom_context=None):
+def gitlab_ci(_, test="all", custom_context=None):
     """
     Lint Gitlab CI files in the datadog-agent repository.
     """
@@ -340,7 +340,7 @@ def gitlab_ci(ctx, test="all", custom_context=None):
     for context in all_contexts:
         print("Test gitlab configuration with context: ", context)
         config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
-        gitlab = Gitlab(api_token=get_gitlab_token(ctx))
+        gitlab = Gitlab(api_token=get_gitlab_token())
         res = gitlab.lint(config)
         status = color_message("valid", "green") if res["valid"] else color_message("invalid", "red")
         print(f"Config is {status}")
