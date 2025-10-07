@@ -146,19 +146,15 @@
     },
     "LogDefinition": {
       "properties": {
-        "Level": {
+        "level": {
           "type": "string"
         },
-        "Message": {
+        "message": {
           "type": "string"
         }
       },
       "additionalProperties": false,
       "type": "object",
-      "required": [
-        "Level",
-        "Message"
-      ],
       "description": "LogDefinition describes the 'log' section of a rule action"
     },
     "MacroDefinition": {
