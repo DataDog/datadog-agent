@@ -18,13 +18,13 @@ const domainLookupExpiration = 5 * time.Minute
 
 // DomainResolver handles domain resolution
 type DomainResolver struct {
-	lookupHostFn func(host string) (addrs []string, err error)
+	LookupHostFn func(host string) (addrs []string, err error)
 }
 
 // NewDomainResolver constructor
 func NewDomainResolver() *DomainResolver {
 	return &DomainResolver{
-		lookupHostFn: net.LookupHost,
+		LookupHostFn: net.LookupHost,
 	}
 }
 
@@ -39,7 +39,7 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 	ipToDomain := make(map[string]string)
 	for _, domain := range domains {
 		ips, err := cache.GetWithExpiration(domain, func() ([]string, error) {
-			ips, err := d.lookupHostFn(domain)
+			ips, err := d.LookupHostFn(domain)
 			return ips, err
 		}, domainLookupExpiration)
 		if err != nil {

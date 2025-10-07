@@ -162,7 +162,6 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*m
 
 	sourceContainer := conn.Laddr.GetContainerId()
 
-	// TODO: TEST ME
 	var hostname string
 	if domain != "" {
 		hostname = domain

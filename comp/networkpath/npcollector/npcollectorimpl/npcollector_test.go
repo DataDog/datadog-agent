@@ -592,6 +592,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		agentConfigs      map[string]any
 		expectedPathtests []*common.Pathtest
 		expectedLogs      []logCount
+		lookupHostFn      func(host string) ([]string, error)
 	}{
 		{
 			name:              "zero conn",
@@ -779,6 +780,32 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				{Hostname: "10.0.0.6", Protocol: payload.ProtocolICMP, SourceContainerID: "testId1"},
 			},
 		},
+		{
+			name:         "one outgoing TCP conn with domain hostname",
+			agentConfigs: defaultagentConfigs,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.7", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "93.184.216.34", Port: int32(443)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+				Domains: []string{"example.com"},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "example.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
+			},
+			lookupHostFn: func(host string) ([]string, error) {
+				switch host {
+				case "example.com":
+					return []string{"93.184.216.34"}, nil
+				default:
+					return nil, fmt.Errorf("no IP found for domain: %s", host)
+				}
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -786,6 +813,11 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			_, npCollector := newTestNpCollector(t, tt.agentConfigs, stats)
 			if tt.noInputChan {
 				npCollector.pathtestInputChan = nil
+			}
+
+			// Mock domain resolver lookup function if provided
+			if tt.lookupHostFn != nil {
+				npCollector.domainResolver.LookupHostFn = tt.lookupHostFn
 			}
 
 			var b bytes.Buffer
