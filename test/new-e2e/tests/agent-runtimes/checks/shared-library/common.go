@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package rtloader contains tests for the rtloader
+// Package sharedlibrary contains tests for the shared library checks
 package sharedlibrary
 
 import (
 	_ "embed"
-	"path/filepath"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	osVM "github.com/DataDog/test-infra-definitions/components/os"
@@ -27,9 +26,6 @@ var exampleCheckYaml string
 
 type baseSharedLibrarySuite struct {
 	e2e.BaseSuite[environments.Host]
-
-	libName      string
-	targetFolder string
 }
 
 func (v *baseSharedLibrarySuite) getSuiteOptions(osInstance osVM.Descriptor) []e2e.SuiteOption {
@@ -46,15 +42,9 @@ func (v *baseSharedLibrarySuite) getSuiteOptions(osInstance osVM.Descriptor) []e
 	return suiteOptions
 }
 
-func (v *baseSharedLibrarySuite) TestSharedLibraryImplementation() {
+// Test the shared library check after having it in the correct path
+func (v *baseSharedLibrarySuite) testCheckImplemenation() {
 	v.T().Log("Running Shared Library Check Example test")
-
-	v.Env().RemoteHost.CopyFile(
-		filepath.Join(".", "files", v.libName),
-		filepath.Join("/", "tmp", v.libName),
-	)
-
-	v.Env().RemoteHost.MustExecute("sudo cp " + filepath.Join("/", "tmp", v.libName) + " " + filepath.Join(v.targetFolder, v.libName))
 
 	// Fetch the check status and metrics in JSON format
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"example", "--json"}))

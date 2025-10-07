@@ -18,12 +18,19 @@ type linuxSharedLibrarySuite struct {
 	baseSharedLibrarySuite
 }
 
-func TestLinuxSharedLibraryImplementationSuite(t *testing.T) {
+func TestLinuxCheckImplementationSuite(t *testing.T) {
 	t.Parallel()
-	suite := &linuxSharedLibrarySuite{baseSharedLibrarySuite{
-		libName:      "libdatadog-agent-example.so",
-		targetFolder: "/opt/datadog-agent/embedded/lib",
-	}}
+	suite := &linuxSharedLibrarySuite{baseSharedLibrarySuite{}}
 
 	e2e.Run(t, suite, suite.getSuiteOptions(os.UbuntuDefault)...)
+}
+
+func (v *linuxSharedLibrarySuite) TestCheckExample(t *testing.T) {
+	t.Parallel()
+
+	// copy the lib with the right permissions
+	v.Env().RemoteHost.CopyFile("./files/libdatadog-agent-example.so", "/tmp/libdatadog-agent-example.so")
+	v.Env().RemoteHost.MustExecute("sudo cp /tmp/libdatadog-agent-example.so /opt/datadog-agent/embedded/lib/libdatadog-agent-example.so")
+
+	v.testCheckImplemenation()
 }
