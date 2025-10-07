@@ -3,7 +3,7 @@
 
 #include "maps.h"
 
-__attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
+static __attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
     struct pid_route_entry_t *value = bpf_map_lookup_elem(&flow_pid, key);
     if (!value) {
         // Try with IP set to 0.0.0.0
@@ -18,7 +18,7 @@ __attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
     return value->pid;
 }
 
-__attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *pkt) {
+static __attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *pkt) {
     struct pid_route_t pid_route = {};
 
     // resolve pid
@@ -43,7 +43,7 @@ __attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *p
     pkt->pid = get_flow_pid(&pid_route);
 }
 
-__attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct packet_t *pkt) {
+static __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct packet_t *pkt) {
     // pid from socket cookie
     u64 cookie = bpf_get_socket_cookie(skb);
     u32 *pid = bpf_map_lookup_elem(&sock_cookie_pid, &cookie);

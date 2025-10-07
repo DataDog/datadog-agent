@@ -3,7 +3,7 @@
 
 #include "constants/offsets/network.h"
 
-int __attribute__((always_inline)) read_sock_and_send_event(ctx_t * ctx, struct sock * sock) {
+static int __attribute__((always_inline)) read_sock_and_send_event(ctx_t * ctx, struct sock * sock) {
     if(sock == NULL) {
         return 0;
     }

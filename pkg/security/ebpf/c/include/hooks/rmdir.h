@@ -7,7 +7,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_rmdir(u8 async, const char *filename) {
+static int __attribute__((always_inline)) trace__sys_rmdir(u8 async, const char *filename) {
     struct syscall_cache_t syscall = {
         .type = EVENT_RMDIR,
         .policy = fetch_policy(EVENT_RMDIR),
@@ -127,7 +127,7 @@ TAIL_CALL_FNC(dr_security_inode_rmdir_callback, ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall_with(rmdir_predicate);
     if (!syscall) {
         return 0;

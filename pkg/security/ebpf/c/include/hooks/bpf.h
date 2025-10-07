@@ -10,7 +10,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/approvers.h"
 
-__attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cache_t *syscall) {
+static __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cache_t *syscall) {
     struct bpf_event_t event = {
         .syscall.retval = syscall->bpf.retval,
         .cmd = syscall->bpf.cmd,
@@ -69,7 +69,7 @@ HOOK_SYSCALL_ENTRY3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int,
     return 0;
 }
 
-__attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
+static __attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_BPF);
     if (!syscall) {
         return 0;

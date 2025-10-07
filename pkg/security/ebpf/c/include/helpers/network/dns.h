@@ -9,12 +9,12 @@
 
 #include "maps.h"
 
-__attribute__((always_inline)) struct dns_event_t *get_dns_event() {
+static __attribute__((always_inline)) struct dns_event_t *get_dns_event() {
     u32 key = DNS_EVENT_KEY;
     return bpf_map_lookup_elem(&dns_event, &key);
 }
 
-__attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_buff *skb, struct packet_t *pkt) {
+static __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_buff *skb, struct packet_t *pkt) {
     struct dns_event_t *evt = get_dns_event();
     if (evt == NULL) {
         // should never happen
@@ -54,12 +54,12 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
     return evt;
 }
 
-__attribute__((always_inline)) union dns_responses_t *get_dns_response_event() {
+static __attribute__((always_inline)) union dns_responses_t *get_dns_response_event() {
     const u32 key = DNS_EVENT_KEY;
     return bpf_map_lookup_elem(&dns_response_event, &key);
 }
 
-__attribute__((always_inline)) union dns_responses_t *reset_dns_response_event(struct __sk_buff *skb, struct packet_t *pkt) {
+static __attribute__((always_inline)) union dns_responses_t *reset_dns_response_event(struct __sk_buff *skb, struct packet_t *pkt) {
     union dns_responses_t *evt = get_dns_response_event();
 
     if (evt == NULL) {

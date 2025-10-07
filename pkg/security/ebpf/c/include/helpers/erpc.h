@@ -12,7 +12,7 @@
 #include "span.h"
 #include "user_sessions.h"
 
-int __attribute__((always_inline)) handle_discard_inode(void *data) {
+static int __attribute__((always_inline)) handle_discard_inode(void *data) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -23,7 +23,7 @@ int __attribute__((always_inline)) handle_discard_inode(void *data) {
     return discard_inode(discarder.req.event_type, discarder.mount_id, discarder.inode, discarder.req.timeout, discarder.is_leaf);
 }
 
-int __attribute__((always_inline)) handle_expire_inode_discarder(void *data) {
+static int __attribute__((always_inline)) handle_expire_inode_discarder(void *data) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -36,7 +36,7 @@ int __attribute__((always_inline)) handle_expire_inode_discarder(void *data) {
     return 0;
 }
 
-int __attribute__((always_inline)) handle_bump_discarders_revision(void *data) {
+static int __attribute__((always_inline)) handle_bump_discarders_revision(void *data) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -47,7 +47,7 @@ int __attribute__((always_inline)) handle_bump_discarders_revision(void *data) {
 }
 
 #if USE_RING_BUFFER == 1
-int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
+static int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -58,7 +58,7 @@ int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
 }
 #endif
 
-int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
+static int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
     u32 cmd = CTX_PARM2(ctx);
     if (cmd != RPC_CMD) {
         return 0;
@@ -67,7 +67,7 @@ int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
     return 1;
 }
 
-int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
+static int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
     void *req = (void *)CTX_PARM3(ctx);
 
     u8 op = 0;

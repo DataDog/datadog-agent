@@ -17,7 +17,7 @@
 #define CGROUP_MOUNT_ID_NO_FILTER 0xFFFFFFFF // UINT32_MAX, used for cgroup v2 where we don't have to filter
 // otherwise for cgroupv1 we specify the pids cgroup mount id
 
-__attribute__((always_inline)) u32 get_cgroup_mount_id_filter(void) {
+static __attribute__((always_inline)) u32 get_cgroup_mount_id_filter(void) {
     // Retrieve the cgroup mount id to filter on
     u32 key = 0;
     u32 *cgroup_mount_id_filter = (u32*)bpf_map_lookup_elem(&cgroup_mount_id, &key);
@@ -27,7 +27,7 @@ __attribute__((always_inline)) u32 get_cgroup_mount_id_filter(void) {
     return *cgroup_mount_id_filter;
 }
 
-__attribute__((always_inline)) bool is_cgroup_mount_id_filter_valid(u32 cgroup_filter, struct path_key_t *key) {
+static __attribute__((always_inline)) bool is_cgroup_mount_id_filter_valid(u32 cgroup_filter, struct path_key_t *key) {
     if (cgroup_filter == CGROUP_MOUNT_ID_UNSET) {
         return false;
     }
@@ -53,7 +53,7 @@ __attribute__((always_inline)) bool is_cgroup_mount_id_filter_valid(u32 cgroup_f
     return true;
 }
 
-__attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_traced_pid(u32 pid, u64 now, u64 *cookie) {
+static __attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_traced_pid(u32 pid, u64 now, u64 *cookie) {
     if (cookie == NULL) {
         cookie = bpf_map_lookup_elem(&traced_pids, &pid);
     }
@@ -85,12 +85,12 @@ __attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_tra
     return config;
 }
 
-__attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing_event() {
+static __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing_event() {
     u32 key = bpf_get_current_pid_tgid() % EVENT_GEN_SIZE;
     return bpf_map_lookup_elem(&cgroup_tracing_event_gen, &key);
 }
 
-__attribute__((always_inline)) bool reserve_traced_cgroup_spot(struct cgroup_context_t *cgroup, u64 now, u64 cookie, struct activity_dump_config *config) {
+static __attribute__((always_inline)) bool reserve_traced_cgroup_spot(struct cgroup_context_t *cgroup, u64 now, u64 cookie, struct activity_dump_config *config) {
     // get dump config defaults
     u32 empty_key = 0;
     struct activity_dump_config *defaults = bpf_map_lookup_elem(&activity_dump_config_defaults, &empty_key);
@@ -123,7 +123,7 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(struct cgroup_con
     return true;
 }
 
-__attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, struct cgroup_context_t *cgroup) {
+static __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, struct cgroup_context_t *cgroup) {
     u64 cookie = rand64();
     struct activity_dump_config config = {};
 
@@ -148,7 +148,7 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, struct c
     return cookie;
 }
 
-__attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, struct cgroup_context_t *cgroup) {
+static __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, struct cgroup_context_t *cgroup) {
     // should we start tracing this cgroup ?
 
     // here to avoid an error in AL2-4.14 when tailcalled:
@@ -229,7 +229,7 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
     return 0;
 }
 
-__attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u32 pid, struct cgroup_context_t *cgroup) {
+static __attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u32 pid, struct cgroup_context_t *cgroup) {
     u64 now = bpf_ktime_get_ns();
 
     // check if the parent is traced, update the child timeout if need be
@@ -268,12 +268,12 @@ __attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u3
     bpf_map_update_elem(&traced_pids, &pid, &cookie_val, BPF_ANY);
 }
 
-__attribute__((always_inline)) void cleanup_traced_state(u32 pid) {
+static __attribute__((always_inline)) void cleanup_traced_state(u32 pid) {
     // delete pid from traced_pids
     bpf_map_delete_elem(&traced_pids, &pid);
 }
 
-__attribute__((always_inline)) u32 is_activity_dump_running(void *ctx, u32 pid, u64 now, u32 event_type) {
+static __attribute__((always_inline)) u32 is_activity_dump_running(void *ctx, u32 pid, u64 now, u32 event_type) {
     u64 cookie = 0;
     struct activity_dump_config *config = NULL;
 

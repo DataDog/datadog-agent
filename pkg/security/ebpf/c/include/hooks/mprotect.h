@@ -40,7 +40,7 @@ int hook_security_file_mprotect(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mprotect_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_mprotect_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MPROTECT);
     if (!syscall) {
         return 0;

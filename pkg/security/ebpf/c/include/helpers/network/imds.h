@@ -7,12 +7,12 @@
 #include "maps.h"
 
 
-__attribute__((always_inline)) struct imds_event_t *get_imds_event() {
+static __attribute__((always_inline)) struct imds_event_t *get_imds_event() {
     u32 key = IMDS_EVENT_KEY;
     return bpf_map_lookup_elem(&imds_event, &key);
 }
 
-__attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk_buff *skb, struct packet_t *pkt) {
+static __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk_buff *skb, struct packet_t *pkt) {
     struct imds_event_t *evt = get_imds_event();
     if (evt == NULL) {
         // should never happen

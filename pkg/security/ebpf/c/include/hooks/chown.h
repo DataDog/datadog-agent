@@ -6,7 +6,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_chown(const char *filename, uid_t user, gid_t group) {
+static int __attribute__((always_inline)) trace__sys_chown(const char *filename, uid_t user, gid_t group) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -54,7 +54,7 @@ HOOK_SYSCALL_ENTRY4(fchownat, int, dirfd, const char *, filename, uid_t, user, g
     return trace__sys_chown(filename, user, group);
 }
 
-int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHOWN);
     if (!syscall) {
         return 0;

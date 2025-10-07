@@ -35,7 +35,7 @@ typedef unsigned long long ctx_t;
 #define CTX_PARM5(ctx) (u64)(ctx[4])
 #define CTX_PARM6(ctx) (u64)(ctx[5])
 
-u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx) {
+static u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx) {
 	u64 argc;
 	LOAD_CONSTANT("fentry_func_argc", argc);
 
@@ -90,11 +90,9 @@ typedef struct pt_regs ctx_t;
 #define CTX_PARM5(ctx) PT_REGS_PARM5(ctx)
 #define CTX_PARM6(ctx) PT_REGS_PARM6(ctx)
 
-u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx) {
-    return PT_REGS_RC(ctx);
-}
+#define CTX_PARMRET(ctx) PT_REGS_RC(ctx)
 
-#define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx)
+#define SYSCALL_PARMRET(ctx) PT_REGS_RC(ctx)
 
 #endif
 

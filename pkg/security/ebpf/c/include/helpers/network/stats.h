@@ -4,19 +4,19 @@
 #include "context.h"
 #include "utils.h"
 
-__attribute__((always_inline)) struct network_flow_monitor_event_t *get_network_flow_monitor_event() {
+static __attribute__((always_inline)) struct network_flow_monitor_event_t *get_network_flow_monitor_event() {
     u32 key = 0;
     struct network_flow_monitor_event_t *evt = bpf_map_lookup_elem(&network_flow_monitor_event_gen, &key);
     // __builtin_memset doesn't work here because evt is too large and memset is allocating too much memory
     return evt;
 }
 
-__attribute__((always_inline)) struct active_flows_t *get_empty_active_flows() {
+static __attribute__((always_inline)) struct active_flows_t *get_empty_active_flows() {
     u32 key = 0;
     return bpf_map_lookup_elem(&active_flows_gen, &key);
 }
 
-__attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_flows_t *entry, void *ctx, enum FLUSH_NETWORK_STATS_TYPE type) {
+static __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_flows_t *entry, void *ctx, enum FLUSH_NETWORK_STATS_TYPE type) {
     u64 now = bpf_ktime_get_ns();
     struct network_stats_t *stats = NULL;
     struct namespaced_flow_t ns_flow_tmp = {};
@@ -107,12 +107,12 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
     return 0;
 }
 
-__attribute__((always_inline)) void flush_pid_network_stats(u32 pid, void *ctx, enum FLUSH_NETWORK_STATS_TYPE type) {
+static __attribute__((always_inline)) void flush_pid_network_stats(u32 pid, void *ctx, enum FLUSH_NETWORK_STATS_TYPE type) {
     struct active_flows_t *entry = bpf_map_lookup_elem(&active_flows, &pid);
     flush_network_stats(pid, entry, ctx, type);
 }
 
-__attribute__((always_inline)) void count_pkt(struct __sk_buff *skb, struct packet_t *pkt) {
+static __attribute__((always_inline)) void count_pkt(struct __sk_buff *skb, struct packet_t *pkt) {
     // only count TCP & UDP packets for now
     if (pkt->ns_flow.flow.l4_protocol != IPPROTO_TCP && pkt->ns_flow.flow.l4_protocol != IPPROTO_UDP) {
         return;
