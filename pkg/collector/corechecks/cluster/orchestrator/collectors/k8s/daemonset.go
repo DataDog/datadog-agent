@@ -41,11 +41,9 @@ type DaemonSetCollector struct {
 // resource.
 func NewDaemonSetCollector(metadataAsTags utils.MetadataAsTags) *DaemonSetCollector {
 	resourceType := utilTypes.GetResourceType(utilTypes.DaemonSetName, utilTypes.DaemonSetVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
 	return &DaemonSetCollector{
-		metadata: &collectors.CollectorMetadata{
+		metadata: (&collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
 			IsStable:                             true,
 			IsMetadataProducer:                   true,
@@ -55,10 +53,8 @@ func NewDaemonSetCollector(metadataAsTags utils.MetadataAsTags) *DaemonSetCollec
 			Kind:                                 kubernetes.DaemonSetKind,
 			NodeType:                             orchestrator.K8sDaemonSet,
 			Version:                              utilTypes.DaemonSetVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
-		},
+		}).WithMetadataAsTags(metadataAsTags, resourceType),
 		processor: processors.NewProcessor(new(k8sProcessors.DaemonSetHandlers)),
 	}
 }
