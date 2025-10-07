@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/payload"
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -145,9 +146,7 @@ type SpanModifier interface {
 
 // TracerPayloadModifier is an interface that allows tracer implementations to
 // modify a TracerPayload as it is processed in the Agent's Process method.
-type TracerPayloadModifier interface {
-	Modify(*pb.TracerPayload)
-}
+type TracerPayloadModifier = payload.TracerPayloadModifier
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.

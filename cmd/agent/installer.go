@@ -8,13 +8,17 @@
 package main
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/cmd/installer/subcommands"
-	"github.com/spf13/cobra"
+	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/daemon"
 )
 
 func init() {
 	registerAgent([]string{"datadog-installer", "installer"}, func() *cobra.Command {
-		return command.MakeCommand(subcommands.InstallerSubcommands())
+		installerSubcommands := subcommands.InstallerSubcommands()
+		installerSubcommands = append(installerSubcommands, subcommands.WithDatadogAgent(daemon.Commands))
+		return command.MakeCommand(installerSubcommands)
 	})
 }

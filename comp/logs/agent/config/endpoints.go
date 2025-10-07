@@ -254,6 +254,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	host := e.Host
 	port := e.Port
 	pathPrefix := e.PathPrefix
+	redactedAPIKey := scrubber.HideKeyExceptLastFiveChars(e.GetAPIKey())
 	var protocol string
 	if useHTTP {
 		if e.UseSSL() {
@@ -278,7 +279,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 		}
 	}
 
-	status := fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
+	status := fmt.Sprintf("%sSending %s logs in %s to %s on port %d (API Key: %s)", prefix, compression, protocol, host, port, redactedAPIKey)
 	if pathPrefix != EmptyPathPrefix {
 		status = fmt.Sprintf("%s and path prefix \"%s\"", status, pathPrefix)
 	}

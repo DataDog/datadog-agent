@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testInlinedBCB",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -57,11 +57,7 @@
             "method": "main.testInlinedBCB"
           }
         },
-        "captures": {
-          "entry": {
-            "arguments": {}
-          }
-        }
+        "captures": {}
       }
     },
     "timestamp": "[ts]"

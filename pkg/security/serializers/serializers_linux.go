@@ -74,6 +74,16 @@ type FileSerializer struct {
 	PackageName string `json:"package_name,omitempty"`
 	// System package version
 	PackageVersion string `json:"package_version,omitempty"`
+	// System package epoch
+	PackageEpoch int `json:"package_epoch,omitempty"`
+	// System package release
+	PackageRelease string `json:"package_release,omitempty"`
+	// System package source version
+	PackageSrcVersion string `json:"package_source_version,omitempty"`
+	// System package source epoch
+	PackageSrcEpoch int `json:"package_source_epoch,omitempty"`
+	// System package source release
+	PackageSrcRelease string `json:"package_source_release,omitempty"`
 	// List of cryptographic hashes of the file
 	Hashes []string `json:"hashes,omitempty"`
 	// State of the hashes or reason why they weren't computed
@@ -587,6 +597,17 @@ type SetSockOptEventSerializer struct {
 	FilterHash string `json:"filter_hash,omitempty"`
 }
 
+// PrCtlEventSerializer serializes a prctl event
+// easyjson:json
+type PrCtlEventSerializer struct {
+	// PrCtl Option
+	Option string `json:"option"`
+	// New name of the process
+	NewName string `json:"new_name,omitempty"`
+	// Name truncated
+	IsNameTruncated bool `json:"is_name_truncated,omitempty"`
+}
+
 // CGroupWriteEventSerializer serializes a cgroup_write event
 // easyjson:json
 type CGroupWriteEventSerializer struct {
@@ -687,6 +708,7 @@ type SyscallContextSerializer struct {
 	Mkdir      *SyscallArgsSerializer `json:"mkdir,omitempty"`
 	Rmdir      *SyscallArgsSerializer `json:"rmdir,omitempty"`
 	SetSockOpt *SyscallArgsSerializer `json:"setsockopt,omitempty"`
+	PrCtl      *SyscallArgsSerializer `json:"prctl,omitempty"`
 }
 
 func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event, attachEventypeCb func(*SyscallContextSerializer, *SyscallArgsSerializer)) *SyscallContextSerializer {
@@ -739,6 +761,7 @@ type EventSerializer struct {
 	*SetSockOptEventSerializer    `json:"setsockopt,omitempty"`
 	*CGroupWriteEventSerializer   `json:"cgroup_write,omitempty"`
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
+	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -801,6 +824,11 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		InUpperLayer:        getInUpperLayer(&fe.FileFields),
 		PackageName:         e.FieldHandlers.ResolvePackageName(e, fe),
 		PackageVersion:      e.FieldHandlers.ResolvePackageVersion(e, fe),
+		PackageEpoch:        e.FieldHandlers.ResolvePackageEpoch(e, fe),
+		PackageRelease:      e.FieldHandlers.ResolvePackageRelease(e, fe),
+		PackageSrcVersion:   e.FieldHandlers.ResolvePackageSourceVersion(e, fe),
+		PackageSrcEpoch:     e.FieldHandlers.ResolvePackageSourceEpoch(e, fe),
+		PackageSrcRelease:   e.FieldHandlers.ResolvePackageSourceRelease(e, fe),
 		HashState:           fe.HashState.String(),
 		MountPath:           fe.MountPath,
 		MountSource:         model.MountSourceToString(fe.MountSource),
@@ -1396,6 +1424,14 @@ func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	return &SetSockOptEventSerializer
 }
 
+func newPrCtlEventSerializer(e *model.Event) *PrCtlEventSerializer {
+	return &PrCtlEventSerializer{
+		Option:          model.PrCtlOption(e.PrCtl.Option).String(),
+		NewName:         e.PrCtl.NewName,
+		IsNameTruncated: e.PrCtl.IsNameTruncated,
+	}
+}
+
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
 	return &CGroupWriteEventSerializer{
 		File: newFileSerializer(&e.CgroupWrite.File, e, 0, nil),
@@ -1710,6 +1746,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.CGroupWriteEventSerializer = newCGroupWriteEventSerializer(event)
 	case model.CapabilitiesEventType:
 		s.CapabilitiesEventSerializer = newCapabilitiesEventSerializer(event, &event.CapabilitiesUsage)
+	case model.PrCtlEventType:
+		s.PrCtlEventSerializer = newPrCtlEventSerializer(event)
 	}
 
 	return s

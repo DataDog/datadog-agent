@@ -91,6 +91,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "rule_id": {
                     "type": "string"
                 },
+                "original_rule_id": {
+                    "type": "string"
+                },
                 "rule_version": {
                     "type": "string"
                 },
@@ -126,7 +129,8 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "rule_id"
+                "rule_id",
+                "original_rule_id"
             ]
         },
         "BPFEvent": {
@@ -554,6 +558,26 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "System package version"
                 },
+                "package_epoch": {
+                    "type": "integer",
+                    "description": "System package epoch"
+                },
+                "package_release": {
+                    "type": "string",
+                    "description": "System package release"
+                },
+                "package_source_version": {
+                    "type": "string",
+                    "description": "System package source version"
+                },
+                "package_source_epoch": {
+                    "type": "integer",
+                    "description": "System package source epoch"
+                },
+                "package_source_release": {
+                    "type": "string",
+                    "description": "System package source release"
+                },
                 "hashes": {
                     "items": {
                         "type": "string"
@@ -688,6 +712,26 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "package_version": {
                     "type": "string",
                     "description": "System package version"
+                },
+                "package_epoch": {
+                    "type": "integer",
+                    "description": "System package epoch"
+                },
+                "package_release": {
+                    "type": "string",
+                    "description": "System package release"
+                },
+                "package_source_version": {
+                    "type": "string",
+                    "description": "System package source version"
+                },
+                "package_source_epoch": {
+                    "type": "integer",
+                    "description": "System package source epoch"
+                },
+                "package_source_release": {
+                    "type": "string",
+                    "description": "System package source release"
                 },
                 "hashes": {
                     "items": {
@@ -1232,6 +1276,28 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "address"
             ],
             "description": "PTraceEventSerializer serializes a mmap event to JSON"
+        },
+        "PrCtlEvent": {
+            "properties": {
+                "option": {
+                    "type": "string",
+                    "description": "PrCtl Option"
+                },
+                "new_name": {
+                    "type": "string",
+                    "description": "New name of the process"
+                },
+                "is_name_truncated": {
+                    "type": "boolean",
+                    "description": "Name truncated"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "option"
+            ],
+            "description": "PrCtlEventSerializer serializes a prctl event"
         },
         "Process": {
             "properties": {
@@ -2047,6 +2113,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "setsockopt": {
                     "$ref": "#/$defs/SyscallArgs"
+                },
+                "prctl": {
+                    "$ref": "#/$defs/SyscallArgs"
                 }
             },
             "additionalProperties": false,
@@ -2236,6 +2305,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "capabilities": {
             "$ref": "#/$defs/CapabilitiesEvent"
+        },
+        "prctl": {
+            "$ref": "#/$defs/PrCtlEvent"
         }
     },
     "additionalProperties": false,
@@ -2285,6 +2357,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `setsockopt` | $ref | Please see [SetSockOptEvent](#setsockoptevent) |
 | `cgroup_write` | $ref | Please see [CGroupWriteEvent](#cgroupwriteevent) |
 | `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
+| `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 
 ## `AWSIMDSEvent`
 
@@ -2415,6 +2488,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         "rule_id": {
             "type": "string"
         },
+        "original_rule_id": {
+            "type": "string"
+        },
         "rule_version": {
             "type": "string"
         },
@@ -2450,7 +2526,8 @@ Workload Protection events for Linux systems have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "rule_id"
+        "rule_id",
+        "original_rule_id"
     ]
 }
 
@@ -3119,6 +3196,26 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "System package version"
         },
+        "package_epoch": {
+            "type": "integer",
+            "description": "System package epoch"
+        },
+        "package_release": {
+            "type": "string",
+            "description": "System package release"
+        },
+        "package_source_version": {
+            "type": "string",
+            "description": "System package source version"
+        },
+        "package_source_epoch": {
+            "type": "integer",
+            "description": "System package source epoch"
+        },
+        "package_source_release": {
+            "type": "string",
+            "description": "System package source release"
+        },
         "hashes": {
             "items": {
                 "type": "string"
@@ -3188,6 +3285,11 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `change_time` | File change time |
 | `package_name` | System package name |
 | `package_version` | System package version |
+| `package_epoch` | System package epoch |
+| `package_release` | System package release |
+| `package_source_version` | System package source version |
+| `package_source_epoch` | System package source epoch |
+| `package_source_release` | System package source release |
 | `hashes` | List of cryptographic hashes of the file |
 | `hash_state` | State of the hashes or reason why they weren't computed |
 | `mount_path` | MountPath path of the mount |
@@ -3296,6 +3398,26 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "System package version"
         },
+        "package_epoch": {
+            "type": "integer",
+            "description": "System package epoch"
+        },
+        "package_release": {
+            "type": "string",
+            "description": "System package release"
+        },
+        "package_source_version": {
+            "type": "string",
+            "description": "System package source version"
+        },
+        "package_source_epoch": {
+            "type": "integer",
+            "description": "System package source epoch"
+        },
+        "package_source_release": {
+            "type": "string",
+            "description": "System package source release"
+        },
         "hashes": {
             "items": {
                 "type": "string"
@@ -3381,6 +3503,11 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `change_time` | File change time |
 | `package_name` | System package name |
 | `package_version` | System package version |
+| `package_epoch` | System package epoch |
+| `package_release` | System package release |
+| `package_source_version` | System package source version |
+| `package_source_epoch` | System package source epoch |
+| `package_source_release` | System package source release |
 | `hashes` | List of cryptographic hashes of the file |
 | `hash_state` | State of the hashes or reason why they weren't computed |
 | `mount_path` | MountPath path of the mount |
@@ -4139,6 +4266,42 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [ProcessContext](#processcontext) |
+
+## `PrCtlEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "option": {
+            "type": "string",
+            "description": "PrCtl Option"
+        },
+        "new_name": {
+            "type": "string",
+            "description": "New name of the process"
+        },
+        "is_name_truncated": {
+            "type": "boolean",
+            "description": "Name truncated"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "option"
+    ],
+    "description": "PrCtlEventSerializer serializes a prctl event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `option` | PrCtl Option |
+| `new_name` | New name of the process |
+| `is_name_truncated` | Name truncated |
+
 
 ## `Process`
 
@@ -5299,6 +5462,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/SyscallArgs"
         },
         "setsockopt": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "prctl": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },

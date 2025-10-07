@@ -93,7 +93,7 @@ def get_file_modifications(
 
     base_branch = base_branch or _get_release_json_value('base_branch')
 
-    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout.strip()
+    last_main_commit = get_common_ancestor(ctx, "HEAD", base_branch)
 
     flags = '--no-renames' if no_renames else ''
 
@@ -148,10 +148,56 @@ def get_default_branch(major: int | None = None):
     return '6.53.x' if major is None and is_agent6(ctx) or major == 6 else 'main'
 
 
-def get_common_ancestor(ctx, branch, base=None) -> str:
-    base = base or f"origin/{get_default_branch()}"
+def get_full_ref_name(ref: str, remote="origin") -> str:
+    """
+    If `ref` is a branch, will return `origin/<ref>`.
+    This handles HEAD / commits / branches.
 
-    return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
+    We deduce that this is a commit if it contains at least one digit.
+    """
+
+    remote_slash = remote + '/'
+    if (
+        ref.startswith("HEAD")
+        or (re.match(r'^[0-9a-fA-F]{40}$', ref) and re.search('[0-9]', ref))
+        or ref.startswith("refs/")
+        or ref.startswith(remote_slash)
+    ):
+        return ref
+    return remote_slash + ref
+
+
+def get_common_ancestor(ctx, branch, base=None, try_fetch=True, hide=True) -> str:
+    """
+    Get the common ancestor between two branches.
+
+    Args:
+        ctx: The invoke context.
+        branch: The branch to get the common ancestor with.
+        base: The base branch to get the common ancestor with. Defaults to the default branch.
+        try_fetch: Try to fetch the base branch if it's not found (to avoid S3 caching issues).
+
+    Returns:
+        The common ancestor between two branches.
+    """
+
+    base = base or get_default_branch()
+    base = get_full_ref_name(base)
+    branch = get_full_ref_name(branch)
+
+    try:
+        return ctx.run(f"git merge-base {branch} {base}", hide=hide).stdout.strip()
+    except Exception:
+        if not try_fetch:
+            raise
+
+        # With S3 caching, it's possible that the base branch is not fetched
+        if base.startswith("origin/"):
+            ctx.run(f"git fetch origin {base.removeprefix('origin/')}", hide=hide)
+        if branch.startswith("origin/"):
+            ctx.run(f"git fetch origin {branch.removeprefix('origin/')}", hide=hide)
+
+        return ctx.run(f"git merge-base {branch} {base}", hide=hide).stdout.strip()
 
 
 def check_uncommitted_changes(ctx):
@@ -180,9 +226,9 @@ def get_commit_sha(ctx, commit="HEAD", short=False) -> str:
 
 def get_main_parent_commit(ctx) -> str:
     """
-    Get the commit sha your current branch originated from
+    Get the commit sha from the LCA between main and the current branch
     """
-    return ctx.run(f"git merge-base HEAD origin/{get_default_branch()}", hide=True).stdout.strip()
+    return get_common_ancestor(ctx, "HEAD", f'origin/{get_default_branch()}')
 
 
 def check_base_branch(branch, release_version):
@@ -341,7 +387,7 @@ def create_tree(ctx, base_branch):
     """
     Create a tree on all the local staged files
     """
-    base = get_common_ancestor(ctx, "HEAD", base_branch)
+    base = get_common_ancestor(ctx, "HEAD", f'origin/{base_branch}')
     tree = {"base_tree": base, "tree": []}
     template = {"path": None, "mode": "100644", "type": "blob", "content": None}
     for file in get_staged_files(ctx, include_deleted_files=True, relative_path=True):

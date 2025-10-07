@@ -154,7 +154,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	c.sender = sender
-	sender.SetNoIndex(true)
 
 	if c.processor, err = newProcessor(
 		c.workloadmetaStore,
@@ -200,7 +199,12 @@ func (c *Check) Run() error {
 	c.sendUsageMetrics()
 
 	containerRefreshPeriod := time.Duration(c.instance.ContainerPeriodicRefreshSeconds) * time.Second
-	containerRefresher := newBatchRefresher(containerRefreshPeriod, c.workloadmetaStore, c.processor)
+	var containerRefresher containerPeriodicRefresher
+	if c.cfg.GetBool("sbom.container_image.use_spread_refresher") {
+		containerRefresher = newSpreadRefresher(containerRefreshPeriod, c.workloadmetaStore, c.processor)
+	} else {
+		containerRefresher = newBatchRefresher(containerRefreshPeriod, c.workloadmetaStore, c.processor)
+	}
 	defer containerRefresher.stop()
 
 	procfsSbomChan := make(chan sbom.ScanResult) // default value to listen to nothing

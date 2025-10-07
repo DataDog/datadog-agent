@@ -35,6 +35,7 @@ type serializedProgram struct {
 
 	goRuntimeTypeIDs goRuntimeTypeIDs
 	goModuledataInfo ir.GoModuledataInfo
+	commonTypes      ir.CommonTypes
 }
 
 type goRuntimeTypeIDs struct {
@@ -126,8 +127,9 @@ func serializeProgram(
 		typeID := uint64(t.GetID())
 		serialized.typeIDs[i] = typeID
 		serialized.typeInfos[i] = typeInfo{
-			Byte_len:   t.GetByteSize(),
-			Enqueue_pc: metadata.FunctionLoc[compiler.ProcessType{Type: t}],
+			Dynamic_size_class: uint32(t.GetDynamicSizeClass()),
+			Byte_len:           t.GetByteSize(),
+			Enqueue_pc:         metadata.FunctionLoc[compiler.ProcessType{Type: t}],
 		}
 		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
 			grts.goRuntimeTypes = append(grts.goRuntimeTypes, uint64(goRuntimeType))
@@ -152,6 +154,7 @@ func serializeProgram(
 	}
 	sort.Sort(grts)
 	serialized.goModuledataInfo = program.GoModuledataInfo
+	serialized.commonTypes = program.CommonTypes
 
 	serialized.throttlerParams = make([]throttlerParams, len(program.Throttlers))
 	for i, t := range program.Throttlers {
@@ -166,8 +169,14 @@ func serializeProgram(
 			serialized.probeParams = append(serialized.probeParams, probeParams{
 				Throttler_idx:         uint32(f.ThrottlerIdx),
 				Stack_machine_pc:      metadata.FunctionLoc[f],
-				Pointer_chasing_limit: uint32(f.PointerChasingLimit),
+				Pointer_chasing_limit: f.PointerChasingLimit,
+				Collection_size_limit: f.CollectionSizeLimit,
+				String_size_limit:     f.StringSizeLimit,
 				Frameless:             f.Frameless,
+				Has_associated_return: f.HasAssociatedReturn,
+				Kind:                  int8(f.EventKind),
+				Probe_id:              f.ProbeID,
+				Top_pc_offset:         int8(f.TopPCOffset),
 			})
 			serialized.bpfAttachPoints = append(serialized.bpfAttachPoints, BPFAttachPoint{
 				PC:     f.InjectionPC,

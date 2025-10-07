@@ -9,7 +9,6 @@ package symdb_test
 
 import (
 	"flag"
-	"fmt"
 	_ "net/http/pprof"
 	"os"
 	"path"
@@ -20,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
@@ -33,10 +33,11 @@ func TestSymDB(t *testing.T) {
 			binaryPath, err := testprogs.GetBinary("simple", cfg)
 			require.NoError(t, err)
 			t.Logf("exploring binary: %s", binaryPath)
-			symbols, err := symdb.ExtractSymbols(binaryPath,
+			symbols, err := symdb.ExtractSymbols(
+				binaryPath,
+				object.NewInMemoryLoader(),
 				symdb.ExtractOptions{
-					Scope:                   symdb.ExtractScopeAllSymbols,
-					IncludeInlinedFunctions: true,
+					Scope: symdb.ExtractScopeAllSymbols,
 				})
 			require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 			require.NotEmpty(t, symbols.Packages)
@@ -72,47 +73,40 @@ func TestSymDBSnapshot(t *testing.T) {
 	sem := dyninsttest.MakeSemaphore()
 	for _, prog := range progs {
 		t.Run(prog, func(t *testing.T) {
-			for _, streaming := range []bool{false, true} {
-				t.Run(fmt.Sprintf("stream=%t", streaming), func(t *testing.T) {
+			t.Parallel()
+			for _, cfg := range cfgs {
+				t.Run(cfg.String(), func(t *testing.T) {
 					t.Parallel()
-					for _, cfg := range cfgs {
-						t.Run(cfg.String(), func(t *testing.T) {
-							t.Parallel()
-							defer sem.Acquire()()
-							binaryPath := testprogs.MustGetBinary(t, prog, cfg)
-							t.Logf("exploring binary: %s", binaryPath)
-							symbols, err := symdb.ExtractSymbols(binaryPath, symdb.ExtractOptions{
-								Scope:                   symdb.ExtractScopeMainModuleOnly,
-								IncludeInlinedFunctions: !streaming,
-							})
-							require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
-							require.NotEmpty(t, symbols.Packages)
-
-							var sb strings.Builder
-							symbols.Serialize(symdbutil.MakePanickingWriter(&sb))
-							out := sb.String()
-
-							var outputFile string
-							if !streaming {
-								outputFile = path.Join(snapshotDir, prog+"."+cfg.String()+".out")
-							} else {
-								outputFile = path.Join(snapshotDir, prog+".streaming."+cfg.String()+".out")
-							}
-							if *rewrite {
-								tmpFile, err := os.CreateTemp(snapshotDir, ".out")
-								require.NoError(t, err)
-								name := tmpFile.Name()
-								defer func() { _ = os.Remove(name) }()
-								_, err = tmpFile.WriteString(out)
-								require.NoError(t, err)
-								require.NoError(t, tmpFile.Close())
-								require.NoError(t, os.Rename(name, outputFile))
-							} else {
-								expected, err := os.ReadFile(outputFile)
-								require.NoError(t, err)
-								require.Equal(t, string(expected), out)
-							}
+					defer sem.Acquire()()
+					binaryPath := testprogs.MustGetBinary(t, prog, cfg)
+					t.Logf("exploring binary: %s", binaryPath)
+					symbols, err := symdb.ExtractSymbols(
+						binaryPath,
+						object.NewInMemoryLoader(),
+						symdb.ExtractOptions{
+							Scope: symdb.ExtractScopeMainModuleOnly,
 						})
+					require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
+					require.NotEmpty(t, symbols.Packages)
+
+					var sb strings.Builder
+					symbols.Serialize(symdbutil.MakePanickingWriter(&sb))
+					out := sb.String()
+
+					outputFile := path.Join(snapshotDir, prog+".streaming."+cfg.String()+".out")
+					if *rewrite {
+						tmpFile, err := os.CreateTemp(snapshotDir, ".out")
+						require.NoError(t, err)
+						name := tmpFile.Name()
+						defer func() { _ = os.Remove(name) }()
+						_, err = tmpFile.WriteString(out)
+						require.NoError(t, err)
+						require.NoError(t, tmpFile.Close())
+						require.NoError(t, os.Rename(name, outputFile))
+					} else {
+						expected, err := os.ReadFile(outputFile)
+						require.NoError(t, err)
+						require.Equal(t, string(expected), out)
 					}
 				})
 			}

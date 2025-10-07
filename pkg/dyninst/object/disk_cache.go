@@ -8,13 +8,16 @@
 package object
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"syscall"
@@ -25,6 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Loader abstracts the loading of object files.
+type Loader interface {
+	Load(path string) (FileWithDwarf, error)
+}
 
 // DiskCacheConfig is the configuration for a DiskCache.
 type DiskCacheConfig struct {
@@ -144,6 +152,55 @@ func (c *DiskCache) SpaceInUse() uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.mu.totalBytes
+}
+
+// reserveSpace attempts to reserve the given number of bytes from the cache's
+// capacity. The reservation counts against the cache size limit immediately.
+//
+// The method also enforces the disk space policy via spaceChecker.
+func (c *DiskCache) reserveSpace(toAdd uint64) error {
+	if toAdd == 0 {
+		return nil
+	}
+	// Avoid holding the mutex across IO operations.
+	if err := c.checker.check(toAdd); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	newTotal := c.mu.totalBytes + toAdd
+	if newTotal > c.maxTotalBytes {
+		return fmt.Errorf(
+			"adding %s would exceed cache size limit of %s by %s",
+			humanize.IBytes(toAdd),
+			humanize.IBytes(c.maxTotalBytes),
+			humanize.IBytes(newTotal-c.maxTotalBytes),
+		)
+	}
+	c.mu.totalBytes = newTotal
+	return nil
+}
+
+// releaseSpace releases a previously reserved number of bytes from the cache's
+// capacity accounting. It is safe to call with zero.
+func (c *DiskCache) releaseSpace(toRelease uint64) {
+	if toRelease == 0 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	log.Infof("releaseSpace: releasing %s, total bytes: %s: %s", humanize.IBytes(toRelease), humanize.IBytes(c.mu.totalBytes), debug.Stack())
+	if toRelease > c.mu.totalBytes {
+		log.Errorf(
+			"releaseSpace: invariant violation: total size underflow: %s > %s (delta: %s)",
+			humanize.IBytes(toRelease),
+			humanize.IBytes(c.mu.totalBytes),
+			humanize.IBytes(toRelease-c.mu.totalBytes),
+		)
+		c.mu.totalBytes = 0
+		return
+	}
+	c.mu.totalBytes -= toRelease
 }
 
 // htlHashLoader is a sectionDataLoader that loads sections based on the executable's
@@ -336,6 +393,239 @@ func (c *cachedSectionData) Close() error {
 	return err
 }
 
+// DiskFile is a writable file that reserves space from the DiskCache. It
+// enforces a maximum size and can be converted to a memory map.
+type DiskFile struct {
+	c             *DiskCache
+	f             *os.File
+	name          string
+	reservedSpace uint64
+	maxSpace      uint64
+	used          uint64
+	cleanup       runtime.Cleanup
+	closed        bool
+}
+
+// NewFile creates a new writable file within the cache. The file starts with
+// an initial reservation against the cache's capacity. The file is unlinked
+// immediately, so it will be removed from the filesystem even if the process
+// crashes; it remains accessible via its file descriptor until closed.
+func (c *DiskCache) NewFile(name string, maxSize, initialSize uint64) (_ *DiskFile, retErr error) {
+	if name == "" {
+		return nil, fmt.Errorf("name must not be empty")
+	}
+	if initialSize > maxSize {
+		return nil, fmt.Errorf("initialSize must be <= maxSize")
+	}
+	// If the disk doesn't have enough space, we can't create the file.
+	if err := c.checker.check(maxSize); err != nil {
+		return nil, err
+	}
+	if base := path.Base(name); base != name {
+		return nil, fmt.Errorf("name must not contain path separators")
+	}
+	f, err := os.CreateTemp(c.dirPath, fmt.Sprintf("%s.%d", name, os.Getpid()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer func() {
+		if retErr != nil {
+			_ = f.Close()
+		}
+	}()
+
+	// Unlink immediately to avoid leaking the file.
+	if err := os.Remove(f.Name()); err != nil {
+		return nil, fmt.Errorf("failed to remove temp file: %w", err)
+	}
+	if err := c.reserveSpace(uint64(initialSize)); err != nil {
+		return nil, err
+	}
+	type spaceAndFile struct {
+		space uint64
+		file  *os.File
+	}
+	df := &DiskFile{
+		c:             c,
+		f:             f,
+		name:          name,
+		reservedSpace: initialSize,
+		maxSpace:      maxSize,
+	}
+	df.cleanup = runtime.AddCleanup(df, func(s spaceAndFile) {
+		_ = s.file.Close()
+		c.releaseSpace(s.space)
+	}, spaceAndFile{space: initialSize, file: f})
+	return df, nil
+}
+
+// Write appends the given bytes to the file, growing the reservation if
+// necessary. If the write would exceed the max size, it fails.
+func (df *DiskFile) Write(p []byte) (int, error) {
+	if df == nil || df.f == nil || df.closed {
+		return 0, fmt.Errorf("write on closed DiskFile")
+	}
+	if len(p) == 0 {
+		return 0, nil
+	}
+	// Check max size.
+	neededTotal := df.used + uint64(len(p))
+	if neededTotal > df.maxSpace {
+		return 0, fmt.Errorf(
+			"write exceeds max size: need %s, max %s (over by %s)",
+			humanize.IBytes(neededTotal),
+			humanize.IBytes(df.maxSpace),
+			humanize.IBytes(neededTotal-df.maxSpace),
+		)
+	}
+
+	// Ensure reservation is large enough for this write.
+	if neededTotal > df.reservedSpace {
+		needed := neededTotal - df.reservedSpace
+		increment := max(needed, 2*df.reservedSpace)
+		remaining := df.maxSpace - df.used
+		increment = min(increment, remaining)
+		if err := df.c.reserveSpace(increment); err != nil {
+			return 0, err
+		}
+		df.reservedSpace += increment
+	}
+
+	n, err := df.f.Write(p)
+	if n > 0 {
+		df.used += uint64(n)
+	}
+	if err != nil {
+		return n, fmt.Errorf("failed to write DiskFile: %w", err)
+	}
+	return n, nil
+}
+
+// Close aborts the DiskFile without converting it to a memory map, releasing
+// its reservation and closing the underlying file.
+func (df *DiskFile) Close() error {
+	if df == nil || df.closed {
+		return nil
+	}
+	defer runtime.KeepAlive(df)
+	df.cleanup.Stop()
+	defer func() { df.closed = true }()
+	df.closed = true
+	err := df.f.Close()
+	df.f = nil
+	if df.reservedSpace > 0 {
+		df.c.releaseSpace(df.reservedSpace)
+		df.reservedSpace = 0
+	}
+	df.used = 0
+	return err
+}
+
+// IntoMMap converts the DiskFile into a SectionData backed by a memory map.
+// The DiskFile is closed as part of this operation. The returned SectionData
+// behaves like cachedSectionData and will release its accounting when closed
+// or garbage collected.
+func (df *DiskFile) IntoMMap(flags int) (_ SectionData, retErr error) {
+	defer func() {
+		if retErr != nil {
+			_ = df.Close()
+		}
+	}()
+	if df == nil || df.f == nil || df.closed {
+		return nil, fmt.Errorf("IntoMMap on closed DiskFile")
+	}
+	if df.used == 0 {
+		return nil, fmt.Errorf("cannot mmap empty DiskFile")
+	}
+	if err := df.f.Sync(); err != nil {
+		return nil, fmt.Errorf("failed to sync DiskFile: %w", err)
+	}
+	// Ensure the length fits in an int for syscall.Mmap.
+	maxInt := int(^uint(0) >> 1)
+	if df.used > uint64(maxInt) {
+		return nil, fmt.Errorf("mmap length overflow: %d", df.used)
+	}
+
+	// Map the file as read-only shared mapping.
+	m, err := syscall.Mmap(int(df.f.Fd()), 0, int(df.used), flags, syscall.MAP_SHARED)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mmap DiskFile: %w", err)
+	}
+	defer func() {
+		if retErr != nil {
+			_ = syscall.Munmap(m)
+		}
+	}()
+	// Close the file descriptor after successful mmap.
+	if err := df.f.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close DiskFile after mmap: %w", err)
+	}
+	df.f = nil
+
+	// TODO: This use of the cachedSectionData is a hack. We should refactor
+	// this package to have two layers of abstraction: one around storing disk
+	// files and one around caching section data.
+
+	// Prepare a unique cache key using random bytes for the htl hash.
+	var randHash htlhash.Hash
+	if _, err := io.ReadFull(rand.Reader, randHash[:]); err != nil {
+		_ = syscall.Munmap(m)
+		return nil, fmt.Errorf("failed to generate random hash: %w", err)
+	}
+	key := cacheKey{
+		htlHash: randHash,
+		compressedSectionMetadata: compressedSectionMetadata{
+			name: df.name,
+			compressedFileRange: compressedFileRange{
+				format:             compressionFormatNone,
+				offset:             0,
+				compressedLength:   int64(df.used),
+				uncompressedLength: int64(df.used),
+			},
+		},
+	}
+
+	// Create the cache entry and adjust accounting: replace reservation with
+	// the actual used size.
+	entry := &cacheEntry{
+		cacheKey: key,
+		cache:    df.c,
+		deleted:  make(chan struct{}),
+	}
+	entry.decompress.data = m
+	// Decompression never ran; but release() expects refCount to be set.
+	df.c.mu.Lock()
+	// Replace reservation with actual usage in totalBytes.
+	if df.reservedSpace > df.c.mu.totalBytes {
+		// Should not happen, but guard against underflow.
+		log.Errorf(
+			"IntoMMap: invariant violation: reservedSpace > totalBytes: %s > %s (delta: %s)",
+			humanize.IBytes(df.reservedSpace),
+			humanize.IBytes(df.c.mu.totalBytes),
+			humanize.IBytes(df.reservedSpace-df.c.mu.totalBytes),
+		)
+		df.c.mu.totalBytes = 0
+	} else {
+		df.c.mu.totalBytes -= df.reservedSpace
+	}
+	df.c.mu.totalBytes += df.used
+	entry.cacheMu.refCount = 1
+	entry.cacheMu.deleting = false
+	df.c.mu.entries[key] = entry
+	df.c.mu.Unlock()
+
+	// Finalize DiskFile state.
+	df.reservedSpace = 0
+	df.closed = true
+	df.cleanup.Stop()
+	runtime.KeepAlive(df)
+
+	sd := new(cachedSectionData)
+	sd.entry = entry
+	sd.cleanup = runtime.AddCleanup(sd, cleanupCacheEntry, entry)
+	return sd, nil
+}
+
 type spaceChecker struct {
 	// The filesystem must have at least this many bytes free *after* placing
 	// a section on disk.
@@ -463,11 +753,14 @@ func (e *cacheEntry) release() error {
 			e.cache.mu.totalBytes -= length
 		}
 	}()
+	// If the entry was never actually mmapped, we don't need to munmap.
 	var munmapErr error
-	if err := syscall.Munmap(e.decompress.data); err != nil {
-		munmapErr = fmt.Errorf("failed to munmap decompressed data: %w", err)
+	if e.decompress.data != nil {
+		if err := syscall.Munmap(e.decompress.data); err != nil {
+			munmapErr = fmt.Errorf("failed to munmap decompressed data: %w", err)
+		}
+		e.decompress.data = nil
 	}
-	e.decompress.data = nil
 	return munmapErr
 }
 

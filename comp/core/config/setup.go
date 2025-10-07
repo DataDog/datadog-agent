@@ -13,14 +13,13 @@ import (
 	"runtime"
 	"strings"
 
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // setupConfig loads additional configuration data from yaml files, fleet policies, and command-line options
-func setupConfig(config pkgconfigmodel.BuildableConfig, deps configDependencies) (*pkgconfigmodel.Warnings, error) {
-	p := deps.getParams()
-
+func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Component, p Params) (*pkgconfigmodel.Warnings, error) {
 	confFilePath := p.ConfFilePath
 	configName := p.configName
 	defaultConfPath := p.defaultConfPath
@@ -49,16 +48,9 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, deps configDependencies)
 	}
 
 	// load the configuration
-	var err error
-	var warnings *pkgconfigmodel.Warnings
-	if resolver, ok := deps.getSecretResolver(); ok {
-		warnings, err = pkgconfigsetup.LoadWithSecret(config, resolver, pkgconfigsetup.SystemProbe().GetEnvVars())
-	} else {
-		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, pkgconfigsetup.SystemProbe().GetEnvVars())
-	}
+	warnings, err := pkgconfigsetup.LoadWithSecret(config, secretComp, pkgconfigsetup.SystemProbe().GetEnvVars())
 
-	var e pkgconfigmodel.ConfigFileNotFoundError
-	if err != nil && (!errors.As(err, &e) || confFilePath != "") {
+	if err != nil && (!errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message
 		if errors.Is(err, fs.ErrPermission) {
 			if runtime.GOOS == "windows" {

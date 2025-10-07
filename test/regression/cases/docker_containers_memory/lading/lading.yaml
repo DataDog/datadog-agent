@@ -30,6 +30,7 @@ generator:
         grault: grault_label
       network_disabled: true
       number_of_containers: 200
+      max_lifetime_seconds: 20
 
 blackhole:
   - http:

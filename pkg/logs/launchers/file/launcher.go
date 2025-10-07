@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package file provides file-based log launchers
 package file
 
 import (
@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
@@ -94,7 +93,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
 		oldInfoMap:             make(map[string]*oldTailerInfo),
-		fingerprinter:          tailer.NewFingerprinter(pkgconfigsetup.Datadog().GetBool("logs_config.fingerprint_enabled_experimental"), fingerprintConfig),
+		fingerprinter:          tailer.NewFingerprinter(fingerprintConfig),
 	}
 }
 
@@ -233,7 +232,7 @@ func (s *Launcher) scan() {
 
 	for _, tailer := range s.tailers.All() {
 		// stop all tailers which have not been selected
-		_, shouldTail := filesTailed[tailer.GetId()]
+		_, shouldTail := filesTailed[tailer.GetID()]
 		if !shouldTail {
 			s.stopTailer(tailer)
 		}
@@ -547,16 +546,27 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		Fingerprint:     fingerprint,
 	}
 
+	if fingerprint != nil {
+		log.Debugf("Creating new tailer for %s with fingerprint 0x%x", file.Path, fingerprint.Value)
+	} else {
+		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
+	}
+
 	return tailer.NewTailer(tailerOptions)
 }
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp, fingerprint *types.Fingerprint) *tailer.Tailer {
 	tailerInfo := t.GetInfo()
 	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	if fingerprint != nil {
+		log.Debugf("Creating new tailer for %s with fingerprint 0x%x (configuration: %v)", file.Path, fingerprint.Value, fingerprint.Config)
+	} else {
+		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
+	}
 	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.registry)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// CheckProcessTelemetry checks process file statistics and logs warnings about file handle usage
 func CheckProcessTelemetry(stats *procfilestats.ProcessFileStats) {
 	ratio := float64(stats.AgentOpenFiles) / float64(stats.OsFileLimit)
 	if ratio > 0.9 {

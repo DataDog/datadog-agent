@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package util provides internal utility functions for logs
 package util
 
 import (

@@ -310,16 +310,13 @@ func TestWPAController(t *testing.T) {
 	hctrl.updateExternalMetrics()
 
 	// Test that the Global store contains the correct data
-	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
-		if len(storedExternal.External) == 0 {
-			return false
-		}
+		require.NotEmpty(t, storedExternal.External)
 		require.Equal(t, storedExternal.External[0].Value, float64(14.123))
 		require.Equal(t, storedExternal.External[0].Labels, map[string]string{"foo": "bar"})
-		return true
-	})
+	}, timeout, frequency)
 
 	retrier := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resWPA, errWPA := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, metav1.GetOptions{})
@@ -389,48 +386,39 @@ func TestWPAController(t *testing.T) {
 	key := custommetrics.ExternalMetricValueKeyFunc(ExtVal[0])
 
 	// Process and submit to the Global Store
-	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		hctrl.toStore.m.Lock()
 		defer hctrl.toStore.m.Unlock()
 		st := hctrl.toStore.data
-		if len(st) == 0 {
-			return false
-		}
+		require.NotEmpty(t, st)
 		require.Len(t, st, 1)
 		// Not comparing timestamps to avoid flakyness.
 		require.Equal(t, ExtVal[0].Ref, st[key].Ref)
 		require.Equal(t, ExtVal[0].MetricName, st[key].MetricName)
 		require.Equal(t, ExtVal[0].Labels, st[key].Labels)
-		return true
-	})
+	}, timeout, frequency)
 
 	hctrl.updateExternalMetrics()
 
-	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
-		if len(storedExternal.External) == 0 {
-			return false
-		}
+		require.NotEmpty(t, storedExternal.External)
 		require.Equal(t, float64(1.01), storedExternal.External[0].Value)
 		require.Equal(t, map[string]string{"dcos_version": "2.1.9"}, storedExternal.External[0].Labels)
-		return true
-	})
+	}, timeout, frequency)
 
 	// Verify that a Delete removes the Data from the Global Store
 	err = wpaClient.Resource(gvrWPA).Namespace(namespace).Delete(context.TODO(), wpaName, metav1.DeleteOptions{})
 	require.NoError(t, err)
-	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		storedExternal, err := store.ListAllExternalMetricValues()
 		require.NoError(t, err)
-		if len(storedExternal.External) != 0 {
-			return false
-		}
+		require.Empty(t, storedExternal.External)
 		hctrl.toStore.m.Lock()
 		defer hctrl.toStore.m.Unlock()
 		require.Len(t, hctrl.toStore.data, 0)
-		return true
-	})
+	}, timeout, frequency)
 }
 
 // TestWPASync tests the sync loop of the informer cache and the processing of the object

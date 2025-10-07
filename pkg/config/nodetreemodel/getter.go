@@ -134,7 +134,7 @@ simplyCopy:
 func (c *ntmConfig) getNodeValue(key string) interface{} {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
-		return missingLeaf
+		return ""
 	}
 	c.maybeRebuild()
 

@@ -36,9 +36,9 @@ type Tagger interface {
 type Resolver interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Resolve(id interface{}) []string
-	ResolveWithErr(id interface{}) ([]string, error)
-	GetValue(id interface{}, tag string) string
+	Resolve(id containerutils.WorkloadID) []string
+	ResolveWithErr(id containerutils.WorkloadID) ([]string, error)
+	GetValue(id containerutils.WorkloadID, tag string) string
 }
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
@@ -47,18 +47,18 @@ type DefaultResolver struct {
 }
 
 // Resolve returns the tags for the given id
-func (t *DefaultResolver) Resolve(id interface{}) []string {
+func (t *DefaultResolver) Resolve(id containerutils.WorkloadID) []string {
 	tags, _ := t.ResolveWithErr(id)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *DefaultResolver) ResolveWithErr(id interface{}) ([]string, error) {
+func (t *DefaultResolver) ResolveWithErr(id containerutils.WorkloadID) ([]string, error) {
 	return t.resolveWorkloadTags(id)
 }
 
 // resolveWorkloadTags resolves tags for a workload ID, handling both container and cgroup workloads
-func (t *DefaultResolver) resolveWorkloadTags(id interface{}) ([]string, error) {
+func (t *DefaultResolver) resolveWorkloadTags(id containerutils.WorkloadID) ([]string, error) {
 	if id == nil {
 		return nil, fmt.Errorf("nil workload id")
 	}
@@ -93,7 +93,7 @@ func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) (
 }
 
 // GetValue return the tag value for the given id and tag name
-func (t *DefaultResolver) GetValue(id interface{}, tag string) string {
+func (t *DefaultResolver) GetValue(id containerutils.WorkloadID, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }
 

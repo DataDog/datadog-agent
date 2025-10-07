@@ -33,7 +33,17 @@ def run():
     addr = (host, port)
     server = HTTPServer(addr, Handler)
 
-    pid = os.getpid()
+    dd_service = os.getenv("DD_SERVICE", "python")
+    mode = 0o666
+    if dd_service == "python-restricted-dd":
+        # Write-only log file to trigger permission errors from discovery
+        mode = 0o222
+
+    logfile = f'/tmp/{dd_service}-{os.getpid()}.log'
+
+    fd = os.open(logfile, os.O_CREAT | os.O_WRONLY | os.O_APPEND, mode)
+    file = os.fdopen(fd, "a")
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(message)s',
@@ -41,7 +51,7 @@ def run():
         # discovered and tailed.  Make sure we use a unique file name since
         # there are multiple instances of this server running with different
         # service names.
-        handlers=[logging.FileHandler(f'/tmp/python-svc-{pid}.log'), logging.StreamHandler()],
+        handlers=[logging.StreamHandler(file), logging.StreamHandler()],
     )
 
     logger.info("Server is running on http://%s:%s", host, port)

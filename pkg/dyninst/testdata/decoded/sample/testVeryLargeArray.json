@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testVeryLargeArray",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,12 +18,12 @@
           {
             "function": "main.testVeryLargeArray",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go",
-            "lineNumber": 95
+            "lineNumber": 99
           },
           {
             "function": "main.executeArrayFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go",
-            "lineNumber": 99
+            "lineNumber": 103
           },
           {
             "function": "main.main",

@@ -165,14 +165,29 @@ func TestRawPacket(t *testing.T) {
 	})
 
 	t.Run("icmp", func(t *testing.T) {
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
 		wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
 		if err != nil {
-			t.Skip("docker not available")
+			t.Fatalf("failed to start docker wrapper: %v", err)
+		}
+
+		waitSignal := test.WaitSignalWithoutProcessContext
+
+		kv, err := kernel.NewKernelVersion()
+		if err != nil {
+			t.Errorf("failed to get kernel version: %s", err)
 			return
 		}
 
+		if !kv.HasBpfGetSocketCookieForCgroupSocket() || kv.Code < kernel.Kernel5_15 {
+			waitSignal = test.WaitSignalWithoutProcessContext
+		}
+
 		wrapper.Run(t, "ping", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			test.WaitSignalWithoutProcessContext(t, func() error {
+			waitSignal(t, func() error {
 				cmd := cmdFunc("/bin/ping", []string{"-c", "1", "8.8.8.8"}, nil)
 				if out, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
@@ -260,7 +275,7 @@ func TestRawPacketAction(t *testing.T) {
 		time.Sleep(5 * time.Second)
 
 		cmd = cmdWrapper.Command("nslookup", []string{"microsoft.com"}, []string{})
-		if err := cmd.Run(); err == nil {
+		if err = cmd.Run(); err == nil {
 			t.Error("should return an error")
 		}
 

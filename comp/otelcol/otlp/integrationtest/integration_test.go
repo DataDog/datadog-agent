@@ -45,7 +45,7 @@ import (
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
@@ -75,6 +75,7 @@ import (
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -121,7 +122,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 			return h.Get
 		}),
 		hostnameinterface.MockModule(),
-		fx.Supply(option.None[secrets.Component]()),
+		secretsnoopfx.Module(),
 
 		fx.Provide(func(_ coreconfig.Component) logdef.Params {
 			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
@@ -166,6 +167,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 			MemProfile:  "",
 			PIDFilePath: "",
 		}),
+		payloadmodifierfx.NilModule(),
 		tracecomp.Bundle(),
 		agenttelemetryfx.Module(),
 	)

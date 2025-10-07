@@ -57,6 +57,7 @@ enum event_type
     EVENT_CGROUP_WRITE,
     EVENT_RAW_PACKET_FILTER,
     EVENT_NETWORK_FLOW_MONITOR,
+    EVENT_PRCTL,
     EVENT_STAT,
     EVENT_SYSCTL,
     EVENT_SETRLIMIT,
@@ -65,6 +66,8 @@ enum event_type
     EVENT_OPEN_TREE,
     EVENT_RAW_PACKET_ACTION,
     EVENT_CAPABILITIES,
+    EVENT_MOVE_MOUNT,
+    FAILED_DNS,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -112,6 +115,7 @@ enum APPROVER_TYPE
     BASENAME_APPROVER_TYPE,
     FLAG_APPROVER_TYPE,
     AUID_APPROVER_TYPE,
+    IN_UPPER_LAYER_APPROVER_TYPE,
 };
 
 enum SYSCALL_STATE
@@ -246,6 +250,7 @@ enum mount_source_t
     SOURCE_MOUNT,
     SOURCE_FSMOUNT,
     SOURCE_OPEN_TREE,
+    SOURCE_MOVE_MOUNT,
 };
 
 #endif

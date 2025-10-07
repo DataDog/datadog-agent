@@ -31,6 +31,7 @@ import (
 )
 
 func TestTopologyPayload_LLDP(t *testing.T) {
+	setupHostname(t)
 	mockConfig := configmock.New(t)
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
@@ -659,6 +660,7 @@ profiles:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+	    "agent_host:my-hostname",
         "agent_version:%s",
 		"device_id:profile-metadata:1.2.3.4",
 		"device_ip:1.2.3.4",
@@ -1429,6 +1431,7 @@ profiles:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+		"agent_host:my-hostname",
         "agent_version:%s",
 		"device_id:profile-metadata:1.2.3.4",
 		"device_ip:1.2.3.4",
@@ -2189,6 +2192,7 @@ profiles:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+		"agent_host:my-hostname",
         "agent_version:%s",
 		"device_id:profile-metadata:1.2.3.4",
 		"device_ip:1.2.3.4",
@@ -2950,6 +2954,7 @@ profiles:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+		"agent_host:my-hostname",
         "agent_version:%s",
 		"device_id:profile-metadata:1.2.3.4",
 		"device_ip:1.2.3.4",

@@ -47,20 +47,8 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, _ *api.SecurityProfil
 	return nil, errors.New("not supported")
 }
 
-// GetStatus returns the status of the module
-func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
-	apiStatus := &api.Status{
-		SelfTests: a.selfTester.GetStatus(),
-	}
-
-	apiStatus.PoliciesStatus = a.policiesStatus
-
-	seclVariables := a.GetSECLVariables()
-	for _, seclVariable := range seclVariables {
-		apiStatus.SECLVariables = append(apiStatus.SECLVariables, seclVariable)
-	}
-
-	return apiStatus, nil
+func (a *APIServer) fillStatusPlatform(_ *api.Status) error {
+	return nil
 }
 
 // DumpNetworkNamespace handles network namespace cache dump requests

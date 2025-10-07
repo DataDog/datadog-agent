@@ -17,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
@@ -57,7 +58,8 @@ func TestSymdbManagerUpload(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create process store and symdb manager
-	manager := newSymdbManager(symdbURL)
+	manager := newSymdbManager(symdbURL, object.NewInMemoryLoader())
+	t.Cleanup(manager.stop)
 
 	// Create runtime ID for testing
 	runtimeID := procRuntimeID{
@@ -127,13 +129,15 @@ func testSymdbManagerCancellation(t *testing.T, useStop bool) {
 	symdbURL, err := url.Parse(symdbServer.URL)
 	require.NoError(t, err)
 
-	manager := newSymdbManager(symdbURL,
+	manager := newSymdbManager(
+		symdbURL,
+		object.NewInMemoryLoader(),
 		// Use a small buffer (which will force a flush after every package)
 		// in order to have an opportunity to cancel the uploads in between
 		// flushes.
 		withMaxBufferFuncs(1),
 	)
-
+	t.Cleanup(manager.stop)
 	// Create a dummy runtime ID
 	runtimeID := procRuntimeID{
 		ProcessID:   procmon.ProcessID{PID: 12345},

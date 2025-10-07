@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -91,7 +92,8 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 				continue
 			}
 
-			if replacer.YAMLKeyRegex.Match([]byte(key)) {
+			lowerKey := strings.ToLower(key)
+			if replacer.YAMLKeyRegex.Match([]byte(lowerKey)) {
 				if replacer.ProcessValue != nil {
 					return true, replacer.ProcessValue(value)
 				}

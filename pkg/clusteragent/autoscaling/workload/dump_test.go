@@ -78,6 +78,7 @@ Scale Down Stabilization Window: 10
 ----------- PodAutoscaler Local Fallback -----------
 Horizontal Fallback Enabled: true
 Horizontal Fallback Stale Recommendation Threshold: 600
+Horizontal Fallback Scaling Direction: ScaleUp
 
 ----------- PodAutoscaler Constraints -----------
 Min Replicas: 1
@@ -164,10 +165,10 @@ To Replicas: 4
 Recommended Replicas: 4
 --------------------------------
 Horizontal Last Recommendation: Source: Autoscaling
-Timestamp: %[1]s
+GeneratedAt: %[1]s
 Replicas: 100
 Horizontal Last Recommendation: Source: Autoscaling
-Timestamp: %[1]s
+GeneratedAt: %[1]s
 Replicas: 102
 --------------------------------
 Vertical Last Action Error: test vertical last action error
@@ -270,6 +271,7 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 					Triggers: datadoghq.HorizontalFallbackTriggers{
 						StaleRecommendationThresholdSeconds: 600,
 					},
+					Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
 				},
 			},
 			Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
@@ -396,16 +398,16 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 				RecommendedReplicas: ptr.To(int32(4)),
 			},
 		},
-		HorizontalLastRecommendations: []model.HorizontalScalingValues{
+		HorizontalLastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
 			{
-				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
-				Timestamp: testTime,
-				Replicas:  100,
+				Source:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				GeneratedAt: metav1.NewTime(testTime),
+				Replicas:    100,
 			},
 			{
-				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
-				Timestamp: testTime,
-				Replicas:  102,
+				Source:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				GeneratedAt: metav1.NewTime(testTime),
+				Replicas:    102,
 			},
 		},
 		VerticalLastAction: &datadoghqcommon.DatadogPodAutoscalerVerticalAction{

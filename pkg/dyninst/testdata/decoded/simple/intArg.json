@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.intArg",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,7 +18,7 @@
           {
             "function": "main.intArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 42
+            "lineNumber": 46
           },
           {
             "function": "main.main",
@@ -54,6 +54,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

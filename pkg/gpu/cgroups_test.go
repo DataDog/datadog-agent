@@ -29,7 +29,18 @@ import (
 	"github.com/cilium/ebpf/link"
 )
 
-func TestInsertAfterSection(t *testing.T) {
+func isCgroupfsReadonly() bool {
+	sysfsPath := filepath.Join("/sys/fs/cgroup", "test")
+	err := os.MkdirAll(sysfsPath, 0755)
+	if err != nil {
+		return true
+	}
+	defer os.RemoveAll(sysfsPath)
+
+	return false
+}
+
+func TestInsertDeviceAllowLine(t *testing.T) {
 	tests := []struct {
 		name          string
 		lines         []string
@@ -39,7 +50,7 @@ func TestInsertAfterSection(t *testing.T) {
 		expectError   bool
 	}{
 		{
-			name: "insert after [Service] section",
+			name: "insert after [Service] section with no existing DeviceAllow",
 			lines: []string{
 				"[Unit]",
 				"Description=Test Service",
@@ -66,6 +77,130 @@ func TestInsertAfterSection(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "insert after existing DeviceAllow lines",
+			lines: []string{
+				"[Unit]",
+				"Description=Test Service",
+				"",
+				"[Service]",
+				"DeviceAllow=char-input rwm",
+				"DeviceAllow=char-tty rwm",
+				"ExecStart=/bin/true",
+				"",
+				"[Install]",
+				"WantedBy=multi-user.target",
+			},
+			sectionHeader: "[Service]",
+			newLine:       "DeviceAllow=char-nvidia rwm",
+			expected: []string{
+				"[Unit]",
+				"Description=Test Service",
+				"",
+				"[Service]",
+				"DeviceAllow=char-input rwm",
+				"DeviceAllow=char-tty rwm",
+				"DeviceAllow=char-nvidia rwm",
+				"ExecStart=/bin/true",
+				"",
+				"[Install]",
+				"WantedBy=multi-user.target",
+			},
+			expectError: false,
+		},
+		{
+			name: "insert in section with no subsequent sections",
+			lines: []string{
+				"[Unit]",
+				"Description=Test Service",
+				"",
+				"[Service]",
+				"ExecStart=/bin/true",
+				"Restart=always",
+			},
+			sectionHeader: "[Service]",
+			newLine:       "DeviceAllow=char-nvidia rwm",
+			expected: []string{
+				"[Unit]",
+				"Description=Test Service",
+				"",
+				"[Service]",
+				"DeviceAllow=char-nvidia rwm",
+				"ExecStart=/bin/true",
+				"Restart=always",
+			},
+			expectError: false,
+		},
+		{
+			name: "insert in section with empty lines in the middle",
+			lines: []string{
+				"[Unit]",
+				"Description=Test Service",
+				"",
+				"[Service]",
+				"DeviceAllow=char-input rwm",
+				"",
+				"DeviceAllow=char-tty rwm",
+				"",
+				"ExecStart=/bin/true",
+				"",
+				"[Install]",
+				"WantedBy=multi-user.target",
+			},
+			sectionHeader: "[Service]",
+			newLine:       "DeviceAllow=char-nvidia rwm",
+			expected: []string{
+				"[Unit]",
+				"Description=Test Service",
+				"",
+				"[Service]",
+				"DeviceAllow=char-input rwm",
+				"",
+				"DeviceAllow=char-tty rwm",
+				"DeviceAllow=char-nvidia rwm",
+				"",
+				"ExecStart=/bin/true",
+				"",
+				"[Install]",
+				"WantedBy=multi-user.target",
+			},
+			expectError: false,
+		},
+		{
+			name: "insert in section with mixed content and DeviceAllow lines",
+			lines: []string{
+				"[Unit]",
+				"Description=Test Service",
+				"",
+				"[Service]",
+				"Type=simple",
+				"DeviceAllow=char-input rwm",
+				"ExecStart=/bin/true",
+				"DeviceAllow=char-tty rwm",
+				"Restart=always",
+				"",
+				"[Install]",
+				"WantedBy=multi-user.target",
+			},
+			sectionHeader: "[Service]",
+			newLine:       "DeviceAllow=char-nvidia rwm",
+			expected: []string{
+				"[Unit]",
+				"Description=Test Service",
+				"",
+				"[Service]",
+				"Type=simple",
+				"DeviceAllow=char-input rwm",
+				"ExecStart=/bin/true",
+				"DeviceAllow=char-tty rwm",
+				"DeviceAllow=char-nvidia rwm",
+				"Restart=always",
+				"",
+				"[Install]",
+				"WantedBy=multi-user.target",
+			},
+			expectError: false,
+		},
+		{
 			name: "section not found",
 			lines: []string{
 				"[Unit]",
@@ -83,7 +218,7 @@ func TestInsertAfterSection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := insertAfterSection(tt.lines, tt.sectionHeader, tt.newLine)
+			result, err := insertDeviceAllowLine(tt.lines, tt.sectionHeader, tt.newLine)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -145,6 +280,10 @@ func TestDetachAllDeviceCgroupPrograms(t *testing.T) {
 
 	if containerdcgroups.Mode() != containerdcgroups.Unified {
 		t.Skip("Test requires cgroupv2")
+	}
+
+	if isCgroupfsReadonly() {
+		t.Skip("Test requires a writable cgroupfs")
 	}
 
 	// We will be testing by reading /dev/null, so we need to make sure it's accessible
@@ -230,6 +369,10 @@ func TestConfigureCgroupV1DeviceAllow(t *testing.T) {
 		t.Skip("Test requires cgroupv1")
 	}
 
+	if isCgroupfsReadonly() {
+		t.Skip("Test requires a writable cgroupfs")
+	}
+
 	// We will be testing by reading /dev/null, so we need to make sure it's accessible
 	// before we start the test
 	devnull, err := os.Open("/dev/null")
@@ -275,6 +418,10 @@ func TestConfigureCgroupV1DeviceAllow(t *testing.T) {
 func TestGetAbsoluteCgroupForProcess(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("Test requires root privileges")
+	}
+
+	if isCgroupfsReadonly() {
+		t.Skip("Test requires a writable cgroupfs")
 	}
 
 	currentCgroup, err := getAbsoluteCgroupForProcess("", "/", uint32(os.Getpid()), uint32(os.Getpid()), containerdcgroups.Mode())

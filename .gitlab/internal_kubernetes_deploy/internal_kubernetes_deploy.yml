@@ -37,7 +37,7 @@ internal_kubernetes_deploy_experimental:
       artifacts: false
       optional: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"
     OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh env=ci ${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}-jmx ${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}"
@@ -45,7 +45,6 @@ internal_kubernetes_deploy_experimental:
     EXPLICIT_WORKFLOWS: "//workflows:beta_builds.agents_nightly.staging-deploy.publish,//workflows:beta_builds.agents_nightly.staging-validate.publish,//workflows:beta_builds.agents_nightly.prod-wait-business-hours.publish,//workflows:beta_builds.agents_nightly.prod-deploy.publish,//workflows:beta_builds.agents_nightly.publish-wait-business_hours.publish"
     BUNDLE_VERSION_OVERRIDE: "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
       --variable OPTION_AUTOMATIC_ROLLOUT
       --variable EXPLICIT_WORKFLOWS
@@ -64,7 +63,7 @@ notify-slack:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules:
     - !reference [.on_scheduled_main]
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   needs: ["internal_kubernetes_deploy_experimental"]
   allow_failure: true
   script:

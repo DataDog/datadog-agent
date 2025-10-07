@@ -45,10 +45,9 @@ import (
 )
 
 const (
-	collectorID               = "process-collector"
-	componentName             = "workloadmeta-process"
-	cacheValidityNoRT         = 2 * time.Second
-	serviceCollectionInterval = 60 * time.Second // TODO: this should be made configurable in the future
+	collectorID       = "process-collector"
+	componentName     = "workloadmeta-process"
+	cacheValidityNoRT = 2 * time.Second
 
 	// Service discovery constants
 	maxPortCheckTries = 10
@@ -74,6 +73,7 @@ type collector struct {
 	serviceRetries           map[int32]uint
 	ignoredPids              core.PidSet
 	pidHeartbeats            map[int32]time.Time
+	injectedOnlyPids         core.PidSet // Track injected-only processes for cleanup
 	metricDiscoveredServices telemetry.Gauge
 }
 
@@ -106,12 +106,13 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
 
 		// Initialize service discovery fields
-		sysProbeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-		startTime:      clock.Now().UTC(),
-		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
-		serviceRetries: make(map[int32]uint),
-		ignoredPids:    make(core.PidSet),
-		pidHeartbeats:  make(map[int32]time.Time),
+		sysProbeClient:   sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		startTime:        clock.Now().UTC(),
+		startupTimeout:   pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
+		serviceRetries:   make(map[int32]uint),
+		ignoredPids:      make(core.PidSet),
+		pidHeartbeats:    make(map[int32]time.Time),
+		injectedOnlyPids: make(core.PidSet),
 	}
 }
 
@@ -166,6 +167,10 @@ func (c *collector) isServiceDiscoveryEnabled() bool {
 	return c.systemProbeConfig.GetBool("discovery.enabled")
 }
 
+func (c *collector) getServiceCollectionInterval() time.Duration {
+	return c.systemProbeConfig.GetDuration("discovery.service_collection_interval")
+}
+
 // isLanguageCollectionEnabled returns a boolean indicating if language collection is enabled
 func (c *collector) isLanguageCollectionEnabled() bool {
 	return c.config.GetBool("language_detection.enabled")
@@ -174,6 +179,7 @@ func (c *collector) isLanguageCollectionEnabled() bool {
 // processCollectionIntervalConfig returns the configured collection interval
 func (c *collector) processCollectionIntervalConfig() time.Duration {
 	processCollectionInterval := checks.GetInterval(c.config, checks.ProcessCheckName)
+	serviceCollectionInterval := c.getServiceCollectionInterval()
 	// service discovery data will be incorrect/empty if the process collection interval > service collection interval
 	// therefore, the service collection interval must be the max interval for process collection
 	if processCollectionInterval > serviceCollectionInterval {
@@ -195,7 +201,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return errors.NewDisabled(componentName, "wlm process collection disabled")
 	}
 
-	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() {
+	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() && !c.isLanguageCollectionEnabled() {
 		return errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled")
 	}
 
@@ -208,11 +214,12 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 	c.store = store
 
-	if c.isProcessCollectionEnabled() {
+	if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
 		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()))
 	}
 
 	if c.isServiceDiscoveryEnabled() {
+		serviceCollectionInterval := c.getServiceCollectionInterval()
 		// Initialize service discovery metric
 		c.metricDiscoveredServices = telemetry.NewGaugeWithOpts(
 			collectorID,
@@ -222,7 +229,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 			telemetry.DefaultOptions,
 		)
 
-		if c.isProcessCollectionEnabled() {
+		if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
 			log.Debug("Starting cached service collection (process collection enabled)")
 			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval))
 		} else {
@@ -310,14 +317,13 @@ func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemo
 	return nil
 }
 
-// filterPidsToRequest filters PIDs to only request services for new or stale processes.
-// It returns a slice of pids to request (to be used as a request parameters), and
-// a map of pids to *model.Service to be filled up with the response received from
-// system-probe. This map is useful to know for which pids we have not received
-// service info and that needs to be handled by the retry mechanism.
-func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]int32, map[int32]*model.Service) {
+// filterPidsToRequest filters PIDs to categorize them as new or needing heartbeat refresh.
+// It returns separate slices for new PIDs and heartbeat PIDs, along with a map of pids to *model.Service
+// to be filled up with the response received from system-probe.
+func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]int32, []int32, map[int32]*model.Service) {
 	now := c.clock.Now().UTC()
-	pidsToRequest := make([]int32, 0, len(alivePids))
+	newPids := make([]int32, 0, len(alivePids))
+	heartbeatPids := make([]int32, 0, len(alivePids))
 	pidsToService := make(map[int32]*model.Service, len(alivePids))
 
 	for pid := range alivePids {
@@ -335,25 +341,29 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 
 		// Check if service data is stale or never collected
 		lastHeartbeat, exists := c.pidHeartbeats[pid]
-		if !exists || now.Sub(lastHeartbeat) > core.HeartbeatTime {
-			// Service data is stale or never collected, need to refresh it
-			pidsToRequest = append(pidsToRequest, pid)
+		if !exists {
+			// Never seen this process before, need full service info
+			newPids = append(newPids, pid)
+			pidsToService[pid] = nil
+		} else if now.Sub(lastHeartbeat) > core.HeartbeatTime {
+			// Service data is stale, need heartbeat refresh
+			// Since we have a pidHeartbeats entry, we know service data exists
+			heartbeatPids = append(heartbeatPids, pid)
 			pidsToService[pid] = nil
 		}
 	}
 
-	return pidsToRequest, pidsToService
+	return newPids, heartbeatPids, pidsToService
 }
 
 // getDiscoveryServices calls the system-probe /discovery/services endpoint
-func (c *collector) getDiscoveryServices(pids []int32) (*model.ServicesEndpointResponse, error) {
-	var responseData model.ServicesEndpointResponse
+func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32) (*model.ServicesResponse, error) {
+	var responseData model.ServicesResponse
 
-	// Create params with PIDs and convert to JSON
-	params := core.DefaultParams()
-	for _, pid := range pids {
-		params.Pids = append(params.Pids, int(pid))
-	}
+	// Create params with categorized PIDs and convert to JSON
+	params := core.Params{}
+	params.NewPids = newPids
+	params.HeartbeatPids = heartbeatPids
 
 	jsonBody, err := params.ToJSON()
 	if err != nil {
@@ -404,29 +414,84 @@ func (c *collector) handleServiceRetries(pid int32) {
 }
 
 // getProcessEntitiesFromServices creates Process entities with service discovery data
-func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService map[int32]*model.Service) []*workloadmeta.Process {
-	entities := make([]*workloadmeta.Process, 0, len(pids))
+func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service, injectedPids core.PidSet) []*workloadmeta.Process {
+	entities := make([]*workloadmeta.Process, 0, len(pidsToService))
 	now := c.clock.Now().UTC()
 
-	for _, pid := range pids {
+	// Process new PIDs - create complete entities
+	for _, pid := range newPids {
+		service := pidsToService[pid]
+		injectionState := workloadmeta.InjectionNotInjected
+		if injectedPids.Has(pid) {
+			injectionState = workloadmeta.InjectionInjected
+		}
+
+		entity := &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(pid)),
+			},
+			Pid:            pid,
+			InjectionState: injectionState,
+		}
+
+		if service == nil {
+			// Handle injected processes that are not services
+			c.injectedOnlyPids.Add(pid) // Track for cleanup
+			c.handleServiceRetries(pid)
+		} else {
+			// When process gets a service, remove from injected-only tracking
+			c.injectedOnlyPids.Remove(pid)
+			// Update the heartbeat cache for this PID
+			c.pidHeartbeats[int32(service.PID)] = now
+
+			entity.Service = convertModelServiceToService(service)
+			// language is captured here since language+process collection can be disabled
+			entity.Language = convertServiceLanguageToWLMLanguage(service.Language)
+		}
+
+		// Always append entity, even if service is nil, to track injection state
+		entities = append(entities, entity)
+	}
+
+	// Process heartbeat PIDs - only update entities that have existing Service data
+	for _, pid := range heartbeatPids {
 		service := pidsToService[pid]
 		if service == nil {
 			c.handleServiceRetries(pid)
 			continue
 		}
 
-		// Update the heartbeat cache for this PID
+		// Verify existing entity has Service data (should always be true for heartbeat PIDs)
+		existingProcess, err := c.store.GetProcess(pid)
+		if err != nil || existingProcess == nil || existingProcess.Service == nil {
+			log.Debugf("Heartbeat for pid %d but no existing service found, skipping", pid)
+			continue
+		}
+
 		c.pidHeartbeats[int32(service.PID)] = now
+
+		// For heartbeat updates, preserve static fields from existing service
+		// Since workloadmeta replaces entities from the same source instead of merging,
+		// we need to preserve static fields here
+		newService := convertModelServiceToService(service)
+
+		// Copy existing service and update only dynamic fields
+		preservedService := *existingProcess.Service
+		preservedService.TCPPorts = newService.TCPPorts
+		preservedService.UDPPorts = newService.UDPPorts
+		preservedService.LogFiles = newService.LogFiles
 
 		entity := &workloadmeta.Process{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindProcess,
 				ID:   strconv.Itoa(service.PID),
 			},
-			Pid:     int32(service.PID),
-			Service: convertModelServiceToService(service),
-			// language is captured here since language+process collection can be disabled
-			Language: convertServiceLanguageToWLMLanguage(service.Language),
+			Pid:            int32(service.PID),
+			Service:        &preservedService,
+			InjectionState: existingProcess.InjectionState, // Preserve injection status from existing process
+			// Preserve language from existing process
+			Language: existingProcess.Language,
 		}
 
 		entities = append(entities, entity)
@@ -436,13 +501,13 @@ func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService m
 }
 
 // updateServices retrieves service discovery data for alive processes and returns workloadmeta entities
-func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, map[int32]*model.Service) {
-	pidsToRequest, pidsToService := c.filterPidsToRequest(alivePids, procs)
-	if len(pidsToRequest) == 0 {
+func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, core.PidSet) {
+	newPids, heartbeatPids, pidsToService := c.filterPidsToRequest(alivePids, procs)
+	if len(newPids) == 0 && len(heartbeatPids) == 0 {
 		return nil, nil
 	}
 
-	resp, err := c.getDiscoveryServices(pidsToRequest)
+	resp, err := c.getDiscoveryServices(newPids, heartbeatPids)
 	if err != nil {
 		if time.Since(c.startTime) < c.startupTimeout {
 			log.Warnf("service collector: system-probe not started yet: %v", err)
@@ -456,7 +521,17 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 		pidsToService[int32(service.PID)] = &resp.Services[i]
 	}
 
-	return c.getProcessEntitiesFromServices(pidsToRequest, pidsToService), pidsToService
+	// Convert InjectedPIDs to PidSet for efficient lookup
+	injectedPids := make(core.PidSet)
+	for _, pid := range resp.InjectedPIDs {
+		if c.injectedOnlyPids.Has(int32(pid)) {
+			continue
+		}
+
+		injectedPids.Add(int32(pid))
+	}
+
+	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids), injectedPids
 }
 
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
@@ -545,6 +620,7 @@ func (c *collector) cleanDiscoveryMaps(alivePids core.PidSet) {
 	cleanPidMaps(alivePids, c.ignoredPids)
 	cleanPidMaps(alivePids, c.serviceRetries)
 	cleanPidMaps(alivePids, c.pidHeartbeats)
+	cleanPidMaps(alivePids, c.injectedOnlyPids)
 }
 
 // updateDiscoveredServicesMetric updates the metric with the count of discovered services
@@ -682,6 +758,20 @@ func (c *collector) collectServicesCached(ctx context.Context, collectionTicker 
 				})
 			}
 
+			// Check for deleted injected-only processes
+			for pid := range c.injectedOnlyPids {
+				if alivePids.Has(pid) {
+					continue
+				}
+
+				wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   strconv.Itoa(int(pid)),
+					},
+				})
+			}
+
 			c.mux.RLock()
 			wlmServiceEntities, _ := c.updateServices(alivePids, c.lastCollectedProcesses)
 			c.mux.RUnlock()
@@ -780,12 +870,16 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		GeneratedNameSource:      modelService.GeneratedNameSource,
 		AdditionalGeneratedNames: modelService.AdditionalGeneratedNames,
 		TracerMetadata:           modelService.TracerMetadata,
-		DDService:                modelService.DDService,
 		TCPPorts:                 modelService.TCPPorts,
 		UDPPorts:                 modelService.UDPPorts,
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
 		LogFiles:                 modelService.LogFiles,
+		UST: workloadmeta.UST{
+			Service: modelService.UST.Service,
+			Env:     modelService.UST.Env,
+			Version: modelService.UST.Version,
+		},
 	}
 }
 

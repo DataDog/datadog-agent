@@ -6,6 +6,24 @@ on:
     types: [opened, reopened]
 
 jobs:
+  set_pending_label:
+    if: github.event.issue.state == 'open'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Set pending label
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ["pending"]
+            });
+
   auto_assign_issue:
     runs-on: ubuntu-latest
     container:
@@ -21,6 +39,11 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    - name: Install yq
+      run: |
+        add-apt-repository ppa:rmescandon/yq
+        apt update
+        apt install yq -y
     - name: Install dda
       uses: ./.github/actions/install-dda
       with:

@@ -15,6 +15,7 @@ import (
 
 	dlvdwarf "github.com/go-delve/delve/pkg/dwarf"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 )
 
@@ -115,12 +116,6 @@ func (e *ElfFileWithDwarf) Close() error {
 	return e.decompressingMMappingElfFile.Close()
 }
 
-// PointerSize returns the size of the pointer on the architecture of the object
-// file.
-func (e *ElfFileWithDwarf) PointerSize() uint8 {
-	return uint8(e.Architecture().PointerSize())
-}
-
 type dwarfData struct {
 	debugSections DebugSections
 	reader        loclist.Reader
@@ -130,6 +125,8 @@ type dwarfData struct {
 	// can ensure that the ElfFileWithDwarf is not finalized while the
 	// dwarf.Data is in use.
 	dwarfData dwarf.Data
+
+	unitHeaders []dwarfutil.CompileUnitHeader
 }
 
 var _ Dwarf = (*dwarfData)(nil)
@@ -155,6 +152,10 @@ func (d *dwarfData) DebugSections() *DebugSections {
 // closed.
 func (d *dwarfData) LoclistReader() *loclist.Reader {
 	return &d.reader
+}
+
+func (d *dwarfData) UnitHeaders() []dwarfutil.CompileUnitHeader {
+	return d.unitHeaders
 }
 
 // IsStrippedBinaryError returns true if the error is due to a stripped binary.
@@ -202,13 +203,13 @@ func (d *dwarfData) init(f File) (retErr error) {
 	if byteOrder != binary.LittleEndian {
 		return fmt.Errorf("unexpected DWARF byte order: %v", byteOrder)
 	}
-	unitVersions := dlvdwarf.ReadUnitVersions(d.debugSections.Info())
+	d.unitHeaders = dwarfutil.ReadCompileUnitHeaders(d.debugSections.Info())
 	d.reader = loclist.MakeReader(
 		d.debugSections.Loc(),
 		d.debugSections.LocLists(),
 		d.debugSections.Addr(),
 		uint8(f.Architecture().PointerSize()),
-		unitVersions,
+		d.unitHeaders,
 	)
 	return nil
 }

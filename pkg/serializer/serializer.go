@@ -238,51 +238,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		return s.Forwarder.SubmitV1Series(seriesBytesPayloads, extraHeaders)
 	}
 
-	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
-	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
-	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
-	pipelines := []metricsserializer.Pipeline{}
-	if failoverActive {
-		// Default behavior, primary region only
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc:  func(series *metrics.Serie) bool { return true },
-			Destination: transaction.PrimaryOnly,
-		})
-
-		// Filter for MRF
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc: func(s *metrics.Serie) bool {
-				_, allowed := allowlistForMRF[s.Name]
-				return allowed
-			},
-			Destination: transaction.SecondaryOnly,
-		})
-
-		// Filter for Autoscaling
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc: func(s *metrics.Serie) bool {
-				_, allowed := allowlistForAutoscaling[s.Name]
-				return allowed
-			},
-			Destination: transaction.LocalOnly,
-		})
-	} else {
-		// Default behavior, all regions
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc:  func(series *metrics.Serie) bool { return true },
-			Destination: transaction.AllRegions,
-		})
-	}
-
-	if s.config.GetBool("preaggregation.enabled") {
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc: func(s *metrics.Serie) bool {
-				return true
-			},
-			Destination: transaction.PreaggrOnly,
-		})
-	}
-
+	pipelines := s.buildPipelines()
 	seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
 	extraHeaders = s.protobufExtraHeadersWithCompression
 
@@ -304,6 +260,98 @@ func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
 		}
 	}
 	return failoverActive, allowlist
+}
+
+func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
+	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
+	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
+	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
+
+	// Don't worry about preaggregation when failover is active
+	if failoverActive {
+		return []metricsserializer.Pipeline{
+			{
+				FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
+				Destination: transaction.PrimaryOnly,
+			},
+			{
+				FilterFunc: func(metric metricsserializer.Filterable) bool {
+					_, allowed := allowlistForMRF[metric.GetName()]
+					return allowed
+				},
+				Destination: transaction.SecondaryOnly,
+			},
+			{
+				FilterFunc: func(metric metricsserializer.Filterable) bool {
+					_, allowed := allowlistForAutoscaling[metric.GetName()]
+					return allowed
+				},
+				Destination: transaction.LocalOnly,
+			},
+		}
+	}
+
+	preaggregationEnabled, allowlistForPreaggr := s.getPreaggregationAllowlist()
+
+	// Normal operation: preaggregation or standard routing
+	if preaggregationEnabled {
+		hasAllowlist := len(allowlistForPreaggr) > 0
+
+		if hasAllowlist {
+			// Split routing: allowlist metrics → PreaggrOnly, others → AllRegions
+			return []metricsserializer.Pipeline{
+				{
+					FilterFunc: func(metric metricsserializer.Filterable) bool {
+						_, allowed := allowlistForPreaggr[metric.GetName()]
+						return !allowed
+					},
+					Destination: transaction.AllRegions,
+				},
+				{
+					FilterFunc: func(metric metricsserializer.Filterable) bool {
+						_, allowed := allowlistForPreaggr[metric.GetName()]
+						return allowed
+					},
+					Destination: transaction.PreaggrOnly,
+				},
+			}
+		} else {
+			// Dual-ship: all metrics → both destinations
+			return []metricsserializer.Pipeline{
+				{
+					FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
+					Destination: transaction.AllRegions,
+				},
+				{
+					FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
+					Destination: transaction.PreaggrOnly,
+				},
+			}
+		}
+	}
+
+	// Default: all metrics to AllRegions
+	return []metricsserializer.Pipeline{
+		{
+			FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
+			Destination: transaction.AllRegions,
+		},
+	}
+}
+
+func (s *Serializer) getPreaggregationAllowlist() (bool, map[string]struct{}) {
+	preaggregationEnabled := s.config.GetBool("preaggregation.enabled")
+	var allowlist map[string]struct{}
+	if preaggregationEnabled && s.config.IsConfigured("preaggregation.metric_allowlist") {
+		rawList := s.config.GetStringSlice("preaggregation.metric_allowlist")
+		if len(rawList) > 0 {
+			allowlist = make(map[string]struct{}, len(rawList))
+			for _, allowed := range rawList {
+				allowlist[allowed] = struct{}{}
+			}
+		}
+	}
+	return preaggregationEnabled, allowlist
 }
 
 func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{}) {
@@ -340,32 +388,13 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	}
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 
-	failoverActive, allowlist := s.getFailoverAllowlist()
-	if failoverActive && len(allowlist) > 0 {
-		payloads, filteredPayloads, err := sketchesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(ss *metrics.SketchSeries) bool {
-			_, allowed := allowlist[ss.Name]
-			return allowed
-		}, s.logger)
-		if err != nil {
-			return fmt.Errorf("dropping sketch payload: %v", err)
-		}
-		for _, payload := range payloads {
-			payload.Destination = transaction.PrimaryOnly
-		}
-		for _, payload := range filteredPayloads {
-			payload.Destination = transaction.SecondaryOnly
-		}
-		payloads = append(payloads, filteredPayloads...)
-
-		return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
-	} else {
-		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy, s.logger)
-		if err != nil {
-			return fmt.Errorf("dropping sketch payload: %v", err)
-		}
-
-		return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
+	pipelines := s.buildPipelines()
+	payloads, err := sketchesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines, s.logger)
+	if err != nil {
+		return fmt.Errorf("dropping sketch payload: %v", err)
 	}
+
+	return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder

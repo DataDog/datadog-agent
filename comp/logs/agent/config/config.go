@@ -119,14 +119,12 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
 	}
 
-	mrfEnabled := coreConfig.GetBool("multi_region_failover.enabled")
-
 	// logs_config.logs_dd_url might specify a HTTP(S) proxy. Never fall back to TCP in this case.
 	haveHTTPProxy := false
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		haveHTTPProxy = strings.HasPrefix(logsDDURL, "http://") || strings.HasPrefix(logsDDURL, "https://")
 	}
-	if logsConfig.isForceHTTPUse() || haveHTTPProxy || logsConfig.obsPipelineWorkerEnabled() || mrfEnabled || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+	if logsConfig.isForceHTTPUse() || haveHTTPProxy || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
 		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
@@ -138,11 +136,7 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
 func BuildServerlessEndpoints(coreConfig pkgconfigmodel.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol) (*Endpoints, error) {
-	compressionOptions := EndpointCompressionOptions{
-		CompressionKind:  GzipCompressionKind,
-		CompressionLevel: GzipCompressionLevel,
-	}
-	return buildHTTPEndpoints(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin, compressionOptions)
+	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
 }
 
 // ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.
@@ -181,7 +175,12 @@ func ValidateFingerprintConfig(config *types.FingerprintConfig) error {
 	}
 
 	if err := config.FingerprintStrategy.Validate(); err != nil {
-		return fmt.Errorf("fingerprintStrategy must be one of: line_checksum, byte_checksum, got: %s", config.FingerprintStrategy)
+		return fmt.Errorf("fingerprintStrategy must be one of: line_checksum, byte_checksum, disabled. Got: %s", config.FingerprintStrategy)
+	}
+
+	// Skip validation if fingerprinting is disabled
+	if config.FingerprintStrategy == types.FingerprintStrategyDisabled {
+		return nil
 	}
 
 	// Validate Count (must be positive if set)
@@ -234,6 +233,35 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 	}
 
 	additionals := loadTCPAdditionalEndpoints(main, logsConfig)
+
+	// Add in the MRF endpoint if MRF is enabled.
+	if coreConfig.GetBool("multi_region_failover.enabled") {
+		mrfURL, err := pkgconfigutils.GetMRFLogsEndpoint(coreConfig, tcpEndpointPrefix)
+		if err != nil {
+			return nil, fmt.Errorf("cannot construct MRF endpoint: %s", err)
+		}
+
+		mrfHost, mrfPort, err := parseAddress(mrfURL)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
+		}
+
+		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, "", logsConfig.logsNoSSL())
+		e.IsMRF = true
+		e.UseCompression = main.UseCompression
+		e.CompressionLevel = main.CompressionLevel
+		e.BackoffBase = main.BackoffBase
+		e.BackoffMax = main.BackoffMax
+		e.BackoffFactor = main.BackoffFactor
+		e.RecoveryInterval = main.RecoveryInterval
+		e.RecoveryReset = main.RecoveryReset
+		e.useSSL = main.useSSL
+		e.ConnectionResetInterval = logsConfig.connectionResetInterval()
+		e.ProxyAddress = logsConfig.socks5ProxyAddress()
+
+		additionals = append(additionals, e)
+	}
+
 	return NewEndpoints(main, additionals, useProto, false), nil
 }
 

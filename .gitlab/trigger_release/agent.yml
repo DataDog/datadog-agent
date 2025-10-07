@@ -5,7 +5,7 @@
 .agent_release_management_trigger:
   stage: trigger_release
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   # We don't directly depend/need the package deploy jobs, because
   # that would make us deploy even when there are e2e tests failures etc
   # We only want to allow automatically triggering agent-release-manangement
@@ -16,7 +16,6 @@
   script:
     - !reference [.setup_dd_pkg]
     - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $PARENT_PIPELINE_ID)-1" || exit $?; export RELEASE_VERSION
-    - GITLAB_TOKEN="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api)" || exit $?; export GITLAB_TOKEN
     - |-
       dd-pkg promote \
         --build-pipeline-id $PARENT_PIPELINE_ID \
@@ -66,7 +65,7 @@ generate_windows_gitlab_runner_bump_pr:
   stage: trigger_release
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   needs: ["trigger_auto_staging_release"]
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   rules:
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
       when: never
@@ -84,7 +83,7 @@ generate_windows_gitlab_runner_bump_pr_manual:
   stage: trigger_release
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   needs: ["trigger_auto_staging_release"]
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   rules:
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
       when: never

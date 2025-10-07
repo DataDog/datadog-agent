@@ -3,10 +3,10 @@ module github.com/DataDog/datadog-agent/pkg/util/quantile
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest v0.70.0
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/dustin/go-humanize v1.0.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
@@ -14,7 +14,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	google.golang.org/protobuf v1.36.7 // indirect
+	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -42,6 +42,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ../../../comp/core/secrets/fx
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ../../../comp/core/secrets/impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock => ../../../comp/core/secrets/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl => ../../../comp/core/secrets/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../../comp/core/secrets/utils
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ../../../comp/core/status/statusimpl
@@ -121,6 +122,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../pkg/metrics
+	github.com/DataDog/datadog-agent/pkg/network/driver => ../../../pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../pkg/network/payload
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ../../../pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ../../../pkg/networkpath/payload

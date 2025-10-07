@@ -416,8 +416,9 @@ func TestAutoscalerController(t *testing.T) {
 	// Process and submit to the Global Store
 	assertProcessAndSubmitFunc := func(c *assert.CollectT) {
 		hctrl.toStore.m.Lock()
+		defer hctrl.toStore.m.Unlock()
+		// len(st) must be checked with the lock held to avoid race conditions
 		st := hctrl.toStore.data
-		hctrl.toStore.m.Unlock()
 		assert.NotEmpty(c, st)
 		assert.Len(c, st, 1)
 		// Not comparing timestamps to avoid flakyness.
@@ -469,8 +470,9 @@ func TestAutoscalerController(t *testing.T) {
 		assert.NoError(c, err)
 		assert.Len(c, storedExternal.External, 0)
 		hctrl.toStore.m.Lock()
+		defer hctrl.toStore.m.Unlock()
+		// len(st) must be checked with the lock held to avoid race conditions
 		st := hctrl.toStore.data
-		hctrl.toStore.m.Unlock()
 		assert.NotNil(c, st)
 		assert.Len(c, st, 0, "Len should be nil", "current len:", len(st))
 	}

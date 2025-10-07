@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testNilSlice",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -23,7 +23,7 @@
           {
             "function": "main.executeSliceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
-            "lineNumber": 91
+            "lineNumber": 95
           },
           {
             "function": "main.main",

@@ -5,7 +5,7 @@
 
 //go:build windows
 
-//nolint:revive // TODO(WINA) Fix revive linter
+// Package windowsevent provides Windows event log tailers
 package windowsevent
 
 import (
@@ -18,6 +18,7 @@ import (
 	"github.com/cenkalti/backoff"
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
@@ -51,14 +52,15 @@ type Tailer struct {
 	doneTail   chan struct{}
 	done       chan struct{}
 
-	sub                 evtsubscribe.PullSubscription
-	bookmark            evtbookmark.Bookmark
-	systemRenderContext evtapi.EventRenderContextHandle
-	registry            auditor.Registry
+	sub                    evtsubscribe.PullSubscription
+	bookmark               evtbookmark.Bookmark
+	systemRenderContext    evtapi.EventRenderContextHandle
+	registry               auditor.Registry
+	publisherMetadataCache publishermetadatacache.Component
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, outputChan chan *message.Message, registry auditor.Registry) *Tailer {
+func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, outputChan chan *message.Message, registry auditor.Registry, publisherMetadataCache publishermetadatacache.Component) *Tailer {
 	if evtapi == nil {
 		evtapi = winevtapi.New()
 	}
@@ -68,12 +70,13 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 	}
 
 	return &Tailer{
-		evtapi:     evtapi,
-		source:     source,
-		config:     config,
-		decoder:    decoder.NewNoopDecoder(),
-		outputChan: outputChan,
-		registry:   registry,
+		evtapi:                 evtapi,
+		source:                 source,
+		config:                 config,
+		decoder:                decoder.NewNoopDecoder(),
+		outputChan:             outputChan,
+		registry:               registry,
+		publisherMetadataCache: publisherMetadataCache,
 	}
 }
 
@@ -336,13 +339,7 @@ func (t *Tailer) enrichEvent(m *windowsevent.Map, event evtapi.EventRecordHandle
 		return fmt.Errorf("failed to get provider name: %v", err)
 	}
 
-	pm, err := t.evtapi.EvtOpenPublisherMetadata(providerName, "")
-	if err != nil {
-		return fmt.Errorf("failed to get publisher metadata for provider '%s': %v", providerName, err)
-	}
-	defer evtapi.EvtClosePublisherMetadata(t.evtapi, pm)
-
-	windowsevent.AddRenderedInfoToMap(m, t.evtapi, pm, event)
+	windowsevent.AddRenderedInfoToMap(m, t.publisherMetadataCache, providerName, event)
 
 	return nil
 }

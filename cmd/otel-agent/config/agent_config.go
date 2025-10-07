@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/service"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -100,8 +101,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// Get the global agent config, build on top of it some more
 	// NOTE: This pattern should not be used by other callsites, it is needed here
 	// specifically because of the unique requirements of OTel's configuration.
-	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder()
-
+	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
 	pkgconfig.SetConfigName("OTel")
 	pkgconfig.SetEnvPrefix("DD")
 	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -117,7 +117,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		_, err = pkgconfigsetup.LoadWithoutSecret(pkgconfig, nil)
+		_, err = pkgconfigsetup.LoadWithSecret(pkgconfig, secretsnoop.NewComponent().Comp, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -207,6 +207,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("proxy.http", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 	}
+
+	// Disable preaggregation feature for otel-agent since it needs encrypted API keys and that's non-trivial
+	pkgconfig.Set("preaggregation.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 
 	return pkgconfig, nil
 }

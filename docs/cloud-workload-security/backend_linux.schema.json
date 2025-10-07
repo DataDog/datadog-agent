@@ -80,6 +80,9 @@
         "rule_id": {
           "type": "string"
         },
+        "original_rule_id": {
+          "type": "string"
+        },
         "rule_version": {
           "type": "string"
         },
@@ -115,7 +118,8 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "rule_id"
+        "rule_id",
+        "original_rule_id"
       ]
     },
     "BPFEvent": {
@@ -543,6 +547,26 @@
           "type": "string",
           "description": "System package version"
         },
+        "package_epoch": {
+          "type": "integer",
+          "description": "System package epoch"
+        },
+        "package_release": {
+          "type": "string",
+          "description": "System package release"
+        },
+        "package_source_version": {
+          "type": "string",
+          "description": "System package source version"
+        },
+        "package_source_epoch": {
+          "type": "integer",
+          "description": "System package source epoch"
+        },
+        "package_source_release": {
+          "type": "string",
+          "description": "System package source release"
+        },
         "hashes": {
           "items": {
             "type": "string"
@@ -677,6 +701,26 @@
         "package_version": {
           "type": "string",
           "description": "System package version"
+        },
+        "package_epoch": {
+          "type": "integer",
+          "description": "System package epoch"
+        },
+        "package_release": {
+          "type": "string",
+          "description": "System package release"
+        },
+        "package_source_version": {
+          "type": "string",
+          "description": "System package source version"
+        },
+        "package_source_epoch": {
+          "type": "integer",
+          "description": "System package source epoch"
+        },
+        "package_source_release": {
+          "type": "string",
+          "description": "System package source release"
         },
         "hashes": {
           "items": {
@@ -1221,6 +1265,28 @@
         "address"
       ],
       "description": "PTraceEventSerializer serializes a mmap event to JSON"
+    },
+    "PrCtlEvent": {
+      "properties": {
+        "option": {
+          "type": "string",
+          "description": "PrCtl Option"
+        },
+        "new_name": {
+          "type": "string",
+          "description": "New name of the process"
+        },
+        "is_name_truncated": {
+          "type": "boolean",
+          "description": "Name truncated"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "option"
+      ],
+      "description": "PrCtlEventSerializer serializes a prctl event"
     },
     "Process": {
       "properties": {
@@ -2036,6 +2102,9 @@
         },
         "setsockopt": {
           "$ref": "#/$defs/SyscallArgs"
+        },
+        "prctl": {
+          "$ref": "#/$defs/SyscallArgs"
         }
       },
       "additionalProperties": false,
@@ -2225,6 +2294,9 @@
     },
     "capabilities": {
       "$ref": "#/$defs/CapabilitiesEvent"
+    },
+    "prctl": {
+      "$ref": "#/$defs/PrCtlEvent"
     }
   },
   "additionalProperties": false,

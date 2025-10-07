@@ -42,6 +42,7 @@ if exist "!BAZEL_REPO_CONTENTS_CACHE!" (
 rem Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
 (
   echo startup --output_user_root=!BAZEL_OUTPUT_USER_ROOT!
+  echo common --config=cache
   echo common --repo_contents_cache=!ext_repo_contents_cache!
   echo build --disk_cache=!BAZEL_DISK_CACHE!
 ) >"!CI_PROJECT_DIR!\user.bazelrc"
