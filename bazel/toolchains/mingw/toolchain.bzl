@@ -79,8 +79,6 @@ def _impl(ctx):
                 ],
                 env_entries = [
                     env_entry("PATH", "{}/bin".format(ctx.attr.MINGW_PATH)),
-                    env_entry("LIBRARY_PATH", "{}/lib;{}/x86_64-w64-mingw32/lib".format(ctx.attr.MINGW_PATH, ctx.attr.MINGW_PATH)),
-                    env_entry("CPATH", "{}/include;{}/x86_64-w64-mingw32/include".format(ctx.attr.MINGW_PATH, ctx.attr.MINGW_PATH)),
                 ],
             ),
         ],
