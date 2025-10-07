@@ -131,15 +131,16 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 	}
 
 	tests := []struct {
-		name               string
-		shouldError        bool
-		httpResponse       *model.ServicesResponse
-		ignoredPids        []int32
-		processesToCollect map[int32]*procutil.Process
-		existingProcesses  []*workloadmeta.Process
-		expectStored       []*workloadmeta.Process
-		pidHeartbeats      map[int32]time.Time
-		expectNoEntities   []int32
+		name                     string
+		shouldError              bool
+		httpResponse             *model.ServicesResponse
+		ignoredPids              []int32
+		processesToCollect       map[int32]*procutil.Process
+		existingProcesses        []*workloadmeta.Process
+		expectStored             []*workloadmeta.Process
+		pidHeartbeats            map[int32]time.Time
+		expectNoEntities         []int32
+		knownInjectionStatusPids []int32 // PIDs whose injection status was already reported in a previous cycle
 	}{
 		{
 			name: "new service discovered",
@@ -230,6 +231,23 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			expectStored: []*workloadmeta.Process{makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionNotInjected)},
 		},
 		{
+			name: "injection_state_already_reported_no_duplicate",
+			existingProcesses: []*workloadmeta.Process{
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Already reported in previous cycle
+			},
+			knownInjectionStatusPids: []int32{pidInjectedOnly}, // We already reported this PID's injection status
+			processesToCollect: map[int32]*procutil.Process{
+				pidInjectedOnly: makeProcess(pidInjectedOnly, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
+			},
+			httpResponse: &model.ServicesResponse{
+				Services:     []model.Service{},      // Still no service
+				InjectedPIDs: []int{pidInjectedOnly}, // Same injection state as before
+			},
+			expectStored: []*workloadmeta.Process{
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Injection state preserved, no duplicate entity
+			},
+		},
+		{
 			name: "injected_death_cleanup",
 			existingProcesses: []*workloadmeta.Process{
 				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Pre-existing injected-only process
@@ -287,6 +305,10 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				c.collector.pidHeartbeats = tc.pidHeartbeats
 			}
 
+			for _, pid := range tc.knownInjectionStatusPids {
+				c.collector.knownInjectionStatusPids.Add(pid)
+			}
+
 			err := c.collector.Start(ctx, c.mockStore)
 			assert.NoError(t, err)
 
@@ -319,15 +341,16 @@ func TestServiceStoreLifetime(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                string
-		shouldError         bool
-		httpResponse        *model.ServicesResponse
-		ignoredPids         []int32
-		existingProcessData []*workloadmeta.Process
-		existingServiceData []*workloadmeta.Process
-		expectStored        []*workloadmeta.Process
-		pidHeartbeats       map[int32]time.Time
-		processesToCollect  map[int32]*procutil.Process
+		name                     string
+		shouldError              bool
+		httpResponse             *model.ServicesResponse
+		ignoredPids              []int32
+		existingProcessData      []*workloadmeta.Process
+		existingServiceData      []*workloadmeta.Process
+		expectStored             []*workloadmeta.Process
+		pidHeartbeats            map[int32]time.Time
+		processesToCollect       map[int32]*procutil.Process
+		knownInjectionStatusPids []int32 // PIDs whose injection status was already reported in a previous cycle
 	}{
 		{
 			name: "new service discovered and stored",
@@ -402,6 +425,23 @@ func TestServiceStoreLifetime(t *testing.T) {
 			expectStored: []*workloadmeta.Process{makeProcessEntity(pidRecentService, baseTime.Add(time.Minute+30*time.Second), languagePython, workloadmeta.InjectionUnknown)},
 		},
 		{
+			name: "injection_state_already_reported_no_duplicate",
+			existingServiceData: []*workloadmeta.Process{
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Already reported in previous cycle
+			},
+			knownInjectionStatusPids: []int32{pidInjectedOnly}, // We already reported this PID's injection status
+			processesToCollect: map[int32]*procutil.Process{
+				pidInjectedOnly: makeProcess(pidInjectedOnly, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
+			},
+			httpResponse: &model.ServicesResponse{
+				Services:     []model.Service{},      // Still no service
+				InjectedPIDs: []int{pidInjectedOnly}, // Same injection state as before
+			},
+			expectStored: []*workloadmeta.Process{
+				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Injection state preserved, no duplicate entity
+			},
+		},
+		{
 			name: "injected_death_cleanup",
 			existingServiceData: []*workloadmeta.Process{
 				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Pre-existing injected-only process
@@ -472,9 +512,9 @@ func TestServiceStoreLifetime(t *testing.T) {
 					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
 				}
 
-				// If this is an injected-only process (has injection but no service), add to tracking
-				if process.InjectionState == workloadmeta.InjectionInjected && process.Service == nil {
-					c.collector.injectedOnlyPids.Add(process.Pid)
+				// If this is a process whose injection status we've reported (but has no service), add to tracking
+				if process.Service == nil {
+					c.collector.knownInjectionStatusPids.Add(process.Pid)
 				}
 			}
 
@@ -484,6 +524,10 @@ func TestServiceStoreLifetime(t *testing.T) {
 			// Pre-populate pidHeartbeats cache if specified in test case
 			if tc.pidHeartbeats != nil {
 				c.collector.pidHeartbeats = tc.pidHeartbeats
+			}
+
+			for _, pid := range tc.knownInjectionStatusPids {
+				c.collector.knownInjectionStatusPids.Add(pid)
 			}
 
 			err := c.collector.Start(ctx, c.mockStore)
