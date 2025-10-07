@@ -1355,7 +1355,7 @@ func Test_batchSizeOptimizers_areRefreshed(t *testing.T) {
 	sess := session.CreateMockSession()
 
 	batchSizeOptimizers := NewOidBatchSizeOptimizers(2)
-	batchSizeOptimizers.lastRefreshTs = batchSizeOptimizers.lastRefreshTs.Add(-failuresTimeInterval * 2)
+	batchSizeOptimizers.lastRefreshTs = batchSizeOptimizers.lastRefreshTs.Add(-failuresWindowDuration * 2)
 
 	oldLastRefreshTs := batchSizeOptimizers.lastRefreshTs
 

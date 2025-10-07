@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	increaseValue  = 1
-	decreaseFactor = 2
+	onSuccessIncreaseValue  = 1
+	onFailureDecreaseFactor = 2
 
-	failuresTimeInterval       = 30 * time.Minute
-	maxFailuresPerTimeInterval = 2
+	failuresWindowDuration = 30 * time.Minute
+	maxFailuresPerWindow   = 2
 )
 
 // OidBatchSizeOptimizers holds oidBatchSizeOptimizer for each SNMP request operation
@@ -49,7 +49,7 @@ func NewOidBatchSizeOptimizers(configBatchSize int) *OidBatchSizeOptimizers {
 
 // Refresh refreshes each oidBatchSizeOptimizer in OidBatchSizeOptimizers when outdated
 func (o *OidBatchSizeOptimizers) refreshIfOutdated(now time.Time) {
-	if now.Sub(o.lastRefreshTs) < failuresTimeInterval {
+	if now.Sub(o.lastRefreshTs) < failuresWindowDuration {
 		return
 	}
 
@@ -82,7 +82,7 @@ func (o *oidBatchSizeOptimizer) onBatchSizeFailure() bool {
 	o.failuresByBatchSize[o.batchSize]++
 
 	oldBatchSize := o.batchSize
-	newBatchSize := max(o.batchSize/decreaseFactor, 1)
+	newBatchSize := max(o.batchSize/onFailureDecreaseFactor, 1)
 
 	o.batchSize = newBatchSize
 
@@ -99,8 +99,8 @@ func (o *oidBatchSizeOptimizer) onBatchSizeSuccess() {
 	}
 
 	oldBatchSize := o.batchSize
-	newBatchSize := min(o.batchSize+increaseValue, o.maxBatchSize())
-	if o.failuresByBatchSize[newBatchSize] >= maxFailuresPerTimeInterval {
+	newBatchSize := min(o.batchSize+onSuccessIncreaseValue, o.maxBatchSize())
+	if o.failuresByBatchSize[newBatchSize] >= maxFailuresPerWindow {
 		return
 	}
 

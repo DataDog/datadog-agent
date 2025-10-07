@@ -38,7 +38,7 @@ func Test_batchSizeOptimizers_refreshIfOutdated(t *testing.T) {
 					batchSize:           2,
 					failuresByBatchSize: map[int]int{10: 6, 12: 10},
 				},
-				lastRefreshTs: now.Add(-failuresTimeInterval / 2),
+				lastRefreshTs: now.Add(-failuresWindowDuration / 2),
 			},
 			expectedBatchSizeOptimizers: &OidBatchSizeOptimizers{
 				snmpGetOptimizer: &oidBatchSizeOptimizer{
@@ -56,7 +56,7 @@ func Test_batchSizeOptimizers_refreshIfOutdated(t *testing.T) {
 					batchSize:           2,
 					failuresByBatchSize: map[int]int{10: 6, 12: 10},
 				},
-				lastRefreshTs: now.Add(-failuresTimeInterval / 2),
+				lastRefreshTs: now.Add(-failuresWindowDuration / 2),
 			},
 		},
 		{
@@ -77,7 +77,7 @@ func Test_batchSizeOptimizers_refreshIfOutdated(t *testing.T) {
 					batchSize:           2,
 					failuresByBatchSize: map[int]int{10: 6, 12: 10},
 				},
-				lastRefreshTs: now.Add(-failuresTimeInterval * 2),
+				lastRefreshTs: now.Add(-failuresWindowDuration * 2),
 			},
 			expectedBatchSizeOptimizers: &OidBatchSizeOptimizers{
 				snmpGetOptimizer: &oidBatchSizeOptimizer{
@@ -145,7 +145,7 @@ func Test_batchSizeOptimizer_onBatchSizeFailure(t *testing.T) {
 			},
 			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
 				configBatchSize: 4,
-				batchSize:       4 / decreaseFactor,
+				batchSize:       4 / onFailureDecreaseFactor,
 				failuresByBatchSize: map[int]int{
 					4: 2,
 				},
@@ -181,13 +181,13 @@ func Test_batchSizeOptimizer_onBatchSizeSuccess(t *testing.T) {
 			configBatchSize: 10,
 			batchSize:       6,
 			failuresByBatchSize: map[int]int{
-				7: maxFailuresPerTimeInterval + 1,
+				7: maxFailuresPerWindow + 1,
 			},
 			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
 				configBatchSize: 10,
 				batchSize:       6,
 				failuresByBatchSize: map[int]int{
-					7: maxFailuresPerTimeInterval + 1,
+					7: maxFailuresPerWindow + 1,
 				},
 			},
 		},
@@ -215,7 +215,7 @@ func Test_batchSizeOptimizer_onBatchSizeSuccess(t *testing.T) {
 			},
 			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
 				configBatchSize: 10,
-				batchSize:       6 + increaseValue,
+				batchSize:       6 + onSuccessIncreaseValue,
 				failuresByBatchSize: map[int]int{
 					6: 1,
 				},
