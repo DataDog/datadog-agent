@@ -12,14 +12,14 @@ set +x
 
 while [[ $retry_count -lt $max_retries ]]; do
     if [ -n "$parameter_field" ]; then
-				# Using Vault; format parameter is respected
+        # Using Vault; format parameter is respected
         vault_name="kv/k8s/${POD_NAMESPACE}/datadog-agent"
         if [[ "$(uname -s)" == "Darwin" ]]; then
             vault_name="kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent"
         fi
         result="$(vault kv get -format="${format}" -field="${parameter_field}" "${vault_name}"/"${parameter_name}" 2> errorFile)"
     else
-				# Using SSM; the [<format>] parameter is ignore
+        # Using SSM; the [<format>] parameter is ignored
         result="$(aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)"
     fi
     error="$(<errorFile)"
