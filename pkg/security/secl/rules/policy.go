@@ -257,6 +257,11 @@ func (p *Policy) GetAcceptedRules() []*PolicyRule {
 	return acceptedRules
 }
 
+// GetRules returns the list of filtered rules that are part of the policy
+func (p *Policy) GetRules() map[string][]*PolicyRule {
+	return p.rules
+}
+
 // GetFilteredRules returns the list of filtered rules that are part of the policy
 func (p *Policy) GetFilteredRules() []*PolicyRule {
 	var filteredRules []*PolicyRule
