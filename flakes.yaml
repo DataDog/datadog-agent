@@ -29,5 +29,10 @@ test/new-e2e/tests/containers:
 test/new-e2e/tests/installer/script:
   - test: TestScripts
 
+pkg/trace/info:
+  on-log:
+    - "write: no buffer space available"
+    - "tls: bad record MAC"
+
 on-log:
   - "panic: Expected to find a single pod" # K8s Agent Executor can be flaky with the current implementation
