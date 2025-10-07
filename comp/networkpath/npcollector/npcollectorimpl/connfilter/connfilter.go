@@ -122,24 +122,6 @@ func NewConnFilter(config []Config, site string) (*ConnFilter, []error) {
 	}, errs
 }
 
-func getDefaultConnFilters(site string) []Config {
-	defaultConfig := []Config{
-		{
-			Type:        filterTypeExclude,
-			MatchDomain: "*.datadog.pool.ntp.org",
-		},
-		{
-			Type:        filterTypeExclude,
-			MatchDomain: "*.datadoghq.com",
-		},
-		{
-			Type:        filterTypeExclude,
-			MatchDomain: "*." + site,
-		},
-	}
-	return defaultConfig
-}
-
 func (f *ConnFilter) IsIncluded(domain string, ip string) bool {
 	isIncluded := true
 	for _, filter := range f.filters {
