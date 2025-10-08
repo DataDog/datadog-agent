@@ -7,7 +7,6 @@ package gpu
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -103,23 +102,16 @@ func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments 
 	var out string
 	for retries := range maxWorkloadRetries {
 		out, err = c.suite.Env().RemoteHost.Execute(cmd)
-		if retries < 2 {
-			err = errors.New(errMsgNoCudaCapableDevice)
-		}
-		if err != nil {
-			if !strings.Contains(err.Error(), errMsgNoCudaCapableDevice) {
-				return out, fmt.Errorf("error running container workload with GPUs: %w", err)
-			}
-
-			// Remove the container and try again
-			if removeErr := c.removeContainer(containerName); removeErr != nil {
-				return out, fmt.Errorf("error removing container for retry: %w", removeErr)
-			}
-
-			log.Printf("Workload container could not access GPU devices, retrying (attempt %d of %d)", retries+1, maxWorkloadRetries)
-		} else {
+		if err == nil {
 			break
 		}
+
+		// Remove the container and try again
+		if removeErr := c.removeContainer(containerName); removeErr != nil {
+			return out, fmt.Errorf("error removing container for retry: %w", removeErr)
+		}
+
+		log.Printf("Workload container could not start, retrying (attempt %d of %d)", retries+1, maxWorkloadRetries)
 	}
 
 	if err != nil {
