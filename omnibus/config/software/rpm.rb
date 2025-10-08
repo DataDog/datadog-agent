@@ -23,8 +23,6 @@ skip_transitive_dependency_licensing true
 
 dependency "config_guess"
 dependency "file"
-dependency "libgpg-error"
-dependency "libgcrypt"
 dependency "popt"
 dependency "zstd"
 dependency "lua"
