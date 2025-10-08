@@ -22,7 +22,7 @@ deploy_latest_rc_only:
         echo "Newer RC tag exists - skipping job."
         exit 1
       fi
-      echo "No newere RC tag found - safe to proceed."
+      echo "No newer RC tag found - safe to proceed."
 
 .deploy_mutable_image_tags_base:
   extends: .docker_publish_job_definition
