@@ -9,4 +9,4 @@
 
 features:
   - |
-    APM: A more efficient trace payload encoding via the /v1.0/traces endpoint has been added.
+    APM: A more efficient trace payload encoding through the /v1.0/traces endpoint has been added.
