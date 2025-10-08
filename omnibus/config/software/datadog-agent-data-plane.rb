@@ -39,7 +39,7 @@ if linux_target?
   package_target = "linux-#{target_arch}"
 
   if fips_mode?
-    package_target = "fips-#{target_arch}"
+    package_target = "fips-#{package_target}"
   end
 
   source sha256: adp_hashes[package_target]
