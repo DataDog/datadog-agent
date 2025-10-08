@@ -46,7 +46,7 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 			// TODO: REMOVE DOMAIN TAG
 			// TODO: REMOVE DOMAIN TAG
 			// TODO: REMOVE DOMAIN TAG
-			_ = d.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"domain_resolver_calls", []string{"domain_name:" + domain}, 1)
+			_ = d.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"domain_resolver_calls", []string{}, 1)
 			ips, err := d.LookupHostFn(domain)
 			if err != nil {
 				return nil, err
@@ -65,6 +65,7 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 }
 
 // GetWithExpiration returns the value for 'key'.
+// TODO: TEST ME
 func GetWithExpiration[T any](key string, cb func() (T, error), expire time.Duration) (T, error) {
 	if x, found := cache.Cache.Get(key); found {
 		return x.(T), nil
