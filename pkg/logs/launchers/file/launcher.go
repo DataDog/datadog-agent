@@ -294,7 +294,7 @@ func (s *Launcher) scan() {
 
 		if hasOldInfo {
 			log.Debugf("Pass 2: Starting tailer for %s WITH stored info", file.Path)
-			if s.startNewTailerWithStoredInfo(file, config.Beginning, oldInfo, fingerprint) {
+			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
 				log.Debugf("Pass 2: Successfully started tailer for %s with stored info", file.Path)
 				filesTailed[scanKey] = true
 			} else {
