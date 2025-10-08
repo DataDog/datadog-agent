@@ -310,7 +310,7 @@ func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
 			return nil, fmt.Errorf("extract kernel BTF from tarball: %w", err)
 		}
 	} else if strings.HasSuffix(btfRelativeEmbeddedFilename, ".btf") {
-		if err := copyFile(btfIntermediatePath, absExtractFile); err != nil {
+		if err := copyFileMkdir(btfIntermediatePath, absExtractFile); err != nil {
 			return nil, fmt.Errorf("copy kernel BTF: %w", err)
 		}
 	} else {
@@ -490,8 +490,8 @@ func GetKernelSpec() (*btf.Spec, error) {
 	return loadKernelSpec.Do()
 }
 
-// copyFile copies file path `src“ to file path `dst`.
-func copyFile(src, dst string) error {
+// copyFileMkdir copies file path `src“ to file path `dst`.
+func copyFileMkdir(src, dst string) error {
 	fi, err := os.Stat(src)
 	if err != nil {
 		return err
