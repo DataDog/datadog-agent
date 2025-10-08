@@ -34,7 +34,7 @@ func (g *grpcEncoder) Encode(msg *message.Message, _ string) error {
 
 	// Create the Log message using stateful_encoding.proto definitions
 	log := &statefulpb.Log{
-		Timestamp: uint64(ts.UnixNano()),
+		Timestamp: uint64(ts.UnixMilli()),
 		Content: &statefulpb.Log_Raw{
 			Raw: toValidUtf8(msg.GetContent()),
 		},

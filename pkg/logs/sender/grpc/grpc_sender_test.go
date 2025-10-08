@@ -346,7 +346,7 @@ func TestGRPCSenderFailureRecovery(t *testing.T) {
 
 	// Get initial generation from the single worker (since we have 1 pipeline)
 	require.Len(t, sender.workers, 1, "Should have exactly 1 worker for single pipeline")
-	initialGeneration := sender.workers[0].generationID
+	initialGeneration := sender.workers[0].GetGenerationID()
 
 	// Simulate server failure
 	mockServer.SetShouldDisconnect(true)
@@ -370,11 +370,11 @@ func TestGRPCSenderFailureRecovery(t *testing.T) {
 
 	// Wait for failure to be detected and rotation to begin
 	require.Eventually(t, func() bool {
-		return sender.workers[0].generationID > initialGeneration
+		return sender.workers[0].GetGenerationID() > initialGeneration
 	}, 3*time.Second, 100*time.Millisecond)
 
 	// Verify generation incremented due to failure
-	currentGeneration := sender.workers[0].generationID
+	currentGeneration := sender.workers[0].GetGenerationID()
 	assert.Greater(t, currentGeneration, initialGeneration, "Generation should increment after failure")
 
 	// Re-enable server (simulate recovery)
@@ -476,7 +476,7 @@ func TestGRPCSenderMultipleFailures(t *testing.T) {
 
 	// Get initial generation from the single worker
 	require.Len(t, sender.workers, 1, "Should have exactly 1 worker for single pipeline")
-	initialGeneration := sender.workers[0].generationID
+	initialGeneration := sender.workers[0].GetGenerationID()
 
 	inputChan := sender.In()
 
@@ -503,7 +503,7 @@ func TestGRPCSenderMultipleFailures(t *testing.T) {
 
 	// Wait for failure detection (generation increment)
 	require.Eventually(t, func() bool {
-		return sender.workers[0].generationID == initialGeneration+1
+		return sender.workers[0].GetGenerationID() == initialGeneration+1
 	}, 2*time.Second, 100*time.Millisecond)
 
 	// Send snapshot to complete rotation
@@ -525,7 +525,7 @@ func TestGRPCSenderMultipleFailures(t *testing.T) {
 
 	// Verify generation incremented (at least 2 times)
 	require.Eventually(t, func() bool {
-		return sender.workers[0].generationID == initialGeneration+2
+		return sender.workers[0].GetGenerationID() == initialGeneration+2
 	}, 2*time.Second, 100*time.Millisecond)
 
 	mockServer.SetShouldDisconnect(false)

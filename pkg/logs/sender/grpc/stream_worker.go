@@ -82,6 +82,7 @@ type StreamWorker struct {
 	// Stream management
 	currentStream  *StreamInfo
 	generationID   uint64
+	generationMu   sync.RWMutex        // Protects generationID
 	recvFailureCh  chan ReceiverSignal // Signal receiver failure with generationID
 	streamLifetime time.Duration
 	batchIDCounter uint32
@@ -139,8 +140,9 @@ func (s *StreamWorker) Start() {
 	// Create initial stream
 	if stream, err := s.createNewStream(); err == nil {
 		s.currentStream = stream
-		log.Infof("Worker %s: Created initial stream (generation %d)", s.workerID, s.generationID)
-		go s.receiverLoop(stream, s.generationID)
+		currentGen := s.GetGenerationID()
+		log.Infof("Worker %s: Created initial stream (generation %d)", s.workerID, currentGen)
+		go s.receiverLoop(stream, currentGen)
 	} else {
 		log.Errorf("Worker %s: Failed to create initial stream: %v", s.workerID, err)
 	}
@@ -200,7 +202,8 @@ func (s *StreamWorker) supervisorLoop() {
 			}
 
 		case signal := <-s.recvFailureCh:
-			if signal.GenerationID != s.generationID {
+			currentGen := s.GetGenerationID()
+			if signal.GenerationID != currentGen {
 				// Signal from old stream generation, we must have rotated.
 				// - In case of hard rotation, this is timing thing, old receiver is reporting
 				//   the same transport failure as previously detected by the supervisor. since
@@ -210,7 +213,7 @@ func (s *StreamWorker) supervisorLoop() {
 				//   If there really were acks that we missed because drained stream died, we rely on
 				//   the upstream to detect and resend them
 				log.Infof("Worker %s: Ignoring signal from old generation %d (current: %d)",
-					s.workerID, signal.GenerationID, s.generationID)
+					s.workerID, signal.GenerationID, currentGen)
 				continue
 			}
 
@@ -241,7 +244,7 @@ func (s *StreamWorker) supervisorLoop() {
 func (s *StreamWorker) sendStreamRotateSignal(rt RotationType) {
 	v := StreamRotateSignal{
 		Type:         rt,
-		GenerationID: s.generationID,
+		GenerationID: s.GetGenerationID(),
 	}
 	select {
 	case s.signalStreamRotate <- v:
@@ -260,7 +263,8 @@ func (s *StreamWorker) sendStreamRotateSignal(rt RotationType) {
 
 // beginHardRotate immediately closes and recreates the stream
 func (s *StreamWorker) beginHardRotate() {
-	log.Infof("Worker %s: Beginning hard rotation (generation %d)", s.workerID, s.generationID)
+	currentGen := s.GetGenerationID()
+	log.Infof("Worker %s: Beginning hard rotation (generation %d)", s.workerID, currentGen)
 
 	// Signal "hard rotate" to upstream
 	s.sendStreamRotateSignal(RotationTypeHard)
@@ -273,7 +277,8 @@ func (s *StreamWorker) beginHardRotate() {
 	if streamInfo, err := s.createNewStream(); err == nil {
 		s.currentStream = streamInfo
 		// Start new receiver goroutine with new stream
-		go s.receiverLoop(streamInfo, s.generationID)
+		newGen := s.GetGenerationID()
+		go s.receiverLoop(streamInfo, newGen)
 	} else {
 		log.Errorf("Worker %s: Failed to create new stream during hard rotation: %v", s.workerID, err)
 	}
@@ -294,7 +299,8 @@ func (s *StreamWorker) finishHardRotate(streamTimer *time.Timer) {
 
 // beginGracefulRotate starts graceful rotation by signaling upstream
 func (s *StreamWorker) beginGracefulRotate() {
-	log.Infof("Worker %s: Beginning graceful rotation (generation %d)", s.workerID, s.generationID)
+	currentGen := s.GetGenerationID()
+	log.Infof("Worker %s: Beginning graceful rotation (generation %d)", s.workerID, currentGen)
 
 	// Signal "graceful rotate" to upstream
 	s.sendStreamRotateSignal(RotationTypeGraceful)
@@ -315,9 +321,10 @@ func (s *StreamWorker) finishGracefulRotate(streamTimer *time.Timer) {
 	// Create new stream
 	if streamInfo, err := s.createNewStream(); err == nil {
 		s.currentStream = streamInfo
-		log.Infof("Worker %s: Graceful rotation completed, new stream created (generation %d)", s.workerID, s.generationID)
+		newGen := s.GetGenerationID()
+		log.Infof("Worker %s: Graceful rotation completed, new stream created (generation %d)", s.workerID, newGen)
 		// Start new receiver goroutine with new stream
-		go s.receiverLoop(streamInfo, s.generationID)
+		go s.receiverLoop(streamInfo, newGen)
 	} else {
 		log.Errorf("Worker %s: Failed to create new stream during graceful rotation: %v", s.workerID, err)
 	}
@@ -337,11 +344,22 @@ func (s *StreamWorker) finishGracefulRotate(streamTimer *time.Timer) {
 	streamTimer.Reset(s.streamLifetime)
 }
 
+// GetGenerationID safely returns the current generation ID
+func (s *StreamWorker) GetGenerationID() uint64 {
+	s.generationMu.RLock()
+	defer s.generationMu.RUnlock()
+	return s.generationID
+}
+
 // createNewStream creates a new gRPC stream and returns StreamInfo
 func (s *StreamWorker) createNewStream() (*StreamInfo, error) {
 	// Increment generation for new stream
+	s.generationMu.Lock()
 	s.generationID++
-	log.Infof("Worker %s: Creating new stream (generation %d)", s.workerID, s.generationID)
+	currentGen := s.generationID
+	s.generationMu.Unlock()
+
+	log.Infof("Worker %s: Creating new stream (generation %d)", s.workerID, currentGen)
 
 	// Create per-stream context derived from destinations context
 	ctx, cancel := context.WithCancel(s.destinationsContext.Context())
@@ -350,11 +368,11 @@ func (s *StreamWorker) createNewStream() (*StreamInfo, error) {
 	stream, err := s.client.LogsStream(ctx)
 	if err != nil {
 		cancel() // Clean up context on error
-		log.Errorf("Worker %s: Failed to create gRPC stream (generation %d): %v", s.workerID, s.generationID, err)
+		log.Errorf("Worker %s: Failed to create gRPC stream (generation %d): %v", s.workerID, currentGen, err)
 		return nil, fmt.Errorf("failed to create stream: %w", err)
 	}
 
-	log.Infof("Worker %s: Successfully created gRPC stream (generation %d)", s.workerID, s.generationID)
+	log.Infof("Worker %s: Successfully created gRPC stream (generation %d)", s.workerID, currentGen)
 	return &StreamInfo{
 		Stream: stream,
 		Ctx:    ctx,
