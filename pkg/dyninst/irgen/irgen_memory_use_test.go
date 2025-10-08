@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"runtime/trace"
 	"strconv"
 	"testing"
@@ -47,7 +48,6 @@ func TestIrgenMemoryUse(t *testing.T) {
 		fmt.Sprintf("%s=true", internalEnv),
 		fmt.Sprintf("%s=%s", traceOutputEnv, traceOutputPath),
 		"--test.run=TestIrgenMemoryUseInternal",
-		"GOGC=1", // aggressive GC, every 1% of memory growth.
 	)
 	cmd := exec.Command(os.Args[0], "--test.run=TestIrgenMemoryUseInternal", "--test.count=1")
 	cmd.Env = env
@@ -77,15 +77,17 @@ func TestIrgenMemoryUse(t *testing.T) {
 		}
 		maxMem = max(maxMem, metric.Value.Uint64())
 	}
-	const maxMemLimit uint64 = 27 * 1024 * 1024 // 27 MiB
-	require.Less(t, maxMem, maxMemLimit,
+	const maxMemLimit = 9 * 1024 * 1024 // 9 MiB
+	require.Less(t, maxMem, uint64(maxMemLimit),
 		"%s > %s", humanize.IBytes(maxMem), humanize.IBytes(maxMemLimit))
+	t.Logf("maxMem: %s", humanize.IBytes(maxMem))
 }
 
 func TestIrgenMemoryUseInternal(t *testing.T) {
 	if ok, _ := strconv.ParseBool(os.Getenv(internalEnv)); !ok {
 		t.Skip("IRGEN_MEMORY_USE_INTERNAL_TEST is not set")
 	}
+	debug.SetGCPercent(1)
 	const prog = "sample"
 	cfg := testprogs.MustGetCommonConfigs(t)[0]
 	binPath := testprogs.MustGetBinary(t, prog, cfg)
