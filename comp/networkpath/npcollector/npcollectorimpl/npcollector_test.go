@@ -874,7 +874,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				}
 			},
 			expectedLogs: []logCount{
-				{"[ERROR] processScheduleConns: GetIPResolverForDomains errors:", 1},
+				{"[WARN] processScheduleConns: GetIPResolverForDomains errors:", 1},
 				{"error looking up IPs for domain error.com: lookup failed for error.com", 1},
 				{"error looking up IPs for domain another-error.com: dns timeout", 1},
 			},
