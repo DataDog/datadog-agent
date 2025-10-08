@@ -206,20 +206,20 @@ static __always_inline bool parse_cert_serial(data_t *data, cert_t *cert) {
     return false;
 }
 
-static __always_inline bool parse_cert_date(data_t *data, __u8 (*dst)[UTC_TIME_LEN]) {
+static __always_inline bool parse_cert_date(data_t *data, __u8 (*dst)[UTC_ZONELESS_LEN]) {
     data_t utc_data = expect_der_elem(data, UTC_DATE_TYPE);
     if (!utc_data.buf) {
         log_bail();
         return true;
     }
 
-    if (data_size(utc_data) != UTC_ZULU_LEN) {
+    if (data_size(utc_data) != UTC_ZONE_LEN) {
         log_bail();
         return true;
     }
 
     // read all of it except for the Z at the end
-    if (data_read(dst, &utc_data, UTC_TIME_LEN)) {
+    if (data_read(dst, &utc_data, UTC_ZONELESS_LEN)) {
         log_bail();
         return true;
     }

@@ -41,7 +41,7 @@ func (ci *CertInfo) GetDynamicTags() map[string]struct{} {
 	}
 	if !ci.Validity.NotAfter.IsZero() {
 		timestamp := ci.Validity.NotAfter.UTC().Format(time.RFC3339)
-		tags["tls_cert_not_before:"+timestamp] = struct{}{}
+		tags["tls_cert_not_after:"+timestamp] = struct{}{}
 	}
 
 	return tags

@@ -27,12 +27,12 @@ typedef __u32 cert_id_t;
 
 // UTC time length including Z for zulu:
 // YYMMDDhhmmssZ
-#define UTC_ZULU_LEN 13
+#define UTC_ZONE_LEN 13
 // UTC time without the Z at the end
-#define UTC_TIME_LEN 12
+#define UTC_ZONELESS_LEN 12
 typedef struct {
-    __u8 not_before[UTC_TIME_LEN];
-    __u8 not_after[UTC_TIME_LEN];
+    __u8 not_before[UTC_ZONELESS_LEN];
+    __u8 not_after[UTC_ZONELESS_LEN];
 } cert_validity_t;
 
 typedef struct {
