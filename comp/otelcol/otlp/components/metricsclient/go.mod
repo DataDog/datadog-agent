@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclie
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace v0.72.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.72.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.38.0
