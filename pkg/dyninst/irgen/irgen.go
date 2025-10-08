@@ -1905,6 +1905,14 @@ type rootVisitor struct {
 	freeUnitChildVisitor *unitChildVisitor
 }
 
+// couldBeInteresting could possibly be interesting. If we've already visited
+// the abstract origin and we didn't put it in our map of abstract subprograms,
+// then we know this is not interesting and we don't need to index it.
+func (v *rootVisitor) couldBeInteresting(ref concreteSubprogramRef) bool {
+	return ref.abstractOrigin > ref.offset ||
+		mapContains(v.abstractSubprograms, ref.abstractOrigin)
+}
+
 // pendingSubprogram collects DWARF discovery for a subprogram without building
 // IR. It holds the DIEs and ranges needed for materialization.
 type pendingSubprogram struct {
@@ -1973,6 +1981,11 @@ type unitChildVisitor struct {
 	// TODO: Reuse the subprogramChildVisitor.
 }
 
+func mapContains[K comparable, V any](m map[K]V, key K) bool {
+	_, ok := m[key]
+	return ok
+}
+
 func (v *unitChildVisitor) push(
 	entry *dwarf.Entry,
 ) (childVisitor visitor, err error) {
@@ -1990,10 +2003,12 @@ func (v *unitChildVisitor) push(
 			if err != nil {
 				return nil, fmt.Errorf("failed to get abstract origin for out-of-line instance: %w", err)
 			}
-			v.root.outOfLineInstances = append(v.root.outOfLineInstances, concreteSubprogramRef{
+			if ref := (concreteSubprogramRef{
 				offset:         entry.Offset,
 				abstractOrigin: abstractOrigin,
-			})
+			}); v.root.couldBeInteresting(ref) {
+				v.root.outOfLineInstances = append(v.root.outOfLineInstances, ref)
+			}
 
 			return &inlinedSubroutineChildVisitor{
 				root:      v.root,
@@ -2930,10 +2945,12 @@ func (v *inlinedSubroutineChildVisitor) push(
 		if err != nil {
 			return nil, err
 		}
-		v.root.inlineInstances = append(v.root.inlineInstances, concreteSubprogramRef{
+		if ref := (concreteSubprogramRef{
 			offset:         entry.Offset,
 			abstractOrigin: abstractOrigin,
-		})
+		}); v.root.couldBeInteresting(ref) {
+			v.root.inlineInstances = append(v.root.inlineInstances, ref)
+		}
 		fallthrough
 	case dwarf.TagLexDwarfBlock:
 		return v, nil
