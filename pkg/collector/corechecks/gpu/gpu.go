@@ -10,8 +10,6 @@ package gpu
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -147,11 +145,12 @@ func (c *Check) ensureInitCollectors() error {
 		}
 	}
 	if len(missingDevices) > 0 {
-		newCollectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{
-			Devices:              missingDevices,
-			DeviceEventsGatherer: c.deviceEvtGatherer,
-			SystemProbeCache:     c.spCache,
-		})
+		newCollectors, err := nvidia.BuildCollectors(
+			missingDevices,
+			&nvidia.CollectorDependencies{
+				DeviceEventsGatherer: c.deviceEvtGatherer,
+				SystemProbeCache:     c.spCache,
+			})
 		if err != nil {
 			return fmt.Errorf("failed to build NVML collectors: %w", err)
 		}
@@ -159,11 +158,7 @@ func (c *Check) ensureInitCollectors() error {
 	}
 
 	c.collectors = collectors
-
-	// recompute device->tags mapping if necessary
-	if !slices.Equal(slices.Sorted(maps.Keys(c.deviceTags)), slices.Sorted(maps.Keys(curDevices))) {
-		c.deviceTags = nvidia.GetDeviceTagsMapping(c.deviceCache, c.tagger)
-	}
+	c.deviceTags = nvidia.GetDeviceTagsMapping(c.deviceCache, c.tagger)
 	return nil
 }
 
@@ -204,6 +199,13 @@ func (c *Check) Run() error {
 				log.Warnf("error refreshing system-probe cache: %v", err)
 			}
 			// Continue with NVML-only metrics, SP collectors will return empty metrics
+		}
+	}
+
+	// start device event gatherer if we have not already
+	if !c.deviceEvtGatherer.Started() {
+		if err := c.deviceEvtGatherer.Start(); err != nil {
+			log.Warnf("error starting device events collection: %v", err)
 		}
 	}
 

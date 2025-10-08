@@ -196,7 +196,7 @@ func (c *collector) Pull(_ context.Context) error {
 	}
 
 	// add/update current devices
-	seenUUIDs := map[string]struct{}{}
+	currentUUIDs := map[string]struct{}{}
 	var events []workloadmeta.CollectorEvent
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
@@ -211,12 +211,12 @@ func (c *collector) Pull(_ context.Context) error {
 			Entity: gpu,
 		}
 		events = append(events, event)
-		seenUUIDs[dev.GetDeviceInfo().UUID] = struct{}{}
+		currentUUIDs[dev.GetDeviceInfo().UUID] = struct{}{}
 	}
 
 	// remove previous devices that are no more available
 	for uuid := range c.seenUUIDs {
-		if _, ok := seenUUIDs[uuid]; ok {
+		if _, ok := currentUUIDs[uuid]; ok {
 			continue
 		}
 
@@ -232,7 +232,7 @@ func (c *collector) Pull(_ context.Context) error {
 		})
 	}
 
-	c.seenUUIDs = seenUUIDs
+	c.seenUUIDs = currentUUIDs
 
 	c.store.Notify(events)
 
