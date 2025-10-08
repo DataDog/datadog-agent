@@ -150,8 +150,8 @@ github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEU
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f h1:O+Ls4K2v4lQpGum7yYWM3aRZ3vJ/Ibvk/Ma/NqXwtWI=
 github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f/go.mod h1:E+dFku5SVIXDUj6apiBdDAzrUOR3xLz1bMgUOGjRAVQ=
-github.com/DataDog/datadog-traceroute v0.1.26 h1:Gom3/Hs562ai8HYdv9LTrgAc+Za7ixVbRCHmy3d3Rv4=
-github.com/DataDog/datadog-traceroute v0.1.26/go.mod h1:PU0w0AsVMEapWPgaqXEtBuDUlPQGlnHsaADsXVMKMts=
+github.com/DataDog/datadog-traceroute v0.1.28 h1:aakZepsIXOy0kcDNHkiHMnbIVn0cY8it6gzx/8+rmmU=
+github.com/DataDog/datadog-traceroute v0.1.28/go.mod h1:PU0w0AsVMEapWPgaqXEtBuDUlPQGlnHsaADsXVMKMts=
 github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251001104144-35a0daaf10ff h1:ebg53sL4WZzIqazsg7P39quwG7bc9tEr9tXOU5Y5ZzI=
 github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251001104144-35a0daaf10ff/go.mod h1:inkKXnNcJR5TNK8CvXcxybKj9J878mj4+4Ri9cziHbE=
 github.com/DataDog/dd-trace-go/v2 v2.2.2 h1:t7RCS6et5z+xrvM9dqUPtCGoNOWTj0pcApzbktMZi2k=
@@ -192,8 +192,8 @@ github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rt
 github.com/DataDog/sketches-go v1.4.7/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
 github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994 h1:kWy9qnN1+GGCzoJ/Q6V9UtOKNJKvryuGOc8Ib3dm/wc=
 github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994/go.mod h1:PTxRTPpO/cM2OqNLPPKVGtLhEBhORyrXT6mAjplzsRA=
-github.com/DataDog/viper v1.14.1-0.20251002211519-52225e3aeac8 h1:4jSnafJL6cMCg5vRx6KQNrEOyrfYm1m0yaJINIDx6sE=
-github.com/DataDog/viper v1.14.1-0.20251002211519-52225e3aeac8/go.mod h1:23Y+eHgd3tqskfSWsZyscKyDfspjt/+KkXCiPzMch4U=
+github.com/DataDog/viper v1.14.1-0.20251007072727-5a2ac1ff821e h1:wulTKT4YQePeB75SzM1SvotP9SFvvT1Y+J57LO1sSEA=
+github.com/DataDog/viper v1.14.1-0.20251007072727-5a2ac1ff821e/go.mod h1:f0E/4EtxfLRoURBvdFKXJyFBU+ufWlHjUAbnAGHb0ho=
 github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1 h1:9hiwoIk8FOsXDkdcdgNJ48iYaPfn+/7bXEwAnnfKjTc=
 github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1/go.mod h1:57ytxiQR5KMYNeDgNqKn9y1LJMoRamBKHj3nvURhAdQ=
 github.com/DataDog/zstd v1.5.7 h1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=
