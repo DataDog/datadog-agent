@@ -7,7 +7,6 @@ package util
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
