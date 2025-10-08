@@ -637,6 +637,7 @@ type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
 	ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
+	ResolveContainerTagsByID(ev *Event, id containerutils.ContainerID) []string
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -650,6 +651,11 @@ func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(ev *Event, _ func(*Proces
 // ResolveContainerContext stub implementation
 func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
+}
+
+// ResolveContainerTagsByID stub implementation
+func (dfh *FakeFieldHandlers) ResolveContainerTagsByID(_ *Event, _ containerutils.ContainerID) []string {
+	return nil
 }
 
 // TLSContext represents a tls context

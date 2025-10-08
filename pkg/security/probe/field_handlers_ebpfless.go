@@ -209,6 +209,16 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.C
 	return e.Tags
 }
 
+// ResolveContainerTagsByID stub implementation
+func (fh *EBPFLessFieldHandlers) ResolveContainerTagsByID(ev *model.Event, id containerutils.ContainerID) []string {
+	if len(ev.ContainerContext.Tags) != 0 {
+		return ev.ContainerContext.Tags
+
+	}
+	ev.ContainerContext.Tags = fh.resolvers.TagsResolver.Resolve(id)
+	return ev.ContainerContext.Tags
+}
+
 // ResolveProcessContainerID resolves the container ID of the event
 func (fh *EBPFLessFieldHandlers) ResolveProcessContainerID(ev *model.Event, _ *model.Process) string {
 	return fh.ResolveContainerID(ev, ev.ContainerContext)

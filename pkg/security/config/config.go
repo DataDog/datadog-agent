@@ -279,6 +279,9 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
 	ActivityDumpMaxDumpSize func() int
 
+	// SecurityProfileV2Enabled defines if the Security Profile manager should be enabled
+	SecurityProfileV2Enabled bool
+
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
 	// SecurityProfileMaxImageTags defines the maximum number of profile versions to maintain
@@ -585,6 +588,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
 		// security profiles
+		SecurityProfileV2Enabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.enabled"),
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
 		SecurityProfileMaxImageTags:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
 		SecurityProfileDir:                 pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),

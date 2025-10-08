@@ -196,6 +196,11 @@ func (pc *ProcessCacheEntry) markFileEventAsResolved() {
 	pc.LinuxBinprm.FileEvent.SetBasenameStr("")
 }
 
+// WorkloadEquals returns true if the two process cache entries are in the same workload
+func (pc *ProcessCacheEntry) WorkloadEquals(entry *ProcessCacheEntry) bool {
+	return pc.CGroup.CGroupID == entry.CGroup.CGroupID
+}
+
 // NewPlaceholderProcessCacheEntry returns a new empty process cache entry for failed process resolutions
 func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
 	entry := &ProcessCacheEntry{

@@ -379,7 +379,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return true, nil
 	} else if node == nil {
 		// a process node couldn't be found or created for this event, ignore it
-		return false, errors.New("a process node couldn't be found or created for this event")
+		return false, fmt.Errorf("a process node couldn't be found or created for this event: %w", err)
 	}
 
 	// resolve fields
@@ -488,7 +488,7 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 	var fastMatch *ProcessNode
 	var found bool
 	var branch []*model.ProcessCacheEntry
-	nextAncestor := entry
+	rootEntry, nextAncestor := entry, entry
 
 	for nextAncestor != nil {
 		// look for the current ancestor
@@ -501,10 +501,7 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 			}
 		}
 
-		// check if the next ancestor matches the tree selector
-		if !at.validator.MatchesSelector(nextAncestor) {
-			// When the first ancestor that doesn't match the tree selector is reached, we can return early because we
-			// know that none of its parents will match the selector
+		if !nextAncestor.WorkloadEquals(rootEntry) {
 			break
 		}
 
