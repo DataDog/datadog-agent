@@ -183,12 +183,12 @@ def _impl(ctx):
                 ),
                 artifact_name_pattern(
                     category_name = "dynamic_library",
-                    prefix = "lib",
+                    prefix = "",
                     extension = ".dll",
                 ),
                 artifact_name_pattern(
                     category_name = "static_library",
-                    prefix = "lib",
+                    prefix = "",
                     extension = ".a",
                 ),
             ],
