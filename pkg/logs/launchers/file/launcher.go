@@ -298,9 +298,11 @@ func (s *Launcher) scan() {
 func (s *Launcher) cleanUpRotatedTailers() {
 	pendingTailers := []*tailer.Tailer{}
 	for _, tailer := range s.rotatedTailers {
-		if !tailer.IsFinished() {
-			pendingTailers = append(pendingTailers, tailer)
+		if tailer.IsFinished() {
+			log.Debugf("Rotation cleanup: tailer %s finished draining rotated file (bytesRead=%d)", tailer.GetID(), tailer.Source().BytesRead.Get())
+			continue
 		}
+		pendingTailers = append(pendingTailers, tailer)
 	}
 	s.rotatedTailers = pendingTailers
 }
