@@ -591,13 +591,9 @@ func TestStartConfiguration(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// If we expect no error and process collection is enabled, set up mocks for immediate collection
-			if tc.expectedError == nil {
-				if enabled, ok := tc.configOverrides["process_config.process_collection.enabled"].(bool); ok && enabled {
-					c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{}, nil).Maybe()
-					c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
-				}
-			}
+			// set up mocks as some configurations result in calls
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{}, nil).Maybe()
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
 
 			err := c.collector.Start(ctx, c.mockStore)
 			assert.Equal(t, tc.expectedError, err)
