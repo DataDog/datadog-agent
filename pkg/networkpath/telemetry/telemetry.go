@@ -26,7 +26,7 @@ const CollectorTypeNetworkPathIntegration NetworkPathCollectorType = "network_pa
 const CollectorTypeNetworkPathCollector NetworkPathCollectorType = "network_path_collector"
 
 // SubmitNetworkPathTelemetry submits Network Path related telemetry
-func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
+func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, checkDuration time.Duration, checkInterval time.Duration, configuredInterval time.Duration, tags []string) {
 	var pathSource NetworkPathCollectorType
 	if path.Origin == payload.PathOriginNetworkTraffic {
 		pathSource = CollectorTypeNetworkPathCollector
@@ -46,6 +46,7 @@ func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.N
 	if checkInterval > 0 {
 		sender.Gauge("datadog.network_path.check_interval", checkInterval.Seconds(), newTags)
 	}
+	sender.Gauge("datadog.network_path.check_configured_interval", configuredInterval.Seconds(), newTags)
 
 	sender.Gauge("datadog.network_path.path.monitored", float64(1), newTags)
 }
