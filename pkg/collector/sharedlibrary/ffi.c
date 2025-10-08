@@ -1,4 +1,4 @@
-#include "shared_library.h"
+#include "ffi.h"
 
 #include <stdlib.h>
 #include <stdio.h>

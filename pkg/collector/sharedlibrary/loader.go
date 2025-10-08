@@ -5,18 +5,7 @@
 
 package sharedlibrary
 
-/*
-#include <stdlib.h>
-
-#include "shared_library.h"
-*/
-import "C"
-
 import (
-	"errors"
-	"fmt"
-	"unsafe"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -34,13 +23,15 @@ const SharedLibraryCheckLoaderName string = "sharedlibrary"
 //nolint:revive
 type SharedLibraryCheckLoader struct {
 	logReceiver option.Option[integrations.Component]
+	loader      libraryLoader
 }
 
 // NewSharedLibraryCheckLoader creates a loader for Shared Library checks
-func NewSharedLibraryCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (*SharedLibraryCheckLoader, error) {
+func NewSharedLibraryCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component, loader libraryLoader) (*SharedLibraryCheckLoader, error) {
 	initializeCheckContext(senderManager, logReceiver, tagger, filter)
 	return &SharedLibraryCheckLoader{
 		logReceiver: logReceiver,
+		loader:      loader,
 	}, nil
 }
 
@@ -55,27 +46,10 @@ func (sl *SharedLibraryCheckLoader) String() string {
 
 // Load returns a Shared Library check
 func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, _instanceIndex int) (check.Check, error) {
-	var cErr *C.char
-
-	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	name := "libdatadog-agent-" + config.Name
-
-	cName := C.CString(name)
-	defer C.free(unsafe.Pointer(cName))
-
-	// Get the shared library handles
-	libHandles := C.load_shared_library(cName, &cErr)
-	if cErr != nil {
-		err := C.GoString(cErr)
-		defer C.free(unsafe.Pointer(cErr))
-
-		// the loading error message can be very verbose (~850 chars)
-		if len(err) > 300 {
-			err = err[:300] + "..."
-		}
-
-		errMsg := fmt.Sprintf("failed to load shared library %q: %s", name, err)
-		return nil, errors.New(errMsg)
+	// load the library and get pointers to it and its 'Run' symbol through the library loader
+	libHandles, err := sl.loader.Load(config.Name)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create the check

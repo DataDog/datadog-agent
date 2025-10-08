@@ -5,36 +5,9 @@
 
 package sharedlibrary
 
-/*
-#include <stdlib.h>
-
-#include "shared_library.h"
-
-void SubmitMetricSo(char *, metric_type_t, char *, double, char **, char *, bool);
-void SubmitServiceCheckSo(char *, char *, int, char **, char *, char *);
-void SubmitEventSo(char *, event_t *);
-void SubmitHistogramBucketSo(char *, char *, long long, float, float, int, char *, char **, bool);
-void SubmitEventPlatformEventSo(char *, char *, int, char *);
-
-// the callbacks are aggregated in this file as it's the only one which uses it
-static const aggregator_t aggregator = {
-	SubmitMetricSo,
-	SubmitServiceCheckSo,
-	SubmitEventSo,
-	SubmitHistogramBucketSo,
-	SubmitEventPlatformEventSo,
-};
-
-static const aggregator_t *get_aggregator() {
-	return &aggregator;
-}
-*/
-import "C"
-
 import (
 	"fmt"
 	"time"
-	"unsafe"
 
 	yaml "gopkg.in/yaml.v2"
 
@@ -55,21 +28,20 @@ type SharedLibraryCheck struct {
 	id             checkid.ID
 	version        string
 	interval       time.Duration
-	libName        string
-	libHandles     C.handles_t // store library file and symbols pointers
+	name           string
+	libHandles     libraryHandles // handles to the shared library and its symbols
 	source         string
-	telemetry      bool   // whether or not the telemetry is enabled for this check
 	initConfig     string // json string of check common config
 	instanceConfig string // json string of specific instance config
 	cancelled      bool
 }
 
 // NewSharedLibraryCheck conveniently creates a SharedLibraryCheck instance
-func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libHandles C.handles_t) (*SharedLibraryCheck, error) {
+func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libHandles libraryHandles) (*SharedLibraryCheck, error) {
 	check := &SharedLibraryCheck{
 		senderManager: senderManager,
 		interval:      defaults.DefaultCheckInterval,
-		libName:       name,
+		name:          name,
 		libHandles:    libHandles,
 	}
 
@@ -85,28 +57,14 @@ func (c *SharedLibraryCheck) Run() error {
 // This function is created to allow passing the commitMetrics parameter (not possible due to the Check interface)
 func (c *SharedLibraryCheck) runCheckImpl(commitMetrics bool) error {
 	if c.cancelled {
-		return fmt.Errorf("check %s is already cancelled", c.libName)
+		return fmt.Errorf("check %s is already cancelled", c.name)
 	}
 
-	cID := C.CString(string(c.id))
-	defer C.free(unsafe.Pointer(cID))
+	// run the check through the library loader
+	err := defaultSharedLibraryLoader.Run(c.libHandles.run, string(c.id), c.initConfig, c.instanceConfig)
 
-	cInitConfig := C.CString(c.initConfig)
-	defer C.free(unsafe.Pointer(cInitConfig))
-
-	cInstanceConfig := C.CString(c.instanceConfig)
-	defer C.free(unsafe.Pointer(cInstanceConfig))
-
-	// retrieve callbacks
-	cAggregator := C.get_aggregator()
-
-	var cErr *C.char
-
-	// run check implementation by using the symbol handle
-	C.run_shared_library(c.libHandles.run, cID, cInitConfig, cInstanceConfig, cAggregator, &cErr)
-	if cErr != nil {
-		defer C.free(unsafe.Pointer(cErr))
-		return fmt.Errorf("Run failed: %s", C.GoString(cErr))
+	if err != nil {
+		return fmt.Errorf("Run failed: %s", err)
 	}
 
 	if commitMetrics {
@@ -125,9 +83,11 @@ func (c *SharedLibraryCheck) Stop() {}
 
 // Cancel closes the associated shared library and unschedules the check
 func (c *SharedLibraryCheck) Cancel() {
-	var cErr *C.char
+	err := defaultSharedLibraryLoader.Close(c.libHandles.lib)
 
-	C.close_shared_library(c.libHandles.lib, &cErr)
+	if err != nil {
+		log.Errorf("Cancel of check %q failed: %s", c.name, err)
+	}
 
 	c.cancelled = true
 
@@ -136,7 +96,7 @@ func (c *SharedLibraryCheck) Cancel() {
 
 // String representation (for debug and logging)
 func (c *SharedLibraryCheck) String() string {
-	return c.libName
+	return c.name
 }
 
 // Version is always an empty string
@@ -146,7 +106,7 @@ func (c *SharedLibraryCheck) Version() string {
 
 // IsTelemetryEnabled is not enabled
 func (c *SharedLibraryCheck) IsTelemetryEnabled() bool {
-	return c.telemetry
+	return false
 }
 
 // ConfigSource returns the source of the configuration for this check
@@ -188,6 +148,8 @@ func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, inte
 	if commonOptions.MinCollectionInterval > 0 {
 		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
 	}
+
+	c.version = "unversioned"
 
 	// configurations
 	c.source = source

@@ -11,36 +11,30 @@ import (
 	"runtime"
 	"testing"
 
-	//workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	"github.com/stretchr/testify/assert"
-	//"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-
-	//pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-/*
-
- */
-import "C"
-
-func testLoadCustomCheck(t *testing.T) {
+func testCreateFakeCheck(t *testing.T) {
 	conf := integration.Config{
 		Name:       "fake_check",
 		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
 		InitConfig: integration.Data("{}"),
-		Source:     "fake_check:/etc/datadog-agent/conf.d/fake_check.yaml",
+		Source:     "fake_check:/path/to/conf/fake_check.yaml",
 	}
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, nil)
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+
+	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, &mockSharedLibraryLoader{})
 	assert.Nil(t, err)
 
 	check, err := loader.Load(senderManager, conf, conf.Instances[0], 1)
@@ -50,11 +44,27 @@ func testLoadCustomCheck(t *testing.T) {
 	runtime.SetFinalizer(check, nil)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "fake_check", check.(*SharedLibraryCheck).libName)
+	assert.Equal(t, "fake_check", check.(*SharedLibraryCheck).name)
 	assert.Equal(t, "unversioned", check.(*SharedLibraryCheck).version)
-	assert.Equal(t, "fake_check:/etc/datadog-agent/conf.d/fake_check.yaml[1]", check.(*SharedLibraryCheck).source)
+	assert.Equal(t, "fake_check:/path/to/conf/fake_check.yaml", check.(*SharedLibraryCheck).source)
 }
 
-func testLoadError(t *testing.T) {
+func testLoadWithMissingLibrary(t *testing.T) {
+	conf := integration.Config{
+		Name:       "fake_check",
+		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
+		InitConfig: integration.Data("{}"),
+		Source:     "fake_check:/path/to/conf/fake_check.yaml",
+	}
 
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	logReceiver := option.None[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+
+	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, defaultSharedLibraryLoader)
+	assert.Nil(t, err)
+
+	_, err = loader.Load(senderManager, conf, conf.Instances[0], 1)
+	assert.EqualError(t, err, "failed to load shared library \"libdatadog-agent-fake_check\"")
 }

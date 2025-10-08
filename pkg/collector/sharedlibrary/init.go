@@ -22,7 +22,7 @@ import (
 func init() {
 	if pkgconfigsetup.Datadog().GetBool("shared_libraries_check.enabled") {
 		factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (check.Loader, int, error) {
-			loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filter)
+			loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filter, defaultSharedLibraryLoader)
 			priority := 40
 			return loader, priority, err
 		}

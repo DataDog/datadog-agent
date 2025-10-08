@@ -8,30 +8,19 @@
 package sharedlibrary
 
 import (
-	//"fmt"
 	"runtime"
 	"testing"
-	//"time"
-	//"unsafe"
 
 	"github.com/stretchr/testify/assert"
-	//"github.com/stretchr/testify/require"
 
-	//"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	//diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	//"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	//checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 /*
-#include "shared_library.h"
+#include "ffi.h"
 
-static char *mock_run_symbol(char *check_id, char *init_config, char *instance_config, const aggregator_t *callbacks) {
-	//printf("mock run symbol");
-	return NULL;
-}
+void mock_run_symbol(char *check_id, char *init_config, char *instance_config, const aggregator_t *aggregator, const char **error) {}
 
 handles_t get_mock_lib_handles(void) {
 	// only the symbol is required to run the check, so the library handle can be set to NULL
@@ -74,12 +63,12 @@ func testCancelCheck(t *testing.T) {
 	assert.True(t, check.cancelled)
 
 	err = check.runCheckImpl(false)
-	assert.Error(t, err, "check %s is already cancelled", check.libName)
+	assert.Error(t, err, "check %s is already cancelled", check.name)
 }
 
 // NewSharedLibraryFakeCheck creates a fake SharedLibraryCheck
 func NewSharedLibraryFakeCheck(senderManager sender.SenderManager) (*SharedLibraryCheck, error) {
-	c, err := NewSharedLibraryCheck(senderManager, "fake_check", C.get_mock_lib_handles())
+	c, err := NewSharedLibraryCheck(senderManager, "fake_check", getMockLibraryHandles())
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {
@@ -87,4 +76,10 @@ func NewSharedLibraryFakeCheck(senderManager sender.SenderManager) (*SharedLibra
 	}
 
 	return c, err
+}
+
+func getMockLibraryHandles() libraryHandles {
+	cLibHandles := C.get_mock_lib_handles()
+
+	return (libraryHandles)(cLibHandles)
 }

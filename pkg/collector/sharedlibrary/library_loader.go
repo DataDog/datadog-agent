@@ -6,7 +6,6 @@
 package sharedlibrary
 
 import (
-	"errors"
 	"fmt"
 	"unsafe"
 )
@@ -14,7 +13,7 @@ import (
 /*
 #include <stdlib.h>
 
-#include "shared_library.h"
+#include "ffi.h"
 
 void SubmitMetricSo(char *, metric_type_t, char *, double, char **, char *, bool);
 void SubmitServiceCheckSo(char *, char *, int, char **, char *, char *);
@@ -23,7 +22,7 @@ void SubmitHistogramBucketSo(char *, char *, long long, float, float, int, char 
 void SubmitEventPlatformEventSo(char *, char *, int, char *);
 
 // the callbacks are aggregated in this file as it's the only one which uses it
-static const aggregator_t aggregator = {
+const aggregator_t aggregator = {
 	SubmitMetricSo,
 	SubmitServiceCheckSo,
 	SubmitEventSo,
@@ -31,48 +30,49 @@ static const aggregator_t aggregator = {
 	SubmitEventPlatformEventSo,
 };
 
-static const aggregator_t *get_aggregator() {
+const aggregator_t *get_aggregator() {
 	return &aggregator;
 }
 */
 import "C"
 
+// store handles for loading, running checks
+type libraryHandles struct {
+	lib unsafe.Pointer
+	run *C.run_function_t
+}
+
 // libraryLoader is an interface that handles opening, running and closing shared libraries
 type libraryLoader interface {
-	Load(libName string) (C.handles_t, error)
-	Run(runHandle *C.run_function_t, checkID string, initConfig string, instanceConfig string, aggregator C.aggregator_t) error
-	Close(libHandle *C.void)
+	Load(name string) (libraryHandles, error)
+	Run(runHandle *C.run_function_t, checkID string, initConfig string, instanceConfig string) error
+	Close(libHandle unsafe.Pointer) error
 }
 
 // SharedLibraryLoader is an interface to load/close shared libraries and run their `Run` symbol
-type sharedLibraryLoader struct {}
+type sharedLibraryLoader struct {
+	aggregator *C.aggregator_t
+}
 
 // Load looks for a shared library with the corresponding name and check if it has a `Run` symbol.
 // If that's the case, then the method will return handles for both.
-func (l *sharedLibraryLoader) Load(libName string) (C.handles_t, error) {
+func (l *sharedLibraryLoader) Load(name string) (libraryHandles, error) {
 	var cErr *C.char
 
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	fullName := "libdatadog-agent-" + libName
+	fullName := "libdatadog-agent-" + name
 
 	cFullName := C.CString(fullName)
 	defer C.free(unsafe.Pointer(cFullName))
 
-	libHandles := C.load_shared_library(cFullName, &cErr)
+	cLibHandles := C.load_shared_library(cFullName, &cErr)
 	if cErr != nil {
-		err := C.GoString(cErr)
 		defer C.free(unsafe.Pointer(cErr))
 
-		// the loading error message can be very verbose (~850 chars)
-		if len(err) > 300 {
-			err = err[:300] + "..."
-		}
-
-		errMsg := fmt.Sprintf("failed to load shared library %q: %s", fullName, err)
-		return C.handles_t{}, errors.New(errMsg)
+		return libraryHandles{}, fmt.Errorf("failed to load shared library %q", fullName)
 	}
 
-	return libHandles, nil
+	return (libraryHandles)(cLibHandles), nil
 }
 
 func (l *sharedLibraryLoader) Run(runHandle *C.run_function_t, checkID string, initConfig string, instanceConfig string) error {
@@ -86,8 +86,8 @@ func (l *sharedLibraryLoader) Run(runHandle *C.run_function_t, checkID string, i
 	defer C.free(unsafe.Pointer(cInstanceConfig))
 
 	var cErr *C.char
-	
-	C.run_shared_library(runHandle, cID, cInitConfig, cInstanceConfig, C.get_aggregator(), &cErr)
+
+	C.run_shared_library(runHandle, cID, cInitConfig, cInstanceConfig, l.aggregator, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Run failed: %s", C.GoString(cErr))
@@ -102,15 +102,27 @@ func (l *sharedLibraryLoader) Close(libHandle unsafe.Pointer) error {
 	C.close_shared_library(libHandle, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return fmt.Errorf("Run failed: %s", C.GoString(cErr))
+		return fmt.Errorf("Close failed: %s", C.GoString(cErr))
 	}
 
 	return nil
-
 }
 
-type mockSharedLibraryLoader struct {}
+var defaultSharedLibraryLoader libraryLoader = &sharedLibraryLoader{
+	aggregator: C.get_aggregator(),
+}
 
-func (ml *mockSharedLibraryLoader) Load(_libName string) (C.handles_t, error) {
-	return C.handles_t{}, nil
+// mock of the sharedLibraryLoader
+type mockSharedLibraryLoader struct{}
+
+func (ml *mockSharedLibraryLoader) Load(_ string) (libraryHandles, error) {
+	return libraryHandles{}, nil
+}
+
+func (ml *mockSharedLibraryLoader) Run(_ *C.run_function_t, _ string, _ string, _ string) error {
+	return nil
+}
+
+func (ml *mockSharedLibraryLoader) Close(_ unsafe.Pointer) error {
+	return nil
 }

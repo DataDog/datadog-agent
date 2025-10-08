@@ -17,7 +17,7 @@ import (
 /*
 #include <stdbool.h>
 
-#include "shared_library.h"
+#include "ffi.h"
 */
 import "C"
 

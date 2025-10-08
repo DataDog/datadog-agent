@@ -81,7 +81,7 @@ typedef struct aggregator_s {
 } aggregator_t;
 
 // run function callback, entrypoint of checks
-// (check_id, init_config, instance_config, callbacks)
+// (check_id, init_config, instance_config, callbacks, error)
 typedef void (run_function_t)(char *, char *, char *, const aggregator_t *, const char **);
 
 // handles_t contains pointers to shared library and its Run symbol
