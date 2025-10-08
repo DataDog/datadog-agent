@@ -54,21 +54,24 @@ otlp_config:
 		},
 		{
 			name: "receiver section exists but empty",
-			yaml: `otlp_config:
+			yaml: `
+otlp_config:
   receiver:
 `,
 			expected: true,
 		},
 		{
 			name: "receiver section exists but null",
-			yaml: `otlp_config:
+			yaml: `
+otlp_config:
   receiver: null
 `,
 			expected: true,
 		},
 		{
 			name: "receiver section with protocols but empty",
-			yaml: `otlp_config:
+			yaml: `
+otlp_config:
   receiver:
     protocols:
 `,
