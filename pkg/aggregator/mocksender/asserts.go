@@ -148,7 +148,6 @@ type EventCompareFunc func(expected, actual event.Event) bool
 // Also do a timestamp comparison with a tolerance defined by allowedDelta
 // The provided compare function enables additional, test-specific validation logic
 func MatchEventLikeWithCompare(expected event.Event, allowedDelta time.Duration, compare EventCompareFunc) interface{} {
-
 	return mock.MatchedBy(func(actual event.Event) bool {
 		expectedTime := time.Unix(expected.Ts, 0)
 		actualTime := time.Unix(actual.Ts, 0)

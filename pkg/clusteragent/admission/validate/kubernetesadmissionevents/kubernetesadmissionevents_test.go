@@ -43,12 +43,10 @@ const (
 
 // compareText compares text while ignoring the timestamp
 func compareText(expected, actual event.Event) bool {
-
-	humanTimeRE := regexp.MustCompile(`[A-Za-z]+ \d{2}, \d{4} at \d{2}:\d{2}:\d{2} (AM|PM) [A-Z]{2,4}`)
-	expectedText := humanTimeRE.ReplaceAllString(expected.Text, "<TIME>")
-	actualText := humanTimeRE.ReplaceAllString(actual.Text, "<TIME>")
+	RE := regexp.MustCompile(`\*\*Time:\*\*.*?(\\n|$)`)
+	expectedText := RE.ReplaceAllString(expected.Text, "**Time:** <TIME>\n")
+	actualText := RE.ReplaceAllString(actual.Text, "**Time:** <TIME>\n")
 	return expectedText == actualText
-
 }
 
 // TestKubernetesAdmissionEvents tests the KubernetesAdmissionEvents webhook.
