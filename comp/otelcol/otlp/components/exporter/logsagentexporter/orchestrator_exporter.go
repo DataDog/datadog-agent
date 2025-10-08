@@ -71,7 +71,6 @@ func toManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.
 	// Extract the Kubernetes resource data from the log record body
 	var k8sResource map[string]interface{}
 	if err := json.Unmarshal([]byte(logRecord.Body().AsString()), &k8sResource); err != nil {
-		fmt.Println("faillxxxxx: ", logRecord.Body().AsString())
 		return nil, fmt.Errorf("failed to unmarshal k8s resource: %w", err)
 	}
 
