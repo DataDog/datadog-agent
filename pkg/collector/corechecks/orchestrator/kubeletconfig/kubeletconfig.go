@@ -10,7 +10,7 @@ package kubeletconfig
 import (
 	"context"
 	"errors"
-	"strconv"
+	"fmt"
 	"time"
 
 	"go.uber.org/atomic"
@@ -174,8 +174,7 @@ func (c *Check) Run() error {
 		return errors.New("kubelet config not found in workloadmeta store")
 	}
 
-	// todo: doublecheck this is what we want
-	rv := strconv.FormatUint(murmur3.Sum64(rawKubeletConfig), 10)
+	rv := fmt.Sprint(murmur3.Sum64(rawKubeletConfig))
 
 	tags := []string{}
 
