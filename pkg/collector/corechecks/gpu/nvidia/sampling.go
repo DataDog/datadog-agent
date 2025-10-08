@@ -90,6 +90,7 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 	currentTime := uint64(time.Now().Unix())
 	processSamples, err := device.GetProcessUtilization(lastTimestamp)
 
+	var nsPids nsPidCache
 	var allMetrics []Metric
 	var allPidTags []string
 	var maxSmUtil, sumSmUtil uint32
@@ -102,19 +103,24 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 		}
 	} else {
 		for _, sample := range processSamples {
-			pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
+			// Create PID tag for this process, and add NS PID if available
+			pidTags := []string{fmt.Sprintf("pid:%d", sample.Pid)}
+			if nsPid := nsPids.getHostPidNsPid(sample.Pid); nsPid != 0 {
+				pidTags = append(pidTags, fmt.Sprintf("nspid:%d", nsPid))
+			}
+			allPidTags = append(allPidTags, pidTags...)
+
 			allMetrics = append(allMetrics,
-				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
-				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
-				Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
-				Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
+				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+				Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+				Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
 			)
 
 			if sample.SmUtil > maxSmUtil {
 				maxSmUtil = sample.SmUtil
 			}
 			sumSmUtil += sample.SmUtil
-			allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
 		}
 	}
 

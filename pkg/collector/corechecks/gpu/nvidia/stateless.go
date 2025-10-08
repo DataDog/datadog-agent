@@ -81,20 +81,26 @@ func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
 func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
 	procs, err := device.GetComputeRunningProcesses()
 
+	var nsPids nsPidCache
 	var processMetrics []Metric
 	var allPidTags []string
 
 	if err == nil {
+		// Create PID tag for this process, and add NS PID if available
 		for _, proc := range procs {
-			pidTag := fmt.Sprintf("pid:%d", proc.Pid)
+			pidTags := []string{fmt.Sprintf("pid:%d", proc.Pid)}
+			if nsPid := nsPids.getHostPidNsPid(proc.Pid); nsPid != 0 {
+				pidTags = append(pidTags, fmt.Sprintf("nspid:%d", nsPid))
+			}
+			allPidTags = append(allPidTags, pidTags...)
+
 			processMetrics = append(processMetrics, Metric{
 				Name:     "process.memory.usage",
 				Value:    float64(proc.UsedGpuMemory),
 				Type:     metrics.GaugeType,
 				Priority: High,
-				Tags:     []string{pidTag},
+				Tags:     pidTags,
 			})
-			allPidTags = append(allPidTags, pidTag)
 		}
 	}
 

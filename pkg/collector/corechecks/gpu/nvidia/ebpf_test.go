@@ -8,6 +8,8 @@
 package nvidia
 
 import (
+	"fmt"
+	"os"
 	"slices"
 	"testing"
 
@@ -19,7 +21,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+// note: this is needed in order to allow mock test procfs scraping in some tests
+func TestMain(m *testing.M) {
+	fakeHostRoot, err := os.MkdirTemp("", "corechecks-gpu-nvidia-*")
+	if err != nil {
+		println(fmt.Sprintf("could not create fake host root dir: %v", err))
+		os.Exit(1)
+	}
+	defer os.RemoveAll(fakeHostRoot)
+
+	if err := os.Setenv("HOST_PROC", fakeHostRoot); err != nil {
+		println(fmt.Sprintf("could not set fake host root env var: %v", err))
+		os.Exit(1)
+	}
+	defer os.Unsetenv("HOST_PROC")
+
+	if fakeHostRoot != kernel.ProcFSRoot() {
+		println(fmt.Sprintf("could not properly set fake host root dir: %v", err))
+		os.Exit(1)
+	}
+
+	os.Exit(m.Run())
+}
 
 func TestSystemProbeCache(t *testing.T) {
 	tests := []struct {
@@ -122,6 +148,8 @@ func testCollectWithInvalidCache(t *testing.T) {
 }
 
 func testCollectWithSingleActiveProcess(t *testing.T) {
+	setupFakeProcTaskStatus(t, 123, 123, 3)
+
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
 		{
@@ -151,26 +179,29 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(50), coreUsage.Value)
-	assert.Equal(t, []string{"pid:123"}, coreUsage.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:3"}, coreUsage.Tags)
 
 	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(1024), memoryUsage.Value)
-	assert.Equal(t, []string{"pid:123"}, memoryUsage.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:3"}, memoryUsage.Tags)
 
 	// Verify limit metrics have aggregated PID tags
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
 	assert.Equal(t, float64(testutil.DefaultGpuCores), coreLimit.Value)
-	assert.Equal(t, []string{"pid:123"}, coreLimit.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:3"}, coreLimit.Tags)
 
 	memoryLimit := findMetric(metrics, "memory.limit")
 	require.NotNil(t, memoryLimit)
 	assert.Equal(t, float64(testutil.DefaultTotalMemory), memoryLimit.Value)
-	assert.Equal(t, []string{"pid:123"}, memoryLimit.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:3"}, memoryLimit.Tags)
 }
 
 func testCollectWithMultipleActiveProcesses(t *testing.T) {
+	setupFakeProcTaskStatus(t, 123, 123, 3)
+	setupFakeProcTaskStatus(t, 456, 456, 33)
+
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
 		{
@@ -211,7 +242,7 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 	// Verify limit metrics have aggregated PID tags
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	expectedPidTags := []string{"pid:123", "pid:456"}
+	expectedPidTags := []string{"pid:123", "nspid:3", "pid:456", "nspid:33"}
 	slices.Sort(coreLimit.Tags)
 	slices.Sort(expectedPidTags)
 	assert.Equal(t, expectedPidTags, coreLimit.Tags)
@@ -223,6 +254,8 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 }
 
 func testCollectWithInactiveProcesses(t *testing.T) {
+	setupFakeProcTaskStatus(t, 123, 123, 5)
+
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
 		{
@@ -260,20 +293,23 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(0), coreUsage.Value)
-	assert.Equal(t, []string{"pid:123"}, coreUsage.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:5"}, coreUsage.Tags)
 
 	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(0), memoryUsage.Value)
-	assert.Equal(t, []string{"pid:123"}, memoryUsage.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:5"}, memoryUsage.Tags)
 
 	// Verify limit metrics still include inactive process PID
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	assert.Equal(t, []string{"pid:123"}, coreLimit.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:5"}, coreLimit.Tags)
 }
 
 func testCollectFiltersByDeviceUUID(t *testing.T) {
+	setupFakeProcTaskStatus(t, 123, 123, 7)
+	setupFakeProcTaskStatus(t, 456, 456, 77)
+
 	device1UUID := "device-1-uuid"
 	device2UUID := "device-2-uuid"
 
@@ -316,11 +352,15 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 
 	// All metrics should be for PID 123 only
 	for _, metric := range metrics {
-		assert.Equal(t, []string{"pid:123"}, metric.Tags)
+		assert.Equal(t, []string{"pid:123", "nspid:7"}, metric.Tags)
 	}
 }
 
 func testCollectAggregatesPidTagsForLimits(t *testing.T) {
+	setupFakeProcTaskStatus(t, 123, 123, 1)
+	setupFakeProcTaskStatus(t, 456, 456, 11)
+	setupFakeProcTaskStatus(t, 789, 789, 111)
+
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
 		{
@@ -373,7 +413,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	// Verify limit metrics have all PID tags aggregated
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	expectedPidTags := []string{"pid:123", "pid:456", "pid:789"}
+	expectedPidTags := []string{"pid:123", "nspid:1", "pid:456", "nspid:11", "pid:789", "nspid:111"}
 	slices.Sort(coreLimit.Tags)
 	slices.Sort(expectedPidTags)
 	assert.Equal(t, expectedPidTags, coreLimit.Tags)
@@ -387,8 +427,9 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	usageMetrics := findAllMetricsWithName(metrics, "process.core.usage")
 	assert.Len(t, usageMetrics, 3)
 	for _, metric := range usageMetrics {
-		assert.Len(t, metric.Tags, 1)
+		require.Len(t, metric.Tags, 2)
 		assert.Contains(t, metric.Tags[0], "pid:")
+		assert.Contains(t, metric.Tags[1], "nspid:")
 	}
 }
 

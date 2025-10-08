@@ -124,6 +124,7 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		c.activeMetrics[key] = false
 	}
 
+	var nsPids nsPidCache
 	var deviceMetrics []Metric
 	var allPidTags []string
 
@@ -138,9 +139,12 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		key := entry.Key
 		metrics := entry.UtilizationMetrics
 
-		// Create PID tag for this process
-		pidTag := []string{fmt.Sprintf("pid:%d", key.PID)}
-		allPidTags = append(allPidTags, pidTag[0])
+		// Create PID tag for this process, and add NS PID if available
+		pidTags := []string{fmt.Sprintf("pid:%d", key.PID)}
+		if nsPid := nsPids.getHostPidNsPid(key.PID); nsPid != 0 {
+			pidTags = append(pidTags, fmt.Sprintf("nspid:%d", nsPid))
+		}
+		allPidTags = append(allPidTags, pidTags...)
 
 		// Add per-process usage metrics
 		deviceMetrics = append(deviceMetrics,
@@ -148,13 +152,13 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 				Name:  "process.core.usage",
 				Value: metrics.UsedCores,
 				Type:  ddmetrics.GaugeType,
-				Tags:  pidTag,
+				Tags:  pidTags,
 			},
 			Metric{
 				Name:  "process.memory.usage",
 				Value: float64(metrics.Memory.CurrentBytes),
 				Type:  ddmetrics.GaugeType,
-				Tags:  pidTag,
+				Tags:  pidTags,
 			},
 		)
 
@@ -166,8 +170,14 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	log.Debugf("ebpf collector: %d active metrics in the cache after processing", len(c.activeMetrics))
 	for key, active := range c.activeMetrics {
 		if !active {
-			pidTag := []string{fmt.Sprintf("pid:%d", key.PID)}
-			allPidTags = append(allPidTags, pidTag[0])
+			pidTags := []string{fmt.Sprintf("pid:%d", key.PID)}
+			allPidTags = append(allPidTags, pidTags[0])
+
+			// Add NS PID tag (if available)
+			if nsPid := nsPids.getHostPidNsPid(key.PID); nsPid != 0 {
+				pidTags = append(pidTags, fmt.Sprintf("nspid:%d", nsPid))
+				allPidTags = append(allPidTags, pidTags[len(pidTags)-1])
+			}
 
 			// Emit zero metrics for inactive processes
 			deviceMetrics = append(deviceMetrics,
@@ -175,13 +185,13 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 					Name:  "process.core.usage",
 					Value: 0,
 					Type:  ddmetrics.GaugeType,
-					Tags:  pidTag,
+					Tags:  pidTags,
 				},
 				Metric{
 					Name:  "process.memory.usage",
 					Value: 0,
 					Type:  ddmetrics.GaugeType,
-					Tags:  pidTag,
+					Tags:  pidTags,
 				},
 			)
 

@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strconv"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -21,6 +22,8 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
@@ -184,4 +187,49 @@ func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
 	}
 
 	return result
+}
+
+// GetHostPidNsPid the pid relative to the innermost PID namespace of a process with the given host pid
+func GetHostPidNsPid(hostPid uint32) (nsPid uint32, err error) {
+	// note: given /proc/X/task/Y/status, we have no guarantee that tasks Y will all
+	// have the same NSpid values, specially in case of unusual pid namespace setups.
+	// As such, we attempt reading the nspid for only on the main thread (group leader)
+	// in /proc/X/task/X/status, or fail otherwise
+	nspids, err := secutils.GetNsPids(hostPid, strconv.FormatUint(uint64(hostPid), 10))
+	if err != nil {
+		return 0, fmt.Errorf("failed reading nspids for host pid %d: %w", hostPid, err)
+	}
+	if len(nspids) == 0 {
+		return 0, fmt.Errorf("found no nspids for host pid %d", hostPid)
+	}
+
+	// we look only at the last one, as it the most inner one and corresponding to its /proc/pid/ns/pid
+	return nspids[len(nspids)-1], nil
+}
+
+type nsPidCache struct {
+	pidToNsPid map[uint32]uint32
+}
+
+// getHostPidNsPid invokes GetHostPidNsPid, or returns a cached value if already available.
+// In case of failed retrieval, returns 0 and logs th error
+func (c *nsPidCache) getHostPidNsPid(hostPid uint32) uint32 {
+	if c.pidToNsPid == nil {
+		c.pidToNsPid = map[uint32]uint32{}
+	}
+
+	if nsPid, ok := c.pidToNsPid[hostPid]; ok {
+		return nsPid
+	}
+
+	nsPid, err := GetHostPidNsPid(hostPid)
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Debug(err.Error())
+		}
+		return 0
+	}
+
+	c.pidToNsPid[hostPid] = nsPid
+	return nsPid
 }
