@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// MockCGroupFS implements a mock for CGroupFSInterface
+// MockCGroupFS implements a mock for FSInterface
 type MockCGroupFS struct {
 	mock.Mock
 }
