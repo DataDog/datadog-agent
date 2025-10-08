@@ -56,6 +56,7 @@ BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
 BPF_HASH_MAP(active_flows_spin_locks, u32, struct active_flows_spin_lock_t, 1) // max entry will be overridden at runtime
 BPF_HASH_MAP(inode_file, u64, struct file_t, 32)
 BPF_HASH_MAP(cgroup_mount_id, u32, u32, 1)
+BPF_HASH_MAP(memfd_tracking, u64, u32, 1024)
 
 BPF_HASH_MAP_FLAGS(active_flows, u32, struct active_flows_t, 1, BPF_F_NO_PREALLOC) // max entry will be overridden at runtime
 BPF_HASH_MAP_FLAGS(inet_bind_args, u64, struct inet_bind_args_t, 1, BPF_F_NO_PREALLOC) // max entries will be overridden at runtime

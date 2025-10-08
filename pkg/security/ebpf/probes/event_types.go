@@ -593,6 +593,11 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 		"prctl": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", hasFentry, EntryAndExit)},
 		},
+		"tracer_memfd_sealed": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "memfd_create", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fcntl", hasFentry, Entry)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fcntl64", hasFentry, Entry)},
+		},
 	}
 
 	// Add probes required to track network interfaces and map network flows to processes

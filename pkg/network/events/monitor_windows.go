@@ -98,3 +98,7 @@ func getAPMTags(already map[string]struct{}, filename string) []*intern.Value {
 	}
 	return nil
 }
+
+func getTracerTags(pid uint32, fd uint32) []*intern.Value {
+	return nil
+}

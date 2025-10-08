@@ -288,6 +288,9 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
     // delete netns entry
     bpf_map_delete_elem(&netns_cache, &pid);
 
+    // cleanup memfd tracking (if tracer memfd was created but never sealed)
+    bpf_map_delete_elem(&memfd_tracking, &pid_tgid);
+
     u64 *pid_tgid_execing = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
 
     // only send the exit event if this is the thread group leader that isn't being killed by an execing thread

@@ -73,6 +73,21 @@ func TestEventMonitor(t *testing.T) {
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
+
+	t.Run("tracer-memfd", func(t *testing.T) {
+		tracerMemfdCount := sec.TracerMemfdSealedCount()
+		cmd := exec.Command(syscallTester, "tracer-memfd")
+		_ = cmd.Run()
+
+		err := retry.Do(func() error {
+			if tracerMemfdCount+1 <= sec.TracerMemfdSealedCount() {
+				return nil
+			}
+
+			return errors.New("event not received")
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+	})
 }
 
 func TestEventMonitorNoEnvs(t *testing.T) {

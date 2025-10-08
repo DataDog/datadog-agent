@@ -148,14 +148,15 @@ type Event struct {
 	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
 
 	// internal usage
-	Umount           UmountEvent           `field:"-"`
-	InvalidateDentry InvalidateDentryEvent `field:"-"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
-	MountReleased    MountReleasedEvent    `field:"-"`
-	CgroupTracing    CgroupTracingEvent    `field:"-"`
-	NetDevice        NetDeviceEvent        `field:"-"`
-	VethPair         VethPairEvent         `field:"-"`
-	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+	Umount            UmountEvent            `field:"-"`
+	InvalidateDentry  InvalidateDentryEvent  `field:"-"`
+	ArgsEnvs          ArgsEnvsEvent          `field:"-"`
+	MountReleased     MountReleasedEvent     `field:"-"`
+	CgroupTracing     CgroupTracingEvent     `field:"-"`
+	NetDevice         NetDeviceEvent         `field:"-"`
+	VethPair          VethPairEvent          `field:"-"`
+	UnshareMountNS    UnshareMountNSEvent    `field:"-"`
+	TracerMemfdSealed TracerMemfdSealedEvent `field:"-"`
 }
 
 var cgroupContextZero CGroupContext
@@ -1047,4 +1048,10 @@ type PrCtlEvent struct {
 	Option          int    `field:"option"`            // SECLDoc[option] Definition:`prctl option`
 	NewName         string `field:"new_name"`          // SECLDoc[new_name] Definition:`New name of the process`
 	IsNameTruncated bool   `field:"is_name_truncated"` // SECLDoc[is_name_truncated] Definition:`Indicates that the name field is truncated`
+}
+
+// TracerMemfdSealedEvent represents a tracer memfd sealed event
+type TracerMemfdSealedEvent struct {
+	SyscallEvent
+	Fd uint32
 }

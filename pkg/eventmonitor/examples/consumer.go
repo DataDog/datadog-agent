@@ -26,9 +26,10 @@ type SimpleEvent struct {
 // SimpleEventConsumer defines a simple event consumer
 type SimpleEventConsumer struct {
 	sync.RWMutex
-	exec int
-	fork int
-	exit int
+	exec              int
+	fork              int
+	exit              int
+	tracerMemfdSealed int
 
 	handlers []func(evt *SimpleEvent)
 }
@@ -72,6 +73,7 @@ func (fc *SimpleEventConsumer) EventTypes() []model.EventType {
 		model.ForkEventType,
 		model.ExecEventType,
 		model.ExitEventType,
+		model.TracerMemfdSealedEventType,
 	}
 }
 
@@ -99,6 +101,8 @@ func (fc *SimpleEventConsumer) HandleEvent(event any) {
 		fc.fork++
 	case uint32(model.ExitEventType):
 		fc.exit++
+	case uint32(model.TracerMemfdSealedEventType):
+		fc.tracerMemfdSealed++
 	}
 
 	for _, handler := range fc.handlers {
@@ -125,4 +129,11 @@ func (fc *SimpleEventConsumer) ExecCount() int {
 	fc.RLock()
 	defer fc.RUnlock()
 	return fc.exec
+}
+
+// TracerMemfdSealedCount returns the number of tracer_memfd_sealed handled
+func (fc *SimpleEventConsumer) TracerMemfdSealedCount() int {
+	fc.RLock()
+	defer fc.RUnlock()
+	return fc.tracerMemfdSealed
 }
