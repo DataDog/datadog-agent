@@ -147,7 +147,7 @@ func (s *Launcher) run() {
 		case files := <-s.filesChan:
 			s.cleanUpRotatedTailers()
 
-			s.scan(files)
+			s.resolveActiveTailers(files)
 			scanTicker.Reset(s.scanPeriod)
 		case <-s.stop:
 			// Cancel the context passed to fileProvider.FilesToTail
@@ -178,19 +178,21 @@ func (s *Launcher) cleanup() {
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
 }
 
-// scan checks all the files we're expected to tail, compares them to the currently tailed files,
-// and triggers the required updates.
-// For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
-// The Scanner needs to stop that previous tailer, and start a new one for the new file.
-func (s *Launcher) scan(files []*tailer.File) {
-	// FilesToTail(), which scan() receives the files parameter from, is called in
-	// the main run loop of launcher but runs parallel in a go function. It is
-	// therefore possible that addSource() can be called while FilesToTail() is
+// resolveActiveTailers checks all the files we're expected to tail, compares them to the
+// currently tailed files, and triggers the required updates.  For instance,
+// when a file is logrotated, its tailer will keep tailing the rotated file.
+// The Scanner needs to stop that previous tailer, and start a new one for the
+// new file.
+func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
+	// scan() receives the files parameter from FilesToTail(), which is called in
+	// the main run loop of launcher. FilesToTail() is always executed concurrently.
+	// It is therefore possible that addSource() can be called while FilesToTail() is
 	// still running. Since FilesToTail() is only passed a copy of activeSources
-	// it is therefore possible that it would miss the newly added source and
-	// therefore scan() would unschedule the appropriate tailer. In order to
-	// mitigate that possibility, any tailers started while FilesToTail() is
-	// running need to be added here to prevent scan() from unscheduling them.
+	// it is possible that it would miss new sources added by addsource()
+	// therefore scan() would unschedule a tailer added during a concurrent scan.
+	// In order to mitigate that possibility, any tailers started while FilesToTail() is
+	// running need to be merged with the result of FilesToTail() to prevent scan() from
+	// unscheudling them.
 	files = append(files, s.filesTailedBetweenScans...)
 	s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
 	filesTailed := make(map[string]bool)
