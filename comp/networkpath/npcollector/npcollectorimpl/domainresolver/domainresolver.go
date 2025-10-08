@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
-const domainLookupExpiration = 5 * time.Minute
+const domainLookupExpiration = 2 * time.Hour
 
 // DomainResolver handles domain resolution
 type DomainResolver struct {
