@@ -129,6 +129,18 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_DDOT_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_DDOT_VERSION")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_DDOT_UNINSTALL")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
                     _agentBinaries.TrayId,

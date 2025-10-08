@@ -220,5 +220,23 @@ namespace Datadog.AgentCustomActions
         {
             return Datadog.CustomActions.InstallOciPackages.RollbackActions(session);
         }
+
+        [CustomAction]
+        public static ActionResult InstallDdotPackage(Session session)
+        {
+            return Datadog.CustomActions.InstallDdotPackage.Install(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RollbackDdotPackage(Session session)
+        {
+            return Datadog.CustomActions.InstallDdotPackage.Rollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult UninstallDdotPackage(Session session)
+        {
+            return Datadog.CustomActions.InstallDdotPackage.Uninstall(session);
+        }
     }
 }
