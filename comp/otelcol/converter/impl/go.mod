@@ -14,7 +14,6 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.29.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.29.0
 	go.uber.org/zap v1.27.0
-
 )
 
 require github.com/DataDog/datadog-agent/pkg/trace v0.64.2 // indirect
