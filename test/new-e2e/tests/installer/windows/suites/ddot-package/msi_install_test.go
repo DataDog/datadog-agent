@@ -32,7 +32,7 @@ func TestAgentMSIInstallsDDOTPackage(t *testing.T) {
 		))
 }
 
-func (s *testAgentMSIInstallsDDOT) AfterTest(suiteName, testName string) {
+func (s *testAgentMSIInstallsDDOT) AfterTest(_suiteName, _testName string) {
 	s.Installer().Purge()
 }
 
