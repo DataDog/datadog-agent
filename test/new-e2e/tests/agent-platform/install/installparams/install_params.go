@@ -16,13 +16,13 @@ import "os"
 
 // Params struct containing install params
 type Params struct {
-	PipelineID    string
-	MajorVersion  string
-	Arch          string
-	Flavor        string
-	Upgrade       bool
-	APIKey        string
-	TestingKeyURL string
+	PipelineID     string
+	MajorVersion   string
+	Arch           string
+	Flavor         string
+	Upgrade        bool
+	APIKey         string
+	TestingKeysURL string
 }
 
 // Option alias to a functional option changing a given Params instance
