@@ -44,6 +44,7 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 	for _, domain := range domains {
 		ips, err := GetWithExpiration(domain, func() ([]string, error) {
 			_ = d.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"domain_resolver_calls", []string{}, 1)
+			// TODO: TEST ME Test cache is working for error cases
 			ips, err := d.LookupHostFn(domain)
 			if err != nil {
 				return nil, err
@@ -67,6 +68,8 @@ func GetWithExpiration[T any](key string, cb func() (T, error), expire time.Dura
 	if x, found := cache.Cache.Get(key); found {
 		return x.(T), nil
 	}
+
+	// TODO: TEST ME Test cache is working for error cases
 
 	res, err := cb()
 	// We cache errors too
