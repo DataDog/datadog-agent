@@ -144,17 +144,18 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		}
 	}
 
+	var dependsOnArgoRollout pulumi.ResourceOption
 	if params.deployArgoRollout {
 		argoParams, err := argorollouts.NewParams()
 		if err != nil {
 			return err
 		}
-		_, err = argorollouts.NewHelmInstallation(&awsEnv, argoParams, pulumi.Provider(kubeProvider))
+		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, pulumi.Provider(kubeProvider))
 		if err != nil {
 			return err
 		}
+		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
 	}
-
 	var fakeIntake *fakeintakeComp.Fakeintake
 	if params.fakeintakeOptions != nil {
 		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
@@ -272,7 +273,7 @@ agents:
 		}
 
 		if params.deployArgoRollout {
-			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, kubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent); err != nil {
+			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, kubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent, dependsOnArgoRollout); err != nil {
 				return err
 			}
 		}

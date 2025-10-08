@@ -98,15 +98,17 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 	}
 	dependsOnVPA := utils.PulumiDependsOn(vpaCrd)
 
+	var dependsOnArgoRollout pulumi.ResourceOption
 	if params.deployArgoRollout {
 		argoParams, err := argorollouts.NewParams()
 		if err != nil {
 			return err
 		}
-		_, err = argorollouts.NewHelmInstallation(&awsEnv, argoParams, pulumi.Provider(cluster.KubeProvider))
+		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, pulumi.Provider(cluster.KubeProvider))
 		if err != nil {
 			return err
 		}
+		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
 	}
 
 	var fakeIntake *fakeintakeComp.Fakeintake
@@ -216,7 +218,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		}
 
 		if params.deployArgoRollout {
-			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, cluster.KubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent); err != nil {
+			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, cluster.KubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent, dependsOnArgoRollout); err != nil {
 				return err
 			}
 		}

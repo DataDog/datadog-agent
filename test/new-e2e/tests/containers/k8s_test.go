@@ -813,7 +813,7 @@ func (suite *k8sSuite) TestArgoRollout() {
 	// Check that kube_argo_rollout tag is added to metric
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
-			Name: "nginx.net.request_per_s",
+			Name: "container.cpu.system",
 			Tags: []string{
 				`^kube_namespace:workload-argo-rollout-nginx$`,
 			},
@@ -824,8 +824,8 @@ func (suite *k8sSuite) TestArgoRollout() {
 				`^container_name:nginx$`,
 				`^display_container_name:nginx`,
 				`^kube_container_name:nginx$`,
-				`^kube_deployment:nginx$`,
-				`^kube_argo_rollout:nginx$$`,
+				`^kube_deployment:nginx-rollout$`,
+				`^kube_argo_rollout:nginx-rollout$`,
 				`^kube_namespace:workload-argo-rollout-nginx$`,
 			},
 			AcceptUnexpectedTags: true,
