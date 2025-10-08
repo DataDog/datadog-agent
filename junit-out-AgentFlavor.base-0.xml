@@ -1,0 +1,171 @@
+<testsuites tests="2" failures="2" errors="0" time="16.713627">
+	<testsuite tests="2" failures="2" time="16.713000" name="github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix" timestamp="2025-10-07T17:11:36+02:00">
+		<properties>
+			<property name="go.version" value="go1.25.1 darwin/arm64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix" name="TestPackages/agent_redhat_9_x86_64_install_script" time="15.030000">
+			<failure message="Failed" type="">=== RUN   TestPackages/agent_redhat_9_x86_64_install_script
+=== PAUSE TestPackages/agent_redhat_9_x86_64_install_script
+=== CONT  TestPackages/agent_redhat_9_x86_64_install_script
+key [stack_name_suffix] not found in envValueStoreKey, converting to `strings.ToUpper(E2E_&lt;key&gt;)`
+    suite.go:604: Suite session output directory: /Users/baptiste.foy/e2e-output/TestPackages/agent_redhat_9_x86_64_install_script_2025_10_07_17_11_38_518134531
+    suite.go:386: Updating environment with new provisioners
+    suite.go:413: Provisioning environment stack agent_redhat_9_x86_64_install_script with provisioner aws-ec2vm-vm
+Creating workspace for stack: bfoy-agent-redhat-9-x86-64-install-script at /var/folders/dm/phjbcb8j2pjg53pyzpj95xc40000gp/T/pulumi-workspace/73501ce74fb76e3c
+Using AMI ami-01a52a1073599b7c8
+ for stack bfoy-agent-redhat-9-x86-64-install-script
+    print.go:225: Stack up took 4.605960209s at attempt 1
+        
+    print.go:225: Retrying stack on error during stack up: failed to run update: exit status 255
+        code: 255
+        stdout: Updating (bfoy-agent-redhat-9-x86-64-install-script):
+        
+         +  pulumi:pulumi:Stack e2elocal-bfoy-agent-redhat-9-x86-64-install-script creating (0s) 
+         +  pulumi:providers:command command creating (0s) 
+         +  pulumi:providers:command command created (0.00s) 
+         +  dd:Host aws-vm creating (0s) 
+         +  pulumi:providers:random random creating (0s) 
+         +  pulumi:providers:random random created (0.01s) 
+        @ updating......
+         +  pulumi:providers:aws aws creating (0s) 
+         +  random:index:RandomShuffle aws-rnd-subnet creating (0s) 
+         +  random:index:RandomInteger aws-rnd-fakeintake creating (0s) 
+         +  pulumi:providers:aws aws created (0.01s) 
+         +  random:index:RandomShuffle aws-rnd-ecs creating (0s) 
+         +  random:index:RandomShuffle aws-rnd-subnet created (0.02s) 
+         +  random:index:RandomInteger aws-rnd-fakeintake created (0.02s) 
+         +  random:index:RandomShuffle aws-rnd-ecs created (0.02s) 
+         +  aws:ec2:Instance aws-vm creating (0s) 
+        @ updating....
+         +  aws:ec2:Instance aws-vm creating (0s) error:   sdk-v2/provider2.go:515: sdk.helper_schema: collecting instance settings: empty result: provider=aws@6.66.2
+         +  aws:ec2:Instance aws-vm creating (0s) error: 1 error occurred:
+         +  aws:ec2:Instance aws-vm **creating failed** error: 1 error occurred:
+         +  pulumi:pulumi:Stack e2elocal-bfoy-agent-redhat-9-x86-64-install-script creating (4s) error: update failed
+         +  dd:Host aws-vm created 
+         +  pulumi:pulumi:Stack e2elocal-bfoy-agent-redhat-9-x86-64-install-script **creating failed** 1 error
+        Diagnostics:
+          pulumi:pulumi:Stack (e2elocal-bfoy-agent-redhat-9-x86-64-install-script):
+            error: update failed
+        
+          aws:ec2:Instance (aws-vm):
+            error:   sdk-v2/provider2.go:515: sdk.helper_schema: collecting instance settings: empty result: provider=aws@6.66.2
+            error: 1 error occurred:
+            	* collecting instance settings: empty result
+        
+        Resources:
+            + 8 created
+        
+        Duration: 5s
+        
+        
+        stderr: 
+        
+        
+Using AMI ami-01a52a1073599b7c8
+ for stack bfoy-agent-redhat-9-x86-64-install-script
+    print.go:225: Stack up took 2.883030375s at attempt 2
+        
+    print.go:225: Retrying stack on error during stack up: failed to run update: exit status 255
+        code: 255
+        stdout: Updating (bfoy-agent-redhat-9-x86-64-install-script):
+        
+        @ updating.....
+         +  aws:ec2:Instance aws-vm creating (0s) 
+         +  aws:ec2:Instance aws-vm creating (0s) error:   sdk-v2/provider2.go:515: sdk.helper_schema: collecting instance settings: empty result: provider=aws@6.66.2
+         +  aws:ec2:Instance aws-vm creating (0s) error: 1 error occurred:
+         +  aws:ec2:Instance aws-vm **creating failed** error: 1 error occurred:
+            pulumi:pulumi:Stack e2elocal-bfoy-agent-redhat-9-x86-64-install-script running error: update failed
+            pulumi:pulumi:Stack e2elocal-bfoy-agent-redhat-9-x86-64-install-script **failed** 1 error
+        Diagnostics:
+          aws:ec2:Instance (aws-vm):
+            error:   sdk-v2/provider2.go:515: sdk.helper_schema: collecting instance settings: empty result: provider=aws@6.66.2
+            error: 1 error occurred:
+            	* collecting instance settings: empty result
+        
+          pulumi:pulumi:Stack (e2elocal-bfoy-agent-redhat-9-x86-64-install-script):
+            error: update failed
+        
+        Resources:
+            8 unchanged
+        
+        Duration: 3s
+        
+        
+        stderr: 
+        
+        
+Using AMI ami-01a52a1073599b7c8
+ for stack bfoy-agent-redhat-9-x86-64-install-script
+    print.go:225: Stack up took 3.039681209s at attempt 3
+        
+    print.go:225: Giving up on error during stack up: failed to run update: exit status 255
+        code: 255
+        stdout: Updating (bfoy-agent-redhat-9-x86-64-install-script):
+        
+        @ updating.....
+         +  aws:ec2:Instance aws-vm creating (0s) 
+         +  aws:ec2:Instance aws-vm creating (0s) error:   sdk-v2/provider2.go:515: sdk.helper_schema: collecting instance settings: empty result: provider=aws@6.66.2
+         +  aws:ec2:Instance aws-vm creating (0s) error: 1 error occurred:
+         +  aws:ec2:Instance aws-vm **creating failed** error: 1 error occurred:
+            pulumi:pulumi:Stack e2elocal-bfoy-agent-redhat-9-x86-64-install-script running error: update failed
+            pulumi:pulumi:Stack e2elocal-bfoy-agent-redhat-9-x86-64-install-script **failed** 1 error
+        Diagnostics:
+          pulumi:pulumi:Stack (e2elocal-bfoy-agent-redhat-9-x86-64-install-script):
+            error: update failed
+        
+          aws:ec2:Instance (aws-vm):
+            error:   sdk-v2/provider2.go:515: sdk.helper_schema: collecting instance settings: empty result: provider=aws@6.66.2
+            error: 1 error occurred:
+            	* collecting instance settings: empty result
+        
+        Resources:
+            8 unchanged
+        
+        Duration: 3s
+        
+        
+        stderr: 
+        
+        
+    suite.go:272: Calling TearDownSuite after SetupSuite failed with the following error: your stack 'agent_redhat_9_x86_64_install_script' provisioning failed, check logs above. Provisioner was aws-ec2vm-vm, failed with err: E2E INTERNAL ERROR: failed to run update: exit status 255
+        code: 255
+        stdout: Updating (bfoy-agent-redhat-9-x86-64-install-script):
+        
+        @ updating.....
+         +  aws:ec2:Instance aws-vm creating (0s) 
+         +  aws:ec2:Instance aws-vm creating (0s) error:   sdk-v2/provider2.go:515: sdk.helper_schema: collecting instance settings: empty result: provider=aws@6.66.2
+         +  aws:ec2:Instance aws-vm creating (0s) error: 1 error occurred:
+         +  aws:ec2:Instance aws-vm **creating failed** error: 1 error occurred:
+            pulumi:pulumi:Stack e2elocal-bfoy-agent-redhat-9-x86-64-install-script running error: update failed
+            pulumi:pulumi:Stack e2elocal-bfoy-agent-redhat-9-x86-64-install-script **failed** 1 error
+        Diagnostics:
+          pulumi:pulumi:Stack (e2elocal-bfoy-agent-redhat-9-x86-64-install-script):
+            error: update failed
+        
+          aws:ec2:Instance (aws-vm):
+            error:   sdk-v2/provider2.go:515: sdk.helper_schema: collecting instance settings: empty result: provider=aws@6.66.2
+            error: 1 error occurred:
+            	* collecting instance settings: empty result
+        
+        Resources:
+            8 unchanged
+        
+        Duration: 3s
+        
+        
+        stderr: 
+    suite.go:737: Running Diagnose for provisioner aws-ec2vm-vm
+    suite.go:768: Destroying stack agent_redhat_9_x86_64_install_script with provisioner aws-ec2vm-vm
+    suite.go:274: TearDownSuite called after SetupSuite failed
+    --- FAIL: TestPackages/agent_redhat_9_x86_64_install_script (15.03s)
+</failure>
+		</testcase>
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix" name="TestPackages" time="0.000000">
+			<failure message="Failed" type="">=== RUN   TestPackages
+    all_packages.go:38: FLEET_INSTALL_METHOD is not set or has an unsupported value. Supported values are: [ansible install_script windows]
+    all_packages.go:39: Using default install method: install_script
+--- FAIL: TestPackages (0.00s)
+</failure>
+		</testcase>
+	</testsuite>
+<flavor>base</flavor></testsuites>

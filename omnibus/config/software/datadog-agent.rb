@@ -26,6 +26,8 @@ unless do_repackage?
   dependency 'datadog-agent-dependencies'
 
   dependency "installer" if linux_target? and !heroku_target?
+
+  dependency "dd-compile-policy" if linux_target? and !heroku_target?
 end
 
 source path: '..',
