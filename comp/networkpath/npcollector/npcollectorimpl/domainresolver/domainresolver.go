@@ -46,7 +46,7 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 			// TODO: REMOVE DOMAIN TAG
 			// TODO: REMOVE DOMAIN TAG
 			// TODO: REMOVE DOMAIN TAG
-			_ = d.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"domain_resolver_calls", []string{"domain:" + domain}, 1)
+			_ = d.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"domain_resolver_calls", []string{"domain_name:" + domain}, 1)
 			ips, err := d.LookupHostFn(domain)
 			return ips, err
 		}, domainLookupExpiration)
