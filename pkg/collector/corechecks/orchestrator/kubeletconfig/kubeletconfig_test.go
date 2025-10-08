@@ -54,41 +54,41 @@ type fakeSender struct {
 
 type fakeDCAClient struct{}
 
-func (f *fakeDCAClient) Version(withRefresh bool) version.Version                 { panic("not used") }
-func (f *fakeDCAClient) ClusterAgentAPIEndpoint() string                          { panic("not used") }
-func (f *fakeDCAClient) GetNodeLabels(nodeName string) (map[string]string, error) { panic("not used") }
-func (f *fakeDCAClient) GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error) {
+func (f *fakeDCAClient) Version(_ bool) version.Version                    { panic("not used") }
+func (f *fakeDCAClient) ClusterAgentAPIEndpoint() string                   { panic("not used") }
+func (f *fakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) { panic("not used") }
+func (f *fakeDCAClient) GetNodeAnnotations(_ string, _ ...string) (map[string]string, error) {
 	panic("not used")
 }
-func (f *fakeDCAClient) GetNodeUID(nodeName string) (string, error) {
+func (f *fakeDCAClient) GetNodeUID(_ string) (string, error) {
 	return "uid-test-123", nil
 }
-func (f *fakeDCAClient) GetNamespaceLabels(nsName string) (map[string]string, error) {
+func (f *fakeDCAClient) GetNamespaceLabels(_ string) (map[string]string, error) {
 	panic("not used")
 }
-func (f *fakeDCAClient) GetNamespaceMetadata(nsName string) (*clusteragent.Metadata, error) {
+func (f *fakeDCAClient) GetNamespaceMetadata(_ string) (*clusteragent.Metadata, error) {
 	panic("not used")
 }
-func (f *fakeDCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error) {
+func (f *fakeDCAClient) GetPodsMetadataForNode(_ string) (apiv1.NamespacesPodsStringsSet, error) {
 	panic("not used")
 }
-func (f *fakeDCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error) {
+func (f *fakeDCAClient) GetKubernetesMetadataNames(_, _, _ string) ([]string, error) {
 	panic("not used")
 }
-func (f *fakeDCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
+func (f *fakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string, error) {
 	panic("not used")
 }
-func (f *fakeDCAClient) PostClusterCheckStatus(ctx context.Context, nodeName string, status types.NodeStatus) (types.StatusResponse, error) {
+func (f *fakeDCAClient) PostClusterCheckStatus(_ context.Context, _ string, _ types.NodeStatus) (types.StatusResponse, error) {
 	panic("not used")
 }
-func (f *fakeDCAClient) GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
+func (f *fakeDCAClient) GetClusterCheckConfigs(_ context.Context, _ string) (types.ConfigResponse, error) {
 	panic("not used")
 }
-func (f *fakeDCAClient) GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
+func (f *fakeDCAClient) GetEndpointsCheckConfigs(_ context.Context, _ string) (types.ConfigResponse, error) {
 	panic("not used")
 }
 func (f *fakeDCAClient) GetKubernetesClusterID() (string, error) { panic("not used") }
-func (f *fakeDCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error {
+func (f *fakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLanguageAnnotationRequest) error {
 	panic("not used")
 }
 func (f *fakeDCAClient) SupportsNamespaceMetadataCollection() bool { panic("not used") }
