@@ -8,6 +8,7 @@ package logsagentexporter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -74,8 +75,10 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	scope := getLogsScope(ld)
 	switch scope {
 	case K8sObjectsReceiver:
+		fmt.Println("consume K8sObjects")
 		return e.consumeK8sObjects(ctx, ld)
 	default:
+		fmt.Println("consume RegularLogs: ", ld)
 		return e.consumeRegularLogs(ctx, ld)
 	}
 }

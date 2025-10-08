@@ -77,7 +77,7 @@ func toManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.
 	// Todo: check if k8sResource is supported, for example if kind is configmap, secret, etc, we skip it
 
 	// Convert the Kubernetes resource to JSON bytes for the manifest content
-	content, err := json.Marshal(k8sResource)
+	_, err := json.Marshal(k8sResource)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal k8s resource content: %w", err)
 	}
@@ -101,7 +101,7 @@ func toManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.
 		Type:            int32(manifestType),
 		ResourceVersion: resourceVersion,
 		Uid:             uid,
-		Content:         content,
+		Content:         []byte(logRecord.Body().AsString()),
 		ContentType:     "application/json",
 		Version:         "v1",
 		Tags:            tags,
