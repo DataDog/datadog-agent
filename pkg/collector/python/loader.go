@@ -15,6 +15,7 @@ import (
 	"sync"
 	"unsafe"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -65,8 +66,8 @@ const (
 const PythonCheckLoaderName string = "python"
 
 func init() {
-	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, int, error) {
-		loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (check.Loader, int, error) {
+		loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, filter)
 		return loader, 20, err
 	}
 	loaders.RegisterLoader(factory)
@@ -96,8 +97,8 @@ type PythonCheckLoader struct {
 }
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (*PythonCheckLoader, error) {
-	initializeCheckContext(senderManager, logReceiver, tagger)
+func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (*PythonCheckLoader, error) {
+	initializeCheckContext(senderManager, logReceiver, tagger, filter)
 	return &PythonCheckLoader{
 		logReceiver: logReceiver,
 	}, nil

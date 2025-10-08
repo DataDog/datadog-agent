@@ -64,6 +64,7 @@ type Requires struct {
 	// and shutdown hooks.
 	Lc         compdef.Lifecycle
 	Shutdowner compdef.Shutdowner
+	Context    context.Context
 
 	CollectorContrib collectorcontrib.Component
 	URIs             []string
@@ -212,6 +213,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		OnStart: c.start,
 		OnStop:  c.stop,
 	})
+
+	setupShutdown(reqs.Context, reqs.Log, reqs.Shutdowner)
+
 	return Provides{
 		Comp: c,
 	}, nil

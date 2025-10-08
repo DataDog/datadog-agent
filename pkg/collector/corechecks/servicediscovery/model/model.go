@@ -21,7 +21,7 @@ type Service struct {
 	DDService                string                          `json:"dd_service"`
 	TCPPorts                 []uint16                        `json:"tcp_ports,omitempty"`
 	UDPPorts                 []uint16                        `json:"udp_ports,omitempty"`
-	APMInstrumentation       string                          `json:"apm_instrumentation"`
+	APMInstrumentation       bool                            `json:"apm_instrumentation"`
 	Language                 string                          `json:"language"`
 	Type                     string                          `json:"service_type"`
 	CommandLine              []string                        `json:"cmdline"`
@@ -37,7 +37,8 @@ type UST struct {
 
 // ServicesResponse is the response for the system-probe /discovery/services endpoint.
 type ServicesResponse struct {
-	Services []Service `json:"services"`
+	Services     []Service `json:"services"`
+	InjectedPIDs []int     `json:"injected_pids"`
 }
 
 // NetworkStatsResponse is the response for the system-probe /discovery/network-stats endpoint.

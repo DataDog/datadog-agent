@@ -31,6 +31,7 @@ type runtimeImpl struct {
 	dispatcher               Dispatcher
 	logsFactory              erasedLogsUploaderFactory
 	procRuntimeIDbyProgramID *sync.Map
+	bufferedMessageTracker   *bufferedMessageTracker
 }
 
 type irGenFailedError struct {
@@ -149,6 +150,7 @@ func (rt *runtimeImpl) Load(
 			EntityID:    entityID,
 			ContainerID: containerID,
 		}),
+		tree: rt.bufferedMessageTracker.newTree(),
 	}
 	rt.dispatcher.RegisterSink(programID, s)
 

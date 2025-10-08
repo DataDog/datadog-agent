@@ -9,9 +9,11 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -59,9 +61,9 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("error retrieving global docker scanner channel")
 	}
 
-	containerImageFilter, err := collectors.NewSBOMContainerFilter()
-	if err != nil {
-		return fmt.Errorf("failed to create container filter: %w", err)
+	errs := c.filterSBOMContainers.GetErrors()
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to create container filter: %w", errors.Join(errs...))
 	}
 
 	go func() {
@@ -80,7 +82,8 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 				for _, event := range eventBundle.Events {
 					image := event.Entity.(*workloadmeta.ContainerImageMetadata)
 
-					if containerImageFilter != nil && containerImageFilter.IsExcluded(nil, "", image.Name, "") {
+					filterableContainer := workloadfilter.CreateContainerImage(image.Name)
+					if c.filterSBOMContainers.IsExcluded(filterableContainer) {
 						continue
 					}
 
