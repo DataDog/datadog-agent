@@ -1182,6 +1182,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
+
+	// Shared libraries check
+	config.BindEnvAndSetDefault("shared_libraries_check.enabled", true)
 }
 
 func agent(config pkgconfigmodel.Setup) {
