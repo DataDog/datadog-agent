@@ -1,0 +1,65 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package utils provides utility functions for the private action runner.
+package utils
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
+)
+
+// PARError represents a private action runner error.
+type PARError struct {
+	*errorcode.ActionPlatformError
+}
+
+// NewPARError creates a general PAR error with default config.
+func NewPARError(code errorcode.ActionPlatformErrorCode, e error) PARError {
+	return NewPARErrorWithDisplayError(code, e, e.Error())
+}
+
+// NewPARErrorWithDisplayError creates a general PAR error with display error.
+func NewPARErrorWithDisplayError(code errorcode.ActionPlatformErrorCode, e error, displayError string) PARError {
+	return PARError{
+		ActionPlatformError: &errorcode.ActionPlatformError{
+			ErrorCode:         code,
+			Retryable:         false,
+			Message:           e.Error(),
+			ExternalMessage:   displayError,
+			DependencyMessage: "",
+		},
+	}
+}
+
+func (pe PARError) Error() string {
+	return fmt.Sprintf("Error:%s, ExternalMessage: %s", pe.Message, pe.ExternalMessage)
+}
+
+// DefaultPARError generates the default PAR error with a default error code, and default internal error message.
+func DefaultPARError(e error) PARError {
+	var pe PARError
+	if errors.As(e, &pe) {
+		return pe
+	}
+	return NewPARError(errorcode.ActionPlatformErrorCode_INTERNAL_ERROR, e)
+}
+
+// DefaultActionError generates the default PAR action error with a default action error code.
+func DefaultActionError(e error) PARError {
+	return DefaultActionErrorWithDisplayError(e, e.Error())
+}
+
+// DefaultActionErrorWithDisplayError generates the default PAR action error with a default action error code
+// and display error.
+func DefaultActionErrorWithDisplayError(e error, displayError string) PARError {
+	var pe PARError
+	if errors.As(e, &pe) {
+		return pe
+	}
+	return NewPARErrorWithDisplayError(errorcode.ActionPlatformErrorCode_ACTION_ERROR, e, displayError)
+}
