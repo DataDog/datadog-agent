@@ -28,4 +28,3 @@ func TestPayloadMarshalJSON(t *testing.T) {
 	assert.Contains(t, string(b), "FooApp")
 	assert.Contains(t, string(b), "BarApp")
 }
-
