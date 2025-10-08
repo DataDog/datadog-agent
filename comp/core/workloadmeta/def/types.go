@@ -258,6 +258,7 @@ type EntityMeta struct {
 	Namespace   string
 	Annotations map[string]string
 	Labels      map[string]string
+	UID         string
 }
 
 // String returns a string representation of EntityMeta.
@@ -483,6 +484,26 @@ func (cr ContainerResources) String(bool) string {
 	return sb.String()
 }
 
+// ContainerResizePolicy represents a resize policy for a container
+type ContainerResizePolicy struct {
+	CPURestartPolicy    string
+	MemoryRestartPolicy string
+
+	// Currently, the only supported resourceName values are "cpu" and "memory"
+	// Additionally, these strings are always either "NotRequired" or "RestartContainer" (k8s docs)
+}
+
+func (crp ContainerResizePolicy) String() string {
+	var sb strings.Builder
+	if crp.CPURestartPolicy != "" {
+		_, _ = fmt.Fprintln(&sb, "RestartPolicy (CPU):", crp.CPURestartPolicy)
+	}
+	if crp.MemoryRestartPolicy != "" {
+		_, _ = fmt.Fprintln(&sb, "RestartPolicy (Memory):", crp.MemoryRestartPolicy)
+	}
+	return sb.String()
+}
+
 // ContainerAllocatedResource is a resource allocated to a container, consisting of a name and an ID.
 type ContainerAllocatedResource struct {
 	// Name is the name of the resource as defined in the pod spec (e.g. "nvidia.com/gpu").
@@ -596,6 +617,7 @@ type Container struct {
 	SecurityContext *ContainerSecurityContext
 	ReadinessProbe  *ContainerProbe
 	Resources       ContainerResources
+	ResizePolicy    ContainerResizePolicy
 
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
@@ -652,6 +674,11 @@ func (c Container) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Resize Policy -----------")
+		_, _ = fmt.Fprint(&sb, c.ResizePolicy.String())
+	}
 
 	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
 	for _, r := range c.ResolvedAllocatedResources {
@@ -1609,8 +1636,8 @@ type Service struct {
 	// UDPPorts is the list of UDP ports the service is listening on
 	UDPPorts []uint16
 
-	// APMInstrumentation indicates the APM instrumentation status
-	APMInstrumentation string
+	// APMInstrumentation indicates if the service is instrumented for APM
+	APMInstrumentation bool
 
 	// Type is the service type (e.g., "web_service")
 	Type string
@@ -1634,23 +1661,48 @@ func (u UST) String() string {
 	return sb.String()
 }
 
+// InjectionState represents the APM injection state of a process
+type InjectionState int
+
+const (
+	// InjectionUnknown means we haven't determined the injection status yet
+	InjectionUnknown InjectionState = 0
+	// InjectionInjected means the process has APM auto-injection enabled
+	InjectionInjected InjectionState = 1
+	// InjectionNotInjected means the process does not have APM auto-injection
+	InjectionNotInjected InjectionState = 2
+)
+
+// String returns a string representation of InjectionState
+func (i InjectionState) String() string {
+	switch i {
+	case InjectionInjected:
+		return "injected"
+	case InjectionNotInjected:
+		return "not_injected"
+	default:
+		return "unknown"
+	}
+}
+
 // Process is an Entity that represents a process
 type Process struct {
 	EntityID // EntityID.ID is the PID
 
-	Pid          int32    // Process ID -- /proc/[pid]
-	NsPid        int32    // Namespace PID -- /proc/[pid]/status
-	Ppid         int32    // Parent Process ID -- /proc/[pid]/stat
-	Name         string   // Name -- /proc/[pid]/status
-	Cwd          string   // Current Working Directory -- /proc/[pid]/cwd
-	Exe          string   // Exceutable Path -- /proc[pid]/exe
-	Comm         string   // Short Command Name -- /proc/[pid]/comm
-	Cmdline      []string // Command Line -- /proc/[pid]/cmdline
-	Uids         []int32  // User IDs -- /proc/[pid]/status
-	Gids         []int32  // Group IDs -- /proc/[pid]/status
-	ContainerID  string
-	CreationTime time.Time // Process Start Time -- /proc/[pid]/stat
-	Language     *languagemodels.Language
+	Pid            int32    // Process ID -- /proc/[pid]
+	NsPid          int32    // Namespace PID -- /proc/[pid]/status
+	Ppid           int32    // Parent Process ID -- /proc/[pid]/stat
+	Name           string   // Name -- /proc/[pid]/status
+	Cwd            string   // Current Working Directory -- /proc/[pid]/cwd
+	Exe            string   // Exceutable Path -- /proc[pid]/exe
+	Comm           string   // Short Command Name -- /proc/[pid]/comm
+	Cmdline        []string // Command Line -- /proc/[pid]/cmdline
+	Uids           []int32  // User IDs -- /proc/[pid]/status
+	Gids           []int32  // Group IDs -- /proc/[pid]/status
+	ContainerID    string
+	CreationTime   time.Time // Process Start Time -- /proc/[pid]/stat
+	Language       *languagemodels.Language
+	InjectionState InjectionState // APM auto-injector detection status
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
@@ -1684,6 +1736,11 @@ func (p *Process) Merge(e Entity) error {
 		p.Service = nil
 	}
 
+	// Handle InjectionState merge: only update if going from Unknown to a known state
+	if otherProcess.InjectionState == InjectionUnknown && p.InjectionState != InjectionUnknown {
+		otherProcess.InjectionState = p.InjectionState
+	}
+
 	return merge(p, otherProcess)
 }
 
@@ -1702,6 +1759,7 @@ func (p Process) String(verbose bool) string {
 	if p.Language != nil {
 		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
 	}
+	_, _ = fmt.Fprintln(&sb, "APM Injection Status:", p.InjectionState.String())
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Comm:", p.Comm)
@@ -1929,6 +1987,9 @@ type GPU struct {
 
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
 	DeviceType GPUDeviceType
+
+	// VirtualizationMode contains the virtualization mode of the device
+	VirtualizationMode string
 }
 
 var _ Entity = &GPU{}

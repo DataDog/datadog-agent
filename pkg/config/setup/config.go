@@ -33,7 +33,6 @@ import (
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -138,6 +137,12 @@ const (
 
 	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
 	DefaultNetworkPathMaxTTL = 30
+
+	// DefaultNetworkPathStaticPathTracerouteQueries defines the default number of traceroute queries for static path
+	DefaultNetworkPathStaticPathTracerouteQueries = 3
+
+	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
+	DefaultNetworkPathStaticPathE2eQueries = 50
 )
 
 var (
@@ -381,6 +386,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
 	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
+	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
+	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
+	config.BindEnvAndSetDefault("secret_image_to_handle", map[string]string{})
 	config.SetDefault("secret_audit_file_max_size", 0)
 
 	// IPC API server timeout
@@ -518,6 +526,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.tcp_method", "")
 	config.BindEnvAndSetDefault("network_path.collector.icmp_mode", "")
 	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
+	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", DefaultNetworkPathStaticPathTracerouteQueries)
+	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
+	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -838,9 +849,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket / csi
 	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
+	config.BindEnvAndSetDefault("trace_agent_host_socket_path", "/var/run/datadog")
+	config.BindEnvAndSetDefault("dogstatsd_host_socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
-	config.BindEnvAndSetDefault("admission_controller.inject_config.trace_agent_socket", "unix:///var/run/datadog/apm.socket")
-	config.BindEnvAndSetDefault("admission_controller.inject_config.dogstatsd_socket", "unix:///var/run/datadog/dsd.socket")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.type_socket_volumes", false)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
@@ -945,7 +956,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
 
 	// Synthetics configuration
-	config.BindEnvAndSetDefault("synthetics.enabled", false)
+	config.BindEnvAndSetDefault("synthetics.collector.enabled", false)
+	config.BindEnvAndSetDefault("synthetics.collector.workers", 4)
+	config.BindEnvAndSetDefault("synthetics.collector.flush_interval", "10s")
 	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
@@ -1159,13 +1172,17 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", time.Duration(0))
 
 	// Remote agents
-	config.BindEnvAndSetDefault("remote_agent_registry.enabled", false)
+	config.BindEnvAndSetDefault("remote_agent_registry.enabled", true)
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
 
 	// Config Stream
 	config.BindEnvAndSetDefault("config_stream.sleep_interval", 3*time.Second)
+
+	// Data Plane
+	config.BindEnvAndSetDefault("data_plane.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1232,6 +1249,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("inventories_diagnostics_enabled", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
+	config.BindEnvAndSetDefault("check_runner_utilization_threshold", 0.95)
+	config.BindEnvAndSetDefault("check_runner_utilization_monitor_interval", 60*time.Second)
+	config.BindEnvAndSetDefault("check_runner_utilization_warning_cooldown", 10*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_timeout", 60*time.Second)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
@@ -1461,7 +1481,6 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
-	config.BindEnvAndSetDefault("serializer_use_events_marshaler_v2", true)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -2005,14 +2024,9 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 	}
 }
 
-// LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
-func LoadWithoutSecret(config pkgconfigmodel.Config, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-	return LoadDatadogCustom(config, "datadog.yaml", option.None[secrets.Component](), additionalEnvVars)
-}
-
 // LoadWithSecret reads config files and initializes config with decrypted secrets
 func LoadWithSecret(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-	return LoadDatadogCustom(config, "datadog.yaml", option.New[secrets.Component](secretResolver), additionalEnvVars)
+	return LoadDatadogCustom(config, "datadog.yaml", secretResolver, additionalEnvVars)
 }
 
 // Merge will merge additional configuration into an existing configuration
@@ -2148,6 +2162,10 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_GIT_REPOSITORY_URL": {},
 		// signals whether or not ADP is enabled
 		"DD_ADP_ENABLED": {},
+		// trace-loader socket file descriptors
+		"DD_APM_NET_RECEIVER_FD":  {},
+		"DD_APM_UNIX_RECEIVER_FD": {},
+		"DD_OTLP_CONFIG_GRPC_FD":  {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
@@ -2197,7 +2215,7 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadogCustom loads the datadog config in the given config
-func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolver option.Option[secrets.Component], additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
+func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolver secrets.Component, additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -2219,10 +2237,8 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
-	if resolver, ok := secretResolver.Get(); ok {
-		if err := ResolveSecrets(config, resolver, origin); err != nil {
-			return warnings, err
-		}
+	if err := ResolveSecrets(config, secretResolver, origin); err != nil {
+		return warnings, err
 	}
 
 	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
@@ -2258,7 +2274,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
-		if pkgconfigenv.IsServerless() {
+		if pkgconfigenv.IsLambda() {
 			log.Debug("No config file detected, using environment variable based configuration only")
 			// The remaining code in LoadCustom is not run to keep a low cold start time
 			return nil
@@ -2431,18 +2447,21 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
-		Type:                   config.GetString("secret_backend_type"),
-		Config:                 config.GetStringMap("secret_backend_config"),
-		Command:                config.GetString("secret_backend_command"),
-		Arguments:              config.GetStringSlice("secret_backend_arguments"),
-		Timeout:                config.GetInt("secret_backend_timeout"),
-		MaxSize:                config.GetInt("secret_backend_output_max_size"),
-		RefreshInterval:        config.GetInt("secret_refresh_interval"),
-		RefreshIntervalScatter: config.GetBool("secret_refresh_scatter"),
-		GroupExecPerm:          config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		RemoveLinebreak:        config.GetBool("secret_backend_remove_trailing_line_break"),
-		RunPath:                config.GetString("run_path"),
-		AuditFileMaxSize:       config.GetInt("secret_audit_file_max_size"),
+		Type:                        config.GetString("secret_backend_type"),
+		Config:                      config.GetStringMap("secret_backend_config"),
+		Command:                     config.GetString("secret_backend_command"),
+		Arguments:                   config.GetStringSlice("secret_backend_arguments"),
+		Timeout:                     config.GetInt("secret_backend_timeout"),
+		MaxSize:                     config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:             config.GetInt("secret_refresh_interval"),
+		RefreshIntervalScatter:      config.GetBool("secret_refresh_scatter"),
+		GroupExecPerm:               config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:             config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:                     config.GetString("run_path"),
+		AuditFileMaxSize:            config.GetInt("secret_audit_file_max_size"),
+		ScopeIntegrationToNamespace: config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
+		AllowedNamespace:            config.GetStringSlice("secret_allowed_k8s_namespace"),
+		ImageToHandle:               config.GetStringMapStringSlice("secret_image_to_handle"),
 	})
 
 	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
@@ -2463,7 +2482,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 				log.Errorf("Could not assign new value of secret %s (%+q) to config: %s", handle, settingPath, err)
 			}
 		})
-		if _, err = secretResolver.Resolve(yamlConf, origin); err != nil {
+		if _, err = secretResolver.Resolve(yamlConf, origin, "", ""); err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}
 	}
@@ -2797,16 +2816,6 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string, config pkgconf
 		return pipelineURL, nil
 	}
 	return "", nil
-}
-
-// IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
-func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
-	// Disable Remote Config for GovCloud
-	isFipsAgent, _ := pkgfips.Enabled()
-	if cfg.GetBool("fips.enabled") || isFipsAgent || cfg.GetString("site") == "ddog-gov.com" {
-		return false
-	}
-	return cfg.GetBool("remote_configuration.enabled")
 }
 
 // GetRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled

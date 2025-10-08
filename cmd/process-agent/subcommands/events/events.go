@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -74,6 +75,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runEventListener,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				process.Bundle(),
 			)
 		},
@@ -88,6 +90,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runEventStore,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				process.Bundle(),
 			)
 		},

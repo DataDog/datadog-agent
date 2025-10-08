@@ -8,14 +8,13 @@ package remoteconfig
 import (
 	_ "embed"
 	"fmt"
-	"os"
-	"path"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 // assertLogsEventually will verify that a given `agentName` component's logs contain a pattern.
@@ -32,12 +31,13 @@ func assertAgentLogsEventually(t *testing.T, rh *components.RemoteHost, agentNam
 	t.Logf("looking for logs in %s", remoteLogsPath)
 	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
 		// read agent logs
-		agentLogs, err := readRemoteFile(rh, remoteLogsPath)
+		agentLogs, err := rh.ReadFilePrivileged(remoteLogsPath)
 		if !assert.NoError(c, err) {
 			return
 		}
+		logs := string(agentLogs)
 		for _, log := range missingLogs {
-			if strings.Contains(agentLogs, log) {
+			if strings.Contains(logs, log) {
 				t.Logf("found log: %s", log)
 				foundLogs[log] = true
 			}
@@ -85,14 +85,4 @@ func assertCurlAgentRcServiceContainsEventually(t *testing.T, rh *components.Rem
 		assert.Empty(c, missingContents, "still missing contents")
 	}, waitFor, tick, "could not curl remote config service")
 	return output
-}
-
-func readRemoteFile(rh *components.RemoteHost, remotePath string) (string, error) {
-	localPath := path.Join(os.TempDir(), path.Base(remotePath))
-	err := rh.GetFile(remotePath, localPath)
-	if err != nil {
-		return "", err
-	}
-	b, err := os.ReadFile(localPath)
-	return string(b), err
 }

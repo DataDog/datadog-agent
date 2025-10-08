@@ -67,6 +67,7 @@ enum event_type
     EVENT_RAW_PACKET_ACTION,
     EVENT_CAPABILITIES,
     EVENT_MOVE_MOUNT,
+    FAILED_DNS,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events

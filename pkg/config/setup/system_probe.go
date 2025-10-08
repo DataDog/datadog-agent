@@ -338,6 +338,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "span_tracking.cache_size"), 4096)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "capabilities_monitoring.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "capabilities_monitoring.period"), "5s")
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "snapshot_using_listmount"), false)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), defaultEventMonitorAddress)
 	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 	cfg.BindEnvAndSetDefault(join(evNS, "env_vars_resolution.enabled"), true)
@@ -385,7 +386,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "enable_fatbin_parsing"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "fatbin_request_queue_size"), 100)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "ring_buffer_pages_per_device"), 32) // 32 pages = 128KB by default per device
+	cfg.BindEnvAndSetDefault(join(gpuNS, "ringbuffer_wakeup_size"), 3000)     // 3000 bytes is about ~10-20 events depending on the specific type
 	cfg.BindEnvAndSetDefault(join(gpuNS, "attacher_detailed_logs"), false)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "ringbuffer_flush_interval"), 1*time.Second)
 
 	// gpu - stream config
 	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_kernel_launches"), 1000)

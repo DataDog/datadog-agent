@@ -21,6 +21,7 @@ import (
 const Traces DataType = "traces"
 
 func setupAPM(config pkgconfigmodel.Setup) {
+	config.BindEnvAndSetDefault("apm_config.socket_activation.enabled", false, "DD_APM_SOCKET_ACTIVATION_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.enabled", true, "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.keep_values", []string{}, "DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.obfuscate_sql_values", []string{}, "DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES")
@@ -162,7 +163,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		}
 		return mappings
 	})
-	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.receiver_socket", defaultReceiverSocket, "DD_APM_RECEIVER_SOCKET")
 	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")                                                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")                                                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")                                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'

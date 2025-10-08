@@ -38,12 +38,12 @@ bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
 http_archive(
     name = "openssl",
     build_file = "//deps:openssl.BUILD.bazel",
-    sha256 = "c53a47e5e441c930c3928cf7bf6fb00e5d129b630e0aa873b08258656e7345ec",
-    strip_prefix = "openssl-3.5.2",
-    url = "https://www.openssl.org/source/openssl-3.5.2.tar.gz",
+    sha256 = "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99",
+    strip_prefix = "openssl-3.5.4",
+    url = "https://www.openssl.org/source/openssl-3.5.4.tar.gz",
 )
 
-bazel_dep(name = "gcc_toolchain")
+bazel_dep(name = "gcc_toolchain", version = "0.9.0")
 git_override(
     module_name = "gcc_toolchain",
     commit = "0e2242b07961107d2b05a6552d70b2ef4ef485fb",

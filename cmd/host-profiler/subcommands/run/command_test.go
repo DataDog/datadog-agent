@@ -16,11 +16,17 @@ import (
 )
 
 // TestFxRun tests that fx can build dependencies for the run command.
-func TestFxRun(t *testing.T) {
-	fxutil.TestRun(t, func() error {
-		params := &cliParams{
-			GlobalParams: &globalparams.GlobalParams{},
-		}
-		return runHostProfilerCommand(context.Background(), params)
+func TestFxRunWithoutAgentCore(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		MakeCommand(func() *globalparams.GlobalParams { return &globalparams.GlobalParams{} }),
+		[]string{"run"},
+		run,
+		func() {})
+}
+
+func TestFxRunWithAgentCore(t *testing.T) {
+	// Use fxutil.TestOneShot as TestOneShotSubcommand would require valid datadog.yaml file, auth_token file and ipc_cert.pem.
+	fxutil.TestOneShot(t, func() {
+		runHostProfilerCommand(context.Background(), &cliParams{GlobalParams: &globalparams.GlobalParams{CoreConfPath: "config_path"}})
 	})
 }

@@ -65,6 +65,10 @@ func testNilSlice(xs []uint16) {}
 func testVeryLargeSlice(xs []uint) {}
 
 //nolint:all
+//go:noinline
+func testSliceEmptyStructs(xs []struct{}) {}
+
+//nolint:all
 func executeSliceFuncs() {
 	originalSlice := []int{1, 2, 3}
 	expandSlice(originalSlice)
@@ -89,4 +93,5 @@ func executeSliceFuncs() {
 
 	testNilSliceWithOtherParams(1, nil, 5)
 	testNilSlice(nil)
+	testSliceEmptyStructs([]struct{}{{}, {}})
 }

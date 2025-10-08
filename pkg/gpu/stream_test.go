@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -842,10 +843,13 @@ func TestGetPastDataConcurrency(t *testing.T) {
 	// Create a goroutine that will send kernel launches and syncs
 	done := make(chan struct{})
 	sentSyncs := atomic.Uint64{}
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
 		for {
 			select {
 			case <-done:
+				wg.Done()
 				return
 			default:
 				// Send 100 events of each type and then synchronize
@@ -877,7 +881,9 @@ func TestGetPastDataConcurrency(t *testing.T) {
 		}
 	}()
 	t.Cleanup(func() {
+		// Ensure the goroutine is done before ending the test
 		close(done)
+		wg.Wait()
 	})
 
 	// Ensure some data is sent
