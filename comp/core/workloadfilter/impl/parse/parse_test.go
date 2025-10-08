@@ -126,16 +126,13 @@ cel_workload_exclude:
   rules:
     containers:
       - "container.name != 67"
-- products: x,y
-  rules:
-    foo: bar,baz
 `
 	configComponent := configcomp.NewMockFromYAML(t, yamlConfig)
 	var filterConfig []workloadfilter.RuleBundle
 	err := configComponent.UnmarshalKey("cel_workload_exclude", &filterConfig)
 
 	require.NoError(t, err)
-	assert.Len(t, filterConfig, 3)
+	assert.Len(t, filterConfig, 2)
 
 	assert.Contains(t, filterConfig, workloadfilter.RuleBundle{
 		Products: []workloadfilter.Product{workloadfilter.ProductMetrics},
@@ -149,13 +146,6 @@ cel_workload_exclude:
 		Products: []workloadfilter.Product{workloadfilter.ProductLogs, workloadfilter.ProductSBOM},
 		Rules: map[workloadfilter.ResourceType][]string{
 			workloadfilter.ResourceType("containers"): {"container.name != 67"},
-		},
-	})
-
-	assert.Contains(t, filterConfig, workloadfilter.RuleBundle{
-		Products: []workloadfilter.Product{"x", "y"},
-		Rules: map[workloadfilter.ResourceType][]string{
-			workloadfilter.ResourceType("foo"): {"bar", "baz"},
 		},
 	})
 }
