@@ -231,7 +231,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			expectStored: []*workloadmeta.Process{makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionNotInjected)},
 		},
 		{
-			name: "injection_state_already_reported_no_duplicate",
+			name: "preserve injection state",
 			existingProcesses: []*workloadmeta.Process{
 				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Already reported in previous cycle
 			},
@@ -425,7 +425,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 			expectStored: []*workloadmeta.Process{makeProcessEntity(pidRecentService, baseTime.Add(time.Minute+30*time.Second), languagePython, workloadmeta.InjectionUnknown)},
 		},
 		{
-			name: "injection_state_already_reported_no_duplicate",
+			name: "preserve injection state",
 			existingServiceData: []*workloadmeta.Process{
 				makeProcessEntity(pidInjectedOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionInjected), // Already reported in previous cycle
 			},
