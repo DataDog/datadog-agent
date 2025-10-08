@@ -43,7 +43,10 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 	ipToDomain := make(map[string]string)
 	for _, domain := range domains {
 		ips, err := cache.GetWithExpiration(domain, func() ([]string, error) {
-			_ = d.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"domain_resolver_calls", []string{}, 1)
+			// TODO: REMOVE DOMAIN TAG
+			// TODO: REMOVE DOMAIN TAG
+			// TODO: REMOVE DOMAIN TAG
+			_ = d.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"domain_resolver_calls", []string{"domain:" + domain}, 1)
 			ips, err := d.LookupHostFn(domain)
 			return ips, err
 		}, domainLookupExpiration)
