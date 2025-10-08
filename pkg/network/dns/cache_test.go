@@ -141,7 +141,6 @@ func TestDNSCacheExpiration(t *testing.T) {
 }
 
 func TestDNSCacheTelemetry(t *testing.T) {
-	flake.Mark(t)
 	cacheTelemetry.lookups.Delete()
 	cacheTelemetry.resolved.Delete()
 	cacheTelemetry.length.Set(0)
