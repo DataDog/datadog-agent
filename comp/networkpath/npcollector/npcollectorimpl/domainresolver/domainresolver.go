@@ -57,6 +57,7 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 	return ipToDomain, errList
 }
 
+// LookupHostCalls returns LookupHost calls
 func (d *DomainResolver) LookupHostCalls() uint64 {
 	return d.lookupHostCalls.Load()
 }
