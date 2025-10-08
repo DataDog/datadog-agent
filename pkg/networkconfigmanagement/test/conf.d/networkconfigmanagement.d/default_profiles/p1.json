@@ -3,19 +3,19 @@
     {
       "type": "running",
       "values": [
-        "show running-config"
+        "show run"
       ]
     },
     {
       "type": "startup",
       "values": [
-        "show startup-config"
+        "show start"
       ]
     },
     {
       "type": "version",
       "values": [
-        "show version"
+        "show ver"
       ]
     }
   ]
