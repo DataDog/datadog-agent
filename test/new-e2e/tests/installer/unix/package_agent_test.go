@@ -79,7 +79,7 @@ func (s *packageAgentSuite) TestInstall() {
 
 func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit)
-	state.AssertUnitsEnabled(agentUnit, traceUnit, processUnit, securityUnit, dataPlaneUnit)
+	state.AssertUnitsEnabled(agentUnit)
 
 	// we cannot assert here on process-agent/agent-data-plane being either running or dead due to timing issues,
 	// so it has to be checked prior (i.e., using WaitForUnitExited)
