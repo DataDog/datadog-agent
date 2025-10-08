@@ -289,6 +289,11 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 func TestMoveMountRecursivePropagation(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	// Docker messes up with the propagation
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test in Docker environment")
+	}
+
 	if !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
 		t.Skip("move_mount syscall is not supported on this platform")
 	}
