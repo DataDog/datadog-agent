@@ -66,15 +66,19 @@ type npCollectorImpl struct {
 	pathtestInputChan      chan *common.Pathtest
 	pathtestProcessingChan chan *pathteststore.PathtestContext
 
+	// Pipeline related
+	rawConnectionsChan chan *model.Connections
+
 	// Scheduling related
-	running               bool
-	workers               int
-	stopChan              chan struct{}
-	flushLoopDone         chan struct{}
-	workersDone           chan struct{}
-	runDone               chan struct{}
-	flushInterval         time.Duration
-	inputChanFullLogLimit *utillog.Limit
+	running                    bool
+	workers                    int
+	stopChan                   chan struct{}
+	flushLoopDone              chan struct{}
+	workersDone                chan struct{}
+	rawConnectionsListenerDone chan struct{}
+	pathtestsListenerDone      chan struct{}
+	flushInterval              time.Duration
+	inputChanFullLogLimit      *utillog.Limit
 
 	// Telemetry component
 	telemetrycomp telemetryComp.Component
@@ -117,6 +121,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.storeConfig, logger, statsd, time.Now),
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
+		rawConnectionsChan:     make(chan *model.Connections, 1),
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
 		inputChanFullLogLimit:  utillog.NewLogLimit(10, time.Minute*5),
@@ -129,10 +134,11 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 
 		telemetrycomp: telemetrycomp,
 
-		stopChan:      make(chan struct{}),
-		runDone:       make(chan struct{}),
-		flushLoopDone: make(chan struct{}),
-		workersDone:   make(chan struct{}),
+		stopChan:                   make(chan struct{}),
+		rawConnectionsListenerDone: make(chan struct{}),
+		pathtestsListenerDone:      make(chan struct{}),
+		flushLoopDone:              make(chan struct{}),
+		workersDone:                make(chan struct{}),
 
 		runTraceroute: runTraceroute,
 
@@ -283,6 +289,9 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
+	s.rawConnectionsChan <- conns
+}
+func (s *npCollectorImpl) processScheduleConns(conns *model.Connections) {
 	vpcSubnets, err := s.getVPCSubnets()
 	if err != nil {
 		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
@@ -346,6 +355,7 @@ func (s *npCollectorImpl) start() error {
 
 	s.logger.Info("Start NpCollector")
 
+	go s.listenRawConnections()
 	go s.listenPathtests()
 	go s.flushLoop()
 	go s.runWorkers()
@@ -361,8 +371,24 @@ func (s *npCollectorImpl) stop() {
 	close(s.stopChan)
 	<-s.flushLoopDone
 	<-s.workersDone
-	<-s.runDone
+	<-s.rawConnectionsListenerDone
+	<-s.pathtestsListenerDone
 	s.running = false
+}
+
+func (s *npCollectorImpl) listenRawConnections() {
+	s.logger.Debug("Starting listening for raw connections")
+	for {
+		select {
+		case <-s.stopChan:
+			s.logger.Info("Stopped listening for raw connections")
+			s.rawConnectionsListenerDone <- struct{}{}
+			return
+		case rawConns := <-s.rawConnectionsChan:
+			s.logger.Debug("Raw connectinos received")
+			s.processScheduleConns(rawConns)
+		}
+	}
 }
 
 func (s *npCollectorImpl) listenPathtests() {
@@ -371,7 +397,7 @@ func (s *npCollectorImpl) listenPathtests() {
 		select {
 		case <-s.stopChan:
 			s.logger.Info("Stopped listening for pathtests")
-			s.runDone <- struct{}{}
+			s.pathtestsListenerDone <- struct{}{}
 			return
 		case ptest := <-s.pathtestInputChan:
 			s.logger.Debugf("Pathtest received: %+v", ptest)

@@ -23,14 +23,11 @@ type DomainResolver struct {
 	lookupHostCalls *atomic.Uint64
 }
 
-func (d *DomainResolver) LookupHostCalls() uint64 {
-	return d.lookupHostCalls.Load()
-}
-
 // NewDomainResolver constructor
 func NewDomainResolver() *DomainResolver {
 	return &DomainResolver{
-		LookupHostFn: net.LookupHost,
+		LookupHostFn:    net.LookupHost,
+		lookupHostCalls: atomic.NewUint64(0),
 	}
 }
 
@@ -58,4 +55,8 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 		}
 	}
 	return ipToDomain, errList
+}
+
+func (d *DomainResolver) LookupHostCalls() uint64 {
+	return d.lookupHostCalls.Load()
 }

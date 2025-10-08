@@ -523,6 +523,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 
 	// WHEN
 	npCollector.ScheduleConns(conns)
+	npCollector.processScheduleConns(<-npCollector.rawConnectionsChan)
 
 	// THEN
 	calls := stats.GaugeCalls
@@ -697,7 +698,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			},
 			expectedPathtests: []*common.Pathtest{},
 			expectedLogs: []logCount{
-				{"[ERROR] ScheduleConns: Error scheduling pathtests: no input channel, please check that network path is enabled", 1},
+				{"[ERROR] processScheduleConns: Error scheduling pathtests: no input channel, please check that network path is enabled", 1},
 			},
 		},
 		{
@@ -872,7 +873,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				}
 			},
 			expectedLogs: []logCount{
-				{"[ERROR] ScheduleConns: GetIPResolverForDomains errors:", 1},
+				{"[ERROR] processScheduleConns: GetIPResolverForDomains errors:", 1},
 				{"error looking up IPs for domain error.com: lookup failed for error.com", 1},
 				{"error looking up IPs for domain another-error.com: dns timeout", 1},
 			},
@@ -1042,6 +1043,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			utillog.SetupLogger(l, "debug")
 
 			npCollector.ScheduleConns(tt.conns)
+			npCollector.processScheduleConns(<-npCollector.rawConnectionsChan)
 
 			actualPathtests := []*common.Pathtest{}
 			for i := 0; i < len(tt.expectedPathtests); i++ {

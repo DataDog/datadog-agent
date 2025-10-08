@@ -54,9 +54,8 @@ func Test_domainResolver_getIPToDomainMap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := &DomainResolver{
-				LookupHostFn: lookupHostFn,
-			}
+			d := NewDomainResolver()
+			d.LookupHostFn = lookupHostFn
 			ipToDomainMap, errList := d.getIPToDomainMap(tt.domains)
 			assert.Equal(t, tt.expectedIPToDomainMap, ipToDomainMap)
 			assert.Equal(t, errors.Join(tt.expectedErrList...), errors.Join(errList...))
