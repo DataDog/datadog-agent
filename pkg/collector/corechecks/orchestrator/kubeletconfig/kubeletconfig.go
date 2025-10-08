@@ -16,7 +16,7 @@ import (
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/spaolacci/murmur3"
+	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
