@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 )
 
@@ -23,7 +23,6 @@ func TestHandleEventErrorClearsDebouncer(t *testing.T) {
 	// Minimal scraper with initialized internals.
 	s := &Scraper{}
 	s.mu.debouncer = makeDebouncer(1 * time.Millisecond)
-	s.mu.sinks = make(map[ir.ProgramID]*scraperSink)
 	s.mu.processes = make(map[actuator.ProcessID]*trackedProcess)
 
 	pid := actuator.ProcessID{PID: 123}
@@ -48,7 +47,7 @@ func TestHandleEventErrorClearsDebouncer(t *testing.T) {
 
 	// HandleEvent should not return an error (it is swallowed) and should clear
 	// the debouncer for this process.
-	err := sink.HandleEvent(ev)
+	err := sink.HandleEvent(dispatcher.MakeTestingMessage(ev))
 	require.NoError(t, err)
 
 	updates := s.mu.debouncer.getUpdates(now.Add(1 * time.Hour))

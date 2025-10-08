@@ -24,6 +24,7 @@ func TestInsertFileEvent(t *testing.T) {
 	}
 	pan.Process.FileEvent.PathnameStr = "/test/pan"
 	pan.Process.Argv0 = "pan"
+	pan.NodeBase = NewNodeBase()
 	stats := NewActivityTreeNodeStats()
 
 	pathToInserts := []string{

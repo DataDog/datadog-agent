@@ -98,9 +98,6 @@ def auto_cancel_previous_pipelines(ctx):
     Automatically cancel previous pipelines running on the same ref
     """
 
-    if not os.environ.get('GITLAB_TOKEN'):
-        raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
-
     git_ref = os.environ["CI_COMMIT_REF_NAME"]
     if git_ref == "":
         raise Exit("CI_COMMIT_REF_NAME is empty, skipping pipeline cancellation", 0)
@@ -329,7 +326,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     Use --variable to specify the environment variables that should be passed to the child pipeline.
     You can pass the argument multiple times for each new variable you wish to forward
 
-    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
+    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails.
 
     Use --timeout to set up a timeout shorter than the default 2 hours, to anticipate failures if any.
 
@@ -342,15 +339,9 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     if not os.environ.get('CI_JOB_TOKEN'):
         raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
 
-    if not os.environ.get('GITLAB_TOKEN'):
-        if follow:
-            raise Exit("GITLAB_TOKEN variable needed to follow child pipelines.", 1)
-        else:
-            # The Gitlab lib requires `GITLAB_TOKEN` to be
-            # set, but trigger_pipeline doesn't use it
-            os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
-
-    repo = get_gitlab_repo(project_name)
+    # Use the CI_JOB_TOKEN which is passed from gitlab
+    token = None if follow else os.environ['CI_JOB_TOKEN']
+    repo = get_gitlab_repo(project_name, token=token)
 
     # Fill the environment variables to pass to the child pipeline.
     variables = {}
@@ -888,3 +879,43 @@ def compare_to_itself(ctx):
         ctx.run(f"git checkout {current_branch}", hide=True)
         ctx.run(f"git branch -D {new_branch}", hide=True)
         ctx.run(f"git push origin :{new_branch}", hide=True)
+
+
+@task
+def is_dev_branch(_):
+    """
+    Check if the current branch is not a dev branch.
+    """
+    # Mirror logic from .fast_on_dev_branch_only in .gitlab-ci.yml
+    # Not a dev branch if any of the following is true:
+    # - On main branch
+    # - On a release branch (e.g., 7.42.x)
+    # - On a tagged commit
+    # - In a triggered pipeline
+
+    current_branch = os.getenv("CI_COMMIT_BRANCH", "")
+
+    # Main branch
+    if current_branch == "main":
+        print("false")
+        return
+
+    # Release branch: matches \d+.\d+.x
+    if re.match(r"^\d+\.\d+\.x$", current_branch):
+        print("false")
+        return
+
+    # Tagged commit (prefer CI variable if present)
+    ci_commit_tag = os.getenv("CI_COMMIT_TAG", "")
+    if ci_commit_tag is not None and ci_commit_tag != "":
+        print("false")
+        return
+
+    # Triggered pipeline (CI context)
+    ci_pipeline_source = os.getenv("CI_PIPELINE_SOURCE", "")
+    if ci_pipeline_source in ("trigger", "pipeline"):
+        print("false")
+        return
+
+    # Otherwise, consider it a dev branch
+    print("true")
