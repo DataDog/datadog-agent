@@ -344,12 +344,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 			}
 
 			allMounts[event.Mount.MountID]++
-			fmt.Printf("Move mount received: %+v\n", event.Mount)
-			if len(allMounts) == 3 {
-				return true
-			}
-
-			return false
+			return len(allMounts) == 3
 		}, 5*time.Second, model.FileMoveMountEventType)
 
 		assert.Equal(t, 3, len(allMounts), "Not all mount events were obtained")
