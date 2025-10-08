@@ -35,24 +35,24 @@ const (
 // debuggerLogsProxyHandler returns an http.Handler proxying Dynamic Instrumentation dynamic logs
 // to the logs intake.
 func (r *HTTPReceiver) debuggerLogsProxyHandler() http.Handler {
-	return r.debuggerProxyHandler(logsIntakeURLTemplate, r.conf.DebuggerProxy)
+	return r.debuggerProxyHandler(logsIntakeURLTemplate, r.conf.DebuggerProxy, r.conf.DebuggerProxy.AdditionalEndpoints)
 }
 
 // debuggerDiagnosticsProxyHandler returns an http.Handler proxying Dynamic Instrumentation diagnostic messages
 // to the debugger intake.
 func (r *HTTPReceiver) debuggerDiagnosticsProxyHandler() http.Handler {
-	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy)
+	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy, r.conf.DebuggerIntakeProxy.AdditionalEndpointsDebugger)
 }
 
 // debuggerV2IntakeProxyHandler returns an http.Handler proxying Dynamic Instrumentation messages
 // to the debugger intake (DEBUGGER track, not logs track).
 func (r *HTTPReceiver) debuggerV2IntakeProxyHandler() http.Handler {
-	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy)
+	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy, r.conf.DebuggerIntakeProxy.AdditionalEndpointsDebugger)
 }
 
 // debuggerProxyHandler returns an http.Handler proxying requests to the configured intake. If the intake url cannot be
 // parsed, the returned handler will always return http.StatusInternalServerError with a clarifying message.
-func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig config.DebuggerProxyConfig) http.Handler {
+func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig config.DebuggerProxyConfig, additionalEndpoints map[string][]string) http.Handler {
 	hostTags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
 		hostTags = hostTags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
@@ -73,7 +73,7 @@ func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig conf
 		apiKey = strings.TrimSpace(k)
 	}
 	transport := newMeasuringForwardingTransport(
-		r.conf.NewHTTPTransport(), target, apiKey, proxyConfig.AdditionalEndpoints, "datadog.trace_agent.debugger", []string{}, r.statsd)
+		r.conf.NewHTTPTransport(), target, apiKey, additionalEndpoints, "datadog.trace_agent.debugger", []string{}, r.statsd)
 	return newDebuggerProxy(r.conf, transport, hostTags)
 }
 
