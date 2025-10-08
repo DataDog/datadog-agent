@@ -850,7 +850,7 @@ require (
 	go.opentelemetry.io/collector/config/configoptional v0.136.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.42.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.42.0 // indirect
-	go.opentelemetry.io/collector/confmap/xconfmap v0.136.0 // indirect
+	go.opentelemetry.io/collector/confmap/xconfmap v0.136.0
 	go.opentelemetry.io/collector/connector v0.136.0 // indirect
 	go.opentelemetry.io/collector/connector/connectortest v0.136.0 // indirect
 	go.opentelemetry.io/collector/connector/xconnector v0.136.0 // indirect
@@ -950,7 +950,7 @@ require (
 )
 
 require (
-	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251001104144-35a0daaf10ff
+	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251003133917-9a733a744e7e
 	github.com/google/btree v1.1.3
 	go.opentelemetry.io/ebpf-profiler v0.0.202540-0.20251001054907-eb8909ecce3f
 )
@@ -974,6 +974,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.136.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/urfave/cli/v3 v3.1.1 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 )
 
