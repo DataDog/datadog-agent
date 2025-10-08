@@ -94,6 +94,10 @@ def _impl(ctx):
                 flag_groups = [
                     flag_group(
                         flags = ["rcsD", "%{output_execpath}"],
+                        # This is needed to make rules_foreign_cc work
+                        # as it cannot find output_execpath. This way we
+                        # don't expand this flag group if variable is not available.
+                        expand_if_available = "output_execpath",
                     ),
                     flag_group(
                         iterate_over = "libraries_to_link",
