@@ -283,10 +283,11 @@ def run(
             # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
             with environ({"AWS_PROFILE": "DELETE"}):
                 backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
-                executor = DynTestExecutor(ctx, backend, IndexKind.PACKAGE, get_commit_sha(ctx, short=True))
-                changes = get_modified_files(ctx)
-                print(color_message(f"The following changes were detected: {changes}", "yellow"))
-                to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changes)
+                executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
+                changed_files = get_modified_files(ctx)
+                changed_packages = list({os.path.dirname(change) for change in changed_files})
+                print(color_message(f"The following changes were detected: {changed_files}", "yellow"))
+                to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changed_packages + changed_files)
                 ctx.run(f"datadog-ci metric --level job --metrics 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
                 print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
                 skip.extend(to_skip)
