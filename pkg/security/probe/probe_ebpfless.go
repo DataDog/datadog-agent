@@ -343,6 +343,26 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.SetSockOpt.RawFilter = syscallMsg.Setsockopt.Filter
 		event.SetSockOpt.FilterLen = syscallMsg.Setsockopt.FilterLen
 		event.SetSockOpt.SizeToRead = uint32(syscallMsg.Setsockopt.FilterLen)
+	case ebpfless.SyscallTypeSetrlimit:
+		event.Type = uint32(model.SetrlimitEventType)
+		event.Setrlimit.Resource = syscallMsg.Setrlimit.Resource
+		event.Setrlimit.RlimCur = syscallMsg.Setrlimit.CurLimit
+		event.Setrlimit.RlimMax = syscallMsg.Setrlimit.MaxLimit
+		event.Setrlimit.TargetPid = syscallMsg.Setrlimit.Pid
+
+		// resolve target process context
+		var pce *model.ProcessCacheEntry
+		if event.Setrlimit.TargetPid > 0 {
+			pce = p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: event.Setrlimit.TargetPid, NSID: cl.nsID})
+		}
+		if pce == nil {
+			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
+		}
+		event.Setrlimit.Target = &pce.ProcessContext
+	case ebpfless.SyscallTypePrctl:
+		event.Type = uint32(model.PrCtlEventType)
+		event.PrCtl.Option = syscallMsg.Prctl.Option
+		event.PrCtl.NewName = syscallMsg.Prctl.NewName
 	}
 
 	// container context
@@ -676,7 +696,7 @@ func (p *EBPFLessProbe) GetEventTags(containerID containerutils.ContainerID) []s
 }
 
 func (p *EBPFLessProbe) zeroEvent() *model.Event {
-	p.event.Zero()
+	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFLessOrigin
 	return p.event

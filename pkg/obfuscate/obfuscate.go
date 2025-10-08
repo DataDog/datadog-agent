@@ -18,7 +18,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -42,7 +41,7 @@ type Obfuscator struct {
 	sqlLiteralEscapes *atomic.Bool
 	// queryCache keeps a cache of already obfuscated queries.
 	queryCache *measuredCache
-	log        Logger
+	log        FullLogger
 }
 
 // Logger is able to log certain log messages.
@@ -51,9 +50,33 @@ type Logger interface {
 	Debugf(format string, params ...interface{})
 }
 
+// FullLogger logs all log levels.
+type FullLogger interface {
+	Logger
+	Tracef(format string, params ...interface{})
+	Infof(format string, params ...interface{})
+	Warnf(format string, params ...interface{})
+	Errorf(format string, params ...interface{})
+	Criticalf(format string, params ...interface{})
+}
+
 type noopLogger struct{}
 
-func (noopLogger) Debugf(_ string, _ ...interface{}) {}
+func (noopLogger) Tracef(_ string, _ ...interface{})    {}
+func (noopLogger) Debugf(_ string, _ ...interface{})    {}
+func (noopLogger) Infof(_ string, _ ...interface{})     {}
+func (noopLogger) Warnf(_ string, _ ...interface{})     {}
+func (noopLogger) Errorf(_ string, _ ...interface{})    {}
+func (noopLogger) Criticalf(_ string, _ ...interface{}) {}
+
+type debugLogger struct {
+	noopLogger
+	debugLogger Logger
+}
+
+func (d debugLogger) Debugf(format string, params ...interface{}) {
+	d.debugLogger.Debugf(format, params...)
+}
 
 // setSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
 func (o *Obfuscator) setSQLLiteralEscapes(ok bool) {
@@ -111,8 +134,13 @@ type Config struct {
 	Statsd StatsClient
 
 	// Logger specifies the logger to use when outputting messages.
+	// Prefer using FullLogger for more complete logging. FullLogger takes precedence.
 	// If unset, no logs will be outputted.
 	Logger Logger
+
+	// FullLogger specifies the logger to use when outputting messages.
+	// If unset, no logs will be outputted.
+	FullLogger FullLogger
 
 	// Cache enables the query cache for obfuscation for SQL and MongoDB queries.
 	Cache CacheConfig `mapstructure:"cache"`
@@ -202,6 +230,10 @@ type SQLConfig struct {
 	// By default, JSON paths are treated as literals and are obfuscated to ?, e.g. "data::jsonb -> 'name'" -> "data::jsonb -> ?".
 	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	KeepJSONPath bool `json:"keep_json_path" yaml:"keep_json_path"`
+
+	// ReplaceBindParameter specifies whether to replace SQL bind parameters such as @P1 with ?.
+	// By default, bind parameters are not replaced.
+	ReplaceBindParameter bool `json:"replace_bind_parameter" yaml:"replace_bind_parameter"`
 
 	// Cache is deprecated. Please use `apm_config.obfuscation.cache` instead.
 	Cache bool `json:"cache" yaml:"cache"`
@@ -304,15 +336,19 @@ type CacheConfig struct {
 
 // NewObfuscator creates a new obfuscator
 func NewObfuscator(cfg Config) *Obfuscator {
-	if cfg.Logger == nil {
-		cfg.Logger = noopLogger{}
+	if cfg.FullLogger == nil {
+		if cfg.Logger == nil {
+			cfg.FullLogger = noopLogger{}
+		} else {
+			cfg.FullLogger = debugLogger{debugLogger: cfg.Logger}
+		}
 	}
 	optsStr := ""
 	optsBytes, err := json.Marshal(cfg.SQL)
 	if err == nil {
 		optsStr = string(optsBytes)
 	} else {
-		log.Errorf("failed to marshal obfuscation config: %v", err)
+		cfg.FullLogger.Errorf("failed to marshal obfuscation config: %v", err)
 	}
 
 	o := Obfuscator{
@@ -320,7 +356,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 		sqlOptsStr:        optsStr,
 		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize}),
 		sqlLiteralEscapes: atomic.NewBool(false),
-		log:               cfg.Logger,
+		log:               cfg.FullLogger,
 	}
 	if cfg.ES.Enabled {
 		o.es = newJSONObfuscator(&cfg.ES, &o)

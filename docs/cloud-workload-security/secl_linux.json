@@ -128,6 +128,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "process.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "process.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "process.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -273,9 +283,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.ancestors.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.ancestors.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.ancestors.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.ancestors.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.ancestors.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.ancestors.file.package.source_version",
@@ -418,9 +448,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.ancestors.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.ancestors.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.ancestors.interpreter.file.package.source_version",
@@ -568,6 +618,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "process.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "process.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "process.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -713,9 +773,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.file.package.source_version",
@@ -858,9 +938,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.interpreter.file.package.source_version",
@@ -956,6 +1056,16 @@
           "name": "process.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "process.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "process.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "process.parent.cgroup.file.inode",
@@ -1103,9 +1213,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.parent.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.parent.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.parent.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.parent.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.parent.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.parent.file.package.source_version",
@@ -1248,9 +1378,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.parent.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "process.parent.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "process.parent.interpreter.file.package.source_version",
@@ -1527,6 +1677,25 @@
       ]
     },
     {
+      "name": "capabilities",
+      "definition": "A process used some capabilities",
+      "type": "Process",
+      "from_agent_version": "7.70",
+      "experimental": true,
+      "properties": [
+        {
+          "name": "capabilities.attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use since it started running",
+          "property_doc_link": "capabilities-attempted-doc"
+        },
+        {
+          "name": "capabilities.used",
+          "definition": "Bitmask of the capabilities that the process successfully used since it started running",
+          "property_doc_link": "capabilities-used-doc"
+        }
+      ]
+    },
+    {
       "name": "capset",
       "definition": "A process changed its capacity set",
       "type": "Process",
@@ -1628,9 +1797,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "cgroup_write.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "cgroup_write.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "cgroup_write.file.package.source_version",
@@ -1757,9 +1946,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "chdir.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "chdir.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chdir.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "chdir.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "chdir.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "chdir.file.package.source_version",
@@ -1901,9 +2110,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "chmod.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "chmod.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chmod.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "chmod.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "chmod.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "chmod.file.package.source_version",
@@ -2060,9 +2289,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "chown.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "chown.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chown.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "chown.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "chown.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "chown.file.package.source_version",
@@ -2266,6 +2515,11 @@
           "name": "network.source.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
         }
       ]
     },
@@ -2320,6 +2574,16 @@
           "name": "exec.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "exec.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "exec.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "exec.cgroup.file.inode",
@@ -2507,9 +2771,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "exec.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "exec.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exec.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "exec.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "exec.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "exec.file.package.source_version",
@@ -2652,9 +2936,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "exec.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "exec.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "exec.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "exec.interpreter.file.package.source_version",
@@ -2809,6 +3113,16 @@
           "name": "exit.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "exit.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "exit.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "exit.cause",
@@ -2966,9 +3280,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "exit.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "exit.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exit.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "exit.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "exit.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "exit.file.package.source_version",
@@ -3111,9 +3445,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "exit.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "exit.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "exit.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "exit.interpreter.file.package.source_version",
@@ -3313,6 +3667,11 @@
           "name": "network.source.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
         }
       ]
     },
@@ -3404,9 +3763,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "link.file.destination.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "link.file.destination.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "link.file.destination.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "link.file.destination.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "link.file.destination.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "link.file.destination.package.source_version",
@@ -3514,9 +3893,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "link.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "link.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "link.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "link.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "link.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "link.file.package.source_version",
@@ -3668,9 +4067,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "load_module.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "load_module.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "load_module.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "load_module.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "load_module.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "load_module.file.package.source_version",
@@ -3817,9 +4236,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "mkdir.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "mkdir.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "mkdir.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "mkdir.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "mkdir.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "mkdir.file.package.source_version",
@@ -3956,9 +4395,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "mmap.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "mmap.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "mmap.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "mmap.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "mmap.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "mmap.file.package.source_version",
@@ -4262,9 +4721,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "open.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "open.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "open.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "open.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "open.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "open.file.package.source_version",
@@ -4336,6 +4815,66 @@
       "experimental": false,
       "properties": [
         {
+          "name": "network.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "network.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
+        },
+        {
+          "name": "network.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "network.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
+        },
+        {
+          "name": "network.size",
+          "definition": "Size in bytes of the network packet",
+          "property_doc_link": "common-networkcontext-size-doc"
+        },
+        {
+          "name": "network.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
+        },
+        {
           "name": "packet.destination.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -4399,6 +4938,40 @@
           "name": "packet.tls.version",
           "definition": "TLS version",
           "property_doc_link": "packet-tls-version-doc"
+        },
+        {
+          "name": "packet.type",
+          "definition": "Type of the network packet",
+          "property_doc_link": "common-networkcontext-type-doc"
+        }
+      ]
+    },
+    {
+      "name": "prctl",
+      "definition": "A prctl command was executed",
+      "type": "Process",
+      "from_agent_version": "7.71",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "prctl.is_name_truncated",
+          "definition": "Indicates that the name field is truncated",
+          "property_doc_link": "prctl-is_name_truncated-doc"
+        },
+        {
+          "name": "prctl.new_name",
+          "definition": "New name of the process",
+          "property_doc_link": "prctl-new_name-doc"
+        },
+        {
+          "name": "prctl.option",
+          "definition": "prctl option",
+          "property_doc_link": "prctl-option-doc"
+        },
+        {
+          "name": "prctl.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
         }
       ]
     },
@@ -4463,6 +5036,16 @@
           "name": "ptrace.tracee.ancestors.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.file.inode",
@@ -4610,9 +5193,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.file.package.source_version",
@@ -4755,9 +5358,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.package.source_version",
@@ -4905,6 +5528,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "ptrace.tracee.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "ptrace.tracee.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -5050,9 +5683,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.file.package.source_version",
@@ -5195,9 +5848,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.interpreter.file.package.source_version",
@@ -5293,6 +5966,16 @@
           "name": "ptrace.tracee.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.file.inode",
@@ -5440,9 +6123,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.parent.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.parent.file.package.source_version",
@@ -5585,9 +6288,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.parent.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.package.source_version",
@@ -5824,9 +6547,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "removexattr.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "removexattr.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "removexattr.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "removexattr.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "removexattr.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "removexattr.file.package.source_version",
@@ -5958,9 +6701,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "rename.file.destination.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "rename.file.destination.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rename.file.destination.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "rename.file.destination.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "rename.file.destination.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "rename.file.destination.package.source_version",
@@ -6068,9 +6831,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "rename.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "rename.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rename.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "rename.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "rename.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "rename.file.package.source_version",
@@ -6207,9 +6990,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "rmdir.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "rmdir.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "rmdir.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "rmdir.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "rmdir.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "rmdir.file.package.source_version",
@@ -6399,6 +7202,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -6544,9 +7357,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.ancestors.file.package.source_version",
@@ -6689,9 +7522,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.ancestors.interpreter.file.package.source_version",
@@ -6839,6 +7692,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "setrlimit.target.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "setrlimit.target.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "setrlimit.target.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -6984,9 +7847,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.file.package.source_version",
@@ -7129,9 +8012,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.interpreter.file.package.source_version",
@@ -7227,6 +8130,16 @@
           "name": "setrlimit.target.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "setrlimit.target.parent.cgroup.file.inode",
@@ -7374,9 +8287,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.parent.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.parent.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.parent.file.package.source_version",
@@ -7519,9 +8452,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.parent.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setrlimit.target.parent.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setrlimit.target.parent.interpreter.file.package.source_version",
@@ -7861,9 +8814,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setxattr.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "setxattr.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setxattr.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "setxattr.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "setxattr.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "setxattr.file.package.source_version",
@@ -7968,6 +8941,16 @@
           "name": "signal.target.ancestors.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "signal.target.ancestors.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "signal.target.ancestors.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "signal.target.ancestors.cgroup.file.inode",
@@ -8115,9 +9098,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.ancestors.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.ancestors.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.ancestors.file.package.source_version",
@@ -8260,9 +9263,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.ancestors.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.ancestors.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.ancestors.interpreter.file.package.source_version",
@@ -8410,6 +9433,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "signal.target.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
           "name": "signal.target.cgroup.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
@@ -8555,9 +9588,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.file.package.source_version",
@@ -8700,9 +9753,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.interpreter.file.package.source_version",
@@ -8798,6 +9871,16 @@
           "name": "signal.target.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "signal.target.parent.caps_attempted",
+          "definition": "Bitmask of the capabilities that the process attempted to use",
+          "property_doc_link": "common-process-caps_attempted-doc"
+        },
+        {
+          "name": "signal.target.parent.caps_used",
+          "definition": "Bitmask of the capabilities that the process successfully used",
+          "property_doc_link": "common-process-caps_used-doc"
         },
         {
           "name": "signal.target.parent.cgroup.file.inode",
@@ -8945,9 +10028,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.parent.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.parent.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.parent.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.parent.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.parent.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.parent.file.package.source_version",
@@ -9090,9 +10193,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.parent.interpreter.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "signal.target.parent.interpreter.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "signal.target.parent.interpreter.file.package.source_version",
@@ -9324,9 +10447,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "splice.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "splice.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "splice.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "splice.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "splice.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "splice.file.package.source_version",
@@ -9512,9 +10655,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "unlink.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "unlink.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "unlink.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "unlink.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "unlink.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "unlink.file.package.source_version",
@@ -9680,9 +10843,29 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "utimes.file.package.epoch",
+          "definition": "[Experimental] Epoch of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-epoch-doc"
+        },
+        {
           "name": "utimes.file.package.name",
           "definition": "[Experimental] Name of the package that provided this file",
           "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "utimes.file.package.release",
+          "definition": "[Experimental] Release of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-release-doc"
+        },
+        {
+          "name": "utimes.file.package.source_epoch",
+          "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_epoch-doc"
+        },
+        {
+          "name": "utimes.file.package.source_release",
+          "definition": "[Experimental] Release of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_release-doc"
         },
         {
           "name": "utimes.file.package.source_version",
@@ -9962,6 +11145,56 @@
       "link": "common-credentials-cap_permitted-doc",
       "type": "int",
       "definition": "Permitted capability set of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.caps_attempted",
+      "link": "common-process-caps_attempted-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.caps_used",
+      "link": "common-process-caps_used-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used",
       "prefixes": [
         "exec",
         "exit",
@@ -11633,10 +12866,238 @@
       "examples": []
     },
     {
+      "name": "*.package.epoch",
+      "link": "common-fileevent-package-epoch-doc",
+      "type": "int",
+      "definition": "[Experimental] Epoch of the package that provided this file",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.package.name",
       "link": "common-fileevent-package-name-doc",
       "type": "string",
       "definition": "[Experimental] Name of the package that provided this file",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.package.release",
+      "link": "common-fileevent-package-release-doc",
+      "type": "string",
+      "definition": "[Experimental] Release of the package that provided this file",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.package.source_epoch",
+      "link": "common-fileevent-package-source_epoch-doc",
+      "type": "int",
+      "definition": "[Experimental] Epoch of the source package of the package that provided this file",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.package.source_release",
+      "link": "common-fileevent-package-source_release-doc",
+      "type": "string",
+      "definition": "[Experimental] Release of the source package of the package that provided this file",
       "prefixes": [
         "cgroup_write.file",
         "chdir.file",
@@ -11972,6 +13433,7 @@
         "mount",
         "mprotect",
         "open",
+        "prctl",
         "ptrace",
         "removexattr",
         "rename",
@@ -12107,6 +13569,19 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.type",
+      "link": "common-networkcontext-type-doc",
+      "type": "int",
+      "definition": "Type of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "Network Protocol Types",
+      "constants_link": "network-protocol-types",
       "examples": []
     },
     {
@@ -12446,6 +13921,30 @@
       ],
       "constants": "BPF program types",
       "constants_link": "bpf-program-types",
+      "examples": []
+    },
+    {
+      "name": "capabilities.attempted",
+      "link": "capabilities-attempted-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use since it started running",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "capabilities.used",
+      "link": "capabilities-used-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used since it started running",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
       "examples": []
     },
     {
@@ -13499,6 +14998,42 @@
       "definition": "TLS version",
       "prefixes": [
         "packet.tls"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.is_name_truncated",
+      "link": "prctl-is_name_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the name field is truncated",
+      "prefixes": [
+        "prctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.new_name",
+      "link": "prctl-new_name-doc",
+      "type": "string",
+      "definition": "New name of the process",
+      "prefixes": [
+        "prctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "prctl.option",
+      "link": "prctl-option-doc",
+      "type": "int",
+      "definition": "prctl option",
+      "prefixes": [
+        "prctl"
       ],
       "constants": "",
       "constants_link": "",
@@ -17677,6 +19212,61 @@
       ]
     },
     {
+      "name": "Network Protocol Types",
+      "link": "network-protocol-types",
+      "description": "Types of specific network protocols.",
+      "all": [
+        {
+          "name": "ICMP_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_NEIGHBOR_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REQUEST",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ECHO_REPLY",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_ROUTER_ADVERTISEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_SOLICITATION",
+          "architecture": "all"
+        },
+        {
+          "name": "ICMP_V6_NEIGHBOR_ADVERTISEMENT",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Network directions",
       "link": "network-directions",
       "description": "Network directions are the supported directions of network packets.",
@@ -17813,6 +19403,257 @@
         },
         {
           "name": "PIPE_BUF_FLAG_LOSS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "PrCtl Options",
+      "link": "prctl-options",
+      "description": "PrCtl Options are the supported options for the prctl event",
+      "all": [
+        {
+          "name": "PR_CAP_AMBIENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_CAPBSET_READ",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_CAPBSET_DROP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_CHILD_SUBREAPER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_CHILD_SUBREAPER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_DUMPABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_DUMPABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_ENDIAN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_ENDIAN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FP_MODE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FP_MODE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FPEMU",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FPEMU",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_FPEXC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_FPEXC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_IO_FLUSHER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_IO_FLUSHER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_KEEPCAPS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_KEEPCAPS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MCE_KILL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MCE_KILL_GET",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MM",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_VMA",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MPX_ENABLE_MANAGEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_MPX_DISABLE_MANAGEMENT",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_NAME",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_NAME",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_NO_NEW_PRIVS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_NO_NEW_PRIVS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_PAC_RESET_KEYS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_PDEATHSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_PDEATHSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_PTRACER",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SECCOMP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SECCOMP",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SECUREBITS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SECUREBITS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_SPECULATION_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SPECULATION_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SVE_SET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SVE_GET_VL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_SYSCALL_USER_DISPATCH",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TAGGED_ADDR_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TAGGED_ADDR_CTRL",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_TASK_PERF_EVENTS_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_TASK_PERF_EVENTS_ENABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_THP_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_THP_DISABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TID_ADDRESS",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TIMERSLACK",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TIMERSLACK",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TIMING",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TIMING",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_TSC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_TSC",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_UNALIGN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_UNALIGN",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_AUXV",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_SET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_GET_MDWE",
+          "architecture": "all"
+        },
+        {
+          "name": "PR_RISCV_SET_ICACHE_FLUSH_CTX",
           "architecture": "all"
         }
       ]

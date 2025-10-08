@@ -81,10 +81,10 @@ AGENT_CORECHECKS = [
     "orchestrator_ecs",
     "cisco_sdwan",
     "network_path",
-    "service_discovery",
     "gpu",
     "wlan",
     "discovery",
+    "versa",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -537,6 +537,7 @@ RUN apt-get update && \
     apt-get install -y patchelf
 
 COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
+COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
@@ -570,6 +571,7 @@ COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
 {copy_extra_agents}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
@@ -622,7 +624,16 @@ def check_supports_python_version(check_dir, python):
         if 'requires-python' not in project_metadata:
             return True
 
-        specifier = SpecifierSet(project_metadata['requires-python'])
+        requires_python = project_metadata['requires-python']
+        # Handle malformed requires-python values (e.g., just ">=" without version)
+        if not requires_python or requires_python.strip() in ['>=', '>', '<=', '<', '==', '!=', '~=', '===']:
+            return True
+
+        try:
+            specifier = SpecifierSet(requires_python)
+        except Exception:
+            # If the specifier is malformed, assume it supports the Python version
+            return True
         # It might be e.g. `>=3.8` which would not immediatelly contain `3`
         for minor_version in range(100):
             if specifier.contains(f'{python}.{minor_version}'):

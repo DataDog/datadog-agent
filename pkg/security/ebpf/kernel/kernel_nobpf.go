@@ -85,3 +85,9 @@ func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
 func (k *Version) HasBpfGetCurrentCgroupIDForSchedCLS() bool {
 	return false
 }
+
+// HasBpfGetSocketCookieForCgroupSocket returns if the kernel supports bpf_get_socket_cookie for Cgroup Socket program type
+// https://github.com/torvalds/linux/commit/c5dbb89fc2ac013afe67b9e4fcb3743c02b567cd
+func (k *Version) HasBpfGetSocketCookieForCgroupSocket() bool {
+	return false
+}

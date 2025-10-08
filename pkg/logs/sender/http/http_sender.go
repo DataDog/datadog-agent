@@ -28,6 +28,7 @@ func NewHTTPSender(
 	destinationsCtx *client.DestinationsContext,
 	componentName string,
 	contentType string,
+	evpCategory string,
 	queueCount int,
 	workersPerQueue int,
 	minWorkerConcurrency int,
@@ -51,6 +52,7 @@ func NewHTTPSender(
 		config,
 		componentName,
 		contentType,
+		evpCategory,
 		minWorkerConcurrency,
 		maxWorkerConcurrency,
 	)
@@ -75,6 +77,7 @@ func httpDestinationFactory(
 	cfg pkgconfigmodel.Reader,
 	componentName string,
 	contentyType string,
+	evpCategory string,
 	minConcurrency int,
 	maxConcurrency int,
 ) sender.DestinationFactory {
@@ -82,7 +85,7 @@ func httpDestinationFactory(
 		reliable := []client.Destination{}
 		additionals := []client.Destination{}
 		for i, endpoint := range endpoints.GetReliableEndpoints() {
-			destMeta := client.NewDestinationMetadata(componentName, instanceID, "reliable", strconv.Itoa(i))
+			destMeta := client.NewDestinationMetadata(componentName, instanceID, "reliable", strconv.Itoa(i), evpCategory)
 			if serverlessMeta.IsEnabled() {
 				reliable = append(reliable, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
 			} else {
@@ -90,7 +93,7 @@ func httpDestinationFactory(
 			}
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
-			destMeta := client.NewDestinationMetadata(componentName, instanceID, "unreliable", strconv.Itoa(i))
+			destMeta := client.NewDestinationMetadata(componentName, instanceID, "unreliable", strconv.Itoa(i), evpCategory)
 			if serverlessMeta.IsEnabled() {
 				additionals = append(additionals, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
 			} else {

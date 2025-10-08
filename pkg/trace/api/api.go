@@ -25,14 +25,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -274,7 +274,27 @@ func (r *HTTPReceiver) Start() {
 
 	if r.conf.ReceiverPort > 0 {
 		addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
-		ln, err := r.listenTCP(addr)
+
+		var ln net.Listener
+		var err error
+		// When using the trace-loader, the TCP listener might be provided as an already opened file descriptor
+		// so we try to get a listener from it, and fallback to listening on the given address if it fails
+		if tcpFDStr, ok := os.LookupEnv("DD_APM_NET_RECEIVER_FD"); ok {
+			ln, err = loader.GetListenerFromFD(tcpFDStr, "tcp_conn")
+			if err == nil {
+				log.Debugf("Using TCP listener from file descriptor %s", tcpFDStr)
+			} else {
+				log.Errorf("Error creating TCP listener from file descriptor %s: %v", tcpFDStr, err)
+			}
+		}
+		if ln == nil {
+			// if the fd was not provided, or we failed to get a listener from it, listen on the given address
+			ln, err = loader.GetTCPListener(addr)
+		}
+		if err == nil {
+			ln, err = r.listenTCPListener(ln)
+		}
+
 		if err != nil {
 			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
 			killProcess("Error creating tcp listener: %v", err)
@@ -292,12 +312,31 @@ func (r *HTTPReceiver) Start() {
 	}
 
 	if path := r.conf.ReceiverSocket; path != "" {
+		log.Infof("Using UDS listener at %s", path)
+		// When using the trace-loader, the UDS listener might be provided as an already opened file descriptor
+		// so we try to get a listener from it, and fallback to listening on the given path if it fails
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
-			ln, err := r.listenUnix(path)
+			var ln net.Listener
+			var err error
+			if unixFDStr, ok := os.LookupEnv("DD_APM_UNIX_RECEIVER_FD"); ok {
+				ln, err = loader.GetListenerFromFD(unixFDStr, "unix_conn")
+				if err == nil {
+					log.Debugf("Using UDS listener from file descriptor %s", unixFDStr)
+				} else {
+					log.Errorf("Error creating UDS listener from file descriptor %s: %v", unixFDStr, err)
+				}
+			}
+			if ln == nil {
+				// if the fd was not provided, or we failed to get a listener from it, listen on the given path
+				ln, err = loader.GetUnixListener(path)
+			}
+
 			if err != nil {
 				log.Errorf("Error creating UDS listener: %v", err)
 				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
 			} else {
+				ln = NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections, r.statsd)
+
 				go func() {
 					defer watchdog.LogOnPanic(r.statsd)
 					if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
@@ -337,39 +376,8 @@ func (r *HTTPReceiver) Start() {
 	}()
 }
 
-// listenUnix returns a net.Listener listening on the given "unix" socket path.
-func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
-	fi, err := os.Stat(path)
-	if err == nil {
-		// already exists
-		if fi.Mode()&os.ModeSocket == 0 {
-			return nil, fmt.Errorf("cannot reuse %q; not a unix socket", path)
-		}
-		if err := os.Remove(path); err != nil {
-			return nil, fmt.Errorf("unable to remove stale socket: %v", err)
-		}
-	}
-	ln, err := net.Listen("unix", path)
-	if err != nil {
-		return nil, err
-	}
-	if unixLn, ok := ln.(*net.UnixListener); ok {
-		// We do not want to unlink the socket here as we can't be sure if another trace-agent has already
-		// put a new file at the same path.
-		unixLn.SetUnlinkOnClose(false)
-	}
-	if err := os.Chmod(path, 0o722); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
-	}
-	return NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections, r.statsd), err
-}
-
 // listenTCP creates a new net.Listener on the provided TCP address.
-func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
-	tcpln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
+func (r *HTTPReceiver) listenTCPListener(tcpln net.Listener) (net.Listener, error) {
 	if climit := r.conf.ConnectionLimit; climit > 0 {
 		ln, err := newRateLimitedListener(tcpln, climit, r.statsd)
 		go func() {
@@ -378,7 +386,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 		}()
 		return ln, err
 	}
-	return NewMeasuredListener(tcpln, "tcp_connections", r.conf.MaxConnections, r.statsd), err
+	return NewMeasuredListener(tcpln, "tcp_connections", r.conf.MaxConnections, r.statsd), nil
 }
 
 // Stop stops the receiver and shuts down the HTTP server.

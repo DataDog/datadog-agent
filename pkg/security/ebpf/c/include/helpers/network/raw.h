@@ -16,7 +16,7 @@ __attribute__((always_inline)) int is_raw_packet_allowed(struct packet_t *pkt) {
     }
 
     // do not handle tcp packet outside of SYN without process context
-    if (pkt->ns_flow.flow.l4_protocol == IPPROTO_TCP && !pkt->tcp.syn && pkt->pid <= 0) {
+    if (pkt->ns_flow.flow.l4_protocol == IPPROTO_TCP && !pkt->l4.tcp.syn && pkt->pid <= 0) {
         return 0;
     }
     return 1;

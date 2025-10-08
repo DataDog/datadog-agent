@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.testEsotericStack",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -18,7 +18,7 @@
           {
             "function": "main.testEsotericStack",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go",
-            "lineNumber": 42
+            "lineNumber": 44
           },
           {
             "function": "main.executeEsoteric",
@@ -28,7 +28,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 43
+            "lineNumber": 46
           },
           {
             "function": "runtime.main",
@@ -62,12 +62,23 @@
                     "notCapturedReason": "unimplemented"
                   },
                   "val": {
-                    "type": "int",
-                    "value": "42"
+                    "type": "interface {}",
+                    "fields": {
+                      "data": {
+                        "type": "int",
+                        "value": "42"
+                      }
+                    }
                   },
                   "work": {
-                    "type": "*main.somethingImpl",
-                    "notCapturedReason": "missing type information"
+                    "type": "main.something",
+                    "fields": {
+                      "data": {
+                        "type": "*main.somethingImpl",
+                        "address": "[addr]",
+                        "fields": {}
+                      }
+                    }
                   },
                   "foo": {
                     "type": "func()",
@@ -80,6 +91,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

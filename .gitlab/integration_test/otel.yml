@@ -5,7 +5,7 @@
 integration_tests_otel:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
   script:
     - !reference [.retrieve_linux_go_deps]
@@ -44,7 +44,7 @@ docker_image_build_otel:
 datadog_otel_components_ocb_build:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
   artifacts:
     paths:
@@ -60,7 +60,7 @@ datadog_otel_components_ocb_build:
     - echo "see artifacts for job logs"
   rules:
     - !reference [.except_mergequeue]
-    - when: never
+    - when: on_success
   timeout: 15 minutes
 
 # Test that the BYOC packages can be built with the existing Dockerfile
@@ -118,6 +118,12 @@ ddot_byoc_package_build_test_deb:
         exit 1
       fi
       dpkg -c "$DEB_PATH" | grep /opt/datadog-agent/embedded/bin/otel-agent || { echo "ERROR: otel-agent binary not found in DEB package"; exit 1; }
+    # Check conflicts field for generated package
+    - |
+      [ "$(dpkg -f ${DEB_PATH} Conflicts)" = "datadog-agent-ddot" ] || { echo "ERROR: missing expected value for 'Conflicts'"; exit 1; }
+    # Check runtime dependencies for generated package
+    - |
+      dpkg -f "${DEB_PATH}" Depends | grep datadog-agent || { echo "ERROR: package should depend on datadog-agent"; exit 1; }
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

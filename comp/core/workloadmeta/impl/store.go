@@ -248,6 +248,29 @@ func (w *workloadmeta) GetKubernetesPodByName(podName, podNamespace string) (*wm
 	return nil, errors.NewNotFound(podName)
 }
 
+// ListKubernetesPods implements Store#ListKubernetesPods
+func (w *workloadmeta) ListKubernetesPods() []*wmdef.KubernetesPod {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesPod)
+
+	pods := make([]*wmdef.KubernetesPod, 0, len(entities))
+	for i := range entities {
+		pods = append(pods, entities[i].(*wmdef.KubernetesPod))
+	}
+
+	return pods
+}
+
+func (w *workloadmeta) GetKubeletMetrics() (*wmdef.KubeletMetrics, error) {
+	// There should only be one entity of this kind with the ID used in the
+	// Kubelet collector
+	entity, err := w.getEntityByKind(wmdef.KindKubeletMetrics, "kubelet-metrics")
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubeletMetrics), nil
+}
+
 // GetProcess implements Store#GetProcess.
 func (w *workloadmeta) GetProcess(pid int32) (*wmdef.Process, error) {
 	id := strconv.Itoa(int(pid))
@@ -444,6 +467,16 @@ func (w *workloadmeta) GetGPU(id string) (*wmdef.GPU, error) {
 	}
 
 	return entity.(*wmdef.GPU), nil
+}
+
+// GetKubelet implements Store#GetKubelet.
+func (w *workloadmeta) GetKubelet() (*wmdef.Kubelet, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubelet, wmdef.KubeletID)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.Kubelet), nil
 }
 
 // ListGPUs implements Store#ListGPUs.

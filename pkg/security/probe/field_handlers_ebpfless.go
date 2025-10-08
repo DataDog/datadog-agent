@@ -347,14 +347,34 @@ func (fh *EBPFLessFieldHandlers) ResolvePackageName(_ *model.Event, e *model.Fil
 	return e.PkgName
 }
 
+// ResolvePackageVersion resolves the version of the package providing this file
+func (fh *EBPFLessFieldHandlers) ResolvePackageVersion(_ *model.Event, e *model.FileEvent) string {
+	return e.PkgVersion
+}
+
+// ResolvePackageEpoch resolves the epoch of the package providing this file
+func (fh *EBPFLessFieldHandlers) ResolvePackageEpoch(_ *model.Event, e *model.FileEvent) int {
+	return e.PkgEpoch
+}
+
+// ResolvePackageRelease resolves the release of the package providing this file
+func (fh *EBPFLessFieldHandlers) ResolvePackageRelease(_ *model.Event, e *model.FileEvent) string {
+	return e.PkgRelease
+}
+
 // ResolvePackageSourceVersion resolves the version of the source package of the package providing this file
 func (fh *EBPFLessFieldHandlers) ResolvePackageSourceVersion(_ *model.Event, e *model.FileEvent) string {
 	return e.PkgSrcVersion
 }
 
-// ResolvePackageVersion resolves the version of the package providing this file
-func (fh *EBPFLessFieldHandlers) ResolvePackageVersion(_ *model.Event, e *model.FileEvent) string {
-	return e.PkgVersion
+// ResolvePackageSourceEpoch resolves the epoch of the source package of the package providing this file
+func (fh *EBPFLessFieldHandlers) ResolvePackageSourceEpoch(_ *model.Event, e *model.FileEvent) int {
+	return e.PkgSrcEpoch
+}
+
+// ResolvePackageSourceRelease resolves the release of the source package of the package providing this file
+func (fh *EBPFLessFieldHandlers) ResolvePackageSourceRelease(_ *model.Event, e *model.FileEvent) string {
+	return e.PkgSrcRelease
 }
 
 // ResolveRights resolves the rights of a file
@@ -589,4 +609,14 @@ func (fh *EBPFLessFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event,
 	}
 	e.UsedImmediates = kValues
 	return e.UsedImmediates
+}
+
+// ResolveCapabilitiesAttempted resolves the accumulated attempted capabilities of a capabilities event
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttempted(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
+// ResolveCapabilitiesUsed resolves the accumulated used capabilities of a capabilities event
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
 }

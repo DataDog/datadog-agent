@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // irGenerator generates the ir for the program to scrape remote config.
@@ -25,7 +26,15 @@ func (irGenerator) GenerateIR(
 	programID ir.ProgramID,
 	binaryPath string,
 	probes []ir.ProbeDefinition,
-) (*ir.Program, error) {
+) (ret *ir.Program, retErr error) {
+	defer func() {
+		if retErr != nil {
+			return
+		}
+		if len(ret.Probes) == 0 {
+			retErr = &ir.NoSuccessfulProbesError{Issues: ret.Issues}
+		}
+	}()
 	var v1Def, v2Def, symdbDef ir.ProbeDefinition
 	for _, probe := range probes {
 		switch id := probe.GetID(); id {
@@ -43,30 +52,35 @@ func (irGenerator) GenerateIR(
 	if v1Def == nil || v2Def == nil {
 		return nil, fmt.Errorf("missing probe definitions: %v", probes)
 	}
-	elfFile, err := safeelf.Open(binaryPath)
+	elfFile, err := object.OpenMMappingElfFile(binaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open binary: %w", err)
 	}
 	defer elfFile.Close()
+	arch, err := bininspect.GetArchitecture(elfFile.File)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get architecture: %w", err)
+	}
+
+	symtab, err := object.ParseGoSymbolTable(elfFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open go symbol table: %w", err)
+	}
+	defer symtab.Close()
 
 	program := &ir.Program{
 		ID: programID,
 	}
-	// TODO: We could use less memory if we had a better symbol table parser.
-	symbols, err := elfFile.Symbols()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get symbols: %w", err)
-	}
-	var v1, v2, symdb *safeelf.Symbol
-	for _, symbol := range symbols {
-		switch symbol.Name {
-		case v1PassProbeConfiguration:
+	var v1, v2, symdb *gosym.GoFunction
+	for symbol := range symtab.Functions() {
+		switch {
+		case symbol.HasName(v1PassProbeConfiguration):
 			s := symbol
 			v1 = &s
-		case v2PassProbeConfiguration:
+		case symbol.HasName(v2PassProbeConfiguration):
 			s := symbol
 			v2 = &s
-		case symdbPassProbeConfiguration:
+		case symbol.HasName(symdbPassProbeConfiguration):
 			s := symbol
 			symdb = &s
 		}
@@ -106,10 +120,6 @@ func (irGenerator) GenerateIR(
 
 	var regs abiRegs
 	{
-		arch, err := bininspect.GetArchitecture(elfFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get architecture: %w", err)
-		}
 		switch arch {
 		case "amd64":
 			regs = amd64AbiRegs
@@ -145,12 +155,12 @@ func addRcProbe(
 	abiRegs abiRegs,
 	program *ir.Program,
 	probeDef ir.ProbeDefinition,
-	symbol *safeelf.Symbol,
+	symbol *gosym.GoFunction,
 ) {
-	pcRange := ir.PCRange{symbol.Value, symbol.Value + 1}
+	pcRange := ir.PCRange{symbol.Entry, symbol.End}
 	subprogram := &ir.Subprogram{
 		ID:                ir.SubprogramID(len(program.Subprograms) + 1),
-		Name:              symbol.Name,
+		Name:              symbol.Name(),
 		OutOfLinePCRanges: []ir.PCRange{pcRange},
 		Variables: []*ir.Variable{
 			{
@@ -215,7 +225,7 @@ func addRcProbe(
 	rootType := &ir.EventRootType{
 		TypeCommon: ir.TypeCommon{
 			ID:       program.MaxTypeID,
-			Name:     symbol.Name,
+			Name:     symbol.Name(),
 			ByteSize: offset,
 		},
 		Expressions: exprs,
@@ -228,7 +238,7 @@ func addRcProbe(
 			ID:   ir.EventID(subprogram.ID),
 			Type: rootType,
 			InjectionPoints: []ir.InjectionPoint{
-				{PC: symbol.Value, Frameless: true},
+				{PC: symbol.Entry, Frameless: true},
 			},
 		}},
 	}
@@ -239,12 +249,12 @@ func addSymdbProbe(
 	abiRegs abiRegs,
 	program *ir.Program,
 	probeDef ir.ProbeDefinition,
-	symbol *safeelf.Symbol,
+	symbol *gosym.GoFunction,
 ) {
-	pcRange := ir.PCRange{symbol.Value, symbol.Value + 1}
+	pcRange := ir.PCRange{symbol.Entry, symbol.End}
 	subprogram := &ir.Subprogram{
 		ID:                ir.SubprogramID(len(program.Subprograms) + 1),
-		Name:              symbol.Name,
+		Name:              symbol.Name(),
 		OutOfLinePCRanges: []ir.PCRange{pcRange},
 		Variables: []*ir.Variable{
 			{
@@ -296,7 +306,7 @@ func addSymdbProbe(
 	rootType := &ir.EventRootType{
 		TypeCommon: ir.TypeCommon{
 			ID:       program.MaxTypeID,
-			Name:     symbol.Name,
+			Name:     symbol.Name(),
 			ByteSize: offset,
 		},
 		Expressions:        exprs,
@@ -310,7 +320,7 @@ func addSymdbProbe(
 			ID:   ir.EventID(subprogram.ID),
 			Type: rootType,
 			InjectionPoints: []ir.InjectionPoint{
-				{PC: symbol.Value, Frameless: true},
+				{PC: symbol.Entry, Frameless: true},
 			},
 		}},
 	}

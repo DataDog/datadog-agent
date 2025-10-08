@@ -13,21 +13,20 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/detector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
@@ -42,12 +41,12 @@ import (
 )
 
 const (
-	pathCheck    = "/check"
 	pathServices = "/services"
+)
 
-	// The maximum number of times that we check if a process has open ports
-	// before ignoring it forever.
-	maxPortCheckTries = 10
+var (
+	// apmInjectorRegex matches the APM auto-injector launcher.preload.so library path
+	apmInjectorRegex = regexp.MustCompile(`/opt/datadog-packages/datadog-apm-inject/[^/]+/inject/launcher\.preload\.so`)
 )
 
 // Ensure discovery implements the module.Module interface.
@@ -61,10 +60,6 @@ type discovery struct {
 
 	mux *sync.RWMutex
 
-	// noPortTries stores the number of times in a row that we did not find
-	// open ports for this process.
-	noPortTries map[int32]int
-
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
 
@@ -74,7 +69,7 @@ type discovery struct {
 
 type networkCollectorFactory func(_ *core.DiscoveryConfig) (core.NetworkCollector, error)
 
-func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Component, tp core.TimeProvider, getNetworkCollector networkCollectorFactory) *discovery {
+func newDiscoveryWithNetwork(getNetworkCollector networkCollectorFactory) *discovery {
 	cfg := core.NewConfig()
 
 	var network core.NetworkCollector
@@ -92,34 +87,25 @@ func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Compone
 
 	return &discovery{
 		core: core.Discovery{
-			Config:            cfg,
-			Cache:             make(map[int32]*core.ServiceInfo),
-			PotentialServices: make(core.PidSet),
-			RunningServices:   make(core.PidSet),
-			IgnorePids:        make(core.PidSet),
-			WMeta:             wmeta,
-			Tagger:            tagger,
-			TimeProvider:      tp,
-			Network:           network,
-			NetworkErrorLimit: log.NewLogLimit(10, 10*time.Minute),
+			Config:  cfg,
+			Network: network,
 		},
 		config:             cfg,
 		mux:                &sync.RWMutex{},
-		noPortTries:        make(map[int32]int),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
 	}
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	d := newDiscoveryWithNetwork(deps.WMeta, deps.Tagger, core.RealTime{}, newNetworkCollector)
+func NewDiscoveryModule(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
+	d := newDiscoveryWithNetwork(newNetworkCollector)
 
 	return d, nil
 }
 
 // GetStats returns the stats of the discovery module.
-func (s *discovery) GetStats() map[string]interface{} {
+func (s *discovery) GetStats() map[string]any {
 	return nil
 }
 
@@ -127,9 +113,7 @@ func (s *discovery) GetStats() map[string]interface{} {
 func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
-	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
 	httpMux.HandleFunc("/network-stats", s.handleNetworkStatsEndpoint)
-	httpMux.HandleFunc(pathCheck, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleCheck))
 	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
 
 	return nil
@@ -141,7 +125,6 @@ func (s *discovery) Close() {
 	defer s.mux.Unlock()
 
 	s.core.Close()
-	clear(s.noPortTries)
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
@@ -151,15 +134,7 @@ func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request)
 }
 
 type state struct {
-	Cache                  map[int]*model.Service `json:"cache"`
-	NoPortTries            map[int]int            `json:"no_port_tries"`
-	PotentialServices      []int                  `json:"potential_services"`
-	RunningServices        []int                  `json:"running_services"`
-	IgnorePids             []int                  `json:"ignore_pids"`
-	LastGlobalCPUTime      uint64                 `json:"last_global_cpu_time"`
-	LastCPUTimeUpdate      int64                  `json:"last_cpu_time_update"`
-	LastNetworkStatsUpdate int64                  `json:"last_network_stats_update"`
-	NetworkEnabled         bool                   `json:"network_enabled"`
+	NetworkEnabled bool `json:"network_enabled"`
 }
 
 // handleStateEndpoint is the handler for the /state endpoint.
@@ -169,90 +144,10 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) 
 	defer s.mux.Unlock()
 
 	state := &state{
-		Cache:             make(map[int]*model.Service, len(s.core.Cache)),
-		NoPortTries:       make(map[int]int, len(s.noPortTries)),
-		PotentialServices: make([]int, 0, len(s.core.PotentialServices)),
-		RunningServices:   make([]int, 0, len(s.core.RunningServices)),
-		IgnorePids:        make([]int, 0, len(s.core.IgnorePids)),
-		NetworkEnabled:    s.core.Network != nil,
+		NetworkEnabled: s.core.Network != nil,
 	}
-
-	for pid, info := range s.core.Cache {
-		service := &model.Service{}
-		info.ToModelService(pid, service)
-		state.Cache[int(pid)] = service
-	}
-
-	for pid, tries := range s.noPortTries {
-		state.NoPortTries[int(pid)] = tries
-	}
-
-	for pid := range s.core.PotentialServices {
-		state.PotentialServices = append(state.PotentialServices, int(pid))
-	}
-
-	for pid := range s.core.RunningServices {
-		state.RunningServices = append(state.RunningServices, int(pid))
-	}
-
-	for pid := range s.core.IgnorePids {
-		state.IgnorePids = append(state.IgnorePids, int(pid))
-	}
-
-	state.LastGlobalCPUTime = s.core.LastGlobalCPUTime
-	state.LastCPUTimeUpdate = s.core.LastCPUTimeUpdate.Unix()
-	state.LastNetworkStatsUpdate = s.core.LastNetworkStatsUpdate.Unix()
 
 	utils.WriteAsJSON(w, state, utils.CompactOutput)
-}
-
-func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	services := make([]model.Service, 0)
-
-	pids, err := process.Pids()
-	if err != nil {
-		utils.WriteAsJSON(w, "could not get PIDs", utils.CompactOutput)
-		return
-	}
-
-	context := newParsingContext()
-
-	containers := s.core.GetContainersMap()
-	containerTagsCache := make(map[string][]string)
-	for _, pid := range pids {
-		service := s.getService(context, pid)
-		if service == nil {
-			continue
-		}
-		s.core.EnrichContainerData(service, containers, containerTagsCache)
-
-		services = append(services, *service)
-	}
-
-	utils.WriteAsJSON(w, services, utils.CompactOutput)
-}
-
-// handleCheck is the handler for the /check endpoint.
-// Returns the list of service discovery events.
-func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
-	params, err := core.ParseParamsFromRequest(req)
-	if err != nil {
-		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	services, err := s.getCheckServices(params)
-	if err != nil {
-		_ = log.Errorf("failed to handle /discovery%s: %v", pathCheck, err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
@@ -457,19 +352,9 @@ func newParsingContext() parsingContext {
 	}
 }
 
-// shouldIgnoreService returns true if the service should be excluded from handling.
-func (s *discovery) shouldIgnoreService(name string) bool {
-	if len(s.core.Config.IgnoreServices) == 0 {
-		return false
-	}
-	_, found := s.core.Config.IgnoreServices[name]
-
-	return found
-}
-
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
-func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
+func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.Service, error) {
 	proc := &process.Process{
 		Pid: pid,
 	}
@@ -484,19 +369,17 @@ func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
 		return nil, err
 	}
 
-	createTime, err := proc.CreateTime()
-	if err != nil {
-		return nil, err
-	}
-
 	var tracerMetadataArr []tracermetadata.TracerMetadata
 	var firstMetadata *tracermetadata.TracerMetadata
 
-	tracerMetadata, err := tracermetadata.GetTracerMetadata(int(pid), kernel.ProcFSRoot())
-	if err == nil {
-		// Currently we only get the first tracer metadata
-		tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
-		firstMetadata = &tracerMetadata
+	if openFiles.tracerMemfdFd != "" {
+		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", openFiles.tracerMemfdFd)
+		tracerMetadata, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
+		if err == nil {
+			// Currently we only get the first tracer metadata
+			tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
+			firstMetadata = &tracerMetadata
+		}
 	}
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
@@ -519,20 +402,54 @@ func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
 
 	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
 
-	return &core.ServiceInfo{
-		Service: model.Service{
-			GeneratedName:            nameMeta.Name,
-			GeneratedNameSource:      string(nameMeta.Source),
-			AdditionalGeneratedNames: nameMeta.AdditionalNames,
-			DDService:                nameMeta.DDService,
-			DDServiceInjected:        nameMeta.DDServiceInjected,
-			TracerMetadata:           tracerMetadataArr,
-			Language:                 string(lang),
-			APMInstrumentation:       string(apmInstrumentation),
-			CommandLine:              truncateCmdline(lang, cmdline),
-			StartTimeMilli:           uint64(createTime),
+	return &model.Service{
+		PID:                      int(pid),
+		GeneratedName:            nameMeta.Name,
+		GeneratedNameSource:      string(nameMeta.Source),
+		AdditionalGeneratedNames: nameMeta.AdditionalNames,
+		TracerMetadata:           tracerMetadataArr,
+		UST: model.UST{
+			Service: env.GetDefault("DD_SERVICE", ""),
+			Env:     env.GetDefault("DD_ENV", ""),
+			Version: env.GetDefault("DD_VERSION", ""),
 		},
+		Language:           string(lang),
+		APMInstrumentation: apmInstrumentation == apm.Provided,
+		CommandLine:        truncateCmdline(lang, cmdline),
 	}, nil
+}
+
+// getHeartbeatServiceInfo gets minimal service information for heartbeat processes.
+// This only collects dynamic fields (ports and log files) and skips expensive operations
+// like language detection, service name generation, and APM instrumentation detection.
+func (s *discovery) getHeartbeatServiceInfo(context parsingContext, pid int32) *model.Service {
+	if s.shouldIgnoreComm(pid) {
+		return nil
+	}
+
+	openFileInfo, err := getOpenFilesInfo(pid, context.readlinkBuffer)
+	if err != nil {
+		return nil
+	}
+	tcpPorts, udpPorts, err := s.getPorts(context, pid, openFileInfo.sockets)
+	if err != nil {
+		return nil
+	}
+
+	totalPorts := len(tcpPorts) + len(udpPorts)
+	if totalPorts == 0 {
+		return nil
+	}
+
+	logFiles := getLogFiles(pid, openFileInfo.logs)
+
+	// Return minimal service info with only dynamic fields
+	return &model.Service{
+		PID:      int(pid),
+		TCPPorts: tcpPorts,
+		UDPPorts: udpPorts,
+		LogFiles: logFiles,
+	}
 }
 
 // maxNumberOfPorts is the maximum number of listening ports which we report per
@@ -608,117 +525,36 @@ func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64
 	return tcpPorts, udpPorts, nil
 }
 
-// addIgnoredPid stores excluded pid.
-func (s *discovery) addIgnoredPid(pid int32) {
-	s.core.IgnorePids[pid] = struct{}{}
-}
-
-// shouldIgnorePid returns true if process should be excluded from handling.
-func (s *discovery) shouldIgnorePid(pid int32) bool {
-	_, found := s.core.IgnorePids[pid]
-	return found
-}
-
-// getService gets information for a single service.
-func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
-	if s.shouldIgnorePid(pid) {
-		return nil
-	}
-	if s.shouldIgnoreComm(pid) {
-		s.addIgnoredPid(pid)
-		return nil
-	}
-
-	openFileInfo, err := getOpenFilesInfo(pid, context.readlinkBuffer)
-	if err != nil {
-		return nil
-	}
-	tcpPorts, udpPorts, err := s.getPorts(context, pid, openFileInfo.sockets)
-	if err != nil {
-		return nil
-	}
-
-	totalPorts := len(tcpPorts) + len(udpPorts)
-	if totalPorts == 0 {
-		tries := s.noPortTries[pid]
-		tries++
-		s.noPortTries[pid] = tries
-
-		if tries >= maxPortCheckTries {
-			log.Tracef("[pid: %d] ignoring due to no ports", pid)
-			s.addIgnoredPid(pid)
-			delete(s.noPortTries, pid)
-		}
-		return nil
-	}
-
-	// Reset the try counter since we only count tries in a row.
-	delete(s.noPortTries, pid)
-
-	var info *core.ServiceInfo
-	cached, ok := s.core.Cache[pid]
-	if ok {
-		info = cached
-	} else {
-		info, err = s.getServiceInfo(pid)
-		if err != nil {
-			return nil
-		}
-
-		s.core.Cache[pid] = info
-	}
-
-	preferredName := info.DDService
-	if preferredName == "" {
-		preferredName = info.GeneratedName
-	}
-	if s.shouldIgnoreService(preferredName) {
-		s.addIgnoredPid(pid)
-		return nil
-	}
-
-	service := &model.Service{}
-	info.ToModelService(pid, service)
-
-	service.TCPPorts = tcpPorts
-	service.UDPPorts = udpPorts
-
-	service.LogFiles = getLogFiles(pid, openFileInfo.logs)
-
-	return service
-}
-
-// getStatus returns the list of currently running services.
-func (s *discovery) getCheckServices(params core.Params) (*model.ServicesResponse, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	pids, err := process.Pids()
-	if err != nil {
-		return nil, err
-	}
-
-	context := newParsingContext()
-	return s.core.GetServices(params, pids, context, func(context any, pid int32) *model.Service {
-		return s.getService(context.(parsingContext), pid)
-	})
-}
-
-// getServices processes a list of PIDs and returns service information for each.
+// getServices processes categorized PID lists and returns service information for each.
 // This is used by the /services endpoint which accepts explicit PID lists and bypasses
 // the port retry logic used by the /check endpoint. The caller (the Core-Agent
-// process collector) will handle the retry..
-func (s *discovery) getServices(params core.Params) (*model.ServicesEndpointResponse, error) {
+// process collector) will handle the retry.
+func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	response := &model.ServicesEndpointResponse{
+	response := &model.ServicesResponse{
 		Services: make([]model.Service, 0),
 	}
 
 	context := newParsingContext()
 
-	for _, pid := range params.Pids {
-		service := s.getServiceWithoutRetry(context, int32(pid))
+	// Process new PIDs with full service info collection
+	for _, pid := range params.NewPids {
+		// Check for APM injector even if process is not detected as a service
+		if detectAPMInjectorFromMaps(pid) {
+			response.InjectedPIDs = append(response.InjectedPIDs, int(pid))
+		}
+
+		service := s.getServiceWithoutRetry(context, pid)
+		if service == nil {
+			continue
+		}
+		response.Services = append(response.Services, *service)
+	}
+
+	// Process heartbeat PIDs with minimal updates (only ports and log files)
+	for _, pid := range params.HeartbeatPids {
+		service := s.getHeartbeatServiceInfo(context, pid)
 		if service == nil {
 			continue
 		}
@@ -750,21 +586,18 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 		return nil
 	}
 
-	info, err := s.getServiceInfo(pid)
+	service, err := s.getServiceInfo(pid, openFileInfo)
 	if err != nil {
 		log.Tracef("[pid: %d] could not get service info: %v", pid, err)
 		return nil
 	}
 
-	info.LogFiles = getLogFiles(pid, openFileInfo.logs)
+	service.TCPPorts = tcpPorts
+	service.UDPPorts = udpPorts
+	service.LogFiles = getLogFiles(pid, openFileInfo.logs)
+	service.Type = string(servicetype.Detect(tcpPorts, udpPorts))
 
-	out := &model.Service{}
-	info.ToModelService(pid, out)
-
-	out.TCPPorts = tcpPorts
-	out.UDPPorts = udpPorts
-
-	return out
+	return service
 }
 
 // handleNetworkStatsEndpoint is the handler for the /network-stats endpoint.
@@ -814,4 +647,30 @@ func (s *discovery) handleNetworkStatsEndpoint(w http.ResponseWriter, req *http.
 	}
 
 	utils.WriteAsJSON(w, response, utils.CompactOutput)
+}
+
+// detectAPMInjectorFromMaps reads /proc/pid/maps and checks for APM injector library
+func detectAPMInjectorFromMaps(pid int32) bool {
+	mapsPath := kernel.HostProc(strconv.Itoa(int(pid)), "maps")
+	mapsFile, err := os.Open(mapsPath)
+	if err != nil {
+		return false
+	}
+	defer mapsFile.Close()
+
+	return detectAPMInjectorFromMapsReader(mapsFile)
+}
+
+// detectAPMInjectorFromMapsReader checks for APM injector library in the provided reader
+func detectAPMInjectorFromMapsReader(reader io.Reader) bool {
+	lr := io.LimitReader(reader, readLimit)
+	scanner := bufio.NewScanner(lr)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if apmInjectorRegex.MatchString(line) {
+			return true
+		}
+	}
+
+	return false
 }

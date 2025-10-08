@@ -31,19 +31,20 @@ const (
 
 // ListenerConfig holds global configuration for SNMP discovery
 type ListenerConfig struct {
-	Workers               int                        `mapstructure:"workers"`
-	DiscoveryInterval     int                        `mapstructure:"discovery_interval"`
-	AllowedFailures       int                        `mapstructure:"discovery_allowed_failures"`
-	Loader                string                     `mapstructure:"loader"`
-	CollectDeviceMetadata bool                       `mapstructure:"collect_device_metadata"`
-	CollectTopology       bool                       `mapstructure:"collect_topology"`
-	CollectVPN            bool                       `mapstructure:"collect_vpn"`
-	MinCollectionInterval uint                       `mapstructure:"min_collection_interval"`
-	Namespace             string                     `mapstructure:"namespace"`
-	UseDeviceISAsHostname bool                       `mapstructure:"use_device_id_as_hostname"`
-	Configs               []Config                   `mapstructure:"configs"`
-	PingConfig            snmpintegration.PingConfig `mapstructure:"ping"`
-	Deduplicate           bool                       `mapstructure:"use_deduplication"`
+	Workers                 int                        `mapstructure:"workers"`
+	DiscoveryInterval       int                        `mapstructure:"discovery_interval"`
+	AllowedFailures         int                        `mapstructure:"discovery_allowed_failures"`
+	Loader                  string                     `mapstructure:"loader"`
+	CollectDeviceMetadata   bool                       `mapstructure:"collect_device_metadata"`
+	CollectTopology         bool                       `mapstructure:"collect_topology"`
+	CollectVPN              bool                       `mapstructure:"collect_vpn"`
+	MinCollectionInterval   uint                       `mapstructure:"min_collection_interval"`
+	Namespace               string                     `mapstructure:"namespace"`
+	UseDeviceISAsHostname   bool                       `mapstructure:"use_device_id_as_hostname"`
+	Configs                 []Config                   `mapstructure:"configs"`
+	PingConfig              snmpintegration.PingConfig `mapstructure:"ping"`
+	Deduplicate             bool                       `mapstructure:"use_deduplication"`
+	UseRemoteConfigProfiles bool                       `mapstructure:"use_remote_config_profiles"`
 
 	// legacy
 	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
@@ -84,7 +85,8 @@ type Config struct {
 	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
 
-	PingConfig snmpintegration.PingConfig `mapstructure:"ping"`
+	PingConfig              snmpintegration.PingConfig `mapstructure:"ping"`
+	UseRemoteConfigProfiles bool
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
@@ -229,6 +231,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 				config.Authentications[authIndex].Retries = defaultRetries
 			}
 		}
+		config.UseRemoteConfigProfiles = snmpConfig.UseRemoteConfigProfiles
 	}
 	return snmpConfig, nil
 }
@@ -310,57 +313,57 @@ func (c *Config) IsIPIgnored(ip net.IP) bool {
 }
 
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
-func (authentication *Authentication) BuildSNMPParams(deviceIP string, port uint16) (*gosnmp.GoSNMP, error) {
-	if authentication.Community == "" && authentication.User == "" {
+func (a *Authentication) BuildSNMPParams(deviceIP string, port uint16) (*gosnmp.GoSNMP, error) {
+	if a.Community == "" && a.User == "" {
 		return nil, errors.New("No authentication mechanism specified")
 	}
 
 	var version gosnmp.SnmpVersion
-	if authentication.Version == "1" {
+	if a.Version == "1" {
 		version = gosnmp.Version1
-	} else if authentication.Version == "2" || (authentication.Version == "" && authentication.Community != "") {
+	} else if a.Version == "2" || (a.Version == "" && a.Community != "") {
 		version = gosnmp.Version2c
-	} else if authentication.Version == "3" || (authentication.Version == "" && authentication.User != "") {
+	} else if a.Version == "3" || (a.Version == "" && a.User != "") {
 		version = gosnmp.Version3
 	} else {
-		return nil, fmt.Errorf("SNMP version not supported: %s", authentication.Version)
+		return nil, fmt.Errorf("SNMP version not supported: %s", a.Version)
 	}
 
-	authProtocol, err := gosnmplib.GetAuthProtocol(authentication.AuthProtocol)
+	authProtocol, err := gosnmplib.GetAuthProtocol(a.AuthProtocol)
 	if err != nil {
 		return nil, err
 	}
 
-	privProtocol, err := gosnmplib.GetPrivProtocol(authentication.PrivProtocol)
+	privProtocol, err := gosnmplib.GetPrivProtocol(a.PrivProtocol)
 	if err != nil {
 		return nil, err
 	}
 
 	msgFlags := gosnmp.NoAuthNoPriv
-	if authentication.PrivKey != "" {
+	if a.PrivKey != "" {
 		msgFlags = gosnmp.AuthPriv
-	} else if authentication.AuthKey != "" {
+	} else if a.AuthKey != "" {
 		msgFlags = gosnmp.AuthNoPriv
 	}
 
 	return &gosnmp.GoSNMP{
 		Target:          deviceIP,
 		Port:            port,
-		Community:       authentication.Community,
+		Community:       a.Community,
 		Transport:       "udp",
 		Version:         version,
-		Timeout:         time.Duration(authentication.Timeout) * time.Second,
-		Retries:         authentication.Retries,
+		Timeout:         time.Duration(a.Timeout) * time.Second,
+		Retries:         a.Retries,
 		SecurityModel:   gosnmp.UserSecurityModel,
 		MsgFlags:        msgFlags,
-		ContextEngineID: authentication.ContextEngineID,
-		ContextName:     authentication.ContextName,
+		ContextEngineID: a.ContextEngineID,
+		ContextName:     a.ContextName,
 		SecurityParameters: &gosnmp.UsmSecurityParameters{
-			UserName:                 authentication.User,
+			UserName:                 a.User,
 			AuthenticationProtocol:   authProtocol,
-			AuthenticationPassphrase: authentication.AuthKey,
+			AuthenticationPassphrase: a.AuthKey,
 			PrivacyProtocol:          privProtocol,
-			PrivacyPassphrase:        authentication.PrivKey,
+			PrivacyPassphrase:        a.PrivKey,
 		},
 	}, nil
 }

@@ -301,7 +301,7 @@ func TestHandlerRun(t *testing.T) {
 	})
 	testutil.AssertTrueBeforeTimeout(t, tick, waitfor, func() bool {
 		// Dispatcher has been flushed, no config remain
-		state, err := h.GetState()
+		state, err := h.GetState(false)
 		return err == nil && len(state.Nodes) == 0 && len(state.Dangling) == 0
 	})
 

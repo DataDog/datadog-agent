@@ -111,6 +111,9 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		if err != nil {
 			log.Tracef("unable to tag %s metric with interface_config data: %s", interfaceStatusMetric, err.Error())
 		}
+		if interfaceCfg.Disabled {
+			continue
+		}
 		interfaceTags = append(interfaceTags, interfaceCfg.Tags...)
 
 		ms.sender.Gauge(interfaceStatusMetric, 1, ms.hostname, interfaceTags)
@@ -300,8 +303,8 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []de
 			Alias:       store.GetColumnAsString("interface.alias", strIndex),
 			Description: store.GetColumnAsString("interface.description", strIndex),
 			MacAddress:  store.GetColumnAsString("interface.mac_address", strIndex),
-			AdminStatus: devicemetadata.IfAdminStatus((store.GetColumnAsFloat("interface.admin_status", strIndex))),
-			OperStatus:  devicemetadata.IfOperStatus((store.GetColumnAsFloat("interface.oper_status", strIndex))),
+			AdminStatus: devicemetadata.IfAdminStatus(store.GetColumnAsFloat("interface.admin_status", strIndex)),
+			OperStatus:  devicemetadata.IfOperStatus(store.GetColumnAsFloat("interface.oper_status", strIndex)),
 			IDTags:      ifIDTags,
 		}
 		interfaces = append(interfaces, networkInterface)

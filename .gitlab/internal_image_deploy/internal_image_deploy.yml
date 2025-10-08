@@ -7,7 +7,7 @@
   stage: internal_image_deploy
   rules: !reference [.on_deploy_internal_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   script:
     # Constant variables
     - export RELEASE_STAGING="true"
@@ -19,7 +19,6 @@
     # BUILD_TAG is always RELEASE_TAG
     - export BUILD_TAG="${RELEASE_TAG}"
     # Fetch Gitlab token
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     # Set TMPL_SRC_REPO based on branch and release tag based on branch
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - |
@@ -30,7 +29,9 @@
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${BASE_RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}${RELEASE_TAG_SUFFIX}"; fi
     # Also build images with zstd compression
     - export ENABLE_ZSTD_PREVIEW="true"
-    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS --variable ENABLE_ZSTD_PREVIEW"
+    # Also build images with nydus
+    - export ENABLE_NYDUS_PREVIEW="true"
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS --variable ENABLE_ZSTD_PREVIEW --variable ENABLE_NYDUS_PREVIEW"
   retry: 2
 
 # -- binary specific variables --

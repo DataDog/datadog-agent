@@ -48,6 +48,8 @@ modules:
     used_by_otel: true
   comp/core/secrets/mock:
     used_by_otel: true
+  comp/core/secrets/noop-impl:
+    used_by_otel: true
   comp/core/secrets/utils:
     used_by_otel: true
   comp/core/status:
@@ -224,6 +226,7 @@ modules:
     used_by_otel: true
   pkg/metrics:
     used_by_otel: true
+  pkg/network/driver: default
   pkg/network/payload: default
   pkg/networkdevice/profile: default
   pkg/networkpath/payload: default
@@ -293,7 +296,8 @@ modules:
     used_by_otel: true
   pkg/util/filesystem:
     used_by_otel: true
-  pkg/util/flavor: default
+  pkg/util/flavor:
+    used_by_otel: true
   pkg/util/fxutil:
     used_by_otel: true
   pkg/util/grpc:

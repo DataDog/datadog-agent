@@ -27,6 +27,10 @@ venv*/
 *.log
 /main
 
+# Build System Protocol (Bazel <-> JetBrains IDEs)
+/.bazelbsp/
+# In-workpace cache
+/.cache/
 # Bazel convenience symlinks to output folders
 /bazel-*
 # User specific bazelrc file
@@ -237,3 +241,6 @@ go.work.sum
 
 # Personal rules
 **/.cursor/rules/personal/
+
+# CLAUDE override file for personal use
+CLAUDE_PERSONAL.md

@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
@@ -23,7 +22,7 @@ import (
 )
 
 // StartRuntimeSecurity starts runtime security
-func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component, compression compression.Component) (*RuntimeSecurityAgent, error) {
+func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, compression compression.Component) (*RuntimeSecurityAgent, error) {
 	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")
@@ -32,9 +31,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 
 	// start/stop order is important, agent need to be stopped first and started after all the others
 	// components
-	agent, err := NewRuntimeSecurityAgent(statsdClient, hostname, RSAOptions{
-		LogProfiledWorkloads: config.GetBool("runtime_security_config.log_profiled_workloads"),
-	}, wmeta)
+	agent, err := NewRuntimeSecurityAgent(statsdClient, hostname)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)
 	}

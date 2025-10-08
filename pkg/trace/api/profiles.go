@@ -90,8 +90,8 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		tags.WriteString(fmt.Sprintf("functionname:%s", strings.ToLower(r.conf.LambdaFunctionName)))
 		tags.WriteString("_dd.origin:lambda")
 	}
-	if r.conf.AzureContainerAppTags != "" {
-		tags.WriteString(r.conf.AzureContainerAppTags)
+	if r.conf.AzureServerlessTags != "" {
+		tags.WriteString(r.conf.AzureServerlessTags)
 	}
 
 	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)

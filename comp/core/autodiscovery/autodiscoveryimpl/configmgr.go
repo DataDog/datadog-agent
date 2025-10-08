@@ -48,6 +48,9 @@ type configManager interface {
 
 	// getActiveConfigs returns the currently active configs
 	getActiveConfigs() map[string]integration.Config
+
+	// getActiveServices returns the currently active services
+	getActiveServices() map[string]listeners.Service
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -303,6 +306,17 @@ func (cm *reconcilingConfigManager) getActiveConfigs() map[string]integration.Co
 	res := make(map[string]integration.Config, len(cm.activeConfigs))
 	for k, v := range cm.activeConfigs {
 		res[k] = v
+	}
+	return res
+}
+
+func (cm *reconcilingConfigManager) getActiveServices() map[string]listeners.Service {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+
+	res := make(map[string]listeners.Service, len(cm.activeServices))
+	for k, v := range cm.activeServices {
+		res[k] = v.svc
 	}
 	return res
 }

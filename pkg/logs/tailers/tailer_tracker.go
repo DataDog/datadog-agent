@@ -75,14 +75,14 @@ func (t *TailerContainer[T]) Contains(id string) bool {
 func (t *TailerContainer[T]) Add(tailer T) {
 	t.Lock()
 	defer t.Unlock()
-	t.tailers[tailer.GetId()] = tailer
+	t.tailers[tailer.GetID()] = tailer
 }
 
 // Remove removes a tailer from the container.
 func (t *TailerContainer[T]) Remove(tailer T) {
 	t.Lock()
 	defer t.Unlock()
-	delete(t.tailers, tailer.GetId())
+	delete(t.tailers, tailer.GetID())
 }
 
 // All returns a slice of all tailers in the container.

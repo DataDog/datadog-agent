@@ -5,7 +5,7 @@
 
 //go:build !systemd
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package journald provides journald-based log launchers (no-op for non-systemd builds)
 package journald
 
 import (
@@ -26,8 +26,6 @@ func NewLauncher(*flareController.FlareController, tagger.Component) *Launcher {
 }
 
 // Start does nothing
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (l *Launcher) Start(_ launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 }
 

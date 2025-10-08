@@ -7,9 +7,10 @@ package infraattributesprocessor
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"path/filepath"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,10 +29,8 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 		expected *Config
 	}{
 		{
-			id: component.MustNewIDWithName("filter", "empty"),
-			expected: &Config{
-				Logs: LogInfraAttributes{},
-			},
+			id:       component.MustNewIDWithName("filter", "empty"),
+			expected: &Config{},
 		},
 	}
 

@@ -126,6 +126,60 @@ func TestApproverWildcardBasename(t *testing.T) {
 	}
 }
 
+func TestApproverInUpperLayer(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	t.Run("in_upper_layer-ok-1", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `open.file.in_upper_layer`)
+		capabilities, exists := allCapabilities["open"]
+		if !exists {
+			t.Fatal("no capabilities for open")
+		}
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if values, exists := approvers["open.file.in_upper_layer"]; !exists || len(values) != 1 {
+			t.Fatalf("expected approver not found: %v", values)
+		}
+	})
+
+	t.Run("in_upper_layer-ok-2", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `open.file.in_upper_layer == true`)
+		capabilities, exists := allCapabilities["open"]
+		if !exists {
+			t.Fatal("no capabilities for open")
+		}
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if values, exists := approvers["open.file.in_upper_layer"]; !exists || len(values) != 1 {
+			t.Fatalf("expected approver not found: %v", values)
+		}
+	})
+
+	t.Run("in_upper_layer-ko", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `!open.file.in_upper_layer`)
+		capabilities, exists := allCapabilities["open"]
+		if !exists {
+			t.Fatal("no capabilities for open")
+		}
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if values, exists := approvers["open.file.in_upper_layer"]; exists || len(values) != 0 {
+			t.Fatalf("expected approver not found: %v", values)
+		}
+	})
+}
+
 func TestApproverAUIDRange(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 

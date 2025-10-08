@@ -12,6 +12,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 	"slices"
@@ -192,7 +193,11 @@ func redactStackFrame(v jsontext.Value) jsontext.Value {
 
 var defaultRedactors = []jsonRedactor{
 	redactor(
-		matchRegexp(`^/debugger/snapshot/stack/[[:digit:]]+$`),
+		exactMatcher(`/logger/thread_id`),
+		replacerFunc(redactGoID),
+	),
+	redactor(
+		matchRegexp(`/debugger/snapshot/stack/[[:digit:]]+$`),
 		replacerFunc(redactStackFrame),
 	),
 	redactor(
@@ -208,8 +213,16 @@ var defaultRedactors = []jsonRedactor{
 		replacement(`"[ts]"`),
 	),
 	redactor(
+		exactMatcher(`/duration`),
+		replacerFunc(redactNonZeroDuration),
+	),
+	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/address"},
 		replacerFunc(redactNonZeroAddress),
+	),
+	redactor(
+		exactMatcher(`/debugger/snapshot/captures/return/locals/~0r0/value`),
+		regexpStringReplacer("0x[[:xdigit:]]+", "0x[addr]"),
 	),
 	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/entry/arguments/redactMyEntries", "/entries"},
@@ -220,16 +233,52 @@ var defaultRedactors = []jsonRedactor{
 		entriesSorter{},
 	),
 	redactor(
-		matchRegexp(`^/debugger/snapshot/captures/entry/arguments/.*`),
-		replacerFunc(redactMutex),
+		matchRegexp(`/debugger/snapshot/captures/entry/arguments/.*`),
+		replacerFunc(redactTypesThatDependOnVersion),
 	),
 	redactor(
-		matchRegexp(`^/debugger/snapshot/captures/entry/arguments/.*/type`),
+		matchRegexp(`/debugger/snapshot/captures/entry/arguments/.*/type`),
 		regexpStringReplacer(
 			`UnknownType\(0x[[:xdigit:]]+\)`,
 			`UnknownType(0x[GoRuntimeType])`,
 		),
 	),
+}
+
+func redactGoID(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '0' {
+		return v
+	}
+	var goid uint64
+	if err := json.Unmarshal(v, &goid); err != nil {
+		return v
+	}
+	if goid == 0 {
+		return v
+	}
+	buf, err := json.Marshal("[goid]")
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
+}
+
+func redactNonZeroDuration(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '0' {
+		return v
+	}
+	var duration int64
+	if err := json.Unmarshal(v, &duration); err != nil {
+		return v
+	}
+	if duration == 0 {
+		return v
+	}
+	buf, err := json.Marshal("[duration]")
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
 }
 
 func redactNonZeroAddress(v jsontext.Value) jsontext.Value {
@@ -255,17 +304,21 @@ func redactNonZeroAddress(v jsontext.Value) jsontext.Value {
 	return jsontext.Value(buf)
 }
 
-func redactMutex(v jsontext.Value) jsontext.Value {
+// The structure of some types from the stdlib changed over time. Redact them so
+// that golden files are valid across versions.
+func redactTypesThatDependOnVersion(v jsontext.Value) jsontext.Value {
 	var t = struct {
 		Type string `json:"type"`
 	}{}
 	if err := json.Unmarshal(v, &t); err != nil {
 		return v
 	}
-	if t.Type != "sync.Mutex" {
+	if t.Type != "sync.Mutex" && t.Type != "sync.Once" {
 		return v
 	}
-	return jsontext.Value(`"[sync.Mutex (different in different versions)]"`)
+	return jsontext.Value(fmt.Sprintf(
+		`"[%s (different in different versions)]"`,
+		t.Type))
 }
 
 func regexpStringReplacer(pat, replacement string) replacer {
@@ -289,7 +342,14 @@ func regexpStringReplacer(pat, replacement string) replacer {
 func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactors []jsonRedactor) []byte {
 	d := jsontext.NewDecoder(bytes.NewReader(input))
 	var buf bytes.Buffer
-	e := jsontext.NewEncoder(&buf, jsontext.WithIndent("  "), jsontext.WithIndentPrefix("  "))
+	e := jsontext.NewEncoder(
+		&buf,
+		jsontext.WithIndent("  "),
+		jsontext.WithIndentPrefix("  "),
+		jsontext.PreserveRawStrings(false),
+		jsontext.EscapeForHTML(false),
+		jsontext.EscapeForJS(false),
+	)
 	ptrPrefix = jsontext.Pointer(strings.TrimSuffix(string(ptrPrefix), "/"))
 	stackPtr := func() jsontext.Pointer {
 		return jsontext.Pointer(

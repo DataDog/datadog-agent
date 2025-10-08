@@ -64,15 +64,15 @@ type CheckScheduler struct {
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector option.Option[collector.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) *CheckScheduler {
+func InitCheckScheduler(collector option.Option[collector.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger))),
+		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 	}
 	// add the check loaders
-	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger) {
+	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
 		checkScheduler.addLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
@@ -165,7 +165,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	}
 	selectedLoader := initConfig.LoaderName
 
-	for _, instance := range config.Instances {
+	for instanceIndex, instance := range config.Instances {
 		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
 			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
 			continue
@@ -196,7 +196,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
 				continue
 			}
-			c, err := loader.Load(s.senderManager, config, instance)
+			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
 				errorStats.removeLoaderErrors(config.Name)

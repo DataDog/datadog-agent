@@ -180,6 +180,98 @@ func TestMatchContainerDevices(t *testing.T) {
 			assert.Equal(t, device, filteredDevices[i])
 		}
 	})
+
+	t.Run("KubernetesDevicesOrderIsCorrect", func(t *testing.T) {
+		// Get test devices with different indices
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2, 3, 4)
+
+		// Test with resources in reverse order (highest index first)
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-sorting",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[4], // Device index 4
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[1], // Device index 1
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[3], // Device index 3
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[0], // Device index 0
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[2], // Device index 2
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 5)
+
+		// Verify devices are sorted by index (0, 1, 2, 3, 4)
+		for i, device := range filteredDevices {
+			expectedIndex := i
+			actualIndex := device.GetDeviceInfo().Index
+			assert.Equal(t, expectedIndex, actualIndex, "Device at position %d should have index %d, got %d", i, expectedIndex, actualIndex)
+		}
+	})
+
+	t.Run("KubernetesDevicesSortedByIndexWithMixedResourceTypes", func(t *testing.T) {
+		// Get test devices with different indices
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2, 3, 4)
+
+		// Test with mixed resource types (GKE and NVIDIA device plugin formats)
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-mixed-sorting",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   "nvidia3", // GKE format - device index 3
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[0], // NVIDIA device plugin format - device index 0
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   "nvidia1", // GKE format - device index 1
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[4], // NVIDIA device plugin format - device index 4
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   "nvidia2", // GKE format - device index 2
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 5)
+
+		// Verify devices are sorted by index (0, 1, 2, 3, 4)
+		for i, device := range filteredDevices {
+			expectedIndex := i
+			actualIndex := device.GetDeviceInfo().Index
+			assert.Equal(t, expectedIndex, actualIndex, "Device at position %d should have index %d, got %d", i, expectedIndex, actualIndex)
+		}
+	})
 }
 
 func useFakeProcfsWithNvidiaVisibleDevices(t *testing.T, pid int, visibleDevices string) {

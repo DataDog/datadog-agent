@@ -63,7 +63,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
 			{{- if $Field.OpOverrides}}
-			OpOverrides: {{$Field.OpOverrides}},
+			OpOverrides: []*eval.OpOverrides{ {{Join $Field.OpOverrides ", "}} },
 			{{- end}}
 			{{- if and $Field.Iterator (not $Field.IsIterator) }}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
@@ -235,7 +235,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return {{$Return}}
 					{{end -}}
 				},
-			{{end -}}
+			{{end}}
 			Field: field,
 			{{- if $Field.Iterator}}
 				{{- if gt $Field.Weight 0}}

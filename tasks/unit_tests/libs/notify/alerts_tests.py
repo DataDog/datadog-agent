@@ -233,7 +233,7 @@ class TestAlertsSendNotification(unittest.TestCase):
     @patch.object(alerts.ConsecutiveJobAlert, 'message', lambda self, _: '\n'.join(self.failures) + '\n')
     @patch.object(alerts.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
     @patch('tasks.owners.GITHUB_SLACK_MAP', get_github_slack_map())
-    @patch('tasks.libs.notify.alerts.CHANNEL_BROADCAST', '#channel-broadcast')
+    @patch('tasks.libs.notify.alerts.DEFAULT_SLACK_CHANNEL', '#channel-broadcast')
     def test_jobowners(self, mock_slack: MagicMock, mock_metrics: MagicMock):
         client_mock = MagicMock()
         mock_slack.return_value = client_mock
@@ -297,7 +297,7 @@ class TestAlertsSendNotification(unittest.TestCase):
     @patch.object(alerts.ConsecutiveJobAlert, 'message', lambda self, _: '\n'.join(self.failures) + '\n')
     @patch.object(alerts.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
     @patch('tasks.owners.GITHUB_SLACK_MAP', get_github_slack_map())
-    @patch('tasks.libs.notify.alerts.CHANNEL_BROADCAST', '#channel-a')
+    @patch('tasks.libs.notify.alerts.DEFAULT_SLACK_CHANNEL', '#channel-a')
     def test_prevent_duplication(self, mock_slack: MagicMock, mock_metrics: MagicMock):
         client_mock = MagicMock()
         mock_slack.return_value = client_mock

@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,6 +29,7 @@ import (
 	ksmbuild "k8s.io/kube-state-metrics/v2/pkg/builder"
 	ksmtypes "k8s.io/kube-state-metrics/v2/pkg/builder/types"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 	metricsstore "k8s.io/kube-state-metrics/v2/pkg/metrics_store"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
@@ -57,12 +59,19 @@ type Builder struct {
 	useWorkloadmetaForPods    bool
 	WorkloadmetaReflector     *workloadmetaReflector
 	workloadmetaStore         workloadmeta.Component
+
+	callbackEnabledResources map[string]bool // resource types that should have callbacks enabled
+
+	eventCallbacks map[string]map[store.StoreEventType]store.StoreEventCallback
+	eventMutex     sync.RWMutex
 }
 
 // New returns new Builder instance
 func New() *Builder {
 	return &Builder{
-		ksmBuilder: ksmbuild.NewBuilder(),
+		ksmBuilder:               ksmbuild.NewBuilder(),
+		callbackEnabledResources: make(map[string]bool),
+		eventCallbacks:           make(map[string]map[store.StoreEventType]store.StoreEventCallback),
 	}
 }
 
@@ -77,6 +86,42 @@ func (b *Builder) WithNamespaces(nss options.NamespaceList) {
 func (b *Builder) WithFamilyGeneratorFilter(l generator.FamilyGeneratorFilter) {
 	b.allowDenyList = l
 	b.ksmBuilder.WithFamilyGeneratorFilter(l)
+}
+
+// WithCallbacksForResources configures which resource types should have event callbacks enabled
+func (b *Builder) WithCallbacksForResources(resourceTypes []string) {
+	for _, resourceType := range resourceTypes {
+		b.callbackEnabledResources[resourceType] = true
+	}
+}
+
+// RegisterStoreEventCallback registers a callback for a specific resource type and event type
+func (b *Builder) RegisterStoreEventCallback(resourceType string, eventType store.StoreEventType, callback store.StoreEventCallback) {
+	b.eventMutex.Lock()
+	defer b.eventMutex.Unlock()
+
+	if b.eventCallbacks[resourceType] == nil {
+		b.eventCallbacks[resourceType] = make(map[store.StoreEventType]store.StoreEventCallback)
+	}
+	b.eventCallbacks[resourceType][eventType] = callback
+}
+
+// NotifyStoreEvent calls the registered callback for a resource type and event type
+func (b *Builder) NotifyStoreEvent(eventType store.StoreEventType, resourceType string, obj interface{}) {
+	b.eventMutex.RLock()
+	resourceCallbacks, resourceExists := b.eventCallbacks[resourceType]
+	if !resourceExists {
+		b.eventMutex.RUnlock()
+		return
+	}
+
+	callback, callbackExists := resourceCallbacks[eventType]
+	b.eventMutex.RUnlock()
+
+	if callbackExists {
+		namespace, name := store.ExtractNamespaceAndName(obj)
+		callback(eventType, resourceType, namespace, name, obj)
+	}
 }
 
 // WithFieldSelectorFilter sets the fieldSelector property of a Builder.
@@ -215,7 +260,7 @@ func GenerateStores[T any](
 	}
 
 	if b.namespaces.IsAllNamespaces() {
-		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
+		store := b.createStoreForType(composedMetricGenFuncs, expectedType)
 
 		if isPod {
 			// Pods are handled differently because depending on the configuration
@@ -231,7 +276,7 @@ func GenerateStores[T any](
 
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
-		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
+		store := b.createStoreForType(composedMetricGenFuncs, expectedType)
 		if isPod {
 			// Pods are handled differently because depending on the configuration
 			// they're collected from the API server or the Kubelet.
@@ -453,4 +498,16 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 			}), nil
 		},
 	}
+}
+
+func (b *Builder) createStoreForType(composedMetricGenFuncs func(interface{}) []metric.FamilyInterface, expectedType interface{}) cache.Store {
+	typeName := reflect.TypeOf(expectedType).String()
+	metricsStore := store.NewMetricsStore(composedMetricGenFuncs, typeName)
+
+	// Enable callbacks if this resource type is configured for them
+	if b.callbackEnabledResources[typeName] {
+		metricsStore.EnableCallbacks(b)
+	}
+
+	return metricsStore
 }

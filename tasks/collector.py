@@ -28,7 +28,7 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.131.0"
+OCB_VERSION = "0.136.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -338,9 +338,20 @@ def update_go_mod_file(go_mod_path, module_versions):
 
 
 def update_all_go_mod(collector_version_modules):
+    # Files to ignore during go.mod updates
+    ignored_paths = ["./pkg/dyninst/testprogs/progs/go.mod", "pkg/dyninst/testprogs/progs/go.mod"]
+
     for root, _, files in os.walk("."):
         if "go.mod" in files:
             go_mod_path = os.path.join(root, "go.mod")
+            # Normalize the path for comparison
+            normalized_path = os.path.normpath(go_mod_path)
+
+            # Skip ignored paths
+            if any(os.path.normpath(ignored) == normalized_path for ignored in ignored_paths):
+                print(f"Skipping ignored go.mod file: {go_mod_path}")
+                continue
+
             update_go_mod_file(go_mod_path, collector_version_modules)
     print("All go.mod files updated.")
 

@@ -101,6 +101,7 @@ type NetworkContext struct {
 	Destination      IPPortContext `field:"destination"`       // destination of the network packet
 	NetworkDirection uint32        `field:"network_direction"` // SECLDoc[network_direction] Definition:`Network direction of the network packet` Constants:`Network directions`
 	Size             uint32        `field:"size"`              // SECLDoc[size] Definition:`Size in bytes of the network packet`
+	Type             uint32        `field:"type"`              // SECLDoc[type] Definition:`Type of the network packet` Constants:`Network Protocol Types`
 }
 
 // IsZero returns if there is a network context
@@ -584,6 +585,11 @@ type DNSEvent struct {
 	ID       uint16       `field:"id"` // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
 	Question DNSQuestion  `field:"question"`
 	Response *DNSResponse `field:"response,check:HasResponse"`
+}
+
+// FailedDNSEvent represents a DNS packet that was failed to be decoded (inbound or outbound)
+type FailedDNSEvent struct {
+	Payload []byte `field:"-"`
 }
 
 // DNSResponse represents a DNS response event

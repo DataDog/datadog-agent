@@ -13,6 +13,7 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
@@ -28,88 +29,97 @@ func (a *idAllocator[I]) next() I {
 }
 
 type typeCatalog struct {
-	maxDynamicTypeSize uint32
-	maxHashBucketsSize uint32
-	ptrSize            uint8
-	dwarf              *dwarf.Data
-	idAlloc            idAllocator[ir.TypeID]
-	typesByDwarfType   map[dwarf.Offset]ir.TypeID
-	typesByID          map[ir.TypeID]ir.Type
+	ptrSize              uint8
+	dwarf                *dwarf.Data
+	idAlloc              idAllocator[ir.TypeID]
+	typesByDwarfType     map[dwarf.Offset]ir.TypeID
+	typesByID            map[ir.TypeID]ir.Type
+	typesByGoRuntimeType map[gotype.TypeID]ir.TypeID
 }
 
 func newTypeCatalog(
 	dwarfData *dwarf.Data,
 	ptrSize uint8,
-	maxDynamicTypeSize uint32,
-	maxHashBucketsSize uint32,
 ) *typeCatalog {
 	return &typeCatalog{
-		maxDynamicTypeSize: maxDynamicTypeSize,
-		maxHashBucketsSize: maxHashBucketsSize,
-		ptrSize:            ptrSize,
-		dwarf:              dwarfData,
-		idAlloc:            idAllocator[ir.TypeID]{},
-		typesByDwarfType:   make(map[dwarf.Offset]ir.TypeID),
-		typesByID:          make(map[ir.TypeID]ir.Type),
+		ptrSize:          ptrSize,
+		dwarf:            dwarfData,
+		idAlloc:          idAllocator[ir.TypeID]{},
+		typesByDwarfType: make(map[dwarf.Offset]ir.TypeID),
+		typesByID:        make(map[ir.TypeID]ir.Type),
 	}
 }
 
-// TODO: Right now this code is going to walk and fill in all reachable types
-// from the current entry. This is going to waste memory resources in situations
-// where we don't actually need all these types because they won't be reachable
-// due to pointer chasing depth limits. This will need to take expressions into
-// account. Perhaps the answer there is to leave some sort of placeholders in a
-// type marking that we stopped looking and then resume exploration from there
-// if we reach a type that needs to be explored further. We'll need some
-// bookkeeping on the depth from which a type has been explored.
-
-func (c *typeCatalog) addType(offset dwarf.Offset) (_ ir.Type, retErr error) {
-	if id, ok := c.typesByDwarfType[offset]; ok {
-		return c.typesByID[id], nil
-	}
-
+func (c *typeCatalog) addType(offset dwarf.Offset) (ret ir.Type, retErr error) {
+	// At most there can be 2 "superficial" typedefs above a real type.  One can
+	// happen for structures and subprogram types, and another can happen around
+	// generic type parameters nested underneath subprograms (which may then
+	// point to the meaningless structure typedef). The depth here includes the
+	// two superficial typedefs and the offset of the real type.
+	const maxTypedefDepth = 3
+	type offsetArray [maxTypedefDepth]dwarf.Offset
+	offsets, numOffsets := offsetArray{0: offset}, 1
 	defer func() {
-		if retErr != nil {
-			retErr = fmt.Errorf("offset 0x%x: %w", offset, retErr)
+		if retErr == nil {
+			return
+		}
+		for ; numOffsets > 0; numOffsets-- {
+			retErr = fmt.Errorf("offset 0x%x: %w", offsets[numOffsets-1], retErr)
 		}
 	}()
-
-	reader := c.dwarf.Reader()
-	reader.Seek(offset)
-	entry, err := reader.Next()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get next entry: %w", err)
-	}
-	if entry == nil {
-		return nil, fmt.Errorf("unexpected EOF while reading type")
-	}
-	// We need to figure out whether this is a meaningless typedef as exists
-	// for structure types, or if it's a special typedef that go uses for things
-	// like channels, interfaces, etc.
-	if entry.Tag == dwarf.TagTypedef && entry.AttrField(dwAtGoKind) == nil {
-		// We want to now look up the real type and use that instead.
-		typeVal := entry.Val(dwarf.AttrType)
-		if typeVal == nil {
-			// This case is possible in Dwarf, but not clear when it happens.
-			// For now, just return an error.
-			return nil, fmt.Errorf("missing type for typedef")
+	var r *dwarf.Reader
+	var entry *dwarf.Entry
+	var pt *pointeePlaceholderType
+	for {
+		offset := offsets[numOffsets-1]
+		tid, ok := c.typesByDwarfType[offset]
+		if ok {
+			t := c.typesByID[tid]
+			ppt, ok := t.(*pointeePlaceholderType)
+			if !ok {
+				return t, nil
+			}
+			if pt != nil && ppt != pt {
+				return nil, fmt.Errorf("bug: multiple pointee placeholder types found")
+			}
+			pt = ppt
 		}
-		typeOffset, ok := typeVal.(dwarf.Offset)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for typedef: %T", typeVal)
+		if r == nil {
+			r = c.dwarf.Reader()
 		}
-		underlyingType, err := c.addType(typeOffset)
+		r.Seek(offset)
+		var err error
+		entry, err = r.Next()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get next entry: %w", err)
 		}
-		c.typesByDwarfType[offset] = underlyingType.GetID()
-		return underlyingType, nil
+		if entry == nil {
+			return nil, fmt.Errorf("unexpected EOF while reading type")
+		}
+		if entry.Tag != dwarf.TagTypedef || entry.AttrField(dwAtGoKind) != nil {
+			break
+		}
+		typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get type for typedef: %w", err)
+		}
+		if numOffsets++; numOffsets > maxTypedefDepth {
+			return nil, fmt.Errorf("long typedef chain detected")
+		}
+		offsets[numOffsets-1] = typeOffset
 	}
 
-	id := c.idAlloc.next()
-	c.typesByDwarfType[offset] = id
+	var id ir.TypeID
+	if pt != nil {
+		id = pt.id
+	} else {
+		id = c.idAlloc.next()
+	}
+	for _, offset := range offsets[:numOffsets] {
+		c.typesByDwarfType[offset] = id
+	}
 	c.typesByID[id] = &placeHolderType{id: id}
-	irType, err := c.buildType(id, entry, reader)
+	irType, err := c.buildType(id, entry, r)
 	if err != nil {
 		return nil, err
 	}
@@ -241,24 +251,83 @@ func (c *typeCatalog) buildType(
 		if err != nil {
 			return nil, err
 		}
+		if !hasPointee {
+			// unsafe.Pointer is a special case where the type is represented
+			// in DWARF as a PointerType, but without a pointee or specified Go kind.
+			goAttrs.GoKind = reflect.UnsafePointer
+			return &ir.VoidPointerType{
+				TypeCommon:       common,
+				GoTypeAttributes: goAttrs,
+			}, nil
+		}
+
+		// Resolve the pointee type.
 		var pointee ir.Type
-		if hasPointee {
-			pointee, err = c.addType(pointeeOffset)
+		if id, ok := c.typesByDwarfType[pointeeOffset]; ok {
+			pointee = c.typesByID[id]
+		} else {
+			// We need to check and see if underneath this pointer type there's
+			// a typedef that points to an offset for which we already have a
+			// type ID.
+			r := c.dwarf.Reader()
+			r.Seek(pointeeOffset)
+			pointeeEntry, err := r.Next()
 			if err != nil {
 				return nil, err
 			}
-			return &ir.PointerType{
-				TypeCommon:       common,
-				GoTypeAttributes: goAttrs,
-				Pointee:          pointee,
-			}, nil
+			if pointeeEntry == nil {
+				return nil, fmt.Errorf(
+					"unexpected EOF while reading pointee type",
+				)
+			}
+			var underlyingTypeOffset dwarf.Offset
+			var haveUnderlyingType bool
+			if pointeeEntry.Tag == dwarf.TagTypedef &&
+				pointeeEntry.AttrField(dwAtGoKind) == nil {
+				var err error
+				underlyingTypeOffset, err = getAttr[dwarf.Offset](pointeeEntry, dwarf.AttrType)
+				if err != nil {
+					return nil, err
+				}
+				if id, ok := c.typesByDwarfType[underlyingTypeOffset]; ok {
+					pointee = c.typesByID[id]
+					r.Seek(underlyingTypeOffset)
+					pointeeEntry, err = r.Next()
+					if err != nil {
+						return nil, err
+					}
+					if pointeeEntry == nil {
+						return nil, fmt.Errorf("unexpected EOF while reading pointee type")
+					}
+				} else {
+					haveUnderlyingType = true
+				}
+			}
+			// If there was no type found, we need to allocate a new placeholder
+			// type.
+			if pointee == nil {
+				attributes, err := getGoTypeAttributes(pointeeEntry)
+				if err != nil {
+					return nil, err
+				}
+				pt := &pointeePlaceholderType{
+					id:               c.idAlloc.next(),
+					offset:           pointeeOffset,
+					GoTypeAttributes: attributes,
+				}
+				pointee = pt
+				c.typesByID[pt.id] = pt
+				c.typesByDwarfType[pointeeOffset] = pt.id
+				if haveUnderlyingType {
+					pt.offset = underlyingTypeOffset
+					c.typesByDwarfType[underlyingTypeOffset] = pt.id
+				}
+			}
 		}
-		// unsafe.Pointer is a special case where the type is represented
-		// in DWARF as a PointerType, but without a pointee or specified Go kind.
-		goAttrs.GoKind = reflect.UnsafePointer
-		return &ir.VoidPointerType{
+		return &ir.PointerType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
+			Pointee:          pointee,
 		}, nil
 
 	case dwarf.TagStructType:
@@ -269,23 +338,16 @@ func (c *typeCatalog) buildType(
 		if err != nil {
 			return nil, err
 		}
-		// TODO: some of these structure types correspond actually to more
-		// Go-specific types like strings, slices, map internals etc.
+		// Note: some of these structure types correspond actually to more
+		// Go-specific types like strings, slices, map internals etc. If that's
+		// the case, there will be a typedef that carries that information. We
+		// handle this later when we finalize the types.
 		return &ir.StructureType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
 			RawFields:        fields,
 		}, nil
 	case dwarf.TagTypedef:
-		getUnderlyingType := func() (ir.Type, error) {
-			underlyingTypeOffset, err := getAttr[dwarf.Offset](
-				entry, dwarf.AttrType,
-			)
-			if err != nil {
-				return nil, err
-			}
-			return c.addType(underlyingTypeOffset)
-		}
 		switch goAttrs.GoKind {
 		case reflect.Chan:
 			return &ir.GoChannelType{
@@ -317,7 +379,13 @@ func (c *typeCatalog) buildType(
 				)
 			}
 		case reflect.Map:
-			underlyingType, err := getUnderlyingType()
+			underlyingTypeOffset, err := getAttr[dwarf.Offset](
+				entry, dwarf.AttrType,
+			)
+			if err != nil {
+				return nil, err
+			}
+			underlyingType, err := c.addType(underlyingTypeOffset)
 			if err != nil {
 				return nil, err
 			}
@@ -329,17 +397,28 @@ func (c *typeCatalog) buildType(
 					underlyingType,
 				)
 			}
-			headerType, ok := headerPtrType.Pointee.(*ir.StructureType)
-			if !ok {
+			pointee := c.typesByID[headerPtrType.Pointee.GetID()]
+			if ppt, ok := pointee.(*pointeePlaceholderType); ok {
+				pointee, err = c.addType(ppt.offset)
+				if err != nil {
+					return nil, err
+				}
+				headerPtrType.Pointee = pointee
+			}
+			switch pointee.(type) {
+			case *ir.StructureType:
+			case *ir.GoHMapHeaderType:
+			case *ir.GoSwissMapHeaderType:
+			default:
 				return nil, fmt.Errorf(
-					"underlying type for map is not a structure type: %T",
-					headerPtrType.Pointee,
+					"unexpected underlying type for map header: %T",
+					pointee,
 				)
 			}
 			return &ir.GoMapType{
 				TypeCommon:       common,
 				GoTypeAttributes: goAttrs,
-				HeaderType:       headerType,
+				HeaderType:       pointee,
 			}, nil
 		default:
 			return nil, fmt.Errorf(
@@ -628,5 +707,21 @@ type placeHolderType struct {
 }
 
 func (t *placeHolderType) GetID() ir.TypeID {
+	return t.id
+}
+
+type pointeePlaceholderType struct {
+	id ir.TypeID
+	ir.GoTypeAttributes
+	offset dwarf.Offset
+
+	innerPlaceholderType
+}
+
+type innerPlaceholderType struct {
+	ir.Type
+}
+
+func (t *pointeePlaceholderType) GetID() ir.TypeID {
 	return t.id
 }

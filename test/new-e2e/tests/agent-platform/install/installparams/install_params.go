@@ -23,6 +23,7 @@ type Params struct {
 	Upgrade        bool
 	APIKey         string
 	TestingKeysURL string
+	Username       string
 }
 
 // Option alias to a functional option changing a given Params instance
@@ -100,5 +101,12 @@ func WithAPIKey(apiKey string) Option {
 func WithPipelineID(id string) Option {
 	return func(p *Params) {
 		p.PipelineID = id
+	}
+}
+
+// WithUsername specify a custom username to use when installing the agent
+func WithUsername(username string) Option {
+	return func(p *Params) {
+		p.Username = username
 	}
 }

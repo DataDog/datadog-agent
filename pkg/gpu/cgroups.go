@@ -42,8 +42,10 @@ func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
 
 	// Now configure the cgroup device allow, depending on the cgroup version
 	if cgroupMode == cgroups.Legacy {
+		log.Infof("Configuring PID %d cgroupv1 device allow, cgroup path %s", pid, cgroupPath)
 		err = configureCgroupV1DeviceAllow(hostRoot, cgroupPath, nvidiaDeviceMajor)
 	} else {
+		log.Infof("Configuring PID %d cgroupv2 device programs, cgroup path %s", pid, cgroupPath)
 		err = detachAllDeviceCgroupPrograms(hostRoot, cgroupPath)
 	}
 
@@ -199,27 +201,34 @@ func getAbsoluteCgroupForProcess(rootfs, hostRoot string, currentProcessPid, tar
 	return "/" + hostCgroupPath, nil
 }
 
-// insertAfterSection finds a section header (e.g. [Scope]) in the lines of a
-// SystemD configuration file and inserts the new line after it
-func insertAfterSection(lines []string, sectionHeader, newLine string) ([]string, error) {
-	// Find the section header line
-	sectionIndex := -1
+// insertDeviceAllowLine adds the DeviceAllow line to the lines of a
+// SystemD configuration file, in the specified section. It will add it at the end
+// of all other DeviceAllow lines in the section so that it is not overridden.
+func insertDeviceAllowLine(lines []string, sectionHeader, newLine string) ([]string, error) {
+	candidateLineIndex := -1
+	foundSectionHeader := false
 	for i, line := range lines {
-		if strings.TrimSpace(line) == sectionHeader {
-			sectionIndex = i
+		line = strings.TrimSpace(line)
+		if line == sectionHeader {
+			foundSectionHeader = true
+			candidateLineIndex = i + 1
+		} else if foundSectionHeader && strings.HasPrefix(line, "DeviceAllow=") {
+			candidateLineIndex = i + 1
+		} else if foundSectionHeader && strings.HasPrefix(line, "[") {
+			// Another section header, stop searching
 			break
 		}
 	}
 
-	if sectionIndex == -1 {
+	if candidateLineIndex == -1 {
 		return nil, fmt.Errorf("failed to find section header %s", sectionHeader)
 	}
 
-	// Insert the new line after the section header
+	// Insert the new line in the detected position
 	newLines := make([]string, len(lines)+1)
-	copy(newLines, lines[:sectionIndex+1])
-	newLines[sectionIndex+1] = newLine
-	copy(newLines[sectionIndex+2:], lines[sectionIndex+1:])
+	copy(newLines, lines[:candidateLineIndex])
+	newLines[candidateLineIndex] = newLine
+	copy(newLines[candidateLineIndex+1:], lines[candidateLineIndex:])
 
 	return newLines, nil
 }
@@ -260,7 +269,7 @@ func configureSystemDAllow(rootfs, containerID string) error {
 	lines := strings.Split(string(content), "\n")
 
 	// Insert the nvidiaSystemdDeviceAllow line after [Scope]
-	newLines, err := insertAfterSection(lines, "[Scope]", nvidiaSystemdDeviceAllow)
+	newLines, err := insertDeviceAllowLine(lines, "[Scope]", nvidiaSystemdDeviceAllow)
 	if err != nil {
 		return fmt.Errorf("failed to insert device allow line in %s: %w", configFilePath, err)
 	}

@@ -26,10 +26,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 // MsiexecError provides the processed log file content and the underlying error.
@@ -347,6 +348,8 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 }
 
 // isRetryableExitCode returns true if the exit code indicates the msiexec operation should be retried
+//
+// https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
 func isRetryableExitCode(err error) bool {
 	if err == nil {
 		return false
@@ -360,6 +363,30 @@ func isRetryableExitCode(err error) bool {
 		} else if exitError.ExitCode() == int(windows.ERROR_INSTALL_SERVICE_FAILURE) {
 			// could not connect to msiserver service.
 			// it should auto start when the MSI is run, but maybe it failed or was too slow to start.
+			return true
+		}
+	}
+
+	return false
+}
+
+// isSuccessExitCode returns true if the exit code indicates the msiexec operation was successful
+//
+// https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
+func isSuccessExitCode(err error) bool {
+	if err == nil {
+		// no error means success
+		return true
+	}
+
+	var exitError exitCodeError
+	if errors.As(err, &exitError) {
+		if exitError.ExitCode() == int(windows.ERROR_SUCCESS_REBOOT_REQUIRED) {
+			// 3010 - success but requires reboot
+			return true
+		} else if exitError.ExitCode() == int(windows.ERROR_SUCCESS_REBOOT_INITIATED) {
+			// 1641 - success but Windows will reboot the host
+			// this is unexpected now that we pass /norestart, msiexec should return 3010 instead
 			return true
 		}
 	}
@@ -408,6 +435,17 @@ func (m *Msiexec) Run(ctx context.Context) error {
 				var msiError *MsiexecError
 				if errors.As(err, &msiError) {
 					span.SetTag("log", msiError.ProcessedLog)
+					// Check if logfile is empty
+					logFileInfo, logFileStatErr := os.Stat(m.args.logFile)
+					var isLogEmpty bool
+					if logFileStatErr != nil {
+						isLogEmpty = true
+					} else {
+						isLogEmpty = logFileInfo.Size() == 0
+					}
+					span.SetTag("is_log_empty", isLogEmpty)
+					// collect product codes and features for the Datadog Agent
+					setProductCodeTags(span)
 				}
 			}
 			span.Finish(err)
@@ -450,6 +488,13 @@ func (m *Msiexec) Run(ctx context.Context) error {
 	// Execute post-execution actions
 	for _, p := range m.postExecActions {
 		p()
+	}
+
+	// Check for success exit codes outside of the retry loop
+	// This means we will still get msiexec traces with for the "reboot" exit codes
+	// which will be nice to track, ideally we shouldn't get these exit codes at all.
+	if isSuccessExitCode(err) {
+		return nil
 	}
 
 	return err
@@ -509,6 +554,10 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 		a.msiAction,
 		fmt.Sprintf(`"%s"`, a.target),
 		"/qn",
+		// Prevent Windows from automatically restarting the machine after the installation is complete.
+		// https://learn.microsoft.com/en-us/windows/win32/msi/standard-installer-command-line-options#norestart
+		// https://learn.microsoft.com/en-us/windows/win32/msi/reboot
+		"/norestart",
 		"/log", fmt.Sprintf(`"%s"`, a.logFile),
 	}, a.additionalArgs...)
 
@@ -547,4 +596,35 @@ func formatPropertyArg(key, value string) string {
 	// https://learn.microsoft.com/en-us/windows/win32/msi/command-line-options
 	escaped := strings.ReplaceAll(value, `"`, `""`)
 	return fmt.Sprintf(`%s="%s"`, key, escaped)
+}
+
+func setProductCodeTags(span *telemetry.Span) {
+	// Get all product codes associated with "Datadog Agent" display name
+	products, err := FindAllProductCodes("Datadog Agent")
+	if err != nil {
+		span.SetTag("installer.msi.product_codes", fmt.Sprintf("error getting product codes: %v", err))
+	} else {
+		productCodes := []string{}
+		features := []string{}
+		for _, product := range products {
+			productCodes = append(productCodes, product.Code)
+			if len(product.Features) > 0 {
+				features = append(features, "{"+strings.Join(product.Features, ",")+"}")
+			} else {
+				features = append(features, "{}")
+			}
+		}
+		span.SetTag("installer.msi.product_codes", strings.Join(productCodes, ";"))
+		span.SetTag("installer.msi.features", strings.Join(features, ";"))
+	}
+	uninstallProducts, err := FindUninstallProductCodes("Datadog Agent")
+	if err != nil {
+		span.SetTag("installer.uninstall_product_codes", fmt.Sprintf("error getting uninstall product codes: %v", err))
+	} else {
+		uninstallProductCodes := []string{}
+		for _, product := range uninstallProducts {
+			uninstallProductCodes = append(uninstallProductCodes, product.Code)
+		}
+		span.SetTag("installer.uninstall_product_codes", strings.Join(uninstallProductCodes, ";"))
+	}
 }

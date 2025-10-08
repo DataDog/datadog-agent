@@ -5,6 +5,7 @@ exporters:
       fail_on_invalid_key: false
       key: "[REDACTED]"
       site: datadoghq.com
+    force_attempt_http2: true
     headers: {}
     host_metadata:
       enabled: true
@@ -72,7 +73,15 @@ receivers:
       grpc: null
       http: null
   prometheus:
-    api_server: null
+    api_server:
+      enabled: false
+      server_config:
+        cors: null
+        idle_timeout: 0s
+        read_header_timeout: 0s
+        response_headers: {}
+        tls: null
+        write_timeout: 0s
     config:
       global:
         evaluation_interval: 1m
