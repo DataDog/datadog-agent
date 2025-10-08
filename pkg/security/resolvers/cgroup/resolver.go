@@ -53,11 +53,17 @@ type ResolverInterface interface {
 	RegisterListener(Event, utils.Listener[*cgroupModel.CacheEntry]) error
 }
 
+// CGroupFSInterface defines the interface for CGroupFS operations
+type CGroupFSInterface interface {
+	FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, utils.CGroupContext, string, error)
+	GetCgroupPids(cgroupID string) ([]uint32, error)
+}
+
 // Resolver defines a cgroup monitor
 type Resolver struct {
 	*utils.Notifier[Event, *cgroupModel.CacheEntry]
 	sync.Mutex
-	cgroupFS           *utils.CGroupFS
+	cgroupFS           CGroupFSInterface
 	statsdClient       statsd.ClientInterface
 	cgroups            *simplelru.LRU[uint64, *model.CGroupContext]
 	hostWorkloads      *simplelru.LRU[containerutils.CGroupID, *cgroupModel.CacheEntry]
@@ -66,11 +72,15 @@ type Resolver struct {
 }
 
 // NewResolver returns a new cgroups monitor
-func NewResolver(statsdClient statsd.ClientInterface) (*Resolver, error) {
+func NewResolver(statsdClient statsd.ClientInterface, cgroupFS CGroupFSInterface) (*Resolver, error) {
+	if cgroupFS == nil {
+		cgroupFS = utils.DefaultCGroupFS()
+	}
+
 	cr := &Resolver{
 		Notifier:     utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
 		statsdClient: statsdClient,
-		cgroupFS:     utils.DefaultCGroupFS(),
+		cgroupFS:     cgroupFS,
 	}
 
 	cleanup := func(value *cgroupModel.CacheEntry) {
