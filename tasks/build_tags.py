@@ -36,6 +36,9 @@ ALL_TAGS = {
     # removes the import to golang.org/x/net/trace in google.golang.org/grpc,
     # which prevents dead code elimination, see https://github.com/golang/go/issues/62024
     "grpcnotrace",
+    # removes the import to golang.org/x/net/trace in github.com/grpc-ecosystem/go-grpc-middleware/v2,
+    # which prevents dead code elimination, see https://github.com/golang/go/issues/62024
+    "retrynotrace",
     "jetson",
     "jmx",
     "kubeapiserver",
@@ -83,6 +86,7 @@ AGENT_TAGS = {
     "etcd",
     "fargateprocess",
     "grpcnotrace",
+    "retrynotrace",
     "jetson",
     "jmx",
     "kubeapiserver",
