@@ -236,8 +236,7 @@ if do_build
     dependency 'datadog-security-agent-policies'
   end
 
-  # TODO: Publish FIPS builds of ADP to `binaries.ddbuild.io` and pull them in `datadog-agent-data-plane` when FIPS mode is enabled.
-  if !fips_mode? && linux_target?
+  if linux_target?
     dependency 'datadog-agent-data-plane'
   end
 
