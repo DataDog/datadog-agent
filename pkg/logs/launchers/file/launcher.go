@@ -184,15 +184,15 @@ func (s *Launcher) cleanup() {
 // The Scanner needs to stop that previous tailer, and start a new one for the
 // new file.
 func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
-	// scan() receives the files parameter from FilesToTail(), which is called in
-	// the main run loop of launcher. FilesToTail() is always executed concurrently.
-	// It is therefore possible that addSource() can be called while FilesToTail() is
-	// still running. Since FilesToTail() is only passed a copy of activeSources
-	// it is possible that it would miss new sources added by addsource()
-	// therefore scan() would unschedule a tailer added during a concurrent scan.
-	// In order to mitigate that possibility, any tailers started while FilesToTail() is
-	// running need to be merged with the result of FilesToTail() to prevent scan() from
-	// unscheudling them.
+	// resolveActiveTailers() receives the files parameter from FilesToTail(),
+	// which is called in the main run loop of launcher. FilesToTail() is always
+	// executed concurrently.  It is therefore possible that addSource() can be
+	// called while FilesToTail() is still running. Since FilesToTail() is only
+	// passed a copy of activeSources it is possible that it would miss new
+	// sources added by addsource() therefore scan() would unschedule a tailer
+	// added during a concurrent scan.  In order to mitigate that possibility, any
+	// tailers started while FilesToTail() is running need to be merged with the
+	// result of FilesToTail() to prevent scan() from unscheudling them.
 	files = append(files, s.filesTailedBetweenScans...)
 	s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
 	filesTailed := make(map[string]bool)
