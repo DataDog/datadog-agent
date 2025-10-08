@@ -106,8 +106,8 @@ const (
 	// detected by the process collector.
 	SourceServiceDiscovery Source = "service_discovery"
 
-	// SourceKubeAPI represents metadata collected from the Kubernetes API Server
-	SourceKubeAPI Source = "kubeapiserver"
+	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
+	SourceKubeAPIServer Source = "kubeapiserver"
 )
 
 // ContainerRuntime is the container runtime used by a container.
