@@ -269,6 +269,7 @@ int probe_run_with_cookie(struct pt_regs* regs) {
       .stack_idx = 0,
   };
   frame_data.cfa = calculate_cfa(global_ctx.regs, params->frameless);
+  LOG(5, "cfa: %llx %d %llx %llx", frame_data.cfa, params->frameless, regs->DWARF_BP_REG, regs->DWARF_SP_REG);
   if (params->stack_machine_pc != 0) {
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
                                                 params->stack_machine_pc);

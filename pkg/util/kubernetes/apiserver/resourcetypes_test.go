@@ -8,8 +8,11 @@
 package apiserver
 
 import (
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -168,76 +171,6 @@ func TestGetResourceType(t *testing.T) {
 		})
 	}
 }
-
-func TestDiscoverResourceType(t *testing.T) {
-	resetCache()
-
-	client := fakeclientset.NewClientset()
-	fakeDiscoveryClient := client.Discovery().(*fakediscovery.FakeDiscovery)
-	fakeDiscoveryClient.Resources = []*v1.APIResourceList{
-		{
-			GroupVersion: "apps/v1",
-			APIResources: []v1.APIResource{
-				{Kind: "Deployment", Name: "deployments"},
-				{Kind: "StatefulSet", Name: "statefulsets/status"},
-				{Kind: "DaemonSet", Name: "daemonsets/proxy"},
-			},
-		},
-	}
-
-	err := InitializeGlobalResourceTypeCache(fakeDiscoveryClient)
-	assert.NoError(t, err)
-
-	tests := []struct {
-		name    string
-		kind    string
-		group   string
-		want    string
-		wantErr bool
-	}{
-		{
-			name:    "Find Deployment in apps/v1",
-			kind:    "Deployment",
-			group:   "apps",
-			want:    "deployments",
-			wantErr: false,
-		},
-		{
-			name:    "Find StatefulSet with subresource (should trim /status)",
-			kind:    "StatefulSet",
-			group:   "apps",
-			want:    "statefulsets",
-			wantErr: false,
-		},
-		{
-			name:    "Invalid subresource (should not be found)",
-			kind:    "DaemonSet",
-			group:   "apps",
-			want:    "",
-			wantErr: true,
-		},
-		{
-			name:    "Resource not found",
-			kind:    "UnknownKind",
-			group:   "unknownGroup",
-			want:    "",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := resourceCache.discoverResourceType(tt.kind, tt.group)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.want, got)
-			}
-		})
-	}
-}
-
 func TestPrepopulateCache(t *testing.T) {
 	resetCache()
 
@@ -281,6 +214,25 @@ func TestPrepopulateCache(t *testing.T) {
 	assert.Equal(t, "Deployment", resourceCache.typeGroupToKind["deployments/apps"])
 }
 
+type blockingDiscovery struct {
+	*fakediscovery.FakeDiscovery
+	gate  chan struct{}
+	calls int32 // counts how many times discovery is called
+}
+
+func newBlockingDiscovery(fakediscovery *fakediscovery.FakeDiscovery) *blockingDiscovery {
+	return &blockingDiscovery{
+		FakeDiscovery: fakediscovery,
+		gate:          make(chan struct{}),
+	}
+}
+
+func (b *blockingDiscovery) ServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error) {
+	atomic.AddInt32(&b.calls, 1)
+	<-b.gate
+	return nil, b.Resources, nil
+}
+
 func TestCacheRefreshOnMiss(t *testing.T) {
 	resetCache()
 
@@ -289,15 +241,12 @@ func TestCacheRefreshOnMiss(t *testing.T) {
 
 	// Initial API resources (empty)
 	fakeDiscoveryClient.Resources = []*v1.APIResourceList{}
-
 	err := InitializeGlobalResourceTypeCache(fakeDiscoveryClient)
 	assert.NoError(t, err, "Initial cache setup should not fail")
 
-	// Simulate a cache miss
-	_, err = resourceCache.getResourceType("Pod", "")
-	assert.Error(t, err, "Cache miss should return an error before refresh")
+	blockingFakeDiscovery := newBlockingDiscovery(fakeDiscoveryClient)
+	resourceCache.discoveryClient = blockingFakeDiscovery
 
-	// Update the discovery client with new API resources
 	fakeDiscoveryClient.Resources = []*v1.APIResourceList{
 		{
 			GroupVersion: "v1",
@@ -307,10 +256,44 @@ func TestCacheRefreshOnMiss(t *testing.T) {
 		},
 	}
 
-	// The next call should trigger a refresh and succeed
-	got, err := resourceCache.getResourceType("Pod", "")
-	assert.NoError(t, err, "After cache refresh, resource should be found")
-	assert.Equal(t, "pods", got, "Returned resource type should match")
+	// fire many goroutines that all miss the cache at the same time
+	const goroutineCount = 25
+	start := make(chan struct{})
+	errCh := make(chan error, goroutineCount)
+	var wg sync.WaitGroup
+	wg.Add(goroutineCount)
+
+	for i := 0; i < goroutineCount; i++ {
+		go func() {
+			defer wg.Done()
+			<-start // wait until all goroutines are ready
+			val, err := resourceCache.getResourceType("Pod", "")
+			if err != nil {
+				errCh <- fmt.Errorf("got unexpected error: %v", err)
+				return
+			}
+			if val != "pods" {
+				errCh <- fmt.Errorf("expected pods, got %q", val)
+				return
+			}
+		}()
+	}
+
+	close(start)
+	// Give followers time to reach refreshCache() and start waiting on the leader.
+	time.Sleep(2 * time.Second)
+	close(blockingFakeDiscovery.gate)
+
+	wg.Wait()
+	close(errCh)
+
+	got := atomic.LoadInt32(&blockingFakeDiscovery.calls)
+	assert.Equal(t, int32(1), got, "expected exactly 1 discovery call")
+
+	for e := range errCh {
+		assert.NoError(t, e)
+	}
+
 }
 
 func resetCache() {
