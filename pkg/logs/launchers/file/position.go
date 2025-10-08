@@ -39,7 +39,7 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 				// If fingerprint computation fails, assume fingerprints don't align to be safe
 				fingerprintsAlign = true
 			} else {
-				fingerprintsAlign = prevFingerprint.Value == newFingerprint.Value
+				fingerprintsAlign = prevFingerprint.Equals(newFingerprint)
 			}
 		}
 	}
