@@ -41,7 +41,7 @@ import (
 // CheckName is the name of the check
 const CheckName = "orchestrator_kubelet_config"
 
-const collectionInterval = 5 * time.Minute
+const collectionInterval = 10 * time.Minute
 const kubeletVirtualKind = "KubeletConfiguration"
 const kubeletVirtualAPIVersion = "virtual.datadoghq.com/v1"
 
