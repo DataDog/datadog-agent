@@ -23,7 +23,7 @@ require (
 	github.com/goware/modvendor v0.5.0
 	github.com/hashicorp/vault v1.20.4
 	github.com/hashicorp/vault/api v1.21.0
-	github.com/hashicorp/vault/api/auth/approle v0.10.0
+	github.com/hashicorp/vault/api/auth/approle v0.11.0
 	github.com/hashicorp/vault/api/auth/aws v0.10.0
 	github.com/hashicorp/vault/api/auth/kubernetes v0.10.0
 	github.com/hashicorp/vault/api/auth/ldap v0.11.0
