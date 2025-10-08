@@ -28,7 +28,6 @@ dependency "libgpg-error"
 dependency "libgcrypt"
 dependency "popt"
 dependency "zstd"
-dependency "libsqlite3"
 dependency "lua"
 
 ship_source_offer true
@@ -54,13 +53,12 @@ build do
 
   update_config_guess
 
-  env["SQLITE_CFLAGS"] ="-I#{install_dir}/embedded/include"
-  env["SQLITE_LIBS"] ="-L#{install_dir}/embedded/lib -lsqlite3"
   env["LUA_CFLAGS"] ="-I#{install_dir}/embedded/include"
   env["LUA_LIBS"] ="-L#{install_dir}/embedded/lib -l:liblua.a -lm"
 
   configure_options = [
-    "--enable-sqlite=yes",
+    "--enable-ndb",
+    "--disable-sqlite",
     "--enable-bdb-ro=yes",
     "--disable-nls",
     "--disable-openmp",
