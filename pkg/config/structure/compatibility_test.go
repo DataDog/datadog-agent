@@ -120,7 +120,7 @@ network_devices:
 
 	err := viperConf.UnmarshalKey("network_devices.autodiscovery", &cfg)
 	assert.Error(t, err)
-	assert.ErrorContains(t, err, "'' expected a map, got 'slice'")
+	assert.ErrorContains(t, err, "'' expected a map or struct, got \"slice\"")
 
 	// NOTE: Error message differs, but that is an acceptable difference
 	err = unmarshalKeyReflection(ntmConf, "network_devices.autodiscovery", &cfg)
