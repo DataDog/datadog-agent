@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 var disableAutomaticExpiration = 1 * time.Hour
