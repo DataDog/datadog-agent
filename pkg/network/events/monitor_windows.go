@@ -98,3 +98,11 @@ func getAPMTags(already map[string]struct{}, filename string) []*intern.Value {
 	}
 	return nil
 }
+
+func getTracerTags(_ uint32, _ uint32) []*intern.Value {
+	return nil
+}
+
+func handleTracerMemfdSeal(_ *model.Event, _ *Process) *TracerMemfdSeal {
+	return nil
+}

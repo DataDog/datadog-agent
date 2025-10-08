@@ -1160,6 +1160,32 @@ int test_memfd_create(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_tracer_memfd(int argc, char **argv) {
+    unsigned char tracer_data[] = {
+        "hello"
+    };
+
+    // Create memfd with tracer prefix and allow sealing
+    int fd = memfd_create("datadog-tracer-info-12345678", MFD_ALLOW_SEALING);
+    if (fd < 0) {
+        err(1, "%s failed", "memfd_create");
+    }
+
+    // Write tracer metadata
+    ssize_t written = write(fd, tracer_data, sizeof(tracer_data));
+    if (written != sizeof(tracer_data)) {
+        err(1, "%s failed: wrote %zd bytes, expected %lu", "write", written, sizeof(tracer_data));
+    }
+
+    // Seal the memfd (this triggers the eBPF event)
+    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
+        err(1, "%s failed", "fcntl F_ADD_SEALS");
+    }
+
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
 int test_new_netns_exec(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Please specify at least an executable path\n");
@@ -1770,6 +1796,8 @@ int main(int argc, char **argv) {
             exit_code = test_sleep(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fileless") == 0) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "tracer-memfd") == 0) {
+            exit_code = test_tracer_memfd(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {

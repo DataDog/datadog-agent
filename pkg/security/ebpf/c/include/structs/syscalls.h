@@ -276,6 +276,10 @@ struct syscall_cache_t {
             u32 name_truncated;
             char name[MAX_PRCTL_NAME_LEN];
         } prctl;
+
+        struct {
+            char suffix[TRACER_MEMFD_SUFFIX_LEN];
+        } tracer_memfd_create;
     };
 };
 

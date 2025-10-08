@@ -1,0 +1,128 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && functionaltests
+
+// Package tests holds tests related files
+package tests
+
+import (
+	"errors"
+	"os/exec"
+	"testing"
+	"time"
+
+	"github.com/avast/retry-go/v4"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+)
+
+// tracerMemfdConsumer is a test consumer that captures TracerMemfdSeal events
+type tracerMemfdConsumer struct {
+	capturedPid   atomic.Uint32
+	capturedFd    atomic.Uint32
+	eventReceived atomic.Bool
+}
+
+// ID returns the ID of this consumer
+func (c *tracerMemfdConsumer) ID() string {
+	return "tracer_memfd_test_consumer"
+}
+
+// Start the consumer
+func (c *tracerMemfdConsumer) Start() error {
+	return nil
+}
+
+// Stop the consumer
+func (c *tracerMemfdConsumer) Stop() {
+}
+
+// EventTypes returns the event types handled by this consumer
+func (c *tracerMemfdConsumer) EventTypes() []model.EventType {
+	return []model.EventType{
+		model.TracerMemfdSealEventType,
+	}
+}
+
+// ChanSize returns the chan size used by the consumer
+func (c *tracerMemfdConsumer) ChanSize() int {
+	return 10
+}
+
+// HandleEvent handles this event
+func (c *tracerMemfdConsumer) HandleEvent(event any) {
+	ev, ok := event.(*tracerMemfdEvent)
+	if !ok {
+		return
+	}
+
+	c.capturedPid.Store(ev.pid)
+	c.capturedFd.Store(ev.fd)
+	c.eventReceived.Store(true)
+}
+
+// tracerMemfdEvent is a minimal copy of the event fields we care about
+type tracerMemfdEvent struct {
+	pid uint32
+	fd  uint32
+}
+
+// Copy returns a copy of the event for this consumer
+func (c *tracerMemfdConsumer) Copy(ev *model.Event) any {
+	if ev.GetEventType() != model.TracerMemfdSealEventType {
+		return nil
+	}
+	return &tracerMemfdEvent{
+		pid: ev.GetProcessPid(),
+		fd:  ev.TracerMemfdSeal.Fd,
+	}
+}
+
+func TestTracerMemfd(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	consumer := &tracerMemfdConsumer{}
+	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
+		disableRuntimeSecurity: true,
+		preStartCallback: func(test *testModule) {
+			if err := test.eventMonitor.AddEventConsumerHandler(consumer); err != nil {
+				t.Fatalf("failed to add event consumer handler: %v", err)
+			}
+			test.eventMonitor.RegisterEventConsumer(consumer)
+		},
+	}))
+	require.NoError(t, err)
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	require.NoError(t, err)
+
+	t.Run("validate-event", func(t *testing.T) {
+		consumer.eventReceived.Store(false)
+		consumer.capturedPid.Store(0)
+		consumer.capturedFd.Store(0)
+
+		cmd := exec.Command(syscallTester, "tracer-memfd")
+		_ = cmd.Run()
+
+		err := retry.Do(func() error {
+			if consumer.eventReceived.Load() {
+				return nil
+			}
+			return errors.New("event not received")
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		require.NoError(t, err, "tracer-memfd event should be received")
+
+		capturedPid := consumer.capturedPid.Load()
+		capturedFd := consumer.capturedFd.Load()
+
+		require.NotZero(t, capturedPid, "pid should be set in event")
+		require.NotZero(t, capturedFd, "fd should be non-zero")
+		require.Greater(t, capturedFd, uint32(2), "fd should be > 2 (stdin/stdout/stderr)")
+	})
+}

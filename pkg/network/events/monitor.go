@@ -52,6 +52,12 @@ type Process struct {
 	Expiry      int64
 }
 
+// TracerMemfdSeal represents a tracer memfd seal event with tracer metadata
+type TracerMemfdSeal struct {
+	Fd      uint32
+	Process *Process
+}
+
 // Init initializes the events package
 func Init() error {
 	once.Do(func() {
@@ -95,16 +101,26 @@ func (h *eventConsumerWrapper) HandleEvent(ev any) {
 		return
 	}
 
-	evProcess, ok := ev.(*Process)
-	if !ok {
-		log.Errorf("Event is not a process")
+	m := theMonitor.Load()
+	if m == nil {
 		return
 	}
 
-	m := theMonitor.Load()
-	if m != nil {
-		m.(*eventMonitor).HandleEvent(evProcess)
+	if evMemfd, ok := ev.(*TracerMemfdSeal); ok {
+		tags := getTracerTags(evMemfd.Process.Pid, evMemfd.Fd)
+		if len(tags) > 0 {
+			evMemfd.Process.Tags = append(evMemfd.Process.Tags, tags...)
+			m.(*eventMonitor).HandleEvent(evMemfd.Process)
+		}
+		return
 	}
+
+	if evProcess, ok := ev.(*Process); ok {
+		m.(*eventMonitor).HandleEvent(evProcess)
+		return
+	}
+
+	log.Errorf("Event is not a process or tracer memfd sealed event")
 }
 
 // Copy copies the necessary fields from the event received from the event monitor
@@ -114,6 +130,8 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 	}
 
 	// If this consumer subscribes to more event types, this block will have to account for those additional event types
+
+	// Handle process events (fork/exec/tracer memfd sealed)
 	processStartTime := getProcessStartTime(ev)
 
 	p := &Process{
@@ -159,6 +177,10 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 		p.ContainerID = intern.GetByString(cid)
 	}
 
+	if ev.GetEventType() == model.TracerMemfdSealEventType {
+		return handleTracerMemfdSeal(ev, p)
+	}
+
 	return p
 }
 
@@ -167,6 +189,7 @@ func (h *eventConsumerWrapper) EventTypes() []model.EventType {
 	return []model.EventType{
 		model.ForkEventType,
 		model.ExecEventType,
+		model.TracerMemfdSealEventType,
 	}
 }
 
