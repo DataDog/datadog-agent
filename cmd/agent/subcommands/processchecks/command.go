@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	processCommand "github.com/DataDog/datadog-agent/cmd/process-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -32,9 +31,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
+	check "github.com/DataDog/datadog-agent/pkg/cli/subcommands/processchecks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
 
+// getCoreAgentFxOptions returns the fx options specific to the core agent
 func getCoreAgentFxOptions(cliParams *check.CliParams, bundleParams core.BundleParams) []fx.Option {
 	return []fx.Option{
 		fx.Supply(cliParams, bundleParams),
