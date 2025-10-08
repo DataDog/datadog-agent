@@ -1,17 +1,12 @@
 # Tools to troubleshoot a running Agent
 
-This page attempts to list useful tools and resources to troubleshoot and profile
-a running Agent.
+This page attempts to list useful tools and resources to troubleshoot and profile a running Agent.
 
-## pprof
+## [pprof](https://golang.org/pkg/net/http/pprof/)
 
-The Agent exposes pprof's HTTP server on port `5000` by default. Through the pprof port
-you can get profiles (CPU, memory, etc) on the go runtime, along with some general information
-on the state of the runtime.
+The Agent exposes pprof's HTTP server on port `5000` by default. Through the pprof port you can get profiles (CPU, memory, etc) on the go runtime, along with some general information on the state of the runtime.
 
-General documentation: https://golang.org/pkg/net/http/pprof/
-
-In particular/additionally, the following commands can come handy:
+In particular/additionally, the following commands can come in handy:
 
 * List all goroutines:
 ```sh
@@ -28,9 +23,7 @@ The Agent also exposes expvar variables through an HTTP server on port `5000` by
 
 General documentation: https://golang.org/pkg/expvar/
 
-Most components of the Agent expose variables (under their respective key). By default expvar also exposes
-general memory stats from `runtime.Memstats` (see the [`runtime.MemStats docs`](https://golang.org/pkg/runtime/#MemStats)). In particular,
-the `Sys`, `HeapSys` and `HeapInuse` variables can be interesting.
+Most components of the Agent expose variables (under their respective key). By default expvar also exposes general memory stats from [`runtime.MemStats`](https://golang.org/pkg/runtime/#MemStats). In particular, the `Sys`, `HeapSys` and `HeapInuse` variables can be interesting.
 
 Using the `jq` command-line tool, it's rather easy to explore and find relevant variables, for example:
 ```sh
@@ -40,11 +33,9 @@ curl -s http://localhost:5000/debug/vars | jq '.memstats.Sys'
 curl -s http://localhost:5000/debug/vars | jq '.runner.Checks | keys'
 ```
 
-## delve
+## [delve](https://github.com/derekparker/delve)
 
 A debugger for Go.
-
-[Project page](https://github.com/derekparker/delve)
 
 Example usage:
 ```sh
@@ -55,26 +46,26 @@ $ sudo dlv attach `pgrep -f '/opt/datadog-agent/bin/agent/agent run'`
 (dlv) goroutine <number> # switch to goroutine
 ```
 
-### Using external/split debug symbols
-If you're running a stripped binary of the agent, you can `attach` and point
-delve at the debug symbols.
+/// tip | Using external/split debug symbols
 
-Configure delve to search for debug symbols in the path you installed debug
-symbols to.
+If you're running a stripped binary of the agent, you can `attach` and point delve at the debug symbols.
 
-Eg, on ubuntu/debian, `apt install datadog-agent-dbg` installs to
-`/opt/datadog-agent/.debug`, so modify your [delve config
-file](https://github.com/go-delve/delve/blob/master/Documentation/cli/README.md#configuration-and-command-history)
-to search this directory:
+Configure delve to search for debug symbols in the path you installed debug symbols to.
+
+Eg, on ubuntu/debian, `apt install datadog-agent-dbg` installs to `/opt/datadog-agent/.debug`, so modify your [delve config file](https://github.com/go-delve/delve/blob/master/Documentation/cli/README.md#configuration-and-command-history) to search this directory:
 
 ```
 # delve config file is at $HOME/.config/dlv/config.yml
 debug-info-directories: ["/usr/lib/debug/.build-id", "/opt/datadog-agent/.debug/" ]
 ```
 
-One last note is if you use `sudo` to run `dlv attach`, `$HOME` will be set to `/root`.
-You may want to symlink `/root/.config/dlv/config.yml` to point to your user
-delve config file.
+/// note | Running delve as root
+
+If you use `sudo` to run `dlv attach`, `$HOME` will be set to `/root`. You may want to symlink `/root/.config/dlv/config.yml` to point to your user delve config file.
+
+///
+
+///
 
 ## gdb
 
