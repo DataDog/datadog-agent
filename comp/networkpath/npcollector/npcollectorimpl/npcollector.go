@@ -286,10 +286,13 @@ func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
 }
 
 func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
+	startTime := s.TimeNowFn()
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
 	s.rawConnectionsChan <- conns
+	scheduleDuration := s.TimeNowFn().Sub(startTime)
+	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"schedule.add_conns_to_queue_duration", scheduleDuration.Seconds(), nil, 1)
 }
 func (s *npCollectorImpl) processScheduleConns(conns *model.Connections) {
 	vpcSubnets, err := s.getVPCSubnets()
@@ -322,7 +325,7 @@ func (s *npCollectorImpl) processScheduleConns(conns *model.Connections) {
 	}
 
 	scheduleDuration := s.TimeNowFn().Sub(startTime)
-	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"schedule.duration", scheduleDuration.Seconds(), nil, 1)
+	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"schedule.process_conns_duration", scheduleDuration.Seconds(), nil, 1)
 }
 
 // scheduleOne schedules pathtests.
@@ -522,6 +525,7 @@ func (s *npCollectorImpl) flush() {
 	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"processing_chan_size", float64(len(s.pathtestProcessingChan)), []string{}, 1)
 
 	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"input_chan_size", float64(len(s.pathtestInputChan)), []string{}, 1)
+	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"raw_connections_chan_size", float64(len(s.rawConnectionsChan)), []string{}, 1)
 
 	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"domain_resolver_calls", float64(s.domainResolver.LookupHostCalls()), []string{}, 1)
 }
