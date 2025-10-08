@@ -319,14 +319,11 @@ class DynamicTestIndex:
 
         return skipped
 
-    def triggering_path(self, job_name: str, test_name: str) -> list[str]:
+    def triggering_paths(self, job_name: str, test_name: str) -> list[str]:
         """Determine the triggering path for a specific test.
 
         Args:
+            job_name: Name of the CI containing the test being queried
             test_name: Name of the test to get the triggering path for
         """
-        triggering_path = []
-        for pkg, tests in self._data.get(job_name, {}).items():
-            if test_name in tests:
-                triggering_path.append(pkg)
-        return triggering_path
+        return list({pkg for pkg, tests in self._data.get(job_name, {}).items() if test_name in tests})

@@ -24,7 +24,7 @@ def datadog_infra_token(ctx, audience, datacenter="us1.ddbuild.io"):
     return token
 
 
-def aws_vault_env(ctx, account: str):
+def get_aws_vault_env(ctx, account: str):
     """Returns the environment variables to authenticate with aws-vault for the given account."""
     if running_in_ci():
         raise RuntimeError("aws-vault is not meant to be used in CI")

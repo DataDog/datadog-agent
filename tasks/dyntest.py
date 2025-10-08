@@ -7,7 +7,7 @@ from time import sleep
 
 from invoke import Context, task
 
-from tasks.libs.common.auth import aws_vault_env
+from tasks.libs.common.auth import get_aws_vault_env
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_commit_sha, get_modified_files
 from tasks.libs.common.utils import environ
@@ -90,17 +90,23 @@ def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: 
         sleep(10)  # small sleep to avoid rate limiting
 
 
-@task
-def show_triggering_path(ctx: Context, job_name: str, test_name: str):
-    print(f"Showing triggering path for {test_name} in {job_name}")
+@task(
+    help={
+        "job_name": "Name of the CI job containing the test",
+        "test_name": "Name of the test to get the triggering path for",
+        "index_kind": "Kind of index to use (package, file, diffed_package)",
+    }
+)
+def show_triggering_paths(ctx: Context, job_name: str, test_name: str, index_kind: str = "diffed_package"):
+    print(f"Showing triggering path for {test_name} in {job_name} with index kind {index_kind}")
     # Authenticate with aws-vault
-    with environ(aws_vault_env(ctx, "sso-build-stable-developer")):
+    with environ(get_aws_vault_env(ctx, "sso-build-stable-developer")):
         backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
-        executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
-        triggering_path = executor.triggering_path(job_name, test_name)
+        executor = DynTestExecutor(ctx, backend, IndexKind(index_kind), get_commit_sha(ctx, short=True))
+        triggering_path = executor.triggering_paths(job_name, test_name)
 
     if triggering_path:
-        print(f"Triggering path for {test_name} in {job_name}: {triggering_path}")
+        print(f"Triggering paths for {test_name} in {job_name}: {triggering_path}")
     else:
         print(
             f"No triggering path found for {test_name} in {job_name}, it means that the test is in the index, it should never be skipped"
