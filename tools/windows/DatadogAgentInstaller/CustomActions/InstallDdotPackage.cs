@@ -1,4 +1,5 @@
 using Datadog.CustomActions.Extensions;
+using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Rollback;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
