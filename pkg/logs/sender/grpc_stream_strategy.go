@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,7 +33,7 @@ type grpcStreamStrategy struct {
 	clock          clock.Clock
 
 	// For gRPC: store Datums separately since MessageBuffer only stores metadata
-	grpcDatums []any
+	grpcDatums []*statefulpb.Datum
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -81,7 +82,7 @@ func newGRPCStreamStrategyWithClock(inputChan chan *message.Message,
 		stopChan:        make(chan struct{}),
 		pipelineName:    pipelineName,
 		clock:           clock,
-		grpcDatums:      make([]any, 0),
+		grpcDatums:      make([]*statefulpb.Datum, 0),
 		pipelineMonitor: pipelineMonitor,
 		utilization:     pipelineMonitor.MakeUtilizationMonitor(metrics.StrategyTlmName, instanceID),
 		instanceID:      instanceID,
@@ -176,13 +177,13 @@ func (s *grpcStreamStrategy) flushBuffer(outputChan chan *message.Payload) {
 
 	// Use the collected GRPCDatums and clear them
 	grpcDatums := s.grpcDatums
-	s.grpcDatums = make([]any, 0)
+	s.grpcDatums = make([]*statefulpb.Datum, 0)
 
 	log.Debugf("Flushing gRPC buffer and sending %d messages for pipeline %s", len(messagesMetadata), s.pipelineName)
-	s.sendMessagesWithDatums(messagesMetadata, grpcDatums, outputChan)
+	s.sendMessagesWithData(messagesMetadata, grpcDatums, outputChan)
 }
 
-func (s *grpcStreamStrategy) sendMessagesWithDatums(messagesMetadata []*message.MessageMetadata, grpcDatums []any, outputChan chan *message.Payload) {
+func (s *grpcStreamStrategy) sendMessagesWithData(messagesMetadata []*message.MessageMetadata, grpcDatums []*statefulpb.Datum, outputChan chan *message.Payload) {
 	s.utilization.Stop()
 
 	unencodedSize := 0
@@ -215,7 +216,7 @@ func (s *grpcStreamStrategy) sendMessagesWithDatums(messagesMetadata []*message.
 		Encoding:      "",  // No encoding for gRPC
 		UnencodedSize: unencodedSize,
 		IsSnapshot:    isSnapshot, // Mark payload as snapshot if any message is snapshot
-		GRPCDatums:    grpcDatums, // Set the Datum array
+		GRPCData:      grpcDatums, // Set the Datum array
 	}
 
 	outputChan <- p

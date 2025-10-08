@@ -377,9 +377,8 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 	useGRPC := logsConfig.isGRPCUse()
 	if useGRPC {
 		return NewEndpointsWithBatchSettings(main, additionals, false, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
-	} else {
-		return NewEndpointsWithBatchSettings(main, additionals, false, true, false, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
 	}
+	return NewEndpointsWithBatchSettings(main, additionals, false, true, false, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
 }
 
 type defaultParseAddressFunc func(string) (host string, port int, err error)
