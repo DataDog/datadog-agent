@@ -414,7 +414,7 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 			Version: env.GetDefault("DD_VERSION", ""),
 		},
 		Language:           string(lang),
-		APMInstrumentation: string(apmInstrumentation),
+		APMInstrumentation: apmInstrumentation == apm.Provided,
 		CommandLine:        truncateCmdline(lang, cmdline),
 	}, nil
 }
