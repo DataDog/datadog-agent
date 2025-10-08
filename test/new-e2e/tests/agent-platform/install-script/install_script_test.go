@@ -39,8 +39,8 @@ var (
 
 type installScriptSuite struct {
 	e2e.BaseSuite[environments.Host]
-	cwsSupported  bool
-	testingKeyURL string
+	cwsSupported   bool
+	testingKeysURL string
 }
 
 func TestInstallScript(t *testing.T) {
