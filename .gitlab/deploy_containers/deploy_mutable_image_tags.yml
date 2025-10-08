@@ -12,11 +12,8 @@ deploy_latest_rc_only:
     all_tags=$(git ls-remote --tags origin \
       | awk -F/ -v major="7" '$3 ~ ("^"major"\\.[0-9]+\\.[0-9]+-rc\\.[0-9]+$"){print $3}')
 
-    # 3. append current tag to results
-    all_tags=$(echo -e "$all_tags\n$CI_COMMIT_TAG")
-
-    # 4. sort and retrieve latest tag
-    latest_tag=$(echo "$all_tags" | sort -V | tail -n1)
+    # 3. sort and retrieve latest tag
+    latest_tag=$(echo -e "$all_tags\n$CI_COMMIT_TAG" | sort -V | tail -n1)
 
     echo "latest tag $latest_tag"
     echo "current tag $CI_COMMIT_TAG"
