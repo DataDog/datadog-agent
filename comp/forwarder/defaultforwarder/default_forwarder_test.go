@@ -8,6 +8,10 @@ package defaultforwarder
 import (
 	"encoding/json"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -15,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // domainAPIKeyMap used by tests to get API keys from each domain resolver
@@ -161,4 +163,20 @@ func TestPreaggregationPipelineTransactionCreation(t *testing.T) {
 				"Expected %d transactions for %s: %s", tc.expectTransactions, tc.name, tc.description)
 		})
 	}
+}
+
+func TestDefaultForwarderPassesCallback(t *testing.T) {
+	mockCallback := func(reason string) {}
+	log := logmock.New(t)
+	cfg := config.NewMock(t)
+
+	options := &Options{
+		SecretRefreshCallback:    mockCallback,
+		NumberOfWorkers:          1,
+		APIKeyValidationInterval: 1 * time.Hour,
+	}
+	forwarder := NewDefaultForwarder(cfg, log, options)
+
+	assert.NotNil(t, forwarder.healthChecker, "Health checker should be initialized")
+	assert.NotNil(t, forwarder.healthChecker.secretRefreshCallback, "Callback should be set in health checker")
 }
