@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package processchecks implements 'processchecks' command used by the process-agent and core-agent.
 package processchecks
 
 import (
@@ -58,6 +59,7 @@ func waitForWorkloadMeta(logger log.Component, wm workloadmeta.Component) {
 	}
 }
 
+// CliParams are the command-line arguments for this subcommand
 type CliParams struct {
 	*command.GlobalParams
 	checkName       string
@@ -65,7 +67,7 @@ type CliParams struct {
 	waitInterval    time.Duration
 }
 
-type Dependencies struct {
+type dependencies struct {
 	fx.In
 
 	CliParams *CliParams
@@ -91,6 +93,7 @@ func nextGroupID() func() int32 {
 	}
 }
 
+// MakeCommand returns a `processchecks` command to be used by agent binaries.
 func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, allowlist []string, getFxOptions func(cliParams *CliParams, bundleParams core.BundleParams) []fx.Option) *cobra.Command {
 	cliParams := &CliParams{
 		GlobalParams: globalParamsGetter(),
@@ -126,7 +129,8 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 	return checkCmd
 }
 
-func RunCheckCmd(deps Dependencies) error {
+// RunCheckCmd runs the specified check and prints the results.
+func RunCheckCmd(deps dependencies) error {
 	command.SetHostMountEnv(deps.Log)
 
 	// Now that the logger is configured log host info
