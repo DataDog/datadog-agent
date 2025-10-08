@@ -5,13 +5,12 @@ import time
 from datetime import datetime, timedelta
 
 import yaml
-from invoke.context import Context
+from invoke import task
 from invoke.exceptions import Exit
-from invoke.tasks import task
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -107,7 +106,7 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     should be cancelled.
     """
 
-    gitlab = Gitlab(api_token=get_gitlab_token(ctx))
+    gitlab = Gitlab(api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     if here:
@@ -143,13 +142,13 @@ def auto_cancel_previous_pipelines(ctx):
     Automatically cancel previous pipelines running on the same ref
     """
 
-    git_ref = os.environ["CI_COMMIT_REF_NAME"]
-    if git_ref == "":
-        raise Exit("CI_COMMIT_REF_NAME is empty, skipping pipeline cancellation", 0)
+    if not os.environ.get('GITLAB_TOKEN'):
+        raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
 
-    gitlab = Gitlab(api_token=get_gitlab_token(ctx))
+    gitlab = Gitlab(api_token=get_gitlab_token())
     gitlab.test_project_found()
 
+    git_ref = os.getenv("CI_COMMIT_REF_NAME")
     git_sha = os.getenv("CI_COMMIT_SHA")
 
     pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
@@ -233,7 +232,7 @@ def run(
       inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
-    gitlab = Gitlab(api_token=get_gitlab_token(ctx))
+    gitlab = Gitlab(api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     if (not git_ref and not here) or (git_ref and here):
@@ -314,7 +313,7 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     inv pipeline.follow --id 1234567
     """
 
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token(ctx, repo=project_name))
+    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     args_given = 0
@@ -368,9 +367,15 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
     if not os.environ.get('CI_JOB_TOKEN'):
         raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
 
-    # Use the CI_JOB_TOKEN which is passed from gitlab
-    token = None if follow else os.environ['CI_JOB_TOKEN']
-    gitlab = Gitlab(project_name=project_name, api_token=token)
+    if not os.environ.get('GITLAB_TOKEN'):
+        if follow:
+            raise Exit("GITLAB_TOKEN variable needed to follow child pipelines.", 1)
+        else:
+            # The Gitlab lib requires `GITLAB_TOKEN` to be
+            # set, but trigger_pipeline doesn't use it
+            os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
+
+    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
 
     data = {"token": os.environ['CI_JOB_TOKEN'], "ref": git_ref, "variables": {}}
 
@@ -535,7 +540,7 @@ def changelog(ctx, new_commit_sha):
 
 
 def _init_pipeline_schedule_task():
-    gitlab = Gitlab(api_token=get_gitlab_token(Context()))
+    gitlab = Gitlab(api_token=get_gitlab_bot_token())
     gitlab.test_project_found()
     return gitlab
 
