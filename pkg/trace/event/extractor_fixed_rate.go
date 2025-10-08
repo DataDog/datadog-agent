@@ -54,7 +54,7 @@ func (e *fixedRateExtractor) Extract(s *pb.Span, priority sampler.SamplingPriori
 	return extractionRate, true
 }
 
-// Extract decides to extract an apm event from a span if its service and name have a corresponding extraction rate
+// ExtractV1 decides to extract an apm event from a span if its service and name have a corresponding extraction rate
 // on the rateByServiceAndName map passed in the constructor. The extracted event is returned along with the associated
 // extraction rate and a true value. If no extraction happened, false is returned as the third value and the others
 // are invalid.
