@@ -3,6 +3,8 @@
 
 deploy_latest_rc_only:
   stage: deploy_mutable_image_tags
+  rules:
+    !reference [.on_deploy_rc]
   dependencies: []
   script: |
       tag = $CI_COMMIT_TAG
@@ -28,9 +30,6 @@ deploy_latest_rc_only:
   extends: .docker_publish_job_definition
   stage: deploy_mutable_image_tags
   dependencies: []
-  needs:
-    - job: deploy_latest_rc_only
-      artifacts: false
   before_script:
     - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${AGENT_REPOSITORY}:${VERSION}${SUFFIX}
@@ -57,6 +56,8 @@ deploy_mutable_image_tags-a7-rc:
   needs:
     - job: deploy_containers-a7
       artifacts: false
+    - job: deploy_latest_rc_only
+      artifacts: false
   parallel:
     matrix:
       - SUFFIX:
@@ -73,6 +74,8 @@ deploy_mutable_image_tags-a7-win-only-rc:
     !reference [.on_deploy_rc]
   needs:
     - job: deploy_containers-a7-win-only
+      artifacts: false
+    - job: deploy_latest_rc_only
       artifacts: false
   parallel:
     matrix:
@@ -97,6 +100,8 @@ deploy_mutable_image_tags-a7-full-rc:
   needs:
     - job: deploy_containers-a7-full
       artifacts: false
+    - job: deploy_latest_rc_only
+      artifacts: false
   parallel:
     matrix:
       - SUFFIX: ["-full"]
@@ -107,6 +112,8 @@ deploy_mutable_image_tags-a7-fips-rc:
     !reference [.on_deploy_rc]
   needs:
     - job: deploy_containers-a7-fips
+      artifacts: false
+    - job: deploy_latest_rc_only
       artifacts: false
   parallel:
     matrix:
