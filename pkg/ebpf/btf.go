@@ -356,14 +356,13 @@ var kernelVersionPatterns = []struct {
 
 var errIncorrectOSReleaseMount = errors.New("please mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this")
 
-func relativeBTFTarballPath(platform btfPlatform, platformVersion, kernelVersion, extension string) string {
-	btfTarball := kernelVersion + extension
-	btfRelativePath := filepath.Join(platform.String(), btfTarball)
+func relativeBTFTarballPath(platform btfPlatform, platformVersion, filename string) string {
+	btfRelativePath := filepath.Join(platform.String(), filename)
 	if platform == platformUbuntu {
 		// Ubuntu BTFs are stored in subdirectories corresponding to platform version.
 		// This is because we have BTFs for different versions of ubuntu with the exact same
 		// kernel name, so kernel name alone is not a unique identifier.
-		btfRelativePath = filepath.Join(platform.String(), platformVersion, btfTarball)
+		btfRelativePath = filepath.Join(platform.String(), platformVersion, filename)
 	}
 	return btfRelativePath
 }
@@ -377,8 +376,8 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion,
 		return "", fmt.Errorf("no BTF file in embedded collection matching kernel version `%s`", kernelVersion)
 	}
 
-	for _, ext := range []string{".btf.tar.xz", ".btf"} {
-		btfRelativePath := relativeBTFTarballPath(platform, platformVersion, kernelVersion, ext)
+	for _, filename := range []string{btfTarball, btfRaw} {
+		btfRelativePath := relativeBTFTarballPath(platform, platformVersion, filename)
 		if slices.Contains(possiblePaths, btfRelativePath) {
 			return btfRelativePath, nil
 		}
