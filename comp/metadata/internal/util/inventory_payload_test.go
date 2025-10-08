@@ -28,10 +28,6 @@ func (p *testPayload) MarshalJSON() ([]byte, error) {
 	return []byte("{\"test\": true}"), nil
 }
 
-func (p *testPayload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
-}
-
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
 	i := CreateInventoryPayload(
 		config.NewMockWithOverrides(t, confOverrides),

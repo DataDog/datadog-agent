@@ -45,11 +45,3 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*PayloadAlias)(p))
 }
 
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-// This method is called when the payload needs to be split into smaller chunks
-// for transmission. In the case of software inventory, the payload cannot be
-// split further as it represents a complete inventory snapshot that should be
-// transmitted as a single unit to maintain data integrity.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories software payload any more, payload is too big for intake")
-}
