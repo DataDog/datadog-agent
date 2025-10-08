@@ -43,7 +43,7 @@ func (e *metricBasedExtractor) Extract(s *pb.Span, priority sampler.SamplingPrio
 	return extractionRate, true
 }
 
-// Extract decides whether to extract APM events from a span based on the value of the event extraction rate metric set
+// ExtractV1 decides whether to extract APM events from a span based on the value of the event extraction rate metric set
 // on that span. If such a value exists, the extracted event is returned along with this rate and a true value.
 // Otherwise, false is returned as the third value and the others are invalid.
 //
