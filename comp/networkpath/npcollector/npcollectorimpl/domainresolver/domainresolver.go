@@ -42,13 +42,16 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 	var errList []error
 	ipToDomain := make(map[string]string)
 	for _, domain := range domains {
-		ips, err := cache.GetWithExpiration(domain, func() ([]string, error) {
+		ips, err := GetWithExpiration(domain, func() ([]string, error) {
 			// TODO: REMOVE DOMAIN TAG
 			// TODO: REMOVE DOMAIN TAG
 			// TODO: REMOVE DOMAIN TAG
 			_ = d.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"domain_resolver_calls", []string{"domain_name:" + domain}, 1)
 			ips, err := d.LookupHostFn(domain)
-			return ips, err
+			if err != nil {
+				return nil, err
+			}
+			return ips, nil
 		}, domainLookupExpiration)
 		if err != nil {
 			errList = append(errList, fmt.Errorf("error looking up IPs for domain %s: %s", domain, err))
@@ -59,4 +62,16 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 		}
 	}
 	return ipToDomain, errList
+}
+
+// GetWithExpiration returns the value for 'key'.
+func GetWithExpiration[T any](key string, cb func() (T, error), expire time.Duration) (T, error) {
+	if x, found := cache.Cache.Get(key); found {
+		return x.(T), nil
+	}
+
+	res, err := cb()
+	// We cache errors too
+	cache.Cache.Set(key, res, expire)
+	return res, err
 }

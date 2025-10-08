@@ -304,7 +304,7 @@ func (s *npCollectorImpl) processScheduleConns(conns *model.Connections) {
 
 	ipToDomainResolver, errs := s.domainResolver.GetIPResolverForDomains(conns.Domains)
 	if len(errs) > 0 {
-		s.logger.Errorf("GetIPResolverForDomains errors: %s", errors.Join(errs...))
+		s.logger.Warnf("GetIPResolverForDomains errors: %s", errors.Join(errs...))
 	}
 
 	for _, conn := range conns.Conns {
