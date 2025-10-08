@@ -15,7 +15,7 @@ package(
 
 alias(
     name = "xz",
-    actual = "@xz//:lzma",
+    actual = "@xz//:liblzma",
 )
 
 VERSION = "5.4.2"
@@ -54,7 +54,7 @@ _API_HEADERS = glob([
 ])
 
 cc_library(
-    name = "lzma",
+    name = "liblzma",
     srcs = [
         "src/common/tuklib_cpucores.c",
         "src/common/tuklib_physmem.c",
@@ -195,7 +195,7 @@ cc_library(
 cc_shared_library(
     name = "liblzma_so",
     shared_lib_name = SONAME,
-    deps = [":lzma"],
+    deps = [":liblzma"],
     user_link_flags = select({
         "@platforms//os:windows": [],
         "@platforms//os:macos": ["-Wl,-install_name","-Wl,'@rpath/liblzma.so.5'",],
