@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-const domainLookupExpiration = 2 * time.Hour
+const domainLookupExpiration = 1 * time.Hour
 
 // DomainResolver handles domain resolution
 type DomainResolver struct {
