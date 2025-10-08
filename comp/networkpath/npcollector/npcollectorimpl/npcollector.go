@@ -496,6 +496,8 @@ func (s *npCollectorImpl) flush() {
 	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"processing_chan_size", float64(len(s.pathtestProcessingChan)), []string{}, 1)
 
 	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"input_chan_size", float64(len(s.pathtestInputChan)), []string{}, 1)
+
+	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"domain_resolver_calls", float64(s.domainResolver.LookupHostCalls()), []string{}, 1)
 }
 
 // enrichPathWithRDNS populates a NetworkPath with reverse-DNS queried hostnames.

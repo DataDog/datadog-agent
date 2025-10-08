@@ -12,13 +12,19 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"go.uber.org/atomic"
 )
 
 const domainLookupExpiration = 2 * time.Hour
 
 // DomainResolver handles domain resolution
 type DomainResolver struct {
-	LookupHostFn func(host string) (addrs []string, err error)
+	LookupHostFn    func(host string) (addrs []string, err error)
+	lookupHostCalls *atomic.Uint64
+}
+
+func (d *DomainResolver) LookupHostCalls() uint64 {
+	return d.lookupHostCalls.Load()
 }
 
 // NewDomainResolver constructor
@@ -39,6 +45,7 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 	ipToDomain := make(map[string]string)
 	for _, domain := range domains {
 		ips, err := cache.GetWithExpiration(domain, func() ([]string, error) {
+			d.lookupHostCalls.Inc()
 			ips, err := d.LookupHostFn(domain)
 			return ips, err
 		}, domainLookupExpiration)
