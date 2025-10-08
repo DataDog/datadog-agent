@@ -11,23 +11,24 @@ import (
 	"net"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"go.uber.org/atomic"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const domainLookupExpiration = 2 * time.Hour
 
 // DomainResolver handles domain resolution
 type DomainResolver struct {
-	LookupHostFn    func(host string) (addrs []string, err error)
-	lookupHostCalls *atomic.Uint64
+	LookupHostFn func(host string) (addrs []string, err error)
+	statsdClient statsd.ClientInterface
 }
 
 // NewDomainResolver constructor
-func NewDomainResolver() *DomainResolver {
+func NewDomainResolver(statsdClient statsd.ClientInterface) *DomainResolver {
 	return &DomainResolver{
-		LookupHostFn:    net.LookupHost,
-		lookupHostCalls: atomic.NewUint64(0),
+		LookupHostFn: net.LookupHost,
+		statsdClient: statsdClient,
 	}
 }
 
@@ -42,7 +43,7 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 	ipToDomain := make(map[string]string)
 	for _, domain := range domains {
 		ips, err := cache.GetWithExpiration(domain, func() ([]string, error) {
-			d.lookupHostCalls.Inc()
+			_ = d.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"domain_resolver_calls", []string{}, 1)
 			ips, err := d.LookupHostFn(domain)
 			return ips, err
 		}, domainLookupExpiration)
@@ -55,9 +56,4 @@ func (d *DomainResolver) getIPToDomainMap(domains []string) (map[string]string, 
 		}
 	}
 	return ipToDomain, errList
-}
-
-// LookupHostCalls returns LookupHost calls
-func (d *DomainResolver) LookupHostCalls() uint64 {
-	return d.lookupHostCalls.Load()
 }
