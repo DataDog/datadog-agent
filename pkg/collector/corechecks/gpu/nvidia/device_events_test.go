@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -130,7 +129,7 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 }
 
 func TestDeviceEventsGatherer_StartShouldFailIfNvmlInitFails(t *testing.T) {
-	if _, err := ddnvml.GetSafeNvmlLib(); err == nil {
+	if _, err := safenvml.GetSafeNvmlLib(); err == nil {
 		t.Skip("NVML library is already initialized, this test relies on the library not being initializable")
 	}
 
