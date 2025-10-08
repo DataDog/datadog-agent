@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"go.uber.org/atomic"
 
@@ -40,6 +41,7 @@ import (
 // CheckName is the name of the check
 const CheckName = "orchestrator_kubelet_config"
 
+const collectionInterval = 5 * time.Minute
 const kubeletVirtualKind = "KubeletConfiguration"
 const kubeletVirtualAPIVersion = "virtual.datadoghq.com/v1"
 
@@ -181,6 +183,7 @@ func (c *Check) Run() error {
 		Type:            int32(orchestrator.K8sKubeletConfig),
 		Uid:             uid,
 		ResourceVersion: rv,
+		Content:         rawKubeletConfig,
 		ContentType:     "application/json",
 		Version:         "v1",
 		Tags:            tags,
@@ -204,6 +207,11 @@ func (c *Check) Run() error {
 
 	c.sender.OrchestratorManifest(msg, c.clusterID)
 	return nil
+}
+
+// Interval returns the scheduling time for the check.
+func Interval() time.Duration {
+	return collectionInterval
 }
 
 func getNodeUID(nodeName string) (string, error) {
