@@ -1,5 +1,5 @@
-github.com/DataDog/viper v1.14.1-0.20251007072727-5a2ac1ff821e h1:wulTKT4YQePeB75SzM1SvotP9SFvvT1Y+J57LO1sSEA=
-github.com/DataDog/viper v1.14.1-0.20251007072727-5a2ac1ff821e/go.mod h1:f0E/4EtxfLRoURBvdFKXJyFBU+ufWlHjUAbnAGHb0ho=
+github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 h1:uX4ZqokylxBI67r+AN09CiFY+s8Frmf33YZlyqIMBc4=
+github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9/go.mod h1:QGomve/3EbYfi58jADS97U2OKfsxqh2pWemuT0azbdk=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 h1:kHaBemcxl8o/pQ5VM1c8PVE1PubbNx3mjUr09OqWGCs=
