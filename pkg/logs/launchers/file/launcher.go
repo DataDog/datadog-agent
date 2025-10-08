@@ -503,6 +503,8 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
 
+	s.tailers.Remove(oldTailer)
+
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()
 
