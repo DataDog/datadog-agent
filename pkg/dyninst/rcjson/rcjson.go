@@ -317,15 +317,24 @@ func (w *functionWhere) Location() string {
 
 func (w *functionWhere) Where() {}
 
+type lineWhere Where
+
+var _ ir.LineWhere = (*lineWhere)(nil)
+
+func (w *lineWhere) Line() (string, string, string) {
+	return w.MethodName, w.SourceFile, w.Lines[0]
+}
+
+func (w *lineWhere) Where() {}
+
 func getWhere(where *Where) ir.Where {
 	if where == nil {
 		return noWhere{}
 	}
-	if where.MethodName != "" {
-		return (*functionWhere)(where)
+	if len(where.Lines) > 0 {
+		return (*lineWhere)(where)
 	}
-	// TODO: support other where types like lines.
-	return noWhere{}
+	return (*functionWhere)(where)
 }
 
 type irCaptureConfig Capture
@@ -400,14 +409,19 @@ func validateWhere(where *Where) error {
 	if where == nil {
 		return errors.New("where is required")
 	}
-	if where.SourceFile != "" && len(where.Lines) > 0 {
-		return errors.New("sourceFile and lines are not supported")
-	}
 	if where.Signature != "" {
 		return errors.New("signature is not supported")
 	}
 	if where.MethodName == "" {
 		return errors.New("methodName must be set for probes")
+	}
+	if len(where.Lines) > 0 {
+		if where.SourceFile == "" {
+			return errors.New("sourceFile must be set for lines")
+		}
+		if len(where.Lines) != 1 {
+			return errors.New("lines must be a single line number")
+		}
 	}
 	return nil
 }
