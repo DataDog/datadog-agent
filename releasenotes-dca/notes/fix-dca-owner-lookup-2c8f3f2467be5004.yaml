@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    The Cluster Agent Admission Controller now logs a warning instead of failing the webhook when it lacks permissions to access a pod’s owner.
+    The Cluster Agent Admission Controller now logs a warning instead of failing the webhook when the Admission Controller lacks permissions to access a pod’s owner.
 
