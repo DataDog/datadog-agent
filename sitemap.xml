@@ -125,6 +125,18 @@
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/debug-agents/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/debug-agents/linux/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/debug-agents/windows/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
          <loc>https://datadoghq.dev/datadog-agent/how-to/go/config/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
