@@ -20,10 +20,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -652,38 +653,41 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 	ctx, cancel := context.WithCancel(ctx)
 	defer collectionTicker.Stop()
 	defer cancel()
+	// Run collection immediately on startup, then wait for ticker to repeat
 	for {
+		// fetch process data and submit events to streaming channel for asynchronous processing
+		procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
+		if err != nil {
+			log.Errorf("Error getting processes by pid: %v", err)
+			return
+		}
+
+		// some processes are in a container so we want to store the container_id for them
+		pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
+		// TODO: potentially scrub process data here instead of in the check?
+
+		// categorize the processes into events for workloadmeta
+		createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
+		languages := c.detectLanguages(createdProcs)
+		wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
+
+		wlmDeletedProcs := c.findDeletedProcesses(procs)
+
+		// send these events to the channel
+		c.processEventsCh <- &Event{
+			Type:    EventTypeProcess,
+			Created: wlmCreatedProcs,
+			Deleted: wlmDeletedProcs,
+		}
+
+		// store latest collected processes
+		c.mux.Lock()
+		c.lastCollectedProcesses = procs
+		c.mux.Unlock()
+
 		select {
 		case <-collectionTicker.C:
-			// fetch process data and submit events to streaming channel for asynchronous processing
-			procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
-			if err != nil {
-				log.Errorf("Error getting processes by pid: %v", err)
-				return
-			}
-
-			// some processes are in a container so we want to store the container_id for them
-			pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
-			// TODO: potentially scrub process data here instead of in the check?
-
-			// categorize the processes into events for workloadmeta
-			createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-			languages := c.detectLanguages(createdProcs)
-			wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
-
-			wlmDeletedProcs := c.findDeletedProcesses(procs)
-
-			// send these events to the channel
-			c.processEventsCh <- &Event{
-				Type:    EventTypeProcess,
-				Created: wlmCreatedProcs,
-				Deleted: wlmDeletedProcs,
-			}
-
-			// store latest collected processes
-			c.mux.Lock()
-			c.lastCollectedProcesses = procs
-			c.mux.Unlock()
+			// Continue to next iteration
 		case <-ctx.Done():
 			log.Infof("The %s collector has stopped", collectorID)
 			return

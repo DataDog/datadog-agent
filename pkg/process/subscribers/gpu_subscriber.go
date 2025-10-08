@@ -104,7 +104,7 @@ func (g *GPUSubscriber) GetGPUTags() map[int32][]string {
 		entityID := types.NewEntityID(types.GPU, uuid)
 		tags, err := g.tagger.Tag(entityID, types.ChecksConfigCardinality)
 		if err != nil {
-			log.Debugf("Could not collect tags for GPU %s, err: %v", uuid, err)
+			log.Infof("Could not collect tags for GPU %s, err: %v", uuid, err)
 			continue
 		}
 
