@@ -149,6 +149,7 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 		MainDC   string `json:"main_dc"`
 		PublicID string `json:"public_id"`
 		RunType  string `json:"run_type"`
+		Interval int    `json:"tick_every"`
 	}
 
 	var tmp rawConfig
@@ -162,6 +163,7 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 	c.MainDC = tmp.MainDC
 	c.PublicID = tmp.PublicID
 	c.RunType = tmp.RunType
+	c.Interval = tmp.Interval
 	c.Config.Assertions = tmp.Config.Assertions
 
 	switch payload.Protocol(tmp.Subtype) {
