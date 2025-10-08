@@ -43,7 +43,7 @@ require (
 	google.golang.org/grpc v1.75.1
 	google.golang.org/protobuf v1.36.9
 	gopkg.in/ini.v1 v1.67.0
-	k8s.io/apimachinery v0.32.3
+	k8s.io/apimachinery v0.34.0
 )
 
 require (
@@ -115,7 +115,6 @@ require (
 	golang.org/x/text v0.29.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
 replace github.com/DataDog/datadog-agent => ../../
