@@ -140,8 +140,7 @@ func TestAllCollectorsWork(t *testing.T) {
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
 	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache := ddnvml.NewDeviceCache()
-	eventsGatherer, err := NewDeviceEventsGatherer()
-	require.NoError(t, err)
+	eventsGatherer := NewDeviceEventsGatherer()
 	require.NoError(t, eventsGatherer.Start())
 	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
 	deps := &CollectorDependencies{DeviceCache: deviceCache, DeviceEventsGatherer: eventsGatherer}

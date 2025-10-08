@@ -176,7 +176,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.72.0-devel
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
-	github.com/DataDog/datadog-traceroute v0.1.26
+	github.com/DataDog/datadog-traceroute v0.1.28
 	github.com/DataDog/dd-trace-go/v2 v2.2.2
 	github.com/DataDog/ebpf-manager v0.7.14
 	github.com/DataDog/go-libddwaf/v4 v4.3.2
@@ -184,7 +184,7 @@ require (
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.7
-	github.com/DataDog/viper v1.14.1-0.20251007072727-5a2ac1ff821e
+	github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
 	github.com/DataDog/zstd v1.5.7
@@ -987,11 +987,8 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
-replace (
-	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/djc/main-dd-060
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994
-	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
-)
+// Maps to Trivy fork https://github.com/DataDog/trivy/commits/djc/main-dd-060
+replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994
 
 // Prevent dependencies to be bumped by Trivy
 // github.com/DataDog/aptly@v1.5.3 depends on gopenpgp/v2, so we use latest version of go-crypto before the move to gopenpgp/v3
