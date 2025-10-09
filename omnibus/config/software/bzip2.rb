@@ -32,8 +32,7 @@ version("1.0.8") { source sha256: "ab5a03176ee106d3f0fa90e381da478ddae405918153c
 source url: "https://fossies.org/linux/misc/#{name}-#{version}.tar.gz"
 
 build do
-  command "bazelisk run -- @bzip2//:install --destdir='#{install_dir}/embedded'", \
-    cwd: "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent"
+  command_on_repo_root "bazelisk run -- @bzip2//:install --destdir='#{install_dir}/embedded'"
 
   # The version of bzip2 we use doesn't create a pkgconfig file,
   # we add it here manually (needed at least by the Python build)
