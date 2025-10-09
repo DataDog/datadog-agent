@@ -78,11 +78,8 @@ func IsEnabled(cfg configmodel.Reader) bool {
 	return hasSection(cfg, coreconfig.OTLPReceiverSubSectionKey)
 }
 
-// HasLogsSectionEnabled checks if OTLP logs are explicitly enabled in a given config.
-func HasLogsSectionEnabled(cfg configmodel.Reader) bool {
-	return hasSection(cfg, coreconfig.OTLPLogsEnabled) && cfg.GetBool(coreconfig.OTLPLogsEnabled)
-}
-
+// hasSection checks if a subsection of otlp_config section exists in a given config
+// It does not handle sections nested further down.
 func hasSection(cfg configmodel.Reader, section string) bool {
 	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
 	// from unmarshaling/validation done by the Collector code.

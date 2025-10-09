@@ -101,11 +101,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 
-	var err error
-	c.deviceEvtGatherer, err = nvidia.NewDeviceEventsGatherer()
-	if err != nil {
-		return fmt.Errorf("failed creating event set gatherer: %w", err)
-	}
+	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics
 	if pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled") {
