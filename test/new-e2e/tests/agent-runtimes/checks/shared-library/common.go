@@ -24,18 +24,19 @@ import (
 //go:embed files/conf.yaml
 var exampleCheckYaml string
 
-type baseSharedLibrarySuite struct {
+type sharedLibrarySuite struct {
 	e2e.BaseSuite[environments.Host]
+	descriptor osVM.Descriptor
 }
 
-func (v *baseSharedLibrarySuite) getSuiteOptions(osInstance osVM.Descriptor) []e2e.SuiteOption {
+func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 	var suiteOptions []e2e.SuiteOption
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithAgentOptions(
 				agentparams.WithIntegration("example.d", exampleCheckYaml),
 			),
-			awshost.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 		),
 	))
 
@@ -43,7 +44,7 @@ func (v *baseSharedLibrarySuite) getSuiteOptions(osInstance osVM.Descriptor) []e
 }
 
 // Test the shared library check after having it in the correct path
-func (v *baseSharedLibrarySuite) testCheckImplemenation() {
+func (v *sharedLibrarySuite) testCheckExecution() {
 	v.T().Log("Running Shared Library Check Example test")
 
 	// Fetch the check status and metrics in JSON format

@@ -9,20 +9,24 @@ package sharedlibrary
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 )
 
 type linuxSharedLibrarySuite struct {
-	baseSharedLibrarySuite
+	sharedLibrarySuite
 }
 
 func TestLinuxCheckImplementationSuite(t *testing.T) {
 	t.Parallel()
-	suite := &linuxSharedLibrarySuite{baseSharedLibrarySuite{}}
+	suite := &linuxSharedLibrarySuite{
+		sharedLibrarySuite{
+			descriptor: e2eos.UbuntuDefault,
+		},
+	}
 
-	e2e.Run(t, suite, suite.getSuiteOptions(os.UbuntuDefault)...)
+	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
 
 func (v *linuxSharedLibrarySuite) TestCheckExample(t *testing.T) {
@@ -32,5 +36,5 @@ func (v *linuxSharedLibrarySuite) TestCheckExample(t *testing.T) {
 	v.Env().RemoteHost.CopyFile("./files/libdatadog-agent-example.so", "/tmp/libdatadog-agent-example.so")
 	v.Env().RemoteHost.MustExecute("sudo cp /tmp/libdatadog-agent-example.so /opt/datadog-agent/embedded/lib/libdatadog-agent-example.so")
 
-	v.testCheckImplemenation()
+	v.testCheckExecution()
 }

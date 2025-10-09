@@ -123,9 +123,6 @@ impl Aggregator {
         unsafe { *ptr }
     }
 
-    // TODO: optional arguements should use Option
-    // TODO: raise errors in the submit functions
-
     pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<(), Box<dyn Error>> {
         // create the C strings
         let cstr_check_id = to_cstring(check_id)?;

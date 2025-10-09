@@ -22,8 +22,6 @@ impl AgentCheck {
         Ok(agent_check)
     }
 
-    // TODO: raise errors in the submit functions
-
     /// Send Gauge metric
     pub fn gauge(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<(), Box<dyn Error>> {
         self.aggregator.submit_metric(&self.check_id, MetricType::Gauge, name, value, tags, hostname, flush_first_value)
