@@ -6,13 +6,13 @@
 // Package usersession holds model related to the user session context
 package usersession
 
-var (
+const (
 	// UserSessionTypeUnknown is the unknown user session type
-	UserSessionTypeUnknown Type = 0
+	UserSessionTypeUnknown Type = iota
 	// UserSessionTypeK8S is the k8s user session type
-	UserSessionTypeK8S Type = 1
+	UserSessionTypeK8S
 	// UserSessionTypeSSH is the ssh user session type
-	UserSessionTypeSSH Type = 2
+	UserSessionTypeSSH
 )
 
 var (

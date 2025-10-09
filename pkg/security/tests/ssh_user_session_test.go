@@ -123,7 +123,7 @@ func TestSSHUserSession(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_ssh_user_session",
-			Expression: `exec.user_session.id != 0 && exec.user_session.session_type == 2 && exec.user_session.ssh_username == "` + currentUser.Username + `"`,
+			Expression: `exec.user_session.id != 0 && exec.user_session.session_type == ssh && exec.user_session.ssh_username == "` + currentUser.Username + `"`,
 		},
 	}
 
