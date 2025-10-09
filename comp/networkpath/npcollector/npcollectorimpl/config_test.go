@@ -50,8 +50,8 @@ func TestNewConfig(t *testing.T) {
 				pathtestRawConnectionsChanSize: 10,
 				storeConfig: pathteststore.Config{
 					ContextsLimit:    5000,
-					TTL:              35 * time.Minute,
-					Interval:         10 * time.Minute,
+					TTL:              16 * time.Minute,
+					Interval:         5 * time.Minute,
 					MaxPerMinute:     150,
 					MaxBurstDuration: 30 * time.Second,
 				},
