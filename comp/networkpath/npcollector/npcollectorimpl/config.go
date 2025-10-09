@@ -39,13 +39,13 @@ type collectorConfigs struct {
 	tracerouteQueries              int
 	e2eQueries                     int
 	disableWindowsDriver           bool
-	filterConfig                   []connfiltertype.Config
+	filterConfig                   []connfiltertype.ConnFilterConfig
 	monitorIPWithoutDomain         bool
 	ddSite                         string
 }
 
 func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
-	var filterConfigs []connfiltertype.Config
+	var filterConfigs []connfiltertype.ConnFilterConfig
 	err := agentConfig.UnmarshalKey("network_path.collector.filters", &filterConfigs)
 	if err != nil {
 		logger.Errorf("Error unmarshalling network_path.collector.filters")

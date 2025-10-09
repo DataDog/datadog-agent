@@ -27,7 +27,7 @@ type ConnFilter struct {
 }
 
 // NewConnFilter constructor
-func NewConnFilter(config []connfiltertype.Config, site string) (*ConnFilter, []error) {
+func NewConnFilter(config []connfiltertype.ConnFilterConfig, site string) (*ConnFilter, []error) {
 	defaultConfig := getDefaultConnFilters(site)
 	newConfigs := append(defaultConfig, config...)
 

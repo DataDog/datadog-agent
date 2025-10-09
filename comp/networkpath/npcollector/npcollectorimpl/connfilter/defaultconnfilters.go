@@ -7,8 +7,8 @@ package connfilter
 
 import "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfiltertype"
 
-func getDefaultConnFilters(site string) []connfiltertype.Config {
-	defaultConfig := []connfiltertype.Config{
+func getDefaultConnFilters(site string) []connfiltertype.ConnFilterConfig {
+	defaultConfig := []connfiltertype.ConnFilterConfig{
 		{
 			Type:        connfiltertype.FilterTypeExclude,
 			MatchDomain: "*.datadog.pool.ntp.org",

@@ -530,7 +530,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
 	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
 	config.BindEnvAndSetDefault("network_path.collector.monitor_ip_without_domain", false)
-	config.BindEnvAndSetDefault("network_path.collector.filters", []connfiltertype.Config{})
+	config.BindEnvAndSetDefault("network_path.collector.filters", []connfiltertype.ConnFilterConfig{})
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent

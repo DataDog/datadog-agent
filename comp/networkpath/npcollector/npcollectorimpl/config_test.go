@@ -68,7 +68,7 @@ func TestNewConfig(t *testing.T) {
 				e2eQueries:                50,
 				disableWindowsDriver:      false,
 				networkDevicesNamespace:   "default",
-				filterConfig:              []connfiltertype.Config{},
+				filterConfig:              []connfiltertype.ConnFilterConfig{},
 				monitorIPWithoutDomain:    false,
 				ddSite:                    "",
 			},
@@ -138,7 +138,7 @@ func TestNewConfig(t *testing.T) {
 				e2eQueries:                5,
 				disableWindowsDriver:      true,
 				networkDevicesNamespace:   "custom-ns",
-				filterConfig: []connfiltertype.Config{
+				filterConfig: []connfiltertype.ConnFilterConfig{
 					{
 						Type:        "include",
 						MatchDomain: "*.example.com",
