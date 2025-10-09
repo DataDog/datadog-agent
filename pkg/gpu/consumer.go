@@ -55,6 +55,7 @@ type cudaEventConsumer struct {
 type cudaEventConsumerTelemetry struct {
 	events              telemetry.Counter
 	eventErrors         telemetry.Counter
+	streamGetErrors     telemetry.Counter
 	eventCounterByType  map[gpuebpf.CudaEventType]telemetry.SimpleCounter
 	droppedProcessExits telemetry.Counter
 }
@@ -88,6 +89,7 @@ func newCudaEventConsumerTelemetry(tm telemetry.Component) *cudaEventConsumerTel
 	return &cudaEventConsumerTelemetry{
 		events:              events,
 		eventErrors:         tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
+		streamGetErrors:     tm.NewCounter(subsystem, "stream_get_errors", nil, "Number of errors when getting a stream handler"),
 		eventCounterByType:  eventCounterByType,
 		droppedProcessExits: tm.NewCounter(subsystem, "dropped_process_exits", nil, "Number of process exits events that were dropped"),
 	}
@@ -208,7 +210,14 @@ func isStreamSpecificEvent(et gpuebpf.CudaEventType) bool {
 
 func (c *cudaEventConsumer) handleEvent(header *gpuebpf.CudaEventHeader, dataPtr unsafe.Pointer, dataLen int) error {
 	eventType := gpuebpf.CudaEventType(header.Type)
-	c.telemetry.eventCounterByType[eventType].Inc()
+
+	counter, ok := c.telemetry.eventCounterByType[eventType]
+	if !ok {
+		c.telemetry.eventErrors.Inc(telemetryEventTypeUnknown, telemetryEventErrorUnknownType)
+		return fmt.Errorf("unknown event type: %d", header.Type)
+	}
+	counter.Inc()
+
 	if isStreamSpecificEvent(eventType) {
 		return c.handleStreamEvent(header, dataPtr, dataLen)
 	}
@@ -245,6 +254,8 @@ func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, d
 		if logLimitProbe.ShouldLog() {
 			log.Warnf("error getting stream handler for stream id %d: %v", header.Stream_id, err)
 		}
+		c.telemetry.streamGetErrors.Inc()
+		return err
 	}
 
 	switch eventType {

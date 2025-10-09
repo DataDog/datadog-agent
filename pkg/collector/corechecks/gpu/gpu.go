@@ -41,13 +41,14 @@ var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	collectors  []nvidia.Collector       // collectors for NVML metrics
-	tagger      tagger.Component         // Tagger instance to add tags to outgoing metrics
-	telemetry   *checkTelemetry          // Telemetry component to emit internal telemetry
-	wmeta       workloadmeta.Component   // Workloadmeta store to get the list of containers
-	deviceTags  map[string][]string      // deviceTags is a map of device UUID to tags
-	deviceCache ddnvml.DeviceCache       // deviceCache is a cache of GPU devices
-	spCache     *nvidia.SystemProbeCache // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
+	collectors        []nvidia.Collector           // collectors for NVML metrics
+	tagger            tagger.Component             // Tagger instance to add tags to outgoing metrics
+	telemetry         *checkTelemetry              // Telemetry component to emit internal telemetry
+	wmeta             workloadmeta.Component       // Workloadmeta store to get the list of containers
+	deviceTags        map[string][]string          // deviceTags is a map of device UUID to tags
+	deviceCache       ddnvml.DeviceCache           // deviceCache is a cache of GPU devices
+	spCache           *nvidia.SystemProbeCache     // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
+	deviceEvtGatherer *nvidia.DeviceEventsGatherer // deviceEvtGatherer asynchronously listens for device events and gathers them
 }
 
 type checkTelemetry struct {
@@ -100,6 +101,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 
+	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
+
 	// Compute whether we should prefer system-probe process metrics
 	if pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled") {
 		c.spCache = nvidia.NewSystemProbeCache()
@@ -113,9 +116,9 @@ func (c *Check) ensureInitDeviceCache() error {
 		return nil
 	}
 
-	var err error
-	c.deviceCache, err = ddnvml.NewDeviceCache()
-	if err != nil {
+	c.deviceCache = ddnvml.NewDeviceCache()
+
+	if err := c.deviceCache.EnsureInit(); err != nil {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
@@ -136,7 +139,18 @@ func (c *Check) ensureInitCollectors() error {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
-	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{DeviceCache: c.deviceCache}, c.spCache)
+	// device events gatherer must be running in order for devices to be properly registered
+	// when building the collectors
+	if err := c.deviceEvtGatherer.Start(); err != nil {
+		return fmt.Errorf("failed starting event set gatherer: %w", err)
+	}
+
+	deps := &nvidia.CollectorDependencies{
+		DeviceCache:          c.deviceCache,
+		DeviceEventsGatherer: c.deviceEvtGatherer,
+		SystemProbeCache:     c.spCache,
+	}
+	collectors, err := nvidia.BuildCollectors(deps)
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
@@ -148,8 +162,14 @@ func (c *Check) ensureInitCollectors() error {
 
 // Cancel stops the check
 func (c *Check) Cancel() {
+	if err := c.deviceEvtGatherer.Stop(); err != nil {
+		log.Warnf("error stopping event set gatherer: %v", err)
+	}
+
 	if lib, err := ddnvml.GetSafeNvmlLib(); err == nil {
-		_ = lib.Shutdown()
+		if err := lib.Shutdown(); err != nil {
+			log.Warnf("error shutting down NVML lib: %v", err)
+		}
 	}
 
 	c.CheckBase.Cancel()
@@ -173,9 +193,17 @@ func (c *Check) Run() error {
 	// Refresh SP cache before collecting metrics, if it is available
 	if c.spCache != nil {
 		if err := c.spCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
-			log.Warnf("error refreshing system-probe cache: %v", err)
+			if logLimitCheck.ShouldLog() {
+				log.Warnf("error refreshing system-probe cache: %v", err)
+			}
 			// Continue with NVML-only metrics, SP collectors will return empty metrics
 		}
+	}
+
+	// Attempt refreshing device events
+	if err := c.deviceEvtGatherer.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+		log.Warnf("error refreshing device events cache: %v", err)
+		// Might cause empty metrics in collectors depending on device events
 	}
 
 	// build the mapping of GPU devices -> containers to allow tagging device
@@ -190,10 +218,17 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
-	gpuToContainers := make(map[string]*workloadmeta.Container, c.deviceCache.Count())
+	allPhysicalDevices, err := c.deviceCache.AllPhysicalDevices()
+	if err != nil {
+		if logLimitCheck.ShouldLog() {
+			log.Warnf("Error getting all physical devices: %s", err)
+		}
+		return nil
+	}
+	gpuToContainers := make(map[string]*workloadmeta.Container, len(allPhysicalDevices))
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
-		containerDevices, err := containers.MatchContainerDevices(container, c.deviceCache.AllPhysicalDevices())
+		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
 		if err != nil {
 			c.telemetry.missingContainerGpuMapping.Inc(container.Name)
 		}

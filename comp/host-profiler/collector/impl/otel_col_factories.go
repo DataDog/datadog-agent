@@ -12,6 +12,7 @@ import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converternoagent"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -19,7 +20,6 @@ import (
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
-	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
 )
 
 // ExtraFactories is an interface that provides extra factories for the collector.
@@ -80,7 +80,7 @@ func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFacto
 // createFactories creates a function that returns the factories for the collector.
 func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, error) {
 	return func() (otelcol.Factories, error) {
-		recvMap, err := otelcol.MakeFactoryMap(ebpfcollector.NewFactory())
+		recvMap, err := otelcol.MakeFactoryMap(receiver.NewFactory())
 		if err != nil {
 			return otelcol.Factories{}, err
 		}
