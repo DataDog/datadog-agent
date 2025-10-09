@@ -13,10 +13,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -53,12 +55,24 @@ func (e *UserSessionData) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+type IncrementalFileReader struct {
+	path         string
+	f            *os.File
+	offset       int64
+	mu           sync.Mutex
+	startAtEnd   bool // if true, start at the end of the file
+	followRotate bool // if true, follow inode rotation
+	ino          uint64
+}
+
 // Resolver is used to resolve the user sessions context
 type Resolver struct {
 	sync.RWMutex
 	userSessions *simplelru.LRU[uint64, *model.UserSessionContext]
 
 	userSessionsMap *ebpf.Map
+
+	sshLogReader *IncrementalFileReader
 }
 
 // NewResolver returns a new instance of Resolver
@@ -83,6 +97,9 @@ func (r *Resolver) Start(manager *manager.Manager) error {
 		return fmt.Errorf("couldn't start user session resolver: %w", err)
 	}
 	r.userSessionsMap = m
+
+	// start the resolver for ssh sessions
+	r.StartSSHUserSessionResolver()
 	return nil
 }
 
@@ -135,6 +152,178 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 	return ctx
 }
 
+// NewIncrementalFileReader creates a new IncrementalFileReader
+func NewIncrementalFileReader(path string, startAtEnd, followRotate bool) *IncrementalFileReader {
+	return &IncrementalFileReader{
+		path:         path,
+		startAtEnd:   startAtEnd,
+		followRotate: followRotate,
+	}
+}
+
+// Init opens the file and sets the initial offset
+func (r *IncrementalFileReader) Init(f *os.File) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.f != nil {
+		return nil
+	}
+
+	st, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		fmt.Print("Fail and close init")
+		return err
+	}
+
+	if r.startAtEnd {
+		r.offset = st.Size()
+	} else if r.offset > st.Size() {
+		r.offset = 0
+	}
+
+	r.f = f
+	r.ino = inodeOf(st)
+	_, err = r.f.Seek(r.offset, io.SeekStart)
+	if err != nil {
+		r.f.Close()
+		r.f = nil
+	}
+	return err
+}
+
+// Close closes the file
+func (r *IncrementalFileReader) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.f != nil {
+		err := r.f.Close()
+		fmt.Print("Fail and close close")
+		r.f = nil
+		return err
+	}
+	return nil
+}
+
+// inodeOf get the inode of the file.
+func inodeOf(fi os.FileInfo) uint64 {
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+		return st.Ino
+	}
+	return 0
+}
+
+// reloadIfRotated reopens the file if the inode has changed.
+func (r *IncrementalFileReader) reloadIfRotated() error {
+	if !r.followRotate {
+		return nil
+	}
+	curSt, err := os.Stat(r.path)
+	if err != nil {
+		return err
+	}
+	curIno := inodeOf(curSt)
+	if curIno != 0 && r.ino != 0 && curIno != r.ino {
+		// The file has been rotated
+		if r.f != nil {
+			_ = r.f.Close()
+			fmt.Print("Fail and close reload")
+			r.f = nil
+		}
+		f, err := os.Open(r.path)
+		if err != nil {
+			return err
+		}
+		r.f = f
+		r.ino = curIno
+		if r.startAtEnd {
+			r.offset = curSt.Size()
+		} else {
+			r.offset = 0
+		}
+		_, err = r.f.Seek(r.offset, io.SeekStart)
+		if err != nil {
+			r.f.Close()
+		}
+		r.f = nil
+		return err
+	}
+	return nil
+}
+
+// ReadNewLines read all the lines that have been added since the last call without reopening the file.
+// Return new lines and update the offset.
+func (r *IncrementalFileReader) ReadNewLines() ([]string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if err := r.reloadIfRotated(); err != nil {
+		return nil, err
+	}
+
+	st, err := r.f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	// If the file is truncated, we restart from the beginning
+	if st.Size() < r.offset {
+		r.offset = 0
+		if _, err := r.f.Seek(0, io.SeekStart); err != nil {
+			return nil, err
+		}
+	} else {
+		// If the file is not truncated, we seek to the offset
+		if _, err := r.f.Seek(r.offset, io.SeekStart); err != nil {
+			return nil, err
+		}
+	}
+
+	var lines []string
+	sc := bufio.NewScanner(r.f)
+	for sc.Scan() {
+		line := sc.Text()
+		lines = append(lines, line)
+	}
+	r.offset, err = r.f.Seek(0, io.SeekCurrent)
+	return lines, err
+}
+
+// StartSSHUserSessionResolver initializes the ssh log reader by looking for the available file, opening it and setting up the initial offset
+func (r *Resolver) StartSSHUserSessionResolver() {
+	// first, find the available file
+	path := "/var/log/auth.log"
+	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
+	if err != nil {
+		// Fallback for Red Hat / CentOS / Fedora
+		path = "/var/log/secure"
+		f, err = os.OpenFile(path, os.O_RDONLY, 0644)
+		if err != nil {
+			// Last Fallback for openSUSE
+			path = "/var/log/messages"
+			f, err = os.OpenFile(path, os.O_RDONLY, 0644)
+			if err != nil {
+				path = ""
+				// We will ignore the ssh log and fallback in journalctl
+			}
+		}
+	}
+	r.sshLogReader = NewIncrementalFileReader(path, true, true)
+	if path == "" {
+		return
+	}
+	if err := r.sshLogReader.Init(f); err != nil {
+		seclog.Errorf("failed to init ssh log reader: %v", err)
+		// If Init fails, we close the file
+		if f != nil {
+			f.Close()
+		}
+		return
+	}
+	// Note: the file is not closed here, as the sshLogReader manage it
+}
+
 func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 	type SSHLogLine struct {
 		Date      string
@@ -150,7 +339,7 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 		SSHVersion             string
 		Remaining              string
 	}
-	for i := len(lines) - 1; i >= 0; i-- {
+	for i := 0; i < len(lines)-1; i++ {
 		line := lines[i]
 		// separate the line into words
 		words := strings.Split(line, " ")
@@ -217,6 +406,7 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 }
 
 func resolveFromJournalctl(ctx *model.UserSessionContext) {
+	// TODO : Find a Go librairy to avoid fork and exec here
 	cmd := exec.Command("sh", "-c", "journalctl | grep Accepted")
 
 	var out bytes.Buffer
@@ -242,30 +432,14 @@ func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.U
 
 	r.Lock()
 	defer r.Unlock()
-
-	f, err := os.OpenFile("/var/log/auth.log", os.O_RDONLY, 0644)
-	if err != nil {
-		// Fallback for Red Hat / CentOS / Fedora
-		f, err = os.OpenFile("/var/log/secure", os.O_RDONLY, 0644)
-		if err != nil {
-			// Last Fallback for openSUSE
-			f, err = os.OpenFile("/var/log/messages", os.O_RDONLY, 0644)
-			if err != nil {
-				resolveFromJournalctl(ctx)
-
-				ctx.Resolved = true
-				// cache resolved context
-				r.userSessions.Add(id, ctx)
-				return ctx
-			}
-		}
+	if r.sshLogReader.path == "" {
+		resolveFromJournalctl(ctx)
+		return ctx
 	}
-	defer f.Close()
-
-	var lines []string
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		lines = append(lines, sc.Text())
+	lines, err := r.sshLogReader.ReadNewLines()
+	if err != nil {
+		seclog.Errorf("failed to read ssh log lines: %v", err)
+		return nil
 	}
 	parseSSHLogLines(lines, ctx)
 	ctx.Resolved = true
