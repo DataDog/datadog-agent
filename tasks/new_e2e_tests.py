@@ -284,10 +284,11 @@ def run(
             # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
             with environ({"AWS_PROFILE": "DELETE"}):
                 backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
-                executor = DynTestExecutor(ctx, backend, IndexKind.PACKAGE, get_commit_sha(ctx, short=True))
-                changes = get_modified_files(ctx)
-                print(color_message(f"The following changes were detected: {changes}", "yellow"))
-                to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changes)
+                executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
+                changed_files = get_modified_files(ctx)
+                changed_packages = list({os.path.dirname(change) for change in changed_files})
+                print(color_message(f"The following changes were detected: {changed_files}", "yellow"))
+                to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changed_packages + changed_files)
                 ctx.run(f"datadog-ci metric --level job --metrics 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
                 print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
                 skip.extend(to_skip)
@@ -304,11 +305,11 @@ def run(
     # Outside of CI try to automatically configure the secret to pull agent image
     if not running_in_ci():
         # Authentication against agent-qa is required for all kubernetes tests, to use the cache
-        parsed_params["ddagent:imagePullPassword"] = ctx.run(
-            "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True
-        ).stdout.strip()
-        parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-        parsed_params["ddagent:imagePullUsername"] = "AWS"
+        ecr_password = _get_agent_qa_ecr_password(ctx)
+        if ecr_password:
+            parsed_params["ddagent:imagePullPassword"] = ecr_password
+            parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+            parsed_params["ddagent:imagePullUsername"] = "AWS"
         # If we use an agent image from sandbox registry we need to authenticate against it
         if "376334461865" in agent_image or "376334461865" in cluster_agent_image:
             parsed_params["ddagent:imagePullPassword"] += (
@@ -1011,3 +1012,19 @@ def _is_local_state(pulumi_about: dict) -> bool:
     if url is None or not isinstance(url, str):
         return False
     return url.startswith("file://")
+
+
+def _get_agent_qa_ecr_password(ctx: Context) -> str:
+    ecr_password_res = ctx.run(
+        "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True, warn=True
+    )
+    if ecr_password_res.exited != 0:
+        ecr_password_res = ctx.run(
+            "aws-vault exec sso-agent-qa-account-admin -- aws ecr get-login-password", hide=True, warn=True
+        )
+    if ecr_password_res.exited != 0:
+        print(
+            "WARNING: Could not get ECR password for agent-qa account, if your test need to pull image from agent-qa ECR it is likely to fail"
+        )
+        return ""
+    return ecr_password_res.stdout.strip()

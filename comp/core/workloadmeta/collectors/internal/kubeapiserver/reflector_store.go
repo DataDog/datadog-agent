@@ -65,7 +65,7 @@ func (r *reflectorStore) Add(obj interface{}) error {
 	r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
-			Source: collectorID,
+			Source: workloadmeta.SourceKubeAPIServer,
 			Entity: entity,
 		},
 	})
@@ -106,7 +106,7 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeSet,
-			Source: collectorID,
+			Source: workloadmeta.SourceKubeAPIServer,
 			Entity: entity,
 		})
 
@@ -123,7 +123,7 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
-			Source: collectorID,
+			Source: workloadmeta.SourceKubeAPIServer,
 			Entity: entity,
 		})
 	}
@@ -168,7 +168,7 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeUnset,
-			Source: collectorID,
+			Source: workloadmeta.SourceKubeAPIServer,
 			Entity: entity,
 		},
 	})

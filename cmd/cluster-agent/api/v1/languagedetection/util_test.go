@@ -594,7 +594,7 @@ func TestHandleKubeAPIServerUnsetEvents(t *testing.T) {
 	}
 
 	filter := workloadmeta.NewFilterBuilder().
-		SetSource("kubeapiserver").
+		SetSource(workloadmeta.SourceKubeAPIServer).
 		SetEventType(workloadmeta.EventTypeUnset).
 		AddKind(workloadmeta.KindKubernetesDeployment).
 		Build()
@@ -628,7 +628,7 @@ func TestHandleKubeAPIServerUnsetEvents(t *testing.T) {
 	)
 
 	// simulate updating annotations
-	mockStore.Push("kubeapiserver", workloadmeta.Event{
+	mockStore.Push(workloadmeta.SourceKubeAPIServer, workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.KubernetesDeployment{
 			EntityID: workloadmeta.EntityID{
@@ -646,7 +646,7 @@ func TestHandleKubeAPIServerUnsetEvents(t *testing.T) {
 	)
 
 	//simulate deleting deployment
-	mockStore.Push("kubeapiserver", workloadmeta.Event{
+	mockStore.Push(workloadmeta.SourceKubeAPIServer, workloadmeta.Event{
 		Type: workloadmeta.EventTypeUnset,
 		Entity: &workloadmeta.KubernetesDeployment{
 			EntityID: workloadmeta.EntityID{

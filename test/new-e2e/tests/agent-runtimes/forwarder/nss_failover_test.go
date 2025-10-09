@@ -142,7 +142,7 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisi
 		if err != nil {
 			return err
 		}
-		// export the docker manager configurartion to the environment, this will automatically initialize the docker client
+		// export the docker manager configuration to the environment, this will automatically initialize the docker client
 		err = dockerManager.Export(ctx, &env.Docker.ManagerOutput)
 		if err != nil {
 			return err
@@ -162,13 +162,41 @@ func TestMultiFakeintakeSuite(t *testing.T) {
 	e2e.Run(t, &multiFakeIntakeSuite{}, e2e.WithProvisioner(multiFakeIntakeAWS()))
 }
 
+// BeforeTest ensures that both fakeintakes are not in use before the test starts
+//
+// This is necessary due to fakeintake IP reuse, sometimes the fakeintake is destroyed before the Agent / host is,
+// and the Agent keeps sending payloads to the fakeintake, which can cause errors if the IP is reused too quickly.
+// See https://datadoghq.atlassian.net/browse/ACIX-1005.
+func (v *multiFakeIntakeSuite) BeforeTest(suiteName, testName string) {
+	v.BaseSuite.BeforeTest(suiteName, testName)
+
+	maxWaitTime := 10 * time.Minute
+
+	checkNotUsed := func(intake *fi.Client) {
+		require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+			intake.FlushServerAndResetAggregators()
+
+			// give time to the agent to flush to the intake
+			time.Sleep(intakeUnusedWaitTime)
+
+			stats, err := intake.RouteStats()
+			require.NoError(t, err)
+			assert.Empty(t, stats)
+
+		}, maxWaitTime, intakeTick)
+	}
+
+	checkNotUsed(v.Env().Fakeintake1.Client())
+	checkNotUsed(v.Env().Fakeintake2.Client())
+}
+
 // TestNSSFailover tests that the agent correctly picks-up an NSS change of the intake.
 //
 // The test uses two fakeintakes to represent two backends, and the /etc/hosts file for the NSS source,
 // setting-up an entry for the intake, pointing to the first fakeintake, then changing that entry
 // to point to the second fakeintake without restarting the agent.
 //
-// The test checks that metrics, logs, and flares are properly received by the first intake before
+// The test checks that metrics, logs, traces, and flares are properly received by the first intake before
 // the failover, and by the second one after.
 //
 // Note: although the man page of `nsswitch.conf` states that each process using it should only read
@@ -219,7 +247,7 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 	v.requireIntakeNotUsed(v.Env().Fakeintake1.Client(), intakeMaxWaitTime, intakeTick)
 }
 
-// requireIntakeIsUsed checks that the given intakes receives metrics, logs, and flares
+// requireIntakeIsUsed checks that the given intakes receives metrics, logs, traces, and flares
 func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxWaitTime, intakeTick time.Duration) {
 	checkFn := func(t *assert.CollectT) {
 		// check metrics
@@ -254,7 +282,8 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 	require.EventuallyWithT(v.T(), checkFn, intakeMaxWaitTime, intakeTick)
 }
 
-// requireIntakeNotUsed checks that the given intake doesn't receive metrics, logs, and flares
+// requireIntakeNotUsed checks that the given intake doesn't receive any payloads,
+// after sending logs, flares, and traces.
 func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *fi.Client, intakeMaxWaitTime, intakeTick time.Duration) {
 	checkFn := func(t *assert.CollectT) {
 		// flush intake

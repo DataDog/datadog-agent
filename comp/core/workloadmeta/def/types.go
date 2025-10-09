@@ -105,6 +105,9 @@ const (
 	// SourceServiceDiscovery represents service discovery data for processes
 	// detected by the process collector.
 	SourceServiceDiscovery Source = "service_discovery"
+
+	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
+	SourceKubeAPIServer Source = "kubeapiserver"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -1636,8 +1639,8 @@ type Service struct {
 	// UDPPorts is the list of UDP ports the service is listening on
 	UDPPorts []uint16
 
-	// APMInstrumentation indicates the APM instrumentation status
-	APMInstrumentation string
+	// APMInstrumentation indicates if the service is instrumented for APM
+	APMInstrumentation bool
 
 	// Type is the service type (e.g., "web_service")
 	Type string

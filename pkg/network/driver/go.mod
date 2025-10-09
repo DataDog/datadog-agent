@@ -4,9 +4,9 @@ go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.1
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.36.0
