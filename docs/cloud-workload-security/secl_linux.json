@@ -14044,8 +14044,8 @@
         "signal.target.parent.user_session",
         "signal.target.user_session"
       ],
-      "constants": "",
-      "constants_link": "",
+      "constants": "UserSessionTypes",
+      "constants_link": "usersessiontypes",
       "examples": []
     },
     {
@@ -21742,6 +21742,25 @@
       "all": [
         {
           "name": "AT_REMOVEDIR",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "UserSessionTypes",
+      "link": "usersessiontypes",
+      "description": "UserSessionTypes are the supported user session types.",
+      "all": [
+        {
+          "name": "unknown",
+          "architecture": "all"
+        },
+        {
+          "name": "k8s",
+          "architecture": "all"
+        },
+        {
+          "name": "ssh",
           "architecture": "all"
         }
       ]
