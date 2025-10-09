@@ -42,8 +42,8 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 
 	// If the parent is a sshd process and the SSH_CLIENT environment variable is set, we consider it's a new ssh session
 	if parent != nil && strings.Contains(parent.Comm, "sshd") && sshClientVar != "" {
-		sshSessionId := rand.Uint64()
-		event.ProcessContext.UserSession.ID = sshSessionId
+		sshSessionID := rand.Uint64()
+		event.ProcessContext.UserSession.ID = sshSessionID
 		event.ProcessContext.UserSession.SessionType = int(usersession.UserSessionTypeSSH)
 		parts := strings.Fields(sshClientVar)
 		if len(parts) >= 2 {
@@ -66,7 +66,8 @@ func getIPfromEnv(ipStr string) net.IPNet {
 				IP:   ip,
 				Mask: net.CIDRMask(32, 32),
 			}
-		} else {
+		} else if ip.To16() != nil {
+			//TODO : test IPv6
 			return net.IPNet{
 				IP:   ip,
 				Mask: net.CIDRMask(128, 128),
