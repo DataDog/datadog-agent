@@ -3443,6 +3443,9 @@ Definition: Type of the user session
 `*.session_type` has 14 possible prefixes:
 `exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
+Constants: [UserSessionTypes](#usersessiontypes)
+
+
 
 ### `*.size` {#common-networkcontext-size-doc}
 Type: int
@@ -6292,6 +6295,15 @@ Unlink flags are the supported flags for the unlink syscall.
 | Name | Architectures |
 | ---- |---------------|
 | `AT_REMOVEDIR` | all |
+
+### `UserSessionTypes` {#usersessiontypes}
+UserSessionTypes are the supported user session types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `unknown` | all |
+| `k8s` | all |
+| `ssh` | all |
 
 ### `Virtual Memory flags` {#virtual-memory-flags}
 Virtual Memory flags define the protection of a virtual memory segment.
