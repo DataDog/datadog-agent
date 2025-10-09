@@ -106,6 +106,38 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		assert.True(t, called, "request not proxied")
 	})
 
+	t.Run("ok_additional_endpoints_debugger", func(t *testing.T) {
+		numEndpoints := 2
+		var numCalls atomic.Int32
+		conf := getConf()
+		srvs := make([]*httptest.Server, 0, numEndpoints)
+		for i := 0; i < numEndpoints; i++ {
+			srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+				ddtags := req.URL.Query().Get("ddtags")
+				assert.Equal(t, "host:myhost,default_env:test,agent_version:v1", ddtags, "got unexpected additional tags")
+				numCalls.Add(1)
+			}))
+			srvs = append(srvs, srv)
+			if i == 0 {
+				conf.DebuggerIntakeProxy.DDURL = srv.URL
+				continue
+			}
+			conf.DebuggerIntakeProxy.AdditionalEndpointsDebugger[srv.URL] = []string{"foo"}
+		}
+		defer func() {
+			for _, srv := range srvs {
+				srv.Close()
+			}
+		}()
+		req, err := http.NewRequest("POST", "/some/path", strings.NewReader("body"))
+		assert.NoError(t, err)
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.debuggerDiagnosticsProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		var expected atomic.Int32
+		expected.Store(int32(numEndpoints))
+		assert.Equal(t, expected, numCalls, "requests not proxied, expected %d calls, got %d", numEndpoints, numCalls)
+	})
+
 	t.Run("ok_truncate_ddtags", func(t *testing.T) {
 		tooLongString := strings.Repeat("x", 10000)
 		var called bool
@@ -296,6 +328,7 @@ func getConf() *traceconfig.AgentConfig {
 	conf := newTestReceiverConfig()
 	conf.DebuggerProxy.AdditionalEndpoints = make(map[string][]string)
 	conf.DebuggerIntakeProxy.AdditionalEndpoints = make(map[string][]string)
+	conf.DebuggerIntakeProxy.AdditionalEndpointsDebugger = make(map[string][]string)
 	conf.DefaultEnv = "test"
 	conf.Hostname = "myhost"
 	conf.AgentVersion = "v1"
