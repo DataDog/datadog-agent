@@ -264,14 +264,14 @@ func (s *Launcher) scan() {
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			// Skip files with invalid fingerprints (Value == 0)
-			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
-				// If fingerprint is invalid, persist the old info back into the map for future attempts
+			// Skip on errors
+			if err != nil {
 				if hasOldInfo {
 					s.oldInfoMap[scanKey] = oldInfo
 				}
 				continue
 			}
+			// allow tailing with invalid fingerprints (empty files)
 		}
 
 		if hasOldInfo {
