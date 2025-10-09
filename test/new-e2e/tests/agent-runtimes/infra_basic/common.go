@@ -12,10 +12,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
@@ -24,6 +26,39 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
 	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+)
+
+var (
+	// allowedChecks lists all checks that should work in basic mode
+	allowedChecks = []string{
+		"cpu",
+		"memory",
+		"disk",
+		"uptime",
+		"load",
+		"network",
+		"ntp",
+		"io",
+		"file_handle",
+		"system_core",
+		"telemetry",
+	}
+
+	// excludedChecks lists integrations that should NOT run in basic mode
+	excludedChecks = []string{
+		"container_lifecycle",
+		"container_image",
+		"container",
+		"kubelet",
+		"docker",
+		"orchestrator_pod",
+		"cri",
+		"containerd",
+		"coredns",
+		"kubernetes_apiserver",
+		"datadog_cluster_agent",
+		"kube_apiserver_metrics",
+	}
 )
 
 // ============================================================================
@@ -45,9 +80,15 @@ type RunnerStats struct {
 	CheckConfigSource string `json:"CheckConfigSource"`
 }
 
+// runnerStatsContainer holds the Checks map
+// The structure is nested: check name -> instance ID -> stats
+type runnerStatsContainer struct {
+	Checks map[string]map[string]RunnerStats `json:"Checks"`
+}
+
 // AgentStatusJSON represents the relevant parts of agent status JSON output
 type AgentStatusJSON struct {
-	RunnerStats map[string]RunnerStats `json:"runnerStats"`
+	RunnerStats runnerStatsContainer `json:"runnerStats"`
 }
 
 // ============================================================================
@@ -55,10 +96,47 @@ type AgentStatusJSON struct {
 // ============================================================================
 
 func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption { //nolint:unused
+	// Agent configuration for basic mode testing
+	const basicModeAgentConfig = `
+api_key: "00000000000000000000000000000000"
+site: "datadoghq.com"
+infrastructure_mode: "basic"
+logs_enabled: false
+apm_config:
+  enabled: false
+process_config:
+  enabled: false
+telemetry:
+  enabled: true
+`
+
+	// Minimal check configuration for integration configs
+	const minimalCheckConfig = `
+init_config:
+instances:
+  - {}
+`
+
+	// Build agent options with basic mode configuration and check configurations
+	agentOptions := []agentparams.Option{
+		agentparams.WithAgentConfig(basicModeAgentConfig),
+	}
+
+	// Add integration configs for all allowed checks
+	for _, checkName := range allowedChecks {
+		agentOptions = append(agentOptions, agentparams.WithIntegration(checkName+".d", minimalCheckConfig))
+	}
+
+	// Add integration configs for excluded checks too (to test they're blocked)
+	for _, checkName := range excludedChecks {
+		agentOptions = append(agentOptions, agentparams.WithIntegration(checkName+".d", minimalCheckConfig))
+	}
+
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
+			awshost.WithAgentOptions(agentOptions...),
 		),
 	))
 
@@ -66,8 +144,8 @@ func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption { //nolint:unused
 }
 
 // getRunnerStats retrieves the runner statistics from the agent status
-func (s *infraBasicSuite) getRunnerStats() (map[string]RunnerStats, error) { //nolint:unused
-	status := s.Env().Agent.Client.Status(agentclient.WithArgs([]string{"--json"}))
+func (s *infraBasicSuite) getRunnerStats() (map[string]map[string]RunnerStats, error) { //nolint:unused
+	status := s.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
 
 	var statusMap AgentStatusJSON
 	err := json.Unmarshal([]byte(status.Content), &statusMap)
@@ -75,71 +153,30 @@ func (s *infraBasicSuite) getRunnerStats() (map[string]RunnerStats, error) { //n
 		return nil, fmt.Errorf("failed to unmarshal agent status: %w", err)
 	}
 
-	return statusMap.RunnerStats, nil
+	return statusMap.RunnerStats.Checks, nil
 }
 
 // isCheckScheduled returns true if the check is scheduled and has run at least once
-func (s *infraBasicSuite) isCheckScheduled(checkName string, stats map[string]RunnerStats) bool { //nolint:unused
-	for _, stat := range stats {
-		if stat.CheckName == checkName && stat.TotalRuns > 0 {
-			return true
+func (s *infraBasicSuite) isCheckScheduled(checkName string, checks map[string]map[string]RunnerStats) bool { //nolint:unused
+	// The checks map is nested: checkName -> instanceID -> stats
+	if instances, exists := checks[checkName]; exists {
+		// Check if any instance of this check has run
+		for _, stat := range instances {
+			if stat.TotalRuns > 0 {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-// verifyCheckRunsWithConfig runs a check and verifies it executed successfully by checking TotalRuns > 0
-func (s *infraBasicSuite) verifyCheckRunsWithConfig(checkName string, checkConfig string, agentConfig string) bool { //nolint:unused
-	env := s.Env()
-	host := env.RemoteHost
-
-	// Write agent config
-	tmpFolder, err := host.GetTmpFolder()
-	if err != nil {
-		s.T().Fatalf("Failed to get tmp folder: %v", err)
-	}
-
-	confFolder := "/etc/datadog-agent"
-	if s.descriptor.Family() == e2eos.WindowsFamily {
-		confFolder = "C:\\ProgramData\\Datadog"
-	}
-
-	extraConfigFilePath := host.JoinPath(tmpFolder, "datadog.yaml")
-	_, err = host.WriteFile(extraConfigFilePath, []byte(agentConfig))
-	if err != nil {
-		s.T().Fatalf("Failed to write agent config: %v", err)
-	}
-
-	// Write check config
-	tmpCheckConfigFile := host.JoinPath(tmpFolder, "check_config.yaml")
-	_, err = host.WriteFile(tmpCheckConfigFile, []byte(checkConfig))
-	if err != nil {
-		s.T().Fatalf("Failed to write check config: %v", err)
-	}
-
-	checkConfigDir := fmt.Sprintf("%s.d", checkName)
-	configFile := host.JoinPath(confFolder, "conf.d", checkConfigDir, "conf.yaml")
-
-	// Create directory if it doesn't exist and copy config
-	checkConfigDirPath := host.JoinPath(confFolder, "conf.d", checkConfigDir)
-	if s.descriptor.Family() == e2eos.WindowsFamily {
-		_, _ = host.Execute(fmt.Sprintf("if not exist \"%s\" mkdir \"%s\"", checkConfigDirPath, checkConfigDirPath))
-		_, err = host.Execute(fmt.Sprintf("copy %s %s", tmpCheckConfigFile, configFile))
-	} else {
-		// Create directory and set ownership to dd-agent
-		_, _ = host.Execute(fmt.Sprintf("sudo mkdir -p %s", checkConfigDirPath))
-		_, _ = host.Execute(fmt.Sprintf("sudo chown dd-agent:dd-agent %s", checkConfigDirPath))
-		_, err = host.Execute(fmt.Sprintf("sudo cp %s %s", tmpCheckConfigFile, configFile))
-		if err == nil {
-			_, _ = host.Execute(fmt.Sprintf("sudo chown dd-agent:dd-agent %s", configFile))
-		}
-	}
-	if err != nil {
-		s.T().Fatalf("Failed to copy check config: %v", err)
-	}
+// verifyCheckRuns runs a check and verifies it executed successfully
+// All check configs are already provisioned during suite setup
+func (s *infraBasicSuite) verifyCheckRuns(checkName string) bool { //nolint:unused
+	host := s.Env().RemoteHost
 
 	// Run the check and parse JSON output
-	output, err := host.Execute(fmt.Sprintf("sudo datadog-agent check %s --json --extracfgpath %s", checkName, extraConfigFilePath))
+	output, err := host.Execute(fmt.Sprintf("sudo datadog-agent check %s --json", checkName))
 	if err != nil {
 		s.T().Logf("Check %s failed to execute: %v", checkName, err)
 		return false
@@ -170,117 +207,84 @@ func (s *infraBasicSuite) verifyCheckRunsWithConfig(checkName string, checkConfi
 // Test Functions
 // ============================================================================
 
+// assertAllowedChecksWork verifies that allowed checks work in basic mode.
+// Tests both scheduler behavior (via status API) and CLI behavior.
+// Note: Check configurations are provisioned during suite setup via agentparams.WithIntegration()
+func (s *infraBasicSuite) assertAllowedChecksWork() { //nolint:unused
+	s.T().Run("via_status_api", func(t *testing.T) {
+		// Verify all checks are scheduled and running by querying agent status
+		t.Logf("Testing %d checks via status API...", len(allowedChecks))
+		var cachedStats map[string]map[string]RunnerStats
+		var statsErr error
+
+		for _, checkName := range allowedChecks {
+			t.Logf("Waiting for check %s to appear in runner stats...", checkName)
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				// Only refetch stats if check isn't found yet
+				if cachedStats == nil || !s.isCheckScheduled(checkName, cachedStats) {
+					cachedStats, statsErr = s.getRunnerStats()
+					if !assert.NoError(c, statsErr, "Failed to get runner stats") {
+						t.Logf("Failed to retrieve runner stats, will retry...")
+						return
+					}
+					t.Logf("Fetched runner stats with %d check types", len(cachedStats))
+				}
+
+				scheduled := s.isCheckScheduled(checkName, cachedStats)
+				if !scheduled {
+					t.Logf("Check %s not yet scheduled (found %d check types in runner stats), refetching...", checkName, len(cachedStats))
+					// Clear cache to force refetch on next iteration
+					cachedStats = nil
+				} else {
+					t.Logf("Check %s found in runner stats and has run", checkName)
+				}
+				assert.True(c, scheduled, "Check %s should be scheduled and running in basic mode", checkName)
+			}, 2*time.Minute, 5*time.Second, "Check %s did not appear in runner stats within 2 minutes", checkName)
+		}
+	})
+
+	s.T().Run("via_cli", func(t *testing.T) {
+		// Also verify all checks can be run via CLI
+		// No need to setup configs - they're already provisioned during suite setup
+		t.Logf("Testing %d checks via CLI...", len(allowedChecks))
+		for _, checkName := range allowedChecks {
+			ran := s.verifyCheckRuns(checkName)
+			assert.True(t, ran, "Check %s must be runnable via CLI in basic mode", checkName)
+		}
+	})
+}
+
 // assertExcludedChecksAreBlocked verifies that excluded checks are blocked in basic mode.
 // Tests both scheduler behavior (via status API) and CLI behavior.
+// Note: Excluded check configurations are provisioned during suite setup to verify they're blocked
 func (s *infraBasicSuite) assertExcludedChecksAreBlocked() { //nolint:unused
-	// List of integrations that should NOT run in basic mode
-	excludedChecks := []string{
-		"container_lifecycle",
-		"container_image",
-		"container",
-		"kubelet",
-		"docker",
-		"orchestrator_pod",
-		"cri",
-		"containerd",
-		"coredns",
-		"kubernetes_apiserver",
-		"datadog_cluster_agent",
-		"kube_apiserver_metrics",
-	}
-
-	agentConfig := `
-api_key: "00000000000000000000000000000000"
-site: "datadoghq.com"
-infrastructure_mode: "basic"
-logs_enabled: false
-apm_config:
-  enabled: false
-process_config:
-  enabled: false
-telemetry:
-  enabled: true
-`
-
-	checkConfig := `
-init_config:
-instances:
-  - {}
-`
-
 	s.T().Run("via_status_api", func(t *testing.T) {
-		// First, verify checks are NOT scheduled by querying running agent
+		// Verify checks are NOT scheduled by querying running agent
+		// Wait a bit to ensure the scheduler had time to load checks
+		t.Logf("Waiting 30s to ensure scheduler has time to load checks...")
+		time.Sleep(30 * time.Second)
+
+		t.Logf("Retrieving runner stats to verify excluded checks are not scheduled...")
 		stats, err := s.getRunnerStats()
 		require.NoError(t, err, "Agent must be running for status API test")
 
+		t.Logf("Found %d check types in runner stats, verifying excluded checks are not present...", len(stats))
+
 		for _, checkName := range excludedChecks {
 			scheduled := s.isCheckScheduled(checkName, stats)
+			if !scheduled {
+				t.Logf("Check %s correctly not scheduled in basic mode", checkName)
+			}
 			assert.False(t, scheduled, "Check %s should NOT be scheduled in basic mode", checkName)
 		}
 	})
 
 	s.T().Run("via_cli", func(t *testing.T) {
-		// Then verify checks are blocked via CLI
+		// Verify checks are blocked via CLI even though configs exist
+		t.Logf("Testing %d excluded checks via CLI...", len(excludedChecks))
 		for _, checkName := range excludedChecks {
-			ran := s.verifyCheckRunsWithConfig(checkName, checkConfig, agentConfig)
+			ran := s.verifyCheckRuns(checkName)
 			assert.False(t, ran, "Check %s should be blocked via CLI in basic mode", checkName)
-		}
-	})
-}
-
-// assertAllowedChecksWork verifies that allowed checks work in basic mode.
-// Tests both scheduler behavior (via status API) and CLI behavior.
-func (s *infraBasicSuite) assertAllowedChecksWork() { //nolint:unused
-	// List of checks from the infra basic allowlist
-	allowedChecks := []string{
-		"cpu",
-		"memory",
-		"disk",
-		"uptime",
-		"load",
-		"network",
-		"ntp",
-		"io",
-		"file_handle",
-		"system_core",
-		"telemetry",
-	}
-
-	agentConfig := `
-api_key: "00000000000000000000000000000000"
-site: "datadoghq.com"
-infrastructure_mode: "basic"
-logs_enabled: false
-apm_config:
-  enabled: false
-process_config:
-  enabled: false
-telemetry:
-  enabled: true
-`
-
-	checkConfig := `
-init_config:
-instances:
-  - {}
-`
-
-	s.T().Run("via_status_api", func(t *testing.T) {
-		// First, verify checks are actually scheduled by querying running agent
-		stats, err := s.getRunnerStats()
-		require.NoError(t, err, "Agent must be running for status API test")
-
-		for _, checkName := range allowedChecks {
-			scheduled := s.isCheckScheduled(checkName, stats)
-			assert.True(t, scheduled, "Check %s should be scheduled and running in basic mode", checkName)
-		}
-	})
-
-	s.T().Run("via_cli", func(t *testing.T) {
-		// Then verify checks can be run via CLI
-		for _, checkName := range allowedChecks {
-			ran := s.verifyCheckRunsWithConfig(checkName, checkConfig, agentConfig)
-			assert.True(t, ran, "Check %s must be runnable via CLI in basic mode", checkName)
 		}
 	})
 }
