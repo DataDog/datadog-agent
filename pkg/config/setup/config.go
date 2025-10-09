@@ -2213,7 +2213,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	err := loadCustom(config, additionalKnownEnvVars)
+	err := loadCustom(config, additionalEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			return log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)

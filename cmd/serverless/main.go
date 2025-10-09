@@ -402,7 +402,7 @@ func loadConfig(secretComp secrets.Component) {
 	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
 	ddcfg.SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
-	if _, err := pkgconfigsetup.LoadDatadog(ddcfg, secretComp, nil); err != nil {
+	if err := pkgconfigsetup.LoadDatadog(ddcfg, secretComp, nil); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
 }

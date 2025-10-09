@@ -473,7 +473,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadog(config, resolver, nil)
+			err := LoadDatadog(config, resolver, nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -584,7 +584,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadog(config, resolver, nil)
+			err := LoadDatadog(config, resolver, nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1553,7 +1553,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	_, err = LoadDatadog(cfg, secretsmock.New(t), []string{})
+	err = LoadDatadog(cfg, secretsmock.New(t), []string{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
