@@ -1036,6 +1036,14 @@ Network directions are the supported directions of network packets.
 | `INGRESS` | all |
 | `EGRESS` | all |
 
+### `SSHAuthMethod` {#sshauthmethod}
+SSH authentication methods.
+
+| Name | Architectures |
+| ---- |---------------|
+| `password` | all |
+| `publickey` | all |
+
 ### `UserSessionTypes` {#usersessiontypes}
 UserSessionTypes are the supported user session types.
 

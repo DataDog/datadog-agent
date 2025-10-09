@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -43,7 +44,7 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 	if parent != nil && strings.Contains(parent.Comm, "sshd") && sshClientVar != "" {
 		sshSessionId := rand.Uint64()
 		event.ProcessContext.UserSession.ID = sshSessionId
-		event.ProcessContext.UserSession.SessionType = 2
+		event.ProcessContext.UserSession.SessionType = int(usersession.UserSessionTypeSSH)
 		parts := strings.Fields(sshClientVar)
 		if len(parts) >= 2 {
 			event.ProcessContext.UserSession.SSHClientIP = getIPfromEnv(parts[0])

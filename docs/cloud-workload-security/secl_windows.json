@@ -2715,6 +2715,21 @@
       ]
     },
     {
+      "name": "SSHAuthMethod",
+      "link": "sshauthmethod",
+      "description": "SSH authentication methods.",
+      "all": [
+        {
+          "name": "password",
+          "architecture": "all"
+        },
+        {
+          "name": "publickey",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "UserSessionTypes",
       "link": "usersessiontypes",
       "description": "UserSessionTypes are the supported user session types.",
