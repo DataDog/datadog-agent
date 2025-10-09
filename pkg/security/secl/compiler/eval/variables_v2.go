@@ -108,7 +108,7 @@ func (def *definition[T]) GetInstance(ctx *Context) (Instance, error) {
 
 	scope, err := def.scoper.GetScope(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get scope `%s` of variable `%s`: %w", def.scoper.Type(), def.name, err)
+		return nil, &ErrScopeFailure{VarName: def.name, ScoperType: def.scoper.scoperType, ScoperErr: err}
 	}
 
 	key, ok := scope.Key()

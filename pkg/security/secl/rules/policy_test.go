@@ -801,7 +801,11 @@ func TestActionSetEmptyScope(t *testing.T) {
 	assert.True(t, ok)
 	assert.NotNil(t, definition)
 	stringArrayScopedVar, err := definition.GetInstance(ctx)
-	assert.NoError(t, err)
+	var expectedErr *eval.ErrScopeFailure
+	assert.ErrorAs(t, err, &expectedErr)
+	assert.Equal(t, expectedErr.VarName, "scopedvar1")
+	assert.Equal(t, expectedErr.ScoperType, eval.ProcessScoperType)
+	assert.Equal(t, expectedErr.ScoperErr.Error(), "failed to get process scope")
 	assert.Nil(t, stringArrayScopedVar)
 	assert.Len(t, definition.GetInstances(), 0)
 
@@ -813,7 +817,12 @@ func TestActionSetEmptyScope(t *testing.T) {
 	// assert.Nil(t, value)
 	// assert.False(t, set)
 	stringArrayScopedVar, err = definition.GetInstance(ctx)
-	assert.NoError(t, err)
+	assert.ErrorAs(t, err, &expectedErr)
+	assert.Equal(t, expectedErr.VarName, "scopedvar1")
+	assert.Equal(t, expectedErr.ScoperType, eval.ProcessScoperType)
+	assert.Equal(t, expectedErr.ScoperErr.Error(), "failed to get process scope")
+	assert.Nil(t, stringArrayScopedVar)
+	assert.Len(t, definition.GetInstances(), 0)
 	assert.Nil(t, stringArrayScopedVar)
 	assert.Len(t, definition.GetInstances(), 0)
 }
