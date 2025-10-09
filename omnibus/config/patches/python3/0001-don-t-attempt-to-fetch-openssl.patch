@@ -1,0 +1,25 @@
+From 47c3b011547aae2d728925ad9c44fb2c9acb2626 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Tue, 27 May 2025 10:57:12 +0200
+Subject: [PATCH] don't attempt to fetch openssl
+
+Instead, fail at build time if the expected version isn't found
+---
+ PCbuild/get_externals.bat | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/PCbuild/get_externals.bat b/PCbuild/get_externals.bat
+index e29054f5734..3f2a4c9a8cd 100644
+--- a/PCbuild/get_externals.bat
++++ b/PCbuild/get_externals.bat
+@@ -79,7 +79,6 @@ echo.Fetching external binaries...
+ 
+ set binaries=
+ if NOT "%IncludeLibffi%"=="false"  set binaries=%binaries% libffi-3.4.4
+-if NOT "%IncludeSSL%"=="false"     set binaries=%binaries% openssl-bin-3.0.16.2
+ if NOT "%IncludeTkinter%"=="false" set binaries=%binaries% tcltk-8.6.15.0
+ if NOT "%IncludeSSLSrc%"=="false"  set binaries=%binaries% nasm-2.11.06
+ if NOT "%IncludeLLVM%"=="false"    set binaries=%binaries% llvm-19.1.7.0
+-- 
+2.34.1
+
