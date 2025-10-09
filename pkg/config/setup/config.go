@@ -2203,7 +2203,7 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadog reads config files and initializes config with decrypted secrets
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -2213,20 +2213,19 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	warnings := &pkgconfigmodel.Warnings{}
-	err := LoadCustom(config, additionalKnownEnvVars)
+	err := loadCustom(config, additionalKnownEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
-			return warnings, log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+			return log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 		}
-		return warnings, err
+		return err
 	}
 
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
 	if err := ResolveSecrets(config, secretResolver, "datadog.yaml"); err != nil {
-		return warnings, err
+		return err
 	}
 
 	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
@@ -2238,7 +2237,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	err = checkConflictingOptions(config)
 	if err != nil {
-		return warnings, err
+		return err
 	}
 
 	sanitizeAPIKeyConfig(config, "api_key")
@@ -2255,16 +2254,21 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		scrubber.AddStrippedKeys(scrubberAdditionalKeys)
 	}
 
-	return warnings, setupFipsEndpoints(config)
+	return setupFipsEndpoints(config)
 }
 
-// LoadCustom reads config into the provided config object
-func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
+// LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
+func LoadSystemProbe(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
+	return loadCustom(config, additionalKnownEnvVars)
+}
+
+// loadCustom reads config into the provided config object
+func loadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
 		if pkgconfigenv.IsLambda() {
 			log.Debug("No config file detected, using environment variable based configuration only")
-			// The remaining code in LoadCustom is not run to keep a low cold start time
+			// The remaining code in loadCustom is not run to keep a low cold start time
 			return nil
 		}
 		return err
