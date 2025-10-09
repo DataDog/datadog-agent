@@ -248,7 +248,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
 	return vpcSubnets, nil
 }
 
-func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry) {
+func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
@@ -258,14 +258,14 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 		return
 	}
 	startTime := s.TimeNowFn()
-	_ = s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1)
-	for _, conn := range conns {
+	_ = s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns.Conns)), []string{}, 1)
+	for _, conn := range conns.Conns {
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
 			protocol := convertProtocol(conn.GetType())
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
 		}
-		pathtest := s.makePathtest(conn, dns)
+		pathtest := s.makePathtest(conn, conns.Dns)
 
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
