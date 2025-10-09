@@ -26,6 +26,9 @@
     TEAM: agent-delivery
     EXTRA_PARAMS: --osdescriptors $E2E_DESCRIPTORS
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_ddot_oci
 
 .new-e2e_script_upgrade7:
   stage: e2e_install_packages

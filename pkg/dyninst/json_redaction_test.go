@@ -221,6 +221,10 @@ var defaultRedactors = []jsonRedactor{
 		replacerFunc(redactNonZeroAddress),
 	),
 	redactor(
+		exactMatcher(`/debugger/snapshot/captures/return/locals/~0r0/value`),
+		regexpStringReplacer("0x[[:xdigit:]]+", "0x[addr]"),
+	),
+	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/entry/arguments/redactMyEntries", "/entries"},
 		replacement(`"[redacted-entries]"`),
 	),
@@ -338,7 +342,14 @@ func regexpStringReplacer(pat, replacement string) replacer {
 func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactors []jsonRedactor) []byte {
 	d := jsontext.NewDecoder(bytes.NewReader(input))
 	var buf bytes.Buffer
-	e := jsontext.NewEncoder(&buf, jsontext.WithIndent("  "), jsontext.WithIndentPrefix("  "))
+	e := jsontext.NewEncoder(
+		&buf,
+		jsontext.WithIndent("  "),
+		jsontext.WithIndentPrefix("  "),
+		jsontext.PreserveRawStrings(false),
+		jsontext.EscapeForHTML(false),
+		jsontext.EscapeForJS(false),
+	)
 	ptrPrefix = jsontext.Pointer(strings.TrimSuffix(string(ptrPrefix), "/"))
 	stackPtr := func() jsontext.Pointer {
 		return jsontext.Pointer(
