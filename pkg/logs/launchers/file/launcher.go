@@ -264,14 +264,13 @@ func (s *Launcher) scan() {
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			// Skip on errors
-			if err != nil {
+			// Skip files with invalid fingerprints (Value == 0)
+			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
 				if hasOldInfo {
 					s.oldInfoMap[scanKey] = oldInfo
 				}
 				continue
 			}
-			// allow tailing with invalid fingerprints (empty files)
 		}
 
 		if hasOldInfo {
@@ -505,10 +504,6 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
-
-	// Remove the rotated tailer from the active container so a fresh tailer can
-	// be created for the new file while this one finishes draining the old file.
-	s.tailers.Remove(oldTailer)
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()
