@@ -75,6 +75,7 @@ func (l *localAPIImpl) Stop(ctx context.Context) error {
 
 func (l *localAPIImpl) handler() http.Handler {
 	r := mux.NewRouter().Headers("Content-Type", "application/json").Subrouter()
+	r.HandleFunc("/health", l.health).Methods(http.MethodGet)
 	r.HandleFunc("/status", l.status).Methods(http.MethodGet)
 	r.HandleFunc("/catalog", l.setCatalog).Methods(http.MethodPost)
 	r.HandleFunc("/config_catalog", l.setConfigCatalog).Methods(http.MethodPost)
@@ -88,6 +89,11 @@ func (l *localAPIImpl) handler() http.Handler {
 	r.HandleFunc("/{package}/install", l.install).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/remove", l.remove).Methods(http.MethodPost)
 	return r
+}
+
+func (l *localAPIImpl) health(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 }
 
 func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {

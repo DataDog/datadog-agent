@@ -120,5 +120,27 @@ func (b *Backend) RemoteConfigStatus() (RemoteConfigState, error) {
 }
 
 func (b *Backend) runDaemonCommand(command string, args ...string) (string, error) {
-	return b.remote.Execute(fmt.Sprintf("sudo DD_BUNDLED_AGENT=installer datadog-agent daemon %s %s", command, strings.Join(args, " ")))
+	err := b.waitForInstallerSocket()
+	if err != nil {
+		return "", err
+	}
+	var sanitizedArgs []string
+	for _, arg := range args {
+		arg = `"` + strings.ReplaceAll(arg, `"`, `\"`) + `"`
+		sanitizedArgs = append(sanitizedArgs, arg)
+	}
+	return b.remote.Execute(fmt.Sprintf("sudo DD_BUNDLED_AGENT=installer datadog-agent daemon %s %s", command, strings.Join(sanitizedArgs, " ")))
+}
+
+func (b *Backend) waitForInstallerSocket() error {
+	path := "/opt/datadog-packages/run/installer.sock"
+	_, err := b.remote.Execute(fmt.Sprintf("timeout=30; file=%s; while [ ! sudo -f $file ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path))
+	if err != nil {
+		return err
+	}
+	_, err = b.remote.Execute(fmt.Sprintf("timeout=30; curl --unix-socket %s -H 'Content-Type: application/json' http://installer/health; while [ $? -ne 0 ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path))
+	if err != nil {
+		return err
+	}
+	return nil
 }
