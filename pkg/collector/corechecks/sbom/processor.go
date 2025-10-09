@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -31,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/procfs"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -229,6 +231,24 @@ func (p *processor) unregisterContainer(ctr *workloadmeta.Container) {
 	}
 }
 
+var (
+	hostCCRIDLock sync.Mutex
+	hostCCRID     string
+)
+
+func queryHostCCRID(ctx context.Context, log logcomp.Component) string {
+	hostCCRIDLock.Lock()
+	defer hostCCRIDLock.Unlock()
+
+	if hostCCRID != "" {
+		return hostCCRID
+	}
+
+	detectedCloud, _ := cloudproviders.DetectCloudProvider(ctx, false, log)
+	hostCCRID = cloudproviders.GetHostCCRID(ctx, detectedCloud)
+	return hostCCRID
+}
+
 func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	log.Debugf("processing host scanresult: %v", result)
 	sbom := &model.SBOMEntity{
@@ -238,6 +258,11 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 		InUse:              true,
 		GeneratedAt:        timestamppb.New(result.CreatedAt),
 		GenerationDuration: bomconvert.ConvertDuration(result.Duration),
+	}
+
+	// add the CCRID tag if available
+	if ccrid := queryHostCCRID(context.Background(), p.log); ccrid != "" {
+		sbom.DdTags = append(sbom.DdTags, "dd_resource_key:"+ccrid)
 	}
 
 	if result.Error != nil {
