@@ -37,6 +37,7 @@ from tasks import (
     gitlab_helpers,
     go,
     go_deps,
+    google_tasks,
     installer,
     invoke_unit_tests,
     issue,
@@ -194,6 +195,7 @@ ns.add_collection(epforwarder)
 ns.add_collection(fips)
 ns.add_collection(go)
 ns.add_collection(go_deps)
+ns.add_collection(google_tasks, "google")
 ns.add_collection(linter)
 ns.add_collection(msi)
 ns.add_collection(git)
