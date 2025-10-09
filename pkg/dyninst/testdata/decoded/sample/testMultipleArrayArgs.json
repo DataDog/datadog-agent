@@ -1,0 +1,115 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMultipleArrayArgs",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testMultipleArrayArgs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 349
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 427
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testMultipleArrayArgs",
+          "location": {
+            "method": "main.testMultipleArrayArgs"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "[2]int",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "51"
+                  },
+                  {
+                    "type": "int",
+                    "value": "52"
+                  }
+                ]
+              },
+              "b": {
+                "type": "[3]int",
+                "size": "3",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "63"
+                  },
+                  {
+                    "type": "int",
+                    "value": "64"
+                  },
+                  {
+                    "type": "int",
+                    "value": "65"
+                  }
+                ]
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "int",
+                "value": "114"
+              },
+              "~r1": {
+                "type": "[2]int",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "510"
+                  },
+                  {
+                    "type": "int",
+                    "value": "520"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]
