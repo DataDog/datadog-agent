@@ -623,26 +623,26 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *mode
 }
 
 // ResolveSSHUsername resolves the ssh username of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHUsername(_ *model.Event, evtCtx *model.UserSessionContext) string {
+func (fh *EBPFLessFieldHandlers) ResolveSSHUsername(_ *model.Event, _ *model.UserSessionContext) string {
 	return "" // EBPFLess mode does not support SSH
 }
 
 // ResolveSSHClientIP resolves the ssh username of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, evtCtx *model.UserSessionContext) net.IPNet {
+func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, _ *model.UserSessionContext) net.IPNet {
 	return net.IPNet{} // EBPFLess mode does not support SSH
 }
 
 // ResolveSSHAuthMethod resolves the ssh auth method of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHAuthMethod(_ *model.Event, evtCtx *model.UserSessionContext) int {
+func (fh *EBPFLessFieldHandlers) ResolveSSHAuthMethod(_ *model.Event, _ *model.UserSessionContext) int {
 	return 0 // EBPFLess mode does not support SSH
 }
 
 // ResolveSSHPublicKey resolves the public key of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHPublicKey(_ *model.Event, evtCtx *model.UserSessionContext) string {
+func (fh *EBPFLessFieldHandlers) ResolveSSHPublicKey(_ *model.Event, _ *model.UserSessionContext) string {
 	return "" //EBPFLess mode does not support SSH
 }
 
 // ResolveSSHPort resolves the public key of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHPort(_ *model.Event, evtCtx *model.UserSessionContext) int {
+func (fh *EBPFLessFieldHandlers) ResolveSSHPort(_ *model.Event, _ *model.UserSessionContext) int {
 	return 0 //EBPFLess mode does not support SSH port
 }

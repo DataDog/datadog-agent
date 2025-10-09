@@ -244,7 +244,6 @@ func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.U
 	defer r.Unlock()
 
 	f, err := os.OpenFile("/var/log/auth.log", os.O_RDONLY, 0644)
-	defer f.Close()
 	if err != nil {
 		// Fallback for Red Hat / CentOS / Fedora
 		f, err = os.OpenFile("/var/log/secure", os.O_RDONLY, 0644)
@@ -261,6 +260,7 @@ func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.U
 			}
 		}
 	}
+	defer f.Close()
 
 	var lines []string
 	sc := bufio.NewScanner(f)
