@@ -391,6 +391,7 @@ func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *tag
 
 func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) *types.TagInfo {
 	tagList.AddOrchestrator(tags.KubePod, pod.Name)
+	tagList.AddHigh(tags.KubePodUID, pod.UID)
 	tagList.AddLow(tags.KubeNamespace, pod.Namespace)
 	tagList.AddLow(tags.PodPhase, strings.ToLower(pod.Phase))
 	tagList.AddLow(tags.KubePriorityClass, pod.PriorityClass)

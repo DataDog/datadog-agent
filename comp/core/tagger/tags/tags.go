@@ -225,6 +225,8 @@ const (
 	ContainerName = "container_name"
 	// ContainerID is the tag for the container ID
 	ContainerID = "container_id"
+	// KubePodUID is the tag for the pod UID
+	KubePodUID = "kube_pod_uid"
 	// RancherContainer is the tag for the Rancher container name
 	RancherContainer = "rancher_container"
 )
