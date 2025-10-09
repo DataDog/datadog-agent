@@ -29,18 +29,10 @@ func TestInfraBasicLinuxSuite(t *testing.T) {
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
 
-func (s *infraBasicLinuxSuite) TestBasicChecksWork() {
-	s.assertBasicChecksWork()
+func (s *infraBasicLinuxSuite) TestAllowedChecksWork() {
+	s.assertAllowedChecksWork()
 }
 
-func (s *infraBasicLinuxSuite) TestExcludedIntegrationsDoNotRun() {
-	s.assertExcludedIntegrationsDoNotRun()
-}
-
-func (s *infraBasicLinuxSuite) TestAdditionalChecksConfiguration() {
-	s.assertAdditionalChecksConfiguration()
-}
-
-func (s *infraBasicLinuxSuite) TestSchedulerFiltering() {
-	s.assertSchedulerFiltering()
+func (s *infraBasicLinuxSuite) TestExcludedChecksAreBlocked() {
+	s.assertExcludedChecksAreBlocked()
 }
