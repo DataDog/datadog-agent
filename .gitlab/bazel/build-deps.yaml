@@ -9,25 +9,25 @@ bazel:build-deps:linux-amd64:
   extends: [ .bazel:build-deps, .linux_x64 ]
   tags: [ "arch:amd64", "specific:true" ]
   script:
-    - bazel build //deps/... @libffi
+    - bazel build //deps/...
 
 bazel:build-deps:linux-arm64:
   extends: [ .bazel:build-deps, .linux_arm64 ]
   tags: [ "arch:arm64", "specific:true" ]
   script:
-    - bazel build //deps/... @libffi
+    - bazel build //deps/...
 
 bazel:build-deps:macos-amd64:
   extends: .bazel:build-deps
   tags: [ "macos:ventura-amd64", "specific:true" ]
   script:
-    - bazel build //deps/... @libffi
+    - bazel build //deps/...
 
 bazel:build-deps:macos-arm64:
   extends: .bazel:build-deps
   tags: [ "macos:ventura-arm64", "specific:true" ]
   script:
-    - bazel build //deps/... @libffi
+    - bazel build //deps/...
 
 # TODO(agent-build): re-enable when we're sure they won't cause problems (#incident-42947)
 bazel:build-deps:windows-amd64:
