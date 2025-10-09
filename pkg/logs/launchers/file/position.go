@@ -61,6 +61,9 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 				whence = io.SeekStart
 			}
 		}
+	case !fingerprintsAlign && value != "":
+		// Fingerprints don't align (rotation detected), start from beginning regardless of mode
+		offset, whence = 0, io.SeekStart
 	case mode == config.Beginning:
 		offset, whence = 0, io.SeekStart
 	case mode == config.End:
