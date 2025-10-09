@@ -82,7 +82,6 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
 def get_omnibus_env(
     ctx,
     skip_sign=False,
-    major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -147,10 +146,7 @@ def get_omnibus_env(
         if hardened_runtime:
             env['HARDENED_RUNTIME_MAC'] = 'true'
 
-    env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
-    )
-    env['MAJOR_VERSION'] = major_version
+    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
 
     # Since omnibus and the invoke task won't run in the same folder
     # we need to input the absolute path of the pip config file
@@ -220,7 +216,6 @@ def build(
     gem_path=None,
     skip_deps=False,
     skip_sign=False,
-    major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -253,7 +248,6 @@ def build(
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
-        major_version=major_version,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
@@ -390,7 +384,6 @@ def manifest(
     base_dir=None,
     gem_path=None,
     skip_sign=False,
-    major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -402,7 +395,6 @@ def manifest(
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
-        major_version=major_version,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
@@ -469,7 +461,7 @@ def build_repackaged_agent(ctx, log_level="info"):
             key=_pipeline_id_of_package,
         )
 
-    env = get_omnibus_env(ctx, skip_sign=True, major_version='7', flavor=AgentFlavor.base)
+    env = get_omnibus_env(ctx, skip_sign=True, flavor=AgentFlavor.base)
 
     env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
     env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256

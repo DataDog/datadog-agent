@@ -46,7 +46,7 @@ require (
 	go.uber.org/fx v1.24.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/net v0.44.0
+	golang.org/x/net v0.45.0
 )
 
 require go.yaml.in/yaml/v2 v2.4.2 // indirect
