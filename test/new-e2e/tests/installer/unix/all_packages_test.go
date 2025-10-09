@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/agent"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/fakefleetbackend"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
@@ -53,6 +55,7 @@ var (
 		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario},
+		{t: testConfig},
 	}
 )
 
@@ -130,7 +133,9 @@ type packageSuite interface {
 
 type packageBaseSuite struct {
 	e2e.BaseSuite[environments.Host]
-	host *host.Host
+	host    *host.Host
+	agent   *agent.Agent
+	backend *fakefleetbackend.Backend
 
 	opts          []awshost.ProvisionerOption
 	pkg           string
@@ -164,6 +169,8 @@ func (s *packageBaseSuite) SetupSuite() {
 
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
+	s.agent = agent.New(s.T, s.Env().RemoteHost)
+	s.backend = fakefleetbackend.New(s.T, s.Env().RemoteHost)
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
 	s.updatePythonOnSuse()

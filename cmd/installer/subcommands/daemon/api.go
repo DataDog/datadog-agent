@@ -31,6 +31,7 @@ type cliParams struct {
 	version string
 	catalog string
 	configs string
+	request []byte
 }
 
 func apiCommands(global *command.GlobalParams) []*cobra.Command {
@@ -56,6 +57,19 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			return experimentFxWrapper(setConfigCatalog, &cliParams{
 				GlobalParams: *global,
 				configs:      args[0],
+			})
+		},
+	}
+
+	remoteAPIRequestCmd := &cobra.Command{
+		Hidden: true,
+		Use:    "remote-api-request request",
+		Short:  "Internal command to test a remote API request",
+		Args:   cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(remoteAPIRequest, &cliParams{
+				GlobalParams: *global,
+				request:      []byte(args[0]),
 			})
 		},
 	}
@@ -171,6 +185,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
 		setCatalogCmd,
 		setConfigCatalogCmd,
+		remoteAPIRequestCmd,
 		startExperimentCmd,
 		stopExperimentCmd,
 		promoteExperimentCmd,
@@ -210,6 +225,15 @@ func setConfigCatalog(params *cliParams, client localapiclient.Component) error 
 	err := client.SetConfigCatalog(params.configs)
 	if err != nil {
 		fmt.Println("Error setting config catalog:", err)
+		return err
+	}
+	return nil
+}
+
+func remoteAPIRequest(params *cliParams, client localapiclient.Component) error {
+	err := client.HandleRemoteAPIRequest(params.request)
+	if err != nil {
+		fmt.Println("Error handling remote API request:", err)
 		return err
 	}
 	return nil

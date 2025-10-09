@@ -78,6 +78,8 @@ type Daemon interface {
 	GetState(ctx context.Context) (map[string]PackageState, error)
 	GetRemoteConfigState() *pbgo.ClientUpdater
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
+
+	HandleRemoteAPIRequest(request remoteAPIRequest) error
 }
 
 type daemonImpl struct {
@@ -314,7 +316,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 			case <-d.stopChan:
 				return
 			case request := <-d.requests:
-				err := d.handleRemoteAPIRequest(request)
+				err := d.HandleRemoteAPIRequest(request)
 				if err != nil {
 					log.Errorf("Daemon: could not handle remote request: %v", err)
 				}
@@ -538,7 +540,7 @@ func (d *daemonImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
 	return nil
 }
 
-func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error) {
+func (d *daemonImpl) HandleRemoteAPIRequest(request remoteAPIRequest) (err error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 	defer d.requestsWG.Done()

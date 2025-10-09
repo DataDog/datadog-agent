@@ -306,7 +306,7 @@ def run(
     if not running_in_ci():
         # Authentication against agent-qa is required for all kubernetes tests, to use the cache
         parsed_params["ddagent:imagePullPassword"] = ctx.run(
-            "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True
+            "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password", hide=True
         ).stdout.strip()
         parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
         parsed_params["ddagent:imagePullUsername"] = "AWS"
