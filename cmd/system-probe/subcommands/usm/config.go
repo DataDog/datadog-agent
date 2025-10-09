@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -73,7 +74,7 @@ func runConfig(sysprobeconfig sysconfigcomponent.Component, params *configParams
 	}
 
 	// Extract service_monitoring_config section
-	usmConfig, ok := fullConfig["service_monitoring_config"].(map[interface{}]interface{})
+	usmConfig, ok := fullConfig["service_monitoring_config"]
 	if !ok {
 		return fmt.Errorf("service_monitoring_config not found in runtime config")
 	}
@@ -82,12 +83,11 @@ func runConfig(sysprobeconfig sysconfigcomponent.Component, params *configParams
 		return outputConfigJSON(usmConfig)
 	}
 
-	return outputConfigHumanReadable(usmConfig)
+	return outputConfigYAML(usmConfig)
 }
 
-// outputConfigHumanReadable prints configuration in a text-based format.
-func outputConfigHumanReadable(cfg map[interface{}]interface{}) error {
-	// Convert YAML data to a formatted output
+// outputConfigYAML prints configuration in YAML format.
+func outputConfigYAML(cfg interface{}) error {
 	yamlData, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
@@ -95,7 +95,7 @@ func outputConfigHumanReadable(cfg map[interface{}]interface{}) error {
 
 	fmt.Println("service_monitoring_config:")
 	// Print with indentation
-	for _, line := range splitLines(string(yamlData)) {
+	for _, line := range strings.Split(string(yamlData), "\n") {
 		if line != "" {
 			fmt.Printf("  %s\n", line)
 		}
@@ -105,61 +105,8 @@ func outputConfigHumanReadable(cfg map[interface{}]interface{}) error {
 }
 
 // outputConfigJSON encodes the configuration as indented JSON.
-func outputConfigJSON(cfg map[interface{}]interface{}) error {
-	// Convert map[interface{}]interface{} to map[string]interface{} for JSON encoding
-	converted := convertToStringMap(cfg)
+func outputConfigJSON(cfg interface{}) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(converted)
-}
-
-// convertToStringMap converts map[interface{}]interface{} to map[string]interface{}
-func convertToStringMap(m map[interface{}]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
-	for k, v := range m {
-		key := fmt.Sprintf("%v", k)
-		switch val := v.(type) {
-		case map[interface{}]interface{}:
-			result[key] = convertToStringMap(val)
-		case []interface{}:
-			result[key] = convertSlice(val)
-		default:
-			result[key] = v
-		}
-	}
-	return result
-}
-
-// convertSlice converts slices that may contain map[interface{}]interface{}
-func convertSlice(s []interface{}) []interface{} {
-	result := make([]interface{}, len(s))
-	for i, v := range s {
-		switch val := v.(type) {
-		case map[interface{}]interface{}:
-			result[i] = convertToStringMap(val)
-		case []interface{}:
-			result[i] = convertSlice(val)
-		default:
-			result[i] = v
-		}
-	}
-	return result
-}
-
-// splitLines splits a string by newlines
-func splitLines(s string) []string {
-	var lines []string
-	current := ""
-	for _, c := range s {
-		if c == '\n' {
-			lines = append(lines, current)
-			current = ""
-		} else {
-			current += string(c)
-		}
-	}
-	if current != "" {
-		lines = append(lines, current)
-	}
-	return lines
+	return encoder.Encode(cfg)
 }

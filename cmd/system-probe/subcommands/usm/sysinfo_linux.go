@@ -19,7 +19,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
