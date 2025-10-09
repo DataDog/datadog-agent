@@ -441,7 +441,7 @@ func (d *HumanReadableDuration) MarshalYAML() (interface{}, error) {
 	if d == nil || d.Duration == 0 {
 		return nil, nil
 	}
-	return int(d.Duration.Nanoseconds()), nil
+	return d.String(), nil
 }
 
 // UnmarshalYAML unmarshals a duration from a human readable format or from an integer
@@ -471,7 +471,7 @@ func (d *HumanReadableDuration) MarshalJSON() ([]byte, error) {
 	if d == nil || d.Duration == 0 {
 		return nil, nil
 	}
-	return json.Marshal(d.Duration.Nanoseconds())
+	return json.Marshal(d.String())
 }
 
 // UnmarshalJSON unmarshals a duration from a human readable format or from an integer
