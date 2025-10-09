@@ -38,7 +38,7 @@ type agentMSISuite struct {
 
 func TestMSI(t *testing.T) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(componentos.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(componentos.WindowsServerDefault)),
 	))}
 
 	agentPackage, err := windowsAgent.GetPackageFromEnv()

@@ -26,7 +26,7 @@ type windowsRuntimeSecretSuite struct {
 
 func TestWindowsRuntimeSecretSuite(t *testing.T) {
 	e2e.Run(t, &windowsRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 	)))
 }
 
@@ -39,7 +39,7 @@ hostname: ENC[hostname]`
 
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			awshost.WithAgentOptions(
 				agentparams.WithFile(`C:/TestFolder/setup_secret.ps1`, string(secretSetupScript), true),
 			),
@@ -50,7 +50,7 @@ hostname: ENC[hostname]`
 
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			awshost.WithAgentOptions(agentparams.WithAgentConfig(config))),
 	)
 

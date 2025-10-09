@@ -23,11 +23,11 @@ type windowsSecretSuite struct {
 }
 
 func TestWindowsSecretSuite(t *testing.T) {
-	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
 }
 
 func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
 
 	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
@@ -37,7 +37,7 @@ func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
 }
 
 func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe"))))
 
 	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
@@ -57,7 +57,7 @@ host_aliases:
 	// We embed a script that file create the secret binary (C:\secret.bat) with the correct permissions
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			awshost.WithAgentOptions(
 				agentparams.WithFile(`C:/TestFolder/setup_secret.ps1`, string(secretSetupScript), true),
 			),
@@ -68,7 +68,7 @@ host_aliases:
 
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			awshost.WithAgentOptions(agentparams.WithAgentConfig(config))),
 	)
 

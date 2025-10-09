@@ -29,7 +29,7 @@ func TestWindowsTestSuite(t *testing.T) {
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
-				awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+				awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 				awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
 			),
 		),
@@ -65,7 +65,7 @@ func (s *windowsTestSuite) TestProcessCheck() {
 func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)),
 	))
 
@@ -88,7 +88,7 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 func (s *windowsTestSuite) TestProcessCheckIO() {
 	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
 	))
 
@@ -134,7 +134,7 @@ func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
 	// Investigation & fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3757
 
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
 	))
 

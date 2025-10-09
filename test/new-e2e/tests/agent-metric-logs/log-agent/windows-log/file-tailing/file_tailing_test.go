@@ -42,7 +42,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsDefault)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault)),
 			awshost.WithAgentOptions(
 				agentparams.WithLogs(),
 				agentparams.WithIntegration("custom_logs.d", logConfig)))),

@@ -27,7 +27,7 @@ func (v *windowsStatusSuite) GetOs() awshost.ProvisionerOption {
 }
 
 func TestWindowsStatusSuite(t *testing.T) {
-	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))
+	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))
 	e2e.Run(t, &windowsStatusSuite{osOption: osOption}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(osOption)))
 }
 

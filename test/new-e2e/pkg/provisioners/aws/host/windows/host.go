@@ -129,7 +129,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 
 	// Make sure to override any OS other than Windows
 	// TODO: Make the Windows version configurable
-	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(os.WindowsDefault))
+	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(os.WindowsServerDefault))
 
 	host, err := ec2.NewVM(awsEnv, params.name, params.instanceOptions...)
 	if err != nil {

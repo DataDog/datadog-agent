@@ -25,7 +25,7 @@ type windowsHealthSuite struct {
 }
 
 func TestWindowsHealthSuite(t *testing.T) {
-	e2e.Run(t, &windowsHealthSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &windowsHealthSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
 }
 
 func (v *windowsHealthSuite) TestDefaultInstallUnhealthy() {
@@ -39,7 +39,7 @@ func (v *windowsHealthSuite) TestDefaultInstallUnhealthy() {
 	err := v.Env().FakeIntake.Client().ConfigureOverride(override)
 	require.NoError(v.T(), err)
 	// restart the agent, which validates the key using the fakeintake at startup
-	v.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+	v.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\n"))))
 
 	require.EventuallyWithT(v.T(), func(collect *assert.CollectT) {
