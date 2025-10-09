@@ -19,8 +19,9 @@ import (
 var virtualMemory = winutil.VirtualMemory
 
 var (
-	swapMemory = winutil.SwapMemory
-	pageMemory = winutil.PagefileMemory
+	swapMemory       = winutil.SwapMemory
+	pageMemory       = winutil.PagefileMemory
+	pagingFileMemory = winutil.PagingFileMemory
 )
 
 // Check doesn't need additional fields
@@ -108,6 +109,18 @@ func (c *Check) Run() error {
 		sender.Gauge("system.mem.pagefile.used", float64(p.Used)/mbSize, "", nil)
 	} else {
 		c.Warnf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
+	}
+
+	pf, errPaging := pagingFileMemory()
+	if errPaging == nil {
+		for _, pf := range pf {
+			sender.Gauge("system.paging.total", float64(pf.Total)/mbSize, "", nil)
+			sender.Gauge("system.paging.free", float64(pf.Available)/mbSize, "", nil)
+			sender.Gauge("system.paging.used", float64(pf.Used)/mbSize, "", nil)
+			sender.Gauge("system.paging.pct_free", float64(100-pf.UsedPercent)/100, "", nil)
+		}
+	} else {
+		c.Warnf("memory.Check: could not retrieve paging file memory stats: %s", errPaging)
 	}
 
 	sender.Commit()
