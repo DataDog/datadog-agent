@@ -10,34 +10,13 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfiltertype"
 )
-
-// FilterType is the filter type struct
-type FilterType string
-
-const (
-	filterTypeInclude FilterType = "include"
-	filterTypeExclude FilterType = "exclude"
-)
-
-type matchDomainStrategyType string
-
-const (
-	matchDomainStrategyWildcard matchDomainStrategyType = "wildcard"
-	matchDomainStrategyRegex    matchDomainStrategyType = "regex"
-)
-
-// Config represent one filter
-type Config struct {
-	Type                FilterType              `mapstructure:"type"`
-	MatchDomain         string                  `mapstructure:"match_domain"`
-	MatchDomainStrategy matchDomainStrategyType `mapstructure:"match_domain_strategy"`
-	MatchIP             string                  `mapstructure:"match_ip"`
-}
 
 // Filter represent one filter
 type Filter struct {
-	Type        FilterType
+	Type        connfiltertype.FilterType
 	matchDomain *regexp.Regexp
 	matchIPCidr *net.IPNet
 }
@@ -48,14 +27,14 @@ type ConnFilter struct {
 }
 
 // NewConnFilter constructor
-func NewConnFilter(config []Config, site string) (*ConnFilter, []error) {
+func NewConnFilter(config []connfiltertype.Config, site string) (*ConnFilter, []error) {
 	defaultConfig := getDefaultConnFilters(site)
 	newConfigs := append(defaultConfig, config...)
 
 	var filters []Filter
 	var errs []error
 	for _, cfg := range newConfigs {
-		if cfg.Type != filterTypeInclude && cfg.Type != filterTypeExclude {
+		if cfg.Type != connfiltertype.FilterTypeInclude && cfg.Type != connfiltertype.FilterTypeExclude {
 			errs = append(errs, fmt.Errorf("invalid filter type: %s", cfg.Type))
 		}
 		var matchDomainRe *regexp.Regexp
@@ -63,9 +42,9 @@ func NewConnFilter(config []Config, site string) (*ConnFilter, []error) {
 		if cfg.MatchDomain != "" {
 			matchDomainStrat := cfg.MatchDomainStrategy
 			if matchDomainStrat == "" {
-				matchDomainStrat = matchDomainStrategyWildcard
+				matchDomainStrat = connfiltertype.MatchDomainStrategyWildcard
 			}
-			if matchDomainStrat != matchDomainStrategyWildcard && matchDomainStrat != matchDomainStrategyRegex {
+			if matchDomainStrat != connfiltertype.MatchDomainStrategyWildcard && matchDomainStrat != connfiltertype.MatchDomainStrategyRegex {
 				errs = append(errs, fmt.Errorf("invalid match domain strategy: %s", matchDomainStrat))
 				continue
 			}
@@ -122,7 +101,7 @@ func (f *ConnFilter) IsIncluded(domain string, ip string) bool {
 			}
 		}
 		if matched {
-			if filter.Type == filterTypeExclude {
+			if filter.Type == connfiltertype.FilterTypeExclude {
 				isIncluded = false
 			} else {
 				isIncluded = true
