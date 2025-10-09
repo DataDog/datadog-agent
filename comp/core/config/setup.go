@@ -19,7 +19,7 @@ import (
 )
 
 // setupConfig loads additional configuration data from yaml files, fleet policies, and command-line options
-func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Component, p Params) (*pkgconfigmodel.Warnings, error) {
+func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Component, p Params) error {
 	confFilePath := p.ConfFilePath
 	configName := p.configName
 	defaultConfPath := p.defaultConfPath
@@ -44,11 +44,11 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 
 	// load extra config file paths
 	if err := config.AddExtraConfigPaths(p.ExtraConfFilePath); err != nil {
-		return nil, err
+		return err
 	}
 
 	// load the configuration
-	warnings, err := pkgconfigsetup.LoadDatatog(config, secretComp, pkgconfigsetup.SystemProbe().GetEnvVars())
+	err := pkgconfigsetup.LoadDatadog(config, secretComp, pkgconfigsetup.SystemProbe().GetEnvVars())
 
 	if err != nil && (!errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message
@@ -61,7 +61,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 		} else {
 			err = fmt.Errorf("unable to load Datadog config file: %w", err)
 		}
-		return warnings, err
+		return err
 	}
 
 	// Load the remote configuration
@@ -72,12 +72,12 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 		// Main config file
 		err := config.MergeFleetPolicy(path.Join(p.FleetPoliciesDirPath, "datadog.yaml"))
 		if err != nil {
-			return warnings, err
+			return err
 		}
 		if p.configLoadSecurityAgent {
 			err := config.MergeFleetPolicy(path.Join(p.FleetPoliciesDirPath, "security-agent.yaml"))
 			if err != nil {
-				return warnings, err
+				return err
 			}
 		}
 	}
@@ -86,5 +86,5 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 		config.Set(k, v, pkgconfigmodel.SourceCLI)
 	}
 
-	return warnings, nil
+	return nil
 }
