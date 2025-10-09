@@ -9,10 +9,6 @@ package nvidia
 
 import (
 	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strconv"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -22,7 +18,6 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func setupMockDeviceWithLibOpts(t *testing.T, customize func(device *mock.Device) *mock.Device, extraLibOpts ...testutil.NvmlMockOption) ddnvml.Device {
@@ -59,21 +54,6 @@ func setupMockDeviceWithLibOpts(t *testing.T, customize func(device *mock.Device
 // If customize is provided, allows overriding specific device functions.
 func setupMockDevice(t *testing.T, customize func(device *mock.Device) *mock.Device) ddnvml.Device {
 	return setupMockDeviceWithLibOpts(t, customize)
-}
-
-func setupFakeProcTaskStatus(t *testing.T, pid, tid uint32, nspid uint32) {
-	hostRoot := os.Getenv("HOST_PROC") // set by TestMain
-	require.Equal(t, hostRoot, kernel.ProcFSRoot())
-
-	dirPath := filepath.Join(
-		hostRoot,
-		strconv.FormatUint(uint64(pid), 10),
-		"task",
-		strconv.FormatUint(uint64(tid), 10))
-	require.NoError(t, os.MkdirAll(dirPath, os.ModePerm))
-
-	content := fmt.Sprintf("Pid: %d\nNSpid: %d\n", tid, nspid)
-	require.NoError(t, os.WriteFile(filepath.Join(dirPath, "status"), []byte(content), os.ModePerm))
 }
 
 func TestNewBaseCollector(t *testing.T) {

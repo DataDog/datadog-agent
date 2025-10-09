@@ -8,8 +8,6 @@
 package nvidia
 
 import (
-	"fmt"
-	"os"
 	"slices"
 	"testing"
 
@@ -23,29 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
-
-// note: this is needed in order to allow mock test procfs scraping in some tests
-func TestMain(m *testing.M) {
-	fakeHostRoot, err := os.MkdirTemp("", "corechecks-gpu-nvidia-*")
-	if err != nil {
-		println(fmt.Sprintf("could not create fake host root dir: %v", err))
-		os.Exit(1)
-	}
-	defer os.RemoveAll(fakeHostRoot)
-
-	if err := os.Setenv("HOST_PROC", fakeHostRoot); err != nil {
-		println(fmt.Sprintf("could not set fake host root env var: %v", err))
-		os.Exit(1)
-	}
-	defer os.Unsetenv("HOST_PROC")
-
-	if fakeHostRoot != kernel.ProcFSRoot() {
-		println(fmt.Sprintf("could not properly set fake host root dir: %v", err))
-		os.Exit(1)
-	}
-
-	os.Exit(m.Run())
-}
 
 func TestSystemProbeCache(t *testing.T) {
 	tests := []struct {
@@ -148,7 +123,9 @@ func testCollectWithInvalidCache(t *testing.T) {
 }
 
 func testCollectWithSingleActiveProcess(t *testing.T) {
-	setupFakeProcTaskStatus(t, 123, 123, 3)
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 123, NsPid: 3, Cmdline: exe, Command: exe, Exe: exe}})
+	kernel.WithFakeProcFS(t, procRoot)
 
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
@@ -199,8 +176,12 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 }
 
 func testCollectWithMultipleActiveProcesses(t *testing.T) {
-	setupFakeProcTaskStatus(t, 123, 123, 3)
-	setupFakeProcTaskStatus(t, 456, 456, 33)
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: 123, NsPid: 3, Cmdline: exe, Command: exe, Exe: exe},
+		{Pid: 456, NsPid: 33, Cmdline: exe, Command: exe, Exe: exe},
+	})
+	kernel.WithFakeProcFS(t, procRoot)
 
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
@@ -254,7 +235,9 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 }
 
 func testCollectWithInactiveProcesses(t *testing.T) {
-	setupFakeProcTaskStatus(t, 123, 123, 5)
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 123, NsPid: 5, Cmdline: exe, Command: exe, Exe: exe}})
+	kernel.WithFakeProcFS(t, procRoot)
 
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
@@ -307,8 +290,12 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 }
 
 func testCollectFiltersByDeviceUUID(t *testing.T) {
-	setupFakeProcTaskStatus(t, 123, 123, 7)
-	setupFakeProcTaskStatus(t, 456, 456, 77)
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: 123, NsPid: 7, Cmdline: exe, Command: exe, Exe: exe},
+		{Pid: 456, NsPid: 77, Cmdline: exe, Command: exe, Exe: exe},
+	})
+	kernel.WithFakeProcFS(t, procRoot)
 
 	device1UUID := "device-1-uuid"
 	device2UUID := "device-2-uuid"
@@ -357,9 +344,13 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 }
 
 func testCollectAggregatesPidTagsForLimits(t *testing.T) {
-	setupFakeProcTaskStatus(t, 123, 123, 1)
-	setupFakeProcTaskStatus(t, 456, 456, 11)
-	setupFakeProcTaskStatus(t, 789, 789, 111)
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: 123, NsPid: 1, Cmdline: exe, Command: exe, Exe: exe},
+		{Pid: 456, NsPid: 11, Cmdline: exe, Command: exe, Exe: exe},
+		{Pid: 789, NsPid: 111, Cmdline: exe, Command: exe, Exe: exe},
+	})
+	kernel.WithFakeProcFS(t, procRoot)
 
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
