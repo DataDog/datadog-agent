@@ -23,6 +23,7 @@ skip_transitive_dependency_licensing true
 
 dependency "config_guess"
 dependency "zstd"
+dependency "libsqlite3"
 dependency "lua"
 
 ship_source_offer true
@@ -48,6 +49,8 @@ build do
 
   update_config_guess
 
+  env["SQLITE_CFLAGS"] ="-I#{install_dir}/embedded/include"
+  env["SQLITE_LIBS"] ="-L#{install_dir}/embedded/lib -lsqlite3"
   env["LUA_CFLAGS"] ="-I#{install_dir}/embedded/include"
   env["LUA_LIBS"] ="-L#{install_dir}/embedded/lib -l:liblua.a -lm"
 
@@ -59,8 +62,7 @@ build do
   configure_options = [
     "ac_cv_header_magic_h=yes",
     "ac_cv_lib_magic_magic_open=yes",
-    "--enable-ndb",
-    "--disable-sqlite",
+    "--enable-sqlite=yes",
     "--enable-bdb-ro=yes",
     "--disable-nls",
     "--disable-openmp",
