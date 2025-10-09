@@ -19,7 +19,10 @@ alias(
 )
 
 VERSION = "5.4.2"
-SONAME = "liblzma.so.%s" % VERSION
+SONAME = select({
+    "@platforms//os:linux": "liblzma.so.%s" % VERSION,
+    "@platforms//os:macos": "liblzma.dylib.%s" % VERSION,
+})
 
 # Warning: starting from 5.5.2, the license switches to BSD-0
 license(
