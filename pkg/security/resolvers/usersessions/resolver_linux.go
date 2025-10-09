@@ -55,6 +55,7 @@ func (e *UserSessionData) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// IncrementalFileReader is used to read a file incrementally
 type IncrementalFileReader struct {
 	path         string
 	f            *os.File
