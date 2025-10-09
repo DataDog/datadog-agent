@@ -15,6 +15,16 @@ const (
 	UserSessionTypeSSH
 )
 
+// SSHAuthMethodConstants are the supported SSH authentication methods
+const (
+	// SSHAuthMethodUnknown is the unknown SSH authentication method
+	SSHAuthMethodUnknown int = iota
+	// SSHAuthMethodPassword is the password SSH authentication method
+	SSHAuthMethodPassword
+	// SSHAuthMethodPublicKey is the public key SSH authentication method
+	SSHAuthMethodPublicKey
+)
+
 var (
 	// UserSessionTypes are the supported user session types
 	UserSessionTypes = map[string]Type{
