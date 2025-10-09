@@ -86,11 +86,10 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 }
 
 // processUtilizationSample handles process utilization sampling logic
-func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidCache *NsPidCache) ([]Metric, uint64, error) {
 	currentTime := uint64(time.Now().Unix())
 	processSamples, err := device.GetProcessUtilization(lastTimestamp)
 
-	var nsPids nsPidCache
 	var allMetrics []Metric
 	var allPidTags []string
 	var maxSmUtil, sumSmUtil uint32
@@ -103,10 +102,10 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 		}
 	} else {
 		for _, sample := range processSamples {
-			// Create PID tag for this process, and add NS PID if available
-			pidTags := []string{fmt.Sprintf("pid:%d", sample.Pid)}
-			if nsPid := nsPids.getHostPidNsPid(sample.Pid); nsPid != 0 {
-				pidTags = append(pidTags, fmt.Sprintf("nspid:%d", nsPid))
+			// Create PID tag for this process
+			pidTags := []string{
+				fmt.Sprintf("pid:%d", sample.Pid),
+				fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(sample.Pid, true)),
 			}
 			allPidTags = append(allPidTags, pidTags...)
 
@@ -139,13 +138,13 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 }
 
 // createSampleAPIs creates API call definitions for all sampling metrics on demand
-func createSampleAPIs() []apiCallInfo {
+func createSampleAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 	return []apiCallInfo{
 		// Process utilization APIs (sample - requires timestamp tracking)
 		{
 			Name: "process_utilization",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processUtilizationSample(device, lastTimestamp)
+				return processUtilizationSample(device, lastTimestamp, nsPidCache)
 			},
 		},
 		// Samples collector APIs - each sample type is separate for independent failure handling
@@ -196,6 +195,6 @@ func newStatefulCollector(name CollectorName, device ddnvml.Device, apiCalls []a
 var sampleAPIFactory = createSampleAPIs
 
 // newSamplingCollector creates a collector that consolidates all sampling collector types
-func newSamplingCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
-	return newStatefulCollector(sampling, device, sampleAPIFactory())
+func newSamplingCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
+	return newStatefulCollector(sampling, device, sampleAPIFactory(deps.NsPidCache))
 }

@@ -189,12 +189,72 @@ func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
 	return result
 }
 
-// GetHostPidNsPid the pid relative to the innermost PID namespace of a process with the given host pid
-func GetHostPidNsPid(hostPid uint32) (nsPid uint32, err error) {
-	// note: given /proc/X/task/Y/status, we have no guarantee that tasks Y will all
-	// have the same NSpid values, specially in case of unusual pid namespace setups.
-	// As such, we attempt reading the nspid for only on the main thread (group leader)
-	// in /proc/X/task/X/status, or fail otherwise
+type nsPidCacheEntry struct {
+	nspid uint32
+	valid bool
+}
+
+// NsPidCache obtains the pid relative to the innermost namespace of a process given its host pid.
+type NsPidCache struct {
+	pidToNsPid map[uint32]*nsPidCacheEntry
+}
+
+// Invalidate invalidates all cache entries. They might still be used through GetNsPid
+// by using the useInvalidCacheOnProcfsFail flag.
+func (c *NsPidCache) Invalidate() {
+	for _, entry := range c.pidToNsPid {
+		entry.valid = false
+	}
+}
+
+// GetNsPid returns the innermost namespaced pid for the process with the given host pid.
+// Returns a cached value is available and valid. Otherwise, it attempts reading from procs
+// and store the result in cache. If that fails, and useInvalidCacheOnProcfsFail is true,
+// an invalidated cached value is stil returned if available. Otherwise, returns an error.
+func (c *NsPidCache) GetNsPid(hostPid uint32, useInvalidCacheOnProcfsFail bool) (uint32, error) {
+	if c.pidToNsPid == nil {
+		c.pidToNsPid = map[uint32]*nsPidCacheEntry{}
+	}
+
+	entry, ok := c.pidToNsPid[hostPid]
+	if ok && entry.valid {
+		return entry.nspid, nil
+	}
+
+	nsPid, err := c.readProcFs(hostPid)
+	if err == nil {
+		c.pidToNsPid[hostPid] = &nsPidCacheEntry{nspid: nsPid, valid: true}
+		return nsPid, nil
+	}
+
+	if ok && !entry.valid && useInvalidCacheOnProcfsFail {
+		return entry.nspid, nil
+	}
+
+	return 0, err
+}
+
+// GetNsPidOrHostPid is the same as GetNsPid, but returns the host pid in case of error.
+// This makes it impossible to determine whether or not the process really runs in the host,
+// however since this is used mostly for tags and allow us to always have non-empty values.
+func (c *NsPidCache) GetNsPidOrHostPid(hostPid uint32, useInvalidCacheOnProcfsFail bool) uint32 {
+	nsPid, err := c.GetNsPid(hostPid, useInvalidCacheOnProcfsFail)
+	if err == nil {
+		return nsPid
+	}
+
+	if logLimiter.ShouldLog() {
+		log.Debugf("failed getting nspid for %d, fallback to host pid: %v", hostPid, err)
+	}
+	return hostPid
+
+}
+
+// note: given /proc/X/task/Y/status, we have no guarantee that tasks Y will all
+// have the same NSpid values, specially in case of unusual pid namespace setups.
+// As such, we attempt reading the nspid for only on the main thread (group leader)
+// in /proc/X/task/X/status, or fail otherwise
+func (c *NsPidCache) readProcFs(hostPid uint32) (nsPid uint32, err error) {
 	nspids, err := secutils.GetNsPids(hostPid, strconv.FormatUint(uint64(hostPid), 10))
 	if err != nil {
 		return 0, fmt.Errorf("failed reading nspids for host pid %d: %w", hostPid, err)
@@ -205,31 +265,4 @@ func GetHostPidNsPid(hostPid uint32) (nsPid uint32, err error) {
 
 	// we look only at the last one, as it the most inner one and corresponding to its /proc/pid/ns/pid
 	return nspids[len(nspids)-1], nil
-}
-
-type nsPidCache struct {
-	pidToNsPid map[uint32]uint32
-}
-
-// getHostPidNsPid invokes GetHostPidNsPid, or returns a cached value if already available.
-// In case of failed retrieval, returns 0 and logs th error
-func (c *nsPidCache) getHostPidNsPid(hostPid uint32) uint32 {
-	if c.pidToNsPid == nil {
-		c.pidToNsPid = map[uint32]uint32{}
-	}
-
-	if nsPid, ok := c.pidToNsPid[hostPid]; ok {
-		return nsPid
-	}
-
-	nsPid, err := GetHostPidNsPid(hostPid)
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Debug(err.Error())
-		}
-		return 0
-	}
-
-	c.pidToNsPid[hostPid] = nsPid
-	return nsPid
 }

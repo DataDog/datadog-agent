@@ -79,10 +79,11 @@ type ebpfCollector struct {
 	device        ddnvml.Device
 	cache         *SystemProbeCache
 	activeMetrics map[model.StatsKey]bool // activeMetrics tracks processes that are active for this device
+	nsPidCache    *NsPidCache             // nsPidCache resolves and caches nspids for processes
 }
 
 // newEbpfCollector creates a new eBPF-based collector for the given device.
-func newEbpfCollector(device ddnvml.Device, cache *SystemProbeCache) (*ebpfCollector, error) {
+func newEbpfCollector(device ddnvml.Device, nsPidCache *NsPidCache, cache *SystemProbeCache) (*ebpfCollector, error) {
 	if cache == nil {
 		return nil, fmt.Errorf("system-probe cache cannot be nil")
 	}
@@ -91,6 +92,7 @@ func newEbpfCollector(device ddnvml.Device, cache *SystemProbeCache) (*ebpfColle
 		device:        device,
 		cache:         cache,
 		activeMetrics: make(map[model.StatsKey]bool),
+		nsPidCache:    nsPidCache,
 	}, nil
 }
 
@@ -124,7 +126,6 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		c.activeMetrics[key] = false
 	}
 
-	var nsPids nsPidCache
 	var deviceMetrics []Metric
 	var allPidTags []string
 
@@ -140,9 +141,9 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		metrics := entry.UtilizationMetrics
 
 		// Create PID tag for this process, and add NS PID if available
-		pidTags := []string{fmt.Sprintf("pid:%d", key.PID)}
-		if nsPid := nsPids.getHostPidNsPid(key.PID); nsPid != 0 {
-			pidTags = append(pidTags, fmt.Sprintf("nspid:%d", nsPid))
+		pidTags := []string{
+			fmt.Sprintf("pid:%d", key.PID),
+			fmt.Sprintf("nspid:%d", c.nsPidCache.GetNsPidOrHostPid(key.PID, true)),
 		}
 		allPidTags = append(allPidTags, pidTags...)
 
@@ -170,14 +171,11 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	log.Debugf("ebpf collector: %d active metrics in the cache after processing", len(c.activeMetrics))
 	for key, active := range c.activeMetrics {
 		if !active {
-			pidTags := []string{fmt.Sprintf("pid:%d", key.PID)}
-			allPidTags = append(allPidTags, pidTags[0])
-
-			// Add NS PID tag (if available)
-			if nsPid := nsPids.getHostPidNsPid(key.PID); nsPid != 0 {
-				pidTags = append(pidTags, fmt.Sprintf("nspid:%d", nsPid))
-				allPidTags = append(allPidTags, pidTags[len(pidTags)-1])
+			pidTags := []string{
+				fmt.Sprintf("pid:%d", key.PID),
+				fmt.Sprintf("nspid:%d", c.nsPidCache.GetNsPidOrHostPid(key.PID, true)),
 			}
+			allPidTags = append(allPidTags, pidTags...)
 
 			// Emit zero metrics for inactive processes
 			deviceMetrics = append(deviceMetrics,
