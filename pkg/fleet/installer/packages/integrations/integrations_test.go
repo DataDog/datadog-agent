@@ -62,21 +62,6 @@ func TestRemoveCustomIntegrations(t *testing.T) {
 		f.Close()
 	}
 
-	installedByPkgPath := filepath.Join(dir, "embedded", ".installed_by_pkg.txt")
-	content := `# DO NOT REMOVE/MODIFY - used by package removal tasks
-./embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info
-./embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/INSTALLER
-./embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/METADATA
-./embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/RECORD
-./embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/REQUESTED
-./embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/WHEEL
-./embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/entry_points.txt
-./embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/direct_url.json
-`
-	if err := os.WriteFile(installedByPkgPath, []byte(content), 0644); err != nil {
-		t.Fatalf("failed to create .installed_by_pkg.txt: %v", err)
-	}
-
 	if err := RemoveCustomIntegrations(context.TODO(), dir); err != nil {
 		t.Fatalf("RemoveCustomIntegrations failed: %v", err)
 	}
@@ -90,18 +75,9 @@ func TestRemoveCustomIntegrations(t *testing.T) {
 		"embedded/lib/python3.12/site-packages/botocore-1.38.8.dist-info/WHEEL",
 		"embedded/lib/python3.12/site-packages/botocore-1.38.8.dist-info/entry_points.txt",
 		"embedded/lib/python3.12/site-packages/botocore-1.38.8.dist-info/direct_url.json",
-		// In the .installed_by_pkg.txt
-		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/INSTALLER",
-		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/METADATA",
-		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/RECORD",
-		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/REQUESTED",
-		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/WHEEL",
-		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/entry_points.txt",
-		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/direct_url.json",
 	}
 
 	removed := []string{
-		// Not in the .installed_by_pkg.txt
 		"embedded/lib/python3.12/site-packages/datadog_redisdb-5.0.0.dist-info/INSTALLER",
 		"embedded/lib/python3.12/site-packages/datadog_redisdb-5.0.0.dist-info/METADATA",
 		"embedded/lib/python3.12/site-packages/datadog_redisdb-5.0.0.dist-info/RECORD",
@@ -113,6 +89,13 @@ func TestRemoveCustomIntegrations(t *testing.T) {
 		"embedded/lib/python3.8/site-packages/datadog_checks/__pycache__/errors.cpython-312.pyc",
 		"embedded/lib/python3.8/site-packages/datadog_checks/base/__pycache__/__init__.cpython-312.pyc",
 		"embedded/lib/python3.8/site-packages/datadog_checks/base/__pycache__/agent.cpython-312.pyc",
+		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/INSTALLER",
+		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/METADATA",
+		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/RECORD",
+		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/REQUESTED",
+		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/WHEEL",
+		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/entry_points.txt",
+		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/direct_url.json",
 	}
 
 	for _, relPath := range removed {
