@@ -275,7 +275,8 @@ func (s *Launcher) scan() {
 		}
 
 		if hasOldInfo {
-			if s.startNewTailerWithStoredInfo(file, config.Beginning, oldInfo, fingerprint) {
+			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
+				// hasOldInfo is true when restarting a tailer after a file rotation, so start tailer from the beginning
 				filesTailed[scanKey] = true
 			}
 		} else {
@@ -285,7 +286,7 @@ func (s *Launcher) scan() {
 			}
 		}
 	}
-	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
+	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
 	fileStats, err := procfilestats.GetProcessFileStats()
@@ -505,6 +506,8 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
 
+	// Remove the rotated tailer from the active container so a fresh tailer can
+	// be created for the new file while this one finishes draining the old file.
 	s.tailers.Remove(oldTailer)
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
