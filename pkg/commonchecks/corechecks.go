@@ -115,7 +115,7 @@ func RegisterChecks(log logcomp.Component, store workloadmeta.Component, filterS
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store, filterStore, tagger))
-	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store, filterStore, cfg, tagger))
+	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(log, store, filterStore, cfg, tagger))
 	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, filterStore, tagger))

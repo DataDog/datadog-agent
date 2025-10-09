@@ -126,6 +126,7 @@ func Factory(log logcomp.Component, store workloadmeta.Component, filterStore wo
 	return option.New(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
+			log:               log,
 			workloadmetaStore: store,
 			filterStore:       filterStore,
 			tagger:            tagger,
