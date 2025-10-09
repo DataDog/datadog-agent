@@ -17,6 +17,10 @@ func getDefaultConnFilters(site string) []Config {
 		},
 		{
 			Type:        filterTypeExclude,
+			MatchDomain: "*.datadoghq.eu",
+		},
+		{
+			Type:        filterTypeExclude,
 			MatchDomain: "*." + site,
 		},
 	}
