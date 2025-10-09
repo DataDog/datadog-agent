@@ -289,6 +289,11 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 func TestMoveMountRecursivePropagation(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	// Docker messes up with the propagation
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test in Docker environment")
+	}
+
 	if !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
 		t.Skip("move_mount syscall is not supported on this platform")
 	}
@@ -334,24 +339,25 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "move_mount" {
+			if event.GetType() != "move_mount" && event.Mount.FSType != "tmpfs" {
 				return false
 			}
 
 			allMounts[event.Mount.MountID]++
-
-			return false
+			return len(allMounts) == 3
 		}, 5*time.Second, model.FileMoveMountEventType)
+
+		assert.Equal(t, 3, len(allMounts), "Not all mount events were obtained")
 
 		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 		for i := range allMounts {
-			mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(i, 0, 0, "")
-			if len(mount.Path) == 0 {
+			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0, 0, "")
+			if len(path) == 0 {
 				// Some paths aren't being fully resolved due to missing mounts in the chain
-				// Need to figure out what are these mount points and why they aren't to be found nowhere
+				// Need to figure out what are these mount points and why they aren't to be found anywhere
 				continue
 			}
-			assert.True(t, strings.Contains(mount.Path, te.submountDirDst), "Path wasn't moved")
+			assert.True(t, strings.Contains(path, te.submountDirDst), "Path wasn't moved")
 		}
 	})
 }

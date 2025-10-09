@@ -22,7 +22,7 @@ import (
 func TestEmbeddedBTFMatch(t *testing.T) {
 	cd, err := curDir()
 	require.NoError(t, err)
-	loader := initBTFLoader(&Config{})
+	loader := initBTFLoader(&Config{}, nil)
 	loader.embeddedDir = filepath.Join(cd, "testdata")
 
 	tests := []struct {
@@ -58,7 +58,7 @@ func TestEmbeddedBTFMatch(t *testing.T) {
 }
 
 func TestBTFTelemetry(t *testing.T) {
-	loader := initBTFLoader(NewConfig())
+	loader := initBTFLoader(NewConfig(), nil)
 	ret, result, err := loader.Get()
 	require.NoError(t, err)
 	require.NotNil(t, ret)

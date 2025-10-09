@@ -60,12 +60,12 @@ func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *comp
 	if agent == nil || host == nil {
 		return "", fmt.Errorf("Agent or RemoteHost component is not initialized, cannot generate flare")
 	}
-	// generate a local flare
+	// generate a flare, it will fallback to local flare generation if the running agent cannot be reached
 	// todo skip uploading it to backend, requires further changes in agent executor
 	// to redirect stdin to null, on linux adding `</dev/null`
 	// on windows prepending command with `@() |`, pre-piping with an empty array
 	// discard error, flare command might return error if there is no intake, but it the archive is still generated
-	flareCommandOutput, err := agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--local"}))
+	flareCommandOutput, err := agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send"}))
 
 	lines := []string{flareCommandOutput}
 	if err != nil {
