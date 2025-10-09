@@ -126,6 +126,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "podman",
         "systemd",
         "trivy",
+        "cel",
     }
 )
 
