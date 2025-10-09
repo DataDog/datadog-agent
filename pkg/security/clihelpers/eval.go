@@ -59,23 +59,11 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 
 	report.Event = event
 
-	// store the variables values so that we can reapply them after policies are loaded
-	variablesValues := make(map[string]any)
-	for k, v := range variables {
-		rv, ok := v.(eval.Variable)
-		if !ok {
-			continue
-		}
-
-		value, _ := rv.GetValue()
-		variablesValues[k] = value
-	}
-
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
 	ruleOpts := rules.NewRuleOpts(enabled)
-	evalOpts := newEvalOpts(evalArgs.UseWindowsModel).WithVariables(variables)
+	evalOpts := newEvalOpts(evalArgs.UseWindowsModel)
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 
 	agentVersionFilter, err := newAgentVersionFilter()
@@ -107,15 +95,27 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 		return report, err
 	}
 
-	// reapply the variables values
-	vars := ruleSet.GetVariables()
-	for k, v := range variablesValues {
-		if _, ok := vars[k]; ok {
-			if mv, ok := vars[k].(eval.MutableVariable); ok {
-				if err := mv.Set(nil, v); err != nil {
-					return report, fmt.Errorf("failed to set variable %s: %w", k, err)
-				}
+	ctx := eval.NewContext(event)
+
+	for varName, value := range variables {
+		definition, ok := evalOpts.NewStore.GetDefinition(eval.VariableName(varName))
+		if definition == nil || !ok {
+			var definedVariableNames []string
+			for definition := range evalOpts.NewStore.GetDefinitions(&eval.GetOpts{}) {
+				definedVariableNames = append(definedVariableNames, definition.GetName(true))
 			}
+			return report, fmt.Errorf("no variable named `%s` was found in current ruleset (found: %q)", varName, definedVariableNames)
+		}
+		instance, added, err := definition.AddNewInstance(ctx)
+		if err != nil {
+			return report, fmt.Errorf("failed to register new variable instance `%s`: %s", varName, err)
+		}
+		if !added {
+			return report, fmt.Errorf("failed to add new variable intsance `%s`", varName)
+		}
+		err = instance.Set(value)
+		if err != nil {
+			return report, fmt.Errorf("failed to set value of variable `%s` to value `%v`: %s", varName, value, err)
 		}
 	}
 
@@ -214,92 +214,62 @@ func eventFromTestData(testData TestData) (eval.Event, error) {
 	return event, nil
 }
 
-func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, error) {
-	variables := make(map[string]eval.SECLVariable)
+func variablesFromTestData(testData TestData) (map[string]any, error) {
+	variables := make(map[string]any)
 
-	// copy the embedded variables
-	for k, v := range model.SECLVariables {
-		variables[k] = v
-	}
-
-	varOpts := eval.VariableOpts{
-		TTL: 10000000,
-	}
-
-	// add the variables from the test data
-	for k, v := range testData.Variables {
-		switch v := v.(type) {
+	for varName, value := range testData.Variables {
+		switch value := value.(type) {
 		case string:
-			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context) (string, bool) {
-					return v, true
-				}, nil)
-			} else {
-				variables[k] = eval.NewStringVariable(v, varOpts)
-			}
-		case []any:
-			switch v[0].(type) {
-			case string:
-				values := make([]string, len(v))
-				for i, value := range v {
-					values[i] = value.(string)
-				}
-				if rules.IsScopeVariable(k) {
-					variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context) ([]string, bool) {
-						return values, true
-					}, nil)
-				} else {
-					variables[k] = eval.NewStringArrayVariable(values, varOpts)
-				}
-			case json.Number:
-				values := make([]int, len(v))
-				for i, value := range v {
-					v64, err := value.(json.Number).Int64()
-					if err != nil {
-						return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
-					}
-					values[i] = int(v64)
-				}
-
-				if rules.IsScopeVariable(k) {
-					variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context) ([]int, bool) {
-						return values, true
-					}, nil)
-				} else {
-					variables[k] = eval.NewIntArrayVariable(values, varOpts)
-				}
-			default:
-				return nil, fmt.Errorf("unknown variable type %s: %T", k, v)
-			}
+			variables[varName] = value
 		case json.Number:
-			value, err := v.Int64()
+			v, err := value.Int64()
 			if err != nil {
-				return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
+				return nil, fmt.Errorf("failed to convert %s to int: %w", varName, err)
 			}
-			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context) (int, bool) {
-					return int(value), true
-				}, nil)
-			} else {
-				variables[k] = eval.NewIntVariable(int(value), varOpts)
-			}
+			variables[varName] = int(v)
+		case float64:
+			variables[varName] = int(value)
 		case bool:
-			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context) (bool, bool) {
-					return v, true
-				}, nil)
-			} else {
-				variables[k] = eval.NewBoolVariable(v, varOpts)
+			variables[varName] = value
+		case []any:
+			if len(value) == 0 {
+				return nil, fmt.Errorf("test variable `%s` has unknown type: %T", varName, value)
+			}
+			switch value[0].(type) {
+			case string:
+				values := make([]string, 0, len(value))
+				for _, v := range value {
+					values = append(values, v.(string))
+				}
+				variables[varName] = values
+			case json.Number:
+				values := make([]int, 0, len(value))
+				for _, v := range value {
+					v, err := v.(json.Number).Int64()
+					if err != nil {
+						return nil, fmt.Errorf("failed to convert %s to int: %w", varName, err)
+					}
+					values = append(values, int(v))
+				}
+				variables[varName] = values
+			case float64:
+				values := make([]int, 0, len(value))
+				for _, v := range value {
+					values = append(values, int(v.(float64)))
+				}
+				variables[varName] = values
+			default:
+				return nil, fmt.Errorf("test variable `%s` has unknown type: %T", varName, value)
 			}
 		default:
-			return nil, fmt.Errorf("unknown variable type %s: %T", k, v)
+			return nil, fmt.Errorf("test variable `%s` has unknown type: %T", varName, value)
 		}
 	}
 
 	return variables, nil
 }
 
-func dataFromJSON(decoder *json.Decoder) (eval.Event, map[string]eval.SECLVariable, error) {
+func dataFromJSON(decoder *json.Decoder) (eval.Event, map[string]any, error) {
 	var testData TestData
 	if err := decoder.Decode(&testData); err != nil {
 		return nil, nil, err
