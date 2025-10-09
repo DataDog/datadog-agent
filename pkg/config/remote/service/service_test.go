@@ -187,7 +187,7 @@ var testRCKey = msgpgo.RemoteConfigKey{
 }
 
 func uptaneFactoryOption(coreAgentUptane *mockCoreAgentUptane) Option {
-	return WithUptaneFactory(func(_ *uptane.Metadata) (coreAgentUptaneClient, error) {
+	return withUptaneFactory(func(_ *uptane.Metadata) (coreAgentUptaneClient, error) {
 		return coreAgentUptane, nil // no DB opened in tests
 	})
 }

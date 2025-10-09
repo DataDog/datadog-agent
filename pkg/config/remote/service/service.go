@@ -407,8 +407,8 @@ func WithAgentPollLoopDisabled() func(s *options) {
 	}
 }
 
-// WithUptaneFactory creates a mock version for testing
-func WithUptaneFactory(f func(md *uptane.Metadata) (coreAgentUptaneClient, error)) Option {
+// withUptaneFactory creates a mock version for testing
+func withUptaneFactory(f func(md *uptane.Metadata) (coreAgentUptaneClient, error)) Option {
 	return func(o *options) { o.uptaneFactory = f }
 }
 
