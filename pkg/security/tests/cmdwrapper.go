@@ -134,6 +134,11 @@ func (d *dockerCmdWrapper) start() ([]byte, error) {
 		return nil, err
 	}
 
+	// Add a small delay to ensure the container is fully ready and the security monitoring
+	// system has time to attach before executing commands. This prevents race conditions
+	// where events might be missed due to timing issues.
+	time.Sleep(100 * time.Millisecond)
+
 	return out, err
 }
 
