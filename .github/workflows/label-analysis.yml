@@ -27,7 +27,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install dda
-        uses: ./.github/actions/install-dda
+        uses: DataDog/datadog-agent/.github/actions/install-dda@efcd8852af4c4797b065f0653bdfd4852d2144c1
         with:
           features: legacy-tasks
       - name: Auto assign team label
@@ -44,7 +44,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Install dda
-        uses: ./.github/actions/install-dda
+        uses: DataDog/datadog-agent/.github/actions/install-dda@efcd8852af4c4797b065f0653bdfd4852d2144c1
         with:
           features: legacy-tasks
       - name: Check release note
@@ -99,7 +99,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install dda
-        uses: ./.github/actions/install-dda
+        uses: DataDog/datadog-agent/.github/actions/install-dda@efcd8852af4c4797b065f0653bdfd4852d2144c1
         with:
           features: legacy-tasks
       - name: Check qa/[done|no-code-change] labels are not set together
@@ -117,7 +117,7 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
       - name: Install dda
-        uses: ./.github/actions/install-dda
+        uses: DataDog/datadog-agent/.github/actions/install-dda@efcd8852af4c4797b065f0653bdfd4852d2144c1
         with:
           features: legacy-tasks
       - name: Check agent telemetry metric list
@@ -132,7 +132,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install dda
-        uses: ./.github/actions/install-dda
+        uses: DataDog/datadog-agent/.github/actions/install-dda@efcd8852af4c4797b065f0653bdfd4852d2144c1
         with:
           features: legacy-tasks
       - name: Ask for code reviews

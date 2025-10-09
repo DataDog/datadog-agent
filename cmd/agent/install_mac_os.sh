@@ -67,7 +67,7 @@ arch=$(/usr/bin/uname -m)
 curl_retries=(--retry 2)
 
 # Cleanup tmp files used for installation
-rm -f /tmp/install-ddagent/system-wide
+rm -f /tmp/install-dda@efcd8852af4c4797b065f0653bdfd4852d2144c1gent/system-wide
 
 function find_latest_patch_version_for() {
     major_minor="$1"
@@ -142,8 +142,8 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
 fi
 
 if [ "$systemdaemon_install" != false ]; then
-  mkdir -p /tmp/install-ddagent
-  touch /tmp/install-ddagent/system-wide
+  mkdir -p /tmp/install-dda@efcd8852af4c4797b065f0653bdfd4852d2144c1gent
+  touch /tmp/install-dda@efcd8852af4c4797b065f0653bdfd4852d2144c1gent/system-wide
 fi
 
 macos_full_version=$(sw_vers -productVersion)

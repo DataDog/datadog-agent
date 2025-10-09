@@ -1461,7 +1461,7 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
         "verbose": "Enable full output of all commands executed",
         "arch": "Architecture to build the system-probe for",
         "layout": "Path to file specifying the expected layout on the target VMs",
-        "override_agent": "Assume that the datadog-agent has been installed with `kmt.install-ddagent`, and replace the system-probe binary in its package with a local build. This also overrides the configuration files as defined in tasks/kernel-matrix-testing/build-layout.json",
+        "override_agent": "Assume that the datadog-agent has been installed with `kmt.install-dda@efcd8852af4c4797b065f0653bdfd4852d2144c1gent`, and replace the system-probe binary in its package with a local build. This also overrides the configuration files as defined in tasks/kernel-matrix-testing/build-layout.json",
     }
 )
 def build(
