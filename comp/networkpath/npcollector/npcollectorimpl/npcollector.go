@@ -263,6 +263,7 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 	}
 
 	if !s.filter.IsIncluded(domain, conn.Raddr.GetIp()) {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1) //nolint:errcheck
 		return false
 	}
 
@@ -312,7 +313,7 @@ func (s *npCollectorImpl) processScheduleConns(conns *model.Connections) {
 
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets, domain) {
 			protocol := convertProtocol(conn.GetType())
-			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
+			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s, domain=%s", conn.Raddr, protocol, domain)
 			continue
 		}
 		pathtest := s.makePathtest(conn, conns.Dns, domain)
