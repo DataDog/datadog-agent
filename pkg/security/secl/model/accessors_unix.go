@@ -9,13 +9,12 @@
 package model
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"math"
 	"net"
 	"reflect"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 // to always require the math package
@@ -3451,8 +3450,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "exec.user_session.ssh_client_ip":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Exec.Process.UserSession)
@@ -4775,8 +4774,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "exit.user_session.ssh_client_ip":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Exit.Process.UserSession)
@@ -10961,8 +10960,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "process.ancestors.user_session.ssh_client_ip":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
+		return &eval.CIDRArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
@@ -10972,15 +10971,15 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return nil
 					}
 					result := ev.FieldHandlers.ResolveSSHClientIP(ev, &element.ProcessContext.Process.UserSession)
-					return []string{result}
+					return []net.IPNet{result}
 				}
-				if result, ok := ctx.StringCache[field]; ok {
+				if result, ok := ctx.IPNetCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) net.IPNet {
 					return ev.FieldHandlers.ResolveSSHClientIP(ev, &current.ProcessContext.Process.UserSession)
 				})
-				ctx.StringCache[field] = results
+				ctx.IPNetCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -13741,12 +13740,12 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "process.parent.user_session.ssh_client_ip":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				if !ev.BaseEvent.ProcessContext.HasParent() {
-					return ""
+					return net.IPNet{}
 				}
 				return ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
 			},
@@ -13929,8 +13928,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "process.user_session.ssh_client_ip":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
@@ -17014,8 +17013,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.user_session.ssh_client_ip":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
+		return &eval.CIDRArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
@@ -17025,15 +17024,15 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return nil
 					}
 					result := ev.FieldHandlers.ResolveSSHClientIP(ev, &element.ProcessContext.Process.UserSession)
-					return []string{result}
+					return []net.IPNet{result}
 				}
-				if result, ok := ctx.StringCache[field]; ok {
+				if result, ok := ctx.IPNetCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) net.IPNet {
 					return ev.FieldHandlers.ResolveSSHClientIP(ev, &current.ProcessContext.Process.UserSession)
 				})
-				ctx.StringCache[field] = results
+				ctx.IPNetCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -19794,12 +19793,12 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.user_session.ssh_client_ip":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				if !ev.PTrace.Tracee.HasParent() {
-					return ""
+					return net.IPNet{}
 				}
 				return ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.PTrace.Tracee.Parent.UserSession)
 			},
@@ -19982,8 +19981,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.user_session.ssh_client_ip":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.PTrace.Tracee.Process.UserSession)
@@ -24491,8 +24490,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.ancestors.user_session.ssh_client_ip":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
+		return &eval.CIDRArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
@@ -24502,15 +24501,15 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return nil
 					}
 					result := ev.FieldHandlers.ResolveSSHClientIP(ev, &element.ProcessContext.Process.UserSession)
-					return []string{result}
+					return []net.IPNet{result}
 				}
-				if result, ok := ctx.StringCache[field]; ok {
+				if result, ok := ctx.IPNetCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) net.IPNet {
 					return ev.FieldHandlers.ResolveSSHClientIP(ev, &current.ProcessContext.Process.UserSession)
 				})
-				ctx.StringCache[field] = results
+				ctx.IPNetCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -27271,12 +27270,12 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.parent.user_session.ssh_client_ip":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				if !ev.Setrlimit.Target.HasParent() {
-					return ""
+					return net.IPNet{}
 				}
 				return ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Setrlimit.Target.Parent.UserSession)
 			},
@@ -27459,8 +27458,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.user_session.ssh_client_ip":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Setrlimit.Target.Process.UserSession)
@@ -31065,8 +31064,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.user_session.ssh_client_ip":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
+		return &eval.CIDRArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
@@ -31076,15 +31075,15 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return nil
 					}
 					result := ev.FieldHandlers.ResolveSSHClientIP(ev, &element.ProcessContext.Process.UserSession)
-					return []string{result}
+					return []net.IPNet{result}
 				}
-				if result, ok := ctx.StringCache[field]; ok {
+				if result, ok := ctx.IPNetCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) net.IPNet {
 					return ev.FieldHandlers.ResolveSSHClientIP(ev, &current.ProcessContext.Process.UserSession)
 				})
-				ctx.StringCache[field] = results
+				ctx.IPNetCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -33845,12 +33844,12 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "signal.target.parent.user_session.ssh_client_ip":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				if !ev.Signal.Target.HasParent() {
-					return ""
+					return net.IPNet{}
 				}
 				return ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Signal.Target.Parent.UserSession)
 			},
@@ -34033,8 +34032,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Offset: offset,
 		}, nil
 	case "signal.target.user_session.ssh_client_ip":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Signal.Target.Process.UserSession)
@@ -37987,10 +37986,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.String, "string", nil
 	case "exec.user_session.k8s_username":
 		return "exec", reflect.String, "string", nil
+	case "exec.user_session.session_type":
+		return "exec", reflect.Int, "int", nil
 	case "exec.user_session.ssh_auth_method":
 		return "exec", reflect.Int, "int", nil
 	case "exec.user_session.ssh_client_ip":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.Struct, "net.IPNet", nil
 	case "exec.user_session.ssh_port":
 		return "exec", reflect.Int, "int", nil
 	case "exec.user_session.ssh_public_key":
@@ -38197,10 +38198,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.String, "string", nil
 	case "exit.user_session.k8s_username":
 		return "exit", reflect.String, "string", nil
+	case "exit.user_session.session_type":
+		return "exit", reflect.Int, "int", nil
 	case "exit.user_session.ssh_auth_method":
 		return "exit", reflect.Int, "int", nil
 	case "exit.user_session.ssh_client_ip":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.Struct, "net.IPNet", nil
 	case "exit.user_session.ssh_port":
 		return "exit", reflect.Int, "int", nil
 	case "exit.user_session.ssh_public_key":
@@ -38931,10 +38934,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.ancestors.user_session.k8s_username":
 		return "", reflect.String, "string", nil
+	case "process.ancestors.user_session.session_type":
+		return "", reflect.Int, "int", nil
 	case "process.ancestors.user_session.ssh_auth_method":
 		return "", reflect.Int, "int", nil
 	case "process.ancestors.user_session.ssh_client_ip":
-		return "", reflect.String, "string", nil
+		return "", reflect.Struct, "net.IPNet", nil
 	case "process.ancestors.user_session.ssh_port":
 		return "", reflect.Int, "int", nil
 	case "process.ancestors.user_session.ssh_public_key":
@@ -39313,10 +39318,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.parent.user_session.k8s_username":
 		return "", reflect.String, "string", nil
+	case "process.parent.user_session.session_type":
+		return "", reflect.Int, "int", nil
 	case "process.parent.user_session.ssh_auth_method":
 		return "", reflect.Int, "int", nil
 	case "process.parent.user_session.ssh_client_ip":
-		return "", reflect.String, "string", nil
+		return "", reflect.Struct, "net.IPNet", nil
 	case "process.parent.user_session.ssh_port":
 		return "", reflect.Int, "int", nil
 	case "process.parent.user_session.ssh_public_key":
@@ -39343,10 +39350,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.user_session.k8s_username":
 		return "", reflect.String, "string", nil
+	case "process.user_session.session_type":
+		return "", reflect.Int, "int", nil
 	case "process.user_session.ssh_auth_method":
 		return "", reflect.Int, "int", nil
 	case "process.user_session.ssh_client_ip":
-		return "", reflect.String, "string", nil
+		return "", reflect.Struct, "net.IPNet", nil
 	case "process.user_session.ssh_port":
 		return "", reflect.Int, "int", nil
 	case "process.user_session.ssh_public_key":
@@ -39555,10 +39564,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.user_session.k8s_username":
 		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.ancestors.user_session.session_type":
+		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ancestors.user_session.ssh_auth_method":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ancestors.user_session.ssh_client_ip":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.Struct, "net.IPNet", nil
 	case "ptrace.tracee.ancestors.user_session.ssh_port":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ancestors.user_session.ssh_public_key":
@@ -39937,10 +39948,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.user_session.k8s_username":
 		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.parent.user_session.session_type":
+		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.parent.user_session.ssh_auth_method":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.parent.user_session.ssh_client_ip":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.Struct, "net.IPNet", nil
 	case "ptrace.tracee.parent.user_session.ssh_port":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.parent.user_session.ssh_public_key":
@@ -39967,10 +39980,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.user_session.k8s_username":
 		return "ptrace", reflect.String, "string", nil
+	case "ptrace.tracee.user_session.session_type":
+		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.user_session.ssh_auth_method":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.user_session.ssh_client_ip":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.Struct, "net.IPNet", nil
 	case "ptrace.tracee.user_session.ssh_port":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.user_session.ssh_public_key":
@@ -40435,10 +40450,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.user_session.k8s_username":
 		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.user_session.session_type":
+		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ancestors.user_session.ssh_auth_method":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ancestors.user_session.ssh_client_ip":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.Struct, "net.IPNet", nil
 	case "setrlimit.target.ancestors.user_session.ssh_port":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ancestors.user_session.ssh_public_key":
@@ -40817,10 +40834,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.user_session.k8s_username":
 		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.user_session.session_type":
+		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.parent.user_session.ssh_auth_method":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.parent.user_session.ssh_client_ip":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.Struct, "net.IPNet", nil
 	case "setrlimit.target.parent.user_session.ssh_port":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.parent.user_session.ssh_public_key":
@@ -40847,10 +40866,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.user_session.k8s_username":
 		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.user_session.session_type":
+		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.user_session.ssh_auth_method":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.user_session.ssh_client_ip":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.Struct, "net.IPNet", nil
 	case "setrlimit.target.user_session.ssh_port":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.user_session.ssh_public_key":
@@ -41153,10 +41174,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.user_session.k8s_username":
 		return "signal", reflect.String, "string", nil
+	case "signal.target.ancestors.user_session.session_type":
+		return "signal", reflect.Int, "int", nil
 	case "signal.target.ancestors.user_session.ssh_auth_method":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.ancestors.user_session.ssh_client_ip":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.Struct, "net.IPNet", nil
 	case "signal.target.ancestors.user_session.ssh_port":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.ancestors.user_session.ssh_public_key":
@@ -41535,10 +41558,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.user_session.k8s_username":
 		return "signal", reflect.String, "string", nil
+	case "signal.target.parent.user_session.session_type":
+		return "signal", reflect.Int, "int", nil
 	case "signal.target.parent.user_session.ssh_auth_method":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.parent.user_session.ssh_client_ip":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.Struct, "net.IPNet", nil
 	case "signal.target.parent.user_session.ssh_port":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.parent.user_session.ssh_public_key":
@@ -41565,10 +41590,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.user_session.k8s_username":
 		return "signal", reflect.String, "string", nil
+	case "signal.target.user_session.session_type":
+		return "signal", reflect.Int, "int", nil
 	case "signal.target.user_session.ssh_auth_method":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.user_session.ssh_client_ip":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.Struct, "net.IPNet", nil
 	case "signal.target.user_session.ssh_port":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.user_session.ssh_public_key":
@@ -42533,7 +42560,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.user_session.ssh_auth_method":
 		return ev.setUint8FieldValue("exec.user_session.ssh_auth_method", &ev.Exec.Process.UserSession.SSHAuthMethod, value)
 	case "exec.user_session.ssh_client_ip":
-		return ev.setStringFieldValue("exec.user_session.ssh_client_ip", &ev.Exec.Process.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.user_session.ssh_client_ip"}
+		}
+		ev.Exec.Process.UserSession.SSHClientIP = rv
+		return nil
 	case "exec.user_session.ssh_port":
 		return ev.setIntFieldValue("exec.user_session.ssh_port", &ev.Exec.Process.UserSession.SSHPort, value)
 	case "exec.user_session.ssh_public_key":
@@ -43158,7 +43190,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
-		return ev.setStringFieldValue("exit.user_session.ssh_client_ip", &ev.Exit.Process.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exit.user_session.ssh_client_ip"}
+		}
+		ev.Exit.Process.UserSession.SSHClientIP = rv
+		return nil
 	case "exit.user_session.ssh_port":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -44082,7 +44119,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.ancestors.user_session.ssh_auth_method":
 		return ev.setUint8FieldValue("process.ancestors.user_session.ssh_auth_method", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHAuthMethod, value)
 	case "process.ancestors.user_session.ssh_client_ip":
-		return ev.setStringFieldValue("process.ancestors.user_session.ssh_client_ip", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.user_session.ssh_client_ip"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHClientIP = rv
+		return nil
 	case "process.ancestors.user_session.ssh_port":
 		return ev.setIntFieldValue("process.ancestors.user_session.ssh_port", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHPort, value)
 	case "process.ancestors.user_session.ssh_public_key":
@@ -44686,7 +44728,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.parent.user_session.ssh_auth_method":
 		return ev.setUint8FieldValue("process.parent.user_session.ssh_auth_method", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHAuthMethod, value)
 	case "process.parent.user_session.ssh_client_ip":
-		return ev.setStringFieldValue("process.parent.user_session.ssh_client_ip", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.parent.user_session.ssh_client_ip"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.UserSession.SSHClientIP = rv
+		return nil
 	case "process.parent.user_session.ssh_port":
 		return ev.setIntFieldValue("process.parent.user_session.ssh_port", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHPort, value)
 	case "process.parent.user_session.ssh_public_key":
@@ -44718,7 +44765,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.user_session.ssh_auth_method":
 		return ev.setUint8FieldValue("process.user_session.ssh_auth_method", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHAuthMethod, value)
 	case "process.user_session.ssh_client_ip":
-		return ev.setStringFieldValue("process.user_session.ssh_client_ip", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.user_session.ssh_client_ip"}
+		}
+		ev.BaseEvent.ProcessContext.Process.UserSession.SSHClientIP = rv
+		return nil
 	case "process.user_session.ssh_port":
 		return ev.setIntFieldValue("process.user_session.ssh_port", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHPort, value)
 	case "process.user_session.ssh_public_key":
@@ -45654,7 +45706,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.ssh_client_ip", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.ancestors.user_session.ssh_client_ip"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHClientIP = rv
+		return nil
 	case "ptrace.tracee.ancestors.user_session.ssh_port":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -47146,7 +47203,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.ssh_client_ip", &ev.PTrace.Tracee.Parent.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.parent.user_session.ssh_client_ip"}
+		}
+		ev.PTrace.Tracee.Parent.UserSession.SSHClientIP = rv
+		return nil
 	case "ptrace.tracee.parent.user_session.ssh_port":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -47235,7 +47297,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		return ev.setStringFieldValue("ptrace.tracee.user_session.ssh_client_ip", &ev.PTrace.Tracee.Process.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.user_session.ssh_client_ip"}
+		}
+		ev.PTrace.Tracee.Process.UserSession.SSHClientIP = rv
+		return nil
 	case "ptrace.tracee.user_session.ssh_port":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -48436,7 +48503,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Ancestor == nil {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.ssh_client_ip", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.user_session.ssh_client_ip"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHClientIP = rv
+		return nil
 	case "setrlimit.target.ancestors.user_session.ssh_port":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -49928,7 +50000,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Parent == nil {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
-		return ev.setStringFieldValue("setrlimit.target.parent.user_session.ssh_client_ip", &ev.Setrlimit.Target.Parent.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.user_session.ssh_client_ip"}
+		}
+		ev.Setrlimit.Target.Parent.UserSession.SSHClientIP = rv
+		return nil
 	case "setrlimit.target.parent.user_session.ssh_port":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50017,7 +50094,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
-		return ev.setStringFieldValue("setrlimit.target.user_session.ssh_client_ip", &ev.Setrlimit.Target.Process.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.user_session.ssh_client_ip"}
+		}
+		ev.Setrlimit.Target.Process.UserSession.SSHClientIP = rv
+		return nil
 	case "setrlimit.target.user_session.ssh_port":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51066,7 +51148,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringFieldValue("signal.target.ancestors.user_session.ssh_client_ip", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.ancestors.user_session.ssh_client_ip"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHClientIP = rv
+		return nil
 	case "signal.target.ancestors.user_session.ssh_port":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52558,7 +52645,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return ev.setStringFieldValue("signal.target.parent.user_session.ssh_client_ip", &ev.Signal.Target.Parent.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.parent.user_session.ssh_client_ip"}
+		}
+		ev.Signal.Target.Parent.UserSession.SSHClientIP = rv
+		return nil
 	case "signal.target.parent.user_session.ssh_port":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52647,7 +52739,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return ev.setStringFieldValue("signal.target.user_session.ssh_client_ip", &ev.Signal.Target.Process.UserSession.SSHClientIP, value)
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.user_session.ssh_client_ip"}
+		}
+		ev.Signal.Target.Process.UserSession.SSHClientIP = rv
+		return nil
 	case "signal.target.user_session.ssh_port":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}

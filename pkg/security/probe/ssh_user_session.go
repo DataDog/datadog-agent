@@ -10,6 +10,7 @@ package probe
 
 import (
 	"math/rand/v2"
+	"net"
 	"strconv"
 	"strings"
 
@@ -45,7 +46,7 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 		event.ProcessContext.UserSession.SessionType = 2
 		parts := strings.Fields(sshClientVar)
 		if len(parts) >= 2 {
-			event.ProcessContext.UserSession.SSHClientIP = parts[0]
+			event.ProcessContext.UserSession.SSHClientIP = getIPfromEnv(parts[0])
 			if port, err := strconv.Atoi(parts[1]); err != nil {
 				seclog.Warnf("failed to parse SSH_CLIENT port from %q: %v", sshClientVar, err)
 			} else {
@@ -54,4 +55,22 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 		}
 
 	}
+}
+
+func getIPfromEnv(ipStr string) net.IPNet {
+	ip := net.ParseIP(ipStr)
+	if ip != nil {
+		if ip.To4() != nil {
+			return net.IPNet{
+				IP:   ip,
+				Mask: net.CIDRMask(32, 32),
+			}
+		} else {
+			return net.IPNet{
+				IP:   ip,
+				Mask: net.CIDRMask(128, 128),
+			}
+		}
+	}
+	return net.IPNet{}
 }

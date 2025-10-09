@@ -1009,7 +1009,7 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 		K8SExtra:      ctx.K8SExtra,
 		SSHUsername:   ctx.SSHUsername,
 		SSHPort:       ctx.SSHPort,
-		SSHClientIP:   ctx.SSHClientIP,
+		SSHClientIP:   ctx.SSHClientIP.IP.String(),
 		SSHAuthMethod: sshAuthMethod,
 		SSHPublicKey:  ctx.SSHPublicKey,
 	}

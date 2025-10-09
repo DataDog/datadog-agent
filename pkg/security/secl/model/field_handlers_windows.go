@@ -9,6 +9,7 @@
 package model
 
 import (
+	"net"
 	"time"
 )
 

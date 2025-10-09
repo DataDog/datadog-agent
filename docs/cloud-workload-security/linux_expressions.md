@@ -3463,7 +3463,7 @@ Definition: SSH authentication method used by the user (password, publickey)
 
 
 ### `*.ssh_client_ip` {#common-usersessioncontext-ssh_client_ip-doc}
-Type: string
+Type: IP/CIDR
 
 Definition: SSH client IP of the user that executed the process
 
