@@ -30,3 +30,17 @@ func (e *ErrUnsupportedScope) Error() string {
 }
 
 var ErrOperatorNotSupported = errors.New("operation not supported")
+
+type ErrScopeFailure struct {
+	VarName    string
+	ScoperType InternalScoperType
+	ScoperErr  error
+}
+
+func (e *ErrScopeFailure) Error() string {
+	return fmt.Sprintf("failed to get scope `%s` of variable `%s`: %s", e.ScoperType.String(), e.VarName, e.ScoperErr)
+}
+
+func (e *ErrScopeFailure) Unwrap() error {
+	return e.ScoperErr
+}

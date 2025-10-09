@@ -37,11 +37,6 @@ func (vs *VariableScoper) GetScope(ctx *Context) (VariableScope, error) {
 	return vs.getScopeCb(ctx)
 }
 
-type VariableScoperIntf interface {
-	Type() InternalScoperType
-	GetScope(ctx *Context) (VariableScope, error)
-}
-
 type InternalScoperType int
 
 const (
