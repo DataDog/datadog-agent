@@ -27,11 +27,16 @@ from tasks.static_quality_gates.gates import (
 class FileInfo:
     """
     Information about a single file within an artifact.
+
+    For regular files, only relative_path, size_bytes, and optionally checksum are set.
+    For symlinks, is_symlink is True and symlink_target contains the link target.
     """
 
     relative_path: str
     size_bytes: int
     checksum: str | None = None
+    is_symlink: bool | None = None
+    symlink_target: str | None = None
 
     def __post_init__(self):
         """Validate file info data"""
@@ -39,6 +44,8 @@ class FileInfo:
             raise ValueError("relative_path cannot be empty")
         if self.size_bytes < 0:
             raise ValueError("size_bytes must be non-negative")
+        if self.is_symlink and not self.symlink_target:
+            raise ValueError("symlink_target must be provided when is_symlink is True")
 
     @property
     def size_mb(self) -> float:
@@ -124,7 +131,6 @@ class InPlacePackageMeasurer:
         package_path: str,
         gate_name: str,
         build_job_name: str,
-        max_files: int = 20000,
         generate_checksums: bool = True,
         debug: bool = False,
     ) -> InPlaceArtifactReport:
@@ -153,7 +159,7 @@ class InPlacePackageMeasurer:
         gate_config = create_quality_gate_config(gate_name, self.config[gate_name])
 
         measurement, file_inventory = self._extract_and_analyze_package(
-            ctx, package_path, gate_config, max_files, generate_checksums, debug
+            ctx, package_path, gate_config, generate_checksums, debug
         )
 
         return InPlaceArtifactReport(
@@ -177,7 +183,6 @@ class InPlacePackageMeasurer:
         ctx: Context,
         package_path: str,
         config: QualityGateConfig,
-        max_files: int = 10000,
         generate_checksums: bool = True,
         debug: bool = False,
     ) -> tuple[ArtifactMeasurement, list[FileInfo]]:
@@ -188,7 +193,6 @@ class InPlacePackageMeasurer:
             ctx: Invoke context for running commands
             package_path: Path to the package file
             config: Quality gate configuration
-            max_files: Maximum number of files to process in inventory
             generate_checksums: Whether to generate checksums for files
             debug: Enable debug logging
 
@@ -213,7 +217,7 @@ class InPlacePackageMeasurer:
                     artifact_path=package_path, on_wire_size=wire_size, on_disk_size=disk_size
                 )
 
-                file_inventory = self._walk_extracted_files(extract_dir, max_files, generate_checksums, debug)
+                file_inventory = self._walk_extracted_files(extract_dir, generate_checksums, debug)
 
                 if debug:
                     print("✅ Single extraction completed:")
@@ -226,15 +230,12 @@ class InPlacePackageMeasurer:
         except Exception as e:
             raise RuntimeError(f"Failed to extract and analyze package {package_path}: {e}") from e
 
-    def _walk_extracted_files(
-        self, extract_dir: str, max_files: int, generate_checksums: bool, debug: bool
-    ) -> list[FileInfo]:
+    def _walk_extracted_files(self, extract_dir: str, generate_checksums: bool, debug: bool) -> list[FileInfo]:
         """
         Walk through extracted files and create file inventory.
 
         Args:
             extract_dir: Directory containing extracted package files
-            max_files: Maximum number of files to process
             generate_checksums: Whether to generate checksums for files
             debug: Enable debug logging
 
@@ -260,19 +261,57 @@ class InPlacePackageMeasurer:
         total_size = 0
 
         for file_path in extract_path.rglob('*'):
-            if file_path.is_file():
-                # Respect max_files limit
-                if files_processed >= max_files:
-                    if debug:
-                        print(f"⚠️  Reached max files limit ({max_files}), stopping inventory")
-                    break
+            # Skip directories
+            if file_path.is_dir():
+                continue
 
-                try:
-                    relative_path = str(file_path.relative_to(extract_path))
-                    file_stat = file_path.stat()
+            try:
+                relative_path = str(file_path.relative_to(extract_path))
+
+                # Check if this is a symlink
+                if file_path.is_symlink():
+                    # For symlinks, record the target but don't count size
+                    try:
+                        # Get the symlink target (can be relative or absolute)
+                        symlink_target = os.readlink(file_path)
+
+                        # Try to resolve to see if it points to something valid
+                        try:
+                            resolved_target = file_path.resolve()
+                            # Make target path relative to extract_path if possible
+                            if resolved_target.is_relative_to(extract_path):
+                                symlink_target_rel = str(resolved_target.relative_to(extract_path))
+                            else:
+                                # Target is outside the package or absolute
+                                symlink_target_rel = symlink_target
+                        except (OSError, RuntimeError):
+                            # Broken symlink or can't resolve
+                            symlink_target_rel = symlink_target
+
+                        file_inventory.append(
+                            FileInfo(
+                                relative_path=relative_path,
+                                size_bytes=0,  # Don't count size for symlinks
+                                checksum=None,  # No checksum for symlinks
+                                is_symlink=True,
+                                symlink_target=symlink_target_rel,
+                            )
+                        )
+
+                        if debug and files_processed % 1000 == 0:
+                            print(f"🔗 Symlink: {relative_path} -> {symlink_target_rel}")
+
+                    except OSError as e:
+                        if debug:
+                            print(f"⚠️  Could not read symlink {file_path}: {e}")
+                        continue
+
+                elif file_path.is_file():
+                    # Regular file - use lstat to not follow symlinks
+                    file_stat = file_path.lstat()
                     size_bytes = file_stat.st_size
 
-                    checksum = self._generate_checksum(file_path)
+                    checksum = self._generate_checksum(file_path) if generate_checksums else None
 
                     file_inventory.append(
                         FileInfo(
@@ -282,16 +321,17 @@ class InPlacePackageMeasurer:
                         )
                     )
 
-                    files_processed += 1
                     total_size += size_bytes
 
                     if debug and files_processed % 1000 == 0:
                         print(f"📋 Processed {files_processed} files...")
 
-                except (OSError, PermissionError) as e:
-                    if debug:
-                        print(f"⚠️  Skipping file {file_path}: {e}")
-                    continue
+                files_processed += 1
+
+            except (OSError, PermissionError) as e:
+                if debug:
+                    print(f"⚠️  Skipping file {file_path}: {e}")
+                continue
 
         # Sort by size (descending) for easier analysis
         file_inventory.sort(key=lambda f: f.size_bytes, reverse=True)
@@ -349,14 +389,7 @@ class InPlacePackageMeasurer:
                 "arch": report.arch,
                 "os": report.os,
                 "build_job_name": report.build_job_name,
-                "file_inventory": [
-                    {
-                        "relative_path": file_info.relative_path,
-                        "size_bytes": file_info.size_bytes,
-                        "checksum": file_info.checksum,
-                    }
-                    for file_info in report.file_inventory
-                ],
+                "file_inventory": [self._serialize_file_info(file_info) for file_info in report.file_inventory],
             }
 
             with open(output_path, 'w') as f:
@@ -364,6 +397,32 @@ class InPlacePackageMeasurer:
 
         except Exception as e:
             raise RuntimeError(f"Failed to save report to {output_path}: {e}") from e
+
+    def _serialize_file_info(self, file_info: FileInfo) -> dict[str, Any]:
+        """
+        Serialize a FileInfo object to a dictionary, excluding None/False fields for regular files.
+
+        Args:
+            file_info: The FileInfo object to serialize
+
+        Returns:
+            Dictionary with only relevant fields
+        """
+        result = {
+            "relative_path": file_info.relative_path,
+            "size_bytes": file_info.size_bytes,
+        }
+
+        # Only include checksum if present
+        if file_info.checksum is not None:
+            result["checksum"] = file_info.checksum
+
+        # Only include symlink fields if the file is actually a symlink
+        if file_info.is_symlink:
+            result["is_symlink"] = True
+            result["symlink_target"] = file_info.symlink_target
+
+        return result
 
 
 def measure_package_local(
@@ -373,7 +432,6 @@ def measure_package_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    max_files=20000,
     no_checksums=False,
     debug=False,
 ):
@@ -389,7 +447,6 @@ def measure_package_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
-        max_files: Maximum number of files to process in inventory (default: 20000)
         no_checksums: Skip checksum generation for faster processing (default: false)
         debug: Enable debug logging for troubleshooting (default: false)
 
@@ -437,7 +494,6 @@ def measure_package_local(
             package_path=package_path,
             gate_name=gate_name,
             build_job_name=build_job_name,
-            max_files=max_files,
             generate_checksums=not no_checksums,
             debug=debug,
         )
