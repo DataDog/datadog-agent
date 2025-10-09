@@ -12,6 +12,7 @@ package commonchecks
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -25,7 +26,7 @@ import (
 )
 
 // RegisterChecks registers the checks that can run in the Cluster Agent
-func RegisterChecks(store workloadmeta.Component, _ workloadfilter.Component, tagger tagger.Component, cfg config.Component,
+func RegisterChecks(_ logcomp.Component, store workloadmeta.Component, _ workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	_ telemetry.Component, _ rcclient.Component, _ flare.Component) {
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, store))

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -109,6 +110,7 @@ func (c *Config) Parse(data []byte) error {
 // Check reports SBOM
 type Check struct {
 	core.CheckBase
+	log               logcomp.Component
 	workloadmetaStore workloadmeta.Component
 	filterStore       workloadfilter.Component
 	tagger            tagger.Component
@@ -120,7 +122,7 @@ type Check struct {
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, cfg config.Component, tagger tagger.Component) option.Option[func() check.Check] {
+func Factory(log logcomp.Component, store workloadmeta.Component, filterStore workloadfilter.Component, cfg config.Component, tagger tagger.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
@@ -156,6 +158,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	c.sender = sender
 
 	if c.processor, err = newProcessor(
+		c.log,
 		c.workloadmetaStore,
 		c.filterStore,
 		sender,
