@@ -1048,7 +1048,7 @@ func (fh *EBPFFieldHandlers) ResolveSSHUsername(event *model.Event, evtCtx *mode
 }
 
 // ResolveSSHClientIP resolves the ssh username of the event
-func (fh *EBPFFieldHandlers) ResolveSSHClientIP(event *model.Event, evtCtx *model.UserSessionContext) string {
+func (fh *EBPFFieldHandlers) ResolveSSHClientIP(event *model.Event, evtCtx *model.UserSessionContext) net.IPNet {
 	fh.ResolveUserSessionContext(evtCtx)
 	return evtCtx.SSHClientIP
 }

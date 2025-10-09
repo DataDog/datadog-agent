@@ -9,6 +9,7 @@
 package model
 
 import (
+	"net"
 	"time"
 )
 
@@ -1907,7 +1908,7 @@ type FieldHandlers interface {
 	ResolveRights(ev *Event, e *FileFields) int
 	ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string
 	ResolveSSHAuthMethod(ev *Event, e *UserSessionContext) int
-	ResolveSSHClientIP(ev *Event, e *UserSessionContext) string
+	ResolveSSHClientIP(ev *Event, e *UserSessionContext) net.IPNet
 	ResolveSSHPort(ev *Event, e *UserSessionContext) int
 	ResolveSSHPublicKey(ev *Event, e *UserSessionContext) string
 	ResolveSSHUsername(ev *Event, e *UserSessionContext) string
@@ -2164,8 +2165,8 @@ func (dfh *FakeFieldHandlers) ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent)
 func (dfh *FakeFieldHandlers) ResolveSSHAuthMethod(ev *Event, e *UserSessionContext) int {
 	return int(e.SSHAuthMethod)
 }
-func (dfh *FakeFieldHandlers) ResolveSSHClientIP(ev *Event, e *UserSessionContext) string {
-	return string(e.SSHClientIP)
+func (dfh *FakeFieldHandlers) ResolveSSHClientIP(ev *Event, e *UserSessionContext) net.IPNet {
+	return net.IPNet(e.SSHClientIP)
 }
 func (dfh *FakeFieldHandlers) ResolveSSHPort(ev *Event, e *UserSessionContext) int {
 	return int(e.SSHPort)

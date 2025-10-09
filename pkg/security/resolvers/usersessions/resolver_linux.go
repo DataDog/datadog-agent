@@ -194,7 +194,7 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 				Remaining:              strings.Join(sshWords[9:], " "),
 			}
 			// We compare port and IP to ensure that the line is the one we want
-			if sshParsedLine.IP == ctx.SSHClientIP && sshParsedLine.Port == fmt.Sprintf("%d", ctx.SSHPort) {
+			if sshParsedLine.IP == ctx.SSHClientIP.IP.String() && sshParsedLine.Port == fmt.Sprintf("%d", ctx.SSHPort) {
 				ctx.SSHUsername = sshParsedLine.User
 				switch sshParsedLine.AuthentificationMethod {
 				case "publickey":

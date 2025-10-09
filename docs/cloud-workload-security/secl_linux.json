@@ -14089,7 +14089,7 @@
     {
       "name": "*.ssh_client_ip",
       "link": "common-usersessioncontext-ssh_client_ip-doc",
-      "type": "string",
+      "type": "IP/CIDR",
       "definition": "SSH client IP of the user that executed the process",
       "prefixes": [
         "exec.user_session",
