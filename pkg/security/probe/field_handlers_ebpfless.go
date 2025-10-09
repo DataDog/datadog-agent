@@ -11,6 +11,7 @@ package probe
 import (
 	"crypto/sha256"
 	"fmt"
+	"net"
 	"slices"
 	"strings"
 	"time"
@@ -627,8 +628,8 @@ func (fh *EBPFLessFieldHandlers) ResolveSSHUsername(_ *model.Event, evtCtx *mode
 }
 
 // ResolveSSHClientIP resolves the ssh username of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, evtCtx *model.UserSessionContext) string {
-	return "" // EBPFLess mode does not support SSH
+func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, evtCtx *model.UserSessionContext) net.IPNet {
+	return net.IPNet{} // EBPFLess mode does not support SSH
 }
 
 // ResolveSSHAuthMethod resolves the ssh auth method of the event

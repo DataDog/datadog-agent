@@ -123,7 +123,7 @@ func TestSSHUserSession(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_ssh_user_session",
-			Expression: `exec.user_session.ssh_username == "` + currentUser.Username + `"`,
+			Expression: `exec.user_session.id != 0 && exec.user_session.session_type == 2 && exec.user_session.ssh_username == "` + currentUser.Username + `"`,
 		},
 	}
 
@@ -147,9 +147,9 @@ func TestSSHUserSession(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_ssh_user_session")
 			assert.NotEqual(t, 0, event.ProcessContext.UserSession.ID)
-			assert.Equal(t, usersession.UserSessionTypes["ssh"], event.ProcessContext.UserSession.SessionType)
+			assert.Equal(t, int(usersession.UserSessionTypes["ssh"]), event.ProcessContext.UserSession.SessionType)
 			assert.Equal(t, currentUser.Username, event.ProcessContext.UserSession.SSHUsername)
-			assert.Contains(t, []string{"127.0.0.1", "::1"}, event.ProcessContext.UserSession.SSHClientIP)
+			assert.Contains(t, []string{"127.0.0.1", "::1"}, event.ProcessContext.UserSession.SSHClientIP.IP.String())
 		})
 	})
 }
