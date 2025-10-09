@@ -48,7 +48,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 	}
 
 	// load the configuration
-	warnings, err := pkgconfigsetup.LoadWithSecret(config, secretComp, pkgconfigsetup.SystemProbe().GetEnvVars())
+	warnings, err := pkgconfigsetup.LoadDatatog(config, secretComp, pkgconfigsetup.SystemProbe().GetEnvVars())
 
 	if err != nil && (!errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message

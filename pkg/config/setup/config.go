@@ -2017,11 +2017,6 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 	}
 }
 
-// LoadWithSecret reads config files and initializes config with decrypted secrets
-func LoadWithSecret(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-	return LoadDatadogCustom(config, "datadog.yaml", secretResolver, additionalEnvVars)
-}
-
 // Merge will merge additional configuration into an existing configuration
 func Merge(configPaths []string, config pkgconfigmodel.Config) error {
 	for _, configPath := range configPaths {
@@ -2207,8 +2202,8 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 	return nil
 }
 
-// LoadDatadogCustom loads the datadog config in the given config
-func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolver secrets.Component, additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
+// LoadDatadog reads config files and initializes config with decrypted secrets
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -2230,7 +2225,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
-	if err := ResolveSecrets(config, secretResolver, origin); err != nil {
+	if err := ResolveSecrets(config, secretResolver, "datadog.yaml"); err != nil {
 		return warnings, err
 	}
 

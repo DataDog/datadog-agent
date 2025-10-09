@@ -34,7 +34,7 @@ func main() {
 
 	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
 	ddcfg.SetConfigFile(*cfgpath)
-	if _, err := pkgconfigsetup.LoadWithSecret(ddcfg, secretsnoop.NewComponent().Comp, nil); err != nil {
+	if _, err := pkgconfigsetup.LoadDatadog(ddcfg, secretsnoop.NewComponent().Comp, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
