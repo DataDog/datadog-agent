@@ -9,6 +9,7 @@ package ebpf
 
 import (
 	"archive/tar"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/cilium/ebpf/btf"
 
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -118,26 +120,34 @@ type orderedBTFLoader struct {
 	userBTFPath  string
 	embeddedDir  string
 	btfOutputDir string
+	rcBTFEnabled bool
 
 	result         BTFResult
 	resultMetadata BTFResultMetadata
 	loadFunc       funcs.CachedFunc[returnBTF]
 	delayedFlusher *time.Timer
+	rcclient       rcclient.Component
+	rcTimeout      time.Duration
+	rcDownloadHost string
 }
 
-func initBTFLoader(cfg *Config) *orderedBTFLoader {
+func initBTFLoader(cfg *Config, rcclient rcclient.Component) *orderedBTFLoader {
 	btfLoader := &orderedBTFLoader{
-		userBTFPath:  cfg.BTFPath,
-		embeddedDir:  filepath.Join(cfg.BPFDir, "co-re", "btf"),
-		btfOutputDir: filepath.Join(cfg.BTFOutputDir, version.AgentVersion),
-		result:       BtfNotFound,
+		userBTFPath:    cfg.BTFPath,
+		embeddedDir:    filepath.Join(cfg.BPFDir, "co-re", "btf"),
+		btfOutputDir:   filepath.Join(cfg.BTFOutputDir, version.AgentVersion),
+		result:         BtfNotFound,
+		rcBTFEnabled:   cfg.RemoteConfigBTFEnabled && rcclient != nil,
+		rcclient:       rcclient,
+		rcTimeout:      cfg.RemoteConfigBTFTimeout,
+		rcDownloadHost: cfg.RemoteConfigBTFDownloadHost,
 	}
 	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
 	return btfLoader
 }
 
-type btfLoaderFunc func() (*returnBTF, error)
+type btfLoaderFunc func(context.Context) (*returnBTF, error)
 
 // Get returns BTF for the running kernel
 func (b *orderedBTFLoader) Get() (*returnBTF, COREResult, error) {
@@ -165,12 +175,13 @@ func (b *orderedBTFLoader) get() (*returnBTF, error) {
 		{SuccessCustomBTF, b.loadUser, "configured BTF file"},
 		{SuccessDefaultBTF, b.loadKernel, "kernel"},
 		{SuccessEmbeddedBTF, b.loadEmbedded, "embedded collection"},
+		{SuccessRemoteConfigBTF, b.loadRemoteConfig, "remote config"},
 	}
 	var err error
 	var ret *returnBTF
 	for _, l := range loaders {
 		log.Debugf("attempting BTF load from %s", l.desc)
-		ret, err = l.loader()
+		ret, err = l.loader(context.Background())
 		if err != nil {
 			err = fmt.Errorf("BTF load from %s: %w", l.desc, err)
 			// attempting default kernel when not supported will return this error
@@ -189,7 +200,7 @@ func (b *orderedBTFLoader) get() (*returnBTF, error) {
 	return nil, err
 }
 
-func (b *orderedBTFLoader) loadKernel() (*returnBTF, error) {
+func (b *orderedBTFLoader) loadKernel(_ context.Context) (*returnBTF, error) {
 	spec, err := GetKernelSpec()
 	if err != nil {
 		return nil, err
@@ -200,7 +211,7 @@ func (b *orderedBTFLoader) loadKernel() (*returnBTF, error) {
 	}, nil
 }
 
-func (b *orderedBTFLoader) loadUser() (*returnBTF, error) {
+func (b *orderedBTFLoader) loadUser(_ context.Context) (*returnBTF, error) {
 	if b.userBTFPath == "" {
 		return nil, nil
 	}
@@ -259,7 +270,7 @@ func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
 	return nil, nil
 }
 
-func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
+func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
 	btfRelativeTarballFilename, err := b.embeddedPath()
 	if err != nil {
 		return nil, err
@@ -334,6 +345,18 @@ var kernelVersionPatterns = []struct {
 
 var errIncorrectOSReleaseMount = errors.New("please mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this")
 
+func relativeBTFTarballPath(platform btfPlatform, platformVersion, kernelVersion string) string {
+	btfTarball := kernelVersion + ".btf.tar.xz"
+	btfRelativePath := filepath.Join(platform.String(), btfTarball)
+	if platform == platformUbuntu {
+		// Ubuntu BTFs are stored in subdirectories corresponding to platform version.
+		// This is because we have BTFs for different versions of ubuntu with the exact same
+		// kernel name, so kernel name alone is not a unique identifier.
+		btfRelativePath = filepath.Join(platform.String(), platformVersion, btfTarball)
+	}
+	return btfRelativePath
+}
+
 // getEmbeddedBTF returns the relative path to the BTF *tarball* file
 func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion, kernelVersion string) (string, error) {
 	btfTarball := kernelVersion + ".btf.tar.xz"
@@ -342,13 +365,7 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion,
 		return "", fmt.Errorf("no BTF file in embedded collection matching kernel version `%s`", kernelVersion)
 	}
 
-	btfRelativePath := filepath.Join(platform.String(), btfTarball)
-	if platform == platformUbuntu {
-		// Ubuntu BTFs are stored in subdirectories corresponding to platform version.
-		// This is because we have BTFs for different versions of ubuntu with the exact same
-		// kernel name, so kernel name alone is not a unique identifier.
-		btfRelativePath = filepath.Join(platform.String(), platformVersion, btfTarball)
-	}
+	btfRelativePath := relativeBTFTarballPath(platform, platformVersion, kernelVersion)
 	if slices.Contains(possiblePaths, btfRelativePath) {
 		return btfRelativePath, nil
 	}
