@@ -7,6 +7,13 @@ if [ -z "${BAZEL_REAL:-}" ] || [ "${BAZELISK_SKIP_WRAPPER:-}" != "true" ]; then
   exit 1
 fi
 
+# Restore `bazel`'s executable bit if it was not preserved (observed on macOS after zip extraction)
+if [ ! -x "$BAZEL_REAL" ]; then
+  >&2 echo "🟡 Make bazel executable again"
+  >&2 ls -l "$BAZEL_REAL"
+  chmod +x "$BAZEL_REAL"
+fi
+
 # Not in CI: simply execute `bazel` - done
 if [ -z "${CI_PROJECT_DIR:-}" ]; then
   exec "$BAZEL_REAL" "$@"
