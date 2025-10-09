@@ -33,9 +33,8 @@ build do
   command "bazelisk run -- @xz//:install --destdir='#{install_dir}/embedded'", \
 	cwd: "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent"
 
-  shlib = if linux_target? then "liblzma.so" else "liblzma.dylib" end
   command "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
     "#{install_dir}/embedded/lib/pkgconfig/liblzma.pc " \
-    "#{install_dir}/embedded/lib/#{shlib}", \
+    "#{install_dir}/embedded/lib/liblzma.so", \
 	cwd: "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent"
 end
