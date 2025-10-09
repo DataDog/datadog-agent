@@ -132,7 +132,6 @@ def build(
     embedded_path=None,
     rtloader_root=None,
     python_home_3=None,
-    major_version='7',
     exclude_rtloader=False,
     include_sds=False,
     go_mod="readonly",
@@ -166,7 +165,6 @@ def build(
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
-        major_version=major_version,
     )
 
     bundled_agents = ["agent"]
@@ -178,7 +176,7 @@ def build(
         # Do not call build_rc when cross-compiling on Linux as the intend is more
         # to streamline the development process that producing a working executable / installer
         if sys.platform == 'win32':
-            vars = versioninfo_vars(ctx, major_version=major_version)
+            vars = versioninfo_vars(ctx)
             build_rc(
                 ctx,
                 "cmd/agent/windows_resources/agent.rc",
@@ -537,6 +535,7 @@ RUN apt-get update && \
     apt-get install -y patchelf
 
 COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
+COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
@@ -570,6 +569,7 @@ COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
 {copy_extra_agents}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
@@ -719,7 +719,6 @@ def version(
     url_safe=False,
     omnibus_format=False,
     git_sha_length=7,
-    major_version='7',
     cache_version=False,
     pipeline_id=None,
     include_git=True,
@@ -745,7 +744,6 @@ def version(
         include_git=include_git,
         url_safe=url_safe,
         git_sha_length=git_sha_length,
-        major_version=major_version,
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
         include_pre=include_pre,

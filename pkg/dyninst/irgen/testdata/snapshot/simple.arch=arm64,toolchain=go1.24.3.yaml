@@ -398,7 +398,13 @@ Subprograms:
       Variables:
         - Name: ~r0
           Type: 119 GoMapType map[uint8]map[int]main.aStructNotUsedAsAnArgument
-          Locations: [{Range: 0xb5800..0xb59c0, Pieces: []}]
+          Locations:
+            - Range: 0xb5800..0xb59a0
+              Pieces: []
+            - Range: 0xb59a0..0xb59a1
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xb59a1..0xb59c0
+              Pieces: []
           IsParameter: true
           IsReturn: true
     - ID: 12
