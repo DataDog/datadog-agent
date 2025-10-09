@@ -86,7 +86,7 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 	})
 }
 
-// CheckDogstatdAgentBehaviour runs tests to check the agent behave properly with dogstatsd
+// CheckDogstatdAgentBehaviour runs tests to check that the Agent behaves properly with dogstatsd
 func CheckDogstatdAgentBehaviour(t *testing.T, client *TestClient) {
 	t.Run("dogstatsd service running", func(tt *testing.T) {
 		_, err := client.SvcManager.Status(client.Helper.GetServiceName())
@@ -249,7 +249,7 @@ func CheckAgentPython(t *testing.T, client *TestClient, expectedVersion string) 
 	})
 }
 
-// CheckApmEnabled runs tests to check the agent behave properly with APM enabled
+// CheckApmEnabled runs tests to check that the Agent behaves properly with APM enabled
 func CheckApmEnabled(t *testing.T, client *TestClient) {
 	t.Run("port bound apm enabled", func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
@@ -280,7 +280,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 	})
 }
 
-// CheckApmDisabled runs tests to check the agent behave properly when APM is disabled
+// CheckApmDisabled runs tests to check that the Agent behaves properly when APM is disabled
 func CheckApmDisabled(t *testing.T, client *TestClient) {
 	t.Run("trace-agent not running when disabled", func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
@@ -393,5 +393,52 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 			require.NoError(tt, err, "readelf should not error, file is %s", file)
 			require.Contains(tt, ddMetadata, archMetadata, "invalid arch metadata")
 		}
+	})
+}
+
+// CheckADPEnabled runs tests to check that the Agent behaves properly with ADP enabled
+func CheckADPEnabled(t *testing.T, client *TestClient) {
+	t.Run("DogStatsD port bound ADP enabled", func(tt *testing.T) {
+		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
+
+		// TODO(ADP): Update this when we remove the need to set `use_dogstatsd` to `false` when ADP is enabled.
+		err := client.SetConfig(configFilePath, "data_plane.enabled", "true")
+		require.NoError(tt, err)
+		err = client.SetConfig(configFilePath, "use_dogstatsd", "false")
+		require.NoError(tt, err)
+
+		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
+		require.NoError(tt, err)
+
+		var boundPort boundport.BoundPort
+		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
+			boundPort, _ = AssertPortBoundByService(c, client, 8125, "agent-data-plane", "agent-data-plane")
+		}, 1*time.Minute, 500*time.Millisecond) {
+			err := fmt.Errorf("port 8125 should be bound when ADP is enabled")
+			if client.Host.OSFamily == componentos.LinuxFamily {
+				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "agent-data-plane\\|datadog-agent-data-plane"))
+			}
+			t.Fatalf("%s", err.Error())
+		}
+
+		require.EqualValues(t, "127.0.0.1", boundPort.LocalAddress(), "agent-data-plane should only be listening locally")
+	})
+}
+
+// CheckADPDisabled runs tests to check that the Agent behaves properly when ADP is disabled
+func CheckADPDisabled(t *testing.T, client *TestClient) {
+	t.Run("agent-data-plane not running when disabled", func(tt *testing.T) {
+		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
+
+		err := client.SetConfig(configFilePath, "data_plane.enabled", "false")
+		require.NoError(tt, err)
+
+		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
+		require.NoError(tt, err)
+
+		// On Linux, ADP will be started by the service manager and then exit after a bit if it is not enabled.
+		require.Eventually(tt, func() bool {
+			return !AgentProcessIsRunning(client, "agent-data-plane")
+		}, 1*time.Minute, 500*time.Millisecond, "agent-data-plane should not be running ", err)
 	})
 }

@@ -194,6 +194,8 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 				common.CheckCWSBehaviour(tt, t.InstallTestClient)
 			})
 		}
+
+		// TODO(ADP): Update this for Windows when we add Windows support to ADP.
 	})
 }
 
