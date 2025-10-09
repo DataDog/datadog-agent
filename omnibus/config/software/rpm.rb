@@ -54,12 +54,10 @@ build do
   env["LUA_CFLAGS"] ="-I#{install_dir}/embedded/include"
   env["LUA_LIBS"] ="-L#{install_dir}/embedded/lib -l:liblua.a -lm"
 
-  # libmagic is only required when building rpmbuild, which we don't
-  # but we need to disable the check in order to skip having to provide
-  # the dependency
-  # env["ac_cv_header_magic_h"] = "yes"
-
   configure_options = [
+    # libmagic is only required when building rpmbuild, which we don't
+    # but we need to disable the check in order to skip having to provide
+    # the dependency
     "ac_cv_header_magic_h=yes",
     "ac_cv_lib_magic_magic_open=yes",
     "--enable-sqlite=yes",
