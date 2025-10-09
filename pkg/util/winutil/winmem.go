@@ -19,6 +19,7 @@ var (
 
 	procGlobalMemoryStatusEx = modkernel32.NewProc("GlobalMemoryStatusEx")
 	procGetPerformanceInfo   = modPsapi.NewProc("GetPerformanceInfo")
+	procEnumPageFilesW       = modPsapi.NewProc("EnumPageFilesW")
 )
 
 // VirtualMemoryStat contains basic metrics for virtual memory
@@ -68,6 +69,30 @@ type SwapMemoryStat struct {
 	UsedPercent float64
 }
 
+// PagingFileStat contains statistics for paging files
+type PagingFileStat struct {
+	// The name of the paging file
+	Name string
+
+	// The total size of the paging file
+	Total uint64
+
+	// The amount of paging file that is available for use
+	Available uint64
+
+	// The amount of paging file that is used
+	Used uint64
+
+	// The percentage of paging file that is used
+	UsedPercent float64
+}
+
+// PageFilesContext is a context for the EnumPageFilesW function
+type PageFilesContext struct {
+	PageFiles []*PagingFileStat
+	PageSize  uint64
+}
+
 type memoryStatusEx struct {
 	cbSize                  uint32
 	dwMemoryLoad            uint32
@@ -78,6 +103,17 @@ type memoryStatusEx struct {
 	ullTotalVirtual         uint64
 	ullAvailVirtual         uint64
 	ullAvailExtendedVirtual uint64
+}
+
+// enumPageFileInformation contains information about a pagefile.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/psapi/ns-psapi-enum_page_file_information
+type enumPageFileInformation struct {
+	cbSize     uint32
+	reserved   uint32
+	totalSize  uint64
+	totalInUse uint64
+	peakUsage  uint64
 }
 
 // VirtualMemory returns virtual memory metrics for the machine
@@ -123,11 +159,9 @@ func PagefileMemory() (*PagefileStat, error) {
 
 // SwapMemory returns swapfile statistics
 func SwapMemory() (*SwapMemoryStat, error) {
-	var perfInfo performanceInformation
-	perfInfo.cb = uint32(unsafe.Sizeof(perfInfo))
-	mem, _, _ := procGetPerformanceInfo.Call(uintptr(unsafe.Pointer(&perfInfo)), uintptr(perfInfo.cb))
-	if mem == 0 {
-		return nil, windows.GetLastError()
+	perfInfo, err := getPerformanceInfo()
+	if err != nil {
+		return nil, err
 	}
 	tot := uint64(perfInfo.commitLimit * perfInfo.pageSize)
 	used := uint64(perfInfo.commitTotal * perfInfo.pageSize)
@@ -140,4 +174,66 @@ func SwapMemory() (*SwapMemoryStat, error) {
 	}
 
 	return ret, nil
+}
+
+// EnumPageFilesW Calls the callback routine for each installed pagefile in the system.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-enumpagefilesw
+func EnumPageFilesW(pageSize uint64) ([]*PagingFileStat, error) {
+	ctx := &PageFilesContext{
+		PageFiles: make([]*PagingFileStat, 0),
+		PageSize:  pageSize,
+	}
+	r0, _, err := procEnumPageFilesW.Call(windows.NewCallback(pEnumPageFileCallbackW), uintptr(unsafe.Pointer(ctx)))
+	if r0 == 0 {
+		return nil, err
+	}
+	return ctx.PageFiles, nil
+}
+
+// pEnumPageFileCallbackW is an application-defined callback function used with the EnumPageFilesW function.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/psapi/nc-psapi-penum_page_file_callbackw
+func pEnumPageFileCallbackW(pContext uintptr, enumPageFileInformation *enumPageFileInformation, lpFileName *[windows.MAX_LONG_PATH]uint16) bool {
+	ctx := (*PageFilesContext)(unsafe.Pointer(pContext))
+	pageFileName := windows.UTF16ToString(lpFileName[:])
+
+	// Convert pages to bytes using the pageSize from context
+	totalBytes := enumPageFileInformation.totalSize * ctx.PageSize
+	usedBytes := enumPageFileInformation.totalInUse * ctx.PageSize
+	availableBytes := totalBytes - usedBytes
+
+	pageFile := &PagingFileStat{
+		Name:        pageFileName,
+		Total:       totalBytes,
+		Available:   availableBytes,
+		Used:        usedBytes,
+		UsedPercent: (float64(usedBytes) / float64(totalBytes)) * 100,
+	}
+	ctx.PageFiles = append(ctx.PageFiles, pageFile)
+	return true
+}
+
+// PagingFileMemory returns paging file metrics
+func PagingFileMemory() ([]*PagingFileStat, error) {
+	perfInfo, err := getPerformanceInfo()
+	if err != nil {
+		return nil, err
+	}
+	pageSize := perfInfo.pageSize
+	pageFiles, err := EnumPageFilesW(pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return pageFiles, nil
+}
+
+func getPerformanceInfo() (*performanceInformation, error) {
+	var perfInfo performanceInformation
+	perfInfo.cb = uint32(unsafe.Sizeof(perfInfo))
+	mem, _, _ := procGetPerformanceInfo.Call(uintptr(unsafe.Pointer(&perfInfo)), uintptr(perfInfo.cb))
+	if mem == 0 {
+		return nil, windows.GetLastError()
+	}
+	return &perfInfo, nil
 }
