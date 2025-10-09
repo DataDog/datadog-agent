@@ -35,8 +35,9 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				LibVersions: map[string]string{
 					"python": "default",
 				},
-				Version:          "v2",
-				InjectorImageTag: "foo",
+				Version:           "v2",
+				InjectorImageTag:  "foo",
+				WorkloadSelection: true,
 			},
 		},
 		{
@@ -56,8 +57,9 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				LibVersions: map[string]string{
 					"python": "default",
 				},
-				Version:          "v2",
-				InjectorImageTag: "foo",
+				Version:           "v2",
+				InjectorImageTag:  "foo",
+				WorkloadSelection: true,
 			},
 		},
 		{
@@ -106,6 +108,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
+				WorkloadSelection: true,
 			},
 		},
 		{
@@ -163,6 +166,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
+				WorkloadSelection: true,
 			},
 		},
 		{
@@ -175,6 +179,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				InjectorImageTag:   "0",
 				Version:            "v2",
 				LibVersions:        map[string]string{},
+				WorkloadSelection:  true,
 				Targets: []Target{
 					{
 						Name: "name-services",

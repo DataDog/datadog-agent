@@ -1,0 +1,148 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+// Package workloadselectionimpl implements the workloadselection component interface
+package workloadselectionimpl
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	workloadselection "github.com/DataDog/datadog-agent/comp/workloadselection/def"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+)
+
+var (
+	configCompiledPath  = filepath.Join(config.DefaultConfPath, "wls-policy.bin")
+	configJSONPath      = filepath.Join(config.DefaultConfPath, "wls-policy.json")
+	ddPolicyCompilePath = filepath.Join(config.InstallPath, "embedded", "bin", "dd-compile-policy")
+)
+
+// Requires defines the dependencies for the workloadselection component
+type Requires struct {
+	Log    log.Component
+	Config config.Component
+}
+
+// Provides defines the output of the workloadselection component
+type Provides struct {
+	Comp       workloadselection.Component
+	RCListener rctypes.ListenerProvider
+}
+
+// NewComponent creates a new workloadselection component
+func NewComponent(reqs Requires) (Provides, error) {
+	wls := &workloadselectionComponent{
+		log:    reqs.Log,
+		config: reqs.Config,
+	}
+
+	var rcListener rctypes.ListenerProvider
+	if reqs.Config.GetBool("apm_config.instrumentation.workload_selection") || !isCompilePolicyBinaryAvailable() {
+		reqs.Log.Debug("Enabling APM SSI Workload Selection listener")
+		rcListener.ListenerProvider = rctypes.RCListener{
+			state.ProductApmPolicies: wls.onConfigUpdate,
+		}
+	} else {
+		reqs.Log.Debug("Disabling APM SSI Workload Selection listener as the compile policy binary is not available or workload selection is disabled")
+	}
+
+	provides := Provides{
+		Comp:       wls,
+		RCListener: rcListener,
+	}
+	return provides, nil
+}
+
+type workloadselectionComponent struct {
+	log    log.Component
+	config config.Component
+}
+
+func isCompilePolicyBinaryAvailable() bool {
+	compilePath := filepath.Join(config.InstallPath, "embedded", "bin", "dd-policy-compile")
+	_, err := os.Stat(compilePath)
+	return err == nil
+}
+
+func compilePolicyBinary(rawConfig []byte) error {
+	if err := os.WriteFile(configJSONPath, rawConfig, 0644); err != nil {
+		return err
+	}
+	cmd := exec.Command(ddPolicyCompilePath, "--input-json", configJSONPath, "--output", configCompiledPath)
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("error executing dd-policy-compile (%w); out: '%s'; err: '%s'", err, stdoutBuf.String(), stderrBuf.String())
+	}
+	// TODO: shall we remove the JSON file?
+	return nil
+}
+
+func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	c.log.Debugf("workload selection config update received: %d", len(updates))
+	if len(updates) == 0 {
+		err := c.removeConfig() // No config received, we have to remove the file. Nothing to acknowledge.
+		if err != nil {
+			c.log.Errorf("failed to remove workload selection config: %v", err)
+		}
+		return
+	}
+
+	if len(updates) > 1 {
+		c.log.Warnf("workload selection received %d configs, expected only 1. Taking the first one alphabetically", len(updates))
+	}
+
+	// Sort paths alphabetically for consistent behavior
+	var sortedPaths []string
+	for path := range updates {
+		sortedPaths = append(sortedPaths, path)
+	}
+	sort.Strings(sortedPaths)
+
+	// Emit error for configs that are not treated (we only accept 1)
+	for i := 1; i < len(sortedPaths); i++ {
+		rejectedPath := sortedPaths[i]
+		applyStateCallback(rejectedPath, state.ApplyStatus{
+			State: state.ApplyStateError,
+			Error: "workload selection only accepts one configuration, rejecting additional configs",
+		})
+	}
+
+	// Process only the first config alphabetically
+	path := sortedPaths[0]
+	err := c.compileAndWriteConfig(updates[path].Config)
+	if err != nil {
+		c.log.Errorf("failed to compile workload selection config: %v", err)
+		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+		return
+	}
+	applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+}
+
+func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) error {
+	c.log.Debugf("Writing workload selection config")
+	return compilePolicyBinary(rawConfig)
+}
+
+func (c *workloadselectionComponent) removeConfig() error {
+	// os.RemoveAll does not fail if the path doesn't exist, it returns nil
+	c.log.Debugf("Removing workload selection config")
+	if err := os.RemoveAll(configCompiledPath); err != nil {
+		return fmt.Errorf("failed to remove workload selection binary policy: %w", err)
+	}
+	if err := os.RemoveAll(configJSONPath); err != nil {
+		return fmt.Errorf("failed to remove workload selection JSON policy: %w", err)
+	}
+	return nil
+}

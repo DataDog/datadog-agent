@@ -802,3 +802,9 @@ versions, installation dates, and other relevant details for inventory tracking.
 
 Package syntheticstestscheduler defines a synthetics scheduler component to run
 network tests based on remote config.
+
+### [comp/workloadselection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/workloadselection)
+
+*Datadog Team*: injection-platform
+
+Package workloadselection listens to Remote Config to receive & apply workload selection configuration

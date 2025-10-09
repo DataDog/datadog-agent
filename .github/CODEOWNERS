@@ -377,6 +377,7 @@
 /comp/snmpscan @DataDog/ndm-core
 /comp/softwareinventory @DataDog/windows-products
 /comp/syntheticstestscheduler @DataDog/synthetics-executing
+/comp/workloadselection @DataDog/injection-platform
 # END COMPONENTS
 
 # Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
