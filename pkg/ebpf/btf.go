@@ -490,7 +490,7 @@ func GetKernelSpec() (*btf.Spec, error) {
 	return loadKernelSpec.Do()
 }
 
-// copyFileMkdir copies file path `src“ to file path `dst`.
+// copyFileMkdir copies file path `src` to file path `dst`.
 func copyFileMkdir(src, dst string) error {
 	fi, err := os.Stat(src)
 	if err != nil {
@@ -509,6 +509,8 @@ func copyFileMkdir(src, dst string) error {
 
 	in, err := os.Open(src)
 	if err != nil {
+		out.Close()
+		os.Remove(dst)
 		return err
 	}
 	defer in.Close()
