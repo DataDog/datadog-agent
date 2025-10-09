@@ -153,7 +153,7 @@ func PipelineAgentVersion(t *testing.T) string {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		require.NoError(t, err)
 	}
-	version, ok := m.Annotations["com.datadoghq.agent.version"]
-	require.True(t, ok, "com.datadoghq.agent.version annotation not found in manifest")
+	version, ok := m.Annotations["com.datadoghq.package.version"]
+	require.True(t, ok, "com.datadoghq.package.version annotation not found in manifest")
 	return version
 }
