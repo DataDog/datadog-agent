@@ -10,11 +10,14 @@ import (
 	"strings"
 
 	"github.com/mohae/deepcopy"
-	"go.opentelemetry.io/collector/confmap"
 
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
+
+// confmapKeyDelimiter is the delimiter used for keys in go.opentelemetry.io/collector/confmap
+// We hardcode it to avoid the import to the dependency
+const confmapKeyDelimiter = "::"
 
 func readConfigSection(cfg configmodel.Reader, section string) map[string]interface{} {
 	// Viper doesn't work well when getting subsections, since it
@@ -47,7 +50,7 @@ func readConfigSection(cfg configmodel.Reader, section string) map[string]interf
 	prefix := section + "."
 	for _, key := range cfg.AllKeysLowercased() {
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
-			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmap.KeyDelimiter)
+			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmapKeyDelimiter)
 			// deep copy since `cfg.Get` returns a reference
 			var val interface{}
 			if _, ok := intConfigs[key]; ok {
@@ -79,7 +82,7 @@ func hasSection(cfg configmodel.Reader, section string) bool {
 	// IsSet won't work here: it will return false if the section is present but empty.
 	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
 	configSection := readConfigSection(cfg, coreconfig.OTLPSection)
-	sectionWithDelimiter := section + confmap.KeyDelimiter
+	sectionWithDelimiter := section + confmapKeyDelimiter
 	for key := range configSection {
 		if key == section || strings.HasPrefix(key, sectionWithDelimiter) {
 			return true
