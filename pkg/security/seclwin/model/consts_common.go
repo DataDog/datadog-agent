@@ -471,8 +471,8 @@ var (
 	compressionTypeStrings     = map[CompressionType]string{}
 	fileTypeStrings            = map[FileType]string{}
 	linkageTypeStrings         = map[LinkageType]string{}
-	UserSessionTypeStrings     = map[usersession.Type]string{}
-	SSHAuthMethodStrings       = map[uint8]string{}
+	userSessionTypeStrings     = map[usersession.Type]string{}
+	sSHAuthMethodStrings       = map[uint8]string{}
 )
 
 // File flags
@@ -624,14 +624,14 @@ func initLinkageTypeConstants() {
 func initUserSessionTypes() {
 	for k, v := range UserSessionTypes {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
-		UserSessionTypeStrings[v] = k
+		userSessionTypeStrings[v] = k
 	}
 }
 
 func initSSHAuthMethodConstants() {
 	for k, v := range SSHAuthMethodConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
-		SSHAuthMethodStrings[v] = k
+		sSHAuthMethodStrings[v] = k
 	}
 }
 
