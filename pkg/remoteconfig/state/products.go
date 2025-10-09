@@ -41,6 +41,7 @@ var validProducts = map[string]struct{}{
 	ProductGradualRollout:               {},
 	ProductApmPolicies:                  {},
 	ProductSyntheticsTest:               {},
+	ProductBTFDD:                        {},
 }
 
 const (
@@ -113,6 +114,8 @@ const (
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 	// ProductGradualRollout tracks the latest stable release versions for K8s gradual rollout.
 	ProductGradualRollout = "K8S_INJECTION_DD"
+	// ProductBTFDD accesses a BTF catalog used when the kernel is newer than the system-probe has bundled support for
+	ProductBTFDD = "BTF_DD"
 	// ProductApmPolicies is the workload selection product
 	ProductApmPolicies = "APM_POLICIES"
 )
