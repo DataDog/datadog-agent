@@ -37,6 +37,9 @@ func (s *testAgentMSIInstallsDDOT) AfterTest(_suiteName, _testName string) {
 }
 
 func (s *testAgentMSIInstallsDDOT) TestInstallDDOTFromMSI() {
+	// Arrange: install previous Agent MSI (mirror other suites)
+	s.installPreviousAgentVersion()
+
 	// Act: install current Agent MSI and request DDOT install via MSI properties
 	s.Require().NoError(s.Installer().Install(
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
@@ -58,7 +61,9 @@ func (s *testAgentMSIInstallsDDOT) TestInstallDDOTFromMSI() {
 }
 
 func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
-	// Arrange: ensure DDOT is present by installing via MSI
+	// Arrange: install previous Agent MSI (baseline)
+	s.installPreviousAgentVersion()
+	// Install current Agent MSI with DDOT enabled
 	s.Require().NoError(s.Installer().Install(
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-ddot.log"),
@@ -91,4 +96,24 @@ func (s *testAgentMSIInstallsDDOT) getAPIKey() string {
 		}
 	}
 	return apiKey
+}
+
+// installPreviousAgentVersion mirrors the helper used in other MSI suites to lay down the stable agent first.
+func (s *testAgentMSIInstallsDDOT) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
+	agentVersion := s.StableAgentVersion().Version()
+	options := []installerwindows.MsiOption{
+		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
+		installerwindows.WithMSILogFile("install-previous-version.log"),
+		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
+		installerwindows.WithMSIArg("SITE=datadoghq.com"),
+	}
+	options = append(options, opts...)
+	s.Require().NoError(s.Installer().Install(options...))
+
+	// sanity: ensure the stable version is installed
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, agentVersion)
+		})
 }
