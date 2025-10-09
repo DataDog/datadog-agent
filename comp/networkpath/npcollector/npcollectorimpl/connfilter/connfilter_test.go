@@ -263,6 +263,23 @@ filters:
 			expectedErr: "",
 		},
 		{
+			name: "include all domain",
+			config: `
+filters:
+  - match_domain: '*'
+    type: include
+`,
+			ddSite: "datad0g.com",
+			expectedMatches: []expectedMatch{
+				{domain: "", shouldMatch: true},
+				{domain: "dns.datadoghq.com", shouldMatch: true},
+				{domain: "dns.datadoghq.eu", shouldMatch: true},
+				{domain: "abc.datad0g.com", shouldMatch: true},
+				{domain: "1.datadog.pool.ntp.org", shouldMatch: true},
+			},
+			expectedErr: "",
+		},
+		{
 			name: "invalid filter type",
 			config: `
 filters:
