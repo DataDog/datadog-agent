@@ -139,8 +139,8 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
 	s.setCatalog(s.testCatalog())
 
 	timestamp := s.host.LastJournaldTimestamp()
-	s.startExperiment(datadogAgent, "testing")
-	s.assertSuccessfulAgentStartExperiment(timestamp, "testing")
+	s.startExperiment(datadogAgent, s.pipelineAgentVersion)
+	s.assertSuccessfulAgentStartExperiment(timestamp, s.pipelineAgentVersion)
 
 	// Assert stable symlink still exists properly
 	state = s.host.State()
