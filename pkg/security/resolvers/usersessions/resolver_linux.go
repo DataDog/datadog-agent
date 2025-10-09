@@ -198,17 +198,17 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 				ctx.SSHUsername = sshParsedLine.User
 				switch sshParsedLine.AuthentificationMethod {
 				case "publickey":
-					ctx.SSHAuthMethod = 1
+					ctx.SSHAuthMethod = usersession.SSHAuthMethodPublicKey
 					// Here Parse the Public Key which can be ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU
 					sshParsedLine.Remaining = strings.Split(sshParsedLine.Remaining, ":")[1]
 					ctx.SSHPublicKey = sshParsedLine.Remaining
 					return
 				case "password":
-					ctx.SSHAuthMethod = 2
+					ctx.SSHAuthMethod = usersession.SSHAuthMethodPassword
 					return
 				// Other types not implemented yet
 				default:
-					ctx.SSHAuthMethod = 0
+					ctx.SSHAuthMethod = usersession.SSHAuthMethodUnknown
 					return
 				}
 			}
