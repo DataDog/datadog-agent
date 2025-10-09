@@ -9,49 +9,56 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfiltertype"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
-const (
-	// defaultNetworkPathDynamicPathTracerouteQueries defines the default number of traceroute queries for dynamic path
-	defaultNetworkPathDynamicPathTracerouteQueries = 1
-
-	// defaultNetworkPathDynamicPathE2eQueries defines the default number of end-to-end queries for dynamic path
-	defaultNetworkPathDynamicPathE2eQueries = 10
-)
+const defaultPathtestRawConnectionsChanSize = 10
 
 type collectorConfigs struct {
-	connectionsMonitoringEnabled bool
-	workers                      int
-	timeout                      time.Duration
-	maxTTL                       int
-	pathtestInputChanSize        int
-	pathtestProcessingChanSize   int
-	storeConfig                  pathteststore.Config
-	flushInterval                time.Duration
-	reverseDNSEnabled            bool
-	reverseDNSTimeout            time.Duration
-	disableIntraVPCCollection    bool
-	networkDevicesNamespace      string
-	sourceExcludedConns          map[string][]string
-	destExcludedConns            map[string][]string
-	tcpMethod                    payload.TCPMethod
-	icmpMode                     payload.ICMPMode
-	tcpSynParisTracerouteMode    bool
-	tracerouteQueries            int
-	e2eQueries                   int
-	disableWindowsDriver         bool
+	connectionsMonitoringEnabled   bool
+	workers                        int
+	timeout                        time.Duration
+	maxTTL                         int
+	pathtestInputChanSize          int
+	pathtestProcessingChanSize     int
+	pathtestRawConnectionsChanSize int
+	storeConfig                    pathteststore.Config
+	flushInterval                  time.Duration
+	reverseDNSEnabled              bool
+	reverseDNSTimeout              time.Duration
+	disableIntraVPCCollection      bool
+	networkDevicesNamespace        string
+	sourceExcludedConns            map[string][]string
+	destExcludedConns              map[string][]string
+	tcpMethod                      payload.TCPMethod
+	icmpMode                       payload.ICMPMode
+	tcpSynParisTracerouteMode      bool
+	tracerouteQueries              int
+	e2eQueries                     int
+	disableWindowsDriver           bool
+	filterConfig                   []connfiltertype.ConnFilterConfig
+	monitorIPWithoutDomain         bool
+	ddSite                         string
 }
 
-func newConfig(agentConfig config.Component) *collectorConfigs {
+func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
+	var filterConfigs []connfiltertype.ConnFilterConfig
+	err := agentConfig.UnmarshalKey("network_path.collector.filters", &filterConfigs)
+	if err != nil {
+		logger.Errorf("Error unmarshalling network_path.collector.filters")
+		filterConfigs = nil
+	}
 	return &collectorConfigs{
-		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
-		workers:                      agentConfig.GetInt("network_path.collector.workers"),
-		timeout:                      agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
-		maxTTL:                       agentConfig.GetInt("network_path.collector.max_ttl"),
-		pathtestInputChanSize:        agentConfig.GetInt("network_path.collector.input_chan_size"),
-		pathtestProcessingChanSize:   agentConfig.GetInt("network_path.collector.processing_chan_size"),
+		connectionsMonitoringEnabled:   agentConfig.GetBool("network_path.connections_monitoring.enabled"),
+		workers:                        agentConfig.GetInt("network_path.collector.workers"),
+		timeout:                        agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
+		maxTTL:                         agentConfig.GetInt("network_path.collector.max_ttl"),
+		pathtestInputChanSize:          agentConfig.GetInt("network_path.collector.input_chan_size"),
+		pathtestProcessingChanSize:     agentConfig.GetInt("network_path.collector.processing_chan_size"),
+		pathtestRawConnectionsChanSize: defaultPathtestRawConnectionsChanSize,
 		storeConfig: pathteststore.Config{
 			ContextsLimit:    agentConfig.GetInt("network_path.collector.pathtest_contexts_limit"),
 			TTL:              agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
@@ -68,10 +75,13 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		tcpMethod:                 payload.MakeTCPMethod(agentConfig.GetString("network_path.collector.tcp_method")),
 		icmpMode:                  payload.MakeICMPMode(agentConfig.GetString("network_path.collector.icmp_mode")),
 		tcpSynParisTracerouteMode: agentConfig.GetBool("network_path.collector.tcp_syn_paris_traceroute_mode"),
-		tracerouteQueries:         defaultNetworkPathDynamicPathTracerouteQueries,
-		e2eQueries:                defaultNetworkPathDynamicPathE2eQueries,
+		tracerouteQueries:         agentConfig.GetInt("network_path.collector.traceroute_queries"),
+		e2eQueries:                agentConfig.GetInt("network_path.collector.e2e_queries"),
 		disableWindowsDriver:      agentConfig.GetBool("network_path.collector.disable_windows_driver"),
 		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
+		filterConfig:              filterConfigs,
+		monitorIPWithoutDomain:    agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),
+		ddSite:                    agentConfig.GetString("site"),
 	}
 }
 
