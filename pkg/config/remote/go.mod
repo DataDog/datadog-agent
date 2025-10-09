@@ -22,7 +22,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.4.0
 	go.uber.org/atomic v1.11.0
-	google.golang.org/protobuf v1.36.9
+	google.golang.org/protobuf v1.36.10
 )
 
 require github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1 // indirect
