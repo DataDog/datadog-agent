@@ -6,7 +6,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "pkg_mklink")
-load("@@//bazel/rules:pkgconfig.bzl", "gen_pkgconfig")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 
 package(
     default_applicable_licenses = [":license"],
@@ -236,10 +236,13 @@ pkg_files(
     prefix = "include/lzma",
 )
 
-gen_pkgconfig(
+expand_template(
     name = "gen_pkgconfig",
     template = "@@//deps/pkgconfig:liblzma.pc.in",
-    version = "5.4.2",
+    out = "liblzma.pc",
+    substitutions = {
+        "{{VERSION}}": VERSION,
+    },
 )
 
 pkg_files(
