@@ -21,12 +21,15 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
+
+const nsPidCacheSize = 1024
 
 // boolToFloat converts a boolean value to float64 (1.0 for true, 0.0 for false)
 func boolToFloat(val bool) float64 {
@@ -196,13 +199,16 @@ type nsPidCacheEntry struct {
 
 // NsPidCache obtains the pid relative to the innermost namespace of a process given its host pid.
 type NsPidCache struct {
-	pidToNsPid map[uint32]*nsPidCacheEntry
+	pidToNsPid *simplelru.LRU[uint32, *nsPidCacheEntry]
 }
 
 // Invalidate invalidates all cache entries. They might still be used through GetNsPid
 // by using the useInvalidCacheOnProcfsFail flag.
 func (c *NsPidCache) Invalidate() {
-	for _, entry := range c.pidToNsPid {
+	if c.pidToNsPid == nil {
+		return
+	}
+	for entry := range c.pidToNsPid.ValuesIter() {
 		entry.valid = false
 	}
 }
@@ -213,17 +219,21 @@ func (c *NsPidCache) Invalidate() {
 // an invalidated cached value is stil returned if available. Otherwise, returns an error.
 func (c *NsPidCache) GetNsPid(hostPid uint32, useInvalidCacheOnProcfsFail bool) (uint32, error) {
 	if c.pidToNsPid == nil {
-		c.pidToNsPid = map[uint32]*nsPidCacheEntry{}
+		var err error
+		c.pidToNsPid, err = simplelru.NewLRU[uint32, *nsPidCacheEntry](nsPidCacheSize, nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed creating pidToNsPid cache: %w", err)
+		}
 	}
 
-	entry, ok := c.pidToNsPid[hostPid]
+	entry, ok := c.pidToNsPid.Get(hostPid)
 	if ok && entry.valid {
 		return entry.nspid, nil
 	}
 
 	nsPid, err := c.readProcFs(hostPid)
 	if err == nil {
-		c.pidToNsPid[hostPid] = &nsPidCacheEntry{nspid: nsPid, valid: true}
+		c.pidToNsPid.Add(hostPid, &nsPidCacheEntry{nspid: nsPid, valid: true})
 		return nsPid, nil
 	}
 
