@@ -16,6 +16,10 @@ import (
 
 // DeviceCache is a cache of GPU devices, with some methods to easily access devices by UUID or index
 type DeviceCache interface {
+	// Refresh updates the cache with the most up to date device info queried from the system.
+	// It is invoked automatically by the other methods if the cache is not initialized at the first invocation.
+	// In case of error, the cache remains consistent and will keep having the same data as before the invocation.
+	Refresh() error
 	// GetByUUID returns a device by its UUID
 	GetByUUID(uuid string) (Device, error)
 	// GetByIndex returns a device by its index
@@ -32,23 +36,18 @@ type DeviceCache interface {
 	AllMigDevices() ([]Device, error)
 	// Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
 	Cores(uuid string) (uint64, error)
-	// EnsureInit ensures that the cache is initialized, returns an error if the initialization fails
-	// this function is called by the other methods of the interface so it's not necessary to call it manually, unless
-	// you want to ensure the cache is initialized before calling the other methods
-	EnsureInit() error
 }
 
 // deviceCache is an implementation of DeviceCache
 type deviceCache struct {
+	mu                 sync.RWMutex
 	allDevices         []Device
 	allPhysicalDevices []Device
 	allMigDevices      []Device
 	uuidToDevice       map[string]Device
 	smVersionSet       map[uint32]struct{}
 	lib                SafeNVML
-	initMutex          sync.Mutex
 	initialized        bool
-	lastInitError      error
 }
 
 // NewDeviceCache creates a new DeviceCache
@@ -58,46 +57,48 @@ func NewDeviceCache() DeviceCache {
 
 // NewDeviceCacheWithOptions creates a new DeviceCache with an already initialized NVML library
 func NewDeviceCacheWithOptions(lib SafeNVML) DeviceCache {
-	cache := &deviceCache{
-		uuidToDevice: make(map[string]Device),
-		smVersionSet: make(map[uint32]struct{}),
-		lib:          lib,
-	}
-
-	return cache
+	return &deviceCache{lib: lib}
 }
 
-// EnsureInit ensures that the cache is initialized, returns an error if the initialization fails
-func (c *deviceCache) EnsureInit() error {
-	if c.initialized {
-		return nil
+// ensureInit ensures that the cache is initialized, returns an error if the initialization fails
+func (c *deviceCache) ensureInit() error {
+	c.mu.RLock()
+	initialized := c.initialized
+	c.mu.RUnlock()
+
+	if !initialized {
+		return c.Refresh()
 	}
+	return nil
+}
 
-	c.initMutex.Lock()
-	defer c.initMutex.Unlock()
+func (c *deviceCache) Refresh() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	// Check again after locking to ensure no race condition
-	if c.initialized {
-		return nil
-	}
-
-	if c.lib == nil {
-		lib, err := GetSafeNvmlLib()
-		if err != nil {
+	// automatically acquire the library singleton if one is not provided
+	lib := c.lib
+	if lib == nil {
+		var err error
+		if lib, err = GetSafeNvmlLib(); err != nil {
 			log.Warnf("error getting NVML library: %v", err)
-			c.lastInitError = err
 			return err
 		}
-		c.lib = lib
 	}
 
-	count, err := c.lib.DeviceGetCount()
+	count, err := lib.DeviceGetCount()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed getting device count while refreshing cache: %w", err)
 	}
 
-	for i := 0; i < count; i++ {
-		nvmlDev, err := c.lib.DeviceGetHandleByIndex(i)
+	allDevices := []Device{}
+	allPhysicalDevices := []Device{}
+	allMigDevices := []Device{}
+	uuidToDevice := make(map[string]Device)
+	smVersionSet := make(map[uint32]struct{})
+
+	for i := range count {
+		nvmlDev, err := lib.DeviceGetHandleByIndex(i)
 		if err != nil {
 			log.Warnf("error getting device by index %d: %s", i, err)
 			continue
@@ -111,29 +112,37 @@ func (c *deviceCache) EnsureInit() error {
 			continue
 		}
 
-		c.uuidToDevice[dev.UUID] = dev
-		c.allDevices = append(c.allDevices, dev)
-		c.allPhysicalDevices = append(c.allPhysicalDevices, dev)
-		c.smVersionSet[dev.SMVersion] = struct{}{}
+		uuidToDevice[dev.UUID] = dev
+		allDevices = append(allDevices, dev)
+		allPhysicalDevices = append(allPhysicalDevices, dev)
+		smVersionSet[dev.SMVersion] = struct{}{}
 
 		for _, migChild := range dev.MIGChildren {
-			c.uuidToDevice[migChild.UUID] = migChild
-			c.allDevices = append(c.allDevices, migChild)
-			c.allMigDevices = append(c.allMigDevices, migChild)
+			uuidToDevice[migChild.UUID] = migChild
+			allDevices = append(allDevices, migChild)
+			allMigDevices = append(allMigDevices, migChild)
 		}
 	}
 
+	// on success, set the new data in the cache
+	c.allDevices = allDevices
+	c.allPhysicalDevices = allPhysicalDevices
+	c.allMigDevices = allMigDevices
+	c.uuidToDevice = uuidToDevice
+	c.smVersionSet = smVersionSet
 	c.initialized = true
-	c.lastInitError = nil
-
+	c.lib = lib
 	return nil
 }
 
 // GetByUUID returns a device by its UUID
 func (c *deviceCache) GetByUUID(uuid string) (Device, error) {
-	if err := c.EnsureInit(); err != nil {
+	if err := c.ensureInit(); err != nil {
 		return nil, fmt.Errorf("failed to initialize device cache: %w", err)
 	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	device, ok := c.uuidToDevice[uuid]
 	if !ok {
@@ -144,9 +153,12 @@ func (c *deviceCache) GetByUUID(uuid string) (Device, error) {
 
 // GetByIndex returns a device by its index in the host
 func (c *deviceCache) GetByIndex(index int) (Device, error) {
-	if err := c.EnsureInit(); err != nil {
+	if err := c.ensureInit(); err != nil {
 		return nil, err
 	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	if index < 0 || index >= len(c.allDevices) {
 		return nil, fmt.Errorf("index %d out of range", index)
@@ -157,45 +169,60 @@ func (c *deviceCache) GetByIndex(index int) (Device, error) {
 
 // Count returns the number of physical devices in the cache
 func (c *deviceCache) Count() (int, error) {
-	if err := c.EnsureInit(); err != nil {
+	if err := c.ensureInit(); err != nil {
 		return 0, fmt.Errorf("failed to initialize device cache: %w", err)
 	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return len(c.allPhysicalDevices), nil
 }
 
 // SMVersionSet returns a set of all SM versions in the cache
 func (c *deviceCache) SMVersionSet() (map[uint32]struct{}, error) {
-	if err := c.EnsureInit(); err != nil {
+	if err := c.ensureInit(); err != nil {
 		return nil, fmt.Errorf("failed to initialize device cache: %w", err)
 	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return c.smVersionSet, nil
 }
 
 // All returns all devices in the cache
 func (c *deviceCache) All() ([]Device, error) {
-	if err := c.EnsureInit(); err != nil {
+	if err := c.ensureInit(); err != nil {
 		return nil, fmt.Errorf("failed to initialize device cache: %w", err)
 	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return c.allDevices, nil
 }
 
 // AllPhysicalDevices returns all physical devices in the cache
 func (c *deviceCache) AllPhysicalDevices() ([]Device, error) {
-	if err := c.EnsureInit(); err != nil {
+	if err := c.ensureInit(); err != nil {
 		return nil, fmt.Errorf("failed to initialize device cache: %w", err)
 	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return c.allPhysicalDevices, nil
 }
 
 // AllMigDevices returns all MIG children in the cache
 func (c *deviceCache) AllMigDevices() ([]Device, error) {
-	if err := c.EnsureInit(); err != nil {
+	if err := c.ensureInit(); err != nil {
 		return nil, fmt.Errorf("failed to initialize device cache: %w", err)
 	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return c.allMigDevices, nil
 }
