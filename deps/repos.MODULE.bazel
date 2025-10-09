@@ -51,7 +51,7 @@ http_archive(
     url = "https://github.com/libffi/libffi/releases/download/v3.4.8/libffi-3.4.8.tar.gz",
 )
 
-bazel_dep(name = "gcc_toolchain")
+bazel_dep(name = "gcc_toolchain", version = "0.9.0")
 git_override(
     module_name = "gcc_toolchain",
     commit = "0e2242b07961107d2b05a6552d70b2ef4ef485fb",
