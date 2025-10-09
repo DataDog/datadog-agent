@@ -1024,7 +1024,7 @@ def _get_agent_qa_ecr_password(ctx: Context) -> str:
         )
     if ecr_password_res.exited != 0:
         print(
-            "WANRING: Could not get ECR password for agent-qa account, if your test need to pull image from agent-qa ECR it is likely to fail"
+            "WARNING: Could not get ECR password for agent-qa account, if your test need to pull image from agent-qa ECR it is likely to fail"
         )
         return ""
     return ecr_password_res.stdout.strip()
