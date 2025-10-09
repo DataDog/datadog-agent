@@ -252,6 +252,19 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
+	// Check infrastructure mode early - if basic mode is enabled, exit immediately
+	if config.GetString("infrastructure_mode") == "basic" {
+		log.Info("Infrastructure basic mode is enabled - security-agent is not allowed to run in basic mode")
+		log.Info("The security-agent (CWS/CSPM) is disabled in infrastructure basic mode")
+		log.Info("To enable security monitoring, set infrastructure_mode to 'full' in datadog.yaml")
+
+		// A sleep is necessary so that sysV doesn't think the agent has failed
+		// to startup because of an error. Only applies on Debian 7.
+		time.Sleep(5 * time.Second)
+
+		return ErrAllComponentsDisabled
+	}
+
 	// Check if we have at least one component to start based on config
 	if !config.GetBool("compliance_config.enabled") && !config.GetBool("runtime_security_config.enabled") {
 		log.Infof("All security-agent components are deactivated, exiting")

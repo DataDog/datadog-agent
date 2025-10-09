@@ -164,10 +164,23 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, _ ipc.Component, deps module.FactoryDependencies) error {
+func run(log log.Component, coreConfig config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, _ ipc.Component, deps module.FactoryDependencies) error {
 	defer func() {
 		stopSystemProbe()
 	}()
+
+	// Check infrastructure mode early - if basic mode is enabled, exit immediately
+	if coreConfig.GetString("infrastructure_mode") == "basic" {
+		log.Info("Infrastructure basic mode is enabled - system-probe is not allowed to run in basic mode")
+		log.Info("The system-probe (NPM/eBPF/USM) is disabled in infrastructure basic mode")
+		log.Info("To enable network monitoring and eBPF features, set infrastructure_mode to 'full' in datadog.yaml")
+
+		// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
+		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
+		time.Sleep(5 * time.Second)
+
+		return ErrNotEnabled
+	}
 
 	// prepare go runtime
 	ddruntime.SetMaxProcs()
@@ -256,8 +269,21 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ healthprobe.Component, settings settings.Component, deps module.FactoryDependencies) error {
+		func(log log.Component, coreConfig config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ healthprobe.Component, settings settings.Component, deps module.FactoryDependencies) error {
 			defer StopSystemProbeWithDefaults()
+
+			// Check infrastructure mode early - if basic mode is enabled, exit immediately
+			if coreConfig.GetString("infrastructure_mode") == "basic" {
+				log.Info("Infrastructure basic mode is enabled - system-probe is not allowed to run in basic mode")
+				log.Info("The system-probe (NPM/eBPF/USM) is disabled in infrastructure basic mode")
+				log.Info("To enable network monitoring and eBPF features, set infrastructure_mode to 'full' in datadog.yaml")
+
+				// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
+				time.Sleep(5 * time.Second)
+
+				return ErrNotEnabled
+			}
+
 			err := startSystemProbe(log, telemetry, sysprobeconfig, rcclient, settings, deps)
 			if err != nil {
 				return err
