@@ -23,7 +23,7 @@ func MockModule() fxutil.Module {
 
 type npCollectorMock struct{}
 
-func (s *npCollectorMock) ScheduleConns(_ []*model.Connection, _ map[string]*model.DNSEntry) {
+func (s *npCollectorMock) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry, domains []string) {
 	panic("implement me")
 }
 
