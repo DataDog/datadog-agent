@@ -305,11 +305,11 @@ def run(
     # Outside of CI try to automatically configure the secret to pull agent image
     if not running_in_ci():
         # Authentication against agent-qa is required for all kubernetes tests, to use the cache
-        parsed_params["ddagent:imagePullPassword"] = ctx.run(
-            "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True
-        ).stdout.strip()
-        parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-        parsed_params["ddagent:imagePullUsername"] = "AWS"
+        ecr_password = _get_agent_qa_ecr_password(ctx)
+        if ecr_password:
+            parsed_params["ddagent:imagePullPassword"] = ecr_password
+            parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+            parsed_params["ddagent:imagePullUsername"] = "AWS"
         # If we use an agent image from sandbox registry we need to authenticate against it
         if "376334461865" in agent_image or "376334461865" in cluster_agent_image:
             parsed_params["ddagent:imagePullPassword"] += (
@@ -1012,3 +1012,19 @@ def _is_local_state(pulumi_about: dict) -> bool:
     if url is None or not isinstance(url, str):
         return False
     return url.startswith("file://")
+
+
+def _get_agent_qa_ecr_password(ctx: Context) -> str:
+    ecr_password_res = ctx.run(
+        "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True, warn=True
+    )
+    if ecr_password_res.exited != 0:
+        ecr_password_res = ctx.run(
+            "aws-vault exec sso-agent-qa-account-admin -- aws ecr get-login-password", hide=True, warn=True
+        )
+    if ecr_password_res.exited != 0:
+        print(
+            "WANRING: Could not get ECR password for agent-qa account, if your test need to pull image from agent-qa ECR it is likely to fail"
+        )
+        return ""
+    return ecr_password_res.stdout.strip()
