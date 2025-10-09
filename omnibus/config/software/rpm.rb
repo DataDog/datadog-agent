@@ -93,4 +93,6 @@ build do
   # Not having the .pc file will confuse openscap as it requires on it to know
   # the librpm version and fails to build without it
   make "install-pkgincludeHEADERS install-pkgconfigDATA", env: env
+  # We also need to install the rpmrc file which is needed by openscap
+  make "install-rpmconfigDATA", env: env
 end
