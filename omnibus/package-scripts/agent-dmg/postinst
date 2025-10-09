@@ -54,6 +54,9 @@ mkdir -vp "$RUN_DIR"
 chown -vR "${INSTALL_USER}:admin" "$RUN_DIR"
 chmod -v 755 "$RUN_DIR"
 
+mkdir -vp /opt/datadog-agent/test-e2e
+chmod -v 777 /opt/datadog-agent/test-e2e
+
 echo "# Copying conf"
 mkdir -vp $CONF_DIR/checks.d
 
