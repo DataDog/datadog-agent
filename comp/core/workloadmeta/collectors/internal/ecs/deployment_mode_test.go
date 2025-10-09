@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func TestDetermineDeploymentMode(t *testing.T) {
@@ -66,29 +65,25 @@ func TestDetermineDeploymentMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock config
-			mockConfig := model.NewConfig("test", "DD", nil)
-			mockConfig.Set("ecs_deployment_mode", tt.configValue, model.SourceAgentRuntime)
+			mockConfig := config.NewMockWithOverrides(t, map[string]interface{}{
+				"ecs_deployment_mode": tt.configValue,
+			})
 
 			// Setup feature flags
 			if tt.isFargate {
-				env.RegisterFeature(env.ECSFargate)
+				env.SetFeatures(t, env.ECSFargate)
 			} else {
-				env.UnregisterFeature(env.ECSFargate)
+				env.SetFeatures(t)
 			}
 
 			// Create collector with mock config
 			c := &collector{
-				config: config.Component(mockConfig),
+				config: mockConfig,
 			}
 
 			// Test
 			mode := c.determineDeploymentMode()
 			assert.Equal(t, tt.expectedMode, mode)
-
-			// Cleanup
-			if tt.isFargate {
-				env.UnregisterFeature(env.ECSFargate)
-			}
 		})
 	}
 }
@@ -124,9 +119,9 @@ func TestDetectLaunchType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup feature flags
 			if tt.isFargate {
-				env.RegisterFeature(env.ECSFargate)
+				env.SetFeatures(t, env.ECSFargate)
 			} else {
-				env.UnregisterFeature(env.ECSFargate)
+				env.SetFeatures(t)
 			}
 
 			// Create collector
@@ -137,11 +132,6 @@ func TestDetectLaunchType(t *testing.T) {
 			// Test (context not used when env var is set)
 			launchType := c.detectLaunchType(nil)
 			assert.Equal(t, tt.expectedLaunchType, launchType)
-
-			// Cleanup
-			if tt.isFargate {
-				env.UnregisterFeature(env.ECSFargate)
-			}
 		})
 	}
 }
