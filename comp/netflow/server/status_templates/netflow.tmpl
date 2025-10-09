@@ -31,4 +31,10 @@
   ---------
   {{- end }}
   {{- end }}
+
+  === FlowAggregator Details ===
+  Flows Received: {{.FlowAggregatorDetails.Received}}
+  Flows Flushed: {{.FlowAggregatorDetails.Flushed}}
+  Flows Dropped: {{.FlowAggregatorDetails.Dropped}}
+  Aggregation Ratio: {{printf "%.4f" .FlowAggregatorDetails.AggregationRatio}}
 {{- end }}
