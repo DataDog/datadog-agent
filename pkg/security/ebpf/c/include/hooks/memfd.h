@@ -57,15 +57,9 @@ HOOK_SYSCALL_ENTRY2(memfd_create, const char *, uname, unsigned int, flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_TRACER_MEMFD_CREATE,
     };
+    // Store only the suffix in syscall cache for retrieval in exit hook
+    bpf_probe_read_str(&syscall.tracer_memfd_create.suffix, sizeof(syscall.tracer_memfd_create.suffix), name + MEMFD_TRACER_PREFIX_LEN);
     cache_syscall(&syscall);
-
-    // Store only the suffix after "datadog-tracer-info-" for later comparison in memfd_fcntl
-    // fd will be stored in exit hook
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct memfd_tracking_t tracking = {0};
-    // Copy only the suffix (skip the "datadog-tracer-info-" prefix)
-    bpf_probe_read_str(&tracking.suffix, sizeof(tracking.suffix), name + MEMFD_TRACER_PREFIX_LEN);
-    bpf_map_update_elem(&memfd_tracking, &pid_tgid, &tracking, BPF_ANY);
 
     return 0;
 }
@@ -77,19 +71,18 @@ HOOK_SYSCALL_EXIT(memfd_create) {
     }
 
     int retval = SYSCALL_PARMRET(ctx);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-
     if (retval < 0) {
-        // Clean up tracking entry on failure
-        bpf_map_delete_elem(&memfd_tracking, &pid_tgid);
+        // memfd_create failed, no tracking needed
         return 0;
     }
 
-    // Store the fd in the tracking entry
-    struct memfd_tracking_t *tracking = bpf_map_lookup_elem(&memfd_tracking, &pid_tgid);
-    if (tracking) {
-        tracking->fd = (u32)retval;
-    }
+    // Create tracking entry with both fd and suffix from syscall cache
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct memfd_tracking_t tracking = {
+        .fd = (u32)retval,
+    };
+    bpf_probe_read_str(&tracking.suffix, sizeof(tracking.suffix), syscall->tracer_memfd_create.suffix);
+    bpf_map_update_elem(&memfd_tracking, &pid_tgid, &tracking, BPF_ANY);
 
     return 0;
 }
