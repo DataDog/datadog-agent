@@ -10,9 +10,12 @@ package safenvml
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 // DeviceCache is a cache of GPU devices, with some methods to easily access devices by UUID or index
 type DeviceCache interface {
@@ -81,7 +84,9 @@ func (c *deviceCache) Refresh() error {
 	if lib == nil {
 		var err error
 		if lib, err = GetSafeNvmlLib(); err != nil {
-			log.Warnf("error getting NVML library: %v", err)
+			if logLimiter.ShouldLog() {
+				log.Warnf("error getting NVML library: %v", err)
+			}
 			return err
 		}
 	}
