@@ -27,13 +27,9 @@ const (
 
 // NvmlStateTracker tracks the state of the NVML library initialization
 // and reports telemetry when it remains unavailable for extended periods.
+// Not thread-safe, should only be used from a single goroutine.
 type NvmlStateTracker struct {
-	mu sync.Mutex
-
-	errorCount           int
-	firstCheckTime       time.Time
-	unavailableGaugeSet  bool
-	unavailabilityMarked bool
+	firstCheckTime time.Time
 
 	// Telemetry metrics
 	errorCounter     telemetry.Counter
@@ -64,11 +60,8 @@ func NewNvmlStateTrackerWithInterval(tm telemetry.Component, checkInterval time.
 
 // Check attempts to get the NVML library and tracks errors.
 // If the library remains unavailable for more than nvmlUnavailableThreshold,
-// it sets the unavailable gauge to 1.
+// it sets the unavailable gauge to 1. Should only be called from a single goroutine.
 func (n *NvmlStateTracker) Check() {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
 	_, err := GetSafeNvmlLib()
 	if err != nil {
 		// Track the first check time
@@ -76,24 +69,16 @@ func (n *NvmlStateTracker) Check() {
 			n.firstCheckTime = time.Now()
 		}
 
-		// Increment error counter
-		n.errorCount++
 		n.errorCounter.Add(1)
 
 		// Check if threshold has been exceeded
-		if !n.unavailabilityMarked && time.Since(n.firstCheckTime) >= nvmlUnavailableThreshold {
+		if time.Since(n.firstCheckTime) >= nvmlUnavailableThreshold {
 			n.unavailableGauge.Set(1)
-			n.unavailabilityMarked = true
 		}
 	} else {
 		// Library is available - reset state and set gauge to 0 if it was previously set
-		if n.unavailabilityMarked || n.unavailableGaugeSet {
-			n.unavailableGauge.Set(0)
-			n.unavailableGaugeSet = true
-		}
+		n.unavailableGauge.Set(0)
 		n.firstCheckTime = time.Time{}
-		n.errorCount = 0
-		n.unavailabilityMarked = false
 	}
 }
 
