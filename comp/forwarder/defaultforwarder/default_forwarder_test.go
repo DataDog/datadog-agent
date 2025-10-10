@@ -8,15 +8,17 @@ package defaultforwarder
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // domainAPIKeyMap used by tests to get API keys from each domain resolver
@@ -29,7 +31,7 @@ func (f *DefaultForwarder) domainAPIKeyMap() map[string][]string {
 }
 
 func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
-	mockConfig := config.NewMock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
 	log := logmock.New(t)
 
@@ -66,7 +68,7 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 }
 
 func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
-	mockConfig := config.NewMock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
 	log := logmock.New(t)
 
@@ -137,7 +139,7 @@ func TestPreaggregationPipelineTransactionCreation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := config.NewMock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.Set("api_key", "test_api_key", pkgconfigmodel.SourceAgentRuntime)
 			mockConfig.Set("dd_url", tc.primaryURL, pkgconfigmodel.SourceAgentRuntime)
 			mockConfig.Set("preaggregation.enabled", true, pkgconfigmodel.SourceAgentRuntime)
@@ -161,4 +163,20 @@ func TestPreaggregationPipelineTransactionCreation(t *testing.T) {
 				"Expected %d transactions for %s: %s", tc.expectTransactions, tc.name, tc.description)
 		})
 	}
+}
+
+func TestDefaultForwarderPassesCallback(t *testing.T) {
+	mockCallback := func(_ string) {}
+	log := logmock.New(t)
+	cfg := configmock.New(t)
+
+	options := &Options{
+		SecretRefreshCallback:    mockCallback,
+		NumberOfWorkers:          1,
+		APIKeyValidationInterval: 1 * time.Hour,
+	}
+	forwarder := NewDefaultForwarder(cfg, log, options)
+
+	assert.NotNil(t, forwarder.healthChecker, "Health checker should be initialized")
+	assert.NotNil(t, forwarder.healthChecker.secretRefreshCallback, "Callback should be set in health checker")
 }

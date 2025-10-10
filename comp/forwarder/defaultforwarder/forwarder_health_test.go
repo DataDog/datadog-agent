@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -46,7 +46,7 @@ func TestCheckValidAPIKey(t *testing.T) {
 		},
 	}
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: r}
@@ -131,7 +131,7 @@ func TestCheckValidAPIKeyErrors(t *testing.T) {
 		ts3.URL: {"key4"},
 	}
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	fh := forwarderHealth{log: log, config: cfg}
 	fh.init()
 	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
@@ -178,7 +178,7 @@ func TestUpdateAPIKey(t *testing.T) {
 	}
 
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
@@ -251,7 +251,7 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	}
 
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 
@@ -396,7 +396,7 @@ func TestOneEndpointNoAPIKeys(t *testing.T) {
 	}
 
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 
@@ -430,7 +430,7 @@ func TestOneEndpointInvalid(t *testing.T) {
 	}
 
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 
@@ -442,4 +442,78 @@ func TestOneEndpointInvalid(t *testing.T) {
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey(), "Endpoint should be valid")
+}
+
+func TestForwarderHealthSecretRefreshCallback(t *testing.T) {
+	testCases := []struct {
+		name           string
+		serverStatus   int
+		hasCallback    bool
+		shouldTrigger  bool
+		expectedReason string
+	}{
+		{
+			name:           "invalid API key triggers callback",
+			serverStatus:   http.StatusForbidden,
+			hasCallback:    true,
+			shouldTrigger:  true,
+			expectedReason: "API key validation failure",
+		},
+		{
+			name:          "valid API key does not trigger callback",
+			serverStatus:  http.StatusOK,
+			hasCallback:   true,
+			shouldTrigger: false,
+		},
+		{
+			name:          "invalid key with nil callback does not panic",
+			serverStatus:  http.StatusForbidden,
+			hasCallback:   false,
+			shouldTrigger: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.serverStatus)
+			}))
+			defer ts.Close()
+
+			callbackInvoked := false
+			var capturedReason string
+
+			log := logmock.New(t)
+			cfg := configmock.New(t)
+			r, err := resolver.NewSingleDomainResolvers(map[string][]utils.APIKeys{
+				ts.URL: {utils.NewAPIKeys("path", "test_api_key")},
+			})
+			require.NoError(t, err)
+
+			fh := forwarderHealth{
+				log:             log,
+				config:          cfg,
+				domainResolvers: r,
+			}
+
+			if tc.hasCallback {
+				fh.secretRefreshCallback = func(reason string) {
+					callbackInvoked = true
+					capturedReason = reason
+				}
+			} else {
+				fh.secretRefreshCallback = nil
+			}
+
+			fh.init()
+			fh.checkValidAPIKey()
+
+			if tc.shouldTrigger {
+				assert.True(t, callbackInvoked, "Secret refresh callback should be invoked")
+				assert.Equal(t, tc.expectedReason, capturedReason, "Callback reason should match")
+			} else {
+				assert.False(t, callbackInvoked, "Secret refresh callback should NOT be invoked")
+			}
+		})
+	}
 }

@@ -182,3 +182,86 @@ func Test_truncateBodyForLog(t *testing.T) {
 		})
 	}
 }
+
+func TestHTTPTransactionSecretRefreshCallback(t *testing.T) {
+	testCases := []struct {
+		name           string
+		statusCode     int
+		hasCallback    bool
+		shouldTrigger  bool
+		expectedReason string
+	}{
+		{
+			name:           "403 triggers callback",
+			statusCode:     http.StatusForbidden,
+			hasCallback:    true,
+			shouldTrigger:  true,
+			expectedReason: "403 response from backend",
+		},
+		{
+			name:          "200 does not trigger callback",
+			statusCode:    http.StatusOK,
+			hasCallback:   true,
+			shouldTrigger: false,
+		},
+		{
+			name:          "400 does not trigger callback",
+			statusCode:    http.StatusBadRequest,
+			hasCallback:   true,
+			shouldTrigger: false,
+		},
+		{
+			name:          "500 does not trigger callback",
+			statusCode:    http.StatusInternalServerError,
+			hasCallback:   true,
+			shouldTrigger: false,
+		},
+		{
+			name:          "403 with nil callback does not panic",
+			statusCode:    http.StatusForbidden,
+			hasCallback:   false,
+			shouldTrigger: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.statusCode)
+			}))
+			defer ts.Close()
+
+			// track callback invocation
+			callbackInvoked := false
+			var capturedReason string
+
+			transaction := NewHTTPTransaction()
+			transaction.Domain = ts.URL
+			transaction.Endpoint.Route = "/endpoint/test"
+			payload := []byte("payload")
+			transaction.Payload = NewBytesPayloadWithoutMetaData(payload)
+
+			if tc.hasCallback {
+				transaction.SecretRefreshCallback = func(reason string) {
+					callbackInvoked = true
+					capturedReason = reason
+				}
+			} else {
+				transaction.SecretRefreshCallback = nil
+			}
+
+			client := &http.Client{}
+			mockConfig := configmock.New(t)
+			log := logmock.New(t)
+
+			transaction.Process(context.Background(), mockConfig, log, client)
+
+			if tc.shouldTrigger {
+				assert.True(t, callbackInvoked, "Secret refresh callback should be invoked")
+				assert.Equal(t, tc.expectedReason, capturedReason, "Callback reason should match")
+			} else {
+				assert.False(t, callbackInvoked, "Secret refresh callback should NOT be invoked")
+			}
+		})
+	}
+}

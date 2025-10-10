@@ -50,6 +50,9 @@ const (
 // This is a var so that it can be changed for testing
 var defaultResponseTimeout = 30 * time.Second
 
+// SecretRefreshFunc is a callback function type for triggering secret refresh
+type SecretRefreshFunc func(reason string)
+
 // Response contains the response details of a successfully posted transaction
 type Response struct {
 	Domain     string
@@ -106,6 +109,7 @@ type Options struct {
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
 	CompletionHandler              transaction.HTTPCompletionHandler
+	SecretRefreshCallback          SecretRefreshFunc
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -268,6 +272,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
+			secretRefreshCallback: options.SecretRefreshCallback,
 		},
 		completionHandler: options.CompletionHandler,
 		agentName:         agentName,
@@ -532,6 +537,12 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					t.StorableOnDisk = storableOnDisk
 					t.Destination = payload.Destination
 					t.Headers.Set("Authorization", fmt.Sprintf("Bearer %s", dr.GetBearerAuthToken()))
+
+					// Set secret refresh callback from health checker
+					if f.healthChecker != nil {
+						t.SecretRefreshCallback = f.healthChecker.secretRefreshCallback
+					}
+
 					for key := range extra {
 						t.Headers.Set(key, extra.Get(key))
 					}
@@ -556,6 +567,11 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
 					if allowArbitraryTags {
 						t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
+					}
+
+					// Set secret refresh callback from health checker
+					if f.healthChecker != nil {
+						t.SecretRefreshCallback = f.healthChecker.secretRefreshCallback
 					}
 
 					if f.completionHandler != nil {

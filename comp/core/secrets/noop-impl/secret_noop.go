@@ -104,3 +104,6 @@ func (r *secretNoop) Resolve(data []byte, _ string, _ string, _ string) ([]byte,
 func (r *secretNoop) Refresh() (string, error) {
 	return "", nil
 }
+
+// TriggerRefreshOnAPIKeyFailure does nothing
+func (r *secretNoop) TriggerRefreshOnAPIKeyFailure(_ string) {}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -22,10 +23,11 @@ import (
 
 type dependencies struct {
 	fx.In
-	Config config.Component
-	Log    log.Component
-	Lc     fx.Lifecycle
-	Params Params
+	Config  config.Component
+	Log     log.Component
+	Lc      fx.Lifecycle
+	Params  Params
+	Secrets secrets.Component `optional:"true"`
 }
 
 type provides struct {
@@ -42,7 +44,7 @@ func newForwarder(dep dependencies) (provides, error) {
 		}, nil
 	}
 
-	options, err := createOptions(dep.Params, dep.Config, dep.Log)
+	options, err := createOptions(dep.Params, dep.Config, dep.Log, dep.Secrets)
 	if err != nil {
 		return provides{}, err
 	}
@@ -50,7 +52,7 @@ func newForwarder(dep dependencies) (provides, error) {
 	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options), nil
 }
 
-func createOptions(params Params, config config.Component, log log.Component) (*Options, error) {
+func createOptions(params Params, config config.Component, log log.Component, secrets secrets.Component) (*Options, error) {
 	var options *Options
 	keysPerDomain, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
@@ -72,6 +74,12 @@ func createOptions(params Params, config config.Component, log log.Component) (*
 		}
 		options = NewOptionsWithResolvers(config, log, r)
 	}
+
+	// Set up secret refresh callback
+	if secrets != nil {
+		options.SecretRefreshCallback = secrets.TriggerRefreshOnAPIKeyFailure
+	}
+
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking
