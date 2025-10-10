@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -139,6 +140,101 @@ func TestSSHUserSession(t *testing.T) {
 				fmt.Fprintf(os.Stderr, "setup ssh failed: %v\n", err)
 				return err
 			}
+			if err := sshLocalhostWithGeneratedKey("pwd"); err != nil {
+				fmt.Fprintf(os.Stderr, "ssh failed: %v\n", err)
+				return err
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_ssh_user_session")
+			assert.NotEqual(t, 0, event.ProcessContext.UserSession.ID)
+			assert.Equal(t, int(usersession.UserSessionTypes["ssh"]), event.ProcessContext.UserSession.SessionType)
+			assert.Equal(t, currentUser.Username, event.ProcessContext.UserSession.SSHUsername)
+			assert.Contains(t, []string{"127.0.0.1", "::1"}, event.ProcessContext.UserSession.SSHClientIP.IP.String())
+		})
+	})
+}
+
+func rotateAuthLog(logPath string) error {
+	cmd := exec.Command("sudo", "bash", "-c", `
+		set -e
+		mv `+logPath+` `+logPath+`.1
+		touch `+logPath+`
+		chown syslog:adm `+logPath+`
+		chmod 640 `+logPath+`
+		systemctl kill -s HUP rsyslog
+			`)
+	_, err := cmd.CombinedOutput()
+	return err
+}
+
+func TestSSHUserSessionRotated(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	currentUser, err := user.Current()
+	if err != nil {
+		t.Fatalf("failed to get current user: %v", err)
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_ssh_user_session",
+			Expression: `exec.user_session.id != 0 && exec.user_session.session_type == ssh && exec.user_session.ssh_username == "` + currentUser.Username + `" && exec.user_session.ssh_auth_method == publickey`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+	if err := ensureLocalhostSSHAuth(); err != nil {
+		fmt.Fprintf(os.Stderr, "setup ssh failed: %v\n", err)
+		t.Fatal(err)
+	}
+
+	possibleLogPaths := []string{
+		"/var/log/auth.log", // Debian/Ubuntu
+		"/var/log/secure",   // RHEL/CentOS/Fedora
+		"/var/log/messages", // openSUSE/autres
+	}
+
+	var logPath string
+	var inodeBeforeRotate uint64
+
+	for _, path := range possibleLogPaths {
+		stat, err := os.Stat(path)
+		if err == nil {
+			logPath = path
+			// Get inode
+			if sysStat, ok := stat.Sys().(*syscall.Stat_t); ok {
+				inodeBeforeRotate = sysStat.Ino
+				break
+			}
+		}
+	}
+
+	if logPath == "" {
+		t.Skip("No SSH log file found (/var/log/auth.log, /var/log/secure, or /var/log/messages)")
+	}
+
+	rotateAuthLog(logPath)
+
+	stat, err := os.Stat(logPath)
+	if err != nil {
+		t.Fatalf("failed to stat log file after rotation: %v", err)
+	}
+
+	var inodeAfterRotate uint64
+	if sysStat, ok := stat.Sys().(*syscall.Stat_t); ok {
+		inodeAfterRotate = sysStat.Ino
+	}
+
+	// Check that the inode has changed
+	assert.NotEqual(t, inodeBeforeRotate, inodeAfterRotate, "inode of %s should be different after rotate", logPath)
+
+	t.Run("ssh_then_pwd_after_rotation", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
 			if err := sshLocalhostWithGeneratedKey("pwd"); err != nil {
 				fmt.Fprintf(os.Stderr, "ssh failed: %v\n", err)
 				return err
