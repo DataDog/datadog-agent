@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// This file contains V2 versions of the OTLP stats tests.
+// These tests verify the new translation logic when the disable_otlp_translations_v2 feature flag is NOT set.
+// The original tests in otel_util_test.go verify backward compatibility with the old translation logic.
+
 package stats
 
 import (
@@ -24,13 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
-var (
-	testTraceID = [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	testSpanID1 = [8]byte{1, 2, 3, 4, 5, 6, 7, 8}
-	testSpanID2 = [8]byte{2, 2, 3, 4, 5, 6, 7, 8}
-)
-
-func TestProcessOTLPTraces(t *testing.T) {
+func TestProcessOTLPTracesV2_OTelCompliantTranslation(t *testing.T) {
 	start := time.Now().Add(-1 * time.Second)
 	end := time.Now()
 	set := componenttest.NewNopTelemetrySettings()
@@ -45,26 +43,24 @@ func TestProcessOTLPTraces(t *testing.T) {
 	parentID := pcommon.SpanID(testSpanID2)
 
 	for _, tt := range []struct {
-		name                             string
-		traceID                          *pcommon.TraceID
-		spanID                           *pcommon.SpanID
-		parentSpanID                     *pcommon.SpanID
-		spanName                         string
-		rattrs                           map[string]string
-		sattrs                           map[string]any
-		spanKind                         ptrace.SpanKind
-		libname                          string
-		spanNameAsResourceName           bool
-		spanNameRemappings               map[string]string
-		ignoreRes                        []string
-		peerTagsAggr                     bool
-		legacyTopLevel                   bool
-		ctagKeys                         []string
-		expected                         *pb.StatsPayload
-		enableObfuscation                bool
-		enableReceiveResourceSpansV2     bool
-		enableOperationAndResourceNameV2 bool
-		ignoreMissingDatadogFields       bool
+		name                       string
+		traceID                    *pcommon.TraceID
+		spanID                     *pcommon.SpanID
+		parentSpanID               *pcommon.SpanID
+		spanName                   string
+		rattrs                     map[string]string
+		sattrs                     map[string]any
+		spanKind                   ptrace.SpanKind
+		libname                    string
+		spanNameAsResourceName     bool
+		spanNameRemappings         map[string]string
+		ignoreRes                  []string
+		peerTagsAggr               bool
+		legacyTopLevel             bool
+		ctagKeys                   []string
+		expected                   *pb.StatsPayload
+		enableObfuscation          bool
+		ignoreMissingDatadogFields bool
 	}{
 		{
 			name:     "empty trace id",
@@ -175,24 +171,20 @@ func TestProcessOTLPTraces(t *testing.T) {
 			expected:  &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
 		},
 		{
-			name:                             "obfuscate sql span",
-			spanName:                         "spanname8",
-			spanKind:                         ptrace.SpanKindClient,
-			rattrs:                           map[string]string{"service.name": "svc", string(semconv.DBSystemKey): semconv.DBSystemMSSQL.Value.AsString(), string(semconv.DBStatementKey): "SELECT username FROM users WHERE id = 12345"},
-			enableObfuscation:                true,
-			enableReceiveResourceSpansV2:     true,
-			enableOperationAndResourceNameV2: true,
-			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "mssql.query", "sql", "client", "SELECT username FROM users WHERE id = ?", agentHost, agentEnv, "", "", nil, nil, true, false, 0),
+			name:              "obfuscate sql span",
+			spanName:          "spanname8",
+			spanKind:          ptrace.SpanKindClient,
+			rattrs:            map[string]string{"service.name": "svc", string(semconv.DBSystemKey): semconv.DBSystemMSSQL.Value.AsString(), string(semconv.DBStatementKey): "SELECT username FROM users WHERE id = 12345"},
+			enableObfuscation: true,
+			expected:          createStatsPayload(agentEnv, agentHost, "svc", "mssql.query", "sql", "client", "SELECT username FROM users WHERE id = ?", agentHost, agentEnv, "", "", nil, nil, true, false, 0),
 		},
 		{
-			name:                             "obfuscated redis span",
-			spanName:                         "spanname9",
-			rattrs:                           map[string]string{"service.name": "svc", "host.name": "test-host", "db.system": "redis", "db.statement": "SET key value"},
-			spanKind:                         ptrace.SpanKindClient,
-			enableObfuscation:                true,
-			enableReceiveResourceSpansV2:     true,
-			enableOperationAndResourceNameV2: true,
-			expected:                         createStatsPayload(agentEnv, agentHost, "svc", "redis.query", "redis", "client", "SET", "test-host", agentEnv, "", "", nil, nil, true, false, 0),
+			name:              "obfuscated redis span",
+			spanName:          "spanname9",
+			rattrs:            map[string]string{"service.name": "svc", "host.name": "test-host", "db.system": "redis", "db.statement": "SET key value"},
+			spanKind:          ptrace.SpanKindClient,
+			enableObfuscation: true,
+			expected:          createStatsPayload(agentEnv, agentHost, "svc", "redis.query", "redis", "client", "SET", "test-host", agentEnv, "", "", nil, nil, true, false, 0),
 		},
 		{
 			name:     "span vs resource attribute precedence",
@@ -215,10 +207,8 @@ func TestProcessOTLPTraces(t *testing.T) {
 				"http.status_code":       "span-status",
 				"service.version":        "span-service-version",
 			},
-			spanKind:                         ptrace.SpanKindServer,
-			libname:                          "ddtracer",
-			enableOperationAndResourceNameV2: true,
-			enableReceiveResourceSpansV2:     true,
+			spanKind: ptrace.SpanKindServer,
+			libname:  "ddtracer",
 			expected: createStatsPayload(
 				agentEnv,
 				agentHost,
@@ -242,22 +232,20 @@ func TestProcessOTLPTraces(t *testing.T) {
 			name:     "datadog.* resource attributes take precedence over standard attributes",
 			spanName: "/path",
 			rattrs: map[string]string{
-				"service.name":                           "svc",
-				"deployment.environment":                 "env",
-				"service.version":                        "v1",
-				"host.name":                              "host1",
-				"container.id":                           "cid1",
-				attributes.DDNamespaceKeys.Env():         "dd-env",
-				attributes.DDNamespaceKeys.Service():     "dd-svc",
-				attributes.DDNamespaceKeys.Version():     "dd-v2",
-				attributes.DDNamespaceKeys.Host():        "dd-host",
-				attributes.DDNamespaceKeys.ContainerID(): "dd-cid",
+				"service.name":                             "svc",
+				"deployment.environment":                   "env",
+				"service.version":                          "v1",
+				"host.name":                                "host1",
+				"container.id":                             "cid1",
+				attributes.APMConventionKeys.Env():         "dd-env",
+				attributes.APMConventionKeys.Service():     "dd-svc",
+				attributes.APMConventionKeys.Version():     "dd-v2",
+				attributes.APMConventionKeys.Host():        "dd-host",
+				attributes.APMConventionKeys.ContainerID(): "dd-cid",
 			},
-			sattrs:                           map[string]any{},
-			spanKind:                         ptrace.SpanKindServer,
-			libname:                          "ddtracer",
-			enableOperationAndResourceNameV2: true,
-			enableReceiveResourceSpansV2:     true,
+			sattrs:   map[string]any{},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "ddtracer",
 			expected: createStatsPayload(
 				agentEnv,
 				agentHost,
@@ -290,11 +278,9 @@ func TestProcessOTLPTraces(t *testing.T) {
 				attributes.DDNamespaceKeys.SpanKind():       "test-kind",
 				attributes.DDNamespaceKeys.HTTPStatusCode(): "404",
 			},
-			sattrs:                           map[string]any{},
-			spanKind:                         ptrace.SpanKindServer,
-			libname:                          "ddtracer",
-			enableOperationAndResourceNameV2: true,
-			enableReceiveResourceSpansV2:     true,
+			sattrs:   map[string]any{},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "ddtracer",
 			expected: createStatsPayload(
 				agentEnv,
 				agentHost,
@@ -311,21 +297,21 @@ func TestProcessOTLPTraces(t *testing.T) {
 				nil,
 				true,
 				false,
-				0,
+				404,
 			),
 		},
 		{
 			name:     "datadog.* resource attributes win over standard span attributes",
 			spanName: "span-name",
 			rattrs: map[string]string{
-				attributes.DDNamespaceKeys.Service():        "test-service",
-				attributes.DDNamespaceKeys.OperationName():  "test-name",
-				attributes.DDNamespaceKeys.ResourceName():   "test-resource",
-				attributes.DDNamespaceKeys.SpanType():       "test-type",
-				attributes.DDNamespaceKeys.Env():            "test-env",
-				attributes.DDNamespaceKeys.Version():        "test-version",
-				attributes.DDNamespaceKeys.SpanKind():       "test-kind",
-				attributes.DDNamespaceKeys.HTTPStatusCode(): "404",
+				attributes.APMConventionKeys.Service():        "test-service",
+				attributes.APMConventionKeys.OperationName():  "test-name",
+				attributes.APMConventionKeys.ResourceName():   "test-resource",
+				attributes.APMConventionKeys.SpanType():       "test-type",
+				attributes.APMConventionKeys.Env():            "test-env",
+				attributes.APMConventionKeys.Version():        "test-version",
+				attributes.APMConventionKeys.SpanKind():       "test-kind",
+				attributes.APMConventionKeys.HTTPStatusCode(): "404",
 			},
 			sattrs: map[string]any{
 				"service.name":           "span-service",
@@ -337,10 +323,8 @@ func TestProcessOTLPTraces(t *testing.T) {
 				"span.kind":              "server",
 				"http.status_code":       "200",
 			},
-			spanKind:                         ptrace.SpanKindServer,
-			libname:                          "ddtracer",
-			enableOperationAndResourceNameV2: true,
-			enableReceiveResourceSpansV2:     true,
+			spanKind: ptrace.SpanKindServer,
+			libname:  "ddtracer",
 			expected: createStatsPayload(
 				agentEnv,
 				agentHost,
@@ -357,21 +341,21 @@ func TestProcessOTLPTraces(t *testing.T) {
 				nil,
 				true,
 				false,
-				0,
+				404,
 			),
 		},
 		{
 			name:     "datadog.* span attributes win over all others",
 			spanName: "dd-span-name",
 			rattrs: map[string]string{
-				attributes.DDNamespaceKeys.Service():        "test-service",
-				attributes.DDNamespaceKeys.OperationName():  "test-name",
-				attributes.DDNamespaceKeys.ResourceName():   "test-resource",
-				attributes.DDNamespaceKeys.SpanType():       "test-type",
-				attributes.DDNamespaceKeys.Env():            "test-env",
-				attributes.DDNamespaceKeys.Version():        "test-version",
-				attributes.DDNamespaceKeys.SpanKind():       "test-kind",
-				attributes.DDNamespaceKeys.HTTPStatusCode(): "404",
+				attributes.APMConventionKeys.Service():        "test-service",
+				attributes.APMConventionKeys.OperationName():  "test-name",
+				attributes.APMConventionKeys.ResourceName():   "test-resource",
+				attributes.APMConventionKeys.SpanType():       "test-type",
+				attributes.APMConventionKeys.Env():            "test-env",
+				attributes.APMConventionKeys.Version():        "test-version",
+				attributes.APMConventionKeys.SpanKind():       "test-kind",
+				attributes.APMConventionKeys.HTTPStatusCode(): "404",
 			},
 			sattrs: map[string]any{
 				attributes.DDNamespaceKeys.Service():        "dd-span-service",
@@ -383,10 +367,8 @@ func TestProcessOTLPTraces(t *testing.T) {
 				attributes.DDNamespaceKeys.SpanKind():       "dd-span-kind",
 				attributes.DDNamespaceKeys.HTTPStatusCode(): "500",
 			},
-			spanKind:                         ptrace.SpanKindServer,
-			libname:                          "ddtracer",
-			enableOperationAndResourceNameV2: true,
-			enableReceiveResourceSpansV2:     true,
+			spanKind: ptrace.SpanKindServer,
+			libname:  "ddtracer",
 			expected: createStatsPayload(
 				agentEnv,
 				agentHost,
@@ -403,21 +385,19 @@ func TestProcessOTLPTraces(t *testing.T) {
 				nil,
 				true,
 				false,
-				0,
+				500,
 			),
 		},
 		{
 			name:     "missing datadog.service in resource, ignoreMissingDatadogFields=false",
 			spanName: "test-name",
 			rattrs: map[string]string{
-				attributes.DDNamespaceKeys.OperationName(): "test-name",
+				attributes.APMConventionKeys.OperationName(): "test-name",
 			},
-			sattrs:                           map[string]any{},
-			spanKind:                         ptrace.SpanKindServer,
-			libname:                          "ddtracer",
-			enableOperationAndResourceNameV2: true,
-			enableReceiveResourceSpansV2:     true,
-			ignoreMissingDatadogFields:       false,
+			sattrs:                     map[string]any{},
+			spanKind:                   ptrace.SpanKindServer,
+			libname:                    "ddtracer",
+			ignoreMissingDatadogFields: false,
 			expected: createStatsPayload(
 				agentEnv,
 				agentHost,
@@ -442,13 +422,11 @@ func TestProcessOTLPTraces(t *testing.T) {
 			spanName: "test-name",
 			rattrs:   map[string]string{},
 			sattrs: map[string]any{
-				attributes.DDNamespaceKeys.OperationName(): "test-name",
+				attributes.APMConventionKeys.OperationName(): "test-name",
 			},
-			spanKind:                         ptrace.SpanKindServer,
-			libname:                          "ddtracer",
-			enableOperationAndResourceNameV2: true,
-			enableReceiveResourceSpansV2:     true,
-			ignoreMissingDatadogFields:       false,
+			spanKind:                   ptrace.SpanKindServer,
+			libname:                    "ddtracer",
+			ignoreMissingDatadogFields: false,
 			expected: createStatsPayload(
 				agentEnv,
 				agentHost,
@@ -479,20 +457,18 @@ func TestProcessOTLPTraces(t *testing.T) {
 				"deployment.environment": "env",
 				"service.version":        "v1",
 			},
-			sattrs:                           map[string]any{},
-			spanKind:                         ptrace.SpanKindServer,
-			libname:                          "ddtracer",
-			enableOperationAndResourceNameV2: true,
-			enableReceiveResourceSpansV2:     true,
-			ignoreMissingDatadogFields:       true,
+			sattrs:                     map[string]any{},
+			spanKind:                   ptrace.SpanKindServer,
+			libname:                    "ddtracer",
+			ignoreMissingDatadogFields: true,
 			expected: createStatsPayload(
 				agentEnv,
 				agentHost,
+				"otlpresourcenoservicename",
+				"Server",
+				"custom",
 				"",
-				"",
-				"",
-				"",
-				"",
+				"spanname",
 				agentHost,
 				agentEnv,
 				"",
@@ -546,15 +522,10 @@ func TestProcessOTLPTraces(t *testing.T) {
 			conf := config.New()
 			conf.Hostname = agentHost
 			conf.DefaultEnv = agentEnv
-			if !tt.enableReceiveResourceSpansV2 {
-				conf.Features["disable_receive_resource_spans_v2"] = struct{}{}
-			}
+			conf.Features = map[string]struct{}{"enable_otel_compliant_translation": {}}
 			conf.PeerTagsAggregation = tt.peerTagsAggr
 			conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 			conf.OTLPReceiver.SpanNameAsResourceName = tt.spanNameAsResourceName
-			if !tt.enableOperationAndResourceNameV2 {
-				conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
-			}
 			conf.OTLPReceiver.SpanNameRemappings = tt.spanNameRemappings
 			conf.Ignore["resource"] = tt.ignoreRes
 			if !tt.legacyTopLevel {
@@ -594,7 +565,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 	}
 }
 
-func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
+func TestProcessOTLPTraces_MutliSpanInOneResAndOp_OTelCompliantTranslation(t *testing.T) {
 	start := time.Now().Add(-1 * time.Second)
 	end := time.Now()
 	set := componenttest.NewNopTelemetrySettings()
@@ -673,50 +644,5 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 		protocmp.IgnoreFields(&pb.ClientStatsBucket{}, "start", "duration"),
 		protocmp.IgnoreFields(&pb.ClientGroupedStats{}, "duration", "okSummary", "errorSummary")); diff != "" {
 		t.Errorf("Diff between APM stats -want +got:\n%v", diff)
-	}
-}
-
-func createStatsPayload(
-	agentEnv, agentHost, svc, operation, typ, kind, resource, tracerHost, env, cid, version string,
-	ctags, peerTags []string,
-	root, nonTopLevel bool,
-	httpStatusCode uint32,
-) *pb.StatsPayload {
-	traceroot := pb.Trilean_TRUE
-	if !root {
-		traceroot = pb.Trilean_FALSE
-	}
-	var topLevelHits uint64
-	if !nonTopLevel {
-		topLevelHits = 1
-	}
-	stats := &pb.ClientGroupedStats{
-		Service:      svc,
-		Name:         operation,
-		Resource:     resource,
-		Type:         typ,
-		Hits:         1,
-		TopLevelHits: topLevelHits,
-		SpanKind:     kind,
-		PeerTags:     peerTags,
-		IsTraceRoot:  traceroot,
-	}
-	if httpStatusCode != 0 {
-		stats.HTTPStatusCode = httpStatusCode
-	}
-	return &pb.StatsPayload{
-		AgentEnv:      agentEnv,
-		AgentHostname: agentHost,
-		Stats: []*pb.ClientStatsPayload{{
-			Hostname:    tracerHost,
-			Version:     version,
-			Env:         env,
-			ContainerID: cid,
-			Tags:        ctags,
-			Stats: []*pb.ClientStatsBucket{{
-				Stats: []*pb.ClientGroupedStats{
-					stats,
-				},
-			}}}},
 	}
 }

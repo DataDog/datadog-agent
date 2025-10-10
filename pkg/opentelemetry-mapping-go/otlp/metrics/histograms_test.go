@@ -9,6 +9,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -382,6 +383,240 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
 			assert.Equal(t, testinstance.expectedUnknownMetricType, observed.FilterMessage("Unknown or unsupported metric type").Len())
 			assert.Equal(t, testinstance.expectedUnsupportedAggregationTemporality, observed.FilterMessage("Unknown or unsupported aggregation temporality").Len())
+		})
+	}
+}
+
+func TestCreateDDSketchFromHistogramOfDuration(t *testing.T) {
+	tests := []struct {
+		name        string
+		unit        string
+		bounds      []float64
+		counts      []uint64
+		min         *float64
+		max         *float64
+		hasError    bool
+		expectedP50 float64
+		expectedP95 float64
+	}{
+		{
+			name:        "heavy skew to first bucket - ms",
+			unit:        "ms",
+			bounds:      []float64{10.0, 100.0, 1000.0},
+			counts:      []uint64{1000, 5, 2, 1},          // 95% in first bucket
+			expectedP50: 10.0 * float64(time.Millisecond), // p50 is in the first bucket, will be placed at min
+			expectedP95: 10.0 * float64(time.Millisecond), // same bucket
+		},
+		{
+			name:        "midpoints - ns",
+			unit:        "ns",
+			bounds:      []float64{100.0, 200.0, 300.0},
+			counts:      []uint64{100, 100, 100, 0}, // 100 in (-inf, 100), 100 in [100, 200), 100 in [200, 300), 0 in [300, +inf)
+			expectedP50: 150.0,                      // p50 is in the second bucket
+			expectedP95: 250.0,                      // p95 is in the third bucket
+		},
+		{
+			name:        "heavy skew to last bucket - s",
+			unit:        "s",
+			bounds:      []float64{1.0, 2.0, 3.0},
+			counts:      []uint64{1, 2, 5, 1000},    // 95% in last bucket
+			expectedP50: 3.0 * float64(time.Second), // p50 is in the last bucket, will be placed at max
+			expectedP95: 3.0 * float64(time.Second), // same bucket
+		},
+		{
+			name:   "empty histogram",
+			unit:   "ms",
+			bounds: []float64{1.0, 5.0},
+			counts: []uint64{0, 0, 0},
+		},
+		{
+			name:        "single value with min/max - us",
+			unit:        "us",
+			bounds:      []float64{1000.0},
+			counts:      []uint64{0, 100}, // all values in [1000, +inf)
+			min:         func() *float64 { v := 1200.0; return &v }(),
+			max:         func() *float64 { v := 1200.0; return &v }(),
+			expectedP50: 1.20e+06, // p50 is in the last bucket, will be placed at max
+			expectedP95: 1.20e+06, // same bucket
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create histogram data point
+			dp := pmetric.NewHistogramDataPoint()
+
+			// Set bounds
+			bounds := dp.ExplicitBounds()
+			for _, bound := range tt.bounds {
+				bounds.Append(bound)
+			}
+
+			// Set counts
+			counts := dp.BucketCounts()
+			for _, count := range tt.counts {
+				counts.Append(count)
+			}
+
+			// Set min/max if provided
+			if tt.min != nil {
+				dp.SetMin(*tt.min)
+			}
+			if tt.max != nil {
+				dp.SetMax(*tt.max)
+			}
+
+			// Test the function
+			sketch, err := CreateDDSketchFromHistogramOfDuration(dp, tt.unit)
+			if tt.hasError {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotNil(t, sketch)
+
+			// Only test percentiles if we have non-zero counts
+			totalCount := uint64(0)
+			for _, count := range tt.counts {
+				totalCount += count
+			}
+			if totalCount > 0 && tt.expectedP50 > 0 {
+				// Test that percentiles match expected values within DDSketch accuracy of 1%
+				p50, err := sketch.GetValueAtQuantile(0.5)
+				assert.NoError(t, err)
+				assert.InDelta(t, tt.expectedP50, p50, tt.expectedP50*0.01, "p50 should be within relative accuracy")
+
+				p95, err := sketch.GetValueAtQuantile(0.95)
+				assert.NoError(t, err)
+				assert.InDelta(t, tt.expectedP95, p95, tt.expectedP95*0.01, "p95 should be within relative accuracy")
+			}
+		})
+	}
+}
+
+func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
+	tests := []struct {
+		name        string
+		unit        string
+		scale       int32
+		zeroCount   uint64
+		posCounts   []uint64
+		posOffset   int32
+		negCounts   []uint64
+		negOffset   int32
+		hasError    bool
+		expectedP50 float64
+		expectedP95 float64
+	}{
+		{
+			name:        "heavily skewed to zero - ms",
+			unit:        "ms",
+			scale:       4,                          // fine granularity
+			zeroCount:   500,                        // 50% at zero
+			posCounts:   []uint64{250, 150, 75, 25}, // decreasing counts
+			posOffset:   0,
+			expectedP50: 0.0,                              // median is zero
+			expectedP95: 1.41 * float64(time.Millisecond), // bucket 2 scaled to ns
+		},
+		{
+			name:        "uniform exponential - ns",
+			unit:        "ns",
+			scale:       2,
+			zeroCount:   0,
+			posCounts:   []uint64{100, 100, 100, 100}, // uniform distribution
+			posOffset:   0,
+			expectedP50: 1.29, // actual DDSketch value
+			expectedP95: 1.54, // actual DDSketch value
+		},
+		{
+			name:        "single bucket with known values - us",
+			unit:        "us",
+			scale:       0, // coarse scale
+			zeroCount:   0,
+			posCounts:   []uint64{1000}, // all in one bucket
+			posOffset:   1,              // bucket index 1
+			expectedP50: 2000,           // actual DDSketch value in nanoseconds
+			expectedP95: 2000,           // same bucket
+		},
+		{
+			name:      "empty exponential histogram",
+			unit:      "s",
+			scale:     1,
+			zeroCount: 0,
+			posCounts: []uint64{},
+			posOffset: 0,
+		},
+		{
+			name:        "mostly in high buckets - s",
+			unit:        "s",
+			scale:       3,
+			zeroCount:   1,
+			posCounts:   []uint64{1, 1, 10, 100}, // 90% in last bucket
+			posOffset:   2,
+			expectedP50: 1.58e+09, // actual DDSketch value in nanoseconds
+			expectedP95: 1.58e+09, // same bucket
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create exponential histogram data point
+			dp := pmetric.NewExponentialHistogramDataPoint()
+			dp.SetScale(tt.scale)
+
+			// Set positive buckets
+			if len(tt.posCounts) > 0 {
+				posBuckets := dp.Positive()
+				posBuckets.SetOffset(tt.posOffset)
+				counts := posBuckets.BucketCounts()
+				totalCount := tt.zeroCount
+				for _, count := range tt.posCounts {
+					counts.Append(count)
+					totalCount += count
+				}
+				dp.SetCount(totalCount)
+			}
+
+			// Set negative buckets if provided
+			if len(tt.negCounts) > 0 {
+				negBuckets := dp.Negative()
+				negBuckets.SetOffset(tt.negOffset)
+				counts := negBuckets.BucketCounts()
+				totalCount := dp.Count()
+				for _, count := range tt.negCounts {
+					counts.Append(count)
+					totalCount += count
+				}
+				dp.SetCount(totalCount)
+			}
+
+			// Test the function
+			sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(dp, tt.unit)
+			if tt.hasError {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotNil(t, sketch)
+
+			// Only test percentiles if we have expected values and non-zero counts
+			totalCount := tt.zeroCount
+			for _, count := range tt.posCounts {
+				totalCount += count
+			}
+			for _, count := range tt.negCounts {
+				totalCount += count
+			}
+			if totalCount > 0 && tt.expectedP50 > 0 {
+				// Test that percentiles match expected values within DDSketch accuracy of 1%
+				p50, err := sketch.GetValueAtQuantile(0.5)
+				assert.NoError(t, err)
+				assert.InDelta(t, tt.expectedP50, p50, tt.expectedP50*0.01, "p50 should be within tolerance")
+
+				p95, err := sketch.GetValueAtQuantile(0.95)
+				assert.NoError(t, err)
+				assert.InDelta(t, tt.expectedP95, p95, tt.expectedP95*0.01, "p95 should be within tolerance")
+			}
 		})
 	}
 }

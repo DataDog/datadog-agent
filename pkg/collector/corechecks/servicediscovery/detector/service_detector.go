@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
+	"github.com/DataDog/datadog-agent/pkg/util/normalize"
 )
 
 // ServiceMetadata stores metadata about a service.

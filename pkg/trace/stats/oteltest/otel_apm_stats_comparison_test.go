@@ -8,6 +8,7 @@ package oteltest
 import (
 	"context"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -130,10 +131,21 @@ func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, enableOperationNam
 		payload2,
 		protocmp.Transform(),
 		// OTLPTracesToConcentratorInputs adds container tags to ClientStatsPayload, other fields should match.
-		protocmp.IgnoreFields(&pb.ClientStatsPayload{}, "tags")); diff != "" {
+		protocmp.IgnoreFields(&pb.ClientStatsPayload{}, "tags"),
+		// Should perform case insensitive comparison for name
+		protocmp.IgnoreFields(&pb.ClientGroupedStats{}, "name")); diff != "" {
 		t.Errorf("Diff between APM stats received:\n%v", diff)
 	}
 	require.ElementsMatch(t, payload2.Stats[0].Tags, []string{"kube_container_name:k8s_container", "container_id:test_cid"})
+
+	for i, statsPayload := range payload1.Stats {
+		for j, bucket := range statsPayload.Stats {
+			for k, stat := range bucket.Stats {
+				other := payload2.Stats[i].Stats[j].Stats[k]
+				require.True(t, strings.EqualFold(stat.Name, other.Name))
+			}
+		}
+	}
 }
 
 func getTraceAgentCfg(attributesTranslator *attributes.Translator) *traceconfig.AgentConfig {

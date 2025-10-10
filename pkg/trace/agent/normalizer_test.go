@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
+	"github.com/DataDog/datadog-agent/pkg/util/normalize"
 )
 
 func newTestSpan() *pb.Span {

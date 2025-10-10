@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
+	"github.com/DataDog/datadog-agent/pkg/util/normalize"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -238,6 +238,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
 	var spancount int64
+	var totalWrongPlaceKeysCount int
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
 		for j := 0; j < libspans.Spans().Len(); j++ {
@@ -247,7 +248,8 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
-			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf)
+			ddspan, wrongPlaceKeysCount := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf)
+			totalWrongPlaceKeysCount += wrongPlaceKeysCount
 
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
@@ -293,16 +295,21 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	if o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		hostname = ""
 	}
-	if incomingHostname := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogHost); incomingHostname != "" {
+	if incomingHostname := traceutil.GetOTelAttrVal(resourceAttributes, true, attributes.DDNamespaceKeys.Host()); incomingHostname != "" {
 		hostname = incomingHostname
 	}
 
-	containerID := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogContainerID)
+	tags = append(tags, "host:"+hostname)
+	if totalWrongPlaceKeysCount > 0 {
+		_ = o.statsd.Count("datadog.trace_agent.otlp.misconfigured_attributes", int64(totalWrongPlaceKeysCount), tags, 1)
+	}
+
+	containerID := traceutil.GetOTelAttrVal(resourceAttributes, true, attributes.DDNamespaceKeys.ContainerID())
 	if containerID == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		containerID = traceutil.GetOTelAttrVal(resourceAttributes, true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 	}
 
-	env := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogEnvironment)
+	env := traceutil.GetOTelAttrVal(resourceAttributes, true, attributes.DDNamespaceKeys.Env())
 	if env == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		env = traceutil.GetOTelAttrVal(resourceAttributes, true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
 	}
@@ -316,7 +323,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	}
 
 	var flattenedTags string
-	if incomingContainerTags := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogContainerTags); incomingContainerTags != "" {
+	if incomingContainerTags := traceutil.GetOTelAttrVal(resourceAttributes, true, attributes.DDNamespaceKeys.ContainerTags()); incomingContainerTags != "" {
 		flattenedTags = incomingContainerTags
 	} else if !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		ctags := attributes.ContainerTagsFromResourceAttributes(resourceAttributes)
@@ -652,7 +659,20 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 	span.Error = transform.Status2Error(in.Status(), in.Events(), span.Meta)
 	if transform.OperationAndResourceNameV2Enabled(o.conf) {
 		span.Name = traceutil.GetOTelOperationNameV2(in, res)
+		if span.Resource == "" {
+			span.Resource = traceutil.GetOTelResourceV2(in, res)
+		}
 	} else {
+		// Set resource name
+		if span.Resource == "" {
+			if r := resourceFromTags(span.Meta); r != "" {
+				span.Resource = r
+			} else {
+				span.Resource = in.Name()
+			}
+		}
+
+		// Set operation name
 		if span.Name == "" {
 			name := in.Name()
 			if !o.conf.OTLPReceiver.SpanNameAsResourceName {
@@ -671,17 +691,6 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 	}
 	if span.Service == "" {
 		span.Service = "OTLPResourceNoServiceName"
-	}
-	if span.Resource == "" {
-		if transform.OperationAndResourceNameV2Enabled(o.conf) {
-			span.Resource = traceutil.GetOTelResourceV2(in, res)
-		} else {
-			if r := resourceFromTags(span.Meta); r != "" {
-				span.Resource = r
-			} else {
-				span.Resource = in.Name()
-			}
-		}
 	}
 	if span.Type == "" {
 		span.Type = traceutil.SpanKind2Type(in, res)

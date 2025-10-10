@@ -11,12 +11,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.15.0"
+	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -26,52 +28,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/util/normalize"
 )
 
-const (
-	// KeyDatadogService is the key for the service name in the Datadog namespace
-	KeyDatadogService = "datadog.service"
-	// KeyDatadogName is the key for the operation name in the Datadog namespace
-	KeyDatadogName = "datadog.name"
-	// KeyDatadogResource is the key for the resource name in the Datadog namespace
-	KeyDatadogResource = "datadog.resource"
-	// KeyDatadogSpanKind is the key for the span kind in the Datadog namespace
-	KeyDatadogSpanKind = "datadog.span.kind"
-	// KeyDatadogType is the key for the span type in the Datadog namespace
-	KeyDatadogType = "datadog.type"
-	// KeyDatadogError is the key for the error flag in the Datadog namespace
-	KeyDatadogError = "datadog.error"
-	// KeyDatadogErrorMsg is the key for the error message in the Datadog namespace
-	KeyDatadogErrorMsg = "datadog.error.msg"
-	// KeyDatadogErrorType is the key for the error type in the Datadog namespace
-	KeyDatadogErrorType = "datadog.error.type"
-	// KeyDatadogErrorStack is the key for the error stack in the Datadog namespace
-	KeyDatadogErrorStack = "datadog.error.stack"
-	// KeyDatadogVersion is the key for the version in the Datadog namespace
-	KeyDatadogVersion = "datadog.version"
-	// KeyDatadogHTTPStatusCode is the key for the HTTP status code in the Datadog namespace
-	KeyDatadogHTTPStatusCode = "datadog.http_status_code"
-	// KeyDatadogHost is the key for the host in the Datadog namespace
-	KeyDatadogHost = "datadog.host"
-	// KeyDatadogEnvironment is the key for the environment in the Datadog namespace
-	KeyDatadogEnvironment = "datadog.env"
-	// KeyDatadogContainerID is the key for the container ID in the Datadog namespace
-	KeyDatadogContainerID = "datadog.container_id"
-	// KeyDatadogContainerTags is the key for the container tags in the Datadog namespace
-	KeyDatadogContainerTags = "datadog.container_tags"
-)
+var emptyString = ""
 
 // OperationAndResourceNameV2Enabled checks if the new operation and resource name logic should be used
 func OperationAndResourceNameV2Enabled(conf *config.AgentConfig) bool {
 	return !conf.OTLPReceiver.SpanNameAsResourceName && len(conf.OTLPReceiver.SpanNameRemappings) == 0 && !conf.HasFeature("disable_operation_and_resource_name_logic_v2")
 }
 
-// OtelSpanToDDSpanMinimal otelSpanToDDSpan converts an OTel span to a DD span.
+// OTelCompliantTranslationEnabled checks if the new OTLP to Datadog translations should be used
+func OTelCompliantTranslationEnabled(conf *config.AgentConfig) bool {
+	return conf.HasFeature("enable_otel_compliant_translation")
+}
+
+// OtelSpanToDDSpanMinimal_Old otelSpanToDDSpan converts an OTel span to a DD span.
 // The converted DD span only has the minimal number of fields for APM stats calculation and is only meant
 // to be used in OTLPTracesToConcentratorInputs. Do not use them for other purposes.
-func OtelSpanToDDSpanMinimal(
+func otelSpanToDDSpanMinimal_old(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
@@ -85,10 +61,10 @@ func OtelSpanToDDSpanMinimal(
 	rattr := otelres.Attributes()
 
 	ddspan := &pb.Span{
-		Service:  traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogService),
-		Name:     traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogName),
-		Resource: traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogResource),
-		Type:     traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogType),
+		Service:  traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, attributes.DDNamespaceKeys.Service()),
+		Name:     traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, attributes.DDNamespaceKeys.OperationName()),
+		Resource: traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, attributes.DDNamespaceKeys.ResourceName()),
+		Type:     traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, attributes.DDNamespaceKeys.SpanType()),
 		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
 		SpanID:   traceutil.OTelSpanIDToUint64(otelspan.SpanID()),
 		ParentID: traceutil.OTelSpanIDToUint64(otelspan.ParentSpanID()),
@@ -97,7 +73,7 @@ func OtelSpanToDDSpanMinimal(
 		Meta:     make(map[string]string, sattr.Len()+rattr.Len()),
 		Metrics:  make(map[string]float64),
 	}
-	if isErrorVal, ok := otelspan.Attributes().Get(KeyDatadogError); ok {
+	if isErrorVal, ok := otelspan.Attributes().Get("datadog.error"); ok {
 		ddspan.Error = int32(isErrorVal.Int())
 	} else {
 		if otelspan.Status().Code() == ptrace.StatusCodeError {
@@ -105,7 +81,7 @@ func OtelSpanToDDSpanMinimal(
 		}
 	}
 
-	if incomingSpanKindName := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogSpanKind); incomingSpanKindName != "" {
+	if incomingSpanKindName := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, attributes.DDNamespaceKeys.SpanKind()); incomingSpanKindName != "" {
 		ddspan.Meta["span.kind"] = incomingSpanKindName
 	}
 
@@ -173,11 +149,343 @@ func isDatadogAPMConventionKey(k string) bool {
 	return k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" || strings.HasPrefix(k, "datadog.")
 }
 
+func otelSpanToDDSpanMinimal_OTelCompliantTranslation(
+	otelspan ptrace.Span,
+	otelres pcommon.Resource,
+	lib pcommon.InstrumentationScope,
+	isTopLevel, topLevelByKind bool,
+	conf *config.AgentConfig,
+	peerTagKeys []string,
+) *pb.Span {
+	spanKind := otelspan.Kind()
+
+	sattr := otelspan.Attributes()
+	rattr := otelres.Attributes()
+
+	ignore := conf.OTLPReceiver.IgnoreMissingDatadogFields
+
+	spanName := otelspan.Name()
+	ddspan := &pb.Span{
+		Name:     attributes.GetOperationName(spanKind, sattr, ignore, true, nil),
+		Resource: attributes.GetResourceName(spanKind, sattr, ignore, true, &spanName),
+		Service:  attributes.GetService(rattr, true, ignore, true, nil),
+		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
+		SpanID:   traceutil.OTelSpanIDToUint64(otelspan.SpanID()),
+		ParentID: traceutil.OTelSpanIDToUint64(otelspan.ParentSpanID()),
+		Start:    int64(otelspan.StartTimestamp()),
+		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
+		Meta:     make(map[string]string, sattr.Len()+rattr.Len()),
+		Metrics:  make(map[string]float64, 4),
+	}
+	ddspan.Meta[attributes.APMConventionKeys.SpanKind()] = attributes.GetSpanKind(spanKind, sattr, ignore, true, nil)
+
+	if otelspan.Status().Code() == ptrace.StatusCodeError {
+		ddspan.Error = 1
+	}
+
+	code, err := attributes.GetStatusCode(sattr, ignore, true, nil)
+	if err != nil {
+		log.Errorf("error getting OTel status code: %v", err)
+	}
+	if code != 0 {
+		ddspan.Meta[attributes.APMConventionKeys.HTTPStatusCode()] = strconv.FormatUint(uint64(code), 10)
+		ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
+	}
+
+	// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
+	if !conf.HasFeature("disable_receive_resource_spans_v2") {
+		ddspan.Type = attributes.GetSpanType(spanKind, sattr, ignore, true, nil)
+	} else {
+		ddspan.Type = attributes.GetOTelAttrFromEitherMap(sattr, rattr, true, attributes.DDNamespaceKeys.SpanType(), "span.type")
+		if ddspan.Type == "" {
+			ddspan.Type = traceutil.SpanKind2Type(otelspan, otelres)
+		}
+	}
+	if isTopLevel {
+		traceutil.SetTopLevel(ddspan, true)
+	}
+	if isMeasured := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, false, "_dd.measured"); isMeasured == "1" {
+		traceutil.SetMeasured(ddspan, true)
+	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
+		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
+		traceutil.SetMeasured(ddspan, true)
+	}
+	for _, peerTagKey := range peerTagKeys {
+		if peerTagVal := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey); peerTagVal != "" {
+			ddspan.Meta[peerTagKey] = peerTagVal
+		}
+	}
+	return ddspan
+}
+
+func OtelSpanToDDSpanMinimal(
+	otelspan ptrace.Span,
+	otelres pcommon.Resource,
+	lib pcommon.InstrumentationScope,
+	isTopLevel, topLevelByKind bool,
+	conf *config.AgentConfig,
+	peerTagKeys []string,
+) *pb.Span {
+	if OTelCompliantTranslationEnabled(conf) {
+		return otelSpanToDDSpanMinimal_OTelCompliantTranslation(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys)
+	}
+	return otelSpanToDDSpanMinimal_old(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys)
+}
+
+var otlpToAPMConventionKeysMapForSpanAttributes = map[string]string{
+	string(semconv127.HTTPResponseStatusCodeKey): attributes.APMConventionKeys.HTTPStatusCode(),
+	string(semconv117.HTTPStatusCodeKey):         attributes.APMConventionKeys.HTTPStatusCode(),
+
+	string(semconv127.DBNamespaceKey): attributes.APMConventionKeys.DBName(),
+}
+
+// These are keys in the `datadog.*` namespace that belong in span attributes.
+var ddNamespaceToAPMConventionKeysForSpanAttributes = map[string]string{
+	attributes.DDNamespaceKeys.OperationName():  attributes.APMConventionKeys.OperationName(),
+	attributes.DDNamespaceKeys.ResourceName():   attributes.APMConventionKeys.ResourceName(),
+	attributes.DDNamespaceKeys.SpanType():       attributes.APMConventionKeys.SpanType(),
+	attributes.DDNamespaceKeys.SpanKind():       attributes.APMConventionKeys.SpanKind(),
+	attributes.DDNamespaceKeys.HTTPStatusCode(): attributes.APMConventionKeys.HTTPStatusCode(),
+	attributes.DDNamespaceKeys.DBName():         attributes.APMConventionKeys.DBName(),
+}
+
+// These keys must be set with more complex logic via methods such as attributes.GetEnv, etc.
+var reservedAPMConventionKeysForSpanAttributes = map[string]struct{}{
+	attributes.APMConventionKeys.OperationName():  {},
+	attributes.APMConventionKeys.ResourceName():   {},
+	attributes.APMConventionKeys.SpanType():       {},
+	attributes.APMConventionKeys.SpanKind():       {},
+	attributes.APMConventionKeys.HTTPStatusCode(): {},
+	attributes.APMConventionKeys.DBName():         {},
+}
+
+func mapSpanOTLPKeyToAPMConventionKey(k string) (string, bool) {
+	// 1) Check if key is in DD namespace
+	if mappedKey, ok := ddNamespaceToAPMConventionKeysForSpanAttributes[k]; ok {
+		return mappedKey, true
+	}
+	// 2) Check if key is in APM conventions as-is
+	if _, ok := reservedAPMConventionKeysForSpanAttributes[k]; ok {
+		return k, true
+	}
+
+	// 3) Check if key has an HTTP mapping
+	if mappedKey, found := attributes.HTTPKeyMappings[k]; found {
+		return mappedKey, true
+	}
+	if suffix, ok := strings.CutPrefix(k, "http.request.header."); ok {
+		return "http.request.headers." + suffix, true
+	}
+
+	// 4) Check if there is a defined mapping from OTel attribute key -> DD tag key
+	if mappedKey, ok := otlpToAPMConventionKeysMapForSpanAttributes[k]; ok {
+		return mappedKey, true
+	}
+
+	// 5) No mapping found, return the original key
+	return k, false
+}
+
+var otlpToAPMConventionKeysMapForResourceAttributes = map[string]string{
+	// service.name
+	string(semconv127.ServiceNameKey): attributes.APMConventionKeys.Service(),
+	// version
+	string(semconv127.ServiceVersionKey): attributes.APMConventionKeys.Version(),
+	// env
+	string(semconv127.DeploymentEnvironmentNameKey): attributes.APMConventionKeys.Env(),
+	string(semconv117.DeploymentEnvironmentKey):     attributes.APMConventionKeys.Env(),
+}
+
+var ddNamespaceToAPMConventionKeysForResourceAttributes = map[string]string{
+	attributes.DDNamespaceKeys.Service(): attributes.APMConventionKeys.Service(),
+	attributes.DDNamespaceKeys.Version(): attributes.APMConventionKeys.Version(),
+	attributes.DDNamespaceKeys.Env():     attributes.APMConventionKeys.Env(),
+}
+
+var reservedAPMConventionKeysForResourceAttributes = map[string]struct{}{
+	attributes.APMConventionKeys.Service(): {},
+	attributes.APMConventionKeys.Version(): {},
+	attributes.APMConventionKeys.Env():     {},
+}
+
+func mapResourceOTLPKeyToAPMConventionKey(k string) (string, bool) {
+	// 1) Check if key is in DD namespace
+	if mappedKey, ok := ddNamespaceToAPMConventionKeysForResourceAttributes[k]; ok {
+		return mappedKey, true
+	}
+	// 2) Check if key is in APM conventions as-is
+	if _, ok := reservedAPMConventionKeysForResourceAttributes[k]; ok {
+		return k, true
+	}
+	// 3) Check if there is a defined mapping from OTel attribute key -> DD tag key
+	if mappedKey, ok := otlpToAPMConventionKeysMapForResourceAttributes[k]; ok {
+		return mappedKey, true
+	}
+	// 4) No mapping found, return the original key
+	return k, false
+}
+
+func computeAPMKeyForOTLPAttribute(
+	key string,
+	expectedDDNamespaceKeysForThisLocation map[string]string,
+	reservedAPMConventionKeysForThisLocation map[string]struct{},
+	otlpToAPMKeyFunc func(string) (string, bool),
+	wrongPlaceMapFunc func(string) (string, bool),
+	wrongPlacePrefix string,
+	ignoreMissingDatadogFields bool,
+) (string, bool) {
+	// If the key is reserved/explicitly checked for elsewhere in translation, skip it.
+	if _, ok := expectedDDNamespaceKeysForThisLocation[key]; ok {
+		return "", true
+	}
+	if _, ok := reservedAPMConventionKeysForThisLocation[key]; ok {
+		return "", true
+	}
+
+	// 1) Try to map the key from OTel -> DD semantics.
+	mappedKey, ok := otlpToAPMKeyFunc(key)
+	if ignoreMissingDatadogFields {
+		// If this attribute would be used to set a known APM tag, and ignoreMissingDatadogFields is set, skip it.
+		// (Only allow known APM tags to be set directly via the `datadog.*` namespace.)
+		if _, ok := reservedAPMConventionKeysForThisLocation[mappedKey]; ok {
+			// Only allocate wrongPlaceKey when we need to return it
+			return wrongPlacePrefix + key, false
+		}
+	}
+
+	if !ok {
+		// 2) Check if key is known but in the wrong place
+		// If so, make this explicit with prefix
+		if _, ok := wrongPlaceMapFunc(key); ok {
+			// Only allocate wrongPlaceKey when we need to return it
+			return wrongPlacePrefix + key, false
+		} else {
+			// 3) If key has no assigned place, no problem, add as-is
+			mappedKey = key
+			return mappedKey, true
+		}
+	}
+	return mappedKey, true
+}
+
+func setValueInMapByTypeAndPrefixIfAlreadyPopulated(k string, value pcommon.Value, metaMap map[string]string, metricMap map[string]float64, wrongPlacePrefix string) {
+	switch value.Type() {
+	case pcommon.ValueTypeDouble:
+		if _, ok := metricMap[k]; ok {
+			k = wrongPlacePrefix + k
+		}
+		setMetricAndRemapIfNeeded(k, value.Double(), metricMap, wrongPlacePrefix)
+	case pcommon.ValueTypeInt:
+		if _, ok := metricMap[k]; ok {
+			k = wrongPlacePrefix + k
+		}
+		setMetricAndRemapIfNeeded(k, float64(value.Int()), metricMap, wrongPlacePrefix)
+	default:
+		if _, ok := metaMap[k]; ok {
+			k = wrongPlacePrefix + k
+		}
+		metaMap[k] = value.AsString()
+	}
+}
+
+// Returns "false" if the key is in the wrong place.
+func conditionallyConsumeOTLPAttribute(
+	key string,
+	value pcommon.Value,
+	outputMetaMap map[string]string,
+	outputMetricMap map[string]float64,
+	reservedAPMConventionKeysForThisLocation map[string]struct{},
+	expectedDDNamespaceKeysForThisLocation map[string]string,
+	otlpToAPMKeyFunc func(string) (string, bool),
+	wrongPlaceMapFunc func(string) (string, bool),
+	wrongPlacePrefix string,
+	ignoreMissingDatadogFields bool,
+) bool {
+	mappedKey, keyInRightPlace := computeAPMKeyForOTLPAttribute(key, expectedDDNamespaceKeysForThisLocation, reservedAPMConventionKeysForThisLocation, otlpToAPMKeyFunc, wrongPlaceMapFunc, wrongPlacePrefix, ignoreMissingDatadogFields)
+
+	if mappedKey == "" {
+		return keyInRightPlace
+	}
+
+	// If `mappedKey` was already set, e.g. via `datadog.mappedKey`, don't overwrite it.
+	if _, ok := outputMetaMap[mappedKey]; !ok {
+		setValueInMapByTypeAndPrefixIfAlreadyPopulated(mappedKey, value, outputMetaMap, outputMetricMap, wrongPlacePrefix)
+		if key == mappedKey {
+			return keyInRightPlace
+		}
+	}
+
+	if keyInRightPlace {
+		// Always preserve the original OTLP key
+		setValueInMapByTypeAndPrefixIfAlreadyPopulated(key, value, outputMetaMap, outputMetricMap, wrongPlacePrefix)
+	}
+
+	return keyInRightPlace
+}
+
+func mergeMapsIntoSpan(ddspan *pb.Span,
+	spanMetaMap map[string]string, spanMetricMap map[string]float64,
+	resourceMetaMap map[string]string, resourceMetricMap map[string]float64,
+	libMetaMap map[string]string, libMetricMap map[string]float64) {
+	// merge maps; if there's a collision anywhere, add prefix (precedence: span > resource > scope)
+	for k, v := range spanMetaMap {
+		SetMetaOTLPIfEmpty(ddspan, k, v)
+	}
+
+	for k, v := range resourceMetaMap {
+		if _, ok := spanMetaMap[k]; ok {
+			k = "otel.resource." + k
+		}
+		SetMetaOTLPIfEmpty(ddspan, k, v)
+	}
+
+	for k, v := range libMetaMap {
+		_, ok1 := spanMetaMap[k]
+		_, ok2 := resourceMetaMap[k]
+		if ok1 || ok2 {
+			k = "otel.scope." + k
+		}
+		SetMetaOTLPIfEmpty(ddspan, k, v)
+	}
+
+	for k, v := range spanMetricMap {
+		SetMetricOTLPIfEmpty(ddspan, k, v)
+	}
+
+	for k, v := range resourceMetricMap {
+		if _, ok := resourceMetricMap[k]; ok {
+			k = "otel.resource." + k
+		}
+		SetMetricOTLPIfEmpty(ddspan, k, v)
+	}
+
+	for k, v := range libMetricMap {
+		_, ok1 := libMetricMap[k]
+		_, ok2 := resourceMetaMap[k]
+		if ok1 || ok2 {
+			k = "otel.scope." + k
+		}
+		SetMetricOTLPIfEmpty(ddspan, k, v)
+	}
+}
+
+func OtelSpanToDDSpan(
+	otelspan ptrace.Span,
+	otelres pcommon.Resource,
+	lib pcommon.InstrumentationScope,
+	conf *config.AgentConfig,
+) (ddSpan *pb.Span, wrongPlaceKeysCount int) {
+	if OTelCompliantTranslationEnabled(conf) {
+		return otelSpanToDDSpan_OTelCompliantTranslation(otelspan, otelres, lib, conf)
+	}
+	return otelSpanToDDSpan_Old(otelspan, otelres, lib, conf)
+}
+
 // GetDDKeyForOTLPAttribute looks for a key in the Datadog HTTP convention that matches the given key from the
 // OTLP HTTP convention. Otherwise, check if it is a Datadog APM convention key - if it is, it will be handled with
 // specialized logic elsewhere, so return an empty string. If it isn't, return the original key.
 func GetDDKeyForOTLPAttribute(k string) string {
-	mappedKey, found := attributes.HTTPMappings[k]
+	mappedKey, found := attributes.HTTPKeyMappings[k]
 	switch {
 	case found:
 		break
@@ -227,21 +535,21 @@ func conditionallyMapOTLPAttributeToMetric(k string, value float64, ddspan *pb.S
 
 // If these DD namespaced keys are found in OTLP attributes, map them to the corresponding keys in ddspan.Meta
 var ddNamespacedKeysToAPMConventionKeys = map[string]string{
-	KeyDatadogEnvironment:    "env",
-	KeyDatadogVersion:        "version",
-	KeyDatadogHTTPStatusCode: "http.status_code",
-	KeyDatadogErrorMsg:       "error.msg",
-	KeyDatadogErrorType:      "error.type",
-	KeyDatadogErrorStack:     "error.stack",
+	attributes.DDNamespaceKeys.Env():            attributes.APMConventionKeys.Env(),
+	attributes.DDNamespaceKeys.Version():        attributes.APMConventionKeys.Version(),
+	attributes.DDNamespaceKeys.HTTPStatusCode(): "http.status_code",
+	"datadog.error.msg":                         "error.msg",
+	"datadog.error.type":                        "error.type",
+	"datadog.error.stack":                       "error.stack",
 }
 
 var apmConventionKeysToDDNamespacedKeys = map[string]string{
-	"env":              KeyDatadogEnvironment,
-	"version":          KeyDatadogVersion,
-	"http.status_code": KeyDatadogHTTPStatusCode,
-	"error.msg":        KeyDatadogErrorMsg,
-	"error.type":       KeyDatadogErrorType,
-	"error.stack":      KeyDatadogErrorStack,
+	attributes.APMConventionKeys.Env():            attributes.DDNamespaceKeys.Env(),
+	attributes.APMConventionKeys.Version():        attributes.DDNamespaceKeys.Version(),
+	attributes.APMConventionKeys.HTTPStatusCode(): "http.status_code",
+	"error.msg":   "datadog.error.msg",
+	"error.type":  "datadog.error.type",
+	"error.stack": "datadog.error.stack",
 }
 
 func copyAttrToMapIfExists(attributes pcommon.Map, key string, m map[string]string, mappedKey string) {
@@ -252,7 +560,7 @@ func copyAttrToMapIfExists(attributes pcommon.Map, key string, m map[string]stri
 
 // GetOTelEnv returns the environment based on OTel span and resource attributes, with span taking precedence.
 func GetOTelEnv(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
-	env := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogEnvironment)
+	env := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, attributes.DDNamespaceKeys.Env())
 	if env == "" && !ignoreMissingDatadogFields {
 		env = traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
 	}
@@ -261,7 +569,7 @@ func GetOTelEnv(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFiel
 
 // GetOTelHostname returns the DD hostname based on OTel span and resource attributes, with span taking precedence.
 func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator, fallbackHost string, ignoreMissingDatadogFields bool) string {
-	hostname := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogHost)
+	hostname := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, attributes.DDNamespaceKeys.Host())
 	if hostname == "" && !ignoreMissingDatadogFields {
 		ctx := context.Background()
 		src, srcok := tr.ResourceToSource(ctx, res, traceutil.SignalTypeSet, nil)
@@ -289,7 +597,7 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 
 // GetOTelVersion returns the version based on OTel span and resource attributes, with span taking precedence.
 func GetOTelVersion(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
-	version := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogVersion)
+	version := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, attributes.DDNamespaceKeys.Version())
 	if version == "" && !ignoreMissingDatadogFields {
 		version = traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ServiceVersionKey))
 	}
@@ -298,7 +606,7 @@ func GetOTelVersion(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadog
 
 // GetOTelContainerID returns the container ID based on OTel span and resource attributes, with span taking precedence.
 func GetOTelContainerID(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
-	cid := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogContainerID)
+	cid := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, attributes.DDNamespaceKeys.ContainerID())
 	if cid == "" && !ignoreMissingDatadogFields {
 		cid = traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 	}
@@ -309,9 +617,9 @@ func GetOTelContainerID(span ptrace.Span, res pcommon.Resource, ignoreMissingDat
 func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) uint32 {
 	sattr := span.Attributes()
 	rattr := res.Attributes()
-	if incomingCode, ok := sattr.Get(KeyDatadogHTTPStatusCode); ok {
+	if incomingCode, ok := sattr.Get(attributes.DDNamespaceKeys.HTTPStatusCode()); ok {
 		return uint32(incomingCode.Int())
-	} else if incomingCode, ok := rattr.Get(KeyDatadogHTTPStatusCode); ok {
+	} else if incomingCode, ok := rattr.Get(attributes.DDNamespaceKeys.HTTPStatusCode()); ok {
 		return uint32(incomingCode.Int())
 	} else if !ignoreMissingDatadogFields {
 		if code, ok := sattr.Get(string(semconv.HTTPStatusCodeKey)); ok {
@@ -354,20 +662,19 @@ func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 	return containerTags
 }
 
-// OtelSpanToDDSpan converts an OTel span to a DD span.
-func OtelSpanToDDSpan(
+func otelSpanToDDSpan_Old(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
 	conf *config.AgentConfig,
-) *pb.Span {
+) (ddspan *pb.Span, wrongPlaceKeysCount int) {
 	spanKind := otelspan.Kind()
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	isTopLevel := false
 	if topLevelByKind {
 		isTopLevel = otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
 	}
-	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil)
+	ddspan = otelSpanToDDSpanMinimal_old(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil)
 
 	// 1) DD namespaced keys take precedence over OTLP keys, so use them first
 	// 2) Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
@@ -378,6 +685,11 @@ func OtelSpanToDDSpan(
 	}
 
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
+		_, keyInRightPlace := computeAPMKeyForOTLPAttribute(k, ddNamespaceToAPMConventionKeysForSpanAttributes, reservedAPMConventionKeysForSpanAttributes, mapSpanOTLPKeyToAPMConventionKey, mapResourceOTLPKeyToAPMConventionKey, "otel.span.", conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		if !keyInRightPlace {
+			wrongPlaceKeysCount++
+		}
+
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
 			conditionallyMapOTLPAttributeToMetric(k, v.Double(), ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
@@ -433,6 +745,11 @@ func OtelSpanToDDSpan(
 	}
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
+		_, keyInRightPlace := computeAPMKeyForOTLPAttribute(k, ddNamespaceToAPMConventionKeysForResourceAttributes, reservedAPMConventionKeysForResourceAttributes, mapResourceOTLPKeyToAPMConventionKey, mapSpanOTLPKeyToAPMConventionKey, "otel.resource.", conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		if !keyInRightPlace {
+			wrongPlaceKeysCount++
+		}
+
 		value := v.AsString()
 		conditionallyMapOTLPAttributeToMeta(k, value, ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		return true
@@ -449,7 +766,117 @@ func OtelSpanToDDSpan(
 		}
 	}
 
-	return ddspan
+	return ddspan, wrongPlaceKeysCount
+}
+
+// OtelSpanToDDSpan converts an OTel span to a DD span.
+func otelSpanToDDSpan_OTelCompliantTranslation(
+	otelspan ptrace.Span,
+	otelres pcommon.Resource,
+	lib pcommon.InstrumentationScope,
+	conf *config.AgentConfig,
+) (*pb.Span, int) {
+	wrongPlaceKeysCount := 0
+	sattr := otelspan.Attributes()
+	rattr := otelres.Attributes()
+
+	spanKind := otelspan.Kind()
+	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
+	isTopLevel := false
+	if topLevelByKind {
+		isTopLevel = otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
+	}
+	ddspan := otelSpanToDDSpanMinimal_OTelCompliantTranslation(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil)
+
+	httpStatusCode := ddspan.Metrics[traceutil.TagStatusCode]
+	isError, errMsg, errType, errStack := GetErrorFieldsFromStatusAndEventsAndHTTPCode(otelspan.Status(), otelspan.Events(), int(httpStatusCode))
+	ddspan.Error = isError
+	// Set these error fields directly to meta - permit overwriting them if they are explicitly specified in attributes
+	if errMsg != "" {
+		ddspan.Meta["error.msg"] = errMsg
+	}
+	if errType != "" {
+		ddspan.Meta["error.type"] = errType
+	}
+	if errStack != "" {
+		ddspan.Meta["error.stack"] = errStack
+	}
+	if spanKind, ok := ddspan.Meta[attributes.APMConventionKeys.SpanKind()]; ok {
+		ddspan.Meta[attributes.APMConventionKeys.SpanKind()] = spanKind
+	}
+
+	// 1) Compute fields that require explicit precedence/more complex than 1:1 conversion
+	if version := attributes.GetVersion(rattr, conf.OTLPReceiver.IgnoreMissingDatadogFields, true, nil); version != "" {
+		ddspan.Meta[attributes.APMConventionKeys.Version()] = version
+	}
+	if env := attributes.GetEnv(rattr, conf.OTLPReceiver.IgnoreMissingDatadogFields, true, &emptyString); env != "" {
+		ddspan.Meta[attributes.APMConventionKeys.Env()] = env
+	}
+
+	if dbName := traceutil.GetOTelAttrVal(sattr, false, attributes.DDNamespaceKeys.DBName(), attributes.APMConventionKeys.DBName(), string(semconv127.DBNamespaceKey)); dbName != "" {
+		ddspan.Meta[attributes.APMConventionKeys.DBName()] = dbName
+	}
+
+	// 2) Resolve OTel semantics keys
+	sattr.Range(func(k string, v pcommon.Value) bool {
+		if k == "analytics.event" {
+			if v, err := strconv.ParseBool(v.AsString()); err == nil {
+				if _, ok := ddspan.Metrics[sampler.KeySamplingRateEventExtraction]; !ok {
+					if v {
+						ddspan.Metrics[sampler.KeySamplingRateEventExtraction] = 1
+					} else {
+						ddspan.Metrics[sampler.KeySamplingRateEventExtraction] = 0
+					}
+				}
+			}
+			return true
+		}
+		keyInRightPlace := conditionallyConsumeOTLPAttribute(k, v, ddspan.Meta, ddspan.Metrics, reservedAPMConventionKeysForSpanAttributes, ddNamespaceToAPMConventionKeysForSpanAttributes, mapSpanOTLPKeyToAPMConventionKey, mapResourceOTLPKeyToAPMConventionKey, "otel.span.", conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		if !keyInRightPlace {
+			wrongPlaceKeysCount++
+		}
+		return true
+	})
+	rattr.Range(func(k string, v pcommon.Value) bool {
+		keyInRightPlace := conditionallyConsumeOTLPAttribute(k, v, ddspan.Meta, ddspan.Metrics, reservedAPMConventionKeysForResourceAttributes, ddNamespaceToAPMConventionKeysForResourceAttributes, mapResourceOTLPKeyToAPMConventionKey, mapSpanOTLPKeyToAPMConventionKey, "otel.resource.", conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		if !keyInRightPlace {
+			wrongPlaceKeysCount++
+		}
+		return true
+	})
+
+	// 3) Merge the maps into the span
+	for k, v := range lib.Attributes().Range {
+		setValueInMapByTypeAndPrefixIfAlreadyPopulated(k, v, ddspan.Meta, ddspan.Metrics, "otel.scope.")
+	}
+
+	// 4) Use OTLP fields other than attributes
+	traceID := otelspan.TraceID()
+	ddspan.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
+
+	if otelspan.Events().Len() > 0 {
+		ddspan.Meta["events"] = MarshalEvents(otelspan.Events())
+	}
+	TagSpanIfContainsExceptionEvent(otelspan, ddspan)
+	if otelspan.Links().Len() > 0 {
+		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
+	}
+
+	if otelspan.TraceState().AsRaw() != "" {
+		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
+	}
+	if lib.Name() != "" {
+		ddspan.Meta[string(semconv117.OtelLibraryNameKey)] = lib.Name()
+	}
+	if lib.Version() != "" {
+		ddspan.Meta[string(semconv117.OtelLibraryVersionKey)] = lib.Version()
+	}
+	ddspan.Meta[string(semconv117.OtelStatusCodeKey)] = otelspan.Status().Code().String()
+	if msg := otelspan.Status().Message(); msg != "" {
+		ddspan.Meta[string(semconv117.OtelStatusDescriptionKey)] = msg
+	}
+
+	return ddspan, wrongPlaceKeysCount
 }
 
 // TagSpanIfContainsExceptionEvent tags spans that contain at least on exception span event.
@@ -652,6 +1079,19 @@ func SetMetricOTLP(s *pb.Span, k string, v float64) {
 	}
 }
 
+func setMetricAndRemapIfNeeded(k string, v float64, metricMap map[string]float64, wrongPlacePrefix string) {
+	outKey := k
+	if _, ok := metricMap[k]; ok {
+		outKey = wrongPlacePrefix + outKey
+	}
+	switch outKey {
+	case "sampling.priority":
+		metricMap["_sampling_priority_v1"] = v
+	default:
+		metricMap[outKey] = v
+	}
+}
+
 // SetMetricOTLPIfEmpty sets the k/v OTLP attribute pair as a metric on span s, if the corresponding value hasn't been set already.
 func SetMetricOTLPIfEmpty(s *pb.Span, k string, v float64) {
 	var key string
@@ -666,6 +1106,43 @@ func SetMetricOTLPIfEmpty(s *pb.Span, k string, v float64) {
 	}
 }
 
+// GetErrorFieldsFromStatusAndEventsAndHTTPCode checks the given status and events and applies any potential error and messages
+// to the given span attributes.
+func GetErrorFieldsFromStatusAndEventsAndHTTPCode(status ptrace.Status, events ptrace.SpanEventSlice, httpcode int) (int32, string, string, string) {
+	errMsg := ""
+	errType := ""
+	errStack := ""
+	if status.Code() != ptrace.StatusCodeError {
+		return 0, "", "", ""
+	}
+	for i := 0; i < events.Len(); i++ {
+		e := events.At(i)
+		if strings.ToLower(e.Name()) != "exception" {
+			continue
+		}
+		attrs := e.Attributes()
+		if v, ok := attrs.Get(string(semconv117.ExceptionMessageKey)); ok {
+			errMsg = v.AsString()
+		}
+		if v, ok := attrs.Get(string(semconv117.ExceptionTypeKey)); ok {
+			errType = v.AsString()
+		}
+		if v, ok := attrs.Get(string(semconv117.ExceptionStacktraceKey)); ok {
+			errStack = v.AsString()
+		}
+	}
+	if errMsg == "" {
+		// no error message was extracted, find alternatives
+		if status.Message() != "" {
+			// use the status message
+			errMsg = status.Message()
+		} else if httpcode != 0 {
+			errMsg = http.StatusText(httpcode)
+		}
+	}
+	return 1, errMsg, errType, errStack
+}
+
 // Status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
 func Status2Error(status ptrace.Status, events ptrace.SpanEventSlice, metaMap map[string]string) int32 {
@@ -678,13 +1155,13 @@ func Status2Error(status ptrace.Status, events ptrace.SpanEventSlice, metaMap ma
 			continue
 		}
 		attrs := e.Attributes()
-		if v, ok := attrs.Get(string(semconv.ExceptionMessageKey)); ok {
+		if v, ok := attrs.Get(string(semconv117.ExceptionMessageKey)); ok {
 			metaMap["error.msg"] = v.AsString()
 		}
-		if v, ok := attrs.Get(string(semconv.ExceptionTypeKey)); ok {
+		if v, ok := attrs.Get(string(semconv117.ExceptionTypeKey)); ok {
 			metaMap["error.type"] = v.AsString()
 		}
-		if v, ok := attrs.Get(string(semconv.ExceptionStacktraceKey)); ok {
+		if v, ok := attrs.Get(string(semconv117.ExceptionStacktraceKey)); ok {
 			metaMap["error.stack"] = v.AsString()
 		}
 	}

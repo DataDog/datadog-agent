@@ -10,7 +10,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
+	"github.com/DataDog/datadog-agent/pkg/util/normalize"
 )
 
 // Truncate checks that the span resource, meta and metrics are within the max length

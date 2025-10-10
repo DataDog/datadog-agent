@@ -17,7 +17,7 @@ import (
 	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
 	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 
-	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/util/normalize"
 )
 
 var (

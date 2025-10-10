@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/util/normalize"
 )
 
 // Util functions for converting OTel semantics to DD semantics.
@@ -194,6 +194,7 @@ func GetTopLevelOTelSpans(spanByID map[pcommon.SpanID]ptrace.Span, resByID map[p
 // GetOTelAttrVal returns the matched value as a string in the input map with the given keys.
 // If there are multiple keys present, the first matched one is returned.
 // If normalize is true, normalize the return value with NormalizeTagValue.
+// Deprecated: Use GetOTelAttrVal from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelAttrVal(attrs pcommon.Map, normalize bool, keys ...string) string {
 	val := ""
 	for _, key := range keys {
@@ -215,6 +216,7 @@ func GetOTelAttrVal(attrs pcommon.Map, normalize bool, keys ...string) string {
 // If there are multiple keys present, the first matched one is returned.
 // If the key is present in both maps, map1 takes precedence.
 // If normalize is true, normalize the return value with NormalizeTagValue.
+// Deprecated: Use GetOTelAttrFromEitherMap from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelAttrFromEitherMap(map1 pcommon.Map, map2 pcommon.Map, normalize bool, keys ...string) string {
 	if val := GetOTelAttrVal(map1, normalize, keys...); val != "" {
 		return val
@@ -260,6 +262,7 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 
 // GetOTelSpanType returns the DD span type based on OTel span kind and attributes.
 // This logic is used in ReceiveResourceSpansV2 logic
+// Deprecated: Use GetOTelSpanType from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 	sattr := span.Attributes()
 	rattr := res.Attributes()
@@ -285,6 +288,7 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 }
 
 // GetOTelService returns the DD service name based on OTel span and resource attributes.
+// Deprecated: Use GetOTelService from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) string {
 	// No need to normalize with NormalizeTagValue since we will do NormalizeService later
 	svc := GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), false, string(semconv.ServiceNameKey))
@@ -305,6 +309,7 @@ func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) stri
 }
 
 // GetOTelResourceV1 returns the DD resource name based on OTel span and resource attributes.
+// This logic is deprecated and preserved behind a flag to ease migration; prefer GetOTelResource from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) {
 	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
 	if resName == "" {
@@ -345,6 +350,7 @@ func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) 
 }
 
 // GetOTelResourceV2 returns the DD resource name based on OTel span and resource attributes.
+// Deprecated: Use GetOTelResource from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) {
 	defer func() {
 		if len(resName) > normalizeutil.MaxResourceLen {
@@ -563,6 +569,7 @@ func GetOTelOperationNameV1(
 
 // GetOTelContainerTags returns a list of DD container tags in the OTel resource attributes.
 // Tags are always normalized.
+// Deprecated: Use GetOTelContainerTags from pkg/opentelemetry-mapping-go/otlp/attributes instead.
 func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 	var containerTags []string
 	containerTagsMap := attributes.ContainerTagsFromResourceAttributes(rattrs)

@@ -532,6 +532,7 @@
 /pkg/util/slices/                       @DataDog/ebpf-platform
 /pkg/util/ktime                         @DataDog/agent-security
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/container-app
+/pkg/util/normalize/                    @DataDog/agent-apm
 /pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/port/                         @DataDog/agent-runtimes
 /pkg/util/port/portlist/*windows*.go    @DataDog/windows-products

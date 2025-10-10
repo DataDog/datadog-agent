@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/comp/core/log/impl-trace
 
-go 1.24.0
+go 1.24.6
+
+toolchain go1.24.7
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel

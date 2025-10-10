@@ -54,10 +54,14 @@ func NewTranslator(set component.TelemetrySettings) (*Translator, error) {
 func (p *Translator) ResourceToSource(ctx context.Context, res pcommon.Resource, set attribute.Set, hostFromAttributesHandler HostFromAttributesHandler) (source.Source, bool) {
 	src, ok := SourceFromAttrs(res.Attributes(), hostFromAttributesHandler)
 	if !ok {
-		p.missingSources.Add(ctx, 1, metric.WithAttributeSet(set))
+		p.AddMissingSource(ctx, set)
 	}
 
 	return src, ok
+}
+
+func (p *Translator) AddMissingSource(ctx context.Context, set attribute.Set) {
+	p.missingSources.Add(ctx, 1, metric.WithAttributeSet(set))
 }
 
 // AttributesToSource gets a telemetry signal source from a set of attributes.

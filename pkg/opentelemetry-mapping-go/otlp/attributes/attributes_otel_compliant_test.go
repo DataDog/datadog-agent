@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// This file contains V2 versions of the attributes tests.
+// These tests verify the new translation logic when the disable_otlp_translations_v2 feature flag is NOT set.
+// The original tests in attributes_test.go verify backward compatibility with the old translation logic.
+
 package attributes
 
 import (
@@ -30,7 +34,7 @@ import (
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/util/normalize"
 )
 
-func TestTagsFromAttributes(t *testing.T) {
+func TestTagsFromAttributesV2_OTelCompliantTranslation(t *testing.T) {
 	attributeMap := map[string]interface{}{
 		string(semconv1_27.ProcessExecutableNameKey):     "otelcol",
 		string(semconv1_27.ProcessExecutablePathKey):     "/usr/bin/cmd/otelcol",
@@ -65,20 +69,20 @@ func TestTagsFromAttributes(t *testing.T) {
 	}, TagsFromAttributes(attrs))
 }
 
-func TestNewDeploymentEnvironmentNameConvention(t *testing.T) {
+func TestNewDeploymentEnvironmentNameConventionV2_OTelCompliantTranslation(t *testing.T) {
 	attrs := pcommon.NewMap()
 	attrs.PutStr("deployment.environment.name", "staging")
 
 	assert.Equal(t, []string{"env:staging"}, TagsFromAttributes(attrs))
 }
 
-func TestTagsFromAttributesEmpty(t *testing.T) {
+func TestTagsFromAttributesEmptyV2_OTelCompliantTranslation(t *testing.T) {
 	attrs := pcommon.NewMap()
 
 	assert.Equal(t, []string{}, TagsFromAttributes(attrs))
 }
 
-func TestContainerTagFromResourceAttributes(t *testing.T) {
+func TestContainerTagFromResourceAttributesV2_OTelCompliantTranslation(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		attributes := pcommon.NewMap()
 		err := attributes.FromRaw(map[string]interface{}{
@@ -148,7 +152,7 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 	})
 }
 
-func TestContainerTagFromAttributes(t *testing.T) {
+func TestContainerTagFromAttributesV2_OTelCompliantTranslation(t *testing.T) {
 	attributeMap := map[string]string{
 		string(semconv1_27.ContainerNameKey):         "sample_app",
 		string(conventions.ContainerImageTagKey):     "sample_app_image_tag",
@@ -185,11 +189,11 @@ func TestContainerTagFromAttributes(t *testing.T) {
 	}, ContainerTagFromAttributes(attributeMap))
 }
 
-func TestContainerTagFromAttributesEmpty(t *testing.T) {
+func TestContainerTagFromAttributesEmptyV2_OTelCompliantTranslation(t *testing.T) {
 	assert.Empty(t, ContainerTagFromAttributes(map[string]string{}))
 }
 
-func TestOriginIDFromAttributes(t *testing.T) {
+func TestOriginIDFromAttributesV2_OTelCompliantTranslation(t *testing.T) {
 	tests := []struct {
 		name     string
 		attrs    pcommon.Map
@@ -243,7 +247,7 @@ func TestOriginIDFromAttributes(t *testing.T) {
 	}
 }
 
-func TestGetOTelAttrFromEitherMap(t *testing.T) {
+func TestGetOTelAttrFromEitherMapV2_OTelCompliantTranslation(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		map1      map[string]string
@@ -304,7 +308,7 @@ func TestGetOTelAttrFromEitherMap(t *testing.T) {
 	}
 }
 
-func TestGetHostname(t *testing.T) {
+func TestGetHostnameV2_OTelCompliantTranslation(t *testing.T) {
 	for _, tt := range []struct {
 		name                                   string
 		rattrs                                 map[string]string
@@ -370,7 +374,7 @@ func TestGetHostname(t *testing.T) {
 	}
 }
 
-func TestGetEnv(t *testing.T) {
+func TestGetEnvV2_OTelCompliantTranslation(t *testing.T) {
 	tests := []struct {
 		name                         string
 		rattrs                       map[string]string
@@ -432,7 +436,7 @@ func TestGetEnv(t *testing.T) {
 	}
 }
 
-func TestGetService(t *testing.T) {
+func TestGetServiceV2_OTelCompliantTranslation(t *testing.T) {
 	for _, tt := range []struct {
 		name                         string
 		rattrs                       map[string]string
@@ -483,7 +487,7 @@ func TestGetService(t *testing.T) {
 	}
 }
 
-func TestGetResource(t *testing.T) {
+func TestGetResourceV2_OTelCompliantTranslation(t *testing.T) {
 	for _, tt := range []struct {
 		name                         string
 		sattrs                       map[string]string
@@ -593,7 +597,7 @@ func TestGetResource(t *testing.T) {
 	}
 }
 
-func TestGetSpanType(t *testing.T) {
+func TestGetSpanTypeV2_OTelCompliantTranslation(t *testing.T) {
 	for _, tt := range []struct {
 		name                         string
 		spanKind                     ptrace.SpanKind
@@ -694,7 +698,7 @@ func TestGetSpanType(t *testing.T) {
 	}
 }
 
-func TestGetVersion(t *testing.T) {
+func TestGetVersionV2_OTelCompliantTranslation(t *testing.T) {
 	tests := []struct {
 		name                         string
 		rattrs                       map[string]string
@@ -746,7 +750,7 @@ func TestGetVersion(t *testing.T) {
 	}
 }
 
-func TestGetStatusCode(t *testing.T) {
+func TestGetStatusCodeV2_OTelCompliantTranslation(t *testing.T) {
 	tests := []struct {
 		name                         string
 		sattrs                       map[string]uint32
@@ -820,7 +824,7 @@ func TestGetStatusCode(t *testing.T) {
 	}
 }
 
-func TestGetContainerID(t *testing.T) {
+func TestGetContainerIDV2_OTelCompliantTranslation(t *testing.T) {
 	tests := []struct {
 		name                         string
 		rattrs                       map[string]string
@@ -873,7 +877,7 @@ func TestGetContainerID(t *testing.T) {
 	}
 }
 
-func TestGetContainerTags(t *testing.T) {
+func TestGetContainerTagsV2_OTelCompliantTranslation(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		resAttrs map[string]string
@@ -962,7 +966,7 @@ func TestGetContainerTags(t *testing.T) {
 	}
 }
 
-func TestGetOperationName(t *testing.T) {
+func TestGetOperationNameV2_OTelCompliantTranslation(t *testing.T) {
 	tests := []struct {
 		name                         string
 		spanKind                     ptrace.SpanKind
@@ -1104,7 +1108,7 @@ func TestGetOperationName(t *testing.T) {
 	}
 }
 
-func TestGetPeerTagsFromOTelAttributes(t *testing.T) {
+func TestGetPeerTagsFromOTelAttributesV2_OTelCompliantTranslation(t *testing.T) {
 	tests := []struct {
 		name        string
 		signalAttrs map[string]string
@@ -1186,7 +1190,7 @@ func TestGetPeerTagsFromOTelAttributes(t *testing.T) {
 	}
 }
 
-func TestNilFallbacks(t *testing.T) {
+func TestNilFallbacksV2_OTelCompliantTranslation(t *testing.T) {
 	signalAttrs := pcommon.NewMap()
 	resAttrs := pcommon.NewMap()
 
