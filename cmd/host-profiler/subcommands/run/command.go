@@ -38,7 +38,6 @@ import (
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
@@ -133,7 +132,7 @@ func getTraceAgentOptions(ctx context.Context) []fx.Option {
 
 		fx.Decorate(func(config config.Component) config.Component {
 			config.Set("apm_config.debug.port", 0, pkgconfigmodel.SourceDefault)           // Disabled as in the otel-agent
-			config.Set(pkgconfigsetup.OTLPTracePort, 0, pkgconfigmodel.SourceDefault)      // Disabled as in the otel-agent
+			config.Set(setup.OTLPTracePort, 0, pkgconfigmodel.SourceDefault)               // Disabled as in the otel-agent
 			config.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceDefault) // disable HTTP receiver
 			return config
 		}),
