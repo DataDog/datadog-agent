@@ -205,6 +205,7 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 							t.Logf("key: %v was not found in res", key.Path.Content.Get())
 						}
 					}
+					logHTTPTelemetry(t, monitor)
 					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
 				}
 			})
@@ -391,4 +392,27 @@ func (s *usmHTTPSuite) testDirectConsumerFunctionality(t *testing.T, isIPv6 bool
 		}
 		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
 	}
+}
+
+// logHTTPTelemetry logs HTTP protocol consumer telemetry for debugging test failures
+func logHTTPTelemetry(t *testing.T, monitor *Monitor) {
+	if monitor == nil || monitor.ebpfProgram == nil {
+		t.Log("HTTP Telemetry: monitor or ebpfProgram is nil")
+		return
+	}
+
+	// Find the HTTP protocol instance
+	for _, protocolSpec := range monitor.ebpfProgram.enabledProtocols {
+		if protocolSpec.Instance != nil && protocolSpec.Instance.Name() == "HTTP" {
+			// Type assert to access the HTTP protocol's consumer telemetry
+			if httpProto, ok := protocolSpec.Instance.(interface{ GetConsumerTelemetry() string }); ok {
+				telemetry := httpProto.GetConsumerTelemetry()
+				t.Logf("HTTP Consumer Telemetry: %s", telemetry)
+				return
+			}
+			t.Log("HTTP Telemetry: GetConsumerTelemetry method not available")
+			return
+		}
+	}
+	t.Log("HTTP Telemetry: HTTP protocol not found in enabled protocols")
 }

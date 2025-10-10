@@ -103,7 +103,7 @@ func (mg *MetricGroup) Summary() string {
 
 	valueDeltas := mg.deltas.GetState("")
 	var b strings.Builder
-	tooManyMetrics := len(mg.metrics) > largeGroupThreshold
+	// tooManyMetrics := len(mg.metrics) > largeGroupThreshold
 	for i, metric := range mg.metrics {
 		_, name := splitName(metric)
 		v := valueDeltas.ValueFor(metric)
@@ -111,9 +111,9 @@ func (mg *MetricGroup) Summary() string {
 		// Skip metrics with a *delta* value of zero
 		// This aims to reduce the verbosity of log entries by excluding
 		// events that either happen very rarely or belong to features that are disabled
-		if tooManyMetrics && v == 0 {
-			continue
-		}
+		// if tooManyMetrics && v == 0 {
+		// 	continue
+		// }
 
 		uniqueTags := metric.base().tags.Difference(mg.commonTags)
 		if uniqueTags.Len() > 0 {
