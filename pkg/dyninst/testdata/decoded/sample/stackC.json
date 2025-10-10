@@ -62,7 +62,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "hello 1!"
               }
             }
           }

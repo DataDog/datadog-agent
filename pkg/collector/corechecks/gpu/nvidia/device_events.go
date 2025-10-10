@@ -16,10 +16,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 const (
@@ -110,15 +111,10 @@ func (c *deviceEventsCollector) Collect() ([]Metric, error) {
 }
 
 // NewDeviceEventsGatherer creates a new cache that gathers NVML device events
-func NewDeviceEventsGatherer() (*DeviceEventsGatherer, error) {
-	lib, err := ddnvml.GetSafeNvmlLib()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get NVML library: %w", err)
-	}
+func NewDeviceEventsGatherer() *DeviceEventsGatherer {
 	return &DeviceEventsGatherer{
-		lib:     lib,
 		devices: map[string]*deviceEventsEventsCache{},
-	}, nil
+	}
 }
 
 type deviceEventsEventsCache struct {
@@ -146,7 +142,12 @@ func (c *DeviceEventsGatherer) Start() error {
 	c.evtSetMtx.Lock()
 	defer c.evtSetMtx.Unlock()
 
-	var err error
+	lib, err := ddnvml.GetSafeNvmlLib()
+	if err != nil {
+		return fmt.Errorf("failed to get NVML library: %w", err)
+	}
+	c.lib = lib
+
 	c.evtSet, err = c.lib.EventSetCreate()
 	if err != nil {
 		return fmt.Errorf("failed to create NVML event set: %w", err)
