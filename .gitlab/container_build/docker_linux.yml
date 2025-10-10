@@ -19,6 +19,10 @@
     - CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET}"
     - CACHE_TO=""
     - CACHE_TARGET=${CACHE_TARGET:-}
+    # XXX: Test "running on main" code path
+    - CI_COMMIT_BRANCH="$CI_DEFAULT_BRANCH"
+    # XXX: Use a test tag for the cache:
+    - DOCKER_CACHE_REGISTRY_TARGET="${DOCKER_CACHE_REGISTRY_TARGET}-test"
     # Don't use caching on nightlies, to allow for regular cache invalidation,
     # and update the cache on both main and nightly builds
     - |
