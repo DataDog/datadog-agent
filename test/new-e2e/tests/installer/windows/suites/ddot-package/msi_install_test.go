@@ -48,7 +48,9 @@ func (s *testAgentMSIInstallsDDOT) TestInstallDDOTFromMSI() {
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 		installerwindows.WithMSIArg("DD_DDOT_ENABLED=1"),
 		// Use testing registry override until images are published to prod
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
+		// Pin DDOT to the current pipeline version to match OCI publish
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_DDOT_VERSION=%s", s.CurrentAgentVersion().OCIPackage().Version)),
 	))
 
 	// Assert: DDOT package stable directory exists and contains otel-agent.exe
@@ -70,7 +72,8 @@ func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 		installerwindows.WithMSIArg("DD_DDOT_ENABLED=1"),
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_DDOT_VERSION=%s", s.CurrentAgentVersion().OCIPackage().Version)),
 	))
 
 	stableDir := consts.GetStableDirFor("datadog-agent-ddot")
