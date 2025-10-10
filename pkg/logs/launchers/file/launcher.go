@@ -504,10 +504,6 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
 
-	// Remove the rotated tailer from the active container so a fresh tailer can
-	// be created for the new file while this one finishes draining the old file.
-	s.tailers.Remove(oldTailer)
-
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()
 
