@@ -133,6 +133,11 @@ type DeviceEventsGatherer struct {
 	devices    map[string]*deviceEventsEventsCache // uuid -> cache
 }
 
+// Started returns true if event collection has been started
+func (c *DeviceEventsGatherer) Started() bool {
+	return c.running.Load()
+}
+
 // Start initializes the gatherer and starts event collection
 func (c *DeviceEventsGatherer) Start() error {
 	if c.running.Load() {

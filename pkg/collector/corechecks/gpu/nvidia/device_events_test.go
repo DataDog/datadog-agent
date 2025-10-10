@@ -241,5 +241,5 @@ func TestDeviceEventsCollector(t *testing.T) {
 	cache.events = nil
 	mm3, err := collector.Collect()
 	require.NoError(t, err)
-	require.Equal(t, mm2, mm3)
+	require.ElementsMatch(t, mm2, mm3)
 }

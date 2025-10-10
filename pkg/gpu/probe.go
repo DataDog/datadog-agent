@@ -336,6 +336,7 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 		},
 	}
 
+	// todo(jasondellaluce): device count can change over time, we may resize this in the future
 	devCount, err := p.sysCtx.deviceCache.Count()
 	if err != nil {
 		log.Warnf("failed to get device count to scale ring buffer size: %v. Will use 1 device for the ring buffer size calculation", err)

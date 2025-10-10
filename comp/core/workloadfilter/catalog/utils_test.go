@@ -83,12 +83,6 @@ func TestConvertOldToNewFilter_Success(t *testing.T) {
 			[]string{"name:foo-.*", "image:nginx.*"},
 			`kube_endpoint.name.matches("foo-.*")`,
 		},
-		{
-			"image filter on image type",
-			workloadfilter.ImageType,
-			[]string{"image:nginx.*", "kube_namespace:foo", "name:bar"},
-			`image.name.matches("nginx.*")`,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

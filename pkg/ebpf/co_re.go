@@ -34,7 +34,7 @@ type coreAssetLoader struct {
 // asset and BTF options pre-filled. You should attempt to load the CO-RE program in the startFn func for telemetry to
 // be correctly recorded.
 func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
-	loader, err := coreLoader(NewConfig())
+	loader, err := coreLoader(NewConfig(), nil)
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.O
 
 // GetBTFLoaderInfo Returns where the ebpf BTF files were sourced from
 func GetBTFLoaderInfo() (string, error) {
-	loader, err := coreLoader(NewConfig())
+	loader, err := coreLoader(NewConfig(), nil)
 	if err != nil {
 		return "", err
 	}
@@ -119,34 +119,35 @@ func (c *coreAssetLoader) reportTelemetry(assetName string, result COREResult) {
 	// capacity should match number of tags
 	tags := make([]string, 0, 6)
 	tags = append(tags, platform.String(), platformVersion, kernelVersion, arch, assetName)
-	if BTFResult(result) < BtfNotFound {
-		switch BTFResult(result) {
-		case SuccessCustomBTF:
-			tags = append(tags, "custom")
-		case SuccessEmbeddedBTF:
-			tags = append(tags, "embedded")
-		case SuccessDefaultBTF:
-			tags = append(tags, "default")
-		default:
-			return
-		}
+	switch BTFResult(result) {
+	case SuccessCustomBTF:
+		tags = append(tags, "custom")
 		c.telemetry.success.Inc(tags...)
-		return
-	}
-
-	if BTFResult(result) == BtfNotFound {
+	case SuccessEmbeddedBTF:
+		tags = append(tags, "embedded")
+		c.telemetry.success.Inc(tags...)
+	case SuccessDefaultBTF:
+		tags = append(tags, "default")
+		c.telemetry.success.Inc(tags...)
+	case SuccessRemoteConfigBTF:
+		tags = append(tags, "remoteconfig")
+		c.telemetry.success.Inc(tags...)
+	case BtfNotFound:
 		tags = append(tags, "btf_not_found")
-	} else {
+		c.telemetry.error.Inc(tags...)
+	default:
 		switch result {
 		case AssetReadError:
 			tags = append(tags, "asset_read")
+			c.telemetry.error.Inc(tags...)
 		case VerifierError:
 			tags = append(tags, "verifier")
+			c.telemetry.error.Inc(tags...)
 		case LoaderError:
 			tags = append(tags, "loader")
+			c.telemetry.error.Inc(tags...)
 		default:
 			return
 		}
 	}
-	c.telemetry.error.Inc(tags...)
 }
