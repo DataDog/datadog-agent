@@ -57,12 +57,11 @@ func (e *UserSessionData) UnmarshalBinary(data []byte) error {
 
 // IncrementalFileReader is used to read a file incrementally
 type IncrementalFileReader struct {
-	path         string
-	f            *os.File
-	offset       int64
-	mu           sync.Mutex
-	followRotate bool // if true, follow inode rotation
-	ino          uint64
+	path   string
+	f      *os.File
+	offset int64
+	mu     sync.Mutex
+	ino    uint64
 }
 
 // Resolver is used to resolve the user sessions context
@@ -153,7 +152,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 }
 
 // NewIncrementalFileReader creates a new IncrementalFileReader
-func NewIncrementalFileReader(path string, startAtEnd, followRotate bool) *IncrementalFileReader {
+func NewIncrementalFileReader(path string) *IncrementalFileReader {
 	return &IncrementalFileReader{
 		path: path,
 	}
@@ -297,7 +296,7 @@ func (r *Resolver) StartSSHUserSessionResolver() {
 			}
 		}
 	}
-	r.sshLogReader = NewIncrementalFileReader(path, true, true)
+	r.sshLogReader = NewIncrementalFileReader(path)
 	if path == "" {
 		return
 	}
