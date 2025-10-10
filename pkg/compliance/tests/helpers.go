@@ -113,9 +113,7 @@ func (s *suite) Run() {
 				options.DockerProvider = func(context.Context) (docker.APIClient, error) { return s.dockerClient, nil }
 			}
 			if s.kubeClient != nil {
-				options.KubernetesProvider = func(context.Context) (dynamic.Interface, compliance.KubernetesGroupsAndResourcesProvider, error) {
-					return s.kubeClient, nil, nil
-				}
+				options.KubernetesProvider = providerFromK8sClient(s.kubeClient)
 			}
 			c.run(t, options)
 		})
