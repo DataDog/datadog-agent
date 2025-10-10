@@ -39,6 +39,11 @@ func ValidateSocketAddress(sockAddress string) error {
 	return nil
 }
 
+// eBPFMapPreallocationSupported returns false on non linux_bpf systems.
+func eBPFMapPreallocationSupported() bool {
+	return false
+}
+
 // ProcessEventDataStreamSupported returns true if process event data stream is supported
 func ProcessEventDataStreamSupported() bool {
 	return true

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -210,7 +211,9 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 func TestListenTCP(t *testing.T) {
 	t.Run("measured", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 0}}
-		ln, err := r.listenTCP("127.0.0.1:0")
+		ln, err := loader.GetTCPListener("127.0.0.1:0")
+		require.NoError(t, err)
+		ln, err = r.listenTCPListener(ln)
 		require.NoError(t, err)
 		defer ln.Close()
 		_, ok := ln.(*measuredListener)
@@ -219,7 +222,9 @@ func TestListenTCP(t *testing.T) {
 
 	t.Run("limited", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 10}}
-		ln, err := r.listenTCP("127.0.0.1:0")
+		ln, err := loader.GetTCPListener("127.0.0.1:0")
+		require.NoError(t, err)
+		ln, err = r.listenTCPListener(ln)
 		require.NoError(t, err)
 		defer ln.Close()
 		_, ok := ln.(*rateLimitedListener)

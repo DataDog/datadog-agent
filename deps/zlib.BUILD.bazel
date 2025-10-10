@@ -38,15 +38,19 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
     default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:private"],
 )
 
 license(
     name = "license",
     license_kinds = ["@rules_license//licenses/spdx:Zlib"],
     license_text = "LICENSE",
+    visibility = ["//visibility:public"],
 )
 
 exports_files([
@@ -67,63 +71,67 @@ config_setting(
 )
 
 cc_library(
-    name = "z",
+    name = "zlib",
     srcs = [
         "adler32.c",
         "compress.c",
         "crc32.c",
+        "crc32.h",
         "deflate.c",
+        "deflate.h",
         "gzclose.c",
+        "gzguts.h",
         "gzlib.c",
         "gzread.c",
         "gzwrite.c",
         "infback.c",
         "inffast.c",
-        "inflate.c",
-        "inftrees.c",
-        "trees.c",
-        "uncompr.c",
-        "zutil.c",
-        "crc32.h",
-        "deflate.h",
-        "gzguts.h",
         "inffast.h",
         "inffixed.h",
+        "inflate.c",
         "inflate.h",
+        "inftrees.c",
         "inftrees.h",
+        "trees.c",
         "trees.h",
+        "uncompr.c",
+        "zutil.c",
         "zutil.h",
-        # Include the un-prefixed headers in srcs to work
-        # around the fact that zlib isn't consistent in its
-        # choice of <> or "" delimiter when including itself.
     ],
     hdrs = _ZLIB_PUBLIC_HEADERS,
     copts = [
         "-I.",
         "-Wall",
-        "-fPIC",
     ] + select({
         ":mingw_gcc_compiler": [
             "-fpermissive",
         ],
         "@platforms//os:windows": [
+            "-fpermissive",
+            "/O2",
             "/wd4127",  # conditional expression is constant
             "/wd4242",  # possible loss of data
             "/wd4244",  # possible loss of data
+            "/wd4711",  # it inlined a function
+            "/wd5045",  # padding bytes inserted
         ],
         "@platforms//os:macos": [
+            "-fPIC",
+            "-O3",
             "-Wno-deprecated-non-prototype",
             "-Wno-unused-variable",
             "-Wno-implicit-function-declaration",
         ],
         # TODO: solaris: " -DNO_VIZ",
         "//conditions:default": [
+            "-fPIC",
+            "-O3",
             "-Wno-deprecated-non-prototype",
             "-Wno-unused-variable",
             "-Wno-implicit-function-declaration",
         ],
     }),
-    includes = ["zlib/include/"],
+    includes = ["zlib/include"],
     local_defines = select({
         "@platforms//os:windows": ["_CRT_NONSTDC_NO_WARNINGS"],
         "//conditions:default": [],
@@ -131,21 +139,36 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-alias(
-    name = "zlib",
-    actual = ":z",
+cc_shared_library(
+    name = "libz_so",
+    shared_lib_name = "libz.so",
+    win_def_file = "win32/zlib.def",
+    deps = [":zlib"],
     visibility = ["//visibility:public"],
 )
 
-cc_shared_library(
-    name = "zlib_so",
-    shared_lib_name = "zlib.so",
-    deps = [":z"],
+pkg_files(
+    name = "lib_files",
+    srcs = [":libz_so"],
+    prefix = "lib",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = _ZLIB_PUBLIC_HEADERS,
+    prefix = "include",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
 )
 
 # buildifier: disable=no-effect
 """
-TODO: Add pkg install to copy to /lib
 TODO: Syntheizes license file up to licenses.csv
 TODO: patch source: "zlib-windows-relocate.patch", env: env
 
@@ -157,19 +180,14 @@ build do
     env = with_standard_compiler_flags(with_embedded_path, bfd_flags: true)
 
     patch <<THIS
-+IMAGE_BASE = 0x63300000
-+
- STRIP = $(PREFIX)strip
+ IMAGE_BASE = 0x63300000
+ LDFLAGS = $(LOC)
 
- CP = cp -fp
 @@ -93,7 +95,7 @@
- $(IMPLIB): $(SHAREDLIB)
-
  $(SHAREDLIB): win32/zlib.def $(OBJS) $(OBJA) zlibrc.o
 -       $(CC) -shared -Wl,--out-implib,$(IMPLIB) $(LDFLAGS) \
 +       $(CC) -shared -Wl,--out-implib,$(IMPLIB),--image-base,$(IMAGE_BASE) $(LDFLAGS) \
         -o $@ win32/zlib.def $(OBJS) $(OBJA) zlibrc.o
-        $(STRIP) $@
 THIS
 
     # We can't use the top-level Makefile. Instead, the developers have made

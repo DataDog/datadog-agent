@@ -10,11 +10,9 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"time"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
@@ -46,28 +44,22 @@ func testAgent(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMetho
 }
 
 func (s *packageAgentSuite) TestInstall() {
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
-	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	state := s.host.State()
-	s.assertUnits(state, false)
+	s.assertUnits(state, true)
 
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install_info", 0644)
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 
 	agentVersion := s.host.AgentStableVersion()
-	agentDir := fmt.Sprintf("/opt/datadog-packages/datadog-agent/%s", agentVersion)
-	installerSymlink := "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer"
-	agentSymlink := "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent"
-	agentRunSymlink := agentDir
-	if s.installMethod == InstallMethodAnsible {
-		agentDir = "/opt/datadog-agent"
-		agentRunSymlink = fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", agentVersion)
-		installerSymlink = path.Join(agentDir, "embedded/bin/installer")
-		agentSymlink = path.Join(agentDir, "bin/agent/agent")
-	}
+	agentDir := "/opt/datadog-agent"
+	agentRunSymlink := fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", agentVersion)
+	installerSymlink := path.Join(agentDir, "embedded/bin/installer")
+	agentSymlink := path.Join(agentDir, "bin/agent/agent")
 
 	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
 
@@ -111,63 +103,8 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	}
 }
 
-// TestUpgrade_AgentDebRPM_to_OCI tests the upgrade from DEB/RPM agent to the OCI one.
-func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
-	if s.installMethod == InstallMethodAnsible {
-		s.T().Skip("Ansible doesn't install OCI packages")
-	}
-
-	// install deb/rpm agent
-	s.RunInstallScript(envForceNoInstall("datadog-agent"))
-	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
-
-	defer s.Purge()
-	defer s.purgeAgentDebInstall()
-
-	state := s.host.State()
-	s.assertUnits(state, true)
-	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
-
-	// install OCI agent
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
-
-	state = s.host.State()
-	s.assertUnits(state, false)
-	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent")
-}
-
-// TestUpgrade_Agent_OCI_then_DebRpm agent deb/rpm install while OCI one is installed
-func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
-	if s.installMethod == InstallMethodAnsible {
-		s.T().Skip("Ansible doesn't install OCI packages")
-	}
-
-	// install OCI agent
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
-	defer s.Purge()
-
-	state := s.host.State()
-	s.assertUnits(state, false)
-	state.AssertPathDoesNotExist("/opt/datadog-agent")
-
-	// is_installed avoids a re-install of datadog-agent with the install script
-	s.RunInstallScript(envForceNoInstall("datadog-agent"))
-	state.AssertPathDoesNotExist("/opt/datadog-agent")
-
-	// install deb/rpm manually
-	s.installDebRPMAgent()
-	defer s.purgeAgentDebInstall()
-	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
-
-	state = s.host.State()
-	s.assertUnits(state, true)
-	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
-	s.host.AssertPackageNotInstalledByInstaller("datadog-agent")
-}
-
 func (s *packageAgentSuite) TestExperimentTimeout() {
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
@@ -217,7 +154,7 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 }
 
 func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
@@ -282,7 +219,7 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 }
 
 func (s *packageAgentSuite) TestExperimentExits() {
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
@@ -335,7 +272,7 @@ func (s *packageAgentSuite) TestExperimentExits() {
 }
 
 func (s *packageAgentSuite) TestExperimentStopped() {
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
@@ -377,82 +314,12 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 	}
 }
 
-func (s *packageAgentSuite) TestRunPath() {
-	if s.installMethod == InstallMethodAnsible {
-		s.T().Skip("Ansible doesn't install OCI packages")
-	}
-
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
-	defer s.Purge()
-	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
-
-	var rawConfig string
-	var err error
-	assert.Eventually(s.T(), func() bool {
-		rawConfig, err = s.host.AgentRuntimeConfig()
-		return err == nil
-	}, 30*time.Second, 5*time.Second, "failed to get agent runtime config: %v", err)
-	var config map[string]interface{}
-	err = yaml.Unmarshal([]byte(rawConfig), &config)
-	assert.NoError(s.T(), err)
-	runPath, ok := config["run_path"].(string)
-	assert.True(s.T(), ok, "run_path not found in runtime config")
-	assert.True(s.T(), strings.HasPrefix(runPath, "/opt/datadog-packages/datadog-agent/"), "run_path is not in the expected location: %s", runPath)
-}
-
-func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
-	if s.installMethod == InstallMethodAnsible {
-		s.T().Skip("Ansible doesn't install OCI packages")
-	}
-
-	// install deb/rpm agent
-	s.RunInstallScript(envForceNoInstall("datadog-agent"))
-	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
-
-	defer s.Purge()
-	defer s.purgeAgentDebInstall()
-
-	state := s.host.State()
-	s.assertUnits(state, true)
-	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
-
-	// disable the unit
-	s.host.Run("sudo systemctl disable datadog-agent")
-
-	// install OCI agent
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
-
-	state = s.host.State()
-	s.assertUnits(state, false)
-	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent")
-
-	s.host.Run("sudo systemctl show datadog-agent -p ExecStart | grep /opt/datadog-packages")
-}
-
-func (s *packageAgentSuite) TestInstallWithLeftoverDebDir() {
-	if s.installMethod == InstallMethodAnsible {
-		s.T().Skip("Ansible doesn't install OCI packages")
-	}
-	// create /opt/datadog-agent to simulate a disabled agent
-	s.host.Run("sudo mkdir -p /opt/datadog-agent")
-	defer func() { s.host.Run("sudo rm -rf /opt/datadog-agent") }()
-
-	// install OCI agent
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
-
-	state := s.host.State()
-	s.assertUnits(state, false)
-	s.host.Run("sudo systemctl show datadog-agent -p ExecStart | grep /opt/datadog-packages")
-}
-
 func (s *packageAgentSuite) TestInstallWithGroupPreviouslyCreated() {
 	s.host.Run("sudo userdel dd-agent || true")
 	s.host.Run("sudo groupdel dd-agent || true")
 	s.host.Run("sudo groupadd --system datadog")
 
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 
 	assert.True(s.T(), s.host.UserExists("dd-agent"), "dd-agent user should exist")
@@ -471,34 +338,17 @@ func (s *packageAgentSuite) TestInstallWithFapolicyd() {
 	s.TestInstall()
 }
 
-func (s *packageAgentSuite) purgeAgentDebInstall() {
-	pkgManager := s.host.GetPkgManager()
-	switch pkgManager {
-	case "apt":
-		s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-agent")
-	case "yum":
-		s.Env().RemoteHost.Execute("sudo yum remove -y datadog-agent")
-	case "zypper":
-		s.Env().RemoteHost.Execute("sudo zypper remove -y datadog-agent")
-	default:
-		s.T().Fatalf("unsupported package manager: %s", pkgManager)
-	}
-	// Make sure everything is cleaned up -- there are tests where the package is
-	// removed but not purged so the directory remains
-	s.Env().RemoteHost.Execute("sudo rm -rf /opt/datadog-agent")
-}
+func (s *packageAgentSuite) TestNoWorldWritableFiles() {
+	s.RunInstallScript()
+	defer s.Purge()
 
-func (s *packageAgentSuite) installDebRPMAgent() {
-	pkgManager := s.host.GetPkgManager()
-	switch pkgManager {
-	case "apt":
-		s.Env().RemoteHost.Execute("sudo apt-get install -y --force-yes datadog-agent")
-	case "yum":
-		s.Env().RemoteHost.Execute("sudo yum -y install --disablerepo=* --enablerepo=datadog datadog-agent")
-	case "zypper":
-		s.Env().RemoteHost.Execute("sudo zypper install -y datadog-agent")
-	default:
-		s.T().Fatalf("unsupported package manager: %s", pkgManager)
+	state := s.host.State()
+	for path, file := range state.FS {
+		if !strings.HasPrefix(path, "/opt/datadog") || file.IsSymlink {
+			continue
+		}
+		if file.Perms&002 != 0 {
+			s.T().Fatalf("file %v is world writable", path)
+		}
 	}
-
 }

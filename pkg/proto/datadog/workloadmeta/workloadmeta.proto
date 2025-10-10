@@ -192,16 +192,21 @@ message Service {
   string generatedNameSource = 2;
   repeated string additionalGeneratedNames = 4;
   repeated TracerMetadata tracerMetadata = 5;
-  string ddService = 6;
   repeated int32 tcpPorts = 7;
   repeated int32 udpPorts = 8;
-  string apmInstrumentation = 9;
+  bool apmInstrumentation = 9;
   UST ust = 17;
 }
 
 message Language {
   string name = 1;
   string version = 2;
+}
+
+enum InjectionState {
+	INJECTION_UNKNOWN = 0;
+	INJECTION_INJECTED = 1;
+	INJECTION_NOT_INJECTED = 2;
 }
 
 message Process {
@@ -221,6 +226,7 @@ message Process {
   Language language = 14;
   WorkloadmetaEntityId owner = 15;
   Service service = 16;
+  InjectionState injectionState = 17;
 }
 
 message WorkloadmetaEvent {

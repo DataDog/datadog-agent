@@ -105,7 +105,7 @@ const (
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
-	// IMDSEventType is sent when an IMDS request or qnswer is captured
+	// IMDSEventType is sent when an IMDS request or answer is captured
 	IMDSEventType
 	// OnDemandEventType is sent for on-demand events
 	OnDemandEventType
@@ -135,6 +135,10 @@ const (
 	RawPacketActionEventType
 	// CapabilitiesEventType is used to track capabilities usage
 	CapabilitiesEventType
+	// FileMoveMountEventType Move Mount even
+	FileMoveMountEventType
+	// FailedDNSEventType Failed DNS
+	FailedDNSEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -247,6 +251,8 @@ func (t EventType) String() string {
 		return "cgroup_tracing"
 	case DNSEventType:
 		return "dns"
+	case ShortDNSResponseEventType:
+		return "dns_response_short"
 	case NetDeviceEventType:
 		return "net_device"
 	case VethPairEventType:
@@ -293,6 +299,8 @@ func (t EventType) String() string {
 		return "delete_key"
 	case ChangePermissionEventType:
 		return "change_permission"
+	case FailedDNSEventType:
+		return "failed_dns"
 	case LoginUIDWriteEventType:
 		return "login_uid_write"
 	case CgroupWriteEventType:
@@ -309,6 +317,12 @@ func (t EventType) String() string {
 		return "capabilities"
 	case PrCtlEventType:
 		return "prctl"
+	case FileFsmountEventType:
+		return "fsmount"
+	case FileOpenTreeEventType:
+		return "open_tree"
+	case FileMoveMountEventType:
+		return "move_mount"
 	default:
 		return "unknown"
 	}

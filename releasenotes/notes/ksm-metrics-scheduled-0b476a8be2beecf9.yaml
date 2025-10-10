@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The following Kubernetes State Core check metrics now aggregate only scheduled Pods to reflect actually used resources:
+    - `kubernetes_state.container.<cpu|memory>_requested.total`
+    - `kubernetes_state.container.<cpu|memory>_limit.total`

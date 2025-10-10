@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,6 +42,11 @@ import (
 
 const (
 	pathServices = "/services"
+)
+
+var (
+	// apmInjectorRegex matches the APM auto-injector launcher.preload.so library path
+	apmInjectorRegex = regexp.MustCompile(`/opt/datadog-packages/datadog-apm-inject/[^/]+/inject/launcher\.preload\.so`)
 )
 
 // Ensure discovery implements the module.Module interface.
@@ -348,7 +354,7 @@ func newParsingContext() parsingContext {
 
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
-func (s *discovery) getServiceInfo(pid int32) (*model.Service, error) {
+func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.Service, error) {
 	proc := &process.Process{
 		Pid: pid,
 	}
@@ -366,11 +372,14 @@ func (s *discovery) getServiceInfo(pid int32) (*model.Service, error) {
 	var tracerMetadataArr []tracermetadata.TracerMetadata
 	var firstMetadata *tracermetadata.TracerMetadata
 
-	tracerMetadata, err := tracermetadata.GetTracerMetadata(int(pid), kernel.ProcFSRoot())
-	if err == nil {
-		// Currently we only get the first tracer metadata
-		tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
-		firstMetadata = &tracerMetadata
+	if openFiles.tracerMemfdFd != "" {
+		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", openFiles.tracerMemfdFd)
+		tracerMetadata, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
+		if err == nil {
+			// Currently we only get the first tracer metadata
+			tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
+			firstMetadata = &tracerMetadata
+		}
 	}
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
@@ -398,7 +407,6 @@ func (s *discovery) getServiceInfo(pid int32) (*model.Service, error) {
 		GeneratedName:            nameMeta.Name,
 		GeneratedNameSource:      string(nameMeta.Source),
 		AdditionalGeneratedNames: nameMeta.AdditionalNames,
-		DDService:                nameMeta.DDService,
 		TracerMetadata:           tracerMetadataArr,
 		UST: model.UST{
 			Service: env.GetDefault("DD_SERVICE", ""),
@@ -406,7 +414,7 @@ func (s *discovery) getServiceInfo(pid int32) (*model.Service, error) {
 			Version: env.GetDefault("DD_VERSION", ""),
 		},
 		Language:           string(lang),
-		APMInstrumentation: string(apmInstrumentation),
+		APMInstrumentation: apmInstrumentation == apm.Provided,
 		CommandLine:        truncateCmdline(lang, cmdline),
 	}, nil
 }
@@ -532,6 +540,11 @@ func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, er
 
 	// Process new PIDs with full service info collection
 	for _, pid := range params.NewPids {
+		// Check for APM injector even if process is not detected as a service
+		if detectAPMInjectorFromMaps(pid) {
+			response.InjectedPIDs = append(response.InjectedPIDs, int(pid))
+		}
+
 		service := s.getServiceWithoutRetry(context, pid)
 		if service == nil {
 			continue
@@ -573,7 +586,7 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 		return nil
 	}
 
-	service, err := s.getServiceInfo(pid)
+	service, err := s.getServiceInfo(pid, openFileInfo)
 	if err != nil {
 		log.Tracef("[pid: %d] could not get service info: %v", pid, err)
 		return nil
@@ -634,4 +647,30 @@ func (s *discovery) handleNetworkStatsEndpoint(w http.ResponseWriter, req *http.
 	}
 
 	utils.WriteAsJSON(w, response, utils.CompactOutput)
+}
+
+// detectAPMInjectorFromMaps reads /proc/pid/maps and checks for APM injector library
+func detectAPMInjectorFromMaps(pid int32) bool {
+	mapsPath := kernel.HostProc(strconv.Itoa(int(pid)), "maps")
+	mapsFile, err := os.Open(mapsPath)
+	if err != nil {
+		return false
+	}
+	defer mapsFile.Close()
+
+	return detectAPMInjectorFromMapsReader(mapsFile)
+}
+
+// detectAPMInjectorFromMapsReader checks for APM injector library in the provided reader
+func detectAPMInjectorFromMapsReader(reader io.Reader) bool {
+	lr := io.LimitReader(reader, readLimit)
+	scanner := bufio.NewScanner(lr)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if apmInjectorRegex.MatchString(line) {
+			return true
+		}
+	}
+
+	return false
 }

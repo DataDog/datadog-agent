@@ -66,6 +66,19 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			expectedError: "extract value extractValuePattern does not match (extractValuePattern=abc, srcValue=value1)",
 		},
 		{
+			name:   "OK match pattern with default replacement value",
+			values: mockValues,
+			symbol: profiledefinition.SymbolConfig{
+				OID:                  "1.2.3.4",
+				Name:                 "mySymbol",
+				MatchPatternCompiled: regexp.MustCompile(`[a-z]+(\d)`),
+			},
+			expectedValue: valuestore.ResultValue{
+				Value: "1",
+			},
+			expectedError: "",
+		},
+		{
 			name:   "OK match pattern without replace",
 			values: mockValues,
 			symbol: profiledefinition.SymbolConfig{

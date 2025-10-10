@@ -51,6 +51,19 @@ func TestPrintConfigCheck(t *testing.T) {
 				Instances:     []integration.Data{integration.Data("{unresolved:sad}")},
 			},
 		},
+		Services: []integration.ServiceResponse{
+			{
+				ServiceID:      "svc1",
+				ADIdentifiers:  []string{"test-ad-identifier"},
+				Hosts:          map[string]string{"host1": "192.168.1.1"},
+				Ports:          []string{"8080", "9090"},
+				PID:            1234,
+				Hostname:       "test-hostname",
+				IsReady:        true,
+				FiltersLogs:    true,
+				FiltersMetrics: false,
+			},
+		},
 	}
 
 	testCases := []struct {
@@ -94,6 +107,19 @@ instances:
 - unresolved:sad: null
 logs_config: null
 
+
+=== Services (matched and unmatched) ===
+
+Service ID: svc1
+ADIdentifiers:
+- test-ad-identifier
+Ready: true
+Hostname: test-hostname
+Hosts:
+- host1: 192.168.1.1
+Ports: 8080, 9090
+PID: 1234
+Filters: metrics=false, logs=true
 `,
 		},
 		{

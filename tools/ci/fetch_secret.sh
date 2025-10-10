@@ -1,14 +1,18 @@
 #!/bin/bash
 
+# Usage: fetch_secret.sh <param-name> <param-field> [<format>]
+
 retry_count=0
 max_retries=10
 parameter_name="$1"
 parameter_field="$2"
+format="${3:-table}"
 
 set +x
 
 while [[ $retry_count -lt $max_retries ]]; do
     if [ -n "$parameter_field" ]; then
+        # Using Vault; format parameter is respected
         vault_name="kv/k8s/${POD_NAMESPACE}/datadog-agent"
         if [[ "$(uname -s)" == "Darwin" ]]; then
             vault_name="kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent"
@@ -18,8 +22,9 @@ while [[ $retry_count -lt $max_retries ]]; do
             vault login -method=aws -no-print
             vault_name="kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent"
         fi
-        result="$(vault kv get -field="${parameter_field}" "${vault_name}"/"${parameter_name}" 2> errorFile)"
+        result="$(vault kv get -format="${format}" -field="${parameter_field}" "${vault_name}"/"${parameter_name}" 2> errorFile)"
     else
+        # Using SSM; the [<format>] parameter is ignored
         result="$(aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)"
     fi
     error="$(<errorFile)"
