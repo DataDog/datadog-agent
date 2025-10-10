@@ -287,6 +287,7 @@ build_tags = {
         # Build setups
         "agent": AGENT_TAGS,
         "cluster-agent": CLUSTER_AGENT_TAGS,
+        "agents-on-containers": AGENT_TAGS.union(CLUSTER_AGENT_TAGS),
         "cluster-agent-cloudfoundry": CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
         "dogstatsd": DOGSTATSD_TAGS,
         "installer": INSTALLER_TAGS,
@@ -301,9 +302,12 @@ build_tags = {
         "otel-agent": OTEL_AGENT_TAGS,
         "loader": LOADER_TAGS,
         # Test setups
-        "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "test": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
+        .union(CLUSTER_AGENT_TAGS)
+        .union(UNIT_TEST_TAGS)
+        .difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
+        .union(CLUSTER_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
         .difference(UNIT_TEST_EXCLUDE_TAGS),
     },
