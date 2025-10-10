@@ -77,6 +77,8 @@ func ProcessAgentConfig(config config.Reader, client ipc.HTTPClient, getEntireCo
 	ipcAddressWithPort := fmt.Sprintf("https://%s:%d/config", ipcAddress, port)
 	if getEntireConfig {
 		ipcAddressWithPort += "/all"
+	} else {
+		ipcAddressWithPort += "/without-defaults"
 	}
 
 	timeout := config.GetDuration("server_timeout") * time.Second
