@@ -6,9 +6,6 @@
 name "dbus"
 default_version "1.16.2"
 
-dependency "libtool"
-dependency "systemd"
-
 license "AFL-2.1"
 license_file "LICENSES/AFL-2.1.txt"
 skip_transitive_dependency_licensing true
