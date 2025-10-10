@@ -53,7 +53,20 @@ class TestFileInfo(unittest.TestCase):
         """Test FileInfo validation with negative size."""
         with self.assertRaises(ValueError) as cm:
             FileInfo(relative_path="test/file", size_bytes=-1)
-        self.assertIn("size_bytes must be positive", str(cm.exception))
+        self.assertIn("size_bytes must be", str(cm.exception))
+
+    def test_file_info_symlink_validation(self):
+        """Test FileInfo validation for symlinks."""
+        # Valid symlink
+        file_info = FileInfo(
+            relative_path="opt/bin/python3", size_bytes=9, is_symlink=True, symlink_target="python3.13"
+        )
+        self.assertEqual(file_info.symlink_target, "python3.13")
+
+        # Invalid symlink - missing target
+        with self.assertRaises(ValueError) as cm:
+            FileInfo(relative_path="opt/bin/python3", size_bytes=9, is_symlink=True, symlink_target=None)
+        self.assertIn("symlink_target must be provided when is_symlink is True", str(cm.exception))
 
 
 class TestInPlaceArtifactReport(unittest.TestCase):
@@ -263,7 +276,7 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
 
     def test_save_report_to_yaml(self):
         """Test saving report to YAML file."""
-        # Create a sample report
+        # Create a sample report with regular files and symlinks
         report = InPlaceArtifactReport(
             artifact_path="/path/to/package.deb",
             gate_name="static_quality_gate_agent_deb_amd64",
@@ -274,6 +287,8 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
             file_inventory=[
                 FileInfo("opt/agent/bin/agent", 400000, "sha256:abc123"),
                 FileInfo("etc/config.yaml", 100000, None),
+                FileInfo("opt/bin/python3", 9, None, True, "python3.13", None),
+                FileInfo("opt/bin/broken_link", 15, None, True, "/nonexistent/path", True),
             ],
             measurement_timestamp="2024-01-15T14:30:22.123456Z",
             pipeline_id="12345",
@@ -300,12 +315,103 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
             self.assertEqual(saved_data['gate_name'], "static_quality_gate_agent_deb_amd64")
             self.assertEqual(saved_data['on_wire_size'], 100000)
             self.assertEqual(saved_data['on_disk_size'], 500000)
-            self.assertEqual(len(saved_data['file_inventory']), 2)
-            self.assertEqual(saved_data['file_inventory'][0]['relative_path'], "opt/agent/bin/agent")
-            self.assertEqual(saved_data['file_inventory'][0]['checksum'], "sha256:abc123")
+            self.assertEqual(len(saved_data['file_inventory']), 4)
+
+            # Verify regular file doesn't have symlink fields
+            regular_file = saved_data['file_inventory'][0]
+            self.assertEqual(regular_file['relative_path'], "opt/agent/bin/agent")
+            self.assertEqual(regular_file['checksum'], "sha256:abc123")
+            self.assertNotIn('is_symlink', regular_file)
+            self.assertNotIn('symlink_target', regular_file)
+
+            # Verify file without checksum
+            no_checksum_file = saved_data['file_inventory'][1]
+            self.assertEqual(no_checksum_file['relative_path'], "etc/config.yaml")
+            self.assertNotIn('checksum', no_checksum_file)
+            self.assertNotIn('is_symlink', no_checksum_file)
+
+            # Verify symlink has symlink fields
+            symlink_file = saved_data['file_inventory'][2]
+            self.assertEqual(symlink_file['relative_path'], "opt/bin/python3")
+            self.assertTrue(symlink_file['is_symlink'])
+            self.assertEqual(symlink_file['symlink_target'], "python3.13")
+            self.assertNotIn('is_broken', symlink_file)
+
+            # Verify broken symlink has is_broken field
+            broken_symlink = saved_data['file_inventory'][3]
+            self.assertEqual(broken_symlink['relative_path'], "opt/bin/broken_link")
+            self.assertTrue(broken_symlink['is_symlink'])
+            self.assertEqual(broken_symlink['symlink_target'], "/nonexistent/path")
+            self.assertTrue(broken_symlink['is_broken'])
 
         finally:
             os.unlink(output_path)
+
+    def test_serialize_file_info_regular_file_with_checksum(self):
+        """Test serializing regular file with checksum."""
+        from tasks.static_quality_gates.experimental_gates import ReportBuilder
+
+        file_info = FileInfo("opt/agent/bin/agent", 400000, "sha256:abc123")
+        result = ReportBuilder()._serialize_file_info(file_info)
+
+        # Should have relative_path, size_bytes, and checksum
+        self.assertEqual(result['relative_path'], "opt/agent/bin/agent")
+        self.assertEqual(result['size_bytes'], 400000)
+        self.assertEqual(result['checksum'], "sha256:abc123")
+
+        # Should NOT have symlink fields
+        self.assertNotIn('is_symlink', result)
+        self.assertNotIn('symlink_target', result)
+
+    def test_serialize_file_info_regular_file_without_checksum(self):
+        """Test serializing regular file without checksum."""
+        from tasks.static_quality_gates.experimental_gates import ReportBuilder
+
+        file_info = FileInfo("etc/config.yaml", 1024)
+        result = ReportBuilder()._serialize_file_info(file_info)
+
+        # Should have relative_path and size_bytes only
+        self.assertEqual(result['relative_path'], "etc/config.yaml")
+        self.assertEqual(result['size_bytes'], 1024)
+
+        # Should NOT have checksum or symlink fields
+        self.assertNotIn('checksum', result)
+        self.assertNotIn('is_symlink', result)
+        self.assertNotIn('symlink_target', result)
+
+    def test_serialize_file_info_symlink(self):
+        """Test serializing symlink."""
+        from tasks.static_quality_gates.experimental_gates import ReportBuilder
+
+        file_info = FileInfo("opt/bin/python3", 9, None, True, "python3.13", None)
+        result = ReportBuilder()._serialize_file_info(file_info)
+
+        # Should have relative_path, size_bytes, is_symlink, and symlink_target
+        self.assertEqual(result['relative_path'], "opt/bin/python3")
+        self.assertEqual(result['size_bytes'], 9)
+        self.assertTrue(result['is_symlink'])
+        self.assertEqual(result['symlink_target'], "python3.13")
+
+        # Should NOT have checksum or is_broken
+        self.assertNotIn('checksum', result)
+        self.assertNotIn('is_broken', result)
+
+    def test_serialize_file_info_broken_symlink(self):
+        """Test serializing broken symlink."""
+        from tasks.static_quality_gates.experimental_gates import ReportBuilder
+
+        file_info = FileInfo("opt/bin/broken_link", 15, None, True, "/nonexistent/path", True)
+        result = ReportBuilder()._serialize_file_info(file_info)
+
+        # Should have all symlink fields plus is_broken
+        self.assertEqual(result['relative_path'], "opt/bin/broken_link")
+        self.assertEqual(result['size_bytes'], 15)
+        self.assertTrue(result['is_symlink'])
+        self.assertEqual(result['symlink_target'], "/nonexistent/path")
+        self.assertTrue(result['is_broken'])
+
+        # Should NOT have checksum
+        self.assertNotIn('checksum', result)
 
     @patch('builtins.open', side_effect=OSError("Permission denied"))
     def test_save_report_to_yaml_failure(self, mock_file):

@@ -56,17 +56,26 @@ class SizeMixin:
 class FileInfo(SizeMixin):
     """
     Information about a single file within an artifact.
+
+    For regular files, only relative_path, size_bytes, and optionally checksum are set.
+    For symlinks, is_symlink is True and symlink_target contains the link target.
+    For broken symlinks, is_broken is True.
     """
 
     relative_path: str
     size_bytes: int
     checksum: str | None = None
+    is_symlink: bool | None = None
+    symlink_target: str | None = None
+    is_broken: bool | None = None
 
     def __post_init__(self):
         """Validate file info data"""
         if not self.relative_path:
             raise ValueError("relative_path cannot be empty")
         self._validate_size_bytes(self.size_bytes)
+        if self.is_symlink and not self.symlink_target:
+            raise ValueError("symlink_target must be provided when is_symlink is True")
 
 
 @dataclass(frozen=True)
@@ -274,17 +283,58 @@ class FileUtilities:
             print(f"📊 Found {files_count} files and {dirs_count} directories")
 
         for file_path in directory_path.rglob('*'):
-            # Check if it's a file but don't follow symlinks
-            if file_path.is_file() and not file_path.is_symlink():
-                try:
-                    relative_path = str(file_path.relative_to(directory_path))
-                    # Use lstat to not follow symlinks
-                    size_bytes = file_path.lstat().st_size
+            # Skip directories
+            if file_path.is_dir():
+                continue
 
-                    checksum = None
-                    if not file_path.is_symlink():
-                        # Only generate checksums for regular files, not symlinks
-                        checksum = FileUtilities.generate_checksum(file_path)
+            try:
+                relative_path = str(file_path.relative_to(directory_path))
+
+                if file_path.is_symlink():
+                    try:
+                        symlink_target = os.readlink(file_path)
+                        logical_size = len(symlink_target)
+                        is_broken = False
+
+                        try:
+                            resolved_target = file_path.resolve(strict=True)
+                            if resolved_target.is_relative_to(directory_path):
+                                symlink_target_rel = str(resolved_target.relative_to(directory_path))
+                            else:
+                                symlink_target_rel = symlink_target
+                        except (OSError, RuntimeError):
+                            symlink_target_rel = symlink_target
+                            is_broken = True
+
+                        file_inventory.append(
+                            FileInfo(
+                                relative_path=relative_path,
+                                size_bytes=logical_size,
+                                checksum=None,
+                                is_symlink=True,
+                                symlink_target=symlink_target_rel,
+                                is_broken=is_broken if is_broken else None,
+                            )
+                        )
+
+                        if debug and files_processed % 1000 == 0:
+                            broken_marker = " [BROKEN]" if is_broken else ""
+                            print(f"🔗 Symlink: {relative_path} -> {symlink_target_rel}{broken_marker}")
+
+                        files_processed += 1
+
+                    except OSError as e:
+                        if debug:
+                            print(f"⚠️  Could not read symlink {file_path}: {e}")
+                        continue
+
+                elif file_path.is_file():
+                    # Regular file - use lstat to not follow symlinks
+                    file_stat = file_path.lstat()
+                    size_bytes = file_stat.st_size
+
+                    # Always generate checksums for regular files
+                    checksum = FileUtilities.generate_checksum(file_path)
 
                     file_inventory.append(
                         FileInfo(
@@ -299,9 +349,10 @@ class FileUtilities:
                     if debug and files_processed % 1000 == 0:
                         print(f"📋 Processed {files_processed} files...")
 
-                except (OSError, PermissionError) as e:
+            except (OSError, PermissionError) as e:
+                if debug:
                     print(f"⚠️  Skipping file {file_path}: {e}")
-                    continue
+                continue
 
         # Sort by size (descending) for easier analysis
         file_inventory.sort(key=lambda f: f.size_bytes, reverse=True)
@@ -380,8 +431,7 @@ class ReportBuilder:
             docker_info=artifact_metadata if isinstance(artifact_metadata, DockerImageInfo) else None,
         )
 
-    @staticmethod
-    def save_report_to_yaml(report: InPlaceArtifactReport, output_path: str) -> None:
+    def save_report_to_yaml(self, report: InPlaceArtifactReport, output_path: str) -> None:
         """
         Save the measurement report to a YAML file.
 
@@ -404,14 +454,7 @@ class ReportBuilder:
                 "arch": report.arch,
                 "os": report.os,
                 "build_job_name": report.build_job_name,
-                "file_inventory": [
-                    {
-                        "relative_path": file_info.relative_path,
-                        "size_bytes": file_info.size_bytes,
-                        "checksum": file_info.checksum,
-                    }
-                    for file_info in report.file_inventory
-                ],
+                "file_inventory": [self._serialize_file_info(file_info) for file_info in report.file_inventory],
             }
 
             # Add Docker-specific information if present
@@ -438,6 +481,32 @@ class ReportBuilder:
 
         except Exception as e:
             raise RuntimeError(f"Failed to save report to {output_path}: {e}") from e
+
+    def _serialize_file_info(self, file_info: FileInfo) -> dict[str, Any]:
+        """
+        Serialize a FileInfo object to a dictionary, excluding None/False fields for regular files.
+
+        Args:
+            file_info: The FileInfo object to serialize
+
+        Returns:
+            Dictionary with only relevant fields
+        """
+        result = {
+            "relative_path": file_info.relative_path,
+            "size_bytes": file_info.size_bytes,
+        }
+
+        if file_info.checksum is not None:
+            result["checksum"] = file_info.checksum
+
+        if file_info.is_symlink:
+            result["is_symlink"] = True
+            result["symlink_target"] = file_info.symlink_target
+            if file_info.is_broken:
+                result["is_broken"] = True
+
+        return result
 
 
 class UniversalArtifactMeasurer:
