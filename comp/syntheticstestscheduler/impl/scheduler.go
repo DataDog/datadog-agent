@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // syntheticsTestScheduler is responsible for scheduling and executing synthetics tests.
@@ -44,10 +46,11 @@ type syntheticsTestScheduler struct {
 	runTraceroute                func(ctx context.Context, cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error)
 	sendResult                   func(w *workerResult) error
 	hostNameService              hostname.Component
+	statsdClient                 ddgostatsd.ClientInterface
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
-func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time) *syntheticsTestScheduler {
+func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, statsd ddgostatsd.ClientInterface) *syntheticsTestScheduler {
 	scheduler := &syntheticsTestScheduler{
 		epForwarder:                  forwarder,
 		log:                          logger,
@@ -61,6 +64,7 @@ func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatfo
 		flushInterval:                configs.flushInterval,
 		generateTestResultID:         generateRandomStringUInt63,
 		runTraceroute:                runTraceroute,
+		statsdClient:                 statsd,
 	}
 
 	// by default, sendResult delegates to the real forwarder-backed implementation
@@ -115,10 +119,10 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 
-	seen := map[string]struct{}{}
+	seen := map[string]int{}
 	for _, newTestConfig := range newConfig {
 		pubID := newTestConfig.PublicID
-		seen[pubID] = struct{}{}
+		seen[pubID] = newTestConfig.OrgID
 		current, exists := s.state.tests[pubID]
 		if !exists {
 			s.state.tests[pubID] = &runningTestState{
@@ -126,14 +130,16 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 				lastRun: time.Time{},
 				nextRun: s.timeNowFn().UTC(),
 			}
+			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_received", []string{fmt.Sprintf("org_id:%d", newTestConfig.OrgID)}, 1) //nolint:errcheck
 		} else {
 			current.cfg = newTestConfig
 		}
 	}
 
 	for pubID := range s.state.tests {
-		if _, exists := seen[pubID]; !exists {
+		if orgID, exists := seen[pubID]; !exists {
 			delete(s.state.tests, pubID)
+			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_received", []string{fmt.Sprintf("org_id:%d", orgID)}, -1) //nolint:errcheck
 		}
 	}
 }

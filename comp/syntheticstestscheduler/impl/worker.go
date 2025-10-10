@@ -24,6 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 )
 
+const (
+	syntheticsMetricPrefix = "dd.synthetics.agent."
+)
+
 // runWorkers starts the configured number of worker goroutines and waits for them.
 func (s *syntheticsTestScheduler) runWorkers(ctx context.Context) {
 	s.log.Debugf("starting workers (%d)", s.workers)
@@ -82,11 +86,12 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
 			if err != nil {
 				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
+				s.statsdClient.Incr(syntheticsMetricPrefix+"checks_failed", []string{"reason:error_test_config", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 			}
 
 			hname, err := s.hostNameService.Get(ctx)
 			if err != nil {
-				s.log.Debugf("[worker%d] Error running traceroute: %s", workerID, err)
+				s.log.Debugf("[worker%d] error getting hostname: %s", workerID, err)
 			}
 
 			wResult := &workerResult{
@@ -101,10 +106,12 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			wResult.finishedAt = s.timeNowFn()
 			wResult.duration = wResult.finishedAt.Sub(wResult.startedAt)
 			if tracerouteErr != nil {
-				s.log.Debugf("[worker%d] Error running traceroute: %s", workerID, err)
+				s.log.Debugf("[worker%d] error running traceroute: %s", workerID, tracerouteErr)
 				wResult.tracerouteError = tracerouteErr
+				s.statsdClient.Incr(syntheticsMetricPrefix+"checks_failed", []string{"reason:error_running_datadog_traceroute", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 				if err = s.sendResult(wResult); err != nil {
 					s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
+					s.statsdClient.Incr(syntheticsMetricPrefix+"checks_failed", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 				}
 				continue
 			}
@@ -119,7 +126,9 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			})
 			if err = s.sendResult(wResult); err != nil {
 				s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
+				s.statsdClient.Incr(syntheticsMetricPrefix+"checks_failed", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 			}
+			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_processed", []string{fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 		}
 	}
 }
