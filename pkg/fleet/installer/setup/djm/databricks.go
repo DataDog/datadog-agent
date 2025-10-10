@@ -47,10 +47,13 @@ var (
 			AutoMultiLineDetection: true,
 		},
 		{
-			Type:                   "file",
-			Path:                   "/databricks/driver/logs/stdout",
-			Source:                 "driver_stdout",
-			Service:                "databricks",
+			Type:    "file",
+			Path:    "/databricks/driver/logs/stdout",
+			Source:  "driver_stdout",
+			Service: "databricks",
+			LogProcessingRules: []config.LogProcessingRule{
+				{Type: "multi_line", Name: "logger_multiline", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
+			},
 			AutoMultiLineDetection: true,
 		},
 	}

@@ -270,7 +270,7 @@ func (ownersLanguages *OwnersLanguages) handleKubeAPIServerUnsetEvents(events []
 func (ownersLanguages *OwnersLanguages) cleanRemovedOwners(wlm workloadmeta.Component) {
 
 	filter := workloadmeta.NewFilterBuilder().
-		SetSource("kubeapiserver").
+		SetSource(workloadmeta.SourceKubeAPIServer).
 		SetEventType(workloadmeta.EventTypeUnset).
 		AddKind(workloadmeta.KindKubernetesDeployment).
 		Build()

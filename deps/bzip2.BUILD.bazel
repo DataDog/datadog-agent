@@ -14,11 +14,18 @@ package(
 
 license(
     name = "license",
-    # This is the current SPDX known version of the bzip2 license
+    # TODO(aiuto): The omnibus script claimed this is a BSD-2-Clause license.
+    # That is incorrect, but probably close enough from the point of view of
+    # how we use it. For now we will go with a correct designation and worry
+    # about the BSD declaration when we rewrite the license gathering code.
+    # This is the current SPDX known version of the bzip2 license.
     license_kinds = ["@rules_license//licenses/spdx:bzip2-1.0.6"],
     license_text = "LICENSE",
     visibility = ["//visibility:public"],
 )
+
+VERSION = "1.0.8"
+SONAME = "libbz2.so.%s" % VERSION
 
 exports_files([
     "LICENSE",
@@ -70,28 +77,29 @@ cc_library(
     copts = [
         "-Wall",
         "-D_FILE_OFFSET_BITS=64",
-    ] + select({
-        #"@platforms//os:aix": [
-        #    "-qpic=small",
-        #    "-O3",
-        #    "-D_ALL_SOURCE",
-        #    "-D_LARGE_FILES",
-        #],
-        "@platforms//os:macos": [
-            "-fPIC",
-            "-O3",
-        ],
-        "@platforms//os:windows": [
-            "/O2",
-        ],
-        "//conditions:default": [
-            "-fPIC",
-            "-O3",
-            #"-Wno-deprecated-non-prototype",
-            #"-Wno-unused-variable",
-            #"-Wno-implicit-function-declaration",
-        ],
-    }),
+    ] + select(
+        {
+            #"@platforms//os:aix": [
+            #    "-qpic=small",
+            #    "-O2",
+            #    "-D_ALL_SOURCE",
+            #    "-D_LARGE_FILES",
+            #],
+            "@platforms//os:linux": [
+                "-fPIC",
+                "-O3",
+            ],
+            "@platforms//os:macos": [
+                "-fpic",
+                "-fPIC",
+                "-O3",
+            ],
+            "@platforms//os:windows": [
+                "/O2",
+            ],
+        },
+        no_match_error = "No target platform detected",
+    ),
     local_defines = select({
         "@platforms//os:windows": ["_CRT_NONSTDC_NO_WARNINGS"],
         "//conditions:default": [],
@@ -101,7 +109,7 @@ cc_library(
 
 cc_shared_library(
     name = "libbz2_so",
-    shared_lib_name = "libbz2.so.1.0.8",
+    shared_lib_name = SONAME,
     win_def_file = "libbz2.def",
     deps = [":bz2"],
     user_link_flags = select({
@@ -109,42 +117,44 @@ cc_shared_library(
         #    "-qmkshrobj",
         #    "-Wl,-soname",
         #],
-        "@platforms//os:windows": [],
-        "//conditions:default": [
-            "-Wl,-install_name",
-            "-Wl,'@rpath/libbz2.so.1.0'",
+        #"@platforms//os:linux": [
+        #     "-Wl,'@rpath/libbz2.so.1.0.8'",
+        #],
+        "@platforms//os:macos": [
+            "-shared",
+            # "-Wl,-install_name",
+            # "-Wl,'@rpath/libbz2.so.1.0'",
         ],
+        "@platforms//os:windows": [],
+        "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
 )
 
 pkg_mklink(
     name = "so_major_minor",
-    link_name = "libbz2.so.1.0",
-    target = ":libbz2_so",
+    link_name = "lib/libbz2.so.1.0",
+    target = SONAME,
 )
 
 pkg_mklink(
     name = "so_major",
-    link_name = "libbz2.so.1",
-    target = ":libbz2_so",
+    link_name = "lib/libbz2.so.1",
+    target = SONAME,
 )
 
 pkg_mklink(
     name = "so",
-    link_name = "libbz2.so",
-    target = ":libbz2_so",
+    link_name = "lib/libbz2.so",
+    target = SONAME,
 )
 
 pkg_files(
     name = "lib_files",
     srcs = [
         ":libbz2_so",
-        # TODO(agent-build): These are silently ingored by rules_pkg.  We have to
-        # fix that upstream, or find another method.
-        ":so_major_minor",
-        ":so_major",
-        ":so",
+        # Note: you would think you can put :so and other links here, but pkg_files
+        # seems to drop links in srcs.
     ],
     prefix = "lib",
 )
@@ -160,5 +170,8 @@ pkg_install(
     srcs = [
         ":hdr_files",
         ":lib_files",
+        ":so_major_minor",
+        ":so_major",
+        ":so",
     ],
 )

@@ -61,6 +61,10 @@ nav:
     - Static analysis: how-to/test/static-analysis.md
   - Go:
     - Add nested modules: how-to/go/modules.md
+  - Debug agents:
+    - how-to/debug-agents/index.md
+    - Linux: how-to/debug-agents/linux.md
+    - Windows: how-to/debug-agents/windows.md
   - Memory profiling:
     - Overview: how-to/memory-profiling/overview.md
     - Go: how-to/memory-profiling/go.md

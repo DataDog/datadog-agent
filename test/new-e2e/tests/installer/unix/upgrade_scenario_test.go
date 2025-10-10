@@ -8,6 +8,7 @@ package installer
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
@@ -21,13 +22,10 @@ type packageName string
 
 const (
 	datadogAgent     packageName = "datadog-agent"
-	datadogInstaller packageName = "datadog-installer"
 	datadogApmInject packageName = "datadog-apm-inject"
 )
 
 const (
-	installerUnit    = "datadog-agent-installer.service"
-	installerUnitXP  = "datadog-agent-installer-exp.service"
 	apmInjectVersion = "0.1.2"
 )
 
@@ -75,31 +73,30 @@ type installerStatusLegacy struct {
 	Packages map[string]packageStatusLegacy `json:"packages"`
 }
 
-var testCatalog = catalog{
-	Packages: []packageEntry{
-		{
-			Package: string(datadogAgent),
-			Version: latestAgentImageVersion,
-			URL:     fmt.Sprintf("oci://install.datad0g.com.internal.dda-testing.com/agent-package:%s", latestAgentImageVersion),
-		},
-		{
-			Package: string(datadogApmInject),
-			Version: apmInjectVersion,
-			URL:     "oci://dd-agent.s3.amazonaws.com/apm-inject-package:latest",
-		},
-	},
-}
-
 const (
 	unknownAgentImageVersion = "7.52.1-1"
-
-	// TODO: use the latest prod images when they are out
-	latestAgentImageVersion = "7.66.0-devel.git.534.4e40dec.pipeline.62473533-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
 	return &upgradeScenarioSuite{
 		packageBaseSuite: newPackageSuite("upgrade_scenario", os, arch, method),
+	}
+}
+
+func (s *upgradeScenarioSuite) testCatalog() catalog {
+	return catalog{
+		Packages: []packageEntry{
+			{
+				Package: string(datadogAgent),
+				Version: s.pipelineAgentVersion,
+				URL:     fmt.Sprintf("oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID")),
+			},
+			{
+				Package: string(datadogApmInject),
+				Version: apmInjectVersion,
+				URL:     "oci://dd-agent.s3.amazonaws.com/apm-inject-package:latest",
+			},
+		},
 	}
 }
 
@@ -114,7 +111,7 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
-	s.setCatalog(testCatalog)
+	s.setCatalog(s.testCatalog())
 	s.executeAgentGoldenPath()
 }
 
@@ -139,11 +136,11 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
-	s.setCatalog(testCatalog)
+	s.setCatalog(s.testCatalog())
 
 	timestamp := s.host.LastJournaldTimestamp()
-	s.startExperiment(datadogAgent, latestAgentImageVersion)
-	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
+	s.startExperiment(datadogAgent, s.pipelineAgentVersion)
+	s.assertSuccessfulAgentStartExperiment(timestamp, s.pipelineAgentVersion)
 
 	// Assert stable symlink still exists properly
 	state = s.host.State()
@@ -152,7 +149,9 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
 
 	timestamp = s.host.LastJournaldTimestamp()
 	s.promoteExperiment(datadogAgent)
-	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+	s.assertSuccessfulAgentPromoteExperiment(timestamp, s.pipelineAgentVersion)
+	state = s.host.State()
+	state.AssertPathDoesNotExist("/opt/datadog-agent")
 }
 
 func (s *upgradeScenarioSuite) TestBackendFailure() {
@@ -166,11 +165,11 @@ func (s *upgradeScenarioSuite) TestBackendFailure() {
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
-	s.setCatalog(testCatalog)
+	s.setCatalog(s.testCatalog())
 
 	timestamp := s.host.LastJournaldTimestamp()
-	s.startExperiment(datadogAgent, latestAgentImageVersion)
-	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
+	s.startExperiment(datadogAgent, s.pipelineAgentVersion)
+	s.assertSuccessfulAgentStartExperiment(timestamp, s.pipelineAgentVersion)
 
 	// Receive a failure from the backend, stops the experiment
 	timestamp = s.host.LastJournaldTimestamp()
@@ -189,7 +188,7 @@ func (s *upgradeScenarioSuite) TestExperimentFailure() {
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
-	s.setCatalog(testCatalog)
+	s.setCatalog(s.testCatalog())
 
 	// Also tests if the version is not available in the catalog
 	_, err := s.startExperiment(datadogAgent, unknownAgentImageVersion)
@@ -215,7 +214,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	// Temporary catalog to wait for the installer to be ready
-	s.setCatalog(testCatalog)
+	s.setCatalog(s.testCatalog())
 
 	currentVersion := s.getInstallerStatus().Packages.States["datadog-agent"].Stable
 	newCatalog := catalog{
@@ -244,7 +243,7 @@ func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
-	s.setCatalog(testCatalog)
+	s.setCatalog(s.testCatalog())
 	beforeStatus := s.getInstallerStatus()
 	s.stopExperiment(datadogAgent)
 
@@ -263,7 +262,7 @@ func (s *upgradeScenarioSuite) TestPromoteWithoutExperiment() {
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
-	s.setCatalog(testCatalog)
+	s.setCatalog(s.testCatalog())
 
 	beforeStatus := s.getInstallerStatus()
 	_, err := s.promoteExperiment(datadogAgent)
@@ -306,7 +305,7 @@ func (s *upgradeScenarioSuite) TestUpgradeWithProxy() {
 		"datadog-agent-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
-	s.setCatalog(testCatalog)
+	s.setCatalog(s.testCatalog())
 
 	// Set host proxy setup
 	defer s.host.RemoveProxy()
@@ -326,7 +325,7 @@ func (s *upgradeScenarioSuite) TestRemoteInstallUninstall() {
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
-	s.setCatalog(testCatalog)
+	s.setCatalog(s.testCatalog())
 	s.mustInstallPackage(datadogApmInject, apmInjectVersion)
 	s.host.AssertPackageInstalledByInstaller("datadog-apm-inject")
 
@@ -543,10 +542,10 @@ func (s *upgradeScenarioSuite) getInstallerStatus() (status installerStatus) {
 
 func (s *upgradeScenarioSuite) executeAgentGoldenPath() {
 	timestamp := s.host.LastJournaldTimestamp()
-	s.startExperiment(datadogAgent, latestAgentImageVersion)
-	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
+	s.startExperiment(datadogAgent, s.pipelineAgentVersion)
+	s.assertSuccessfulAgentStartExperiment(timestamp, s.pipelineAgentVersion)
 
 	timestamp = s.host.LastJournaldTimestamp()
 	s.promoteExperiment(datadogAgent)
-	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+	s.assertSuccessfulAgentPromoteExperiment(timestamp, s.pipelineAgentVersion)
 }

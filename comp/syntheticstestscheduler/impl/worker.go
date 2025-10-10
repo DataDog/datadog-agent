@@ -300,23 +300,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		RunType: w.testCfg.cfg.RunType,
 	}
 
-	if w.tracerouteError != nil {
-		result.Status = "failed"
-		result.Failure = common.APIError{
-			Code:    "UNKNOWN",
-			Message: w.tracerouteError.Error(),
-		}
-	} else {
-		for _, res := range w.assertionResult {
-			if !res.Valid || res.Failure.Code != "" {
-				result.Status = "failed"
-				result.Failure = common.APIError{
-					Code:    incorrectAssertion,
-					Message: w.tracerouteError.Error(),
-				}
-			}
-		}
-	}
+	s.setResultStatus(w, &result)
 
 	return &common.TestResult{
 		Location: struct {
@@ -327,6 +311,45 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		Test:   t,
 		V:      1,
 	}, nil
+}
+
+func (s *syntheticsTestScheduler) setResultStatus(w *workerResult, result *common.Result) {
+	if result.Netstats.PacketLossPercentage == 100 {
+		if !hasAssertionOn100PacketLoss(w.assertionResult) {
+			result.Status = "failed"
+			result.Failure = common.APIError{
+				Code:    "NETUNREACH",
+				Message: "The remote server network is unreachable.",
+			}
+		}
+	}
+	if w.tracerouteError != nil {
+		result.Status = "failed"
+		result.Failure = common.APIError{
+			Code:    "UNKNOWN",
+			Message: w.tracerouteError.Error(),
+		}
+	}
+	if result.Status != "failed" {
+		for _, res := range w.assertionResult {
+			if !res.Valid || res.Failure.Code != "" {
+				result.Status = "failed"
+				result.Failure = common.APIError{
+					Code:    incorrectAssertion,
+					Message: w.tracerouteError.Error(),
+				}
+			}
+		}
+	}
+}
+
+func hasAssertionOn100PacketLoss(assertionResults []common.AssertionResult) bool {
+	for _, assertion := range assertionResults {
+		if assertion.Type == common.AssertionTypePacketLoss && assertion.Operator == common.OperatorIs && assertion.Expected == "100" {
+			return true
+		}
+	}
+	return false
 }
 
 // generateRandomStringUInt63 returns a cryptographically random uint63 as decimal string.

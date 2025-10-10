@@ -49,10 +49,10 @@ def get_deb_package_url(_: Context, pipeline_id: int, package_name: str, arch: s
     if arch == "amd64":
         arch2 = "x86_64"
 
-    packages_url = f"{DEB_TESTING_BUCKET_URL}/dists/pipeline-{pipeline_id}-a7-{arch2}/7/binary-{arch}/Packages"
+    packages_url = f"{DEB_TESTING_BUCKET_URL}/datadog-agent/pipeline-{pipeline_id}-a7/dists/stable-{arch2}/7/binary-{arch}/Packages"
 
     filename = _deb_get_filename_for_package(packages_url, package_name)
-    return f"{DEB_TESTING_BUCKET_URL}/{filename}"
+    return f"{DEB_TESTING_BUCKET_URL}/datadog-agent/pipeline-{pipeline_id}-a7/{filename}"
 
 
 def _deb_get_filename_for_package(packages_url: str, target_package_name: str) -> str:

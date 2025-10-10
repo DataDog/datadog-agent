@@ -129,9 +129,9 @@ func (e *DockerHost) generateAndDownloadAgentFlare(outputDir string) (string, er
 	if e.Agent == nil || e.Docker == nil {
 		return "", fmt.Errorf("Agent or Docker component is not initialized, cannot generate flare")
 	}
-	// generate a local flare
+	// generate a flare, it will fallback to local flare generation if the running agent cannot be reached
 	// discard error, flare command might return error if there is no intake, but the archive is still generated
-	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--local"}))
+	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send"}))
 
 	lines := []string{flareCommandOutput}
 	if err != nil {

@@ -27,6 +27,8 @@ type iaEKSTestSuite struct {
 func TestOTelAgentIAEKS(t *testing.T) {
 	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
@@ -82,6 +84,8 @@ type iaUSTEKSTestSuite struct {
 func TestOTelAgentIAUSTEKS(t *testing.T) {
 	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false

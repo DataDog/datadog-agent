@@ -13,8 +13,6 @@ import (
 
 // JSONMarshaler is a AbstractMarshaler that implement JSON marshaling.
 type JSONMarshaler interface {
-	// SplitPayload breaks the payload into times number of pieces
-	SplitPayload(int) ([]AbstractMarshaler, error)
 	// MarshalJSON serialization a Payload to JSON
 	MarshalJSON() ([]byte, error)
 }
