@@ -15,6 +15,8 @@ import (
 	"time"
 
 	ttlcache "github.com/jellydator/ttlcache/v3"
+
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
 var variableRegex = regexp.MustCompile(`\${[^}]*}`)
@@ -671,6 +673,44 @@ func (s *Store) GetDefinitions(opts *GetOpts) iter.Seq[Definition] {
 			}
 		}
 	}
+}
+
+func (s *Store) IterateVariables(cb func(definition Definition, instances map[string]Instance)) {
+	for _, definition := range s.definitions {
+		cb(definition, definition.GetInstances())
+	}
+}
+
+func (s *Store) GetSECLVariables(globalScopeKey string) map[string]*api.SECLVariableState {
+	seclVariableStates := make(map[string]*api.SECLVariableState)
+
+	for _, definition := range s.definitions {
+		name := definition.GetName(true)
+		switch definition.GetScoper().Type() {
+		case GlobalScoperType:
+			instances := definition.GetInstances()
+			globalInstance, ok := instances[globalScopeKey]
+			if ok && !globalInstance.IsExpired() { // skip variables that expired but are yet to be cleaned up
+				seclVariableStates[name] = &api.SECLVariableState{
+					Name:  name,
+					Value: fmt.Sprintf("%+v", globalInstance.GetValue()),
+				}
+			}
+		case ProcessScoperType, CGroupScoperType, ContainerScoperType:
+			for scopeKey, instance := range definition.GetInstances() {
+				if instance.IsExpired() { // skip variables that expired but are yet to be cleaned up
+					continue
+				}
+				scopedName := fmt.Sprintf("%s.%s", name, scopeKey)
+				seclVariableStates[scopedName] = &api.SECLVariableState{
+					Name:  scopedName,
+					Value: fmt.Sprintf("%+v", instance.GetValue()),
+				}
+			}
+		}
+	}
+
+	return seclVariableStates
 }
 
 // func (s *Store) GetInstances(opts *GetOpts) iter.Seq2[Definition, Instance] {

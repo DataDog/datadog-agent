@@ -112,12 +112,14 @@ func (s *Scoper) GetScope(ctx *eval.Context) (eval.VariableScope, error) {
 // 	}
 // }
 
+const GlobalScopeKey = ""
+
 type globalScopeType struct{}
 
 var globalScope = globalScopeType{}
 
 func (gs *globalScopeType) Key() (string, bool) {
-	return "", true
+	return GlobalScopeKey, true
 }
 
 func (gs *globalScopeType) ParentScope() (eval.VariableScope, bool) {
