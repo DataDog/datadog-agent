@@ -13,8 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
@@ -365,7 +364,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) installPreviousAgentVersion(opts ...
 	options := []installerwindows.MsiOption{
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
-		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
+		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", installer.GetAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 	}
 	options = append(options, opts...)
@@ -386,7 +385,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) installCurrentAgentVersion(opts ...i
 	options := []installerwindows.MsiOption{
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-current-version.log"),
-		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
+		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", installer.GetAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 	}
 	options = append(options, opts...)
@@ -401,16 +400,4 @@ func (s *testAgentMSIInstallsDotnetLibrary) installCurrentAgentVersion(opts ...i
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
 		})
-}
-
-func (s *testAgentMSIInstallsDotnetLibrary) getAPIKey() string {
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		var err error
-		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		if apiKey == "" || err != nil {
-			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-		}
-	}
-	return apiKey
 }
