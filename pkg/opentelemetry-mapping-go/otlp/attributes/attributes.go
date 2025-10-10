@@ -30,7 +30,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	normalizeutil "github.com/DataDog/datadog-agent/pkg/util/normalize"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
 // TagsFromAttributes converts a selected list of attributes

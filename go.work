@@ -156,7 +156,6 @@ use (
 	pkg/util/json
 	pkg/util/log
 	pkg/util/log/setup
-	pkg/util/normalize
 	pkg/util/option
 	pkg/util/otel
 	pkg/util/pointer

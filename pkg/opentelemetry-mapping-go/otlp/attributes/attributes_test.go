@@ -27,7 +27,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
-	normalizeutil "github.com/DataDog/datadog-agent/pkg/util/normalize"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
 func TestTagsFromAttributes(t *testing.T) {

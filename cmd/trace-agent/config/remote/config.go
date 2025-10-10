@@ -24,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	normalizeutil "github.com/DataDog/datadog-agent/pkg/util/normalize"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 

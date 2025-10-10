@@ -312,8 +312,6 @@ modules:
     used_by_otel: true
   pkg/util/log/setup:
     used_by_otel: true
-  pkg/util/normalize:
-    used_by_otel: true
   pkg/util/option:
     used_by_otel: true
   pkg/util/otel:
