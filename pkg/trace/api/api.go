@@ -123,21 +123,9 @@ type HTTPReceiver struct {
 	Handlers map[string]http.Handler
 }
 
-// NewHTTPReceiver returns a pointer to a new HTTPReceiver
+// NewHTTPReceiver returns a pointer to a new HTTPReceiver.
+// Pass nil for receiverTelemetry in tests to avoid Prometheus registration conflicts.
 func NewHTTPReceiver(
-	conf *config.AgentConfig,
-	dynConf *sampler.DynamicConfig,
-	out chan *Payload,
-	statsProcessor StatsProcessor,
-	telemetryCollector telemetry.TelemetryCollector,
-	statsd statsd.ClientInterface,
-	timing timing.Reporter) *HTTPReceiver {
-	return NewHTTPReceiverWithTelemetry(conf, dynConf, out, statsProcessor, telemetryCollector, statsd, timing, info.NewReceiverTelemetry())
-}
-
-// NewHTTPReceiverWithTelemetry returns a pointer to a new HTTPReceiver with the provided telemetry.
-// Pass nil for telemetry in tests to avoid Prometheus registration conflicts.
-func NewHTTPReceiverWithTelemetry(
 	conf *config.AgentConfig,
 	dynConf *sampler.DynamicConfig,
 	out chan *Payload,

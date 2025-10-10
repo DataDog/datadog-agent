@@ -88,21 +88,8 @@ type TraceWriter struct {
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
+// Pass nil for telem in tests to avoid Prometheus registration conflicts.
 func NewTraceWriter(
-	cfg *config.AgentConfig,
-	prioritySampler samplerTPSReader,
-	errorsSampler samplerTPSReader,
-	rareSampler samplerEnabledReader,
-	telemetryCollector telemetry.TelemetryCollector,
-	statsd statsd.ClientInterface,
-	timing timing.Reporter,
-	compressor compression.Component) *TraceWriter {
-	return NewTraceWriterWithTelemetry(cfg, prioritySampler, errorsSampler, rareSampler, telemetryCollector, statsd, timing, compressor, NewTraceWriterTelemetry())
-}
-
-// NewTraceWriterWithTelemetry returns a new TraceWriter with the provided telemetry.
-// Pass nil for telemetry in tests to avoid Prometheus registration conflicts.
-func NewTraceWriterWithTelemetry(
 	cfg *config.AgentConfig,
 	prioritySampler samplerTPSReader,
 	errorsSampler samplerTPSReader,

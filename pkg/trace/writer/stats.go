@@ -62,18 +62,8 @@ type DatadogStatsWriter struct {
 }
 
 // NewStatsWriter returns a new DatadogStatsWriter. It must be started using Run.
+// Pass nil for telem in tests to avoid Prometheus registration conflicts.
 func NewStatsWriter(
-	cfg *config.AgentConfig,
-	telemetryCollector telemetry.TelemetryCollector,
-	statsd statsd.ClientInterface,
-	timing timing.Reporter,
-) *DatadogStatsWriter {
-	return NewStatsWriterWithTelemetry(cfg, telemetryCollector, statsd, timing, NewStatsWriterTelemetry())
-}
-
-// NewStatsWriterWithTelemetry returns a new DatadogStatsWriter with the provided telemetry.
-// Pass nil for telemetry in tests to avoid Prometheus registration conflicts.
-func NewStatsWriterWithTelemetry(
 	cfg *config.AgentConfig,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
