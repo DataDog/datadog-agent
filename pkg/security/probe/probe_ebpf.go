@@ -2698,6 +2698,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SpanTrackMaxCount:             1,
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
+		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {

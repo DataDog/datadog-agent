@@ -342,7 +342,7 @@ func (m *Manager) linkProfile(profile *profile.Profile, workload *tags.Workload)
 	profile.Instances = append(profile.Instances, workload)
 
 	// can we apply the profile or is it not ready yet ?
-	if profile.LoadedInKernel.Load() {
+	if profile.LoadedInKernel.Load() && slices.Contains(m.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType) {
 		m.linkProfileMap(profile, workload)
 	}
 }
@@ -373,7 +373,9 @@ func (m *Manager) unlinkProfile(profile *profile.Profile, workload *tags.Workloa
 	}
 
 	// remove link between the profile and the workload
-	m.unlinkProfileMap(profile, workload)
+	if slices.Contains(m.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType) {
+		m.unlinkProfileMap(profile, workload)
+	}
 }
 
 func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
