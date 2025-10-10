@@ -245,13 +245,13 @@ func AssertPortBoundByService(t assert.TestingT, client *TestClient, transport s
 
 // GetBoundPort returns a port that is bound on the host, or nil if the port is not bound
 func GetBoundPort(host *components.RemoteHost, transport string, port int) (boundport.BoundPort, error) {
-	ports, err := boundport.BoundPorts(host)
+	bports, err := boundport.BoundPorts(host)
 	if err != nil {
 		return nil, err
 	}
-	for _, boundPort := range ports {
-		if boundPort.LocalPort() == port {
-			return boundPort, nil
+	for _, bport := range bports {
+		if bport.Transport() == transport && bport.LocalPort() == port {
+			return bport, nil
 		}
 	}
 	return nil, nil
