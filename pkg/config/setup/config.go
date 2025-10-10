@@ -1276,7 +1276,6 @@ func agent(config pkgconfigmodel.Setup) {
 	// Infrastructure basic mode - additional checks
 	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
 	// This setting allows customers to add additional checks to the allowlist beyond the default set.
-	// Example: ["postgres", "redis", "nginx"]
 	config.BindEnvAndSetDefault("infra_basic_additional_checks", []string{})
 
 	// Configuration for TLS for outgoing connections

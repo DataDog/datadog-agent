@@ -172,10 +172,9 @@ func (s *infraBasicSuite) isCheckScheduled(checkName string, checks map[string]m
 // verifyCheckRuns runs a check and verifies it executed successfully
 // All check configs are already provisioned during suite setup
 func (s *infraBasicSuite) verifyCheckRuns(checkName string) bool { //nolint:unused
-	host := s.Env().RemoteHost
-
-	// Run the check and parse JSON output
-	output, err := host.Execute(fmt.Sprintf("sudo datadog-agent check %s --json", checkName))
+	// Run the check using the cross-platform Agent client helper
+	// This works on both Linux (sudo datadog-agent) and Windows (& "path\bin\agent.exe")
+	output, err := s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{checkName, "--json"}))
 	if err != nil {
 		s.T().Logf("Check %s failed to execute: %v", checkName, err)
 		return false
