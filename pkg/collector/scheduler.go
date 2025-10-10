@@ -27,7 +27,6 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -72,7 +71,7 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
-		allowedChecks:  constants.GetInfraBasicAllowedChecks(setup.Datadog()), // Infrastructure basic mode checks
+		allowedChecks:  GetInfraBasicAllowedChecks(setup.Datadog()), // Infrastructure basic mode checks
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 	}
 	// add the check loaders

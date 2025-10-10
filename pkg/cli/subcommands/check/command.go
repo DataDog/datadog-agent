@@ -75,7 +75,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -284,7 +283,7 @@ func run(
 	}
 
 	// Check if the check is allowed in infrastructure basic mode
-	if !constants.IsCheckAllowedInInfraBasic(cliParams.checkName, pkgconfigsetup.Datadog()) {
+	if !pkgcollector.IsCheckAllowedInInfraBasic(cliParams.checkName, pkgconfigsetup.Datadog()) {
 		return fmt.Errorf("check '%s' is not allowed in infrastructure basic mode", cliParams.checkName)
 	}
 
