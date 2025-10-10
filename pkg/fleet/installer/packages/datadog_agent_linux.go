@@ -418,8 +418,8 @@ func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 			return fmt.Errorf("upstart is only supported in DEB and RPM packages")
 		}
 	case service.SysvinitType:
-		if ctx.PackageType != PackageTypeDEB {
-			return fmt.Errorf("sysvinit is only supported in DEB packages")
+		if ctx.PackageType != PackageTypeDEB && ctx.PackageType != PackageTypeRPM {
+			return fmt.Errorf("sysvinit is only supported in DEB and RPM packages")
 		}
 	default:
 		return fmt.Errorf("could not determine service manager type, platform is not supported")
@@ -513,7 +513,7 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	case service.UpstartType:
 		return nil // Nothing to do, files are embedded in the package
 	case service.SysvinitType:
-		return writeEmbeddedUnitsAndReload(ctx, s.SysvinitServices...)
+		return writeEmbeddedSysvinitAndReload(ctx, s.SysvinitServices...)
 	}
 	return fmt.Errorf("unsupported service manager")
 }
@@ -657,6 +657,40 @@ func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
 		}
 	}
 	return systemd.Reload(ctx)
+}
+
+func writeEmbeddedSysvinitAndReload(ctx HookContext, units ...string) error {
+	var unitType embedded.SysvinitUnitType
+	switch ctx.PackageType {
+	case PackageTypeDEB:
+		unitType = embedded.SysvinitUnitTypeDebian
+	case PackageTypeRPM:
+		unitType = embedded.SysvinitUnitTypeRedHat
+	default:
+		return fmt.Errorf("unsupported package type for sysvinit: %s", ctx.PackageType)
+	}
+	unitsPath := "/etc/init.d"
+
+	for _, unit := range units {
+		prefix := "sysvinit_debian"
+		if ctx.PackageType == PackageTypeRPM {
+			prefix = "sysvinit_redhat"
+		}
+
+		scriptName := fmt.Sprintf("%s.%s.erb", prefix, unit)
+		if unit == "datadog-agent" {
+			scriptName = prefix + ".erb"
+		}
+		content, err := embedded.GetSysvinitUnit(scriptName, unitType)
+		if err != nil {
+			return err
+		}
+		err = writeEmbeddedUnit(unitsPath, unit, content)
+		if err != nil {
+			return err
+		}
+	}
+	return nil // Package manager will handle update-rc.d/chkconfig during installation
 }
 
 func writeEmbeddedUnit(dir string, unit string, content []byte) error {
