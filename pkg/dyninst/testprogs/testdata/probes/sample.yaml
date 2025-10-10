@@ -34,6 +34,12 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleInt8
+    message: "parameter = {x}"
+    segments:
+      - str: "parameter = "
+      - json: 
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleInt16
     type: LOG_PROBE
@@ -41,6 +47,12 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testSingleInt16
+    message: "parameter = {x}"
+    segments:
+      - str: "parameter = "
+      - json: 
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testSingleInt32
     type: LOG_PROBE
@@ -119,6 +131,11 @@ probes:
     where:
       methodName: main.testSingleString
     captureSnapshot: true
+    message: "{x}"
+    segments:
+      - json: 
+          ref: "x"
+        dsl: "x"  
   - id: testUnitializedString
     type: LOG_PROBE
     tags:
@@ -214,6 +231,11 @@ probes:
     where:
       methodName: main.testBoolArray
     captureSnapshot: true
+    message: "{x}"
+    segments:
+      - json: 
+          ref: "x"
+        dsl: "x"
   - id: testIntArray
     type: LOG_PROBE
     tags:
@@ -324,6 +346,11 @@ probes:
     where:
       methodName: main.testUintSlice
     captureSnapshot: true
+    message: "{u}"
+    segments:
+      - json: 
+          ref: "u"
+        dsl: "u"
   - id: testVeryLargeSlice
     type: LOG_PROBE
     tags:
@@ -416,6 +443,11 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testStruct
+    message: "{x}"
+    segments:
+      - json: 
+          ref: "x"
+        dsl: "x"
     captureSnapshot: true
   - id: testEmptyStruct
     type: LOG_PROBE
@@ -424,6 +456,11 @@ probes:
     where:
       methodName: main.testEmptyStruct
     captureSnapshot: true
+    message: "{e}"
+    segments:
+      - json: 
+          ref: "e"
+        dsl: "e"
   - id: testUintPointer
     type: LOG_PROBE
     tags:
@@ -431,6 +468,11 @@ probes:
     where:
       methodName: main.testUintPointer
     captureSnapshot: true
+    message: "{x}"
+    segments:
+      - json: 
+          ref: "x"
+        dsl: "x"
   - id: testStringPointer
     type: LOG_PROBE
     tags:
@@ -934,6 +976,21 @@ probes:
     where:
       methodName: main.testNamedReturn
     captureSnapshot: true
+  - id: testNamedReturnWithTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testNamedReturn
+    message: "Parameter {i} * 2 = result {result}"
+    segments:
+      - str: "Parameter "
+      - dsl: "i"
+        json:
+          ref: "i"
+      - str: " * 2 = result "
+      - dsl: "result"
+        json:
+          ref: "result"
+    captureSnapshot: true
   - id: testMultipleNamedReturn
     type: LOG_PROBE
     where:
@@ -1024,6 +1081,15 @@ probes:
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
+    message: "{a} and {b}"
+    segments:
+      - dsl: "a"
+        json:
+          ref: "a"
+      - str: " and "
+      - dsl: "b"
+        json:
+          ref: "b"
   - id: testReturnsPrimitives
     type: LOG_PROBE
     where:

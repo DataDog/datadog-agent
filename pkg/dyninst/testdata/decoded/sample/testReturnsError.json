@@ -79,7 +79,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": ""
   },
   {
     "service": "sample",
@@ -154,6 +155,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": ""
   }
 ]
