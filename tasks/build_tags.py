@@ -219,8 +219,6 @@ SYSTEM_PROBE_TAGS = {
     "npm",
     "nvml",
     "pcap",
-    "trivy",
-    "trivy_no_javadb",
     "zlib",
     "zstd",
 }
