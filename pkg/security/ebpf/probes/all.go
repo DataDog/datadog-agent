@@ -205,6 +205,7 @@ type MapSpecEditorOpts struct {
 	SpanTrackMaxCount             int
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
+	SecurityProfileSyscallAnomaly bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -275,10 +276,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"security_profiles": {
-			MaxEntries: uint32(opts.SecurityProfileMaxCount),
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"secprofs_syscalls": {
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
 			EditorFlag: manager.EditMaxEntries,
@@ -295,6 +292,13 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: capabilitiesContextsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
+	}
+
+	if opts.SecurityProfileSyscallAnomaly {
+		editors["security_profiles"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		}
 	}
 
 	if opts.PathResolutionEnabled {
