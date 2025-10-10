@@ -141,11 +141,6 @@ func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContex
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (p *testPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
-	return []marshaler.AbstractMarshaler{}, nil
-}
-
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
 	return err
@@ -176,11 +171,6 @@ func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, fmt.Error
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) Marshal() ([]byte, error) { return nil, fmt.Errorf("some error") }
-
-//nolint:revive // TODO(AML) Fix revive linter
-func (p *testErrorPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
-	return []marshaler.AbstractMarshaler{}, fmt.Errorf("some error")
-}
 
 func (p *testErrorPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
