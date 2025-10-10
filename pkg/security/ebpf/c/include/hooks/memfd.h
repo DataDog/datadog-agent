@@ -12,10 +12,13 @@
 
 #define MEMFD_TRACER_PREFIX "datadog-tracer-info-"
 #define MEMFD_TRACER_PREFIX_LEN (sizeof(MEMFD_TRACER_PREFIX) - 1)
+#define MEMFD_KERNEL_PREFIX "memfd:"
+#define MEMFD_KERNEL_PREFIX_LEN (sizeof(MEMFD_KERNEL_PREFIX) - 1)
+#define MEMFD_FULL_PREFIX_LEN (MEMFD_KERNEL_PREFIX_LEN + MEMFD_TRACER_PREFIX_LEN)
 
 struct memfd_tracking_t {
     u32 fd;
-    char name[28]; // 32 bytes total with fd
+    char suffix[28]; // Only store the suffix after "datadog-tracer-info-", 32 bytes total with fd
 };
 
 bool __attribute__((always_inline)) matches_tracer_prefix(const char *name) {
@@ -54,11 +57,12 @@ HOOK_SYSCALL_ENTRY2(memfd_create, const char *, uname, unsigned int, flags) {
     };
     cache_syscall(&syscall);
 
-    // Store the name for later comparison in memfd_fcntl
+    // Store only the suffix after "datadog-tracer-info-" for later comparison in memfd_fcntl
     // fd will be stored in exit hook
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct memfd_tracking_t tracking = {0};
-    bpf_probe_read_str(&tracking.name, sizeof(tracking.name), name);
+    // Copy only the suffix (skip the "datadog-tracer-info-" prefix)
+    bpf_probe_read_str(&tracking.suffix, sizeof(tracking.suffix), name + MEMFD_TRACER_PREFIX_LEN);
     bpf_map_update_elem(&memfd_tracking, &pid_tgid, &tracking, BPF_ANY);
 
     return 0;
@@ -107,12 +111,18 @@ int hook_memfd_fcntl(ctx_t *ctx) {
     char dentry_name[32] = {0};
     get_dentry_name(dentry, dentry_name, sizeof(dentry_name));
 
-    // Check if the dentry name starts with "memfd:datadog-tracer-info-"
-    // Note: kernel adds "memfd:" prefix to the user-provided name
-    char expected_prefix[] = "memfd:datadog-tracer-info-";
+    // Optimization 1: Reject any names shorter than "memfd:datadog-tracer-info-"
+    // Quick length check - if the name is too short, it can't match
+    if (dentry_name[MEMFD_FULL_PREFIX_LEN - 1] == 0) {
+        return 0;
+    }
+
+    // Optimization 2: Compare prefix starting after "memfd:" since all memfd names have this prefix
+    // We can skip the "memfd:" part and start comparing at "datadog-tracer-info-"
+    char expected_prefix[] = MEMFD_TRACER_PREFIX;
     #pragma unroll
-    for (int i = 0; i < sizeof(expected_prefix) - 1 && i < sizeof(dentry_name); i++) {
-        if (dentry_name[i] != expected_prefix[i]) {
+    for (int i = 0; i < MEMFD_TRACER_PREFIX_LEN; i++) {
+        if (dentry_name[MEMFD_KERNEL_PREFIX_LEN + i] != expected_prefix[i]) {
             return 0;
         }
     }
@@ -124,18 +134,17 @@ int hook_memfd_fcntl(ctx_t *ctx) {
         return 0;
     }
 
-    bpf_printk("handle_fcntl_seal entry: tracking->name=%s", tracking->name);
-
-    // Verify the tracked name matches (dentry_name has "memfd:" prefix, tracking->name doesn't)
+    // Optimization 3 & 4: Compare only the suffix after "memfd:datadog-tracer-info-"
+    // tracking->suffix contains only the suffix, dentry_name[MEMFD_FULL_PREFIX_LEN] points to the suffix
     #pragma unroll
-    for (int i = 0; i < 28 - 6; i++) {
-        if (tracking->name[i] != dentry_name[i + 6]) {
-            if (tracking->name[i] == 0 && dentry_name[i + 6] == 0) {
+    for (int i = 0; i < sizeof(tracking->suffix); i++) {
+        if (tracking->suffix[i] != dentry_name[MEMFD_FULL_PREFIX_LEN + i]) {
+            if (tracking->suffix[i] == 0 && dentry_name[MEMFD_FULL_PREFIX_LEN + i] == 0) {
                 break;
             }
             return 0;
         }
-        if (tracking->name[i] == 0) {
+        if (tracking->suffix[i] == 0) {
             break;
         }
     }
