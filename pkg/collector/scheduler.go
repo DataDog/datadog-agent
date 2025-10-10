@@ -82,9 +82,12 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 	}
 
 	// Constructs a set of allowed checks to run, if the set is empty, all checks are allowed
-	allowedChecks := constants.GetInfraBasicAllowedChecks(setup.Datadog())
-	for _, check := range allowedChecks {
-		checkScheduler.allowedChecks[check] = struct{}{}
+	// check if we are running in infrastructure basic mode
+	if setup.Datadog().GetString("infrastructure_mode") == "basic" {
+		allowedChecks := constants.GetInfraBasicAllowedChecks(setup.Datadog())
+		for _, check := range allowedChecks {
+			checkScheduler.allowedChecks[check] = struct{}{}
+		}
 	}
 
 	return checkScheduler
