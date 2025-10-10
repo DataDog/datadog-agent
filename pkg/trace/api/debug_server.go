@@ -133,7 +133,7 @@ func (ds *DebugServer) setupMux() *http.ServeMux {
 		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+ds.conf.GUIPort)
 		expvar.Handler().ServeHTTP(w, req)
 	}))
-	ds.mux.Handle("/telemetry", telemetry.Handler())
+	ds.mux.Handle("/telemetry", telemetry.GetCompatComponent().Handler())
 	apiutil.SetupCoverageHandler(ds.mux)
 	return ds.mux
 }
