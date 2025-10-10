@@ -30,6 +30,7 @@ class FileInfo:
 
     For regular files, only relative_path, size_bytes, and optionally checksum are set.
     For symlinks, is_symlink is True and symlink_target contains the link target.
+    For broken symlinks, is_broken is True.
     """
 
     relative_path: str
@@ -37,6 +38,7 @@ class FileInfo:
     checksum: str | None = None
     is_symlink: bool | None = None
     symlink_target: str | None = None
+    is_broken: bool | None = None
 
     def __post_init__(self):
         """Validate file info data"""
@@ -268,38 +270,36 @@ class InPlacePackageMeasurer:
             try:
                 relative_path = str(file_path.relative_to(extract_path))
 
-                # Check if this is a symlink
                 if file_path.is_symlink():
-                    # For symlinks, record the target but don't count size
                     try:
-                        # Get the symlink target (can be relative or absolute)
                         symlink_target = os.readlink(file_path)
+                        logical_size = len(symlink_target)
+                        is_broken = False
 
-                        # Try to resolve to see if it points to something valid
                         try:
-                            resolved_target = file_path.resolve()
-                            # Make target path relative to extract_path if possible
+                            resolved_target = file_path.resolve(strict=True)
                             if resolved_target.is_relative_to(extract_path):
                                 symlink_target_rel = str(resolved_target.relative_to(extract_path))
                             else:
-                                # Target is outside the package or absolute
                                 symlink_target_rel = symlink_target
                         except (OSError, RuntimeError):
-                            # Broken symlink or can't resolve
                             symlink_target_rel = symlink_target
+                            is_broken = True
 
                         file_inventory.append(
                             FileInfo(
                                 relative_path=relative_path,
-                                size_bytes=0,  # Don't count size for symlinks
-                                checksum=None,  # No checksum for symlinks
+                                size_bytes=logical_size,
+                                checksum=None,
                                 is_symlink=True,
                                 symlink_target=symlink_target_rel,
+                                is_broken=is_broken if is_broken else None,
                             )
                         )
 
                         if debug and files_processed % 1000 == 0:
-                            print(f"🔗 Symlink: {relative_path} -> {symlink_target_rel}")
+                            broken_marker = " [BROKEN]" if is_broken else ""
+                            print(f"🔗 Symlink: {relative_path} -> {symlink_target_rel}{broken_marker}")
 
                     except OSError as e:
                         if debug:
@@ -413,14 +413,14 @@ class InPlacePackageMeasurer:
             "size_bytes": file_info.size_bytes,
         }
 
-        # Only include checksum if present
         if file_info.checksum is not None:
             result["checksum"] = file_info.checksum
 
-        # Only include symlink fields if the file is actually a symlink
         if file_info.is_symlink:
             result["is_symlink"] = True
             result["symlink_target"] = file_info.symlink_target
+            if file_info.is_broken:
+                result["is_broken"] = True
 
         return result
 

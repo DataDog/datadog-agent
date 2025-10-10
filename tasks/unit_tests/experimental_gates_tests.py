@@ -288,7 +288,8 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
             file_inventory=[
                 FileInfo("opt/agent/bin/agent", 400000, "sha256:abc123"),
                 FileInfo("etc/config.yaml", 100000, None),
-                FileInfo("opt/bin/python3", 0, None, True, "python3.13"),
+                FileInfo("opt/bin/python3", 9, None, True, "python3.13", None),
+                FileInfo("opt/bin/broken_link", 15, None, True, "/nonexistent/path", True),
             ],
             measurement_timestamp="2024-01-15T14:30:22.123456Z",
             pipeline_id="12345",
@@ -315,7 +316,7 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
             self.assertEqual(saved_data['gate_name'], "static_quality_gate_agent_deb_amd64")
             self.assertEqual(saved_data['on_wire_size'], 100000)
             self.assertEqual(saved_data['on_disk_size'], 500000)
-            self.assertEqual(len(saved_data['file_inventory']), 3)
+            self.assertEqual(len(saved_data['file_inventory']), 4)
 
             # Verify regular file doesn't have symlink fields
             regular_file = saved_data['file_inventory'][0]
@@ -335,6 +336,14 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
             self.assertEqual(symlink_file['relative_path'], "opt/bin/python3")
             self.assertTrue(symlink_file['is_symlink'])
             self.assertEqual(symlink_file['symlink_target'], "python3.13")
+            self.assertNotIn('is_broken', symlink_file)
+
+            # Verify broken symlink has is_broken field
+            broken_symlink = saved_data['file_inventory'][3]
+            self.assertEqual(broken_symlink['relative_path'], "opt/bin/broken_link")
+            self.assertTrue(broken_symlink['is_symlink'])
+            self.assertEqual(broken_symlink['symlink_target'], "/nonexistent/path")
+            self.assertTrue(broken_symlink['is_broken'])
 
         finally:
             os.unlink(output_path)
@@ -369,16 +378,32 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
 
     def test_serialize_file_info_symlink(self):
         """Test serializing symlink."""
-        file_info = FileInfo("opt/bin/python3", 0, None, True, "python3.13")
+        file_info = FileInfo("opt/bin/python3", 9, None, True, "python3.13", None)
         result = self.measurer._serialize_file_info(file_info)
 
         # Should have relative_path, size_bytes, is_symlink, and symlink_target
         self.assertEqual(result['relative_path'], "opt/bin/python3")
-        self.assertEqual(result['size_bytes'], 0)
+        self.assertEqual(result['size_bytes'], 9)
         self.assertTrue(result['is_symlink'])
         self.assertEqual(result['symlink_target'], "python3.13")
 
-        # Should NOT have checksum (it was None)
+        # Should NOT have checksum or is_broken
+        self.assertNotIn('checksum', result)
+        self.assertNotIn('is_broken', result)
+
+    def test_serialize_file_info_broken_symlink(self):
+        """Test serializing broken symlink."""
+        file_info = FileInfo("opt/bin/broken_link", 15, None, True, "/nonexistent/path", True)
+        result = self.measurer._serialize_file_info(file_info)
+
+        # Should have all symlink fields plus is_broken
+        self.assertEqual(result['relative_path'], "opt/bin/broken_link")
+        self.assertEqual(result['size_bytes'], 15)
+        self.assertTrue(result['is_symlink'])
+        self.assertEqual(result['symlink_target'], "/nonexistent/path")
+        self.assertTrue(result['is_broken'])
+
+        # Should NOT have checksum
         self.assertNotIn('checksum', result)
 
     @patch('builtins.open', side_effect=OSError("Permission denied"))
