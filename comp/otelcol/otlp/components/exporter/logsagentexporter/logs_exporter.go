@@ -150,7 +150,9 @@ func getLogsScope(ld plog.Logs) ScopeName {
 		resourceLogs := ld.ResourceLogs().At(i)
 		for j := 0; j < resourceLogs.ScopeLogs().Len(); j++ {
 			scopeLogs := resourceLogs.ScopeLogs().At(j)
-			return ScopeName(scopeLogs.Scope().Name())
+			if scopeLogs.Scope().Name() != "" {
+				return ScopeName(scopeLogs.Scope().Name())
+			}
 		}
 	}
 	return ""
