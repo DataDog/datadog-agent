@@ -27,9 +27,9 @@
         CACHE_SOURCE=""
         CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET},mode=max"
       fi
-      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
-        CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET},mode=max"
-      fi
+      #if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
+      CACHE_TO="--cache-to type=registry,ref=${IMAGE}${TAG_SUFFIX}-${ARCH}:cache-test,mode=max"
+      #fi
     # Don't use the cache on deploy pipelines to make sure we get the latest of everything
     - |
       if [[ "$DEPLOY_AGENT" == "true" ]]; then
