@@ -171,7 +171,7 @@ func (r *IncrementalFileReader) Init(f *os.File) error {
 	st, err := f.Stat()
 	if err != nil {
 		_ = f.Close()
-		fmt.Print("Fail and close init")
+		seclog.Warnf("Fail to stat log file: %v", err)
 		return err
 	}
 
@@ -214,7 +214,6 @@ func (r *IncrementalFileReader) reloadIfRotated() error {
 	}
 	curIno := inodeOf(curSt)
 	if curIno != 0 && r.ino != 0 && curIno != r.ino {
-		fmt.Printf("The inodes are different: %d != %d\n", curIno, r.ino)
 		// The file has been rotated
 		if r.f != nil {
 			_ = r.close()
@@ -420,7 +419,6 @@ func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.U
 	}
 
 	r.Lock()
-	fmt.Printf("We try to resolve session with Port %d\n", ctx.SSHPort)
 	defer r.Unlock()
 	if r.sshLogReader.path == "" {
 		resolveFromJournalctl(ctx)
