@@ -74,6 +74,7 @@ AGENT_CORECHECKS = [
     "jetson",
     "telemetry",
     "orchestrator_pod",
+    "orchestrator_kubelet_config",
     "orchestrator_ecs",
     "cisco_sdwan",
     "network_path",
