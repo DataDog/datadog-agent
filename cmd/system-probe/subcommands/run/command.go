@@ -39,6 +39,7 @@ import (
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -155,6 +156,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				remotehostnameimpl.Module(),
 				configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
+				remoteagentfx.Module(),
 			)
 		},
 	}
