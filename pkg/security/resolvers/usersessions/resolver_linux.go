@@ -279,23 +279,22 @@ func (r *IncrementalFileReader) ReadNewLines() ([]string, error) {
 
 // StartSSHUserSessionResolver initializes the ssh log reader by looking for the available file, opening it and setting up the initial offset
 func (r *Resolver) StartSSHUserSessionResolver() {
-	// first, find the available file
-	path := "/var/log/auth.log"
-	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
-	if err != nil {
-		// Fallback for Red Hat / CentOS / Fedora
-		path = "/var/log/secure"
-		f, err = os.OpenFile(path, os.O_RDONLY, 0644)
-		if err != nil {
-			// Last Fallback for openSUSE
-			path = "/var/log/messages"
-			f, err = os.OpenFile(path, os.O_RDONLY, 0644)
-			if err != nil {
-				path = ""
-				// We will ignore the ssh log and fallback in journalctl
-			}
+	possibleLogPaths := []string{
+		"/var/log/auth.log", // Debian/Ubuntu
+		"/var/log/secure",   // RHEL/CentOS/Fedora
+		"/var/log/messages", // openSUSE/autres
+	}
+	path := ""
+	var err error
+	var f *os.File
+	for _, possiblePath := range possibleLogPaths {
+		f, err = os.OpenFile(possiblePath, os.O_RDONLY, 0644)
+		if err == nil {
+			path = possiblePath
+			break
 		}
 	}
+
 	r.sshLogReader = NewIncrementalFileReader(path)
 	if path == "" {
 		return
