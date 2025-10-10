@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package traceimpl implements the remoteagent component interface
-package traceimpl
+// Package impl implements the remoteagent component interface
+package impl
 
 import (
 	"net"

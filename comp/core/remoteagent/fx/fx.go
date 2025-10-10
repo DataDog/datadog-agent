@@ -10,7 +10,7 @@ import (
 	"go.uber.org/fx"
 
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
-	remoteagentimpltrace "github.com/DataDog/datadog-agent/comp/core/remoteagent/impl-trace"
+	remoteagentimpl "github.com/DataDog/datadog-agent/comp/core/remoteagent/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -18,7 +18,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			remoteagentimpltrace.NewComponent,
+			remoteagentimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[remoteagent.Component](),
 
