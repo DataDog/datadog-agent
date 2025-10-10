@@ -6,7 +6,12 @@
 // Package remoteagent implements the remote agent component
 package remoteagent
 
+import "google.golang.org/grpc"
+
 // team: agent-runtimes
 
 // Component is the component type.
-type Component interface{}
+type Component interface {
+	// GetGRPCServer returns the gRPC server for service registration
+	GetGRPCServer() *grpc.Server
+}

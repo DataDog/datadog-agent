@@ -9,6 +9,8 @@ package impl
 import (
 	"net"
 
+	"google.golang.org/grpc"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -60,4 +62,9 @@ type remoteagentImpl struct {
 	cfg config.Component
 
 	register *helper.UnimplementedRemoteAgentServer
+}
+
+// GetGRPCServer returns the gRPC server for service registration
+func (r *remoteagentImpl) GetGRPCServer() *grpc.Server {
+	return r.register.GetGRPCServer()
 }
