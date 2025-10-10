@@ -38,26 +38,33 @@ func infraAttributesName() string {
 func removeInfraAttributesProcessor(conf *confmap.Conf) error {
 	conf.Delete("processors::" + infraAttributesName())
 	confStringMap := conf.ToStringMap()
-	profilesMap, err := getMapStr(confStringMap, []string{"service", "pipelines", "profiles"})
+	if err := removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", infraAttributesName()); err != nil {
+		return err
+	}
+	*conf = *confmap.NewFromStringMap(confStringMap)
+	return nil
+}
+
+func removeFromList(confStringMap map[string]any, parentNames []string, listName string, itemToRemove string) error {
+	parentMap, err := getMapStr(confStringMap, parentNames)
 	if err != nil {
 		return err
 	}
 
-	if profilesMap != nil {
-		processors, ok := profilesMap["processors"].([]any)
+	if parentMap != nil {
+		children, ok := parentMap[listName].([]any)
 		if !ok {
 			return nil
 		}
-		processors = slices.DeleteFunc(processors, func(item any) bool {
+		children = slices.DeleteFunc(children, func(item any) bool {
 			str, ok := item.(string)
 			if !ok {
 				return false
 			}
-			return str == infraAttributesName()
+			return str == itemToRemove
 		})
-		profilesMap["processors"] = processors
+		parentMap[listName] = children
 	}
-	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
 }
 
