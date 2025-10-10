@@ -264,18 +264,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: nsFlowToNetworkStats,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"activity_dumps_config": {
-			MaxEntries: model.MaxTracedCgroupsCount,
-			EditorFlag: manager.EditMaxEntries,
-		},
-		"activity_dump_rate_limiters": {
-			MaxEntries: model.MaxTracedCgroupsCount,
-			EditorFlag: manager.EditMaxEntries,
-		},
-		"cgroup_wait_list": {
-			MaxEntries: model.MaxTracedCgroupsCount,
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"secprofs_syscalls": {
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
 			EditorFlag: manager.EditMaxEntries,
@@ -311,6 +299,18 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	if opts.TracedCgroupSize > 0 {
 		editors["traced_cgroups"] = manager.MapSpecEditor{
 			MaxEntries: uint32(opts.TracedCgroupSize),
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["activity_dumps_config"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.TracedCgroupSize),
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["activity_dump_rate_limiters"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.TracedCgroupSize),
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["cgroup_wait_list"] = manager.MapSpecEditor{
+			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
