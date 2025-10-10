@@ -264,24 +264,13 @@ func (s *Launcher) scan() {
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			// Skip on errors
-			if err != nil {
+			// Skip files with invalid fingerprints (Value == 0)
+			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
+				// If fingerprint is invalid, persist the old info back into the map for future attempts
 				if hasOldInfo {
 					s.oldInfoMap[scanKey] = oldInfo
 				}
 				continue
-			}
-
-			if fingerprint != nil && !fingerprint.ValidFingerprint() {
-				if hasOldInfo {
-					// if rotation detected, start tailer without fingerprint
-					log.Debugf("Fingerprint for %s invalid but rotation in progress; starting tailer without fingerprint", file.Path)
-					fingerprint = nil
-				} else {
-					// genuine “empty file” case – skip this round
-					s.oldInfoMap[scanKey] = oldInfo
-					continue
-				}
 			}
 		}
 
@@ -310,11 +299,9 @@ func (s *Launcher) scan() {
 func (s *Launcher) cleanUpRotatedTailers() {
 	pendingTailers := []*tailer.Tailer{}
 	for _, tailer := range s.rotatedTailers {
-		if tailer.IsFinished() {
-			log.Debugf("Rotation cleanup: tailer %s finished draining rotated file (bytesRead=%d)", tailer.GetID(), tailer.Source().BytesRead.Get())
-			continue
+		if !tailer.IsFinished() {
+			pendingTailers = append(pendingTailers, tailer)
 		}
-		pendingTailers = append(pendingTailers, tailer)
 	}
 	s.rotatedTailers = pendingTailers
 }
