@@ -71,7 +71,7 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
-		allowedChecks:  GetInfraBasicAllowedChecks(setup.Datadog()), // Infrastructure basic mode checks
+		allowedChecks:  GetAllowedChecks(setup.Datadog()), // Allow list depends on infrastructure mode
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 	}
 	// add the check loaders

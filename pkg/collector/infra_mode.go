@@ -35,9 +35,9 @@ var infraBasicAllowedChecks = map[string]struct{}{
 	"winproc":           {},
 }
 
-// GetInfraBasicAllowedChecks returns the map of allowed checks for infra basic mode,
+// GetAllowedChecks returns the map of allowed checks for infra basic mode,
 // including any additional checks specified in the configuration via 'infra_basic_additional_checks'
-func GetInfraBasicAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
+func GetAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
 	if cfg.GetString("infrastructure_mode") != "basic" {
 		return make(map[string]struct{})
 	}
@@ -61,7 +61,7 @@ func GetInfraBasicAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
 // When not in basic mode, all checks are allowed (returns true).
 // When in basic mode, only checks in the allowed list are permitted.
 func IsCheckAllowedInInfraBasic(checkName string, cfg pkgconfigmodel.Reader) bool {
-	allowedChecks := GetInfraBasicAllowedChecks(cfg)
+	allowedChecks := GetAllowedChecks(cfg)
 	if len(allowedChecks) == 0 {
 		return true
 	}
