@@ -678,13 +678,13 @@ func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
 	switch ctx.PackageType {
 	case PackageTypeDEB:
 		unitType = embedded.SystemdUnitTypeDebRpm
-		unitsPath = debUnitsPath
+		unitsPath = systemdDebPath
 	case PackageTypeRPM:
 		unitType = embedded.SystemdUnitTypeDebRpm
-		unitsPath = rpmUnitsPath
+		unitsPath = systemdRPMPath
 	case PackageTypeOCI:
 		unitType = embedded.SystemdUnitTypeOCI
-		unitsPath = ociUnitsPath
+		unitsPath = systemdOCIPath
 	}
 	for _, unit := range units {
 		content, err := embedded.GetSystemdUnit(unit, unitType)
