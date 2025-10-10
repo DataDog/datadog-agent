@@ -106,7 +106,7 @@ var (
 		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security"},
 
 		SysvinitMainService: "datadog-agent",
-		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security"},
+		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-sysprobe"},
 	}
 )
 
@@ -513,7 +513,7 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	case service.UpstartType:
 		return nil // Nothing to do, files are embedded in the package
 	case service.SysvinitType:
-		return writeEmbeddedSysvinitAndReload(ctx, s.SysvinitServices...)
+		return writeEmbeddedSysvinit(ctx, s.SysvinitServices...)
 	}
 	return fmt.Errorf("unsupported service manager")
 }
@@ -608,20 +608,24 @@ func isAgentConfigFilePresent() (bool, error) {
 }
 
 const (
-	ociUnitsPath = "/etc/systemd/system"
-	debUnitsPath = "/lib/systemd/system"
-	rpmUnitsPath = "/usr/lib/systemd/system"
+	// Systemd unit paths for different package types
+	systemdOCIPath = "/etc/systemd/system"
+	systemdDebPath = "/lib/systemd/system"
+	systemdRPMPath = "/usr/lib/systemd/system"
+
+	// SysVinit scripts are always in /etc/init.d regardless of package type
+	sysvinitPath = "/etc/init.d"
 )
 
-func removeUnits(ctx HookContext, units ...string) error {
+func removeSystemdUnits(ctx HookContext, units ...string) error {
 	var unitsPath string
 	switch ctx.PackageType {
 	case PackageTypeDEB:
-		unitsPath = debUnitsPath
+		unitsPath = systemdDebPath
 	case PackageTypeRPM:
-		unitsPath = rpmUnitsPath
+		unitsPath = systemdRPMPath
 	case PackageTypeOCI:
-		unitsPath = ociUnitsPath
+		unitsPath = systemdOCIPath
 	}
 	for _, unit := range units {
 		err := os.Remove(filepath.Join(unitsPath, unit))
@@ -630,6 +634,42 @@ func removeUnits(ctx HookContext, units ...string) error {
 		}
 	}
 	return nil
+}
+
+func removeSysvinitUnits(ctx HookContext, units ...string) error {
+	for _, unit := range units {
+		// Remove init script
+		err := os.Remove(filepath.Join(sysvinitPath, unit))
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove init script: %v", err)
+		}
+
+		// Clean up runlevel symlinks
+		switch ctx.PackageType {
+		case PackageTypeDEB:
+			if err := sysvinit.Remove(ctx, unit); err != nil {
+				return fmt.Errorf("failed to remove rc.d links: %v", err)
+			}
+		case PackageTypeRPM:
+			if err := sysvinit.ChkConfigDel(ctx, unit); err != nil {
+				return fmt.Errorf("failed to remove chkconfig links: %v", err)
+			}
+		}
+	}
+	return nil
+}
+
+func removeUnits(ctx HookContext, units ...string) error {
+	switch service.GetServiceManagerType() {
+	case service.SystemdType:
+		return removeSystemdUnits(ctx, units...)
+	case service.SysvinitType:
+		return removeSysvinitUnits(ctx, units...)
+	case service.UpstartType:
+		return nil // Nothing to do, files are embedded in the package
+	default:
+		return fmt.Errorf("unsupported service manager")
+	}
 }
 
 func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
@@ -659,7 +699,7 @@ func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
 	return systemd.Reload(ctx)
 }
 
-func writeEmbeddedSysvinitAndReload(ctx HookContext, units ...string) error {
+func writeEmbeddedSysvinit(ctx HookContext, units ...string) error {
 	var unitType embedded.SysvinitUnitType
 	switch ctx.PackageType {
 	case PackageTypeDEB:
@@ -669,7 +709,7 @@ func writeEmbeddedSysvinitAndReload(ctx HookContext, units ...string) error {
 	default:
 		return fmt.Errorf("unsupported package type for sysvinit: %s", ctx.PackageType)
 	}
-	unitsPath := "/etc/init.d"
+	unitsPath := sysvinitPath
 
 	for _, unit := range units {
 		prefix := "sysvinit_debian"
@@ -690,7 +730,7 @@ func writeEmbeddedSysvinitAndReload(ctx HookContext, units ...string) error {
 			return err
 		}
 	}
-	return nil // Package manager will handle update-rc.d/chkconfig during installation
+	return nil
 }
 
 func writeEmbeddedUnit(dir string, unit string, content []byte) error {
