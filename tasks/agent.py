@@ -18,10 +18,6 @@ from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_defau
 from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.gointegrationtest import (
-    CORE_AGENT_WINDOWS_IT_CONF,
-    containerized_integration_tests,
-)
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -132,7 +128,6 @@ def build(
     embedded_path=None,
     rtloader_root=None,
     python_home_3=None,
-    major_version='7',
     exclude_rtloader=False,
     include_sds=False,
     go_mod="readonly",
@@ -166,7 +161,6 @@ def build(
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
-        major_version=major_version,
     )
 
     bundled_agents = ["agent"]
@@ -178,7 +172,7 @@ def build(
         # Do not call build_rc when cross-compiling on Linux as the intend is more
         # to streamline the development process that producing a working executable / installer
         if sys.platform == 'win32':
-            vars = versioninfo_vars(ctx, major_version=major_version)
+            vars = versioninfo_vars(ctx)
             build_rc(
                 ctx,
                 "cmd/agent/windows_resources/agent.rc",
@@ -593,17 +587,6 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
             ctx.run(f'docker push {target_image}')
 
 
-@task
-def integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
-    """
-    Run integration tests for the Agent
-    """
-    if sys.platform == 'win32':
-        return containerized_integration_tests(
-            ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, go_mod=go_mod, timeout=timeout
-        )
-
-
 def check_supports_python_version(check_dir, python):
     """
     Check if a Python project states support for a given major Python version.
@@ -721,7 +704,6 @@ def version(
     url_safe=False,
     omnibus_format=False,
     git_sha_length=7,
-    major_version='7',
     cache_version=False,
     pipeline_id=None,
     include_git=True,
@@ -747,7 +729,6 @@ def version(
         include_git=include_git,
         url_safe=url_safe,
         git_sha_length=git_sha_length,
-        major_version=major_version,
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
         include_pre=include_pre,
