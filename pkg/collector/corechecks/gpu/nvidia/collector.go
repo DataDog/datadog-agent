@@ -15,6 +15,7 @@ package nvidia
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -94,6 +95,8 @@ type CollectorDependencies struct {
 	SystemProbeCache *SystemProbeCache
 	// NsPidCache is a cache used for the resolution of nspids of processes
 	NsPidCache *NsPidCache
+	// Telemetry is the telemetry component to use for collecting metrics
+	Telemetry telemetry.Component
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
@@ -104,6 +107,10 @@ func BuildCollectors(devices []ddnvml.Device, deps *CollectorDependencies) ([]Co
 
 func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
+	var telemetry *collectorTelemetry
+	if deps.Telemetry != nil {
+		telemetry = newCollectorTelemetry(deps.Telemetry)
+	}
 
 	// Step 1: Build NVML collectors for physical devices only,
 	// (since most of NVML API doesn't support MIG devices)
@@ -112,12 +119,15 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 			c, err := builder(dev, deps)
 			if errors.Is(err, errUnsupportedDevice) {
 				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
+				telemetry.addCollector(name, "unsupported")
 				continue
 			} else if err != nil {
 				log.Warnf("failed to create collector %s: %s", name, err)
+				telemetry.addCollector(name, "error")
 				continue
 			}
 
+			telemetry.addCollector(name, "success")
 			collectors = append(collectors, c)
 		}
 	}
@@ -129,11 +139,33 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 			spCollector, err := newEbpfCollector(dev, deps.NsPidCache, deps.SystemProbeCache)
 			if err != nil {
 				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
+				telemetry.addCollector(ebpf, "error")
 				continue
 			}
+
+			telemetry.addCollector(ebpf, "success")
 			collectors = append(collectors, spCollector)
 		}
 	}
 
 	return collectors, nil
 }
+
+type collectorTelemetry struct {
+	collectors telemetry.Counter
+}
+
+func newCollectorTelemetry(tm telemetry.Component) *collectorTelemetry {
+	return &collectorTelemetry{
+		collectors: tm.NewCounter("gpu.collectors", "created", []string{"collector", "status"}, "Number of collectors and their creation result"),
+	}
+}
+
+// addCollector adds a collector to the telemetry, checking that the telemetry is not nil
+func (t *collectorTelemetry) addCollector(name CollectorName, status string) {
+	if t == nil {
+		return
+	}
+	t.collectors.Add(1, string(name), status)
+}
+
