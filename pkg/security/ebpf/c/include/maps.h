@@ -60,7 +60,7 @@ BPF_HASH_MAP(cgroup_mount_id, u32, u32, 1)
 BPF_HASH_MAP_FLAGS(active_flows, u32, struct active_flows_t, 1, BPF_F_NO_PREALLOC) // max entry will be overridden at runtime
 BPF_HASH_MAP_FLAGS(inet_bind_args, u64, struct inet_bind_args_t, 1, BPF_F_NO_PREALLOC) // max entries will be overridden at runtime
 
-BPF_LRU_MAP(traced_cgroups_discarded, struct path_key_t, u8, 256)
+BPF_LRU_MAP(traced_cgroups_discarded, struct path_key_t, u8, 512)
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(mount_ref, u32, struct mount_ref_t, 64000)
