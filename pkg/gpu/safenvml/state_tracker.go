@@ -34,27 +34,22 @@ type NvmlStateTracker struct {
 	// Telemetry metrics
 	errorCounter     telemetry.Counter
 	unavailableGauge telemetry.Gauge
+	checkInterval    time.Duration
 
 	// Goroutine lifecycle management
-	checkInterval time.Duration
-	done          chan struct{}
-	wg            sync.WaitGroup
+	done chan struct{}
+	wg   sync.WaitGroup
 }
 
 // NewNvmlStateTracker creates a new NvmlStateTracker with the given telemetry component.
 func NewNvmlStateTracker(tm telemetry.Component) *NvmlStateTracker {
-	return NewNvmlStateTrackerWithInterval(tm, defaultCheckInterval)
-}
-
-// NewNvmlStateTrackerWithInterval creates a new NvmlStateTracker with a custom check interval.
-func NewNvmlStateTrackerWithInterval(tm telemetry.Component, checkInterval time.Duration) *NvmlStateTracker {
 	subsystem := "gpu__nvml"
 
 	return &NvmlStateTracker{
 		errorCounter:     tm.NewCounter(subsystem, "init_errors", nil, "Number of errors when initializing NVML library"),
 		unavailableGauge: tm.NewGauge(subsystem, "library_unavailable", nil, "Whether NVML library is unavailable after threshold time (1=unavailable, 0=available)"),
-		checkInterval:    checkInterval,
 		done:             make(chan struct{}),
+		checkInterval:    defaultCheckInterval,
 	}
 }
 
@@ -74,6 +69,8 @@ func (n *NvmlStateTracker) Check() {
 		// Check if threshold has been exceeded
 		if time.Since(n.firstCheckTime) >= nvmlUnavailableThreshold {
 			n.unavailableGauge.Set(1)
+		} else {
+			n.unavailableGauge.Set(0)
 		}
 	} else {
 		// Library is available - reset state and set gauge to 0 if it was previously set
@@ -88,7 +85,7 @@ func (n *NvmlStateTracker) Start() {
 	go func() {
 		defer n.wg.Done()
 
-		ticker := time.NewTicker(n.checkInterval)
+		ticker := time.NewTicker(defaultCheckInterval)
 		defer ticker.Stop()
 
 		// Perform initial check immediately

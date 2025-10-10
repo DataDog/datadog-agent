@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,64 +21,147 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// mockFailingNvmlNew returns a mock that always fails initialization
+func mockFailingNvmlNew(_ ...nvml.LibraryOption) nvml.Interface {
+	return &nvmlmock.Interface{
+		InitFunc: func() nvml.Return {
+			return nvml.ERROR_UNKNOWN
+		},
+	}
+}
+
+// mockSuccessfulNvmlNew returns a mock that successfully initializes
+func mockSuccessfulNvmlNew(_ ...nvml.LibraryOption) nvml.Interface {
+	return &nvmlmock.Interface{
+		InitFunc: func() nvml.Return {
+			return nvml.SUCCESS
+		},
+		ExtensionsFunc: func() nvml.ExtendedInterface {
+			return &nvmlmock.ExtendedInterface{
+				LookupSymbolFunc: func(_ string) error {
+					return nil
+				},
+			}
+		},
+	}
+}
+
 func TestNvmlStateTracker_CheckUnavailable(t *testing.T) {
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tracker := NewNvmlStateTracker(telemetryComp)
+	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
+	telemetryMock := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tracker := NewNvmlStateTracker(telemetryMock)
 
 	// First check - should increment error counter but not set unavailable gauge
 	tracker.Check()
-	assert.Equal(t, 1, tracker.errorCount)
-	assert.False(t, tracker.unavailabilityMarked)
-	assert.False(t, tracker.firstCheckTime.IsZero())
+
+	// Verify error counter increased
+	errorMetrics, err := telemetryMock.GetCountMetric("gpu__nvml", "init_errors")
+	require.NoError(t, err)
+	require.Len(t, errorMetrics, 1)
+	assert.Equal(t, float64(1), errorMetrics[0].Value())
+
+	// Library should not still be marked as unavailable
+	gaugeMetrics, err := telemetryMock.GetGaugeMetric("gpu__nvml", "library_unavailable")
+	require.NoError(t, err)
+	require.Len(t, gaugeMetrics, 1)
+	assert.Equal(t, float64(0), gaugeMetrics[0].Value())
 
 	// Simulate time passing beyond threshold (threshold is 5 minutes)
-	tracker.mu.Lock()
-	tracker.firstCheckTime = time.Now().Add(-6 * time.Minute)
-	tracker.mu.Unlock()
+	tracker.firstCheckTime = time.Now().Add(-2 * nvmlUnavailableThreshold)
 
 	// Second check - should now mark as unavailable
 	tracker.Check()
-	assert.Equal(t, 2, tracker.errorCount)
-	assert.True(t, tracker.unavailabilityMarked)
+
+	// Verify error counter increased again
+	errorMetrics, err = telemetryMock.GetCountMetric("gpu__nvml", "init_errors")
+	require.NoError(t, err)
+	require.Len(t, errorMetrics, 1)
+	assert.Equal(t, float64(2), errorMetrics[0].Value())
+
+	// Verify gauge is now set to 1
+	gaugeMetrics, err = telemetryMock.GetGaugeMetric("gpu__nvml", "library_unavailable")
+	require.NoError(t, err)
+	require.Len(t, gaugeMetrics, 1)
+	assert.Equal(t, float64(1), gaugeMetrics[0].Value())
 }
 
 func TestNvmlStateTracker_CheckMultipleErrors(t *testing.T) {
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tracker := NewNvmlStateTracker(telemetryComp)
+	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
+	telemetryMock := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tracker := NewNvmlStateTracker(telemetryMock)
 
 	// Multiple checks before threshold
 	for i := 0; i < 5; i++ {
 		tracker.Check()
 	}
 
-	assert.Equal(t, 5, tracker.errorCount)
-	assert.False(t, tracker.unavailabilityMarked)
+	// Verify error counter increased
+	errorMetrics, err := telemetryMock.GetCountMetric("gpu__nvml", "init_errors")
+	require.NoError(t, err)
+	require.Len(t, errorMetrics, 1)
+	assert.Equal(t, float64(5), errorMetrics[0].Value())
+
+	// Library should not still be marked as unavailable
+	gaugeMetrics, err := telemetryMock.GetGaugeMetric("gpu__nvml", "library_unavailable")
+	require.NoError(t, err)
+	require.Len(t, gaugeMetrics, 1)
+	assert.Equal(t, float64(0), gaugeMetrics[0].Value())
 }
 
 func TestNvmlStateTracker_CheckRecovery(t *testing.T) {
-	// Skip this test if NVML is not available, as we can't test recovery
-	// without being able to initialize the library successfully
-	t.Skip("Skipping recovery test - requires NVML library to be available")
-}
+	telemetryMock := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tracker := NewNvmlStateTracker(telemetryMock)
 
-func TestNewNvmlStateTracker(t *testing.T) {
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tracker := NewNvmlStateTracker(telemetryComp)
+	// Start with failing initialization
+	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
 
-	require.NotNil(t, tracker)
-	require.NotNil(t, tracker.errorCounter)
-	require.NotNil(t, tracker.unavailableGauge)
-	assert.Equal(t, 0, tracker.errorCount)
-	assert.True(t, tracker.firstCheckTime.IsZero())
-	assert.False(t, tracker.unavailabilityMarked)
-	assert.Equal(t, defaultCheckInterval, tracker.checkInterval)
-	require.NotNil(t, tracker.done)
+	// First check - should fail and increment error counter
+	tracker.Check()
+
+	// Verify error counter increased
+	errorMetrics, err := telemetryMock.GetCountMetric("gpu__nvml", "init_errors")
+	require.NoError(t, err)
+	require.Len(t, errorMetrics, 1)
+	assert.Equal(t, float64(1), errorMetrics[0].Value())
+
+	// Simulate time passing beyond threshold
+	tracker.firstCheckTime = time.Now().Add(-2 * nvmlUnavailableThreshold)
+
+	// Second check - should mark as unavailable
+	tracker.Check()
+
+	// Verify gauge is set to 1
+	gaugeMetrics, err := telemetryMock.GetGaugeMetric("gpu__nvml", "library_unavailable")
+	require.NoError(t, err)
+	require.Len(t, gaugeMetrics, 1)
+	assert.Equal(t, float64(1), gaugeMetrics[0].Value())
+
+	// Now simulate recovery by switching to successful initialization
+	resetSingleton()
+	nvmlNewFunc = mockSuccessfulNvmlNew
+
+	// Check again - should now succeed
+	tracker.Check()
+
+	// Verify gauge is reset to 0
+	gaugeMetrics, err = telemetryMock.GetGaugeMetric("gpu__nvml", "library_unavailable")
+	require.NoError(t, err)
+	require.Len(t, gaugeMetrics, 1)
+	assert.Equal(t, float64(0), gaugeMetrics[0].Value(), "Gauge should be reset to 0 after recovery")
+
+	// Verify error counter did not increase (recovery doesn't count as error)
+	errorMetrics, err = telemetryMock.GetCountMetric("gpu__nvml", "init_errors")
+	require.NoError(t, err)
+	require.Len(t, errorMetrics, 1)
+	assert.Equal(t, float64(2), errorMetrics[0].Value(), "Error counter should not increase after successful recovery")
 }
 
 func TestNvmlStateTracker_StartStop(t *testing.T) {
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
+	telemetryMock := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	// Use a short interval for testing
-	tracker := NewNvmlStateTrackerWithInterval(telemetryComp, 100*time.Millisecond)
+	tracker := NewNvmlStateTracker(telemetryMock)
+	tracker.checkInterval = 100 * time.Millisecond
 
 	// Start the tracker
 	tracker.Start()
@@ -85,46 +170,50 @@ func TestNvmlStateTracker_StartStop(t *testing.T) {
 	time.Sleep(350 * time.Millisecond)
 
 	// Verify some checks occurred (error count should be > 0 since NVML is not available in test)
-	tracker.mu.Lock()
-	errorCount := tracker.errorCount
-	tracker.mu.Unlock()
+	errorMetrics, err := telemetryMock.GetCountMetric("gpu__nvml", "init_errors")
+	require.NoError(t, err)
+	require.Len(t, errorMetrics, 1)
+	errorCount := errorMetrics[0].Value()
 
-	assert.Greater(t, errorCount, 0, "Expected at least one check to have occurred")
-	assert.LessOrEqual(t, errorCount, 5, "Expected no more than 5 checks in 350ms with 100ms interval")
+	assert.Greater(t, errorCount, float64(0), "Expected at least one check to have occurred")
+	assert.LessOrEqual(t, errorCount, float64(5), "Expected no more than 5 checks in 350ms with 100ms interval")
 
 	// Stop should cleanly shut down
 	tracker.Stop()
 
 	// After stop, no more checks should occur
-	tracker.mu.Lock()
-	errorCountAfterStop := tracker.errorCount
-	tracker.mu.Unlock()
+	errorMetrics, err = telemetryMock.GetCountMetric("gpu__nvml", "init_errors")
+	require.NoError(t, err)
+	require.Len(t, errorMetrics, 1)
+	errorCountAfterStop := errorMetrics[0].Value()
 
 	time.Sleep(200 * time.Millisecond)
 
-	tracker.mu.Lock()
-	errorCountAfterWait := tracker.errorCount
-	tracker.mu.Unlock()
+	errorMetrics, err = telemetryMock.GetCountMetric("gpu__nvml", "init_errors")
+	require.NoError(t, err)
+	require.Len(t, errorMetrics, 1)
+	errorCountAfterWait := errorMetrics[0].Value()
 
 	assert.Equal(t, errorCountAfterStop, errorCountAfterWait, "No checks should occur after Stop()")
 }
 
 func TestNvmlStateTracker_StartPerformsImmediateCheck(t *testing.T) {
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
+	telemetryMock := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	// Use a long interval so we can verify the immediate check
-	tracker := NewNvmlStateTrackerWithInterval(telemetryComp, 10*time.Second)
+	tracker := NewNvmlStateTracker(telemetryMock)
+	tracker.checkInterval = 10 * time.Second
 
 	// Start the tracker
 	tracker.Start()
-	defer tracker.Stop()
+	t.Cleanup(tracker.Stop)
 
 	// Give it a moment to perform the initial check
 	time.Sleep(50 * time.Millisecond)
 
 	// Verify the immediate check occurred
-	tracker.mu.Lock()
-	errorCount := tracker.errorCount
-	tracker.mu.Unlock()
-
-	assert.Equal(t, 1, errorCount, "Expected exactly one check immediately after Start()")
+	errorMetrics, err := telemetryMock.GetCountMetric("gpu__nvml", "init_errors")
+	require.NoError(t, err)
+	require.Len(t, errorMetrics, 1)
+	assert.Equal(t, float64(1), errorMetrics[0].Value(), "Expected exactly one check immediately after Start()")
 }
