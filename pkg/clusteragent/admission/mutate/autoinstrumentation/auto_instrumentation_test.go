@@ -20,7 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -1797,27 +1796,6 @@ func TestInjectLibInitContainer(t *testing.T) {
 	}
 }
 
-func expBasicConfig() []corev1.EnvVar {
-	return []corev1.EnvVar{
-		{
-			Name:  "DD_RUNTIME_METRICS_ENABLED",
-			Value: "true",
-		},
-		{
-			Name:  "DD_TRACE_HEALTH_METRICS_ENABLED",
-			Value: "true",
-		},
-		{
-			Name:  "DD_TRACE_ENABLED",
-			Value: "true",
-		},
-		{
-			Name:  "DD_LOGS_INJECTION",
-			Value: "true",
-		},
-	}
-}
-
 func injectAllEnvs() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
@@ -1857,11 +1835,6 @@ func injectAllEnvs() []corev1.EnvVar {
 			Value: "/datadog-lib/logs",
 		},
 	}
-}
-
-func getLanguageFromInitContainerName(initContainerName string) string {
-	trimmedSuffix := strings.TrimSuffix(initContainerName, "-init")
-	return strings.TrimPrefix(trimmedSuffix, "datadog-lib-")
 }
 
 func TestShouldInject(t *testing.T) {
@@ -2054,24 +2027,6 @@ func TestShouldInject(t *testing.T) {
 			require.Equal(t, tt.want, mutator.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
-}
-
-func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Webhook, error) {
-	config, err := NewConfig(ddConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	mutator, err := NewNamespaceMutator(config, wmeta, imageResolver)
-	if err != nil {
-		return nil, err
-	}
-	webhook, err := NewWebhook(config, wmeta, mutator)
-	if err != nil {
-		return nil, err
-	}
-
-	return webhook, nil
 }
 
 func languageSetOf(languages ...string) languagemodels.LanguageSet {
