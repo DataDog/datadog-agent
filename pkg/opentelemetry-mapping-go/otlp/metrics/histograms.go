@@ -151,8 +151,6 @@ func toStoreFromExponentialBucketsWithUnitScale(b pmetric.ExponentialHistogramDa
 
 			// Convert back to the index in the nanosecond space
 			// Using the same gamma since we're keeping the same precision
-			// scaledIndex := int(math.Log(scaledValue) / math.Log(base))
-
 			scaledIndex := mapping.Index(scaledValue)
 			store.AddWithCount(scaledIndex, float64(count))
 		}
