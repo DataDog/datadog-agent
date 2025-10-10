@@ -70,4 +70,3 @@ func receiverLabelValues(tags Tags) []string {
 		tags.Service,
 	}
 }
-
