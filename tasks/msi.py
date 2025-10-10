@@ -77,15 +77,13 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', flavor=None):
+def _get_env(ctx, flavor=None):
     env = load_dependencies(ctx)
 
     if flavor is None:
         flavor = os.getenv("AGENT_FLAVOR", "")
 
-    env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
-    )
+    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
     env['AGENT_FLAVOR'] = flavor
     env['AGENT_INSTALLER_OUTPUT_DIR'] = BUILD_OUTPUT_DIR
     env['NUGET_PACKAGES_DIR'] = NUGET_PACKAGES_DIR
@@ -296,7 +294,6 @@ def build(
     ctx,
     vstudio_root=None,
     arch="x64",
-    major_version='7',
     flavor=None,
     debug=False,
     build_upgrade=False,
@@ -304,7 +301,7 @@ def build(
     """
     Build the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, flavor=flavor)
+    env = _get_env(ctx, flavor=flavor)
     env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
@@ -370,9 +367,7 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
     """
     env = {}
     env['OMNIBUS_TARGET'] = 'installer'
-    env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version="7", include_pipeline_id=True
-    )
+    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
     env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
     env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
     configuration = _msbuild_configuration(debug=debug)
@@ -403,11 +398,11 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
+def test(ctx, vstudio_root=None, arch="x64", debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version)
+    env = _get_env(ctx)
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
 

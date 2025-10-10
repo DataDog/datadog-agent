@@ -15,12 +15,12 @@ import (
 	"sync"
 	"unsafe"
 
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -159,7 +159,8 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	var name string
 	var checkModule *C.rtloader_pyobject_t
 	var checkClass *C.rtloader_pyobject_t
-	for _, name = range modules {
+	var loadErrors []string // store errors for each module
+	for _, name := range modules {
 		// TrackedCStrings untracked by memory tracker currently
 		moduleName := TrackedCString(name)
 		defer C._free(unsafe.Pointer(moduleName))
@@ -170,17 +171,19 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 			break
 		}
 
-		if err = getRtLoaderError(); err != nil {
+		if err := getRtLoaderError(); err != nil {
 			log.Debugf("Unable to load python module - %s: %v", name, err)
+			loadErrors = append(loadErrors, fmt.Sprintf("unable to load python module %s: %v", name, err))
 		} else {
 			log.Debugf("Unable to load python module - %s", name)
+			loadErrors = append(loadErrors, fmt.Sprintf("unable to load python module %s", name))
 		}
 	}
 
-	// all failed, return error for last failure
 	if checkModule == nil || checkClass == nil {
-		log.Debugf("PyLoader returning %s for %s", err, moduleName)
-		return nil, fmt.Errorf("unable to load python module %s: %v", name, err)
+		errMsg := strings.Join(loadErrors, ", ")
+		log.Debugf("Unable to load check %s: %s", moduleName, errMsg)
+		return nil, fmt.Errorf("unable to load check %s: %s", moduleName, errMsg)
 	}
 
 	wheelVersion := "unversioned"
