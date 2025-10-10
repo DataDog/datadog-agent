@@ -21,7 +21,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
@@ -180,38 +179,7 @@ func (c *collector) detectLaunchType(ctx context.Context) workloadmeta.ECSLaunch
 	return workloadmeta.ECSLaunchTypeEC2
 }
 
-func (c *collector) initializeDaemonMode(ctx context.Context) error {
-	var err error
-
-	// Daemon mode requires v1 API access
-	c.metaV1, err = ecsmeta.V1()
-	if err != nil {
-		return errors.NewRetriable(componentName, err)
-	}
-
-	// This only exists to allow overriding for testing
-	c.metaV3or4 = func(metaURI, metaVersion string) v3or4.Client {
-		return v3or4.NewClient(metaURI, metaVersion, v3or4.WithTryOption(
-			c.metadataRetryInitialInterval,
-			c.metadataRetryMaxElapsedTime,
-			func(d time.Duration) time.Duration { return time.Duration(c.metadataRetryTimeoutFactor) * d }),
-		)
-	}
-
-	c.hasResourceTags = ecsutil.HasEC2ResourceTags()
-	c.collectResourceTags = c.config.GetBool("ecs_collect_resource_tags_ec2")
-
-	instance, err := c.metaV1.GetInstance(ctx)
-	if err == nil {
-		c.clusterName = instance.Cluster
-		c.containerInstanceARN = instance.ContainerInstanceARN
-		c.setTaskCollectionParser(instance.Version)
-	} else {
-		log.Warnf("cannot determine ECS cluster name: %s", err)
-	}
-
-	return nil
-}
+// initializeDaemonMode is defined in daemon_parser.go
 
 func (c *collector) initializeSidecarMode(ctx context.Context) error {
 	var err error
@@ -231,29 +199,7 @@ func (c *collector) initializeSidecarMode(ctx context.Context) error {
 	return nil
 }
 
-func (c *collector) setTaskCollectionParser(version string) {
-	if !c.taskCollectionEnabled {
-		log.Infof("detailed task collection disabled, using metadata v1 endpoint")
-		c.taskCollectionParser = c.parseTasksFromV1Endpoint
-		return
-	}
-
-	ok, err := ecsmeta.IsMetadataV4Available(util.ParseECSAgentVersion(version))
-	if err != nil {
-		log.Warnf("detailed task collection enabled but agent cannot determine if v4 metadata endpoint is available, using metadata v1 endpoint: %s", err.Error())
-		c.taskCollectionParser = c.parseTasksFromV1Endpoint
-		return
-	}
-
-	if !ok {
-		log.Infof("detailed task collection enabled but v4 metadata endpoint is not available, using metadata v1 endpoint")
-		c.taskCollectionParser = c.parseTasksFromV1Endpoint
-		return
-	}
-
-	log.Infof("detailed task collection enabled, using metadata v4 endpoint")
-	c.taskCollectionParser = c.parseTasksFromV4Endpoint
-}
+// setTaskCollectionParserForDaemon is defined in daemon_parser.go
 
 func (c *collector) Pull(ctx context.Context) error {
 	// we always parse all the tasks coming from the API, as they are not
@@ -276,34 +222,4 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func (c *collector) setLastSeenEntitiesAndUnsetEvents(events []workloadmeta.CollectorEvent, seen map[workloadmeta.EntityID]struct{}) []workloadmeta.CollectorEvent {
-	for seenID := range c.seen {
-		if _, ok := seen[seenID]; ok {
-			continue
-		}
-
-		if c.hasResourceTags && seenID.Kind == workloadmeta.KindECSTask {
-			delete(c.resourceTags, seenID.ID)
-		}
-
-		var entity workloadmeta.Entity
-		switch seenID.Kind {
-		case workloadmeta.KindECSTask:
-			entity = &workloadmeta.ECSTask{EntityID: seenID}
-		case workloadmeta.KindContainer:
-			entity = &workloadmeta.Container{EntityID: seenID}
-		default:
-			log.Errorf("cannot handle expired entity of kind %q, skipping", seenID.Kind)
-			continue
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceNodeOrchestrator,
-			Entity: entity,
-		})
-	}
-
-	c.seen = seen
-	return events
-}
+// setLastSeenEntitiesAndUnsetEvents is defined in daemon_parser.go

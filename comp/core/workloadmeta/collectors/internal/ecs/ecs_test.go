@@ -11,6 +11,10 @@ package ecs
 import (
 	"context"
 	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
@@ -65,4 +69,70 @@ func (store *fakev3or4EcsClient) GetTaskWithTags(ctx context.Context) (*v3or4.Ta
 
 func (*fakev3or4EcsClient) GetContainer(_ context.Context) (*v3or4.Container, error) {
 	return nil, errors.New("unimplemented")
+}
+
+// TestPull tests the Pull method
+func TestPull(t *testing.T) {
+	store := &fakeWorkloadmetaStore{}
+
+	mockParser := func(ctx context.Context) ([]workloadmeta.CollectorEvent, error) {
+		return []workloadmeta.CollectorEvent{
+			{
+				Type:   workloadmeta.EventTypeSet,
+				Source: workloadmeta.SourceRuntime,
+				Entity: &workloadmeta.ECSTask{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindECSTask,
+						ID:   "test-task",
+					},
+				},
+			},
+		}, nil
+	}
+
+	collector := &collector{
+		store:                store,
+		taskCollectionParser: mockParser,
+	}
+
+	err := collector.Pull(context.Background())
+	require.NoError(t, err)
+	require.Len(t, store.notifiedEvents, 1)
+	assert.Equal(t, workloadmeta.EventTypeSet, store.notifiedEvents[0].Type)
+}
+
+// TestPullError tests Pull method error handling
+func TestPullError(t *testing.T) {
+	store := &fakeWorkloadmetaStore{}
+
+	mockParser := func(ctx context.Context) ([]workloadmeta.CollectorEvent, error) {
+		return nil, errors.New("parser error")
+	}
+
+	collector := &collector{
+		store:                store,
+		taskCollectionParser: mockParser,
+	}
+
+	err := collector.Pull(context.Background())
+	require.Error(t, err)
+	assert.Equal(t, "parser error", err.Error())
+	require.Len(t, store.notifiedEvents, 0)
+}
+
+// TestGetID tests the GetID method
+func TestGetID(t *testing.T) {
+	collector := &collector{
+		id: collectorID,
+	}
+	assert.Equal(t, collectorID, collector.GetID())
+}
+
+// TestGetTargetCatalog tests the GetTargetCatalog method
+func TestGetTargetCatalog(t *testing.T) {
+	catalog := workloadmeta.NodeAgent | workloadmeta.ProcessAgent
+	collector := &collector{
+		catalog: catalog,
+	}
+	assert.Equal(t, catalog, collector.GetTargetCatalog())
 }
