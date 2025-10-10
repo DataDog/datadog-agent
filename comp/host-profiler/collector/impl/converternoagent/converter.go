@@ -28,36 +28,52 @@ func newConverter(_ confmap.ConverterSettings) confmap.Converter {
 }
 
 func (c *converterNoAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	return removeInfraAttributesProcessor(conf)
+	conf.Delete("processors::" + infraAttributesName())
+	conf.Delete("extensions::" + ddprofilingName())
+
+	confStringMap := conf.ToStringMap()
+
+	if err := removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", infraAttributesName()); err != nil {
+		return err
+	}
+
+	if err := removeFromList(confStringMap, []string{"service"}, "extensions", ddprofilingName()); err != nil {
+		return err
+	}
+
+	*conf = *confmap.NewFromStringMap(confStringMap)
+	return nil
+
 }
 
 func infraAttributesName() string {
 	return "infraattributes/default"
 }
 
-func removeInfraAttributesProcessor(conf *confmap.Conf) error {
-	conf.Delete("processors::" + infraAttributesName())
-	confStringMap := conf.ToStringMap()
-	profilesMap, err := getMapStr(confStringMap, []string{"service", "pipelines", "profiles"})
+func ddprofilingName() string {
+	return "ddprofiling/default"
+}
+
+func removeFromList(confStringMap map[string]any, parentNames []string, listName string, itemToRemove string) error {
+	parentMap, err := getMapStr(confStringMap, parentNames)
 	if err != nil {
 		return err
 	}
 
-	if profilesMap != nil {
-		processors, ok := profilesMap["processors"].([]any)
+	if parentMap != nil {
+		children, ok := parentMap[listName].([]any)
 		if !ok {
 			return nil
 		}
-		processors = slices.DeleteFunc(processors, func(item any) bool {
+		children = slices.DeleteFunc(children, func(item any) bool {
 			str, ok := item.(string)
 			if !ok {
 				return false
 			}
-			return str == infraAttributesName()
+			return str == itemToRemove
 		})
-		profilesMap["processors"] = processors
+		parentMap[listName] = children
 	}
-	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
 }
 

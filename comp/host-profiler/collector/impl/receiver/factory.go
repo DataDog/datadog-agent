@@ -23,7 +23,7 @@ import (
 // NewFactory creates a factory for the receiver.
 func NewFactory() receiver.Factory {
 	return xreceiver.NewFactory(
-		component.MustNewType("ddprofiling"),
+		component.MustNewType("hostprofiler"),
 		defaultConfig,
 		xreceiver.WithProfiles(createProfilesReceiver, component.StabilityLevelAlpha))
 }
