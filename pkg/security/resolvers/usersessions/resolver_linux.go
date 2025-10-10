@@ -188,19 +188,17 @@ func (r *IncrementalFileReader) Init(f *os.File) error {
 	r.ino = inodeOf(st)
 	_, err = r.f.Seek(r.offset, io.SeekStart)
 	if err != nil {
-		r.f.Close()
+		r.close()
 		r.f = nil
 	}
 	return err
 }
 
-// Close closes the file
-func (r *IncrementalFileReader) Close() error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+// close closes the file.
+// The lock of IncrementalFileReader must be held
+func (r *IncrementalFileReader) close() error {
 	if r.f != nil {
 		err := r.f.Close()
-		fmt.Print("Fail and close close")
 		r.f = nil
 		return err
 	}
@@ -228,7 +226,7 @@ func (r *IncrementalFileReader) reloadIfRotated() error {
 	if curIno != 0 && r.ino != 0 && curIno != r.ino {
 		// The file has been rotated
 		if r.f != nil {
-			_ = r.f.Close()
+			_ = r.close()
 			fmt.Print("Fail and close reload")
 			r.f = nil
 		}
@@ -245,7 +243,7 @@ func (r *IncrementalFileReader) reloadIfRotated() error {
 		}
 		_, err = r.f.Seek(r.offset, io.SeekStart)
 		if err != nil {
-			r.f.Close()
+			r.close()
 		}
 		r.f = nil
 		return err
