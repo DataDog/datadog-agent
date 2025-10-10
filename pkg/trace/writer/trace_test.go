@@ -82,7 +82,7 @@ func TestTraceWriter(t *testing.T) {
 			// Use a flush threshold that allows the first two entries to not overflow,
 			// but overflow on the third.
 			defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
-			tw := NewTraceWriterWithTelemetry(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, tc.compressor, nil)
+			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, tc.compressor, nil)
 			for _, ss := range testSpans {
 				tw.WriteChunks(ss)
 			}
@@ -122,7 +122,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 		randomSampledSpans(10, 0),
 		randomSampledSpans(40, 5),
 	}
-	tw := NewTraceWriterWithTelemetry(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
 
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
@@ -220,7 +220,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriterWithTelemetry(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
 		for _, ss := range testSpans {
 			tw.WriteChunks(ss)
 		}
@@ -248,7 +248,7 @@ func TestResetBuffer(t *testing.T) {
 		SynchronousFlushing: true,
 	}
 
-	w := NewTraceWriterWithTelemetry(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
+	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
 
 	runtime.GC()
 	var m runtime.MemStats
@@ -295,7 +295,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriterWithTelemetry(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
 		for _, ss := range testSpans {
 			tw.WriteChunks(ss)
 		}
@@ -323,7 +323,7 @@ func TestTraceWriterSyncNoop(t *testing.T) {
 		SynchronousFlushing: false,
 	}
 	t.Run("ok", func(t *testing.T) {
-		tw := NewTraceWriterWithTelemetry(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
 		err := tw.FlushSync()
 		assert.NotNil(t, err)
 	})
@@ -361,7 +361,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	}
 
 	t.Run("static TPS config", func(t *testing.T) {
-		tw := NewTraceWriterWithTelemetry(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
 		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)
 		assertExpectedTps(t, 5, 5, true, tw.compressor)
@@ -372,7 +372,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 		errorSampler := &MockSampler{TargetTPS: 6}
 		rareSampler := &MockSampler{Enabled: false}
 
-		tw := NewTraceWriterWithTelemetry(cfg, prioritySampler, errorSampler, rareSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
+		tw := NewTraceWriter(cfg, prioritySampler, errorSampler, rareSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
 		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)
 		assertExpectedTps(t, 5, 6, false, tw.compressor)
@@ -401,7 +401,7 @@ func TestTraceWriterUpdateAPIKey(t *testing.T) {
 		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 	}
 
-	tw := NewTraceWriterWithTelemetry(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent(), nil)
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent(), nil)
 	defer tw.Stop()
 
 	url, err := url.Parse(srv.URL + pathTraces)
@@ -443,7 +443,7 @@ func TestTraceWriterInfo(t *testing.T) {
 	// Use a flush threshold that allows the first two entries to not overflow,
 	// but overflow on the third.
 	defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
-	tw := NewTraceWriterWithTelemetry(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent(), nil)
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent(), nil)
 
 	time.Sleep(200 * time.Millisecond) // allow stats to be initialized
 
@@ -560,7 +560,7 @@ func BenchmarkSerialize(b *testing.B) {
 				}},
 				TraceWriter: &config.WriterConfig{},
 			}
-			tw := NewTraceWriterWithTelemetry(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
+			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent(), nil)
 			defer tw.Stop()
 
 			// Avoid the overhead of the senders so we're just measuring serialization
