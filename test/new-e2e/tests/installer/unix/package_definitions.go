@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -82,11 +84,7 @@ var PackagesConfig = []TestPackageConfig{
 }
 
 func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architecture) {
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-	}
-	env["DD_API_KEY"] = apiKey
+	env["DD_API_KEY"] = GetAPIKey()
 	env["DD_SITE"] = "datadoghq.com"
 	// Install Script env variables
 	env["TESTING_KEYS_URL"] = "apttesting.datad0g.com/test-keys"
@@ -129,14 +127,24 @@ func InstallScriptEnvWithPackages(arch e2eos.Architecture, packagesConfig []Test
 // InstallInstallerScriptEnvWithPackages returns the environment variables for the installer script for the given packages
 func InstallInstallerScriptEnvWithPackages() map[string]string {
 	env := map[string]string{}
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-	}
-	env["DD_API_KEY"] = apiKey
+	env["DD_API_KEY"] = GetAPIKey()
 	env["DD_SITE"] = "datadoghq.com"
 	installScriptInstallerEnv(env, PackagesConfig)
 	return env
+}
+
+// GetAPIKey returns the API key from the runner config, or a default value if not set
+//
+// Set the key in ~/.test_infra_config.yaml or use the E2E_API_KEY env var
+//
+// Do not use the DD_API_KEY env var, the CI uses it to report results to org2, the tests
+// should use a different key.
+func GetAPIKey() string {
+	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
+	if apiKey == "" || err != nil {
+		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+	}
+	return apiKey
 }
 
 // PipelineAgentVersion returns the version of the pipeline agent
