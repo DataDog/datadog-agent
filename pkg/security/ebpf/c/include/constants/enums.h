@@ -69,7 +69,7 @@ enum event_type
     EVENT_MOVE_MOUNT,
     FAILED_DNS,
     EVENT_TRACER_MEMFD_CREATE,
-    EVENT_TRACER_MEMFD_SEALED,
+    EVENT_TRACER_MEMFD_SEAL,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events

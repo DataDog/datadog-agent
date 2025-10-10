@@ -1585,7 +1585,7 @@ func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *TracerMemfdSealedEvent) UnmarshalBinary(data []byte) (int, error) {
+func (e *TracerMemfdSealEvent) UnmarshalBinary(data []byte) (int, error) {
 	read, err := UnmarshalBinary(data, &e.SyscallEvent)
 	if err != nil {
 		return 0, err

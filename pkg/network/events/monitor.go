@@ -52,8 +52,8 @@ type Process struct {
 	Expiry      int64
 }
 
-// TracerMemfdSealed represents a tracer memfd sealed event with tracer metadata
-type TracerMemfdSealed struct {
+// TracerMemfdSeal represents a tracer memfd seal event with tracer metadata
+type TracerMemfdSeal struct {
 	Fd      uint32
 	Process *Process
 }
@@ -106,7 +106,7 @@ func (h *eventConsumerWrapper) HandleEvent(ev any) {
 		return
 	}
 
-	if evMemfd, ok := ev.(*TracerMemfdSealed); ok {
+	if evMemfd, ok := ev.(*TracerMemfdSeal); ok {
 		tags := getTracerTags(evMemfd.Process.Pid, evMemfd.Fd)
 		if len(tags) > 0 {
 			evMemfd.Process.Tags = append(evMemfd.Process.Tags, tags...)
@@ -177,9 +177,9 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 		p.ContainerID = intern.GetByString(cid)
 	}
 
-	if ev.GetEventType() == model.TracerMemfdSealedEventType {
-		return &TracerMemfdSealed{
-			Fd:      ev.TracerMemfdSealed.Fd,
+	if ev.GetEventType() == model.TracerMemfdSealEventType {
+		return &TracerMemfdSeal{
+			Fd:      ev.TracerMemfdSeal.Fd,
 			Process: p,
 		}
 	}
@@ -192,7 +192,7 @@ func (h *eventConsumerWrapper) EventTypes() []model.EventType {
 	return []model.EventType{
 		model.ForkEventType,
 		model.ExecEventType,
-		model.TracerMemfdSealedEventType,
+		model.TracerMemfdSealEventType,
 	}
 }
 

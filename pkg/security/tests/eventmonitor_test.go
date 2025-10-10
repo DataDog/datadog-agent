@@ -75,12 +75,12 @@ func TestEventMonitor(t *testing.T) {
 	})
 
 	t.Run("tracer-memfd", func(t *testing.T) {
-		tracerMemfdCount := sec.TracerMemfdSealedCount()
+		tracerMemfdCount := sec.TracerMemfdSealCount()
 		cmd := exec.Command(syscallTester, "tracer-memfd")
 		_ = cmd.Run()
 
 		err := retry.Do(func() error {
-			if tracerMemfdCount+1 <= sec.TracerMemfdSealedCount() {
+			if tracerMemfdCount+1 <= sec.TracerMemfdSealCount() {
 				return nil
 			}
 

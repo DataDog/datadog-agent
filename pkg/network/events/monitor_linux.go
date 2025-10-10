@@ -24,7 +24,7 @@ func getProcessStartTime(ev *model.Event) time.Time {
 	if ev.GetEventType() == model.ForkEventType {
 		return ev.GetProcessForkTime()
 	}
-	if ev.GetEventType() == model.TracerMemfdSealedEventType {
+	if ev.GetEventType() == model.TracerMemfdSealEventType {
 		exec := ev.GetProcessExecTime()
 		fork := ev.GetProcessForkTime()
 		if exec.After(fork) {

@@ -122,7 +122,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 		forkTime := now.Add(-5 * time.Second)
 		ev := &model.Event{
 			BaseEvent: model.BaseEvent{
-				Type: uint32(model.TracerMemfdSealedEventType),
+				Type: uint32(model.TracerMemfdSealEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
 						PIDContext: model.PIDContext{
@@ -145,14 +145,14 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 			CGroupContext: &model.CGroupContext{
 				CGroupID: "cid_tracer_memfd",
 			},
-			TracerMemfdSealed: model.TracerMemfdSealedEvent{
+			TracerMemfdSeal: model.TracerMemfdSealEvent{
 				Fd: 5,
 			},
 		}
 		evHandler := &eventConsumerWrapper{}
 		_m := evHandler.Copy(ev)
-		require.IsType(t, &TracerMemfdSealed{}, _m, "Copy should return a *events.TracerMemfdSealed")
-		m := _m.(*TracerMemfdSealed)
+		require.IsType(t, &TracerMemfdSeal{}, _m, "Copy should return a *events.TracerMemfdSeal")
+		m := _m.(*TracerMemfdSeal)
 		assert.Equal(t, uint32(5), m.Fd)
 		require.NotNil(t, m.Process, "Process should not be nil")
 		assert.Equal(t, uint32(1234), m.Process.Pid)
@@ -171,7 +171,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 		execTime := now.Add(5 * time.Second)
 		ev := &model.Event{
 			BaseEvent: model.BaseEvent{
-				Type: uint32(model.TracerMemfdSealedEventType),
+				Type: uint32(model.TracerMemfdSealEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
 						PIDContext: model.PIDContext{
@@ -183,14 +183,14 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				},
 				FieldHandlers: &model.FakeFieldHandlers{},
 			},
-			TracerMemfdSealed: model.TracerMemfdSealedEvent{
+			TracerMemfdSeal: model.TracerMemfdSealEvent{
 				Fd: 5,
 			},
 		}
 		evHandler := &eventConsumerWrapper{}
 		_m := evHandler.Copy(ev)
-		require.IsType(t, &TracerMemfdSealed{}, _m, "Copy should return a *events.TracerMemfdSealed")
-		m := _m.(*TracerMemfdSealed)
+		require.IsType(t, &TracerMemfdSeal{}, _m, "Copy should return a *events.TracerMemfdSeal")
+		m := _m.(*TracerMemfdSeal)
 		assert.Equal(t, execTime.UnixNano(), m.Process.StartTime, "StartTime should be ExecTime when ExecTime is after ForkTime")
 	})
 
@@ -199,7 +199,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 		forkTime := now.Add(5 * time.Second)
 		ev := &model.Event{
 			BaseEvent: model.BaseEvent{
-				Type: uint32(model.TracerMemfdSealedEventType),
+				Type: uint32(model.TracerMemfdSealEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
 						PIDContext: model.PIDContext{
@@ -211,14 +211,14 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				},
 				FieldHandlers: &model.FakeFieldHandlers{},
 			},
-			TracerMemfdSealed: model.TracerMemfdSealedEvent{
+			TracerMemfdSeal: model.TracerMemfdSealEvent{
 				Fd: 5,
 			},
 		}
 		evHandler := &eventConsumerWrapper{}
 		_m := evHandler.Copy(ev)
-		require.IsType(t, &TracerMemfdSealed{}, _m, "Copy should return a *events.TracerMemfdSealed")
-		m := _m.(*TracerMemfdSealed)
+		require.IsType(t, &TracerMemfdSeal{}, _m, "Copy should return a *events.TracerMemfdSeal")
+		m := _m.(*TracerMemfdSeal)
 		assert.Equal(t, forkTime.UnixNano(), m.Process.StartTime, "StartTime should be ForkTime when ForkTime is after ExecTime")
 	})
 
@@ -233,7 +233,7 @@ func (m *mockProcessEventHandler) HandleProcessEvent(p *Process) {
 	m.events = append(m.events, p)
 }
 
-func TestEventHandleTracerMemfdSealed(t *testing.T) {
+func TestEventHandleTracerMemfdSeal(t *testing.T) {
 	require.NoError(t, Init())
 
 	handler := &mockProcessEventHandler{}
@@ -250,7 +250,7 @@ func TestEventHandleTracerMemfdSealed(t *testing.T) {
 		data := loadTestData(t, "../../discovery/tracermetadata/testdata/tracer_cpp.data")
 		fd := createTestMemfd(t, data)
 
-		memfdEvent := &TracerMemfdSealed{
+		memfdEvent := &TracerMemfdSeal{
 			Fd: uint32(fd),
 			Process: &Process{
 				Pid: pid,
@@ -274,7 +274,7 @@ func TestEventHandleTracerMemfdSealed(t *testing.T) {
 	t.Run("tracer memfd with invalid fd does not create process event", func(t *testing.T) {
 		handler.events = nil // reset
 
-		memfdEvent := &TracerMemfdSealed{
+		memfdEvent := &TracerMemfdSeal{
 			Fd: 9999, // invalid fd
 			Process: &Process{
 				Pid: pid,

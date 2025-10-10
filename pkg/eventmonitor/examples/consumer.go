@@ -73,7 +73,7 @@ func (fc *SimpleEventConsumer) EventTypes() []model.EventType {
 		model.ForkEventType,
 		model.ExecEventType,
 		model.ExitEventType,
-		model.TracerMemfdSealedEventType,
+		model.TracerMemfdSealEventType,
 	}
 }
 
@@ -101,7 +101,7 @@ func (fc *SimpleEventConsumer) HandleEvent(event any) {
 		fc.fork++
 	case uint32(model.ExitEventType):
 		fc.exit++
-	case uint32(model.TracerMemfdSealedEventType):
+	case uint32(model.TracerMemfdSealEventType):
 		fc.tracerMemfdSealed++
 	}
 
@@ -131,8 +131,8 @@ func (fc *SimpleEventConsumer) ExecCount() int {
 	return fc.exec
 }
 
-// TracerMemfdSealedCount returns the number of tracer_memfd_sealed handled
-func (fc *SimpleEventConsumer) TracerMemfdSealedCount() int {
+// TracerMemfdSealCount returns the number of tracer_memfd_seal handled
+func (fc *SimpleEventConsumer) TracerMemfdSealCount() int {
 	fc.RLock()
 	defer fc.RUnlock()
 	return fc.tracerMemfdSealed

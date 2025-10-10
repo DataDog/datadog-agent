@@ -85,8 +85,8 @@ int __attribute__((always_inline)) handle_fcntl_seal(void *ctx, u32 fd, unsigned
 
     bpf_map_delete_elem(&memfd_tracking, &pid_tgid);
 
-    struct tracer_memfd_sealed_event_t event = {};
-    event.event.type = EVENT_TRACER_MEMFD_SEALED;
+    struct tracer_memfd_seal_event_t event = {};
+    event.event.type = EVENT_TRACER_MEMFD_SEAL;
     event.syscall.retval = 0;
     event.fd = fd;
 
@@ -94,7 +94,7 @@ int __attribute__((always_inline)) handle_fcntl_seal(void *ctx, u32 fd, unsigned
     fill_span_context(&event.span);
     fill_cgroup_context(entry, &event.cgroup);
 
-    send_event(ctx, EVENT_TRACER_MEMFD_SEALED, event);
+    send_event(ctx, EVENT_TRACER_MEMFD_SEAL, event);
 
     return 0;
 }

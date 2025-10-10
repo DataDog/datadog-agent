@@ -141,8 +141,8 @@ const (
 	FailedDNSEventType
 	// TracerMemfdCreateEventType memfd_create event (used kernel side only)
 	TracerMemfdCreateEventType
-	// TracerMemfdSealedEventType Tracer memfd sealed event
-	TracerMemfdSealedEventType
+	// TracerMemfdSealEventType Tracer memfd seal event
+	TracerMemfdSealEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -329,8 +329,8 @@ func (t EventType) String() string {
 		return "move_mount"
 	case TracerMemfdCreateEventType:
 		return "tracer_memfd_create"
-	case TracerMemfdSealedEventType:
-		return "tracer_memfd_sealed"
+	case TracerMemfdSealEventType:
+		return "tracer_memfd_seal"
 	default:
 		return "unknown"
 	}

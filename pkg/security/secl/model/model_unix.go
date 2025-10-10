@@ -148,15 +148,15 @@ type Event struct {
 	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
 
 	// internal usage
-	Umount            UmountEvent            `field:"-"`
-	InvalidateDentry  InvalidateDentryEvent  `field:"-"`
-	ArgsEnvs          ArgsEnvsEvent          `field:"-"`
-	MountReleased     MountReleasedEvent     `field:"-"`
-	CgroupTracing     CgroupTracingEvent     `field:"-"`
-	NetDevice         NetDeviceEvent         `field:"-"`
-	VethPair          VethPairEvent          `field:"-"`
-	UnshareMountNS    UnshareMountNSEvent    `field:"-"`
-	TracerMemfdSealed TracerMemfdSealedEvent `field:"-"`
+	Umount           UmountEvent           `field:"-"`
+	InvalidateDentry InvalidateDentryEvent `field:"-"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
+	MountReleased    MountReleasedEvent    `field:"-"`
+	CgroupTracing    CgroupTracingEvent    `field:"-"`
+	NetDevice        NetDeviceEvent        `field:"-"`
+	VethPair         VethPairEvent         `field:"-"`
+	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+	TracerMemfdSeal  TracerMemfdSealEvent  `field:"-"`
 }
 
 var cgroupContextZero CGroupContext
@@ -1050,8 +1050,8 @@ type PrCtlEvent struct {
 	IsNameTruncated bool   `field:"is_name_truncated"` // SECLDoc[is_name_truncated] Definition:`Indicates that the name field is truncated`
 }
 
-// TracerMemfdSealedEvent represents a tracer memfd sealed event
-type TracerMemfdSealedEvent struct {
+// TracerMemfdSealEvent represents a tracer memfd seal event
+type TracerMemfdSealEvent struct {
 	SyscallEvent
 	Fd uint32
 }
