@@ -54,6 +54,7 @@ require (
 require github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.0.0-20251003153905-4e3e64f07b69 // indirect
 
 require (
+	github.com/DataDog/datadog-agent/pkg/util/normalize v0.0.0-00010101000000-000000000000 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.253.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.44.0 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
@@ -182,7 +183,6 @@ require (
 	github.com/DataDog/go-sqllexer v0.1.8 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.32.1-0.20250821132738-c5054d91ff21 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect

@@ -27,6 +27,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/normalize v0.0.0-00010101000000-000000000000 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	go.opentelemetry.io/collector/component v1.43.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.43.0 // indirect

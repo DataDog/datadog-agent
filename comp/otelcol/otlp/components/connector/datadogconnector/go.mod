@@ -126,6 +126,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/util/normalize v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.0-devel // indirect
@@ -140,7 +141,6 @@ require (
 	github.com/DataDog/go-sqllexer v0.1.8 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.32.1-0.20250821132738-c5054d91ff21 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
@@ -312,7 +312,6 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.42.0 // indirect
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect

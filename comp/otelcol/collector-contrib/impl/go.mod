@@ -2,7 +2,7 @@
 
 module github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl
 
-go 1.24.0
+go 1.24.6
 
 toolchain go1.24.7
 
@@ -127,6 +127,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/util/normalize v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.72.0-devel // indirect

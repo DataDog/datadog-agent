@@ -62,6 +62,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/normalize v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.72.0-devel // indirect
@@ -77,7 +78,6 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.32.1-0.20250821132738-c5054d91ff21 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect

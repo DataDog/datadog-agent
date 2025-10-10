@@ -48,10 +48,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.72.0-devel.0.20250907091827-dbb380833b5f // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/serializer v0.72.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/trace v0.71.0-devel.0.20250820164444-fcef12608466 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/util/normalize v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.61.0 // indirect
@@ -98,7 +100,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.135.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
