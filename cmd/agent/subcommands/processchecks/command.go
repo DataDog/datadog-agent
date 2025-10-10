@@ -35,7 +35,9 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
 
-// getCoreAgentFxOptions returns the fx options specific to the core agent
+// getCoreAgentFxOptions returns the fx bundle specific to the core agent that provides the necessary dependencies for the subcommand.
+// As the core and process agent have some different dependencies, this function allows having a single subcommand for both agents.
+// This function contains all dependencies instead of just those that differ between agents to easily maintain initialization order.
 func getCoreAgentFxOptions(cliParams *check.CliParams, bundleParams core.BundleParams) []fx.Option {
 	return []fx.Option{
 		fx.Supply(cliParams, bundleParams),
