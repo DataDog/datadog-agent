@@ -208,6 +208,7 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	// Act
 	_, err := s.Installer().StartExperiment(consts.AgentPackage, "unknown-version")
@@ -232,6 +233,7 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	// Act
 	_, err := s.StartExperimentCurrentVersion()

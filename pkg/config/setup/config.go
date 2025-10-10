@@ -387,7 +387,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
 	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
 	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
-	config.BindEnvAndSetDefault("secret_image_to_handle", map[string]string{})
+	config.BindEnvAndSetDefault("secret_image_to_handle", map[string][]string{})
 	config.SetDefault("secret_audit_file_max_size", 0)
 
 	// IPC API server timeout
@@ -1182,6 +1182,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
+
+	// Agent Workload Filtering config
+	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
 }
 
 func agent(config pkgconfigmodel.Setup) {

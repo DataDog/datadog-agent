@@ -53,7 +53,7 @@ def build(ctx, byoc=False):
 
     env = {"GO111MODULE": "on"}
     build_tags = get_default_build_tags(build="otel-agent")
-    ldflags = get_version_ldflags(ctx, major_version='7')
+    ldflags = get_version_ldflags(ctx)
     ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
     if os.environ.get("DELVE"):
         gcflags = "all=-N -l"
@@ -61,13 +61,9 @@ def build(ctx, byoc=False):
         gcflags = ""
 
     # generate windows resources
-    # Shall we not hardcode the major_version? Options could be:
-    # - try to get major version from env vars such as DD_AGENT_MAJOR_VERSION or MAJOR_VERSION
-    # - try to resolve major version from git tag (git describe). which is similar to how
-    #   datadog agent does it.
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version='7')
+        vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/otel-agent/windows_resources/otel-agent.rc",
