@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -423,49 +422,40 @@ func (p *seclVariableEventPreparator) put(ctx *eval.Context) {
 	p.ctxPool.Put(ctx)
 }
 
-func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVariable, seclVariables map[string]*api.SECLVariableState, preparator *seclVariableEventPreparator) {
-	for name, value := range rsVariables {
-		if strings.HasPrefix(name, "process.") {
-			scopedVariable := value.(eval.ScopedVariable)
-			if !scopedVariable.IsMutable() {
-				continue
-			}
+func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
+	rs := e.GetRuleSet()
+	if rs == nil {
+		return nil
+	}
 
-			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
+	seclVariableStates := make(map[string]*api.SECLVariableState)
 
-				ctx := preparator.get(func(event *model.Event) {
-					event.ProcessCacheEntry = entry
-				})
-				defer preparator.put(ctx)
-
-				value, found := scopedVariable.GetValue(ctx)
-				if !found {
-					return
+	rs.IterateVariables(func(definition eval.Definition, instances map[string]eval.Instance) {
+		name := definition.GetName(true)
+		switch definition.GetScoper().Type() {
+		case eval.GlobalScoperType:
+			globalInstance, ok := instances[rules.GlobalScopeKey]
+			if ok && !globalInstance.IsExpired() { // skip variables that expired but are yet to be cleaned up
+				seclVariableStates[name] = &api.SECLVariableState{
+					Name:  name,
+					Value: fmt.Sprintf("%+v", globalInstance.GetValue()),
 				}
-
-				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
-				scopedValue := fmt.Sprintf("%+v", value)
-				seclVariables[scopedName] = &api.SECLVariableState{
+			}
+		case eval.ProcessScoperType, eval.CGroupScoperType, eval.ContainerScoperType:
+			for scopeKey, instance := range instances {
+				if instance.IsExpired() { // skip variables that expired but are yet to be cleaned up
+					continue
+				}
+				scopedName := fmt.Sprintf("%s.%s", name, scopeKey)
+				seclVariableStates[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
-					Value: scopedValue,
+					Value: fmt.Sprintf("%+v", instance.GetValue()),
 				}
-			})
-		} else if strings.Contains(name, ".") { // other scopes
-			continue
-		} else { // global variables
-			value, found := value.(eval.Variable).GetValue()
-			if !found {
-				continue
-			}
-			scopedValue := fmt.Sprintf("%+v", value)
-			seclVariables[name] = &api.SECLVariableState{
-				Name:  name,
-				Value: scopedValue,
 			}
 		}
-	}
+	})
+
+	return seclVariableStates
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
