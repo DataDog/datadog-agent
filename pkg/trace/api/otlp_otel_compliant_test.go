@@ -3290,8 +3290,7 @@ func TestOTelSpanToDDSpan_OTelCompliantTranslation(t *testing.T) {
 			got, wrongPlaceKeysCount := transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf)
 			assert.Equal(tt.wrongPlaceKeysCount, wrongPlaceKeysCount)
 			if len(want.Meta) != len(got.Meta) {
-				// TODO: add back
-				// t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
+				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
 			for k, v := range want.Meta {
 				switch k {

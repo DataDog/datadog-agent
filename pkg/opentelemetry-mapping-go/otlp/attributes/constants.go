@@ -170,8 +170,6 @@ var (
 		"version":                     {},
 	}
 
-	// TODO make the values consts (APM convention keys)
-	// KeyHTTPClientIP = "http.client_ip"
 	// HTTPKeyMappings defines the mapping between OpenTelemetry semantic conventions
 	// and Datadog Agent conventions for HTTP attributes.
 	HTTPKeyMappings = map[string]string{
