@@ -16,8 +16,8 @@ const separatorLength = len(separator)
 
 var globalEntityID = NewEntityID(InternalID, "global-entity-id")
 
-// GetSeparatorLengh returns the length of the entityID separator
-func GetSeparatorLengh() int {
+// GetSeparatorLength returns the length of the entityID separator
+func GetSeparatorLength() int {
 	return separatorLength
 }
 
