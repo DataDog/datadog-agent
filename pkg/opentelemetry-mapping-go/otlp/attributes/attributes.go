@@ -235,9 +235,8 @@ func GetService(resattrs pcommon.Map, normalize bool, ignoreMissingDatadogFields
 	if svc == "" {
 		if fallbackOverride != nil {
 			return *fallbackOverride
-		} else {
-			svc = DefaultOTLPServiceName
 		}
+		svc = DefaultOTLPServiceName
 	}
 	if normalize {
 		newsvc, err := normalizeutil.NormalizeService(svc, "")
@@ -657,6 +656,7 @@ func GetContainerID(resourceattrs pcommon.Map, ignoreMissingDatadogFields bool, 
 	return ""
 }
 
+// GetSpanKind returns the DD span kind based on OTel span kind + signal attributes.
 func GetSpanKind(spanKind ptrace.SpanKind, sattr pcommon.Map, ignoreMissingDatadogFields bool, useDatadogNamespaceIfPresent bool, fallbackOverride *string) string {
 	if useDatadogNamespaceIfPresent {
 		incomingSpanKindName := GetOTelAttrVal(sattr, true, DDNamespaceKeys.SpanKind())
@@ -685,7 +685,7 @@ var spanKindNames = map[ptrace.SpanKind]string{
 	ptrace.SpanKindConsumer:    "consumer",
 }
 
-// OTelSpanKindName converts the given SpanKind to a valid Datadog span kind name.
+// GetSpanKindName converts the given SpanKind to a valid Datadog span kind name.
 func GetSpanKindName(k ptrace.SpanKind) string {
 	name, ok := spanKindNames[k]
 	if !ok {
@@ -785,7 +785,7 @@ func GetSpecifiedKeysFromOTelAttributes(signalattrs pcommon.Map, resattrs pcommo
 	if peerTagKeys == nil {
 		return []string{}
 	}
-	var peerTagsMap map[string]string = make(map[string]string, len(peerTagKeys))
+	peerTagsMap := make(map[string]string, len(peerTagKeys))
 
 	cb := func(k string, v pcommon.Value) bool {
 		val := v.AsString()

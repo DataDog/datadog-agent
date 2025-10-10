@@ -44,10 +44,7 @@ func OTelCompliantTranslationEnabled(conf *config.AgentConfig) bool {
 	return conf.HasFeature("enable_otel_compliant_translation")
 }
 
-// OtelSpanToDDSpanMinimal_Old otelSpanToDDSpan converts an OTel span to a DD span.
-// The converted DD span only has the minimal number of fields for APM stats calculation and is only meant
-// to be used in OTLPTracesToConcentratorInputs. Do not use them for other purposes.
-func otelSpanToDDSpanMinimal_old(
+func otelSpanToDDSpanMinimalOld(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
@@ -149,10 +146,9 @@ func isDatadogAPMConventionKey(k string) bool {
 	return k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" || strings.HasPrefix(k, "datadog.")
 }
 
-func otelSpanToDDSpanMinimal_OTelCompliantTranslation(
+func otelSpanToDDSpanMinimalOTelCompliantTranslation(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
-	lib pcommon.InstrumentationScope,
 	isTopLevel, topLevelByKind bool,
 	conf *config.AgentConfig,
 	peerTagKeys []string,
@@ -218,6 +214,9 @@ func otelSpanToDDSpanMinimal_OTelCompliantTranslation(
 	return ddspan
 }
 
+// OtelSpanToDDSpanMinimal otelSpanToDDSpan converts an OTel span to a DD span.
+// The converted DD span only has the minimal number of fields for APM stats calculation and is only meant
+// to be used in OTLPTracesToConcentratorInputs. Do not use them for other purposes.
 func OtelSpanToDDSpanMinimal(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
@@ -227,9 +226,9 @@ func OtelSpanToDDSpanMinimal(
 	peerTagKeys []string,
 ) *pb.Span {
 	if OTelCompliantTranslationEnabled(conf) {
-		return otelSpanToDDSpanMinimal_OTelCompliantTranslation(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys)
+		return otelSpanToDDSpanMinimalOTelCompliantTranslation(otelspan, otelres, isTopLevel, topLevelByKind, conf, peerTagKeys)
 	}
-	return otelSpanToDDSpanMinimal_old(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys)
+	return otelSpanToDDSpanMinimalOld(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys)
 }
 
 var otlpToAPMConventionKeysMapForSpanAttributes = map[string]string{
@@ -359,11 +358,10 @@ func computeAPMKeyForOTLPAttribute(
 		if _, ok := wrongPlaceMapFunc(key); ok {
 			// Only allocate wrongPlaceKey when we need to return it
 			return wrongPlacePrefix + key, false
-		} else {
-			// 3) If key has no assigned place, no problem, add as-is
-			mappedKey = key
-			return mappedKey, true
 		}
+		// 3) If key has no assigned place, no problem, add as-is
+		mappedKey = key
+		return mappedKey, true
 	}
 	return mappedKey, true
 }
@@ -423,52 +421,7 @@ func conditionallyConsumeOTLPAttribute(
 	return keyInRightPlace
 }
 
-func mergeMapsIntoSpan(ddspan *pb.Span,
-	spanMetaMap map[string]string, spanMetricMap map[string]float64,
-	resourceMetaMap map[string]string, resourceMetricMap map[string]float64,
-	libMetaMap map[string]string, libMetricMap map[string]float64) {
-	// merge maps; if there's a collision anywhere, add prefix (precedence: span > resource > scope)
-	for k, v := range spanMetaMap {
-		SetMetaOTLPIfEmpty(ddspan, k, v)
-	}
-
-	for k, v := range resourceMetaMap {
-		if _, ok := spanMetaMap[k]; ok {
-			k = "otel.resource." + k
-		}
-		SetMetaOTLPIfEmpty(ddspan, k, v)
-	}
-
-	for k, v := range libMetaMap {
-		_, ok1 := spanMetaMap[k]
-		_, ok2 := resourceMetaMap[k]
-		if ok1 || ok2 {
-			k = "otel.scope." + k
-		}
-		SetMetaOTLPIfEmpty(ddspan, k, v)
-	}
-
-	for k, v := range spanMetricMap {
-		SetMetricOTLPIfEmpty(ddspan, k, v)
-	}
-
-	for k, v := range resourceMetricMap {
-		if _, ok := resourceMetricMap[k]; ok {
-			k = "otel.resource." + k
-		}
-		SetMetricOTLPIfEmpty(ddspan, k, v)
-	}
-
-	for k, v := range libMetricMap {
-		_, ok1 := libMetricMap[k]
-		_, ok2 := resourceMetaMap[k]
-		if ok1 || ok2 {
-			k = "otel.scope." + k
-		}
-		SetMetricOTLPIfEmpty(ddspan, k, v)
-	}
-}
-
+// OtelSpanToDDSpan converts an OTel span to a DD span.
 func OtelSpanToDDSpan(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
@@ -476,9 +429,9 @@ func OtelSpanToDDSpan(
 	conf *config.AgentConfig,
 ) (ddSpan *pb.Span, wrongPlaceKeysCount int) {
 	if OTelCompliantTranslationEnabled(conf) {
-		return otelSpanToDDSpan_OTelCompliantTranslation(otelspan, otelres, lib, conf)
+		return otelSpanToDDSpanOTelCompliantTranslation(otelspan, otelres, lib, conf)
 	}
-	return otelSpanToDDSpan_Old(otelspan, otelres, lib, conf)
+	return otelSpanToDDSpanOld(otelspan, otelres, lib, conf)
 }
 
 // GetDDKeyForOTLPAttribute looks for a key in the Datadog HTTP convention that matches the given key from the
@@ -662,7 +615,7 @@ func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 	return containerTags
 }
 
-func otelSpanToDDSpan_Old(
+func otelSpanToDDSpanOld(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
@@ -674,7 +627,7 @@ func otelSpanToDDSpan_Old(
 	if topLevelByKind {
 		isTopLevel = otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
 	}
-	ddspan = otelSpanToDDSpanMinimal_old(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil)
+	ddspan = otelSpanToDDSpanMinimalOld(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil)
 
 	// 1) DD namespaced keys take precedence over OTLP keys, so use them first
 	// 2) Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
@@ -769,8 +722,7 @@ func otelSpanToDDSpan_Old(
 	return ddspan, wrongPlaceKeysCount
 }
 
-// OtelSpanToDDSpan converts an OTel span to a DD span.
-func otelSpanToDDSpan_OTelCompliantTranslation(
+func otelSpanToDDSpanOTelCompliantTranslation(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
@@ -786,7 +738,7 @@ func otelSpanToDDSpan_OTelCompliantTranslation(
 	if topLevelByKind {
 		isTopLevel = otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
 	}
-	ddspan := otelSpanToDDSpanMinimal_OTelCompliantTranslation(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil)
+	ddspan := otelSpanToDDSpanMinimalOTelCompliantTranslation(otelspan, otelres, isTopLevel, topLevelByKind, conf, nil)
 
 	httpStatusCode := ddspan.Metrics[traceutil.TagStatusCode]
 	isError, errMsg, errType, errStack := GetErrorFieldsFromStatusAndEventsAndHTTPCode(otelspan.Status(), otelspan.Events(), int(httpStatusCode))

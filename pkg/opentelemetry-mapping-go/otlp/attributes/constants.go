@@ -20,7 +20,10 @@ import (
 	semconv1_6_1 "go.opentelemetry.io/otel/semconv/v1.6.1"
 )
 
+// DefaultOTLPServiceName defines the default service name for OTel signals with no service name.
 var DefaultOTLPServiceName = "otlpresourcenoservicename"
+
+// DefaultOTLPEnvironmentName defines the default environment name for OTel signals with no environment name.
 var DefaultOTLPEnvironmentName = "default"
 
 // customContainerTagPrefix defines the prefix for custom container tags.
@@ -189,7 +192,7 @@ var (
 
 // ======== Datadog namespace constants ========
 
-// Global singleton instance
+// DDNamespaceKeys defines the keys in the Datadog namespace.
 var DDNamespaceKeys = newNamespace(
 	"datadog.",
 	"env",
@@ -209,6 +212,7 @@ var DDNamespaceKeys = newNamespace(
 	"db.name",
 )
 
+// APMConventionKeys defines the keys in the APM conventions namespace.
 var APMConventionKeys = newNamespace(
 	"",
 	"env",

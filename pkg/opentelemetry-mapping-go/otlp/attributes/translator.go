@@ -60,6 +60,7 @@ func (p *Translator) ResourceToSource(ctx context.Context, res pcommon.Resource,
 	return src, ok
 }
 
+// AddMissingSource records that we were unable to extract a source from the resource attributes for a particular signal.
 func (p *Translator) AddMissingSource(ctx context.Context, set attribute.Set) {
 	p.missingSources.Add(ctx, 1, metric.WithAttributeSet(set))
 }

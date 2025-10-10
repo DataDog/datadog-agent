@@ -123,40 +123,14 @@ func CreateDDSketchFromHistogramOfDuration(dp pmetric.HistogramDataPoint, unit s
 				insertionPoint = midpoint
 			}
 
-			newSketch.AddWithCount(insertionPoint, adjustedCount)
+			err := newSketch.AddWithCount(insertionPoint, adjustedCount)
+			if err != nil {
+				return nil, fmt.Errorf("failed to add value to DDSketch: %w", err)
+			}
 		}
 	}
 
 	return newSketch, nil
-}
-
-// CreateDDSketchFromExponentialHistogramOfDuration creates a DDSketch from exponential histogram data point
-func _CreateDDSketchFromExponentialHistogramOfDuration(dp pmetric.ExponentialHistogramDataPoint, unit string) (*ddsketch.DDSketch, error) {
-	// Get scaling factor to convert unit to nanoseconds
-	scaleToNanos := getTimeUnitScaleToNanos(unit)
-
-	// Create the DDSketch mapping for nanoseconds (no offset needed since we scaled the stores)
-	gamma := math.Pow(2, math.Pow(2, float64(-dp.Scale())))
-	offset := math.Log(scaleToNanos)
-	mapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, offset)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)
-	}
-
-	// Create the DDSketch stores with unit scaling
-	positiveStore := toStoreFromExponentialBucketsWithUnitScale(dp.Positive(), mapping, float64(dp.Scale()), scaleToNanos)
-	negativeStore := toStoreFromExponentialBucketsWithUnitScale(dp.Negative(), mapping, float64(dp.Scale()), scaleToNanos)
-
-	// Create DDSketch with the above mapping and stores
-	sketch := ddsketch.NewDDSketch(mapping, positiveStore, negativeStore)
-
-	// Zero count represents values at exactly zero, so we add at zero (no scaling needed for zero)
-	err = sketch.AddWithCount(0, float64(dp.ZeroCount()))
-	if err != nil {
-		return nil, fmt.Errorf("failed to add ZeroCount to DDSketch: %w", err)
-	}
-
-	return sketch, nil
 }
 
 func toStoreFromExponentialBucketsWithUnitScale(b pmetric.ExponentialHistogramDataPointBuckets, mapping *mapping.LogarithmicMapping, base float64, scaleToNanos float64) store.Store {
@@ -186,20 +160,7 @@ func toStoreFromExponentialBucketsWithUnitScale(b pmetric.ExponentialHistogramDa
 	return store
 }
 
-// func toStore2(b pmetric.ExponentialHistogramDataPointBuckets, scale float64) store.Store {
-// 	offset := b.Offset()
-// 	bucketCounts := b.BucketCounts()
-
-// 	store := store.NewDenseStore()
-// 	for j := 0; j < bucketCounts.Len(); j++ {
-// 		// Find the real index of the bucket by adding the offset
-// 		index := j + int(offset)
-
-// 		store.AddWithCount(index, float64(bucketCounts.At(j)))
-// 	}
-// 	return store
-// }
-
+// CreateDDSketchFromExponentialHistogramOfDuration creates a DDSketch from exponential histogram data point
 func CreateDDSketchFromExponentialHistogramOfDuration(p pmetric.ExponentialHistogramDataPoint, unit string) (*ddsketch.DDSketch, error) {
 	// Create the DDSketch stores
 	scaleToNanos := getTimeUnitScaleToNanos(unit)
@@ -209,7 +170,7 @@ func CreateDDSketchFromExponentialHistogramOfDuration(p pmetric.ExponentialHisto
 	gamma := math.Pow(2, math.Pow(2, float64(-p.Scale())))
 	gamma = math.Min(gamma, gammaWithOnePercentAccuracy)
 	indexOffset := math.Log(scaleToNanos)
-	mapping, err := mapping.NewLogarithmicMappingWithGamma(gammaWithOnePercentAccuracy, indexOffset)
+	mapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, indexOffset)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)
 	}
