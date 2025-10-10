@@ -158,7 +158,7 @@ type multiFakeIntakeSuite struct {
 	e2e.BaseSuite[multiFakeIntakeEnv]
 }
 
-func TestMultiFakeintakeSuite(t *testing.T) {
+func TestLinuxForwarderSuite(t *testing.T) {
 	e2e.Run(t, &multiFakeIntakeSuite{}, e2e.WithProvisioner(multiFakeIntakeAWS()))
 }
 

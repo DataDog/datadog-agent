@@ -304,6 +304,14 @@ new-e2e-agent-runtimes:
     TEAM: agent-runtimes
     ON_NIGHTLY_FIPS: "true"
     REMOTE_STACK_CLEANING: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)AuthArtifactSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)(Disk|Network)Suite"
+      - EXTRA_PARAMS: --run "TestLinuxForwarderSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)Hostname(Drift|IMDSv2)Suite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)IPCSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)MultiProcessingLibSuite"
 
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_windows_x64
