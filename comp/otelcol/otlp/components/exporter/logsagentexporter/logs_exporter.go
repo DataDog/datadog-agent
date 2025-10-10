@@ -8,7 +8,6 @@ package logsagentexporter
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -73,7 +72,6 @@ func NewExporterWithGatewayUsage(
 // ConsumeLogs checks the scope of the logs and routes them to the appropriate consumer
 func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	scope := getLogsScope(ld)
-	fmt.Println("log--scope: ", scope)
 	switch scope {
 	case K8sObjectsReceiver:
 		return e.consumeK8sObjects(ctx, ld)
