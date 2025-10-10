@@ -58,29 +58,21 @@ static __always_inline void SSL_add_cert(void *ssl_ctx, data_t data) {
         return;
     }
 
-    ssl_handshake_state_t empty_state = {0};
-    bpf_map_update_with_telemetry(ssl_handshake_state, &ssl_ctx, &empty_state, BPF_NOEXIST, -EEXIST);
-    
-    ssl_handshake_state_t *state =  bpf_map_lookup_elem(&ssl_handshake_state, &ssl_ctx);
-    if (state == NULL) {
-        log_debug("SSL_add_cert: couldn't find handshake state");
-        return;
-    }
 
     if (!cert.is_ca) {
+        ssl_handshake_state_t state = {0};
+
         __u64 timestamp = bpf_ktime_get_ns();
-        state->timestamp = timestamp;
+        state.timestamp = timestamp;
 
-        state->cert_item.serial = cert.serial;
-        state->cert_item.domain = cert.domain;
-        state->cert_item.validity = cert.validity;
+        state.cert_item.serial = cert.serial;
+        state.cert_item.domain = cert.domain;
+        state.cert_item.validity = cert.validity;
 
-        state->cert_id = cert.cert_id;
+        state.cert_id = cert.cert_id;
 
-        // reuse the stack space we allocated for empty_state
-        cert_item_t *scratch = &empty_state.cert_item;
-        *scratch = state->cert_item;
-        bpf_map_update_with_telemetry(ssl_cert_info, &cert.cert_id, scratch, BPF_ANY);
+        bpf_map_update_with_telemetry(ssl_cert_info, &cert.cert_id, &state.cert_item, BPF_ANY);
+        bpf_map_update_with_telemetry(ssl_handshake_state, &ssl_ctx, &state, BPF_ANY);
     }
 }
 
@@ -92,7 +84,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__i2d_X509) {
         // they're just testing the length of the cert by passing in a null pointer, skip
         return 0;
     }
-    log_debug("uprobe/i2d_X509: pid_tgid=%llx out=%p", pid_tgid, out);
+    log_debug("uprobe/i2d_X509: pid_tgid=%llx", pid_tgid);
 
     // i2d_X509 has two behaviors:
     // 1. if *out is NULL, it will allocate a new buffer for the output
@@ -100,7 +92,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__i2d_X509) {
     //    that it points past the end of what it wrote
     // out_deref stores *out so we can handle these cases
     __u8 *out_deref = 0;
-    int err = bpf_probe_read_user(&out_deref, sizeof(u8*), out);
+    int err = bpf_probe_read_user_with_telemetry(&out_deref, sizeof(u8*), out);
     if (err) {
         log_debug("i2d_X509 failed to read *out at %p: %d", out, err);
         return 0;

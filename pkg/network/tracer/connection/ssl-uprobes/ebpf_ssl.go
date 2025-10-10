@@ -137,7 +137,7 @@ func ConfigureOptions(options *manager.Options, cfg *config.Config) error {
 		// now that we know LRU is supported, set its type to that
 		Type:       ebpf.LRUHash,
 		MaxEntries: cfg.MaxTrackedConnections / 32,
-		EditorFlag: manager.EditMaxEntries,
+		EditorFlag: manager.EditType | manager.EditMaxEntries,
 	}
 
 	schedExitIDPair := IDPairFromFuncName(probes.RawTracepointSchedProcessExit)
@@ -208,8 +208,7 @@ func NewSSLCertsProgram(mgr *manager.Manager, cfg *config.Config) (*SSLCertsProg
 
 const (
 	defaultMapCleanerBatchSize = 100
-	handshakeStateTTL          = 30 * time.Second
-	certInfoTTL                = 2 * time.Minute
+	handshakeStateTTL          = 10 * time.Second
 )
 
 func (p *SSLCertsProgram) setupHandshakeStateMapCleaner() error {
