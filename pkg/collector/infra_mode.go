@@ -9,33 +9,30 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// getDefaultInfraBasicAllowedChecks returns the default list of allowed checks for infra basic mode
-func getDefaultInfraBasicAllowedChecks() map[string]struct{} {
-	return map[string]struct{}{
-		"cpu":               {},
-		"agent_telemetry":   {},
-		"agentcrashdetect":  {},
-		"disk":              {},
-		"file_handle":       {},
-		"filehandles":       {},
-		"io":                {},
-		"load":              {},
-		"memory":            {},
-		"network":           {},
-		"ntp":               {},
-		"process":           {},
-		"service_discovery": {},
-		"system":            {},
-		"system_core":       {},
-		"system_swap":       {},
-		"telemetry":         {},
-		"telemetryCheck":    {},
-		"uptime":            {},
-		"win32_event_log":   {},
-		"wincrashdetect":    {},
-		"winkmem":           {},
-		"winproc":           {},
-	}
+var infraBasicAllowedChecks = map[string]struct{} {
+	"cpu":               {},
+	"agent_telemetry":   {},
+	"agentcrashdetect":  {},
+	"disk":              {},
+	"file_handle":       {},
+	"filehandles":       {},
+	"io":                {},
+	"load":              {},
+	"memory":            {},
+	"network":           {},
+	"ntp":               {},
+	"process":           {},
+	"service_discovery": {},
+	"system":            {},
+	"system_core":       {},
+	"system_swap":       {},
+	"telemetry":         {},
+	"telemetryCheck":    {},
+	"uptime":            {},
+	"win32_event_log":   {},
+	"wincrashdetect":    {},
+	"winkmem":           {},
+	"winproc":           {},
 }
 
 // GetInfraBasicAllowedChecks returns the map of allowed checks for infra basic mode,
