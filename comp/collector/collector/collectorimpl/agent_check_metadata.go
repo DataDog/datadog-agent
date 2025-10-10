@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -48,11 +47,6 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload breaks the payload into times number of pieces
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("AgentChecks Payload splitting is not implemented")
 }
 
 // GetPayload builds a payload of all the agentchecks metadata

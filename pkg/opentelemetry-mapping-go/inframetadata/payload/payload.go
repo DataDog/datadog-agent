@@ -11,7 +11,6 @@ package payload
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -93,12 +92,6 @@ func NewEmpty() HostMetadata {
 		Payload:   gohai.NewEmpty(),
 		Processes: &gohai.ProcessesPayload{},
 	}
-}
-
-// SplitPayload implements the JSONMarshaler.SplitPayload interface
-func (p *HostMetadata) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	// Metadata payloads are analyzed as a whole, so they cannot be split
-	return nil, fmt.Errorf("host Payload splitting is not implemented")
 }
 
 // MarshalJSON implements the JSONMarshaler.MarshalJSON interface
