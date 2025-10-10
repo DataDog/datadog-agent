@@ -1,13 +1,13 @@
 """Agent specific BUILD file for xz-utils / liblzma."""
 
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 
 package(
     default_applicable_licenses = [":license"],
@@ -199,7 +199,7 @@ cc_shared_library(
     deps = [":liblzma"],
     user_link_flags = select({
         "@platforms//os:windows": [],
-        "@platforms//os:macos": ["-Wl,-install_name","-Wl,'@rpath/liblzma.so.5'",],
+        "@platforms//os:macos": ["-Wl,-install_name", "-Wl,'@rpath/liblzma.5.dylib'"],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
@@ -218,19 +218,10 @@ cc_shared_library(
 # )
 
 so_symlink(
-    name = "so",
-    lib = "liblzma_so",
-    major = 5,
-    minor = 4,
-    patch = 2,
-)
-
-pkg_files(
     name = "lib_files",
-    srcs = [
-        ":liblzma_so",
-    ],
-    prefix = "lib",
+    src = ":liblzma_so",
+    libname = "liblzma",
+    version = "5.4.2",
 )
 
 pkg_files(
@@ -266,8 +257,6 @@ pkg_install(
         ":main_header",
         ":api_headers",
         ":lib_files",
-        ":so_major",
-        ":so_patch",
         ":pkgconfig",
     ],
 )
