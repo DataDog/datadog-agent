@@ -18,7 +18,6 @@ import (
 // get reported in the `Summary()` message. For group sizes greater than this,
 // we omit metrics with zero values from the generated string to reduce the
 // verbosity of logs.
-const largeGroupThreshold = 5
 
 // MetricGroup provides a convenient constructor for a group with metrics
 // sharing the same namespace and group of tags.
