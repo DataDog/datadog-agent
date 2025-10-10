@@ -396,7 +396,7 @@ func TestInfoReceiverStats(t *testing.T) {
 	conf := testInit(t, nil)
 	assert.NotNil(conf)
 
-	stats := NewReceiverStats()
+	stats := NewReceiverStats(nil)
 	t1 := &TagStats{
 		Tags{Lang: "python"},
 		Stats{},

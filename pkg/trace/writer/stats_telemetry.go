@@ -9,9 +9,8 @@ import "github.com/DataDog/datadog-agent/pkg/telemetry"
 
 const statsTelemetrySubsystem = "trace_agent"
 
-var statsWriterTelemetry = newStatsWriterTelemetry()
-
-type statsWriterTelemetryMetrics struct {
+// StatsWriterTelemetry holds telemetry metrics for the stats writer
+type StatsWriterTelemetry struct {
 	clientPayloads telemetry.Counter
 	payloads       telemetry.Counter
 	statsBuckets   telemetry.Counter
@@ -26,9 +25,10 @@ type statsWriterTelemetryMetrics struct {
 	queueFill      telemetry.Histogram
 }
 
-func newStatsWriterTelemetry() *statsWriterTelemetryMetrics {
+// NewStatsWriterTelemetry creates a new StatsWriterTelemetry instance
+func NewStatsWriterTelemetry() *StatsWriterTelemetry {
 	opts := telemetry.Options{NoDoubleUnderscoreSep: true}
-	return &statsWriterTelemetryMetrics{
+	return &StatsWriterTelemetry{
 		clientPayloads: telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_client_payloads_total", []string{}, "Number of client payloads processed by the stats writer", opts),
 		payloads:       telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_payloads_total", []string{}, "Number of stats payloads flushed", opts),
 		statsBuckets:   telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_stats_buckets_total", []string{}, "Number of stats buckets processed", opts),

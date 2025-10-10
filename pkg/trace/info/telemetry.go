@@ -19,9 +19,8 @@ var (
 	receiverTelemetryOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 )
 
-var receiverTelemetryMetrics = newReceiverTelemetry()
-
-type receiverTelemetry struct {
+// ReceiverTelemetry holds telemetry metrics for the trace receiver
+type ReceiverTelemetry struct {
 	tracesReceived        telemetry.Counter
 	tracesFiltered        telemetry.Counter
 	tracesBytes           telemetry.Counter
@@ -39,8 +38,9 @@ type receiverTelemetry struct {
 	spansMalformed        telemetry.Counter
 }
 
-func newReceiverTelemetry() *receiverTelemetry {
-	return &receiverTelemetry{
+// NewReceiverTelemetry creates a new ReceiverTelemetry instance
+func NewReceiverTelemetry() *ReceiverTelemetry {
+	return &ReceiverTelemetry{
 		tracesReceived:        telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_received", receiverTelemetryLabelKeys, "Number of traces received by the trace-agent receiver", receiverTelemetryOpts),
 		tracesFiltered:        telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_filtered", receiverTelemetryLabelKeys, "Number of traces filtered by the trace-agent receiver", receiverTelemetryOpts),
 		tracesBytes:           telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_bytes", receiverTelemetryLabelKeys, "Volume of trace bytes received", receiverTelemetryOpts),

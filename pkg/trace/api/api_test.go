@@ -61,7 +61,7 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	receiver := NewHTTPReceiverWithTelemetry(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, nil)
 
 	return receiver
 }
@@ -96,7 +96,7 @@ func TestServerShutdown(t *testing.T) {
 	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	receiver := NewHTTPReceiverWithTelemetry(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, nil)
 
 	receiver.Start()
 
@@ -951,7 +951,7 @@ func TestHandleTraces(t *testing.T) {
 		dynConf := sampler.NewDynamicConfig()
 
 		rawTraceChan := make(chan *Payload)
-		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		receiver := NewHTTPReceiverWithTelemetry(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, nil)
 		receiver.recvsem = make(chan struct{}) //overwrite recvsem to ALWAYS block and ensure we look overwhelmed
 		// response recorder
 		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
@@ -1177,7 +1177,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := newTestReceiverConfig()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewHTTPReceiverWithTelemetry(conf, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()

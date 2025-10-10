@@ -246,7 +246,7 @@ func TestReceiverStats(t *testing.T) {
 	})
 
 	t.Run("update", func(t *testing.T) {
-		stats := NewReceiverStats()
+		stats := NewReceiverStats(nil)
 		newstats := testStats()
 		stats.Acc(newstats)
 		assert.EqualValues(t, stats, newstats)
