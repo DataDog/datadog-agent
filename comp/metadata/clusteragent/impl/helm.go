@@ -20,6 +20,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +37,21 @@ var (
 	versionRegexp    = regexp.MustCompile(`\.v(\d+)$`)
 	errNoHelmRelease = fmt.Errorf("no Helm release found in pod labels")
 )
+
+const (
+	// helmValuesCacheTTL is the time-to-live for the cached Helm values (~90 minutes)
+	helmValuesCacheTTL = 90 * time.Minute
+)
+
+// helmValuesCache holds the cached Helm values with timestamp
+type helmValuesCache struct {
+	mu        sync.RWMutex
+	data      []byte
+	timestamp time.Time
+}
+
+// global cache instance
+var helmCache = &helmValuesCache{}
 
 // HelmReleaseMinimal represents the minimal structure we care about
 type HelmReleaseMinimal struct {
@@ -94,7 +111,33 @@ func getReleaseName(ctx context.Context, clientset *kubernetes.Clientset) (strin
 	return "", errNoHelmRelease
 }
 
+// getFromCache retrieves the cached Helm values if they exist and are not expired
+func (c *helmValuesCache) getFromCache() ([]byte, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.data == nil || time.Since(c.timestamp) > helmValuesCacheTTL {
+		return nil, false
+	}
+	return c.data, true
+}
+
+// setCache stores the Helm values in the cache with the current timestamp
+func (c *helmValuesCache) setCache(data []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.data = data
+	c.timestamp = time.Now()
+}
+
 func retrieveHelmValues(ctx context.Context) ([]byte, error) {
+	// Check if we have a valid cached value
+	if cachedData, ok := helmCache.getFromCache(); ok {
+		return cachedData, nil
+	}
+
+	// Cache miss or expired, fetch fresh data
 	restConfig, err := rest.InClusterConfig() // use kubeconfig for local dev
 	if err != nil {
 		return nil, fmt.Errorf("failed to create in-cluster config for metadata client: %w", err)
@@ -152,6 +195,9 @@ func retrieveHelmValues(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("YAML marshal error: %v", err)
 	}
+
+	// Store the result in cache before returning
+	helmCache.setCache(valuesYAML)
 
 	return valuesYAML, nil
 }
