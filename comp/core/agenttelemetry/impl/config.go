@@ -352,6 +352,13 @@ var defaultProfiles = `
         - name: rtloader.inuse_bytes
         - name: rtloader.frees
         - name: rtloader.allocations
+  - name: system-probe
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: system_probe.started
+        - name: system_probe.running
   - name: otlp
     metric:
       exclude:
