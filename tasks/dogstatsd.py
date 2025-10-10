@@ -30,7 +30,6 @@ def build(
     static=False,
     build_include=None,
     build_exclude=None,
-    major_version='7',
     go_mod="readonly",
 ):
     """
@@ -43,13 +42,13 @@ def build(
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static)
     bin_path = DOGSTATSD_BIN_PATH
 
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version)
+        vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/dogstatsd/windows_resources/dogstatsd.rc",
