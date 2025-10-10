@@ -610,6 +610,8 @@ func (m *Manager) SnapshotTracedCgroups() {
 	for iterator.Next(&cgroupFile, &event.ConfigCookie) {
 		m.m.Lock()
 		if m.ignoreFromSnapshot[cgroupFile] {
+			// remove from traced_cgroups since it should be ignored
+			_ = m.tracedCgroupsMap.Delete(cgroupFile)
 			m.m.Unlock()
 			continue
 		}
