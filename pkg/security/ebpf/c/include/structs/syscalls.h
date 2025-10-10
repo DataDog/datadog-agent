@@ -278,7 +278,7 @@ struct syscall_cache_t {
         } prctl;
 
         struct {
-            char suffix[9];  // MEMFD_SUFFIX_MAX_LEN + 1 for null terminator
+            char suffix[TRACER_MEMFD_SUFFIX_LEN];
         } tracer_memfd_create;
     };
 };

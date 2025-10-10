@@ -56,7 +56,6 @@ BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
 BPF_HASH_MAP(active_flows_spin_locks, u32, struct active_flows_spin_lock_t, 1) // max entry will be overridden at runtime
 BPF_HASH_MAP(inode_file, u64, struct file_t, 32)
 BPF_HASH_MAP(cgroup_mount_id, u32, u32, 1)
-BPF_HASH_MAP(memfd_tracking, u64, struct memfd_tracking_t, 1024)
 
 BPF_HASH_MAP_FLAGS(active_flows, u32, struct active_flows_t, 1, BPF_F_NO_PREALLOC) // max entry will be overridden at runtime
 BPF_HASH_MAP_FLAGS(inet_bind_args, u64, struct inet_bind_args_t, 1, BPF_F_NO_PREALLOC) // max entries will be overridden at runtime
@@ -92,6 +91,7 @@ BPF_LRU_MAP(dns_responses_sent_to_userspace, u16, struct dns_responses_sent_to_u
 BPF_LRU_MAP(capabilities_usage, struct capabilities_usage_key_t, struct capabilities_usage_entry_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(sock_cookie_pid, u64, u32, 1); // max entries will be overridden at runtime
 BPF_LRU_MAP(hardlink_ids, u64, u8, 10240);
+BPF_LRU_MAP(memfd_tracking, struct memfd_key_t, u32, 1024)
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
