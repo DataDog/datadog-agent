@@ -76,12 +76,19 @@ func GetInfraBasicAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
 	return allowedMap
 }
 
-// IsCheckAllowedInInfraBasic returns true if the check is allowed in infrastructure basic mode
+// IsCheckAllowedInInfraBasic returns true if the check is allowed.
+// When not in basic mode, all checks are allowed (returns true).
+// When in basic mode, only checks in the allowed list are permitted.
 func IsCheckAllowedInInfraBasic(checkName string, cfg pkgconfigmodel.Reader) bool {
-	// Start with default allowed checks
+	// In basic mode, check if the check is in the allowed list
 	allowedMap := GetInfraBasicAllowedChecks(cfg)
 
-	// Check if the check name exists in the map
+	// If the set is empty, all checks are allowed
+	if len(allowedMap) == 0 {
+		return true
+	}
+
+	// Check if the check is in the allowed list
 	_, exists := allowedMap[checkName]
 	return exists
 }
