@@ -101,7 +101,7 @@ func TestConfigEndpoint(t *testing.T) {
 			cfg, server, configEndpoint := getConfigServer(t, authorizedConfigPaths)
 			if testCase.existing {
 				cfg.SetWithoutSource(configName, "some_value")
-				cfg.SetKnown(configName)
+				cfg.SetKnown(configName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 			}
 			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus)
 		})
@@ -111,7 +111,7 @@ func TestConfigEndpoint(t *testing.T) {
 		configName := "my.config.value"
 		cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{configName: {}})
 		cfg.SetWithoutSource(configName, make(chan int))
-		cfg.SetKnown(configName)
+		cfg.SetKnown(configName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		testConfigValue(t, configEndpoint, server, configName, http.StatusInternalServerError)
 	})
 
@@ -127,9 +127,9 @@ func TestConfigEndpoint(t *testing.T) {
 			cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{parentConfigName: struct{}{}})
 
 			cfg.SetWithoutSource(childConfigNameOne, "child1_value")
-			cfg.SetKnown(childConfigNameOne)
+			cfg.SetKnown(childConfigNameOne) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 			cfg.SetWithoutSource(childConfigNameTwo, "child2_value")
-			cfg.SetKnown(childConfigNameTwo)
+			cfg.SetKnown(childConfigNameTwo) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 			testConfigValue(t, configEndpoint, server, testCase.configName, testCase.expectedStatus)
 		})
@@ -142,7 +142,7 @@ func TestConfigEndpoint(t *testing.T) {
 		cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{childConfigName: struct{}{}})
 
 		cfg.SetWithoutSource(childConfigName, "child_value")
-		cfg.SetKnown(childConfigName)
+		cfg.SetKnown(childConfigName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 		testConfigValue(t, configEndpoint, server, childConfigName, http.StatusOK)
 		testConfigValue(t, configEndpoint, server, parentConfigName, http.StatusForbidden)
@@ -187,7 +187,7 @@ func TestConfigListEndpoint(t *testing.T) {
 			cfg, server, _ := getConfigServer(t, test.authorizedConfigs)
 			for key, value := range test.configValues {
 				cfg.SetWithoutSource(key, value)
-				cfg.SetKnown(key)
+				cfg.SetKnown(key) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 			}
 
 			// test with and without trailing slash
@@ -223,7 +223,7 @@ func TestConfigEndpointJSONError(t *testing.T) {
 	cfg.SetWithoutSource("my.config.value", []interface{}{
 		map[interface{}]interface{}{"a": "b", "c": "d"},
 	})
-	cfg.SetKnown("my.config.value")
+	cfg.SetKnown("my.config.value") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	for _, endpoint := range []string{"/", "/my.config"} {
 		resp, err := server.Client().Get(server.URL + endpoint)

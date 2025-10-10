@@ -1,0 +1,7 @@
+---
+deprecations:
+  - |
+    The Agent PowerShell module is deprecated. It was previously used only
+    in private previews. Use the new
+    [Remote Agent Management](https://docs.datadoghq.com/agent/fleet_automation/remote_management/?tab=windows)
+    installer instead.

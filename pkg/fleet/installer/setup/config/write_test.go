@@ -6,10 +6,15 @@
 package config
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/unicode"
 )
 
 type writeConfigTestCase struct {
@@ -353,6 +358,16 @@ api_key: newkey
 		t.Run(tc.name, func(t *testing.T) {
 			runWriteConfigTestCase(t, tc)
 		})
+		// run tests again with UTF-16 input
+		// The config file may be UTF-16 on Windows
+		t.Run(tc.name+" (UTF-16)", func(t *testing.T) {
+			encoded, err := unicode.UTF16(unicode.LittleEndian, unicode.ExpectBOM).NewEncoder().String(tc.initialYAML)
+			if !assert.NoError(t, err) {
+				return
+			}
+			tc.initialYAML = encoded
+			runWriteConfigTestCase(t, tc)
+		})
 	}
 }
 
@@ -393,4 +408,41 @@ site: datadoghq.com
 			runWriteConfigTestCase(t, tc)
 		})
 	}
+}
+
+// TestEnsureUTF8 tests that the ensureUTF8 function correctly converts between encodings
+//
+// It tests with UTF-16LE, UTF-16LE with BOM, UTF-16BE with BOM, and UTF-8.
+func TestEnsureUTF8(t *testing.T) {
+	encodings := []encoding.Encoding{
+		unicode.UTF16(unicode.BigEndian, unicode.ExpectBOM),
+		unicode.UTF16(unicode.LittleEndian, unicode.ExpectBOM),
+		unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM),
+		encoding.Nop, // keeps UTF-8 as is
+	}
+
+	input := []byte("hello world")
+	for _, e := range encodings {
+		// encode input to new encoding
+		encoded, err := e.NewEncoder().Bytes(input)
+		if !assert.NoError(t, err) {
+			return
+		}
+		// convert it back to UTF-8
+		output, err := ensureUTF8(encoded)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, input, output)
+		// assert output does not contain BOM
+		assert.False(t, bytes.HasPrefix(output, []byte{0xFF, 0xFE}), "output should not have UTF-16LE BOM")
+		assert.False(t, bytes.HasPrefix(output, []byte{0xFE, 0xFF}), "output should not have UTF-16BE BOM")
+		assert.False(t, bytes.HasPrefix(output, []byte{0xEF, 0xBB, 0xBF}), "output should not have UTF-8 BOM")
+	}
+
+	// returns an error on invalid encodings
+	// Administrator in ru / cp1251
+	input = []byte("A\xe4\xec\xe8\xed\xe8\xf1\xf2\xf0\xe0\xf2\xee\xf0")
+	_, err := ensureUTF8(input)
+	assert.ErrorContains(t, err, "not valid UTF-8", "should return error for unknown encodings")
 }

@@ -70,6 +70,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestUpgradeAgentPackageWithAltDir tests that an Agent installed with the MSI
@@ -133,6 +134,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestRunAgentMSIAfterExperiment tests that the Agent can be upgraded after
@@ -197,6 +199,7 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestExperimentForNonExistingPackageFails tests that starting an experiment
@@ -205,6 +208,7 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	// Act
 	_, err := s.Installer().StartExperiment(consts.AgentPackage, "unknown-version")
@@ -229,6 +233,7 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	// Act
 	_, err := s.StartExperimentCurrentVersion()

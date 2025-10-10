@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build cel
+
 // Package catalog contains the implementation of the filtering catalogs.
 package catalog
 
@@ -13,9 +15,35 @@ import (
 
 	"github.com/google/cel-go/cel"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
+
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	legacyFilter "github.com/DataDog/datadog-agent/pkg/util/containers"
 )
+
+func createFromOldFilters(name string, oldInclude, oldExclude []string, objectType workloadfilter.ResourceType, logger log.Component) program.FilterProgram {
+	var initErrors []error
+
+	includeProgram, includeErr := createProgramFromOldFilters(oldInclude, objectType)
+	if includeErr != nil {
+		initErrors = append(initErrors, includeErr)
+		logger.Warnf("error creating include program for %s: %v", name, includeErr)
+	}
+
+	excludeProgram, excludeErr := createProgramFromOldFilters(oldExclude, objectType)
+	if excludeErr != nil {
+		initErrors = append(initErrors, excludeErr)
+		logger.Warnf("error creating exclude program for %s: %v", name, excludeErr)
+	}
+
+	return program.CELProgram{
+		Name:                 name,
+		Include:              includeProgram,
+		Exclude:              excludeProgram,
+		InitializationErrors: initErrors,
+	}
+}
 
 // createProgramFromOldFilters handles the conversion of old filters to new filters and creates a CEL program.
 // Returns both the program and any errors encountered during creation.
@@ -38,7 +66,7 @@ func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 		return nil, nil
 	}
 	env, err := cel.NewEnv(
-		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}),
+		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}, &workloadfilter.Process{}),
 		cel.Variable(string(objectType), cel.ObjectType(convertTypeToProtoType(objectType))),
 	)
 	if err != nil {
@@ -57,12 +85,6 @@ func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 
 // getFieldMapping creates a map to associate old filter prefixes with new filter fields
 func getFieldMapping(objectType workloadfilter.ResourceType) map[string]string {
-	if objectType == workloadfilter.ImageType {
-		// only support "image" which is the image name
-		return map[string]string{
-			"image": fmt.Sprintf("%s.name.matches", objectType),
-		}
-	}
 	return map[string]string{
 		"name":  fmt.Sprintf("%s.name.matches", objectType),
 		"image": fmt.Sprintf("%s.image.matches", objectType),
@@ -101,10 +123,7 @@ func convertOldToNewFilter(oldFilters []string, objectType workloadfilter.Resour
 		}
 
 		// Check if the key applies for the particular workload type
-		if objectType != workloadfilter.ContainerType && objectType != workloadfilter.ImageType && key == "image" {
-			continue
-		}
-		if objectType == workloadfilter.ImageType && key != "image" {
+		if objectType != workloadfilter.ContainerType && key == "image" {
 			continue
 		}
 		if objectType == workloadfilter.PodType && key != "kube_namespace" {
@@ -136,8 +155,8 @@ func convertTypeToProtoType(key workloadfilter.ResourceType) string {
 		return "datadog.filter.FilterKubeService"
 	case workloadfilter.EndpointType:
 		return "datadog.filter.FilterKubeEndpoint"
-	case workloadfilter.ImageType:
-		return "datadog.filter.FilterImage"
+	case workloadfilter.ProcessType:
+		return "datadog.filter.FilterProcess"
 	default:
 		return ""
 	}

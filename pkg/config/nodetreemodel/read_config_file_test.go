@@ -255,15 +255,14 @@ tree(#ptr<000004>) source=default
 > a
     leaf(#ptr<000005>), val:"apple", source:default
 > c
-  inner(#ptr<000006>)
+  inner(#ptr<000002>)
   > d
-      leaf(#ptr<000007>), val:true, source:default
-tree(#ptr<000008>) source=environment-variable
-tree(#ptr<000009>) source=file
+      leaf(#ptr<000003>), val:true, source:default
+tree(#ptr<000006>) source=file
 > a
-    leaf(#ptr<000010>), val:"orange", source:file
+    leaf(#ptr<000001>), val:"orange", source:file
 > c
-    leaf(#ptr<000011>), val:1234, source:file`
+    leaf(#ptr<000007>), val:1234, source:file`
 	assert.Equal(t, expected, c.Stringify("all", model.OmitPointerAddr))
 }
 

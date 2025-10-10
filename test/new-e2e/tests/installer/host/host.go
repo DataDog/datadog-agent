@@ -215,8 +215,11 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 // This is because of a race condition where the trace agent is not ready to receive traces and we send them
 // meaning that the traces are lost
 func (h *Host) WaitForTraceAgentSocketReady() {
-	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(sudo journalctl _PID=`systemctl show -p MainPID datadog-agent-trace | cut -d\"=\" -f2`); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
-	require.NoError(h.t(), err, "trace agent did not become ready")
+	require.EventuallyWithT(h.t(), func(t *assert.CollectT) {
+		// this endpoint is no-op but it will fail if the trace agent is not ready
+		_, err := h.remote.Execute("curl -XGET --unix-socket /var/run/datadog/apm.socket http:/services")
+		require.NoError(t, err)
+	}, 30*time.Second, 1*time.Second, "trace agent did not become ready")
 }
 
 // BootstrapperVersion returns the version of the bootstrapper on the host.
@@ -263,7 +266,7 @@ func (h *Host) AssertPackageNotInstalledByInstaller(pkgs ...string) {
 
 // AgentRuntimeConfig returns the runtime agent config on the host.
 func (h *Host) AgentRuntimeConfig() (string, error) {
-	return h.remote.Execute("sudo -u dd-agent datadog-agent config")
+	return h.remote.Execute("sudo -u dd-agent datadog-agent config --all")
 }
 
 // AssertPackageVersion checks if a package is installed with the correct version

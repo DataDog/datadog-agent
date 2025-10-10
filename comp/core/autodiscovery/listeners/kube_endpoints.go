@@ -59,6 +59,7 @@ type KubeEndpointService struct {
 	ports           []ContainerPort
 	metricsExcluded bool
 	globalExcluded  bool
+	namespace       string
 }
 
 // Make sure KubeEndpointService implements the Service interface
@@ -335,14 +336,9 @@ func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilt
 	metricsExcluded := false
 	globalExcluded := false
 	if filterStore != nil {
-		metricsExcluded = filterStore.IsEndpointExcluded(
-			workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations()),
-			filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter),
-		)
-		globalExcluded = filterStore.IsEndpointExcluded(
-			workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations()),
-			filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter),
-		)
+		filterableEndpoint := workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations())
+		metricsExcluded = filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
+		globalExcluded = filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
 	}
 
 	for i := range kep.Subsets {
@@ -365,6 +361,7 @@ func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilt
 				},
 				metricsExcluded: metricsExcluded,
 				globalExcluded:  globalExcluded,
+				namespace:       kep.Namespace,
 			}
 			ep.tags = append(ep.tags, tags...)
 			eps = append(eps, ep)
@@ -504,10 +501,19 @@ func (s *KubeEndpointService) HasFilter(fs workloadfilter.Scope) bool {
 }
 
 // GetExtraConfig isn't supported
-func (s *KubeEndpointService) GetExtraConfig(_ string) (string, error) {
+func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
+	switch key {
+	case "namespace":
+		return s.namespace, nil
+	}
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
 func (s *KubeEndpointService) FilterTemplates(map[string]integration.Config) {
+}
+
+// GetImageName does nothing
+func (s *KubeEndpointService) GetImageName() string {
+	return ""
 }

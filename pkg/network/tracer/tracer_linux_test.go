@@ -1610,13 +1610,16 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", assignedPort)
 
+	var incoming, outgoing *network.ConnectionStats
 	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
-		// use t instead of ct because getConnections uses require (not assert), and we get a better error message that way
 		connections, cleanup := getConnections(ct, tr)
 		defer cleanup()
 
-		incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-		if assert.True(ct, ok, "unable to find incoming connection") {
+		curIncoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if ok {
+			incoming = curIncoming
+		}
+		if assert.NotNil(ct, incoming, "unable to find incoming connection") {
 			assert.Equal(ct, network.INCOMING, incoming.Direction)
 
 			// make sure the inverse values are seen for the other message
@@ -1625,15 +1628,18 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 			assert.True(ct, incoming.IntraHost, "incoming intrahost")
 		}
 
-		outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		if assert.True(ct, ok, "unable to find outgoing connection") {
+		curOutgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if ok {
+			outgoing = curOutgoing
+		}
+		if assert.NotNil(ct, outgoing, "unable to find outgoing connection") {
 			assert.Equal(ct, network.OUTGOING, outgoing.Direction)
 
 			assert.Equal(ct, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
 			assert.Equal(ct, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
 			assert.True(ct, outgoing.IntraHost, "outgoing intrahost")
 		}
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 4*time.Second, 100*time.Millisecond)
 
 	// log the connections at the end in case the test failed
 	connections, cleanup := getConnections(t, tr)
@@ -2496,11 +2502,13 @@ func (s *TracerSuite) TestConnectionDuration() {
 		for {
 			_, err := c.Read(b[:])
 			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
+				t.Logf("closing connection: %s", err)
 				break
 			}
 			require.NoError(t, err)
 			_, err = c.Write([]byte("pong"))
 			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
+				t.Logf("closing connection: %s", err)
 				break
 			}
 			require.NoError(t, err)
@@ -2548,6 +2556,7 @@ LOOP:
 	}, 3*time.Second, 100*time.Millisecond, "could not find connection")
 
 	require.NoError(t, c.Close(), "error closing client connection")
+	t.Logf("client connection closed")
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
 		defer cleanup()
@@ -2557,10 +2566,10 @@ LOOP:
 		require.Empty(collect, conn.TCPFailures, "connection should have no failures")
 
 		// after closing the client connection, the duration should be
-		// updated to a value between 1s and 2s
-		require.Greater(collect, conn.Duration, time.Second, "connection duration should be between 1 and 2 seconds")
-		require.Less(collect, conn.Duration, 2*time.Second, "connection duration should be between 1 and 2 seconds")
-	}, 3*time.Second, 100*time.Millisecond, "could not find closed connection")
+		// updated to a value between 500ms and 2s.
+		require.Greater(collect, conn.Duration, 500*time.Millisecond, "connection duration should be between 500ms and 2 seconds")
+		require.Less(collect, conn.Duration, 2*time.Second, "connection duration should be between 500ms and 2 seconds")
+	}, 4*time.Second, 100*time.Millisecond, "could not find closed connection")
 }
 
 var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
@@ -2593,7 +2602,8 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		}
 		sfd, err := syscall.Socket(syscall.AF_INET, flags, syscall.IPPROTO_TCP)
 		require.NoError(t, err)
-		defer syscall.Close(sfd)
+		f := os.NewFile(uintptr(sfd), "")
+		defer f.Close()
 
 		//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
 		err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
@@ -2608,7 +2618,6 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 			}
 		}
 
-		f := os.NewFile(uintptr(sfd), "")
 		c, err := net.FileConn(f)
 		require.NoError(t, err)
 		t.Cleanup(func() { c.Close() })

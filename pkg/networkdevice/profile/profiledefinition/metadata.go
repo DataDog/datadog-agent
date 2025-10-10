@@ -54,12 +54,21 @@ type MetadataField struct {
 	Value   string         `yaml:"value,omitempty" json:"value,omitempty"`
 }
 
+// IsEmpty is true if this is nil or the zero value.
+func (f *MetadataField) IsEmpty() bool {
+	if f == nil {
+		return true
+	}
+	return f.Symbol == SymbolConfig{} && len(f.Symbols) == 0 && f.Value == ""
+
+}
+
 // Clone duplicates this MetadataField
-func (c MetadataField) Clone() MetadataField {
+func (f MetadataField) Clone() MetadataField {
 	return MetadataField{
-		Symbol:  c.Symbol.Clone(),
-		Symbols: CloneSlice(c.Symbols),
-		Value:   c.Value,
+		Symbol:  f.Symbol.Clone(),
+		Symbols: CloneSlice(f.Symbols),
+		Value:   f.Value,
 	}
 }
 
