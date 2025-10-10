@@ -39,7 +39,6 @@ import (
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -63,7 +62,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -169,7 +167,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, _ ipc.Component, remoteagentComp remoteagent.Component, deps module.FactoryDependencies) error {
+func run(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, _ ipc.Component, deps module.FactoryDependencies) error {
 	defer func() {
 		stopSystemProbe()
 	}()
@@ -217,7 +215,7 @@ func run(log log.Component, _ config.Component, telemetry telemetry.Component, s
 		}
 	}()
 
-	if err := startSystemProbe(log, telemetry, sysprobeconfig, rcclient, settings, remoteagentComp, deps); err != nil {
+	if err := startSystemProbe(log, telemetry, sysprobeconfig, rcclient, settings, deps); err != nil {
 		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -261,9 +259,9 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ healthprobe.Component, settings settings.Component, remoteagentComp remoteagent.Component, deps module.FactoryDependencies) error {
+		func(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ healthprobe.Component, settings settings.Component, deps module.FactoryDependencies) error {
 			defer StopSystemProbeWithDefaults()
-			err := startSystemProbe(log, telemetry, sysprobeconfig, rcclient, settings, remoteagentComp, deps)
+			err := startSystemProbe(log, telemetry, sysprobeconfig, rcclient, settings, deps)
 			if err != nil {
 				return err
 			}
@@ -349,7 +347,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, settings settings.Component, remoteagentComp remoteagent.Component, deps module.FactoryDependencies) error {
+func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
 	var err error
 	cfg := sysprobeconfig.SysProbeObject()
 
@@ -357,11 +355,6 @@ func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobe
 
 	// Initialize COAT metrics for system-probe
 	initCOATMetrics(telemetry)
-
-	// Register telemetry service with RemoteAgent
-	telemetryProvider := api.NewSystemProbeTelemetryProvider(telemetry)
-	pbcore.RegisterTelemetryProviderServer(remoteagentComp.GetGRPCServer(), telemetryProvider)
-	log.Info("Registered telemetry service with RemoteAgent")
 
 	logUserAndGroupID(log)
 	// Exit if system probe is disabled

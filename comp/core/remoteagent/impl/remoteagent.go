@@ -16,7 +16,9 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -27,6 +29,8 @@ type Requires struct {
 	Log       log.Component
 	IPC       ipc.Component
 	Config    config.Component
+	// Telemetry is optional - only used by system-probe for COAT metrics
+	Telemetry telemetry.Component `optional:"true"`
 }
 
 // Provides defines the output of the remoteagent component
@@ -41,6 +45,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 	register, err := helper.NewUnimplementedRemoteAgentServer(reqs.IPC, reqs.Log, reqs.Config, reqs.Lifecycle, registryAddress, flavor.GetFlavor(), flavor.GetHumanReadableFlavor())
 	if err != nil {
 		return Provides{}, err
+	}
+
+	// Register telemetry service if telemetry component is available (system-probe case)
+	if reqs.Telemetry != nil {
+		telemetryProvider := newTelemetryProvider(reqs.Telemetry)
+		pbcore.RegisterTelemetryProviderServer(register.GetGRPCServer(), telemetryProvider)
+		reqs.Log.Info("Registered telemetry service with RemoteAgent")
 	}
 
 	remoteagentImpl := &remoteagentImpl{
