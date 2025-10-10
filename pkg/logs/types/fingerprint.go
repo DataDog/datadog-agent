@@ -10,20 +10,21 @@ import (
 	"fmt"
 )
 
-// InvalidFingerprintValue is the value that is returned when a fingerprint cannot be produced
 const (
+	// InvalidFingerprintValue is the value that is returned when a fingerprint cannot be produced due to errors
 	InvalidFingerprintValue = 0
 )
 
 // Fingerprint struct that stores both the value and config used to derive that value
 type Fingerprint struct {
-	Value  uint64
-	Config *FingerprintConfig
+	Value     uint64
+	Config    *FingerprintConfig
+	BytesUsed int // Number of bytes used to compute the fingerprint; fingerprints can be partial (< Config.Count)
 }
 
 // String converts the fingerprint to a string
 func (f *Fingerprint) String() string {
-	return fmt.Sprintf("Fingerprint{Value: %d, Config: %v}", f.Value, f.Config)
+	return fmt.Sprintf("Fingerprint{Value: %d, BytesUsed: %d, Config: %v}", f.Value, f.BytesUsed, f.Config)
 }
 
 // Equals compares two fingerprints and returns true if they are equal
@@ -31,9 +32,25 @@ func (f *Fingerprint) Equals(other *Fingerprint) bool {
 	return f.Value == other.Value
 }
 
-// ValidFingerprint returns true if the fingerprint is valid (non-zero value and non-nil config)
-func (f *Fingerprint) ValidFingerprint() bool {
+// IsValidFingerprint returns true if the fingerprint is valid (non-zero value and non-nil config)
+func (f *Fingerprint) IsValidFingerprint() bool {
 	return f.Value != InvalidFingerprintValue && f.Config != nil
+}
+
+// IsPartialFingerprint returns true if the fingerprint was computed from partial data
+func (f *Fingerprint) IsPartialFingerprint() bool {
+	if f.Config == nil {
+		return false
+	}
+
+	// Only byte-based fingerprinting uses BytesUsed to track partial fingerprints;
+	// cannot track partial line-based fingerprints by bytes alone
+	if f.Config.FingerprintStrategy == FingerprintStrategyByteChecksum {
+		expectedBytes := f.Config.Count
+		return f.BytesUsed > 0 && f.BytesUsed < expectedBytes
+	}
+
+	return false
 }
 
 // FingerprintConfig defines the options for the fingerprint configuration.
