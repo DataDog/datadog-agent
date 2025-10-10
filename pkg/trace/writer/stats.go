@@ -54,10 +54,11 @@ type DatadogStatsWriter struct {
 	payloads  []*pb.StatsPayload // payloads buffered for sync mode
 	flushChan chan chan struct{}
 
-	easylog *log.ThrottledLogger
-	statsd  statsd.ClientInterface
-	timing  timing.Reporter
-	mu      sync.Mutex
+	easylog   *log.ThrottledLogger
+	statsd    statsd.ClientInterface
+	timing    timing.Reporter
+	telemetry *StatsWriterTelemetry
+	mu        sync.Mutex
 }
 
 // NewStatsWriter returns a new DatadogStatsWriter. It must be started using Run.
@@ -66,6 +67,18 @@ func NewStatsWriter(
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
 	timing timing.Reporter,
+) *DatadogStatsWriter {
+	return NewStatsWriterWithTelemetry(cfg, telemetryCollector, statsd, timing, NewStatsWriterTelemetry())
+}
+
+// NewStatsWriterWithTelemetry returns a new DatadogStatsWriter with the provided telemetry.
+// Pass nil for telemetry in tests to avoid Prometheus registration conflicts.
+func NewStatsWriterWithTelemetry(
+	cfg *config.AgentConfig,
+	telemetryCollector telemetry.TelemetryCollector,
+	statsd statsd.ClientInterface,
+	timing timing.Reporter,
+	telem *StatsWriterTelemetry,
 ) *DatadogStatsWriter {
 	sw := &DatadogStatsWriter{
 		stats:           &info.StatsWriterInfo{},
@@ -77,6 +90,7 @@ func NewStatsWriter(
 		conf:            cfg,
 		statsd:          statsd,
 		timing:          timing,
+		telemetry:       telem,
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -387,14 +401,16 @@ func (w *DatadogStatsWriter) report() {
 	_ = w.statsd.Count("datadog.trace_agent.stats_writer.splits", splits, nil, 1)
 	_ = w.statsd.Count("datadog.trace_agent.stats_writer.errors", errors, nil, 1)
 
-	statsWriterTelemetry.clientPayloads.Add(float64(clientPayloads))
-	statsWriterTelemetry.payloads.Add(float64(payloads))
-	statsWriterTelemetry.statsBuckets.Add(float64(statsBuckets))
-	statsWriterTelemetry.statsEntries.Add(float64(statsEntries))
-	statsWriterTelemetry.bytes.Add(float64(bytes))
-	statsWriterTelemetry.retries.Add(float64(retries))
-	statsWriterTelemetry.splits.Add(float64(splits))
-	statsWriterTelemetry.errors.Add(float64(errors))
+	if w.telemetry != nil {
+		w.telemetry.clientPayloads.Add(float64(clientPayloads))
+		w.telemetry.payloads.Add(float64(payloads))
+		w.telemetry.statsBuckets.Add(float64(statsBuckets))
+		w.telemetry.statsEntries.Add(float64(statsEntries))
+		w.telemetry.bytes.Add(float64(bytes))
+		w.telemetry.retries.Add(float64(retries))
+		w.telemetry.splits.Add(float64(splits))
+		w.telemetry.errors.Add(float64(errors))
+	}
 }
 
 // recordEvent implements eventRecorder.
@@ -402,8 +418,10 @@ func (w *DatadogStatsWriter) recordEvent(t eventType, data *eventData) {
 	if data != nil {
 		_ = w.statsd.Histogram("datadog.trace_agent.stats_writer.connection_fill", data.connectionFill, nil, 1)
 		_ = w.statsd.Histogram("datadog.trace_agent.stats_writer.queue_fill", data.queueFill, nil, 1)
-		statsWriterTelemetry.connectionFill.Observe(data.connectionFill)
-		statsWriterTelemetry.queueFill.Observe(data.queueFill)
+		if w.telemetry != nil {
+			w.telemetry.connectionFill.Observe(data.connectionFill)
+			w.telemetry.queueFill.Observe(data.queueFill)
+		}
 	}
 	switch t {
 	case eventTypeRetry:
@@ -424,7 +442,9 @@ func (w *DatadogStatsWriter) recordEvent(t eventType, data *eventData) {
 		w.easylog.Warn("Stats writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
 		_ = w.statsd.Count("datadog.trace_agent.stats_writer.dropped", 1, nil, 1)
 		_ = w.statsd.Count("datadog.trace_agent.stats_writer.dropped_bytes", int64(data.bytes), nil, 1)
-		statsWriterTelemetry.dropped.Inc()
-		statsWriterTelemetry.droppedBytes.Add(float64(data.bytes))
+		if w.telemetry != nil {
+			w.telemetry.dropped.Inc()
+			w.telemetry.droppedBytes.Add(float64(data.bytes))
+		}
 	}
 }

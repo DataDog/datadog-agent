@@ -7,9 +7,8 @@ package writer
 
 import "github.com/DataDog/datadog-agent/pkg/telemetry"
 
-var traceWriterTelemetry = newTraceWriterTelemetry()
-
-type traceWriterTelemetryMetrics struct {
+// TraceWriterTelemetry holds telemetry metrics for the trace writer
+type TraceWriterTelemetry struct {
 	payloads          telemetry.Counter
 	bytesUncompressed telemetry.Counter
 	retries           telemetry.Counter
@@ -24,9 +23,10 @@ type traceWriterTelemetryMetrics struct {
 	queueFill         telemetry.Histogram
 }
 
-func newTraceWriterTelemetry() *traceWriterTelemetryMetrics {
+// NewTraceWriterTelemetry creates a new TraceWriterTelemetry instance
+func NewTraceWriterTelemetry() *TraceWriterTelemetry {
 	opts := telemetry.Options{NoDoubleUnderscoreSep: true}
-	return &traceWriterTelemetryMetrics{
+	return &TraceWriterTelemetry{
 		payloads:          telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "trace_writer_payloads_total", []string{}, "Number of trace payloads flushed", opts),
 		bytesUncompressed: telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "trace_writer_bytes_uncompressed_total", []string{}, "Number of uncompressed trace bytes processed", opts),
 		retries:           telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "trace_writer_retries_total", []string{}, "Number of trace writer retries", opts),

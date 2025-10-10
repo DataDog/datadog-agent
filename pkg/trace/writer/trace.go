@@ -81,6 +81,7 @@ type TraceWriter struct {
 	easylog    *log.ThrottledLogger
 	statsd     statsd.ClientInterface
 	timing     timing.Reporter
+	telemetry  *TraceWriterTelemetry
 	mu         sync.Mutex
 	compressor compression.Component
 }
@@ -96,6 +97,21 @@ func NewTraceWriter(
 	statsd statsd.ClientInterface,
 	timing timing.Reporter,
 	compressor compression.Component) *TraceWriter {
+	return NewTraceWriterWithTelemetry(cfg, prioritySampler, errorsSampler, rareSampler, telemetryCollector, statsd, timing, compressor, NewTraceWriterTelemetry())
+}
+
+// NewTraceWriterWithTelemetry returns a new TraceWriter with the provided telemetry.
+// Pass nil for telemetry in tests to avoid Prometheus registration conflicts.
+func NewTraceWriterWithTelemetry(
+	cfg *config.AgentConfig,
+	prioritySampler samplerTPSReader,
+	errorsSampler samplerTPSReader,
+	rareSampler samplerEnabledReader,
+	telemetryCollector telemetry.TelemetryCollector,
+	statsd statsd.ClientInterface,
+	timing timing.Reporter,
+	compressor compression.Component,
+	telem *TraceWriterTelemetry) *TraceWriter {
 	tw := &TraceWriter{
 		prioritySampler:    prioritySampler,
 		errorsSampler:      errorsSampler,
@@ -113,6 +129,7 @@ func NewTraceWriter(
 		telemetryCollector: telemetryCollector,
 		statsd:             statsd,
 		timing:             timing,
+		telemetry:          telem,
 		compressor:         compressor,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
@@ -346,14 +363,16 @@ func (w *TraceWriter) report() {
 	_ = w.statsd.Count("datadog.trace_agent.trace_writer.events", events, nil, 1)
 	_ = w.statsd.Count("datadog.trace_agent.trace_writer.spans", spans, nil, 1)
 
-	traceWriterTelemetry.payloads.Add(float64(payloads))
-	traceWriterTelemetry.bytesUncompressed.Add(float64(bytesUncompressed))
-	traceWriterTelemetry.retries.Add(float64(retries))
-	traceWriterTelemetry.bytes.Add(float64(bytes))
-	traceWriterTelemetry.errors.Add(float64(errors))
-	traceWriterTelemetry.traces.Add(float64(traces))
-	traceWriterTelemetry.events.Add(float64(events))
-	traceWriterTelemetry.spans.Add(float64(spans))
+	if w.telemetry != nil {
+		w.telemetry.payloads.Add(float64(payloads))
+		w.telemetry.bytesUncompressed.Add(float64(bytesUncompressed))
+		w.telemetry.retries.Add(float64(retries))
+		w.telemetry.bytes.Add(float64(bytes))
+		w.telemetry.errors.Add(float64(errors))
+		w.telemetry.traces.Add(float64(traces))
+		w.telemetry.events.Add(float64(events))
+		w.telemetry.spans.Add(float64(spans))
+	}
 }
 
 var _ eventRecorder = (*TraceWriter)(nil)
@@ -363,8 +382,10 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 	if data != nil {
 		_ = w.statsd.Histogram("datadog.trace_agent.trace_writer.connection_fill", data.connectionFill, nil, 1)
 		_ = w.statsd.Histogram("datadog.trace_agent.trace_writer.queue_fill", data.queueFill, nil, 1)
-		traceWriterTelemetry.connectionFill.Observe(data.connectionFill)
-		traceWriterTelemetry.queueFill.Observe(data.queueFill)
+		if w.telemetry != nil {
+			w.telemetry.connectionFill.Observe(data.connectionFill)
+			w.telemetry.queueFill.Observe(data.queueFill)
+		}
 	}
 	switch t {
 	case eventTypeRetry:
@@ -388,7 +409,9 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 		w.easylog.Warn("Trace Payload dropped (%.2fKB).", float64(data.bytes)/1024)
 		_ = w.statsd.Count("datadog.trace_agent.trace_writer.dropped", 1, nil, 1)
 		_ = w.statsd.Count("datadog.trace_agent.trace_writer.dropped_bytes", int64(data.bytes), nil, 1)
-		traceWriterTelemetry.dropped.Inc()
-		traceWriterTelemetry.droppedBytes.Add(float64(data.bytes))
+		if w.telemetry != nil {
+			w.telemetry.dropped.Inc()
+			w.telemetry.droppedBytes.Add(float64(data.bytes))
+		}
 	}
 }
