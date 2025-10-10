@@ -96,6 +96,7 @@ func toManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.
 	// ToDo: add more meaningful tags
 	tags := buildTags(resource, logRecord)
 
+	fmt.Println("send manifest: ", logRecord.Body().AsString())
 	// Create the manifest
 	manifest := &agentmodel.Manifest{
 		Type:            int32(manifestType),

@@ -8,6 +8,7 @@ package logsagentexporter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -123,7 +124,7 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 		if err != nil {
 			logger.Error("Error parsing log: " + err.Error())
 		}
-
+		fmt.Println("send applogs: ", string(content), getLogsScope(ld))
 		// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
 		ingestionTs := time.Now().UnixNano()
 		message := message.NewMessage(content, origin, status, ingestionTs)
