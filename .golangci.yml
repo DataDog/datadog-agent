@@ -365,7 +365,7 @@ issues:
     - path: comp/otelcol/otlp/config.go
       linters:
         - pkgconfigusage
-    - path: comp/otelcol/otlp/configcheck/configcheck.go
+    - path: comp/otelcol/otlp/configcheck/configcheck_common.go
       linters:
         - pkgconfigusage
     - path: comp/otelcol/otlp/configcheck/configcheck_test.go

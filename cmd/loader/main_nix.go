@@ -238,7 +238,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 	}
 
 	// OTLP TCP receiver
-	if configcheck.IsEnabled(cfg) {
+	if configcheck.IsConfigEnabled(cfg) {
 		grpcPort := cfg.GetInt(pkgconfigsetup.OTLPTracePort)
 		log.Infof("Listening to otlp port %d", grpcPort)
 		ln, err := loader.GetTCPListener(fmt.Sprintf("%s:%d", traceCfgReceiverHost, grpcPort))
