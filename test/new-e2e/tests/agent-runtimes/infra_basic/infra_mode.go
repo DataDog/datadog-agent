@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package infrabasic contains end-to-end tests for infrastructure basic mode functionality.
-// These tests verify that core system checks work correctly when the agent is configured
-// to run in basic infrastructure mode, which only instantiates essential components.
 package infrabasic
 
 import (
@@ -69,23 +66,10 @@ type infraBasicSuite struct { //nolint:unused
 	descriptor e2eos.Descriptor
 }
 
-// RunnerStats represents the check runner statistics from agent status
-type RunnerStats struct {
-	CheckName         string `json:"CheckName"`
-	TotalRuns         uint64 `json:"TotalRuns"`
-	TotalErrors       uint64 `json:"TotalErrors"`
-	TotalWarnings     uint64 `json:"TotalWarnings"`
-	CheckID           string `json:"CheckID"`
-	CheckConfigSource string `json:"CheckConfigSource"`
-}
-
-// runnerStatsContainer holds the Checks map
-// The structure is nested: check name -> instance ID -> stats
 type runnerStatsContainer struct {
-	Checks map[string]map[string]RunnerStats `json:"Checks"`
+	Checks map[string]map[string]check.Runner `json:"Checks"`
 }
 
-// AgentStatusJSON represents the relevant parts of agent status JSON output
 type AgentStatusJSON struct {
 	RunnerStats runnerStatsContainer `json:"runnerStats"`
 }
@@ -156,7 +140,7 @@ instances:
 }
 
 // getRunnerStats retrieves the runner statistics from the agent status
-func (s *infraBasicSuite) getRunnerStats() (map[string]map[string]RunnerStats, error) { //nolint:unused
+func (s *infraBasicSuite) getRunnerStats() (map[string]map[string]check.Runner, error) { //nolint:unused
 	status := s.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
 
 	var statusMap AgentStatusJSON
@@ -169,7 +153,7 @@ func (s *infraBasicSuite) getRunnerStats() (map[string]map[string]RunnerStats, e
 }
 
 // isCheckScheduled returns true if the check is scheduled and has run at least once
-func (s *infraBasicSuite) isCheckScheduled(checkName string, checks map[string]map[string]RunnerStats) bool { //nolint:unused
+func (s *infraBasicSuite) isCheckScheduled(checkName string, checks map[string]map[string]check.Runner) bool { //nolint:unused
 	// The checks map is nested: checkName -> instanceID -> stats
 	if instances, exists := checks[checkName]; exists {
 		// Check if any instance of this check has run
@@ -348,7 +332,7 @@ infra_basic_additional_checks:
 		// Verify the additional check is scheduled and running
 		t.Logf("Waiting for additional check %s to appear in runner stats...", additionalCheckName)
 
-		var cachedStats map[string]map[string]RunnerStats
+		var cachedStats map[string]map[string]check.Runner
 		var statsErr error
 
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {

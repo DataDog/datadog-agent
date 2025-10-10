@@ -47,18 +47,9 @@ func GetInfraBasicAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
 		return allowedMap
 	}
 
-	// Start with default allowed checks
 	allowedMap = getDefaultInfraBasicAllowedChecks()
-
-	// Get additional checks from config
-	// Config key: infra_basic_additional_checks
-	// Example in datadog.yaml:
-	//   infra_basic_additional_checks:
-	//     - custom_check_1
-	//     - custom_check_2
 	additionalChecks := cfg.GetStringSlice("infra_basic_additional_checks")
 
-	// Merge additional checks with defaults
 	for _, check := range additionalChecks {
 		allowedMap[check] = struct{}{}
 	}
@@ -70,15 +61,11 @@ func GetInfraBasicAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
 // When not in basic mode, all checks are allowed (returns true).
 // When in basic mode, only checks in the allowed list are permitted.
 func IsCheckAllowedInInfraBasic(checkName string, cfg pkgconfigmodel.Reader) bool {
-	// In basic mode, check if the check is in the allowed list
-	allowedMap := GetInfraBasicAllowedChecks(cfg)
-
-	// If the set is empty, all checks are allowed
-	if len(allowedMap) == 0 {
+	// In basic mode, check if the check is in the allowed list or if the set is empty (all checks are allowed)
+	if infraBasicAllowedChecks := GetInfraBasicAllowedChecks(cfg); len(infraBasicAllowedChecks) == 0 {
 		return true
+	} else {
+		_, exists := infraBasicAllowedChecks[checkName]
+		return exists
 	}
-
-	// Check if the check is in the allowed list
-	_, exists := allowedMap[checkName]
-	return exists
 }
