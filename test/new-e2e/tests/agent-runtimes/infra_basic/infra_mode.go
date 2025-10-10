@@ -34,7 +34,7 @@ var (
 		"memory",
 		"disk",
 		"uptime",
-		"load",
+		"load", // linux only
 		"network",
 		"ntp",
 		"io",
@@ -94,6 +94,19 @@ type AgentStatusJSON struct {
 // Utility Functions
 // ============================================================================
 
+// getAllowedChecks returns the list of checks that should work on the current OS
+func (s *infraBasicSuite) getAllowedChecks() []string { //nolint:unused
+	checks := make([]string, 0, len(allowedChecks))
+	for _, checkName := range allowedChecks {
+		// Skip "load" check on Windows as it's Linux-only
+		if checkName == "load" && s.descriptor.Family() == e2eos.WindowsFamily {
+			continue
+		}
+		checks = append(checks, checkName)
+	}
+	return checks
+}
+
 func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption { //nolint:unused
 	// Agent configuration for basic mode testing
 	basicModeAgentConfig := `
@@ -121,8 +134,8 @@ instances:
 		agentparams.WithAgentConfig(basicModeAgentConfig),
 	}
 
-	// Add integration configs for all allowed checks
-	for _, checkName := range allowedChecks {
+	// Add integration configs for all allowed checks (filtered by OS)
+	for _, checkName := range s.getAllowedChecks() {
 		agentOptions = append(agentOptions, agentparams.WithIntegration(checkName+".d", minimalCheckConfig))
 	}
 
@@ -211,7 +224,8 @@ func (s *infraBasicSuite) verifyCheckRuns(checkName string) bool { //nolint:unus
 func (s *infraBasicSuite) assertAllowedChecksWork() { //nolint:unused
 	s.T().Run("via_status_api", func(t *testing.T) {
 		// Verify all checks are scheduled and running by querying agent status
-		t.Logf("Testing %d checks via status API...", len(allowedChecks))
+		allowedChecksForOS := s.getAllowedChecks()
+		t.Logf("Testing %d checks via status API...", len(allowedChecksForOS))
 
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
 			stats, err := s.getRunnerStats()
@@ -223,7 +237,7 @@ func (s *infraBasicSuite) assertAllowedChecksWork() { //nolint:unused
 			t.Logf("Found %d check types in runner stats, verifying all allowed checks are present...", len(stats))
 
 			// Verify all allowed checks are scheduled
-			for _, checkName := range allowedChecks {
+			for _, checkName := range allowedChecksForOS {
 				scheduled := s.isCheckScheduled(checkName, stats)
 				if !scheduled {
 					t.Logf("Check %s not yet scheduled in basic mode", checkName)
@@ -238,8 +252,9 @@ func (s *infraBasicSuite) assertAllowedChecksWork() { //nolint:unused
 	s.T().Run("via_cli", func(t *testing.T) {
 		// Also verify all checks can be run via CLI
 		// No need to setup configs - they're already provisioned during suite setup
-		t.Logf("Testing %d checks via CLI...", len(allowedChecks))
-		for _, checkName := range allowedChecks {
+		allowedChecksForOS := s.getAllowedChecks()
+		t.Logf("Testing %d checks via CLI...", len(allowedChecksForOS))
+		for _, checkName := range allowedChecksForOS {
 			ran := s.verifyCheckRuns(checkName)
 			assert.True(t, ran, "Check %s must be runnable via CLI in basic mode", checkName)
 		}
