@@ -545,12 +545,4 @@ typedef RtLoader *(create_t)(const char *python_home, const char *python_exe, cb
 */
 typedef void(destroy_t)(RtLoader *);
 
-#ifndef _WIN32
-/*! core_trigger_t function pointer
-  \brief function pointer to the core triggering routine.
-  \param An integer corresponding to the signal number that triggered the dump.
-*/
-typedef void (*core_trigger_t)(int);
-#endif
-
 #endif

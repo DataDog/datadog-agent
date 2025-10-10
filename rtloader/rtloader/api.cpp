@@ -307,13 +307,6 @@ void clear_error(rtloader_t *rtloader)
 }
 
 #ifndef WIN32
-core_trigger_t core_dump = NULL;
-
-static inline void core(int sig)
-{
-    signal(sig, SIG_DFL);
-    kill(getpid(), sig);
-}
 
 //! signalHandler
 /*!
@@ -354,57 +347,70 @@ void signalHandler(int sig, siginfo_t *, void *)
     }
 #    endif
 
-    // dump core if so configured
-    __sync_synchronize();
-    if (core_dump) {
-        core_dump(sig);
-    } else {
-        kill(getpid(), SIGABRT);
-    }
+    kill(getpid(), SIGABRT);
 }
 
 /*
  * C-land crash handling
  */
-DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable, char **error)
+DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const int enable_stacktrace, char **error)
 {
-    // Establish an alternate stack, as go stacks are too shallow and might crash
-    const size_t alt_stack_size = SIGSTKSZ;
-    static void* alt_stack = nullptr;
-
-    __sync_synchronize();
-    if (alt_stack == nullptr) {
-        // Note: this memory is never freed, but it is necessary for the duration of the program
-        alt_stack = malloc(alt_stack_size);
-        stack_t new_stack{.ss_sp = alt_stack, .ss_flags = 0, .ss_size = alt_stack_size};
-        int ret = sigaltstack(&new_stack, nullptr);
-        if (ret != 0) {
+    if (!enable_coredump && !enable_stacktrace) {
+        // Nothing to do
+        return 1;
+    }
+    if (enable_coredump) {
+        // All we have to do is set the RLIMIT_CORE to unlimited
+        // This should not require any special privileges, but
+        // if it returns EPERM then perhaps there is a system policy
+        // that prevents it.
+        struct rlimit rlim;
+        rlim.rlim_cur = RLIM_INFINITY;
+        rlim.rlim_max = RLIM_INFINITY;
+        if (setrlimit(RLIMIT_CORE, &rlim) != 0) {
             std::ostringstream err_msg;
-            err_msg << "unable to set alternate stack: " << strerror(errno);
+            err_msg << "unable to enable core dump: " << strerror(errno);
             *error = strdupe(err_msg.str().c_str());
             return 0;
         }
     }
 
-    struct sigaction sa;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
-    sa.sa_sigaction = signalHandler;
+    if (enable_stacktrace) {
+        // Establish an alternate stack, as go stacks are too shallow and might crash
+        const size_t alt_stack_size = SIGSTKSZ;
+        static void* alt_stack = nullptr;
 
-    // on segfault - what else?
-    int err = sigaction(SIGSEGV, &sa, NULL);
-
-    if (enable && err == 0) {
         __sync_synchronize();
-        core_dump = core;
-    }
-    if (err) {
-        std::ostringstream err_msg;
-        err_msg << "unable to set crash handler: " << strerror(errno);
-        *error = strdupe(err_msg.str().c_str());
+        if (alt_stack == nullptr) {
+            // Note: this memory is never freed, but it is necessary for the duration of the program
+            alt_stack = malloc(alt_stack_size);
+            stack_t new_stack{.ss_sp = alt_stack, .ss_flags = 0, .ss_size = alt_stack_size};
+            int ret = sigaltstack(&new_stack, nullptr);
+            if (ret != 0) {
+                std::ostringstream err_msg;
+                err_msg << "unable to set alternate stack: " << strerror(errno);
+                *error = strdupe(err_msg.str().c_str());
+                return 0;
+            }
+        }
+
+        struct sigaction sa;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+        sa.sa_sigaction = signalHandler;
+
+        // Gather stacktrace on segfault
+        int err = sigaction(SIGSEGV, &sa, NULL);
+
+        if (err) {
+            std::ostringstream err_msg;
+            err_msg << "unable to set crash handler: " << strerror(errno);
+            *error = strdupe(err_msg.str().c_str());
+            return 0;
+        }
     }
 
-    return err == 0 ? 1 : 0;
+    return 1;
 }
 #endif
 
