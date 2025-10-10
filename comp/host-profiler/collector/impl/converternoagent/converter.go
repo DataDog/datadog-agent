@@ -28,21 +28,30 @@ func newConverter(_ confmap.ConverterSettings) confmap.Converter {
 }
 
 func (c *converterNoAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	return removeInfraAttributesProcessor(conf)
+	conf.Delete("processors::" + infraAttributesName())
+	conf.Delete("extensions::" + ddprofilingName())
+
+	confStringMap := conf.ToStringMap()
+
+	if err := removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", infraAttributesName()); err != nil {
+		return err
+	}
+
+	if err := removeFromList(confStringMap, []string{"service"}, "extensions", ddprofilingName()); err != nil {
+		return err
+	}
+
+	*conf = *confmap.NewFromStringMap(confStringMap)
+	return nil
+
 }
 
 func infraAttributesName() string {
 	return "infraattributes/default"
 }
 
-func removeInfraAttributesProcessor(conf *confmap.Conf) error {
-	conf.Delete("processors::" + infraAttributesName())
-	confStringMap := conf.ToStringMap()
-	if err := removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", infraAttributesName()); err != nil {
-		return err
-	}
-	*conf = *confmap.NewFromStringMap(confStringMap)
-	return nil
+func ddprofilingName() string {
+	return "ddprofiling/default"
 }
 
 func removeFromList(confStringMap map[string]any, parentNames []string, listName string, itemToRemove string) error {

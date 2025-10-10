@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 )
 
-func TestConverterNoAgentConvert(t *testing.T) {
+func TestConverterInfraAttributes(t *testing.T) {
 	yaml := fmt.Sprintf(`
 processors:
   %s:
@@ -34,14 +34,8 @@ service:
         - %s
         - otherProcessor
 `, infraAttributesName(), infraAttributesName())
-	confRetrieved, err := confmap.NewRetrievedFromYAML([]byte(yaml))
-	require.NoError(t, err)
-	conf, err := confRetrieved.AsConf()
-	require.NoError(t, err)
-	converter := &converterNoAgent{}
-	err = converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-	require.Equal(t, conf.ToStringMap(), map[string]any{
+	conf := readFromYamlFile(t, yaml)
+	require.Equal(t, conf, map[string]any{
 		"processors": map[string]any{
 			"otherProcessor": map[string]any{},
 		},
@@ -55,7 +49,7 @@ service:
 	})
 }
 
-func TestConverterNoAgentConvertNoInfraAttributes(t *testing.T) {
+func TestConverterNoInfraAttributes(t *testing.T) {
 	yaml := `
 processors:
   otherProcessor: {}
@@ -65,14 +59,8 @@ service:
       processors:
         - otherProcessor
 `
-	confRetrieved, err := confmap.NewRetrievedFromYAML([]byte(yaml))
-	require.NoError(t, err)
-	conf, err := confRetrieved.AsConf()
-	require.NoError(t, err)
-	converter := &converterNoAgent{}
-	err = converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-	require.Equal(t, conf.ToStringMap(), map[string]any{
+	conf := readFromYamlFile(t, yaml)
+	require.Equal(t, conf, map[string]any{
 		"processors": map[string]any{
 			"otherProcessor": map[string]any{},
 		},
@@ -82,6 +70,22 @@ service:
 					"processors": []any{"otherProcessor"},
 				},
 			},
+		},
+	})
+}
+
+func TestConverterDDProfiling(t *testing.T) {
+	yaml := fmt.Sprintf(`
+extensions:
+  %s: {}
+service:
+  extensions: [%s]
+`, ddprofilingName(), ddprofilingName())
+
+	conf := readFromYamlFile(t, yaml)
+	require.Equal(t, conf, map[string]any{
+		"service": map[string]any{
+			"extensions": []any{},
 		},
 	})
 }
@@ -97,4 +101,15 @@ func getDefaultConfig(t *testing.T) string {
 	configData, err := os.ReadFile(configPath)
 	require.NoError(t, err)
 	return string(configData)
+}
+
+func readFromYamlFile(t *testing.T, yamlContent string) map[string]any {
+	confRetrieved, err := confmap.NewRetrievedFromYAML([]byte(yamlContent))
+	require.NoError(t, err)
+	conf, err := confRetrieved.AsConf()
+	require.NoError(t, err)
+	converter := &converterNoAgent{}
+	err = converter.Convert(context.Background(), conf)
+	require.NoError(t, err)
+	return conf.ToStringMap()
 }
