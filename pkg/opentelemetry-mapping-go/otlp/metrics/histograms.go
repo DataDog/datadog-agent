@@ -144,8 +144,8 @@ func _CreateDDSketchFromExponentialHistogramOfDuration(dp pmetric.ExponentialHis
 	}
 
 	// Create the DDSketch stores with unit scaling
-	positiveStore := toStoreFromExponentialBucketsWithUnitScale(dp.Positive(), mapping, dp.Scale(), scaleToNanos)
-	negativeStore := toStoreFromExponentialBucketsWithUnitScale(dp.Negative(), mapping, dp.Scale(), scaleToNanos)
+	positiveStore := toStoreFromExponentialBucketsWithUnitScale(dp.Positive(), mapping, float64(dp.Scale()), scaleToNanos)
+	negativeStore := toStoreFromExponentialBucketsWithUnitScale(dp.Negative(), mapping, float64(dp.Scale()), scaleToNanos)
 
 	// Create DDSketch with the above mapping and stores
 	sketch := ddsketch.NewDDSketch(mapping, positiveStore, negativeStore)
