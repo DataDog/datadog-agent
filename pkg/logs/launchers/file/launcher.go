@@ -271,6 +271,14 @@ func (s *Launcher) scan() {
 				}
 				continue
 			}
+			if fingerprint != nil && !fingerprint.ValidFingerprint() {
+				if hasOldInfo {
+					log.Debugf("Pass 2: Fingerprint for %s invalid but rotation in progress; starting tailer without fingerprint", file.Path)
+					fingerprint = nil
+				} else {
+					continue
+				}
+			}
 			// allow tailing with invalid fingerprints (empty files)
 		}
 
@@ -505,10 +513,6 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
-
-	// Remove the rotated tailer from the active container so a fresh tailer can
-	// be created for the new file while this one finishes draining the old file.
-	s.tailers.Remove(oldTailer)
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()
