@@ -700,12 +700,9 @@ func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
 }
 
 func writeEmbeddedSysvinit(ctx HookContext, units ...string) error {
-	var unitType embedded.SysvinitUnitType
 	switch ctx.PackageType {
-	case PackageTypeDEB:
-		unitType = embedded.SysvinitUnitTypeDebian
-	case PackageTypeRPM:
-		unitType = embedded.SysvinitUnitTypeRedHat
+	case PackageTypeDEB, PackageTypeRPM:
+		// These are the only supported package types
 	default:
 		return fmt.Errorf("unsupported package type for sysvinit: %s", ctx.PackageType)
 	}
@@ -721,7 +718,7 @@ func writeEmbeddedSysvinit(ctx HookContext, units ...string) error {
 		if unit == "datadog-agent" {
 			scriptName = prefix + ".erb"
 		}
-		content, err := embedded.GetSysvinitUnit(scriptName, unitType)
+		content, err := embedded.GetSysvinitUnit(scriptName)
 		if err != nil {
 			return err
 		}

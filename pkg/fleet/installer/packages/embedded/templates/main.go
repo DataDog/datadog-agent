@@ -181,6 +181,11 @@ var (
 		"sysvinit_debian.process.erb":  mustReadSysvinitScript("sysvinit_debian.process.erb"),
 		"sysvinit_debian.security.erb": mustReadSysvinitScript("sysvinit_debian.security.erb"),
 		"sysvinit_debian.trace.erb":    mustReadSysvinitScript("sysvinit_debian.trace.erb"),
+		"sysvinit_redhat.erb":          mustReadSysvinitScript("sysvinit_redhat.erb"),
+		"sysvinit_redhat.process.erb":  mustReadSysvinitScript("sysvinit_redhat.process.erb"),
+		"sysvinit_redhat.security.erb": mustReadSysvinitScript("sysvinit_redhat.security.erb"),
+		"sysvinit_redhat.sysprobe.erb": mustReadSysvinitScript("sysvinit_redhat.sysprobe.erb"),
+		"sysvinit_redhat.trace.erb":    mustReadSysvinitScript("sysvinit_redhat.trace.erb"),
 	}
 
 	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, ddotStableDataOCI, ddotExpDataOCI, true)

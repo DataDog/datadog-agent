@@ -59,6 +59,6 @@ func GetSystemdUnit(name string, unitType SystemdUnitType) ([]byte, error) {
 }
 
 // GetSysvinitUnit returns the sysvinit unit for the given name and unit type.
-func GetSysvinitUnit(name string, unitType SysvinitUnitType) ([]byte, error) {
+func GetSysvinitUnit(name string) ([]byte, error) {
 	return sysvinitUnits.ReadFile(filepath.Join("templates/gen/sysvinit", name))
 }
