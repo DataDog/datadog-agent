@@ -72,22 +72,13 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
-		allowedChecks:  make(map[string]struct{}),
+		allowedChecks:  constants.GetInfraBasicAllowedChecks(setup.Datadog()), // Infrastructure basic mode checks
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
 		checkScheduler.addLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
-	}
-
-	// Constructs a set of allowed checks to run, if the set is empty, all checks are allowed
-	// check if we are running in infrastructure basic mode
-	if setup.Datadog().GetString("infrastructure_mode") == "basic" {
-		allowedChecks := constants.GetInfraBasicAllowedChecks(setup.Datadog())
-		for _, check := range allowedChecks {
-			checkScheduler.allowedChecks[check] = struct{}{}
-		}
 	}
 
 	return checkScheduler
@@ -99,6 +90,7 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
 			// Check if this check is allowed in infra basic mode
+			// If the set is empty, all checks are allowed
 			if len(s.allowedChecks) > 0 {
 				if _, ok := s.allowedChecks[c.String()]; !ok {
 					log.Infof("Check %s is not allowed in infra basic mode, skipping", c.String())

@@ -284,10 +284,8 @@ func run(
 	}
 
 	// Check if the check is allowed in infrastructure basic mode
-	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "basic" {
-		if !constants.IsCheckAllowedInInfraBasic(cliParams.checkName, pkgconfigsetup.Datadog()) {
-			return fmt.Errorf("check '%s' is not allowed in infrastructure basic mode", cliParams.checkName)
-		}
+	if !constants.IsCheckAllowedInInfraBasic(cliParams.checkName, pkgconfigsetup.Datadog()) {
+		return fmt.Errorf("check '%s' is not allowed in infrastructure basic mode", cliParams.checkName)
 	}
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.

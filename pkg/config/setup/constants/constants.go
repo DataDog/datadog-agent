@@ -20,39 +20,45 @@ const (
 )
 
 // getDefaultInfraBasicAllowedChecks returns the default list of allowed checks for infra basic mode
-func getDefaultInfraBasicAllowedChecks() []string {
-	return []string{
-		"cpu",
-		"agent_telemetry",
-		"agentcrashdetect",
-		"disk",
-		"file_handle",
-		"filehandles",
-		"io",
-		"load",
-		"memory",
-		"network",
-		"ntp",
-		"process",
-		"service_discovery",
-		"system",
-		"system_core",
-		"system_swap",
-		"telemetry",
-		"telemetryCheck",
-		"uptime",
-		"win32_event_log",
-		"wincrashdetect",
-		"winkmem",
-		"winproc",
+func getDefaultInfraBasicAllowedChecks() map[string]struct{} {
+	return map[string]struct{}{
+		"cpu":               {},
+		"agent_telemetry":   {},
+		"agentcrashdetect":  {},
+		"disk":              {},
+		"file_handle":       {},
+		"filehandles":       {},
+		"io":                {},
+		"load":              {},
+		"memory":            {},
+		"network":           {},
+		"ntp":               {},
+		"process":           {},
+		"service_discovery": {},
+		"system":            {},
+		"system_core":       {},
+		"system_swap":       {},
+		"telemetry":         {},
+		"telemetryCheck":    {},
+		"uptime":            {},
+		"win32_event_log":   {},
+		"wincrashdetect":    {},
+		"winkmem":           {},
+		"winproc":           {},
 	}
 }
 
-// GetInfraBasicAllowedChecks returns the list of allowed checks for infra basic mode,
+// GetInfraBasicAllowedChecks returns the map of allowed checks for infra basic mode,
 // including any additional checks specified in the configuration via 'infra_basic_additional_checks'
-func GetInfraBasicAllowedChecks(cfg pkgconfigmodel.Reader) []string {
+func GetInfraBasicAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
+	allowedMap := make(map[string]struct{})
+
+	if cfg.GetString("infrastructure_mode") != "basic" {
+		return allowedMap
+	}
+
 	// Start with default allowed checks
-	allowed := getDefaultInfraBasicAllowedChecks()
+	allowedMap = getDefaultInfraBasicAllowedChecks()
 
 	// Get additional checks from config
 	// Config key: infra_basic_additional_checks
@@ -63,20 +69,19 @@ func GetInfraBasicAllowedChecks(cfg pkgconfigmodel.Reader) []string {
 	additionalChecks := cfg.GetStringSlice("infra_basic_additional_checks")
 
 	// Merge additional checks with defaults
-	if len(additionalChecks) > 0 {
-		allowed = append(allowed, additionalChecks...)
+	for _, check := range additionalChecks {
+		allowedMap[check] = struct{}{}
 	}
 
-	return allowed
+	return allowedMap
 }
 
 // IsCheckAllowedInInfraBasic returns true if the check is allowed in infrastructure basic mode
 func IsCheckAllowedInInfraBasic(checkName string, cfg pkgconfigmodel.Reader) bool {
-	allowed := GetInfraBasicAllowedChecks(cfg)
-	for _, allowedCheck := range allowed {
-		if allowedCheck == checkName {
-			return true
-		}
-	}
-	return false
+	// Start with default allowed checks
+	allowedMap := GetInfraBasicAllowedChecks(cfg)
+
+	// Check if the check name exists in the map
+	_, exists := allowedMap[checkName]
+	return exists
 }
