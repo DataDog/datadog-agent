@@ -30,7 +30,9 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
 
-// getProcessAgentFxOptions returns the fx options specific to the process agent
+// getProcessAgentFxOptions returns the fx bundle specific to the process agent that provides the necessary dependencies for the subcommand.
+// As the core and process agent have some different dependencies, this function allows having a single subcommand for both agents.
+// This function contains all dependencies instead of just those that differ between agents to easily maintain initialization order.
 func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams core.BundleParams) []fx.Option {
 	return []fx.Option{
 		fx.Supply(cliParams, bundleParams),
