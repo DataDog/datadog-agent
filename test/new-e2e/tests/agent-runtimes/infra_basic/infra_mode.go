@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package infrabasic provides e2e tests for infrastructure basic mode functionality
 package infrabasic
 
 import (
@@ -70,6 +71,7 @@ type runnerStatsContainer struct {
 	Checks map[string]map[string]check.Runner `json:"Checks"`
 }
 
+// AgentStatusJSON represents the JSON structure of the agent status output
 type AgentStatusJSON struct {
 	RunnerStats runnerStatsContainer `json:"runnerStats"`
 }
