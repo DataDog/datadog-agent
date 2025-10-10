@@ -5,8 +5,9 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "pkg_mklink")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 
 package(
     default_applicable_licenses = [":license"],
@@ -194,7 +195,7 @@ cc_library(
 
 cc_shared_library(
     name = "liblzma_so",
-    shared_lib_name = SONAME,
+    # shared_lib_name = SONAME,
     deps = [":liblzma"],
     user_link_flags = select({
         "@platforms//os:windows": [],
@@ -204,16 +205,24 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-pkg_mklink(
-    name = "so_major",
-    link_name = "lib/liblzma.so.5",
-    target = SONAME,
-)
+# pkg_mklink(
+#     name = "so_major",
+#     link_name = "lib/liblzma.so.5",
+#     target = SONAME,
+# )
+#
+# pkg_mklink(
+#     name = "so",
+#     link_name = "lib/liblzma.so",
+#     target = SONAME,
+# )
 
-pkg_mklink(
+so_symlink(
     name = "so",
-    link_name = "lib/liblzma.so",
-    target = SONAME,
+    lib = "liblzma_so",
+    major = 5,
+    minor = 4,
+    patch = 2,
 )
 
 pkg_files(
@@ -258,7 +267,7 @@ pkg_install(
         ":api_headers",
         ":lib_files",
         ":so_major",
-        ":so",
+        ":so_patch",
         ":pkgconfig",
     ],
 )
