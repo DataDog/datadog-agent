@@ -53,6 +53,19 @@ __attribute__((always_inline)) bool is_cgroup_mount_id_filter_valid(u32 cgroup_f
     return true;
 }
 
+// cleanup_expired_dump removes all kernel space entries for an expired dump
+// If pid is non-zero, also removes that specific PID from traced_pids
+// Note: complete traced_pids cleanup requires userspace intervention since we can't iterate the map efficiently
+__attribute__((always_inline)) void cleanup_expired_dump(struct path_key_t *cgroup_file, u64 cookie, u32 pid) {
+    bpf_map_delete_elem(&activity_dumps_config, &cookie);
+    if (cgroup_file != NULL && (cgroup_file->ino != 0 || cgroup_file->mount_id != 0)) {
+        bpf_map_delete_elem(&traced_cgroups, cgroup_file);
+    }
+    if (pid != 0) {
+        bpf_map_delete_elem(&traced_pids, &pid);
+    }
+}
+
 __attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_traced_pid(u32 pid, u64 now, u64 *cookie) {
     if (cookie == NULL) {
         cookie = bpf_map_lookup_elem(&traced_pids, &pid);
@@ -77,9 +90,8 @@ __attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_tra
     }
 
     if (now > config->end_timestamp) {
-        // delete expired entries
-        bpf_map_delete_elem(&traced_pids, &pid);
-        bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
+        // delete expired dump and the traced pid
+        cleanup_expired_dump(NULL, cookie_val, pid);
         return NULL;
     }
     return config;
@@ -192,10 +204,8 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
             }
 
             if (now > config->end_timestamp) {
-                // delete expired cgroup entry
-                bpf_map_delete_elem(&traced_cgroups, &cgroup_context.cgroup_file);
-                // delete config
-                bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
+                // delete expired dump (no specific pid to clean here)
+                cleanup_expired_dump(&cgroup_context.cgroup_file, cookie_val, 0);
                 return 0;
             }
 
@@ -258,9 +268,8 @@ __attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u3
     }
 
     if (now > config->end_timestamp) {
-        // delete expired entries
-        bpf_map_delete_elem(&traced_pids, &ppid);
-        bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
+        // delete expired dump and the traced parent pid
+        cleanup_expired_dump(NULL, cookie_val, ppid);
         return;
     }
 
