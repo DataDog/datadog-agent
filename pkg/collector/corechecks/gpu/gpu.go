@@ -50,6 +50,7 @@ type Check struct {
 	spCache           *nvidia.SystemProbeCache     // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
 	deviceEvtGatherer *nvidia.DeviceEventsGatherer // deviceEvtGatherer asynchronously listens for device events and gathers them
 	nsPidCache        *nvidia.NsPidCache           // nsPidCache resolves and caches nspids for processes
+	nvmlStateTracker  *ddnvml.NvmlStateTracker     // nvmlStateTracker tracks the state of the NVML library
 }
 
 type checkTelemetry struct {
@@ -71,12 +72,13 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 
 func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
-		CheckBase:   core.NewCheckBase(CheckName),
-		tagger:      tagger,
-		telemetry:   newCheckTelemetry(telemetry),
-		wmeta:       wmeta,
-		deviceTags:  make(map[string][]string),
-		deviceCache: ddnvml.NewDeviceCache(),
+		CheckBase:        core.NewCheckBase(CheckName),
+		tagger:           tagger,
+		telemetry:        newCheckTelemetry(telemetry),
+		wmeta:            wmeta,
+		deviceTags:       make(map[string][]string),
+		deviceCache:      ddnvml.NewDeviceCache(),
+		nvmlStateTracker: ddnvml.NewNvmlStateTracker(telemetry),
 	}
 }
 
@@ -194,6 +196,9 @@ func (c *Check) Run() error {
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
 	}
+
+	// Check the state of the NVML library for telemetry
+	c.nvmlStateTracker.Check()
 
 	// Refresh SP cache before collecting metrics, if it is available
 	if c.spCache != nil {

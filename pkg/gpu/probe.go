@@ -122,6 +122,7 @@ type Probe struct {
 	streamHandlers   *streamCollection
 	lastCheck        atomic.Int64
 	ringBuffer       *manager.RingBuffer
+	nvmlStateTracker *safenvml.NvmlStateTracker
 }
 
 type probeTelemetry struct {
@@ -161,10 +162,11 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	p := &Probe{
-		cfg:       cfg,
-		deps:      deps,
-		sysCtx:    sysCtx,
-		telemetry: newProbeTelemetry(deps.Telemetry),
+		cfg:              cfg,
+		deps:             deps,
+		sysCtx:           sysCtx,
+		telemetry:        newProbeTelemetry(deps.Telemetry),
+		nvmlStateTracker: safenvml.NewNvmlStateTracker(deps.Telemetry),
 	}
 
 	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
@@ -223,6 +225,8 @@ func (p *Probe) start() error {
 		return fmt.Errorf("error starting uprobes attacher: %w", err)
 	}
 
+	p.nvmlStateTracker.Start()
+
 	ddebpf.AddProbeFDMappings(p.m.Manager)
 
 	return nil
@@ -230,6 +234,7 @@ func (p *Probe) start() error {
 
 // Close stops the probe
 func (p *Probe) Close() {
+	p.nvmlStateTracker.Stop()
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
 	ddebpf.ClearProgramIDMappings(consts.GpuModuleName)
