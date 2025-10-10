@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        v5.29.3
-// source: comp/core/workloadfilter/def/proto/filter.proto
+// source: filter.proto
 
 package proto
 
@@ -37,7 +37,7 @@ type FilterContainer struct {
 
 func (x *FilterContainer) Reset() {
 	*x = FilterContainer{}
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[0]
+	mi := &file_filter_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -49,7 +49,7 @@ func (x *FilterContainer) String() string {
 func (*FilterContainer) ProtoMessage() {}
 
 func (x *FilterContainer) ProtoReflect() protoreflect.Message {
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[0]
+	mi := &file_filter_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62,7 +62,7 @@ func (x *FilterContainer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterContainer.ProtoReflect.Descriptor instead.
 func (*FilterContainer) Descriptor() ([]byte, []int) {
-	return file_comp_core_workloadfilter_def_proto_filter_proto_rawDescGZIP(), []int{0}
+	return file_filter_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *FilterContainer) GetId() string {
@@ -139,7 +139,7 @@ type FilterPod struct {
 
 func (x *FilterPod) Reset() {
 	*x = FilterPod{}
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[1]
+	mi := &file_filter_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -151,7 +151,7 @@ func (x *FilterPod) String() string {
 func (*FilterPod) ProtoMessage() {}
 
 func (x *FilterPod) ProtoReflect() protoreflect.Message {
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[1]
+	mi := &file_filter_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -164,7 +164,7 @@ func (x *FilterPod) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterPod.ProtoReflect.Descriptor instead.
 func (*FilterPod) Descriptor() ([]byte, []int) {
-	return file_comp_core_workloadfilter_def_proto_filter_proto_rawDescGZIP(), []int{1}
+	return file_filter_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *FilterPod) GetId() string {
@@ -205,7 +205,7 @@ type FilterECSTask struct {
 
 func (x *FilterECSTask) Reset() {
 	*x = FilterECSTask{}
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[2]
+	mi := &file_filter_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -217,7 +217,7 @@ func (x *FilterECSTask) String() string {
 func (*FilterECSTask) ProtoMessage() {}
 
 func (x *FilterECSTask) ProtoReflect() protoreflect.Message {
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[2]
+	mi := &file_filter_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -230,7 +230,7 @@ func (x *FilterECSTask) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterECSTask.ProtoReflect.Descriptor instead.
 func (*FilterECSTask) Descriptor() ([]byte, []int) {
-	return file_comp_core_workloadfilter_def_proto_filter_proto_rawDescGZIP(), []int{2}
+	return file_filter_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *FilterECSTask) GetId() string {
@@ -258,7 +258,7 @@ type FilterKubeService struct {
 
 func (x *FilterKubeService) Reset() {
 	*x = FilterKubeService{}
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[3]
+	mi := &file_filter_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -270,7 +270,7 @@ func (x *FilterKubeService) String() string {
 func (*FilterKubeService) ProtoMessage() {}
 
 func (x *FilterKubeService) ProtoReflect() protoreflect.Message {
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[3]
+	mi := &file_filter_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -283,7 +283,7 @@ func (x *FilterKubeService) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterKubeService.ProtoReflect.Descriptor instead.
 func (*FilterKubeService) Descriptor() ([]byte, []int) {
-	return file_comp_core_workloadfilter_def_proto_filter_proto_rawDescGZIP(), []int{3}
+	return file_filter_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *FilterKubeService) GetName() string {
@@ -318,7 +318,7 @@ type FilterKubeEndpoint struct {
 
 func (x *FilterKubeEndpoint) Reset() {
 	*x = FilterKubeEndpoint{}
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[4]
+	mi := &file_filter_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -330,7 +330,7 @@ func (x *FilterKubeEndpoint) String() string {
 func (*FilterKubeEndpoint) ProtoMessage() {}
 
 func (x *FilterKubeEndpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[4]
+	mi := &file_filter_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -343,7 +343,7 @@ func (x *FilterKubeEndpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterKubeEndpoint.ProtoReflect.Descriptor instead.
 func (*FilterKubeEndpoint) Descriptor() ([]byte, []int) {
-	return file_comp_core_workloadfilter_def_proto_filter_proto_rawDescGZIP(), []int{4}
+	return file_filter_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *FilterKubeEndpoint) GetName() string {
@@ -376,7 +376,7 @@ type FilterImage struct {
 
 func (x *FilterImage) Reset() {
 	*x = FilterImage{}
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[5]
+	mi := &file_filter_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -388,7 +388,7 @@ func (x *FilterImage) String() string {
 func (*FilterImage) ProtoMessage() {}
 
 func (x *FilterImage) ProtoReflect() protoreflect.Message {
-	mi := &file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[5]
+	mi := &file_filter_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -401,7 +401,7 @@ func (x *FilterImage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterImage.ProtoReflect.Descriptor instead.
 func (*FilterImage) Descriptor() ([]byte, []int) {
-	return file_comp_core_workloadfilter_def_proto_filter_proto_rawDescGZIP(), []int{5}
+	return file_filter_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *FilterImage) GetName() string {
@@ -411,11 +411,71 @@ func (x *FilterImage) GetName() string {
 	return ""
 }
 
-var File_comp_core_workloadfilter_def_proto_filter_proto protoreflect.FileDescriptor
+type FilterProcess struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Cmdline       string                 `protobuf:"bytes,2,opt,name=cmdline,proto3" json:"cmdline,omitempty"`
+	Args          []string               `protobuf:"bytes,3,rep,name=args,proto3" json:"args,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_comp_core_workloadfilter_def_proto_filter_proto_rawDesc = "" +
+func (x *FilterProcess) Reset() {
+	*x = FilterProcess{}
+	mi := &file_filter_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FilterProcess) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FilterProcess) ProtoMessage() {}
+
+func (x *FilterProcess) ProtoReflect() protoreflect.Message {
+	mi := &file_filter_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FilterProcess.ProtoReflect.Descriptor instead.
+func (*FilterProcess) Descriptor() ([]byte, []int) {
+	return file_filter_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *FilterProcess) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FilterProcess) GetCmdline() string {
+	if x != nil {
+		return x.Cmdline
+	}
+	return ""
+}
+
+func (x *FilterProcess) GetArgs() []string {
+	if x != nil {
+		return x.Args
+	}
+	return nil
+}
+
+var File_filter_proto protoreflect.FileDescriptor
+
+const file_filter_proto_rawDesc = "" +
 	"\n" +
-	"/comp/core/workloadfilter/def/proto/filter.proto\x12\x0edatadog.filter\"\xbf\x01\n" +
+	"\ffilter.proto\x12\x0edatadog.filter\"\xbf\x01\n" +
 	"\x0fFilterContainer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -449,38 +509,43 @@ const file_comp_core_workloadfilter_def_proto_filter_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"!\n" +
 	"\vFilterImage\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04nameB$Z\"comp/core/workloadfilter/def/protob\x06proto3"
+	"\x04name\x18\x01 \x01(\tR\x04name\"Q\n" +
+	"\rFilterProcess\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
+	"\acmdline\x18\x02 \x01(\tR\acmdline\x12\x12\n" +
+	"\x04args\x18\x03 \x03(\tR\x04argsB$Z\"comp/core/workloadfilter/def/protob\x06proto3"
 
 var (
-	file_comp_core_workloadfilter_def_proto_filter_proto_rawDescOnce sync.Once
-	file_comp_core_workloadfilter_def_proto_filter_proto_rawDescData []byte
+	file_filter_proto_rawDescOnce sync.Once
+	file_filter_proto_rawDescData []byte
 )
 
-func file_comp_core_workloadfilter_def_proto_filter_proto_rawDescGZIP() []byte {
-	file_comp_core_workloadfilter_def_proto_filter_proto_rawDescOnce.Do(func() {
-		file_comp_core_workloadfilter_def_proto_filter_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_comp_core_workloadfilter_def_proto_filter_proto_rawDesc), len(file_comp_core_workloadfilter_def_proto_filter_proto_rawDesc)))
+func file_filter_proto_rawDescGZIP() []byte {
+	file_filter_proto_rawDescOnce.Do(func() {
+		file_filter_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_filter_proto_rawDesc), len(file_filter_proto_rawDesc)))
 	})
-	return file_comp_core_workloadfilter_def_proto_filter_proto_rawDescData
+	return file_filter_proto_rawDescData
 }
 
-var file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
-var file_comp_core_workloadfilter_def_proto_filter_proto_goTypes = []any{
+var file_filter_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_filter_proto_goTypes = []any{
 	(*FilterContainer)(nil),    // 0: datadog.filter.FilterContainer
 	(*FilterPod)(nil),          // 1: datadog.filter.FilterPod
 	(*FilterECSTask)(nil),      // 2: datadog.filter.FilterECSTask
 	(*FilterKubeService)(nil),  // 3: datadog.filter.FilterKubeService
 	(*FilterKubeEndpoint)(nil), // 4: datadog.filter.FilterKubeEndpoint
 	(*FilterImage)(nil),        // 5: datadog.filter.FilterImage
-	nil,                        // 6: datadog.filter.FilterPod.AnnotationsEntry
-	nil,                        // 7: datadog.filter.FilterKubeService.AnnotationsEntry
-	nil,                        // 8: datadog.filter.FilterKubeEndpoint.AnnotationsEntry
+	(*FilterProcess)(nil),      // 6: datadog.filter.FilterProcess
+	nil,                        // 7: datadog.filter.FilterPod.AnnotationsEntry
+	nil,                        // 8: datadog.filter.FilterKubeService.AnnotationsEntry
+	nil,                        // 9: datadog.filter.FilterKubeEndpoint.AnnotationsEntry
 }
-var file_comp_core_workloadfilter_def_proto_filter_proto_depIdxs = []int32{
+var file_filter_proto_depIdxs = []int32{
 	1, // 0: datadog.filter.FilterContainer.pod:type_name -> datadog.filter.FilterPod
 	2, // 1: datadog.filter.FilterContainer.ecs_task:type_name -> datadog.filter.FilterECSTask
-	6, // 2: datadog.filter.FilterPod.annotations:type_name -> datadog.filter.FilterPod.AnnotationsEntry
-	7, // 3: datadog.filter.FilterKubeService.annotations:type_name -> datadog.filter.FilterKubeService.AnnotationsEntry
-	8, // 4: datadog.filter.FilterKubeEndpoint.annotations:type_name -> datadog.filter.FilterKubeEndpoint.AnnotationsEntry
+	7, // 2: datadog.filter.FilterPod.annotations:type_name -> datadog.filter.FilterPod.AnnotationsEntry
+	8, // 3: datadog.filter.FilterKubeService.annotations:type_name -> datadog.filter.FilterKubeService.AnnotationsEntry
+	9, // 4: datadog.filter.FilterKubeEndpoint.annotations:type_name -> datadog.filter.FilterKubeEndpoint.AnnotationsEntry
 	5, // [5:5] is the sub-list for method output_type
 	5, // [5:5] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name
@@ -488,12 +553,12 @@ var file_comp_core_workloadfilter_def_proto_filter_proto_depIdxs = []int32{
 	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_comp_core_workloadfilter_def_proto_filter_proto_init() }
-func file_comp_core_workloadfilter_def_proto_filter_proto_init() {
-	if File_comp_core_workloadfilter_def_proto_filter_proto != nil {
+func init() { file_filter_proto_init() }
+func file_filter_proto_init() {
+	if File_filter_proto != nil {
 		return
 	}
-	file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes[0].OneofWrappers = []any{
+	file_filter_proto_msgTypes[0].OneofWrappers = []any{
 		(*FilterContainer_Pod)(nil),
 		(*FilterContainer_EcsTask)(nil),
 	}
@@ -501,17 +566,17 @@ func file_comp_core_workloadfilter_def_proto_filter_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_comp_core_workloadfilter_def_proto_filter_proto_rawDesc), len(file_comp_core_workloadfilter_def_proto_filter_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_filter_proto_rawDesc), len(file_filter_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_comp_core_workloadfilter_def_proto_filter_proto_goTypes,
-		DependencyIndexes: file_comp_core_workloadfilter_def_proto_filter_proto_depIdxs,
-		MessageInfos:      file_comp_core_workloadfilter_def_proto_filter_proto_msgTypes,
+		GoTypes:           file_filter_proto_goTypes,
+		DependencyIndexes: file_filter_proto_depIdxs,
+		MessageInfos:      file_filter_proto_msgTypes,
 	}.Build()
-	File_comp_core_workloadfilter_def_proto_filter_proto = out.File
-	file_comp_core_workloadfilter_def_proto_filter_proto_goTypes = nil
-	file_comp_core_workloadfilter_def_proto_filter_proto_depIdxs = nil
+	File_filter_proto = out.File
+	file_filter_proto_goTypes = nil
+	file_filter_proto_depIdxs = nil
 }

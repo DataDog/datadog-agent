@@ -22,6 +22,8 @@ type Component interface {
 	GetServiceFilters(serviceFilters [][]ServiceFilter) FilterBundle
 	// GetEndpointFilters retrieves the selected endpoint FilterBundle
 	GetEndpointFilters(endpointFilters [][]EndpointFilter) FilterBundle
+	// GetProcessFilters retrieves the selected process FilterBundle
+	GetProcessFilters(processFilters [][]ProcessFilter) FilterBundle
 
 	// GetContainerAutodiscoveryFilters retrieves the container AD FilterBundle
 	GetContainerAutodiscoveryFilters(filterScope Scope) FilterBundle
@@ -32,6 +34,8 @@ type Component interface {
 
 	// GetContainerSharedMetricFilters retrieves the container shared metric FilterBundle
 	GetContainerSharedMetricFilters() FilterBundle
+	// GetContainerPausedFilters retrieves the container paused FilterBundle
+	GetContainerPausedFilters() FilterBundle
 	// GetPodSharedMetricFilters retrieves the pod shared metric FilterBundle
 	GetPodSharedMetricFilters() FilterBundle
 

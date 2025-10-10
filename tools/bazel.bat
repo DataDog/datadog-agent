@@ -1,5 +1,6 @@
-@echo off
-setlocal EnableExtensions EnableDelayedExpansion
+@echo off & setlocal EnableDelayedExpansion & if not defined bb (set "bb=%TEMP%\%~n0-%RANDOM%.bat" & more /e /p "%~f0" >"!bb!" & call "!bb!" %* & set "rc=!errorlevel!" & del /q "!bb!" & exit /b !rc!)
+:: Above one-liner copies the present script to a temporary file with normalized Windows line endings and executes it.
+:: Works regardless of actual source line endings because the pseudo-shebang is interpreted before the first newline.
 
 rem Check `bazelisk` properly bootstraps `bazel` or fail with instructions
 if not defined BAZEL_REAL (

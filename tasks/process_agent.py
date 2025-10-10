@@ -26,7 +26,6 @@ def build(
     install_path=None,
     flavor=AgentFlavor.base.name,
     rebuild=False,
-    major_version='7',
     go_mod="readonly",
 ):
     """
@@ -38,13 +37,12 @@ def build(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
-        major_version=major_version,
     )
 
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version)
+        vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/process-agent/windows_resources/process-agent.rc",

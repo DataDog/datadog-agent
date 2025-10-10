@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -140,11 +141,6 @@ func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContex
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (p *testPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
-	return []marshaler.AbstractMarshaler{}, nil
-}
-
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
 	return err
@@ -175,11 +171,6 @@ func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, fmt.Error
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) Marshal() ([]byte, error) { return nil, fmt.Errorf("some error") }
-
-//nolint:revive // TODO(AML) Fix revive linter
-func (p *testErrorPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
-	return []marshaler.AbstractMarshaler{}, fmt.Errorf("some error")
-}
 
 func (p *testErrorPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
@@ -227,6 +218,7 @@ func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string, s *Seria
 			if strings.HasPrefix(string(payload), prefix) {
 				return true
 			}
+			fmt.Printf("Payload:  %q\nExpected: %q\n", string(payload), prefix)
 		}
 	}
 	return false
@@ -343,11 +335,29 @@ func TestSendV1Series(t *testing.T) {
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
-			matcher := createJSONPayloadMatcher(`{"series":[]}`, s)
+			matcher := createJSONPayloadMatcher(
+				`{"series":[{"metric":"foo","points":[[1759241515,3.14],[1759241525,2.71]],`+
+					`"tags":["bar","baz"],"host":"localhost","device":"sda","type":"gauge",`+
+					`"interval":10,"source_type_name":"System"}]}`, s)
 
 			f.On("SubmitV1Series", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
+			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{
+				Name:   "foo",
+				MType:  metrics.APIGaugeType,
+				Device: "sda",
+				Tags: tagset.NewCompositeTags(
+					[]string{"bar"},
+					[]string{"baz", "dd.internal.resource:ook:eek"},
+				),
+				Points: []metrics.Point{
+					{Ts: 1759241515, Value: 3.14},
+					{Ts: 1759241525, Value: 2.71},
+				},
+				Host:           "localhost",
+				SourceTypeName: "System",
+				Interval:       10,
+			}}))
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 		})
@@ -372,13 +382,36 @@ func TestSendSeries(t *testing.T) {
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
 			matcher := createProtoscopeMatcher(`1: {
-		1: { 1: {"host"} }
+		1: { 1: {"host"} 2: {"localhost"} }
+        1: { 1: {"device"} 2: {"sda"} }
+        1: { 1: {"ook" } 2: {"eek"} }
+        2: {"foo"}
+        3: {"bar"} 3:{"baz"}
 		5: 3
+        7: {"System"}
+        8: 10
+        4: { 2: 1759241515 1: 3.14 }
+        4: { 2: 1759241525 1: 2.71 }
 		9: { 1: { 4: 10 }}
 	  }`, s)
 			f.On("SubmitSeries", matcher, s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
-			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
+			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{
+				Name:   "foo",
+				MType:  metrics.APIGaugeType,
+				Device: "sda",
+				Tags: tagset.NewCompositeTags(
+					[]string{"bar"},
+					[]string{"baz", "dd.internal.resource:ook:eek"},
+				),
+				Points: []metrics.Point{
+					{Ts: 1759241515, Value: 3.14},
+					{Ts: 1759241525, Value: 2.71},
+				},
+				Host:           "localhost",
+				SourceTypeName: "System",
+				Interval:       10,
+			}}))
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 		})
@@ -532,5 +565,392 @@ func TestSendWithDisabledKind(t *testing.T) {
 			s.SendMetadata(payload)
 			f.AssertNumberOfCalls(t, "SubmitMetadata", 1) // called once for the metadata
 		})
+	}
+}
+
+func TestSendIterableSeriesPreaggregationDualShip(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("use_v2_api.series", true)
+	mockConfig.SetWithoutSource("preaggregation.enabled", true)
+	// No allowlist should result in both destinations getting all metrics
+
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+	series := metrics.Series{
+		&metrics.Serie{Name: "cpu.usage", Host: "testhost"},
+		&metrics.Serie{Name: "memory.usage", Host: "testhost"},
+		&metrics.Serie{Name: "disk.io", Host: "testhost"},
+	}
+
+	var capturedPayloads transaction.BytesPayloads
+	f.On("SubmitSeries", mock.MatchedBy(func(p transaction.BytesPayloads) bool {
+		capturedPayloads = p
+		return true
+	}), s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
+
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(series))
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	require.Len(t, capturedPayloads, 2, "Should create exactly 2 payloads")
+
+	payloadsByDestination := make(map[transaction.Destination]transaction.BytesPayload)
+	for _, payload := range capturedPayloads {
+		payloadsByDestination[payload.Destination] = *payload
+	}
+
+	assert.Len(t, payloadsByDestination, 2, "Should have exactly 2 unique destinations")
+
+	allRegionsPayload, hasAllRegions := payloadsByDestination[transaction.AllRegions]
+	preaggrOnlyPayload, hasPreaggrOnly := payloadsByDestination[transaction.PreaggrOnly]
+	assert.True(t, hasAllRegions, "AllRegions destination should exist in dual-ship mode")
+	assert.True(t, hasPreaggrOnly, "PreaggrOnly destination should exist in dual-ship mode")
+
+	expectedMetrics := []string{"cpu.usage", "memory.usage", "disk.io"}
+	assertPayloadContainsAllMetrics(t, allRegionsPayload, expectedMetrics, s, "AllRegions destination should contain all metrics in dual-ship mode")
+	assertPayloadContainsAllMetrics(t, preaggrOnlyPayload, expectedMetrics, s, "PreaggrOnly destination should contain all metrics in dual-ship mode")
+}
+
+func TestSendIterableSeriesPreaggregationWithAllowlist(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("use_v2_api.series", true)
+	mockConfig.SetWithoutSource("preaggregation.enabled", true)
+	mockConfig.SetWithoutSource("preaggregation.metric_allowlist", []string{"cpu.usage", "memory.usage"})
+
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+	series := metrics.Series{
+		&metrics.Serie{Name: "cpu.usage", Host: "testhost"},
+		&metrics.Serie{Name: "memory.usage", Host: "testhost"},
+		&metrics.Serie{Name: "disk.io", Host: "testhost"},
+	}
+
+	var capturedPayloads transaction.BytesPayloads
+	f.On("SubmitSeries", mock.MatchedBy(func(p transaction.BytesPayloads) bool {
+		capturedPayloads = p
+		return true
+	}), s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
+
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(series))
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	require.Len(t, capturedPayloads, 2, "Should create exactly 2 payloads")
+
+	payloadsByDestination := make(map[transaction.Destination]transaction.BytesPayload)
+	for _, payload := range capturedPayloads {
+		payloadsByDestination[payload.Destination] = *payload
+	}
+
+	assert.Len(t, payloadsByDestination, 2, "Should have exactly 2 unique destinations")
+
+	allRegionsPayload, hasAllRegions := payloadsByDestination[transaction.AllRegions]
+	preaggrOnlyPayload, hasPreaggrOnly := payloadsByDestination[transaction.PreaggrOnly]
+	assert.True(t, hasAllRegions, "AllRegions destination should exist for split routing")
+	assert.True(t, hasPreaggrOnly, "PreaggrOnly destination should exist for split routing")
+
+	allowlistMetrics := []string{"cpu.usage", "memory.usage"}
+	nonAllowlistMetrics := []string{"disk.io"}
+
+	assertPayloadContainsAllMetrics(t, allRegionsPayload, nonAllowlistMetrics, s, "AllRegions should contain non-allowlist metrics")
+	assertPayloadContainsNoMetrics(t, allRegionsPayload, allowlistMetrics, s, "AllRegions should NOT contain allowlist metrics")
+
+	assertPayloadContainsAllMetrics(t, preaggrOnlyPayload, allowlistMetrics, s, "PreaggrOnly should contain allowlist metrics")
+	assertPayloadContainsNoMetrics(t, preaggrOnlyPayload, nonAllowlistMetrics, s, "PreaggrOnly should NOT contain non-allowlist metrics")
+}
+
+func TestSendIterableSeriesFailoverBypassesPreaggregation(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("use_v2_api.series", true)
+	mockConfig.SetWithoutSource("multi_region_failover.enabled", true)
+	mockConfig.SetWithoutSource("multi_region_failover.failover_metrics", true)
+	mockConfig.SetWithoutSource("multi_region_failover.metric_allowlist", []string{"failover.metric"})
+	mockConfig.SetWithoutSource("preaggregation.enabled", true)
+	mockConfig.SetWithoutSource("preaggregation.metric_allowlist", []string{"preaggr.metric"})
+
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+	series := metrics.Series{
+		&metrics.Serie{Name: "failover.metric", Host: "testhost"},
+		&metrics.Serie{Name: "preaggr.metric", Host: "testhost"},
+		&metrics.Serie{Name: "regular.metric", Host: "testhost"},
+	}
+
+	var capturedPayloads transaction.BytesPayloads
+	f.On("SubmitSeries", mock.MatchedBy(func(p transaction.BytesPayloads) bool {
+		capturedPayloads = p
+		return true
+	}), s.protobufExtraHeadersWithCompression).Return(nil)
+
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(series))
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	require.Len(t, capturedPayloads, 2, "Should create exactly 2 payloads")
+
+	payloadsByDestination := make(map[transaction.Destination]transaction.BytesPayload)
+	for _, payload := range capturedPayloads {
+		payloadsByDestination[payload.Destination] = *payload
+	}
+
+	assert.Len(t, payloadsByDestination, 2, "Should have exactly 2 unique destinations")
+
+	_, hasPreaggrOnly := payloadsByDestination[transaction.PreaggrOnly]
+	assert.False(t, hasPreaggrOnly, "Failover should bypass preaggregation - PreaggrOnly destination should not exist")
+}
+
+func TestSendIterableSeriesPreaggregationEmptyAllowlist(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("use_v2_api.series", true)
+	mockConfig.SetWithoutSource("preaggregation.enabled", true)
+	mockConfig.SetWithoutSource("preaggregation.metric_allowlist", []string{}) // Empty allowlist triggers dual-ship
+
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+	series := metrics.Series{
+		&metrics.Serie{Name: "cpu.usage", Host: "testhost"},
+		&metrics.Serie{Name: "memory.usage", Host: "testhost"},
+	}
+
+	var capturedPayloads transaction.BytesPayloads
+	f.On("SubmitSeries", mock.MatchedBy(func(p transaction.BytesPayloads) bool {
+		capturedPayloads = p
+		return true
+	}), s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
+
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(series))
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	require.Len(t, capturedPayloads, 2, "Should create exactly 2 payloads")
+
+	payloadsByDestination := make(map[transaction.Destination]transaction.BytesPayload)
+	for _, payload := range capturedPayloads {
+		payloadsByDestination[payload.Destination] = *payload
+	}
+
+	assert.Len(t, payloadsByDestination, 2, "Should have exactly 2 unique destinations")
+
+	allRegionsPayload, hasAllRegions := payloadsByDestination[transaction.AllRegions]
+	preaggrOnlyPayload, hasPreaggrOnly := payloadsByDestination[transaction.PreaggrOnly]
+	assert.True(t, hasAllRegions, "AllRegions destination should exist with empty allowlist")
+	assert.True(t, hasPreaggrOnly, "PreaggrOnly destination should exist with empty allowlist")
+
+	expectedMetrics := []string{"cpu.usage", "memory.usage"}
+	assertPayloadContainsAllMetrics(t, allRegionsPayload, expectedMetrics, s, "AllRegions destination should contain all metrics with empty allowlist")
+	assertPayloadContainsAllMetrics(t, preaggrOnlyPayload, expectedMetrics, s, "PreaggrOnly destination should contain all metrics with empty allowlist")
+}
+
+func TestSendIterableSeriesPreaggregationDisabled(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("use_v2_api.series", true)
+	mockConfig.SetWithoutSource("preaggregation.enabled", false)
+
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+	series := metrics.Series{
+		&metrics.Serie{Name: "cpu.usage", Host: "testhost"},
+		&metrics.Serie{Name: "memory.usage", Host: "testhost"},
+	}
+
+	var capturedPayloads transaction.BytesPayloads
+	f.On("SubmitSeries", mock.MatchedBy(func(p transaction.BytesPayloads) bool {
+		capturedPayloads = p
+		return true
+	}), s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
+
+	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(series))
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	require.Len(t, capturedPayloads, 1, "Should create exactly 1 payload")
+
+	payloadsByDestination := make(map[transaction.Destination]transaction.BytesPayload)
+	for _, payload := range capturedPayloads {
+		payloadsByDestination[payload.Destination] = *payload
+	}
+
+	assert.Len(t, payloadsByDestination, 1, "Should have exactly 1 unique destination")
+
+	allRegionsPayload, hasAllRegions := payloadsByDestination[transaction.AllRegions]
+	_, hasPreaggrOnly := payloadsByDestination[transaction.PreaggrOnly]
+	assert.True(t, hasAllRegions, "AllRegions destination should exist when preaggregation is disabled")
+	assert.False(t, hasPreaggrOnly, "PreaggrOnly destination should not exist when preaggregation is disabled")
+
+	expectedMetrics := []string{"cpu.usage", "memory.usage"}
+	assertPayloadContainsAllMetrics(t, allRegionsPayload, expectedMetrics, s, "AllRegions should contain all metrics when preaggregation is disabled")
+}
+
+func TestSendSketchPreaggregationDualShip(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("preaggregation.enabled", true)
+	// No allowlist should result in both destinations getting all sketches
+
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+	sketches := metrics.NewSketchesSourceTestWithSketch()
+
+	var capturedPayloads transaction.BytesPayloads
+	f.On("SubmitSketchSeries", mock.MatchedBy(func(p transaction.BytesPayloads) bool {
+		capturedPayloads = p
+		return true
+	}), s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
+
+	err := s.SendSketch(sketches)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	require.Len(t, capturedPayloads, 2, "Should create exactly 2 payloads for dual-ship")
+
+	payloadsByDestination := make(map[transaction.Destination]transaction.BytesPayload)
+	for _, payload := range capturedPayloads {
+		payloadsByDestination[payload.Destination] = *payload
+	}
+
+	_, hasAllRegions := payloadsByDestination[transaction.AllRegions]
+	_, hasPreaggrOnly := payloadsByDestination[transaction.PreaggrOnly]
+	assert.True(t, hasAllRegions, "AllRegions destination should exist in dual-ship mode")
+	assert.True(t, hasPreaggrOnly, "PreaggrOnly destination should exist in dual-ship mode")
+}
+
+func TestSendSketchPreaggregationWithAllowlist(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("preaggregation.enabled", true)
+	mockConfig.SetWithoutSource("preaggregation.metric_allowlist", []string{"fakename"}) // Test sketch has name "fakename"
+
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+	sketches := metrics.NewSketchesSourceTestWithSketch()
+
+	var capturedPayloads transaction.BytesPayloads
+	f.On("SubmitSketchSeries", mock.MatchedBy(func(p transaction.BytesPayloads) bool {
+		capturedPayloads = p
+		return true
+	}), s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
+
+	err := s.SendSketch(sketches)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	// With allowlist, we expect 2 pipelines but only one should have content
+	require.Len(t, capturedPayloads, 2, "Should create exactly 2 pipelines")
+
+	payloadsByDestination := make(map[transaction.Destination]transaction.BytesPayload)
+	for _, payload := range capturedPayloads {
+		payloadsByDestination[payload.Destination] = *payload
+	}
+
+	allRegionsPayload, hasAllRegions := payloadsByDestination[transaction.AllRegions]
+	preaggrOnlyPayload, hasPreaggrOnly := payloadsByDestination[transaction.PreaggrOnly]
+	assert.True(t, hasAllRegions, "AllRegions destination should exist (but be empty)")
+	assert.True(t, hasPreaggrOnly, "PreaggrOnly destination should exist and contain data")
+
+	// The PreaggrOnly payload should have data, AllRegions should be empty
+	assert.Greater(t, len(preaggrOnlyPayload.GetContent()), len(allRegionsPayload.GetContent()),
+		"PreaggrOnly should have more content than AllRegions")
+}
+
+func TestSendSketchFailoverBypassesPreaggregation(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("multi_region_failover.enabled", true)
+	mockConfig.SetWithoutSource("multi_region_failover.failover_metrics", true)
+	mockConfig.SetWithoutSource("multi_region_failover.metric_allowlist", []string{"fakename"})
+	mockConfig.SetWithoutSource("preaggregation.enabled", true)
+	mockConfig.SetWithoutSource("preaggregation.metric_allowlist", []string{"fakename"})
+
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+	sketches := metrics.NewSketchesSourceTestWithSketch()
+
+	var capturedPayloads transaction.BytesPayloads
+	f.On("SubmitSketchSeries", mock.MatchedBy(func(p transaction.BytesPayloads) bool {
+		capturedPayloads = p
+		return true
+	}), s.protobufExtraHeadersWithCompression).Return(nil)
+
+	err := s.SendSketch(sketches)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	payloadsByDestination := make(map[transaction.Destination]transaction.BytesPayload)
+	for _, payload := range capturedPayloads {
+		payloadsByDestination[payload.Destination] = *payload
+	}
+
+	_, hasPreaggrOnly := payloadsByDestination[transaction.PreaggrOnly]
+	assert.False(t, hasPreaggrOnly, "Failover should bypass preaggregation - PreaggrOnly destination should not exist")
+}
+
+func TestSendSketchPreaggregationDisabled(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("preaggregation.enabled", false)
+
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+	sketches := metrics.NewSketchesSourceTestWithSketch()
+
+	var capturedPayloads transaction.BytesPayloads
+	f.On("SubmitSketchSeries", mock.MatchedBy(func(p transaction.BytesPayloads) bool {
+		capturedPayloads = p
+		return true
+	}), s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
+
+	err := s.SendSketch(sketches)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	// When preaggregation is disabled, should only have default routing
+	require.Len(t, capturedPayloads, 1, "Should create exactly 1 payload when preaggregation is disabled")
+
+	payloadsByDestination := make(map[transaction.Destination]transaction.BytesPayload)
+	for _, payload := range capturedPayloads {
+		payloadsByDestination[payload.Destination] = *payload
+	}
+
+	_, hasAllRegions := payloadsByDestination[transaction.AllRegions]
+	_, hasPreaggrOnly := payloadsByDestination[transaction.PreaggrOnly]
+	assert.True(t, hasAllRegions, "AllRegions destination should exist when preaggregation is disabled")
+	assert.False(t, hasPreaggrOnly, "PreaggrOnly destination should not exist when preaggregation is disabled")
+}
+
+func assertPayloadContainsAllMetrics(t *testing.T, payload transaction.BytesPayload, metricNames []string, s *Serializer, msgAndArgs ...any) {
+	content := payload.GetContent()
+	if decompressed, err := s.Strategy.Decompress(content); err == nil {
+		decompressedStr := string(decompressed)
+		for _, metricName := range metricNames {
+			assert.Contains(t, decompressedStr, metricName, msgAndArgs...)
+		}
+	} else {
+		assert.Fail(t, "Failed to decompress payload", msgAndArgs...)
+	}
+}
+
+func assertPayloadContainsNoMetrics(t *testing.T, payload transaction.BytesPayload, metricNames []string, s *Serializer, msgAndArgs ...any) {
+	content := payload.GetContent()
+	if decompressed, err := s.Strategy.Decompress(content); err == nil {
+		decompressedStr := string(decompressed)
+		for _, metricName := range metricNames {
+			assert.NotContains(t, decompressedStr, metricName, msgAndArgs...)
+		}
+	} else {
+		assert.Fail(t, "Failed to decompress payload", msgAndArgs...)
 	}
 }
