@@ -1,0 +1,84 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testReturnsStructWithArray",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testReturnsStructWithArray",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 230
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 409
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testReturnsStructWithArray",
+          "location": {
+            "method": "main.testReturnsStructWithArray"
+          }
+        },
+        "captures": {
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "main.structWithArray",
+                "fields": {
+                  "arr": {
+                    "type": "[2]int",
+                    "size": "2",
+                    "elements": [
+                      {
+                        "type": "int",
+                        "value": "1"
+                      },
+                      {
+                        "type": "int",
+                        "value": "2"
+                      }
+                    ]
+                  },
+                  "x": {
+                    "type": "int",
+                    "value": "3"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]

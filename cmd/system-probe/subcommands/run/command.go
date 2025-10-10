@@ -344,7 +344,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
+func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
 	var err error
 	cfg := sysprobeconfig.SysProbeObject()
 
@@ -400,7 +400,7 @@ func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobe
 		}()
 	}
 
-	if err = api.StartServer(cfg, settings, telemetry, deps); err != nil {
+	if err = api.StartServer(cfg, settings, telemetry, rcclient, deps); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil
