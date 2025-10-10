@@ -2,7 +2,7 @@
 upgrade:
   - |
     This change removes support for v1 of the auto-instrumentation webhook used for Single Step Instrumentation. The v2
-    implementation has been the default since Agent v7.57.0 and is a drop-in replacement. This setting was never exposed
+    implementation, which has been the default since Agent v7.57.0, is a drop-in replacement. This setting was never exposed
     in Helm or the Datadog Operator. If you previously set the DD_APM_INSTRUMENTATION_VERSION environment variable on
     the Cluster Agent, it is now ignored.
 
