@@ -9,7 +9,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-var infraBasicAllowedChecks = map[string]struct{} {
+var infraBasicAllowedChecks = map[string]struct{}{
 	"cpu":               {},
 	"agent_telemetry":   {},
 	"agentcrashdetect":  {},
@@ -38,15 +38,18 @@ var infraBasicAllowedChecks = map[string]struct{} {
 // GetInfraBasicAllowedChecks returns the map of allowed checks for infra basic mode,
 // including any additional checks specified in the configuration via 'infra_basic_additional_checks'
 func GetInfraBasicAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
-	allowedMap := make(map[string]struct{})
-
 	if cfg.GetString("infrastructure_mode") != "basic" {
-		return allowedMap
+		return make(map[string]struct{})
 	}
 
-	allowedMap = getDefaultInfraBasicAllowedChecks()
-	additionalChecks := cfg.GetStringSlice("infra_basic_additional_checks")
+	// Copy the default allowed checks
+	allowedMap := make(map[string]struct{}, len(infraBasicAllowedChecks))
+	for check := range infraBasicAllowedChecks {
+		allowedMap[check] = struct{}{}
+	}
 
+	// Add any additional checks from config
+	additionalChecks := cfg.GetStringSlice("infra_basic_additional_checks")
 	for _, check := range additionalChecks {
 		allowedMap[check] = struct{}{}
 	}
@@ -58,11 +61,10 @@ func GetInfraBasicAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
 // When not in basic mode, all checks are allowed (returns true).
 // When in basic mode, only checks in the allowed list are permitted.
 func IsCheckAllowedInInfraBasic(checkName string, cfg pkgconfigmodel.Reader) bool {
-	infraBasicAllowedChecks := GetInfraBasicAllowedChecks(cfg)
-	if len(infraBasicAllowedChecks) == 0 {
+	allowedChecks := GetInfraBasicAllowedChecks(cfg)
+	if len(allowedChecks) == 0 {
 		return true
 	}
-
-	_, exists := infraBasicAllowedChecks[checkName]
+	_, exists := allowedChecks[checkName]
 	return exists
 }
