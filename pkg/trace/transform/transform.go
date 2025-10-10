@@ -512,6 +512,7 @@ func copyAttrToMapIfExists(attributes pcommon.Map, key string, m map[string]stri
 }
 
 // GetOTelEnv returns the environment based on OTel span and resource attributes, with span taking precedence.
+// Deprecated: use attributes.GetEnv instead.
 func GetOTelEnv(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
 	env := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, attributes.DDNamespaceKeys.Env())
 	if env == "" && !ignoreMissingDatadogFields {
@@ -521,6 +522,7 @@ func GetOTelEnv(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFiel
 }
 
 // GetOTelHostname returns the DD hostname based on OTel span and resource attributes, with span taking precedence.
+// Deprecated: use attributes.GetHostname instead.
 func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator, fallbackHost string, ignoreMissingDatadogFields bool) string {
 	hostname := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, attributes.DDNamespaceKeys.Host())
 	if hostname == "" && !ignoreMissingDatadogFields {
@@ -549,6 +551,7 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 }
 
 // GetOTelVersion returns the version based on OTel span and resource attributes, with span taking precedence.
+// Deprecated: use attributes.GetVersion instead.
 func GetOTelVersion(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
 	version := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, attributes.DDNamespaceKeys.Version())
 	if version == "" && !ignoreMissingDatadogFields {
@@ -558,6 +561,7 @@ func GetOTelVersion(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadog
 }
 
 // GetOTelContainerID returns the container ID based on OTel span and resource attributes, with span taking precedence.
+// Deprecated: use attributes.GetContainerID instead.
 func GetOTelContainerID(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
 	cid := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, attributes.DDNamespaceKeys.ContainerID())
 	if cid == "" && !ignoreMissingDatadogFields {
@@ -567,6 +571,7 @@ func GetOTelContainerID(span ptrace.Span, res pcommon.Resource, ignoreMissingDat
 }
 
 // GetOTelStatusCode returns the HTTP status code based on OTel span and resource attributes, with span taking precedence.
+// Deprecated: use attributes.GetStatusCode instead.
 func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) uint32 {
 	sattr := span.Attributes()
 	rattr := res.Attributes()
@@ -594,6 +599,7 @@ func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource, ignoreMissingData
 
 // GetOTelContainerTags returns a list of DD container tags in the OTel resource attributes.
 // Tags are always normalized.
+// Deprecated: use attributes.GetContainerTags instead.
 func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 	var containerTags []string
 	containerTagsMap := attributes.ContainerTagsFromResourceAttributes(rattrs)
