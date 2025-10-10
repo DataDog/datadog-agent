@@ -204,6 +204,10 @@ func (pb *payloadsBuilderV3) startPayload() error {
 }
 
 func (pb *payloadsBuilderV3) finishPayload() error {
+	// Build the final protobuf payload by concatenating several independently compressed streams:
+	// field headers and column data. gzip and zstd decompressors will handle such concatenated
+	// streams transparently as if it was compressed in one go.
+
 	if pb.pointsThisPayload > 0 {
 		err := pb.compressor.Close()
 		if err != nil {
