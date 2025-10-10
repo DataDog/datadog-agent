@@ -53,12 +53,14 @@ func CreateFakeProcFS(t *testing.T, entries []FakeProcFSEntry, options ...FakePr
 
 	for _, entry := range entries {
 		baseDir := filepath.Join(procRoot, strconv.Itoa(int(entry.Pid)))
+		mainTaskDir := filepath.Join(baseDir, "task", strconv.Itoa(int(entry.Pid)))
 
 		createFile(t, filepath.Join(baseDir, "cmdline"), entry.Cmdline)
 		createFile(t, filepath.Join(baseDir, "comm"), entry.Command)
 		createFile(t, filepath.Join(baseDir, "maps"), entry.Maps)
 		createSymlink(t, entry.Exe, filepath.Join(baseDir, "exe"))
 		createFile(t, filepath.Join(baseDir, "environ"), entry.getEnvironContents())
+		createFile(t, filepath.Join(mainTaskDir, "status"), entry.getMainTaskStatusContent())
 	}
 
 	for _, option := range options {
@@ -71,6 +73,7 @@ func CreateFakeProcFS(t *testing.T, entries []FakeProcFSEntry, options ...FakePr
 // FakeProcFSEntry represents a fake /proc filesystem entry for testing purposes.
 type FakeProcFSEntry struct {
 	Pid     uint32
+	NsPid   uint32
 	Cmdline string
 	Command string
 	Exe     string
@@ -90,6 +93,16 @@ func (f *FakeProcFSEntry) getEnvironContents() string {
 	}
 
 	return strings.Join(formattedEnvVars, "\x00") + "\x00"
+}
+
+// getMainTaskStatusContent returns the formatted contents of the /proc/<pid>/task/<pid>/status file for the entry.
+func (f *FakeProcFSEntry) getMainTaskStatusContent() string {
+	nspid := f.NsPid
+	if nspid == 0 {
+		nspid = f.Pid
+	}
+	// note: just populate pid and nspid for now
+	return fmt.Sprintf("Pid: %d\nNSpid: %d\n", f.Pid, nspid)
 }
 
 func createFile(tb testing.TB, path, data string) {

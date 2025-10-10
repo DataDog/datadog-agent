@@ -18,10 +18,9 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("trace-loader"))
 def build(
     ctx,
     install_path=None,
-    major_version='7',
     go_mod="readonly",
 ):
-    ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path)
     build_tags = get_default_build_tags(build="loader", flavor=AgentFlavor.base)
     go_build(
         ctx,
