@@ -12,6 +12,11 @@ import manager "github.com/DataDog/ebpf-manager"
 
 func getMemfdProbes(fentry bool) []*manager.Probe {
 	memfdProbes := appendSyscallProbes(nil, fentry, EntryAndExit, false, "memfd_create")
-	memfdProbes = appendSyscallProbes(memfdProbes, fentry, Entry, false, "fcntl", "fcntl64")
+	memfdProbes = append(memfdProbes, &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "hook_memfd_fcntl",
+		},
+	})
 	return memfdProbes
 }

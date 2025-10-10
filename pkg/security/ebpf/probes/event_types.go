@@ -595,8 +595,9 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 		},
 		"tracer_memfd_seal": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "memfd_create", hasFentry, EntryAndExit)},
-			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fcntl", hasFentry, Entry)},
-			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fcntl64", hasFentry, Entry)},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_memfd_fcntl"),
+			}},
 		},
 	}
 
