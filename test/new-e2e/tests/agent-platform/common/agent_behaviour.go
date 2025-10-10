@@ -271,18 +271,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 		}, 1*time.Minute, 500*time.Millisecond) {
 			err := fmt.Errorf("port tcp/8126 should be bound when APM is enabled")
 			if client.Host.OSFamily == componentos.LinuxFamily {
-				portsFull := ""
-				ports, portsErr := boundport.BoundPorts(client.Host)
-				for _, port := range ports {
-					if len(portsFull) > 0 {
-						portsFull += ", "
-					}
-					portsFull += fmt.Sprintf("%s/%d (%s/%d)", port.Transport(), port.LocalPort(), port.Process(), port.PID())
-				}
-				if len(portsFull) == 0 && portsErr != nil {
-					portsFull = portsErr.Error()
-				}
-				err = fmt.Errorf("%w\n%s\n%s", err, portsFull, ReadJournalCtl(t, client, "trace-loader\\|trace-agent\\|datadog-agent-trace"))
+				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-loader\\|trace-agent\\|datadog-agent-trace"))
 			}
 			t.Fatalf("%s", err.Error())
 		}
