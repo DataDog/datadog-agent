@@ -16,6 +16,7 @@ type Consumer[V any] interface {
 	Start()
 	Sync()
 	Stop()
+	GetTelemetry() string
 }
 
 // KernelAdaptiveConsumer wraps either DirectConsumer or BatchConsumer based on kernel version

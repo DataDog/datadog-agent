@@ -205,6 +205,7 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 							t.Logf("key: %v was not found in res", key.Path.Content.Get())
 						}
 					}
+					logHTTPTelemetry(t, monitor)
 					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
 				}
 			})
@@ -390,5 +391,48 @@ func (s *usmHTTPSuite) testDirectConsumerFunctionality(t *testing.T, isIPv6 bool
 			}
 		}
 		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
+	}
+}
+
+// logHTTPTelemetry logs HTTP protocol consumer telemetry for debugging test failures
+func logHTTPTelemetry(t *testing.T, monitor *Monitor) {
+	if monitor == nil || monitor.ebpfProgram == nil {
+		t.Log("HTTP Telemetry: monitor or ebpfProgram is nil")
+		return
+	}
+
+	// Find the HTTP protocol instance
+	for _, protocolSpec := range monitor.ebpfProgram.enabledProtocols {
+		if protocolSpec.Instance != nil && protocolSpec.Instance.Name() == "HTTP" {
+			// Type assert to access the HTTP protocol's consumer telemetry
+			if httpProto, ok := protocolSpec.Instance.(interface{ GetConsumerTelemetry() string }); ok {
+				telemetry := httpProto.GetConsumerTelemetry()
+				t.Logf("HTTP Consumer Telemetry: %s", telemetry)
+			} else {
+				t.Log("HTTP Telemetry: GetConsumerTelemetry method not available")
+			}
+
+			// Dump incomplete buffer stats
+			dumpIncompleteBufferStats(t, protocolSpec.Instance)
+			return
+		}
+	}
+	t.Log("HTTP Telemetry: HTTP protocol not found in enabled protocols")
+}
+
+// dumpIncompleteBufferStats dumps the incomplete buffer statistics (joiner telemetry)
+func dumpIncompleteBufferStats(t *testing.T, protocol protocols.Protocol) {
+	// The HTTP protocol exposes joiner telemetry which includes incomplete buffer stats:
+	// - requests: orphan requests waiting for responses
+	// - responses: orphan responses waiting for requests
+	// - joined: successfully joined request+response pairs
+	// - responses_dropped: responses dropped because they're older than their request
+	// - aged: aged requests dropped from the buffer
+
+	if httpProto, ok := protocol.(interface{ GetHTTPTelemetrySummary() string }); ok {
+		summary := httpProto.GetHTTPTelemetrySummary()
+		t.Logf("HTTP Telemetry (including incomplete buffer): %s", summary)
+	} else {
+		t.Log("HTTP Telemetry: GetHTTPTelemetrySummary method not available")
 	}
 }
