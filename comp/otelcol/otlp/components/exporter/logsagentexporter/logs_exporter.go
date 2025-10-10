@@ -73,6 +73,7 @@ func NewExporterWithGatewayUsage(
 // ConsumeLogs checks the scope of the logs and routes them to the appropriate consumer
 func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	scope := getLogsScope(ld)
+	fmt.Println("log--scope: ", scope)
 	switch scope {
 	case K8sObjectsReceiver:
 		return e.consumeK8sObjects(ctx, ld)
@@ -124,7 +125,6 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 		if err != nil {
 			logger.Error("Error parsing log: " + err.Error())
 		}
-		fmt.Println("send applogs: ", string(content), getLogsScope(ld))
 		// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
 		ingestionTs := time.Now().UnixNano()
 		message := message.NewMessage(content, origin, status, ingestionTs)
