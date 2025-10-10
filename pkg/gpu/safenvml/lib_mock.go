@@ -56,7 +56,7 @@ func WithPartialMockNVML(tb testing.TB, lib nvml.Interface, capabilities map[str
 	tb.Cleanup(resetSingleton)
 }
 
-// WithNvmlNewFunc overrides the function to create a new NVML library instance.
+// WithMockNvmlNewFunc overrides the function to create a new NVML library instance.
 // It can be used to test the NVML library without having to initialize it
 // manually. It automatically restores the original function on test cleanup
 func WithMockNvmlNewFunc(tb testing.TB, f func(opts ...nvml.LibraryOption) nvml.Interface) {
