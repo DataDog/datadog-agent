@@ -286,7 +286,7 @@ func (m *Manager) enableKernelEventCollection(ad *dump.ActivityDump) error {
 	}
 
 	if !ad.Profile.Metadata.CGroupContext.CGroupFile.IsNull() {
-		// insert container ID in traced_cgroups map (it might already exist, do not update in that case)
+		// insert cgroup ID in traced_cgroups map (it might already exist, do not update in that case)
 		if err := m.tracedCgroupsMap.Update(ad.Profile.Metadata.CGroupContext.CGroupFile, ad.Cookie, ebpf.UpdateNoExist); err != nil {
 			if !errors.Is(err, ebpf.ErrKeyExist) {
 				// delete activity dump load config
@@ -339,7 +339,35 @@ func (m *Manager) disableKernelEventCollection(ad *dump.ActivityDump) error {
 		}
 	}
 
+	// cleanup traced PIDs for this dump
+	m.cleanupTracedPids(ad)
+
 	return nil
+}
+
+// cleanupTracedPids removes all PIDs associated with a dump from the traced_pids map
+func (m *Manager) cleanupTracedPids(ad *dump.ActivityDump) {
+	var pids []uint32
+
+	// Try to get workload from cgroup resolver
+	if ad.Profile.Metadata.ContainerID != "" {
+		// Container workload
+		if workload, found := m.resolvers.CGroupResolver.GetWorkload(ad.Profile.Metadata.ContainerID); found {
+			pids = workload.GetPIDs()
+		}
+	} else if ad.Profile.Metadata.CGroupContext.CGroupID != "" {
+		// Host workload
+		if workload, found := m.resolvers.CGroupResolver.GetWorkloadByCGroupID(ad.Profile.Metadata.CGroupContext.CGroupID); found {
+			pids = workload.GetPIDs()
+		}
+	}
+
+	// Remove all PIDs from traced_pids map
+	for _, pid := range pids {
+		if err := m.tracedPIDsMap.Delete(pid); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			seclog.Debugf("couldn't delete PID %d from traced_pids for dump [%s]: %v", pid, ad.GetSelectorStr(), err)
+		}
+	}
 }
 
 // FinalizeKernelEventCollection finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
