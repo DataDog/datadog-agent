@@ -199,7 +199,7 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 						require.Equal(collect, value, count, "expected endpoint mismatch")
 					}
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
-				if t.Failed() {
+				// if t.Failed() {
 					for key := range tt.expectedEndpoints {
 						if _, ok := res[key]; !ok {
 							t.Logf("key: %v was not found in res", key.Path.Content.Get())
@@ -408,11 +408,31 @@ func logHTTPTelemetry(t *testing.T, monitor *Monitor) {
 			if httpProto, ok := protocolSpec.Instance.(interface{ GetConsumerTelemetry() string }); ok {
 				telemetry := httpProto.GetConsumerTelemetry()
 				t.Logf("HTTP Consumer Telemetry: %s", telemetry)
-				return
+			} else {
+				t.Log("HTTP Telemetry: GetConsumerTelemetry method not available")
 			}
-			t.Log("HTTP Telemetry: GetConsumerTelemetry method not available")
+
+			// Dump incomplete buffer stats
+			dumpIncompleteBufferStats(t, protocolSpec.Instance)
 			return
 		}
 	}
 	t.Log("HTTP Telemetry: HTTP protocol not found in enabled protocols")
+}
+
+// dumpIncompleteBufferStats dumps the incomplete buffer statistics (joiner telemetry)
+func dumpIncompleteBufferStats(t *testing.T, protocol protocols.Protocol) {
+	// The HTTP protocol exposes joiner telemetry which includes incomplete buffer stats:
+	// - requests: orphan requests waiting for responses
+	// - responses: orphan responses waiting for requests
+	// - joined: successfully joined request+response pairs
+	// - responses_dropped: responses dropped because they're older than their request
+	// - aged: aged requests dropped from the buffer
+
+	if httpProto, ok := protocol.(interface{ GetHTTPTelemetrySummary() string }); ok {
+		summary := httpProto.GetHTTPTelemetrySummary()
+		t.Logf("HTTP Telemetry (including incomplete buffer): %s", summary)
+	} else {
+		t.Log("HTTP Telemetry: GetHTTPTelemetrySummary method not available")
+	}
 }
