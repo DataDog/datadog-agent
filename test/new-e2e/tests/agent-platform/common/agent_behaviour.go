@@ -267,11 +267,22 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 
 		var boundPort boundport.BoundPort
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
-			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent", apmProcessName)
+			boundPort, _ = AssertPortBoundByService(c, client, "tcp", 8126, "trace-agent", apmProcessName)
 		}, 1*time.Minute, 500*time.Millisecond) {
-			err := fmt.Errorf("port 8126 should be bound when APM is enabled")
+			err := fmt.Errorf("port tcp/8126 should be bound when APM is enabled")
 			if client.Host.OSFamily == componentos.LinuxFamily {
-				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-loader\\|trace-agent\\|datadog-agent-trace"))
+				portsFull := ""
+				ports, portsErr := boundport.BoundPorts(client.Host)
+				for _, port := range ports {
+					if len(portsFull) > 0 {
+						portsFull += ", "
+					}
+					portsFull += fmt.Sprintf("%s/%d (%s/%d)", port.Transport(), port.LocalPort(), port.Process(), port.PID())
+				}
+				if len(portsFull) == 0 && portsErr != nil {
+					portsFull = portsErr.Error()
+				}
+				err = fmt.Errorf("%w\n%s\n%s", err, portsFull, ReadJournalCtl(t, client, "trace-loader\\|trace-agent\\|datadog-agent-trace"))
 			}
 			t.Fatalf("%s", err.Error())
 		}
@@ -412,9 +423,9 @@ func CheckADPEnabled(t *testing.T, client *TestClient) {
 
 		var boundPort boundport.BoundPort
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
-			boundPort, _ = AssertPortBoundByService(c, client, 8125, "agent-data-plane", "agent-data-plane")
+			boundPort, _ = AssertPortBoundByService(c, client, "udp", 8125, "agent-data-plane", "agent-data-plane")
 		}, 1*time.Minute, 500*time.Millisecond) {
-			err := fmt.Errorf("port 8125 should be bound when ADP is enabled")
+			err := fmt.Errorf("port udp/8125 should be bound when ADP is enabled")
 			if client.Host.OSFamily == componentos.LinuxFamily {
 				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "agent-data-plane\\|datadog-agent-data-plane"))
 			}

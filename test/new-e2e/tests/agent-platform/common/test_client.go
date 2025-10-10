@@ -216,7 +216,7 @@ func AgentProcessIsRunning(client *TestClient, processName string) bool {
 }
 
 // AssertPortBoundByService accepts a port and a service name and returns true if the port is bound by the service
-func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, service string, processName string) (boundport.BoundPort, bool) {
+func AssertPortBoundByService(t assert.TestingT, client *TestClient, transport string, port int, service string, processName string) (boundport.BoundPort, bool) {
 	if h, ok := t.(tHelper); ok {
 		h.Helper()
 	}
@@ -226,14 +226,15 @@ func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, s
 		return nil, false
 	}
 	if !assert.NotEmpty(t, pids, "service %s should be running", service) {
+		fmt.Printf("service %s should be running\n", service)
 		return nil, false
 	}
 
-	boundPort, err := GetBoundPort(client.Host, port)
+	boundPort, err := GetBoundPort(client.Host, transport, port)
 	if !assert.NoError(t, err) {
 		return nil, false
 	}
-	if !assert.NotNil(t, boundPort, "port %d should be bound", port) {
+	if !assert.NotNil(t, boundPort, "port %s/%d should be bound", transport, port) {
 		return nil, false
 	}
 	if !assert.Containsf(t, pids, boundPort.PID(), "port %#v should be bound by service %s", boundPort, service) {
@@ -243,7 +244,7 @@ func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, s
 }
 
 // GetBoundPort returns a port that is bound on the host, or nil if the port is not bound
-func GetBoundPort(host *components.RemoteHost, port int) (boundport.BoundPort, error) {
+func GetBoundPort(host *components.RemoteHost, transport string, port int) (boundport.BoundPort, error) {
 	ports, err := boundport.BoundPorts(host)
 	if err != nil {
 		return nil, err

@@ -19,11 +19,12 @@ func TestFromSS(t *testing.T) {
 	}{
 		{
 			name:  "single process on port 22",
-			input: `LISTEN 0      4096               *:22              *:*    users:(("sshd",pid=726,fd=3))`,
+			input: `tcp LISTEN 0      4096               *:22              *:*    users:(("sshd",pid=726,fd=3))`,
 			expected: []BoundPort{
 				&boundPort{
 					localAddress: "*",
 					localPort:    22,
+					transport:    "tcp",
 					processName:  "sshd",
 					pid:          726,
 				},
@@ -31,17 +32,19 @@ func TestFromSS(t *testing.T) {
 		},
 		{
 			name:  "multiple processes on port 22",
-			input: `LISTEN 0      4096               *:22              *:*    users:(("sshd",pid=726,fd=3),("systemd",pid=1,fd=118))`,
+			input: `tcp LISTEN 0      4096               *:22              *:*    users:(("sshd",pid=726,fd=3),("systemd",pid=1,fd=118))`,
 			expected: []BoundPort{
 				&boundPort{
 					localAddress: "*",
 					localPort:    22,
+					transport:    "tcp",
 					processName:  "sshd",
 					pid:          726,
 				},
 				&boundPort{
 					localAddress: "*",
 					localPort:    22,
+					transport:    "tcp",
 					processName:  "systemd",
 					pid:          1,
 				},
@@ -59,6 +62,7 @@ func TestFromSS(t *testing.T) {
 			for i := range tc.expected {
 				assert.Equal(t, tc.expected[i].LocalPort(), res[i].LocalPort())
 				assert.Equal(t, tc.expected[i].LocalAddress(), res[i].LocalAddress())
+				assert.Equal(t, tc.expected[i].Transport(), res[i].Transport())
 				assert.Equal(t, tc.expected[i].Process(), res[i].Process())
 				assert.Equal(t, tc.expected[i].PID(), res[i].PID())
 			}

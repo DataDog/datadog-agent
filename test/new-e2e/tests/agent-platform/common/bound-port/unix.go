@@ -12,21 +12,13 @@ import (
 )
 
 func boundPortsUnix(host *components.RemoteHost) ([]BoundPort, error) {
-	if _, err := host.Execute("command -v netstat"); err == nil {
-		out, err := host.Execute("sudo netstat -lntp")
-		if err != nil {
-			return nil, err
-		}
-		return FromNetstat(out)
-	}
-
 	if _, err := host.Execute("command -v ss"); err == nil {
-		out, err := host.Execute("sudo ss -lntp")
+		out, err := host.Execute("sudo ss -plunt")
 		if err != nil {
 			return nil, err
 		}
 		return FromSs(out)
 	}
 
-	return nil, fmt.Errorf("no netstat or ss found")
+	return nil, fmt.Errorf("no ss found")
 }

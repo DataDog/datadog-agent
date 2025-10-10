@@ -24,6 +24,7 @@ var (
 type BoundPort interface {
 	LocalAddress() string
 	LocalPort() int
+	Transport() string
 	Process() string
 	PID() int
 }
@@ -31,6 +32,7 @@ type BoundPort interface {
 type boundPort struct {
 	localAddress string
 	localPort    int
+	transport    string
 	processName  string
 	pid          int
 }
@@ -41,6 +43,10 @@ func (b *boundPort) LocalAddress() string {
 
 func (b *boundPort) LocalPort() int {
 	return b.localPort
+}
+
+func (b *boundPort) Transport() string {
+	return b.transport
 }
 
 func (b *boundPort) Process() string {
@@ -82,61 +88,33 @@ func parseHostPort(address string) (string, int, error) {
 	return hostAddress, port, nil
 }
 
-// FromNetstat parses the output of the netstat command
-func FromNetstat(output string) ([]BoundPort, error) {
-	lines := strings.Split(output, "\n")
-	ports := make([]BoundPort, 0)
-	for _, line := range lines {
-		if !strings.Contains(line, "LISTEN") {
-			continue
-		}
-		parts := strings.Fields(line)
-		if len(parts) < 7 {
-			return nil, fmt.Errorf("unexpected netstat output: %s", line)
-		}
-
-		address, port, err := parseHostPort(parts[3])
-		if err != nil {
-			return nil, fmt.Errorf("unexpected netstat output: %s", line)
-		}
-
-		// EXAMPLE: 15296/node
-		program := parts[6]
-		programParts := strings.Split(program, "/")
-		pid, err := strconv.Atoi(programParts[0])
-		if err != nil {
-			return nil, fmt.Errorf("unexpected netstat output: %s", line)
-		}
-		ports = append(ports, &boundPort{
-			localAddress: address,
-			localPort:    port,
-			processName:  programParts[1],
-			pid:          pid,
-		})
-	}
-	return ports, nil
-}
-
 // FromSs parses the output of the ss command
 func FromSs(output string) ([]BoundPort, error) {
-	lines := strings.Split(output, "\n")
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	// Skip the header line.
+	lines = lines[1:]
+
 	ports := make([]BoundPort, 0)
 	for _, line := range lines {
-		if !strings.Contains(line, "LISTEN") {
-			continue
-		}
 		parts := strings.Fields(line)
-		if len(parts) < 6 {
+		if len(parts) < 7 {
 			return nil, fmt.Errorf("unexpected ss output: %s", line)
 		}
 
-		address, port, err := parseHostPort(parts[3])
+		transport := parts[0]
+		if transport == "tcp" && !strings.Contains(line, "LISTEN") {
+			// UDP doesn't have a "listen" state.
+			continue
+		}
+
+		address, port, err := parseHostPort(parts[4])
 		if err != nil {
 			return nil, fmt.Errorf("unexpected ss output: %s", line)
 		}
 
 		// EXAMPLE: users:(("node",pid=15296,fd=18))
-		program := parts[5]
+		program := parts[6]
 		matches := ssUserRegex.FindAllStringSubmatch(program, -1)
 		processIndex := ssUserRegex.SubexpIndex("Process")
 		pidIndex := ssUserRegex.SubexpIndex("PID")
@@ -153,6 +131,7 @@ func FromSs(output string) ([]BoundPort, error) {
 			ports = append(ports, &boundPort{
 				localAddress: address,
 				localPort:    port,
+				transport:    transport,
 				processName:  process,
 				pid:          pid,
 			})
