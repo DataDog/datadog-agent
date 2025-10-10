@@ -26,14 +26,8 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  if windows_target?
-    major_version_arg = "%MAJOR_VERSION%"
-  else
-    major_version_arg = "$MAJOR_VERSION"
-  end
-
   # we assume the go deps are already installed before running omnibus
-  command "invoke dogstatsd.build --major-version #{major_version_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+  command "invoke dogstatsd.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
 
   mkdir "#{install_dir}/etc/datadog-dogstatsd"
   unless windows_target?

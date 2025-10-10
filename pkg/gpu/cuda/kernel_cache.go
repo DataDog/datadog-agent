@@ -81,8 +81,8 @@ type KernelCache struct {
 	// pidMaps is a map of process ID to its memory maps. Only accessed in the processRequests goroutine, so we don't need to lock it
 	pidMaps map[int][]*procfs.ProcMap
 
-	// smVersionSet is a set of SM versions that we support, to avoid loading fatbins for unsupported versions
-	smVersionSet map[uint32]struct{}
+	// smVersionSet gets the set of SM versions that we support, to avoid loading fatbins for unsupported versions
+	smVersionSet func() (map[uint32]struct{}, error)
 
 	// procRoot is the root directory for process information
 	procRoot string
@@ -121,7 +121,7 @@ func newKernelCacheTelemetry(tm telemetry.Component) *kernelCacheTelemetry {
 }
 
 // NewKernelCache creates a new kernel cache with background processing
-func NewKernelCache(procRoot string, smVersionSet map[uint32]struct{}, tm telemetry.Component, queueSize int) (*KernelCache, error) {
+func NewKernelCache(procRoot string, smVersionSet func() (map[uint32]struct{}, error), tm telemetry.Component, queueSize int) (*KernelCache, error) {
 	kc := &KernelCache{
 		cache:        make(map[kernelKey]*KernelData),
 		cudaSymbols:  make(map[symbolFileIdentifier]*symbolsEntry),
@@ -175,7 +175,12 @@ func (kc *KernelCache) getCudaSymbols(path string) (*symbolsEntry, error) {
 		return data, nil
 	}
 
-	data, err := GetSymbols(path, kc.smVersionSet)
+	smVersionSet, err := kc.smVersionSet()
+	if err != nil {
+		return nil, fmt.Errorf("error getting sm version set: %w", err)
+	}
+
+	data, err := GetSymbols(path, smVersionSet)
 	if err != nil {
 		kc.telemetry.readErrors.Inc()
 		return nil, fmt.Errorf("error getting file data: %w", err)

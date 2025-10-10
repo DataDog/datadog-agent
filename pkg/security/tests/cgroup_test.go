@@ -286,6 +286,11 @@ func TestCGroupSnapshot(t *testing.T) {
 	}
 	defer test.Close()
 
+	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
 	testFile, _, err := test.Path("test-open")
 	if err != nil {
 		t.Fatal(err)
@@ -299,11 +304,6 @@ func TestCGroupSnapshot(t *testing.T) {
 	var syscallTesterStats unix.Stat_t
 	if err := unix.Stat(syscallTester, &syscallTesterStats); err != nil {
 		t.Fatal(err)
-	}
-
-	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
-	if !ok {
-		t.Skip("not supported")
 	}
 
 	var cmd *exec.Cmd

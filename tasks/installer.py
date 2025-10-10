@@ -18,8 +18,6 @@ DIR_BIN = path.join(".", "bin", "installer")
 INSTALLER_BIN = path.join(DIR_BIN, bin_name("installer"))
 INSTALL_SCRIPT_TEMPLATE = path.join("pkg", "fleet", "installer", "setup", "install.sh")
 
-MAJOR_VERSION = '7'
-
 
 @task
 def build(
@@ -39,13 +37,11 @@ def build(
     Build the installer.
     """
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=MAJOR_VERSION, install_path=install_path, run_path=run_path
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, run_path=run_path)
 
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=MAJOR_VERSION)
+        vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/installer/windows_resources/datadog-installer.rc",

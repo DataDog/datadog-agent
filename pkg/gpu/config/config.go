@@ -44,6 +44,8 @@ type Config struct {
 	StreamConfig StreamConfig
 	// AttacherDetailedLogs indicates whether the probe should enable detailed logs for the uprobe attacher.
 	AttacherDetailedLogs bool
+	// DeviceCacheRefreshInterval is the interval at which the probe scans for the latest devices
+	DeviceCacheRefreshInterval time.Duration
 }
 
 // StreamConfig is the configuration for the streams.
@@ -84,6 +86,7 @@ func New() *Config {
 			MaxPendingKernelSpans: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_pending_kernel_spans")),
 			MaxPendingMemorySpans: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_pending_memory_spans")),
 		},
-		AttacherDetailedLogs: spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "attacher_detailed_logs")),
+		AttacherDetailedLogs:       spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "attacher_detailed_logs")),
+		DeviceCacheRefreshInterval: spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "device_cache_refresh_interval")),
 	}
 }
