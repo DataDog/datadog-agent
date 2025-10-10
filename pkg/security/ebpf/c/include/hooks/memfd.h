@@ -15,10 +15,12 @@
 #define MEMFD_KERNEL_PREFIX "memfd:"
 #define MEMFD_KERNEL_PREFIX_LEN (sizeof(MEMFD_KERNEL_PREFIX) - 1)
 #define MEMFD_FULL_PREFIX_LEN (MEMFD_KERNEL_PREFIX_LEN + MEMFD_TRACER_PREFIX_LEN)
+#define MEMFD_SUFFIX_MAX_LEN 8  // Maximum length of the suffix after "datadog-tracer-info-"
+#define MEMFD_NAME_MAX_LEN (MEMFD_FULL_PREFIX_LEN + MEMFD_SUFFIX_MAX_LEN + 1)  // +1 for null terminator
 
 struct memfd_tracking_t {
     u32 fd;
-    char suffix[28]; // Only store the suffix after "datadog-tracer-info-", 32 bytes total with fd
+    char suffix[MEMFD_SUFFIX_MAX_LEN + 1]; // +1 for null terminator
 };
 
 bool __attribute__((always_inline)) matches_tracer_prefix(const char *name) {
@@ -45,7 +47,7 @@ HOOK_SYSCALL_ENTRY2(memfd_create, const char *, uname, unsigned int, flags) {
         return 0;
     }
 
-    char name[32] = {0};
+    char name[MEMFD_NAME_MAX_LEN] = {0};
 
     bpf_probe_read_user_str(&name, sizeof(name), (void *)uname);
     if (!matches_tracer_prefix(name)) {
@@ -108,7 +110,7 @@ int hook_memfd_fcntl(ctx_t *ctx) {
         return 0;
     }
 
-    char dentry_name[32] = {0};
+    char dentry_name[MEMFD_NAME_MAX_LEN] = {0};
     get_dentry_name(dentry, dentry_name, sizeof(dentry_name));
 
     // Optimization 1: Reject any names shorter than "memfd:datadog-tracer-info-"
@@ -137,7 +139,7 @@ int hook_memfd_fcntl(ctx_t *ctx) {
     // Optimization 3 & 4: Compare only the suffix after "memfd:datadog-tracer-info-"
     // tracking->suffix contains only the suffix, dentry_name[MEMFD_FULL_PREFIX_LEN] points to the suffix
     #pragma unroll
-    for (int i = 0; i < sizeof(tracking->suffix); i++) {
+    for (int i = 0; i < MEMFD_SUFFIX_MAX_LEN + 1; i++) {
         if (tracking->suffix[i] != dentry_name[MEMFD_FULL_PREFIX_LEN + i]) {
             if (tracking->suffix[i] == 0 && dentry_name[MEMFD_FULL_PREFIX_LEN + i] == 0) {
                 break;

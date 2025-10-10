@@ -1191,7 +1191,7 @@ int test_tracer_memfd(int argc, char **argv) {
     unsigned int tracer_data_len = 270;
 
     // Create memfd with tracer prefix and allow sealing
-    int fd = memfd_create("datadog-tracer-info-test", MFD_ALLOW_SEALING);
+    int fd = memfd_create("datadog-tracer-info-12345678", MFD_ALLOW_SEALING);
     if (fd < 0) {
         err(1, "%s failed", "memfd_create");
     }
