@@ -23,7 +23,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/sys v0.35.0
+	golang.org/x/sys v0.36.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

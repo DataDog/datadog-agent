@@ -40,10 +40,10 @@ require (
 	go.opentelemetry.io/otel v1.38.0
 	go.opentelemetry.io/otel/metric v1.38.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/sys v0.35.0
+	golang.org/x/sys v0.36.0
 	golang.org/x/time v0.12.0
 	google.golang.org/grpc v1.75.0
-	google.golang.org/protobuf v1.36.8
+	google.golang.org/protobuf v1.36.9
 	gopkg.in/ini.v1 v1.67.0
 	k8s.io/apimachinery v0.32.3
 )
@@ -61,7 +61,7 @@ require (
 require go.opentelemetry.io/collector/processor v1.41.0 // indirect
 
 require (
-	github.com/prometheus/client_golang v1.23.0 // indirect
+	github.com/prometheus/client_golang v1.23.2 // indirect
 	go.opentelemetry.io/contrib/otelconf v0.17.0 // indirect
 )
 
