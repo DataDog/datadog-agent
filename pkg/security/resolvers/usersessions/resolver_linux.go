@@ -61,7 +61,6 @@ type IncrementalFileReader struct {
 	f            *os.File
 	offset       int64
 	mu           sync.Mutex
-	startAtEnd   bool // if true, start at the end of the file
 	followRotate bool // if true, follow inode rotation
 	ino          uint64
 }
@@ -156,9 +155,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 // NewIncrementalFileReader creates a new IncrementalFileReader
 func NewIncrementalFileReader(path string, startAtEnd, followRotate bool) *IncrementalFileReader {
 	return &IncrementalFileReader{
-		path:         path,
-		startAtEnd:   startAtEnd,
-		followRotate: followRotate,
+		path: path,
 	}
 }
 
@@ -178,11 +175,7 @@ func (r *IncrementalFileReader) Init(f *os.File) error {
 		return err
 	}
 
-	if r.startAtEnd {
-		r.offset = st.Size()
-	} else if r.offset > st.Size() {
-		r.offset = 0
-	}
+	r.offset = st.Size()
 
 	r.f = f
 	r.ino = inodeOf(st)
@@ -215,19 +208,16 @@ func inodeOf(fi os.FileInfo) uint64 {
 
 // reloadIfRotated reopens the file if the inode has changed.
 func (r *IncrementalFileReader) reloadIfRotated() error {
-	if !r.followRotate {
-		return nil
-	}
 	curSt, err := os.Stat(r.path)
 	if err != nil {
 		return err
 	}
 	curIno := inodeOf(curSt)
 	if curIno != 0 && r.ino != 0 && curIno != r.ino {
+		fmt.Printf("The inodes are different: %d != %d\n", curIno, r.ino)
 		// The file has been rotated
 		if r.f != nil {
 			_ = r.close()
-			fmt.Print("Fail and close reload")
 			r.f = nil
 		}
 		f, err := os.Open(r.path)
@@ -236,17 +226,17 @@ func (r *IncrementalFileReader) reloadIfRotated() error {
 		}
 		r.f = f
 		r.ino = curIno
-		if r.startAtEnd {
-			r.offset = curSt.Size()
-		} else {
-			r.offset = 0
-		}
+
+		// We restart from the beginning because it's a new file
+		r.offset = 0
+
 		_, err = r.f.Seek(r.offset, io.SeekStart)
 		if err != nil {
 			r.close()
+			r.f = nil
+			return err
 		}
-		r.f = nil
-		return err
+		return nil
 	}
 	return nil
 }
@@ -430,6 +420,7 @@ func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.U
 	}
 
 	r.Lock()
+	fmt.Printf("We try to resolve session with Port %d\n", ctx.SSHPort)
 	defer r.Unlock()
 	if r.sshLogReader.path == "" {
 		resolveFromJournalctl(ctx)
