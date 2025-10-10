@@ -17,6 +17,7 @@
 #endif
 #include <csignal>
 #include <cstring>
+#include <sys/resource.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -308,23 +309,24 @@ void clear_error(rtloader_t *rtloader)
 
 #ifndef WIN32
 
+// Storage for the previous signal handler
+static struct sigaction old_sigsegv_handler;
+
 //! signalHandler
 /*!
   \brief Crash handler for UNIX OSes
   \param sig Integer representing the signal number that triggered the crash.
-  \param Unused siginfo_t parameter.
-  \param Unused void * pointer parameter.
+  \param info siginfo_t pointer with signal information.
+  \param context void pointer to the signal context.
 
   This crash handler intercepts crashes triggered in C-land, printing the stacktrace
   at the time of the crash to stderr - logging cannot be assumed to be working at this
-  poinrt and hence the use of stderr. If the core dump has been enabled, we will also
-  dump a core - of course the correct ulimits need to be set for the dump to be created.
-  The idea of handling the crashes here is to allow us to collect the stacktrace, with
-  all its C-context, before it unwinds as would be the case if we allowed the go runtime
-  to handle it.
+  point and hence the use of stderr. After collecting the C stack trace, this handler
+  chains to the previously installed signal handler (typically the Go runtime's handler)
+  to allow it to perform its own crash handling and generate a goroutine dump.
 */
 #    define STACKTRACE_SIZE 500
-void signalHandler(int sig, siginfo_t *, void *)
+void signalHandler(int sig, siginfo_t *info, void *context)
 {
 #    ifdef HAS_BACKTRACE_LIB
     void *buffer[STACKTRACE_SIZE];
@@ -347,7 +349,21 @@ void signalHandler(int sig, siginfo_t *, void *)
     }
 #    endif
 
-    kill(getpid(), SIGABRT);
+    // Chain to the previous signal handler (typically Go runtime's handler)
+    if (old_sigsegv_handler.sa_flags & SA_SIGINFO) {
+        // Old handler uses the three-argument form
+        if (old_sigsegv_handler.sa_sigaction != NULL) {
+            old_sigsegv_handler.sa_sigaction(sig, info, context);
+        }
+    } else {
+        // Old handler uses the simple one-argument form
+        if (old_sigsegv_handler.sa_handler != SIG_DFL && old_sigsegv_handler.sa_handler != SIG_IGN) {
+            old_sigsegv_handler.sa_handler(sig);
+        } else {
+            // No previous handler or it was default/ignore, so just abort
+            kill(getpid(), SIGABRT);
+        }
+    }
 }
 
 /*
@@ -399,8 +415,8 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const i
         sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
         sa.sa_sigaction = signalHandler;
 
-        // Gather stacktrace on segfault
-        int err = sigaction(SIGSEGV, &sa, NULL);
+        // Gather stacktrace on segfault and save the old handler
+        int err = sigaction(SIGSEGV, &sa, &old_sigsegv_handler);
 
         if (err) {
             std::ostringstream err_msg;
