@@ -51,7 +51,7 @@ const (
 
 // OverrideOptions defines combine options
 type OverrideOptions struct {
-	Fields []OverrideField `yaml:"fields" json:"fields" jsonschema:"enum=all,enum=expression,enum=actions,enum=every,enum=tags"`
+	Fields []OverrideField `yaml:"fields,omitempty" json:"fields,omitempty" jsonschema:"enum=all,enum=expression,enum=actions,enum=every,enum=tags"`
 }
 
 // MacroDefinition holds the definition of a macro
@@ -80,7 +80,7 @@ type RuleDefinition struct {
 	Filters                []string               `yaml:"filters,omitempty" json:"filters,omitempty"`
 	Disabled               bool                   `yaml:"disabled,omitempty" json:"disabled,omitempty"`
 	Combine                CombinePolicy          `yaml:"combine,omitempty" json:"combine,omitempty" jsonschema:"enum=override"`
-	OverrideOptions        OverrideOptions        `yaml:"override_options,omitempty" json:"override_options,omitempty"`
+	OverrideOptions        OverrideOptions        `yaml:"override_options,omitempty" json:"override_options,omitzero"`
 	Actions                []*ActionDefinition    `yaml:"actions,omitempty" json:"actions,omitempty"`
 	Every                  *HumanReadableDuration `yaml:"every,omitempty" json:"every,omitempty"`
 	RateLimiterToken       []string               `yaml:"limiter_token,omitempty" json:"limiter_token,omitempty"`
