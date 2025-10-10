@@ -7,7 +7,10 @@ package metrics
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 func TestDeltaHistogramTranslatorOptions(t *testing.T) {
@@ -511,32 +515,32 @@ func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
 		{
 			name:        "heavily skewed to zero - ms",
 			unit:        "ms",
-			scale:       4,                          // fine granularity
-			zeroCount:   500,                        // 50% at zero
-			posCounts:   []uint64{250, 150, 75, 25}, // decreasing counts
+			scale:       4,                            // fine granularity
+			zeroCount:   500,                          // 50% at zero
+			posCounts:   []uint64{100, 100, 100, 100}, // decreasing counts
 			posOffset:   0,
-			expectedP50: 0.0,                              // median is zero
-			expectedP95: 1.41 * float64(time.Millisecond), // bucket 2 scaled to ns
+			expectedP50: 0.0,                                 // median is zero
+			expectedP95: 1.13879 * float64(time.Millisecond), // bucket 3 lower bound scaled to ns
 		},
 		{
 			name:        "uniform exponential - ns",
 			unit:        "ns",
 			scale:       2,
 			zeroCount:   0,
-			posCounts:   []uint64{100, 100, 100, 100}, // uniform distribution
+			posCounts:   []uint64{100, 100, 100, 100, 100}, // uniform distribution
 			posOffset:   0,
-			expectedP50: 1.29, // actual DDSketch value
-			expectedP95: 1.54, // actual DDSketch value
+			expectedP50: 1.42, // bucket 3 lower bound scaled to ns
+			expectedP95: 2.0,  // bucket 4 lower bound scaled to ns
 		},
 		{
 			name:        "single bucket with known values - us",
 			unit:        "us",
 			scale:       0, // coarse scale
 			zeroCount:   0,
-			posCounts:   []uint64{1000}, // all in one bucket
-			posOffset:   1,              // bucket index 1
-			expectedP50: 2000,           // actual DDSketch value in nanoseconds
-			expectedP95: 2000,           // same bucket
+			posCounts:   []uint64{1000},                // all in one bucket
+			posOffset:   1,                             // bucket index 1
+			expectedP50: 2 * float64(time.Microsecond), // bucket 1's lower bound scaled to ns
+			expectedP95: 2 * float64(time.Microsecond), // same bucket
 		},
 		{
 			name:      "empty exponential histogram",
@@ -553,8 +557,8 @@ func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
 			zeroCount:   1,
 			posCounts:   []uint64{1, 1, 10, 100}, // 90% in last bucket
 			posOffset:   2,
-			expectedP50: 1.58e+09, // actual DDSketch value in nanoseconds
-			expectedP95: 1.58e+09, // same bucket
+			expectedP50: 1.54221 * float64(time.Second), // bucket 3 (+ offset 2) lower bound scaled to ns
+			expectedP95: 1.54221 * float64(time.Second), // same bucket
 		},
 	}
 
@@ -563,6 +567,7 @@ func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
 			// Create exponential histogram data point
 			dp := pmetric.NewExponentialHistogramDataPoint()
 			dp.SetScale(tt.scale)
+			dp.SetZeroCount(tt.zeroCount)
 
 			// Set positive buckets
 			if len(tt.posCounts) > 0 {
@@ -607,16 +612,118 @@ func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
 			for _, count := range tt.negCounts {
 				totalCount += count
 			}
-			if totalCount > 0 && tt.expectedP50 > 0 {
+
+			fmt.Println("=== TEST ===")
+			fmt.Println(tt.name)
+			fmt.Println("=== Data Point ===")
+			b := PrettyPrintEHDP(dp)
+			fmt.Println(string(b))
+			fmt.Println("=== Sketch ===")
+			fmt.Println(PrettyPrintDDSketch(sketch))
+			if totalCount > 0 {
 				// Test that percentiles match expected values within DDSketch accuracy of 1%
 				p50, err := sketch.GetValueAtQuantile(0.5)
+				fmt.Println("p50 is: ", p50)
 				assert.NoError(t, err)
 				assert.InDelta(t, tt.expectedP50, p50, tt.expectedP50*0.01, "p50 should be within tolerance")
 
 				p95, err := sketch.GetValueAtQuantile(0.95)
+				fmt.Println("p95 is: ", p95)
 				assert.NoError(t, err)
 				assert.InDelta(t, tt.expectedP95, p95, tt.expectedP95*0.01, "p95 should be within tolerance")
 			}
 		})
 	}
+}
+
+// PrettyPrintEHDP returns a readable string for one ExponentialHistogramDataPoint.
+func PrettyPrintEHDP(dp pmetric.ExponentialHistogramDataPoint) string {
+	var b strings.Builder
+
+	// Basic stats
+	var minStr, maxStr string
+	if dp.HasMin() {
+		minStr = fmt.Sprintf("%.6g", dp.Min())
+	} else {
+		minStr = "nil"
+	}
+	if dp.HasMax() {
+		maxStr = fmt.Sprintf("%.6g", dp.Max())
+	} else {
+		maxStr = "nil"
+	}
+
+	fmt.Fprintf(&b, "ExponentialHistogramDataPoint {\n")
+	fmt.Fprintf(&b, "  Count: %d\n", dp.Count())
+	fmt.Fprintf(&b, "  Sum: %.6g\n", dp.Sum())
+	fmt.Fprintf(&b, "  Min: %s, Max: %s\n", minStr, maxStr)
+	fmt.Fprintf(&b, "  Scale: %d\n", dp.Scale())
+	fmt.Fprintf(&b, "  ZeroCount: %d\n", dp.ZeroCount())
+
+	// Bucket base r = 2^(2^(-scale))
+	r := math.Pow(2, math.Pow(2, float64(-dp.Scale())))
+
+	// Positive buckets: indices [offset, offset+len-1] cover [r^i, r^(i+1))
+	fmt.Fprintf(&b, "  Positive Buckets (offset=%d):\n", dp.Positive().Offset())
+	for j := 0; j < dp.Positive().BucketCounts().Len(); j++ {
+		c := dp.Positive().BucketCounts().At(j)
+		i := int(dp.Positive().Offset()) + int(j)
+		lb := math.Pow(r, float64(i))
+		ub := math.Pow(r, float64(i+1))
+		fmt.Fprintf(&b, "    [% .6g, % .6g): %d\n", lb, ub, c)
+	}
+
+	// Negative buckets: indices [offset, offset+len-1] cover (-r^(i+1), -r^i]
+	fmt.Fprintf(&b, "  Negative Buckets (offset=%d):\n", dp.Negative().Offset())
+	for j := 0; j < dp.Negative().BucketCounts().Len(); j++ {
+		c := dp.Negative().BucketCounts().At(j)
+		i := int(dp.Negative().Offset()) + int(j)
+		lb := -math.Pow(r, float64(i+1))
+		ub := -math.Pow(r, float64(i))
+		fmt.Fprintf(&b, "    (% .6g, % .6g]: %d\n", lb, ub, c)
+	}
+
+	fmt.Fprintf(&b, "}\n")
+	return b.String()
+}
+
+func PrettyPrintDDSketch(sketch *ddsketch.DDSketch) string {
+	var b strings.Builder
+
+	// Basic stats
+	fmt.Fprintf(&b, "DDSketch {\n")
+	fmt.Fprintf(&b, "  Count: %.0f\n", sketch.GetCount())
+	fmt.Fprintf(&b, "  Sum: %.6g\n", sketch.GetSum())
+	fmt.Fprintf(&b, "  ZeroCount: %.0f\n", sketch.GetZeroCount())
+
+	min, _ := sketch.GetMinValue()
+	max, _ := sketch.GetMaxValue()
+	fmt.Fprintf(&b, "  Min: %.6g, Max: %.6g\n", min, max)
+
+	// Quantiles
+	fmt.Fprintf(&b, "  Quantiles:\n")
+	for _, q := range []float64{0.5, 0.75, 0.90, 0.95, 0.99} {
+		val, err := sketch.GetValueAtQuantile(q)
+		if err == nil {
+			fmt.Fprintf(&b, "    p%.0f: %.6g\n", q*100, val)
+		}
+	}
+
+	// Stores (bins)
+	fmt.Fprintf(&b, "  Positive Store:\n")
+	sketch.GetPositiveValueStore().ForEach(func(index int, count float64) bool {
+		v := sketch.Value(index)
+		fmt.Fprintf(&b, "    index=%d count=%.2f value=%.2f\n", index, count, v)
+		return false // continue
+	})
+
+	fmt.Fprintf(&b, "  Negative Store:\n")
+	sketch.GetNegativeValueStore().ForEach(func(index int, count float64) bool {
+		v := sketch.Value(index)
+		fmt.Fprintf(&b, "    index=%d count=%.2f value=%.2f\n", index, count, v)
+		return false // continue
+	})
+
+	fmt.Fprintf(&b, "}\n")
+	return b.String()
 }

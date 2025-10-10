@@ -205,11 +205,11 @@ func CreateDDSketchFromExponentialHistogramOfDuration(p pmetric.ExponentialHisto
 	scaleToNanos := getTimeUnitScaleToNanos(unit)
 
 	// Create the DDSketch mapping that corresponds to the ExponentialHistogram settings
-	gamma := math.Pow(2, math.Pow(2, float64(-p.Scale())))
 	gammaWithOnePercentAccuracy := 1.01 / 0.99
+	gamma := math.Pow(2, math.Pow(2, float64(-p.Scale())))
 	gamma = math.Min(gamma, gammaWithOnePercentAccuracy)
 	indexOffset := math.Log(scaleToNanos)
-	mapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, indexOffset)
+	mapping, err := mapping.NewLogarithmicMappingWithGamma(gammaWithOnePercentAccuracy, indexOffset)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)
 	}
