@@ -66,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
+	pkgtelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -352,6 +353,9 @@ func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobe
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
 
+	// Initialize COAT metrics for system-probe
+	initCOATMetrics(telemetry)
+
 	logUserAndGroupID(log)
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
@@ -465,4 +469,17 @@ func logUserAndGroupID(log log.Component) {
 	} else {
 		log.Warnf("unable to resolve group: %s", err)
 	}
+}
+
+// initCOATMetrics initializes COAT (Cross-Org Agent Telemetry) metrics for system-probe
+func initCOATMetrics(_ telemetry.Component) {
+	// Create system-probe COAT metrics following the pattern from core agent
+	systemProbeStarted := pkgtelemetry.NewCounter("system_probe", "started", []string{}, "System Probe started counter")
+	systemProbeRunning := pkgtelemetry.NewGauge("system_probe", "running", []string{}, "System Probe running gauge")
+
+	// Emit the metrics
+	systemProbeStarted.Inc()
+	systemProbeRunning.Set(1)
+
+	pkglog.Info("Initialized COAT metrics for system-probe")
 }
