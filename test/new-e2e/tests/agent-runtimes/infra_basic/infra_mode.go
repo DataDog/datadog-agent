@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
@@ -97,7 +96,7 @@ type AgentStatusJSON struct {
 
 func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption { //nolint:unused
 	// Agent configuration for basic mode testing
-	const basicModeAgentConfig = `
+	basicModeAgentConfig := `
 api_key: "00000000000000000000000000000000"
 site: "datadoghq.com"
 infrastructure_mode: "basic"
@@ -111,7 +110,7 @@ telemetry:
 `
 
 	// Minimal check configuration for integration configs
-	const minimalCheckConfig = `
+	minimalCheckConfig := `
 init_config:
 instances:
   - {}
@@ -214,33 +213,27 @@ func (s *infraBasicSuite) assertAllowedChecksWork() { //nolint:unused
 	s.T().Run("via_status_api", func(t *testing.T) {
 		// Verify all checks are scheduled and running by querying agent status
 		t.Logf("Testing %d checks via status API...", len(allowedChecks))
-		var cachedStats map[string]map[string]RunnerStats
-		var statsErr error
 
-		for _, checkName := range allowedChecks {
-			t.Logf("Waiting for check %s to appear in runner stats...", checkName)
-			assert.EventuallyWithT(t, func(c *assert.CollectT) {
-				// Only refetch stats if check isn't found yet
-				if cachedStats == nil || !s.isCheckScheduled(checkName, cachedStats) {
-					cachedStats, statsErr = s.getRunnerStats()
-					if !assert.NoError(c, statsErr, "Failed to get runner stats") {
-						t.Logf("Failed to retrieve runner stats, will retry...")
-						return
-					}
-					t.Logf("Fetched runner stats with %d check types", len(cachedStats))
-				}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			stats, err := s.getRunnerStats()
+			if !assert.NoError(c, err, "Failed to get runner stats") {
+				t.Logf("Failed to retrieve runner stats, will retry...")
+				return
+			}
 
-				scheduled := s.isCheckScheduled(checkName, cachedStats)
+			t.Logf("Found %d check types in runner stats, verifying all allowed checks are present...", len(stats))
+
+			// Verify all allowed checks are scheduled
+			for _, checkName := range allowedChecks {
+				scheduled := s.isCheckScheduled(checkName, stats)
 				if !scheduled {
-					t.Logf("Check %s not yet scheduled (found %d check types in runner stats), refetching...", checkName, len(cachedStats))
-					// Clear cache to force refetch on next iteration
-					cachedStats = nil
+					t.Logf("Check %s not yet scheduled in basic mode", checkName)
 				} else {
 					t.Logf("Check %s found in runner stats and has run", checkName)
 				}
 				assert.True(c, scheduled, "Check %s should be scheduled and running in basic mode", checkName)
-			}, 2*time.Minute, 5*time.Second, "Check %s did not appear in runner stats within 2 minutes", checkName)
-		}
+			}
+		}, 1*time.Minute, 10*time.Second, "All allowed checks should be scheduled within 1 minute")
 	})
 
 	s.T().Run("via_cli", func(t *testing.T) {
@@ -260,23 +253,28 @@ func (s *infraBasicSuite) assertAllowedChecksWork() { //nolint:unused
 func (s *infraBasicSuite) assertExcludedChecksAreBlocked() { //nolint:unused
 	s.T().Run("via_status_api", func(t *testing.T) {
 		// Verify checks are NOT scheduled by querying running agent
-		// Wait a bit to ensure the scheduler had time to load checks
-		t.Logf("Waiting 30s to ensure scheduler has time to load checks...")
-		time.Sleep(30 * time.Second)
+		t.Logf("Verifying %d excluded checks are not scheduled...", len(excludedChecks))
 
-		t.Logf("Retrieving runner stats to verify excluded checks are not scheduled...")
-		stats, err := s.getRunnerStats()
-		require.NoError(t, err, "Agent must be running for status API test")
-
-		t.Logf("Found %d check types in runner stats, verifying excluded checks are not present...", len(stats))
-
-		for _, checkName := range excludedChecks {
-			scheduled := s.isCheckScheduled(checkName, stats)
-			if !scheduled {
-				t.Logf("Check %s correctly not scheduled in basic mode", checkName)
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			stats, err := s.getRunnerStats()
+			if !assert.NoError(c, err, "Failed to get runner stats") {
+				t.Logf("Failed to retrieve runner stats, will retry...")
+				return
 			}
-			assert.False(t, scheduled, "Check %s should NOT be scheduled in basic mode", checkName)
-		}
+
+			t.Logf("Found %d check types in runner stats, verifying excluded checks are not present...", len(stats))
+
+			// Verify all excluded checks are NOT scheduled
+			for _, checkName := range excludedChecks {
+				scheduled := s.isCheckScheduled(checkName, stats)
+				if !scheduled {
+					t.Logf("Check %s correctly not scheduled in basic mode", checkName)
+				} else {
+					t.Logf("Check %s incorrectly found in runner stats!", checkName)
+				}
+				assert.False(c, scheduled, "Check %s should NOT be scheduled in basic mode", checkName)
+			}
+		}, 1*time.Minute, 10*time.Second, "All excluded checks should remain not scheduled within 1 minute")
 	})
 
 	s.T().Run("via_cli", func(t *testing.T) {
@@ -286,5 +284,80 @@ func (s *infraBasicSuite) assertExcludedChecksAreBlocked() { //nolint:unused
 			ran := s.verifyCheckRuns(checkName)
 			assert.False(t, ran, "Check %s should be blocked via CLI in basic mode", checkName)
 		}
+	})
+}
+
+// assertAdditionalCheckWorks verifies that a check can be added via infra_basic_additional_checks.
+// This test dynamically updates the environment to add a check not in the default allow list.
+func (s *infraBasicSuite) assertAdditionalCheckWorks() { //nolint:unused
+	// Use http_check as an example of a check not in the default allow list
+	additionalCheckName := "http_check"
+
+	// HTTP check configuration
+	httpCheckConfig := `
+init_config:
+
+instances:
+  - name: Example website
+    url: http://example.com
+    timeout: 1
+`
+
+	// Agent configuration with the additional check enabled
+	agentConfigWithAdditionalCheck := `
+api_key: "00000000000000000000000000000000"
+site: "datadoghq.com"
+infrastructure_mode: "basic"
+logs_enabled: false
+apm_config:
+  enabled: false
+process_config:
+  enabled: false
+telemetry:
+  enabled: true
+infra_basic_additional_checks:
+  - http_check
+`
+
+	s.T().Logf("Updating environment to enable additional check: %s", additionalCheckName)
+
+	// Update the environment with the new agent config and check integration
+	s.UpdateEnv(awshost.Provisioner(
+		awshost.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
+		awshost.WithAgentOptions(
+			agentparams.WithAgentConfig(agentConfigWithAdditionalCheck),
+			agentparams.WithIntegration(additionalCheckName+".d", httpCheckConfig),
+		),
+	))
+
+	s.T().Run("via_status_api", func(t *testing.T) {
+		// Verify the additional check is scheduled and running
+		t.Logf("Waiting for additional check %s to appear in runner stats...", additionalCheckName)
+
+		var cachedStats map[string]map[string]RunnerStats
+		var statsErr error
+
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			cachedStats, statsErr = s.getRunnerStats()
+			if !assert.NoError(c, statsErr, "Failed to get runner stats") {
+				t.Logf("Failed to retrieve runner stats, will retry...")
+				return
+			}
+
+			scheduled := s.isCheckScheduled(additionalCheckName, cachedStats)
+			if !scheduled {
+				t.Logf("Check %s not yet scheduled (found %d check types), refetching...", additionalCheckName, len(cachedStats))
+			} else {
+				t.Logf("Check %s found in runner stats and has run", additionalCheckName)
+			}
+			assert.True(c, scheduled, "Check %s should be scheduled in basic mode when added via infra_basic_additional_checks", additionalCheckName)
+		}, 1*time.Minute, 10*time.Second, "Check %s did not appear in runner stats within 1 minute", additionalCheckName)
+	})
+
+	s.T().Run("via_cli", func(t *testing.T) {
+		// Verify the additional check can be run via CLI
+		t.Logf("Testing additional check %s via CLI...", additionalCheckName)
+		ran := s.verifyCheckRuns(additionalCheckName)
+		assert.True(t, ran, "Check %s must be runnable via CLI in basic mode when added via infra_basic_additional_checks", additionalCheckName)
 	})
 }

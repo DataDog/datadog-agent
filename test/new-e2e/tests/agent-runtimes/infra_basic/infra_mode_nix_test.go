@@ -36,3 +36,7 @@ func (s *infraBasicLinuxSuite) TestAllowedChecksWork() {
 func (s *infraBasicLinuxSuite) TestExcludedChecksAreBlocked() {
 	s.assertExcludedChecksAreBlocked()
 }
+
+func (s *infraBasicLinuxSuite) TestAdditionalCheckWorks() {
+	s.assertAdditionalCheckWorks()
+}
