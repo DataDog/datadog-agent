@@ -274,7 +274,10 @@ func (t *Tailer) StartFromBeginning() error {
 // been flushed to the output channel.
 func (t *Tailer) Stop() {
 	t.registry.SetTailed(t.Identifier(), false)
-	t.stop <- struct{}{}
+	select {
+	case t.stop <- struct{}{}:
+	default: // already signalled
+	}
 	t.file.Source.RemoveInput(t.file.Path)
 	// wait for the decoder to be flushed
 	<-t.done
@@ -301,7 +304,10 @@ func (t *Tailer) StopAfterFileRotation() {
 			}
 		}
 		t.stopForward()
-		t.stop <- struct{}{}
+		select {
+		case t.stop <- struct{}{}:
+		default: // already signalled
+		}
 	}()
 	t.file.Source.RemoveInput(t.file.Path)
 }
