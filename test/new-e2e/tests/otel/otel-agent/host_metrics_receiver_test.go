@@ -28,6 +28,8 @@ var hostmetricsreceiverConfig string
 func TestOTelAgentHostmetricsReceiver(t *testing.T) {
 	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false

@@ -47,10 +47,13 @@ var (
 			AutoMultiLineDetection: true,
 		},
 		{
-			Type:                   "file",
-			Path:                   "/databricks/driver/logs/stdout",
-			Source:                 "driver_stdout",
-			Service:                "databricks",
+			Type:    "file",
+			Path:    "/databricks/driver/logs/stdout",
+			Source:  "driver_stdout",
+			Service: "databricks",
+			LogProcessingRules: []config.LogProcessingRule{
+				{Type: "multi_line", Name: "logger_multiline", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
+			},
 			AutoMultiLineDetection: true,
 		},
 	}
@@ -85,7 +88,9 @@ var (
 
 // SetupDatabricks sets up the Databricks environment
 func SetupDatabricks(s *common.Setup) error {
-	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
+	if os.Getenv("DD_NO_AGENT_INSTALL") != "true" {
+		s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
+	}
 	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
 

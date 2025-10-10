@@ -29,10 +29,14 @@ func TestInfraBasicWindowsSuite(t *testing.T) {
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
 
-func (s *infraBasicWindowsSuite) TestBasicChecksWork() {
-	// s.assertBasicChecksWork() // only for linux for now
+func (s *infraBasicWindowsSuite) TestAllowedChecksWork() {
+	s.assertAllowedChecksWork()
 }
 
-func (s *infraBasicWindowsSuite) TestExcludedIntegrationsDoNotRun() {
-	// s.assertExcludedIntegrationsDoNotRun() // only for linux for now
+func (s *infraBasicWindowsSuite) TestExcludedChecksAreBlocked() {
+	s.assertExcludedChecksAreBlocked()
+}
+
+func (s *infraBasicWindowsSuite) TestAdditionalCheckWorks() {
+	s.assertAdditionalCheckWorks()
 }

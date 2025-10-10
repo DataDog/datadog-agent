@@ -1,0 +1,93 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testReturnsPrimitives",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testReturnsPrimitives",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 113
+          },
+          {
+            "function": "main.executeReturns",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
+            "lineNumber": 398
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testReturnsPrimitives",
+          "location": {
+            "method": "main.testReturnsPrimitives"
+          }
+        },
+        "captures": {
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "int8",
+                "value": "1"
+              },
+              "~r1": {
+                "type": "int16",
+                "value": "2"
+              },
+              "~r2": {
+                "type": "int32",
+                "value": "3"
+              },
+              "~r3": {
+                "type": "int64",
+                "value": "4"
+              },
+              "~r4": {
+                "type": "uint8",
+                "value": "5"
+              },
+              "~r5": {
+                "type": "uint16",
+                "value": "6"
+              },
+              "~r6": {
+                "type": "uint32",
+                "value": "7"
+              },
+              "~r7": {
+                "type": "uint64",
+                "value": "8"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]"
+  }
+]

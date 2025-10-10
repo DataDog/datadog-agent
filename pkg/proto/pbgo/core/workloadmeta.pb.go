@@ -1701,7 +1701,7 @@ type Service struct {
 	TracerMetadata           []*TracerMetadata      `protobuf:"bytes,5,rep,name=tracerMetadata,proto3" json:"tracerMetadata,omitempty"`
 	TcpPorts                 []int32                `protobuf:"varint,7,rep,packed,name=tcpPorts,proto3" json:"tcpPorts,omitempty"`
 	UdpPorts                 []int32                `protobuf:"varint,8,rep,packed,name=udpPorts,proto3" json:"udpPorts,omitempty"`
-	ApmInstrumentation       string                 `protobuf:"bytes,9,opt,name=apmInstrumentation,proto3" json:"apmInstrumentation,omitempty"`
+	ApmInstrumentation       bool                   `protobuf:"varint,9,opt,name=apmInstrumentation,proto3" json:"apmInstrumentation,omitempty"`
 	Ust                      *UST                   `protobuf:"bytes,17,opt,name=ust,proto3" json:"ust,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
@@ -1779,11 +1779,11 @@ func (x *Service) GetUdpPorts() []int32 {
 	return nil
 }
 
-func (x *Service) GetApmInstrumentation() string {
+func (x *Service) GetApmInstrumentation() bool {
 	if x != nil {
 		return x.ApmInstrumentation
 	}
-	return ""
+	return false
 }
 
 func (x *Service) GetUst() *UST {
@@ -2300,7 +2300,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\x0etracerMetadata\x18\x05 \x03(\v2$.datadog.workloadmeta.TracerMetadataR\x0etracerMetadata\x12\x1a\n" +
 	"\btcpPorts\x18\a \x03(\x05R\btcpPorts\x12\x1a\n" +
 	"\budpPorts\x18\b \x03(\x05R\budpPorts\x12.\n" +
-	"\x12apmInstrumentation\x18\t \x01(\tR\x12apmInstrumentation\x12+\n" +
+	"\x12apmInstrumentation\x18\t \x01(\bR\x12apmInstrumentation\x12+\n" +
 	"\x03ust\x18\x11 \x01(\v2\x19.datadog.workloadmeta.USTR\x03ust\"8\n" +
 	"\bLanguage\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +

@@ -30,8 +30,6 @@ include:
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} ${VERSION_NO_PIPELINE}
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} ${CI_COMMIT_SHA}
     - datadog-package replicate-s3 registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} us-east-1 ${INSTALLER_TESTING_S3_BUCKET} ${S3_PACKAGE} pipeline-${CI_PIPELINE_ID}
-  variables:
-    MAJOR_VERSION: 7
 
 deploy_agent_oci:
   extends: ".deploy_packages_oci"
