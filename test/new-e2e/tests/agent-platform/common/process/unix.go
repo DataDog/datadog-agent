@@ -19,7 +19,7 @@ func isProcessRunningUnix(host *components.RemoteHost, processName string) (bool
 }
 
 func findPIDUnix(host *components.RemoteHost, processName string) ([]int, error) {
-	out, err := host.Execute(fmt.Sprintf("pgrep '%s'", processName))
+	out, err := host.Execute(fmt.Sprintf("pgrep -f '%s'", processName))
 	if err != nil {
 		return nil, err
 	}

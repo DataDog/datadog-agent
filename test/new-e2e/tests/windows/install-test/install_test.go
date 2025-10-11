@@ -417,15 +417,15 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		if !assert.NoError(c, err) {
 			return
 		}
-		boundPort, err = common.GetBoundPort(vm, cmdPort)
+		boundPort, err = common.GetBoundPort(vm, "tcp", cmdPort)
 		if !assert.NoError(c, err) {
 			return
 		}
-		if !assert.NotNil(c, boundPort, "port %d should be bound", cmdPort) {
+		if !assert.NotNil(c, boundPort, "port tcp/%d should be bound", cmdPort) {
 			return
 		}
-		assert.Equalf(c, pid, boundPort.PID(), "port %d should be bound by the agent", cmdPort)
-	}, 1*time.Minute, 500*time.Millisecond, "port %d should be bound by the agent", cmdPort)
+		assert.Equalf(c, pid, boundPort.PID(), "port tcp/%d should be bound by the agent", cmdPort)
+	}, 1*time.Minute, 500*time.Millisecond, "port tcp/%d should be bound by the agent", cmdPort)
 	s.Require().EqualValues("127.0.0.1", boundPort.LocalAddress(), "agent should only be listening locally")
 
 	s.cleanupOnSuccessInDevMode()

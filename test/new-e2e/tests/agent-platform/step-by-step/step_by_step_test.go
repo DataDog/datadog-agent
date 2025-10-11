@@ -169,6 +169,10 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 			common.CheckCWSBehaviour(is.T(), VMclient)
 		}
 	}
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
+	common.CheckADPEnabled(is.T(), VMclient)
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
+	common.CheckADPDisabled(is.T(), VMclient)
 
 	is.T().Run("remove the agent", func(tt *testing.T) {
 		_, err := VMclient.PkgManager.Remove(*flavorName)
