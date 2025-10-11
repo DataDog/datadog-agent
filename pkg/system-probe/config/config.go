@@ -68,7 +68,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 	}
 	// load the configuration
 	ddcfg := pkgconfigsetup.Datadog()
-	err := pkgconfigsetup.LoadCustom(cfg, ddcfg.GetEnvVars())
+	err := pkgconfigsetup.LoadSystemProbe(cfg, ddcfg.GetEnvVars())
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
