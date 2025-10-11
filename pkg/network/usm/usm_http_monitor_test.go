@@ -199,7 +199,7 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 						require.Equal(collect, value, count, "expected endpoint mismatch")
 					}
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
-				// if t.Failed() {
+				if t.Failed() {
 					for key := range tt.expectedEndpoints {
 						if _, ok := res[key]; !ok {
 							t.Logf("key: %v was not found in res", key.Path.Content.Get())
