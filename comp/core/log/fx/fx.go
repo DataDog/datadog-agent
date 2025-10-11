@@ -8,14 +8,15 @@ package fx
 
 import (
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component
-func Module() fxutil.Module {
+func Module[C model.Reader]() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			logimpl.NewComponent,
+			logimpl.NewComponent[C],
 		),
 	)
 }

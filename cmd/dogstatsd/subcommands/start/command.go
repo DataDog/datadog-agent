@@ -127,7 +127,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		telemetryimpl.Module(),
 		fx.Supply(log.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module(),
-		logfx.Module(),
+		logfx.Module[config.Component](),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		// workloadmeta setup

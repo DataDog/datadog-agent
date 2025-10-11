@@ -58,7 +58,7 @@ func (f *factory) getOrCreateData() (*data, error) {
 		fx.Provide(func(_ config.Component) log.Params {
 			return log.ForDaemon("otelcol", "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
-		logfx.Module(),
+		logfx.Module[config.Component](),
 		telemetryModule(),
 		fxutil.FxAgentBase(),
 		remoteTaggerfx.Module(tagger.NewRemoteParams()),

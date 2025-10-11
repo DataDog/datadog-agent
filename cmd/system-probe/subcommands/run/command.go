@@ -36,7 +36,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
@@ -120,7 +120,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				healthprobefx.Module(),
-				systemprobeloggerfx.Module(),
+				logfx.Module[sysprobeconfig.Component](),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
@@ -312,7 +312,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		ipcfx.ModuleReadWrite(),
 		// Provide tagger module
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
-		systemprobeloggerfx.Module(),
+		logfx.Module[sysprobeconfig.Component](),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
 			profilingGoRoutines.ConfigPrefix = configPrefix

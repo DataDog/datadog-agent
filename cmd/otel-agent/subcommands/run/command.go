@@ -117,7 +117,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			fx.Provide(func(_ coreconfig.Component) log.Params {
 				return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 			}),
-			logfx.Module(),
+			logfx.Module[coreconfig.Component](),
 			ipcfx.ModuleReadWrite(),
 			configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 			pidimpl.Module(),
