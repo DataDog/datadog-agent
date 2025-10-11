@@ -40,7 +40,25 @@ const (
 	SystemdUnitTypeDebRpm SystemdUnitType = "debrpm"
 )
 
+//go:embed templates/gen/sysvinit/*.erb
+var sysvinitUnits embed.FS
+
+// SysvinitUnitType represents the type of sysvinit unit.
+type SysvinitUnitType string
+
+const (
+	// SysvinitUnitTypeDebian is for Debian-based distributions
+	SysvinitUnitTypeDebian SysvinitUnitType = "debian"
+	// SysvinitUnitTypeRedHat is for Red Hat-based distributions
+	SysvinitUnitTypeRedHat SysvinitUnitType = "redhat"
+)
+
 // GetSystemdUnit returns the systemd unit for the given name.
 func GetSystemdUnit(name string, unitType SystemdUnitType) ([]byte, error) {
 	return systemdUnits.ReadFile(filepath.Join("templates/gen", string(unitType), name))
+}
+
+// GetSysvinitUnit returns the sysvinit unit for the given name and unit type.
+func GetSysvinitUnit(name string) ([]byte, error) {
+	return sysvinitUnits.ReadFile(filepath.Join("templates/gen/sysvinit", name))
 }

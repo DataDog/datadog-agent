@@ -8,7 +8,10 @@
 // Package service provides service manager utilities
 package service
 
-import "os/exec"
+import (
+	"os"
+	"os/exec"
+)
 
 // Type is the service manager type
 type Type string
@@ -37,17 +40,19 @@ func GetServiceManagerType() Type {
 }
 
 func getServiceManagerType() Type {
-	_, err := exec.LookPath("systemctl")
+	_, err := os.Stat("/run/systemd/system")
 	if err == nil {
 		return SystemdType
+	}
+	if _, err := os.Stat("/etc/rc.d"); err == nil {
+		return SysvinitType
+	}
+	if _, err := os.Stat("/etc/init.d"); err == nil {
+		return SysvinitType
 	}
 	_, err = exec.LookPath("initctl")
 	if err == nil {
 		return UpstartType
-	}
-	_, err = exec.LookPath("update-rc.d")
-	if err == nil {
-		return SysvinitType
 	}
 	return UnknownType
 }
