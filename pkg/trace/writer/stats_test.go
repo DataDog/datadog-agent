@@ -511,7 +511,7 @@ func testStatsSyncWriter() (*DatadogStatsWriter, *testServer) {
 	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, nil), srv
 }
 
-type key struct{
+type key struct {
 	stats.Aggregation
 	start    uint64
 	duration uint64
