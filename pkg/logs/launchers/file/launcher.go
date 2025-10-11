@@ -231,6 +231,11 @@ func (s *Launcher) scan() {
 	s.flarecontroller.SetAllFiles(allFiles)
 
 	for _, tailer := range s.tailers.All() {
+		if s.isRotatedTailer(tailer) {
+			log.Debugf("Tailer %s is draining a rotated file; skipping stop", tailer.GetID())
+			continue
+		}
+
 		// stop all tailers which have not been selected
 		_, shouldTail := filesTailed[tailer.GetID()]
 		if !shouldTail {
@@ -259,18 +264,27 @@ func (s *Launcher) scan() {
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			// Check if this specific file should be fingerprinted
 			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			// Skip files with invalid fingerprints (Value == 0)
-			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
-				// If fingerprint is invalid, persist the old info back into the map for future attempts
+			// Skip on errors
+			if err != nil {
 				if hasOldInfo {
 					s.oldInfoMap[scanKey] = oldInfo
 				}
 				continue
 			}
+			if fingerprint != nil && !fingerprint.ValidFingerprint() {
+				if hasOldInfo {
+					log.Debugf("Pass 2: Fingerprint for %s invalid but rotation in progress; starting tailer without fingerprint", file.Path)
+					fingerprint = nil
+				} else {
+					continue
+				}
+			}
+			// allow tailing with invalid fingerprints (empty files)
 		}
 
 		if hasOldInfo {
-			if s.startNewTailerWithStoredInfo(file, config.Beginning, oldInfo, fingerprint) {
+			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
+				// hasOldInfo is true when restarting a tailer after a file rotation, so start tailer from the beginning
 				filesTailed[scanKey] = true
 			}
 		} else {
@@ -280,7 +294,7 @@ func (s *Launcher) scan() {
 			}
 		}
 	}
-	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
+	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
 	fileStats, err := procfilestats.GetProcessFileStats()
@@ -293,11 +307,22 @@ func (s *Launcher) scan() {
 func (s *Launcher) cleanUpRotatedTailers() {
 	pendingTailers := []*tailer.Tailer{}
 	for _, tailer := range s.rotatedTailers {
-		if !tailer.IsFinished() {
-			pendingTailers = append(pendingTailers, tailer)
+		if tailer.IsFinished() {
+			log.Debugf("Rotation cleanup: tailer %s finished draining rotated file (bytesRead=%d)", tailer.GetID(), tailer.Source().BytesRead.Get())
+			continue
 		}
+		pendingTailers = append(pendingTailers, tailer)
 	}
 	s.rotatedTailers = pendingTailers
+}
+
+func (s *Launcher) isRotatedTailer(candidate *tailer.Tailer) bool {
+	for _, rotated := range s.rotatedTailers {
+		if rotated == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
@@ -498,7 +523,7 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 			InfoRegistry: oldInfoRegistry,
 			Pattern:      oldRegexPattern,
 		}
-		s.oldInfoMap[file.Path] = regexAndRegistry
+		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
 	}
 
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
