@@ -86,10 +86,9 @@ register_toolchains(
 http_archive(
     name = "expat",
     files = {
-        "BUILD.bazel": "//deps/expat:BUILD.bazel",
-        "macos/expat_config.h": "//deps/expat:overlay/macos/expat_config.h",
-        "lib_contents.bzl": "//deps/expat:overlay/lib_contents.bzl",
-        "linux/expat_config.h": "//deps/expat:overlay/linux/expat_config.h",
+        "BUILD.bazel": "//deps:expat/expat.BUILD.bazel",
+        "macos/expat_config.h": "//deps:expat/overlay/macos/expat_config.h",
+        "linux/expat_config.h": "//deps:expat/overlay/linux/expat_config.h",
     },
     sha256 = "6b902ab103843592be5e99504f846ec109c1abb692e85347587f237a4ffa1033",
     strip_prefix = "expat-2.5.0",

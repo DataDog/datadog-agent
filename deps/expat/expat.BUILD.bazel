@@ -19,8 +19,8 @@ license(
 )
 
 _PUBLIC_HEADERS = [
-    "lib/expat.h",
-    "lib/expat_external.h",
+    "@expat//:lib/expat.h",
+    "@expat//:lib/expat_external.h",
 ]
 
 _SRCS = ["@expat//:lib/%s" % src for src in [
