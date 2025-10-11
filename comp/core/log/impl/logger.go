@@ -10,9 +10,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
@@ -34,10 +34,10 @@ func NewTemporaryLoggerWithoutInit() logdef.Component {
 }
 
 // Requires declares the input types to the logger component constructor
-type Requires struct {
+type Requires[C model.Reader] struct {
 	Lc     compdef.Lifecycle
 	Params logdef.Params
-	Config config.Component
+	Config C
 }
 
 // Provides defines the output of the log component
@@ -46,7 +46,7 @@ type Provides struct {
 }
 
 // NewComponent creates a log.Component using the provided config
-func NewComponent(deps Requires) (Provides, error) {
+func NewComponent[C model.Reader](deps Requires[C]) (Provides, error) {
 	if !deps.Params.IsLogLevelFnSet() {
 		return Provides{}, errors.New("must call one of core.BundleParams.ForOneShot or ForDaemon")
 	}

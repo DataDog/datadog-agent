@@ -48,7 +48,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 		coreconfig.Module(),
 		nooptagger.Module(),
 		ipcfx.ModuleReadOnly(),
-		logfx.Module(),
+		logfx.Module[coreconfig.Component](),
 	)
 }
 

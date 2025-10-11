@@ -14,11 +14,12 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	comp "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func TestNewComponent(t *testing.T) {
 	testLC := comp.NewTestLifecycle(t)
-	deps := Requires{
+	deps := Requires[model.BuildableConfig]{
 		Lc:     testLC,
 		Params: log.ForOneShot("test", "info", false),
 		Config: configmock.New(t),
