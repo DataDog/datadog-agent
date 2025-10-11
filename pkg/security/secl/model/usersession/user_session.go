@@ -6,12 +6,31 @@
 // Package usersession holds model related to the user session context
 package usersession
 
+const (
+	// UserSessionTypeUnknown is the unknown user session type
+	UserSessionTypeUnknown Type = iota
+	// UserSessionTypeK8S is the k8s user session type
+	UserSessionTypeK8S
+	// UserSessionTypeSSH is the ssh user session type
+	UserSessionTypeSSH
+)
+
+// SSHAuthMethodConstants are the supported SSH authentication methods
+const (
+	// SSHAuthMethodUnknown is the unknown SSH authentication method
+	SSHAuthMethodUnknown int = iota
+	// SSHAuthMethodPassword is the password SSH authentication method
+	SSHAuthMethodPassword
+	// SSHAuthMethodPublicKey is the public key SSH authentication method
+	SSHAuthMethodPublicKey
+)
+
 var (
 	// UserSessionTypes are the supported user session types
 	UserSessionTypes = map[string]Type{
-		"unknown": 0,
-		"k8s":     1,
-		"ssh":     2,
+		"unknown": UserSessionTypeUnknown,
+		"k8s":     UserSessionTypeK8S,
+		"ssh":     UserSessionTypeSSH,
 	}
 
 	// UserSessionTypeStrings is used to
