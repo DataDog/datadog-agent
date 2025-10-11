@@ -120,7 +120,7 @@ func (rs *RemoteExecutable) CopyFiles() error {
 func (rs *RemoteExecutable) RunTests(timeoutarg string) error {
 
 	if timeoutarg == "" {
-		timeoutarg = "2m"
+		timeoutarg = "5m"
 	}
 	tmo := "\"-test.timeout=" + timeoutarg + "\""
 

@@ -73,7 +73,7 @@ type collector struct {
 	serviceRetries           map[int32]uint
 	ignoredPids              core.PidSet
 	pidHeartbeats            map[int32]time.Time
-	injectedOnlyPids         core.PidSet // Track injected-only processes for cleanup
+	knownInjectionStatusPids core.PidSet // Track PIDs whose injection status we've already reported (but have no service data yet)
 	metricDiscoveredServices telemetry.Gauge
 }
 
@@ -106,13 +106,13 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
 
 		// Initialize service discovery fields
-		sysProbeClient:   sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-		startTime:        clock.Now().UTC(),
-		startupTimeout:   pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
-		serviceRetries:   make(map[int32]uint),
-		ignoredPids:      make(core.PidSet),
-		pidHeartbeats:    make(map[int32]time.Time),
-		injectedOnlyPids: make(core.PidSet),
+		sysProbeClient:           sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		startTime:                clock.Now().UTC(),
+		startupTimeout:           pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
+		serviceRetries:           make(map[int32]uint),
+		ignoredPids:              make(core.PidSet),
+		pidHeartbeats:            make(map[int32]time.Time),
+		knownInjectionStatusPids: make(core.PidSet),
 	}
 }
 
@@ -421,6 +421,21 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 	// Process new PIDs - create complete entities
 	for _, pid := range newPids {
 		service := pidsToService[pid]
+
+		if service == nil {
+			c.handleServiceRetries(pid)
+
+			// Skip creating entity if we already reported this PID's injection status
+			if c.knownInjectionStatusPids.Has(pid) {
+				continue
+			}
+
+			c.knownInjectionStatusPids.Add(pid)
+		} else {
+			c.knownInjectionStatusPids.Remove(pid)
+			c.pidHeartbeats[int32(service.PID)] = now
+		}
+
 		injectionState := workloadmeta.InjectionNotInjected
 		if injectedPids.Has(pid) {
 			injectionState = workloadmeta.InjectionInjected
@@ -435,22 +450,12 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			InjectionState: injectionState,
 		}
 
-		if service == nil {
-			// Handle injected processes that are not services
-			c.injectedOnlyPids.Add(pid) // Track for cleanup
-			c.handleServiceRetries(pid)
-		} else {
-			// When process gets a service, remove from injected-only tracking
-			c.injectedOnlyPids.Remove(pid)
-			// Update the heartbeat cache for this PID
-			c.pidHeartbeats[int32(service.PID)] = now
-
+		if service != nil {
 			entity.Service = convertModelServiceToService(service)
 			// language is captured here since language+process collection can be disabled
 			entity.Language = convertServiceLanguageToWLMLanguage(service.Language)
 		}
 
-		// Always append entity, even if service is nil, to track injection state
 		entities = append(entities, entity)
 	}
 
@@ -524,10 +529,6 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 	// Convert InjectedPIDs to PidSet for efficient lookup
 	injectedPids := make(core.PidSet)
 	for _, pid := range resp.InjectedPIDs {
-		if c.injectedOnlyPids.Has(int32(pid)) {
-			continue
-		}
-
 		injectedPids.Add(int32(pid))
 	}
 
@@ -620,7 +621,7 @@ func (c *collector) cleanDiscoveryMaps(alivePids core.PidSet) {
 	cleanPidMaps(alivePids, c.ignoredPids)
 	cleanPidMaps(alivePids, c.serviceRetries)
 	cleanPidMaps(alivePids, c.pidHeartbeats)
-	cleanPidMaps(alivePids, c.injectedOnlyPids)
+	cleanPidMaps(alivePids, c.knownInjectionStatusPids)
 }
 
 // updateDiscoveredServicesMetric updates the metric with the count of discovered services
@@ -758,8 +759,8 @@ func (c *collector) collectServicesCached(ctx context.Context, collectionTicker 
 				})
 			}
 
-			// Check for deleted injected-only processes
-			for pid := range c.injectedOnlyPids {
+			// Check for deleted processes whose injection status we reported (but had no service)
+			for pid := range c.knownInjectionStatusPids {
 				if alivePids.Has(pid) {
 					continue
 				}

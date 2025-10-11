@@ -90,6 +90,7 @@ datadog:
   clusterName: "%s"
   gpuMonitoring:
     enabled: true
+    privilegedMode: true
   logLevel: DEBUG
 agents:
   useHostNetwork: true

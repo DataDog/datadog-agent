@@ -6,9 +6,10 @@
 package profiledefinition
 
 import (
-	"github.com/stretchr/testify/assert"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func makeMetadata() MetadataConfig {
@@ -87,4 +88,23 @@ func TestCloneMetadata(t *testing.T) {
 	assert.Equal(t, makeMetadata(), metadata)
 	// New one is different
 	assert.NotEqual(t, metadata, metaCopy)
+}
+
+func TestIsEmpty(t *testing.T) {
+	m := MetadataField{}
+	assert.True(t, m.IsEmpty())
+	m = MetadataField{
+		Symbol: SymbolConfig{OID: "foo"},
+	}
+	assert.False(t, m.IsEmpty())
+	m = MetadataField{
+		Symbols: []SymbolConfig{
+			{},
+		},
+	}
+	assert.False(t, m.IsEmpty())
+	m = MetadataField{
+		Value: "foo",
+	}
+	assert.False(t, m.IsEmpty())
 }

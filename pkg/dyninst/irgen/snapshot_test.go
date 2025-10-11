@@ -53,6 +53,38 @@ func TestSnapshotTesting(t *testing.T) {
 	}
 }
 
+func BenchmarkSnapshotTesting(t *testing.B) {
+	cfgs := testprogs.MustGetCommonConfigs(t)
+	const prog = "sample"
+	t.Run(prog, func(t *testing.B) {
+		for _, cfg := range cfgs {
+			t.Run(cfg.String(), func(t *testing.B) {
+				binPath := testprogs.MustGetBinary(t, prog, cfg)
+				probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
+				diskCache, err := object.NewDiskCache(object.DiskCacheConfig{
+					DirPath:                  t.TempDir(),
+					RequiredDiskSpaceBytes:   10 * 1024 * 1024,  // require 10 MiB free
+					RequiredDiskSpacePercent: 1.0,               // 1% free space
+					MaxTotalBytes:            512 * 1024 * 1024, // 512 MiB max cache size
+				})
+				require.NoError(t, err)
+				obj, err := diskCache.Load(binPath)
+				require.NoError(t, err)
+				defer func() { require.NoError(t, obj.Close()) }()
+
+				t.ResetTimer()
+				for t.Loop() {
+					_, err := irgen.GenerateIR(1, obj, probesCfgs,
+						irgen.WithOnDiskGoTypeIndexFactory(diskCache),
+						irgen.WithObjectLoader(diskCache),
+					)
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+}
+
 func probeConfigsWithMaxReferenceDepth(
 	probesCfgs []ir.ProbeDefinition, limit int,
 ) []ir.ProbeDefinition {

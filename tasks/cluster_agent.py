@@ -34,7 +34,6 @@ def build(
     development=True,
     skip_assets=False,
     policies_version=None,
-    major_version='7',
 ):
     """
     Build Cluster Agent
@@ -53,7 +52,6 @@ def build(
         race,
         development,
         skip_assets,
-        major_version=major_version,
         cover=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
     )
 

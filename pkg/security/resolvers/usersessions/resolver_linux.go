@@ -114,7 +114,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 
 	ctx := &model.UserSessionContext{
 		ID:          id,
-		SessionType: value.SessionType,
+		SessionType: int(value.SessionType),
 	}
 	// parse the content of the user session context
 	err = json.Unmarshal([]byte(value.RawData), ctx)

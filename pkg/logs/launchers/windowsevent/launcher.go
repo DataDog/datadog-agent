@@ -10,15 +10,18 @@ package windowsevent
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	publishermetadatacachedef "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 )
 
 type tailer interface {
@@ -29,18 +32,21 @@ type tailer interface {
 
 // Launcher is in charge of starting and stopping windows event logs tailers
 type Launcher struct {
-	sources          chan *sources.LogSource
-	pipelineProvider pipeline.Provider
-	registry         auditor.Registry
-	tailers          map[string]tailer
-	stop             chan struct{}
+	sources                chan *sources.LogSource
+	pipelineProvider       pipeline.Provider
+	registry               auditor.Registry
+	tailers                map[string]tailer
+	stop                   chan struct{}
+	publisherMetadataCache publishermetadatacachedef.Component
 }
 
 // NewLauncher returns a new Launcher.
 func NewLauncher() *Launcher {
+	cache := publishermetadatacache.New(winevtapi.New())
 	return &Launcher{
-		tailers: make(map[string]tailer),
-		stop:    make(chan struct{}),
+		tailers:                make(map[string]tailer),
+		stop:                   make(chan struct{}),
+		publisherMetadataCache: cache,
 	}
 }
 
@@ -89,6 +95,7 @@ func (l *Launcher) Stop() {
 		delete(l.tailers, tailer.Identifier())
 	}
 	stopper.Stop()
+	l.publisherMetadataCache.Flush()
 }
 
 // sanitizedConfig sets default values for the config
@@ -112,7 +119,7 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (tailer, error) {
 		Query:             sanitizedConfig.Query,
 		ProcessRawMessage: sanitizedConfig.ProcessRawMessage,
 	}
-	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan(), l.registry)
+	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan(), l.registry, l.publisherMetadataCache)
 	bookmark := l.registry.GetOffset(t.Identifier())
 	t.Start(bookmark)
 	return t, nil
