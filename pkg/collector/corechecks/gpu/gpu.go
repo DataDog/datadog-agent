@@ -50,6 +50,7 @@ type Check struct {
 	spCache           *nvidia.SystemProbeCache     // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
 	deviceEvtGatherer *nvidia.DeviceEventsGatherer // deviceEvtGatherer asynchronously listens for device events and gathers them
 	nsPidCache        *nvidia.NsPidCache           // nsPidCache resolves and caches nspids for processes
+	telemetryComponent telemetry.Component          // telemetryComponent is the telemetry component to use for collecting metrics
 }
 
 type checkTelemetry struct {
@@ -77,6 +78,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		wmeta:       wmeta,
 		deviceTags:  make(map[string][]string),
 		deviceCache: ddnvml.NewDeviceCache(),
+		telemetryComponent: telemetry,
 	}
 }
 
@@ -153,6 +155,7 @@ func (c *Check) ensureInitCollectors() error {
 				DeviceEventsGatherer: c.deviceEvtGatherer,
 				SystemProbeCache:     c.spCache,
 				NsPidCache:           c.nsPidCache,
+				Telemetry:            c.telemetryComponent,
 			})
 		if err != nil {
 			return fmt.Errorf("failed to build NVML collectors: %w", err)
