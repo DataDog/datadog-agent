@@ -1,0 +1,125 @@
+"""BUILD file for expat."""
+
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:private"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MIT"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+_PUBLIC_HEADERS = [
+    "@expat//:lib/expat.h",
+    "@expat//:lib/expat_external.h",
+]
+
+_SRCS = ["@expat//:lib/%s" % src for src in [
+    "ascii.h",
+    "asciitab.h",
+    "iasciitab.h",
+    "internal.h",
+    "latin1tab.h",
+    "nametab.h",
+    "siphash.h",
+    "utf8tab.h",
+    "winconfig.h",
+    "xmlparse.c",
+    "xmlrole.c",
+    "xmlrole.h",
+    "xmltok_impl.h",
+    "xmltok.c",
+    "xmltok.h",
+]] + select({
+    "@platforms//os:linux": ["linux/expat_config.h"],
+    "@platforms//os:macos": ["macos/expat_config.h"],
+})
+
+# Need to make symlinks for all the .h files, but why not copy out all the sources and .h
+
+cc_library(
+    name = "expat",
+    srcs = _SRCS,
+    hdrs = _PUBLIC_HEADERS,
+    copts = select({
+        "@platforms//os:linux": ["-Ilinux"],
+        "@platforms//os:macos": ["-Imacos"],
+    }) + [
+        "-I.",
+        "-Ilib",
+        "-fPIC",
+        "-fno-strict-aliasing",
+        "-pedantic",
+        "-Wall",
+        "-Wdouble-promotion",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wmisleading-indentation",
+        "-Wmissing-prototypes",
+        "-Wnull-dereference",
+        "-Wshadow",
+        "-Wstrict-prototypes",
+    ] + select({
+        #"@platforms//os:aix": [
+        #    "-fexceptions",
+        #    "-qvisibility=hidden",
+        #    "-O3",
+        #],
+        "//conditions:default": [
+            "-fexceptions",
+            "-fvisibility=hidden",
+            "-fPIC",
+            "-O3",
+        ],
+    }),
+    textual_hdrs = [
+        "lib/xmltok_impl.c",
+        "lib/xmltok_ns.c",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "libexpat_so",
+    # Note the version is API compatibility, not the release.
+    shared_lib_name = "libexpat.so.1.8.10",
+    user_link_flags = select({
+        "//conditions:default": [
+            "-Wl,-install_name",
+            "-Wl,'@rpath/expat.so.1.8.10'",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [":expat"],
+)
+
+pkg_files(
+    name = "lib_files",
+    srcs = [
+        ":libexpat_so",
+    ],
+    prefix = "lib",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = _PUBLIC_HEADERS,
+    prefix = "include",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+)
