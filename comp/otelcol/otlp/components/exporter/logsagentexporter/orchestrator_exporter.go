@@ -40,6 +40,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 				logRecord := scopeLogs.LogRecords().At(k)
 
 				// Convert Kubernetes resource manifest to orchestrator payload format
+				fmt.Println("manifest: ", logRecord.Body().AsString(), "att:", logRecord.Attributes().AsRaw())
 				manifest, err := toManifest(ctx, logRecord, resource)
 				if err != nil {
 					logger.Error("Failed to convert to manifest", zap.Error(err))
