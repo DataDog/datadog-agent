@@ -44,13 +44,15 @@ func getServiceManagerType() Type {
 	if err == nil {
 		return SystemdType
 	}
+	if _, err := os.Stat("/etc/rc.d"); err == nil {
+		return SysvinitType
+	}
+	if _, err := os.Stat("/etc/init.d"); err == nil {
+		return SysvinitType
+	}
 	_, err = exec.LookPath("initctl")
 	if err == nil {
 		return UpstartType
-	}
-	_, err = exec.LookPath("update-rc.d")
-	if err == nil {
-		return SysvinitType
 	}
 	return UnknownType
 }
