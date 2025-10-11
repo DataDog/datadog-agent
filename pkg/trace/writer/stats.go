@@ -54,18 +54,21 @@ type DatadogStatsWriter struct {
 	payloads  []*pb.StatsPayload // payloads buffered for sync mode
 	flushChan chan chan struct{}
 
-	easylog *log.ThrottledLogger
-	statsd  statsd.ClientInterface
-	timing  timing.Reporter
-	mu      sync.Mutex
+	easylog   *log.ThrottledLogger
+	statsd    statsd.ClientInterface
+	timing    timing.Reporter
+	telemetry *StatsWriterTelemetry
+	mu        sync.Mutex
 }
 
 // NewStatsWriter returns a new DatadogStatsWriter. It must be started using Run.
+// Pass nil for telem in tests to avoid Prometheus registration conflicts.
 func NewStatsWriter(
 	cfg *config.AgentConfig,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
 	timing timing.Reporter,
+	telem *StatsWriterTelemetry,
 ) *DatadogStatsWriter {
 	sw := &DatadogStatsWriter{
 		stats:           &info.StatsWriterInfo{},
@@ -77,6 +80,7 @@ func NewStatsWriter(
 		conf:            cfg,
 		statsd:          statsd,
 		timing:          timing,
+		telemetry:       telem,
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -369,14 +373,34 @@ func (w *DatadogStatsWriter) report() {
 	// update aggregated stats before reseting them.
 	w.statsLastMinute.Acc(w.stats)
 
-	_ = w.statsd.Count("datadog.trace_agent.stats_writer.client_payloads", w.stats.ClientPayloads.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.stats_writer.payloads", w.stats.Payloads.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.stats_writer.stats_buckets", w.stats.StatsBuckets.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.stats_writer.stats_entries", w.stats.StatsEntries.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.stats_writer.bytes", w.stats.Bytes.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.stats_writer.retries", w.stats.Retries.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.stats_writer.splits", w.stats.Splits.Swap(0), nil, 1)
-	_ = w.statsd.Count("datadog.trace_agent.stats_writer.errors", w.stats.Errors.Swap(0), nil, 1)
+	clientPayloads := w.stats.ClientPayloads.Swap(0)
+	payloads := w.stats.Payloads.Swap(0)
+	statsBuckets := w.stats.StatsBuckets.Swap(0)
+	statsEntries := w.stats.StatsEntries.Swap(0)
+	bytes := w.stats.Bytes.Swap(0)
+	retries := w.stats.Retries.Swap(0)
+	splits := w.stats.Splits.Swap(0)
+	errors := w.stats.Errors.Swap(0)
+
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.client_payloads", clientPayloads, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.payloads", payloads, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.stats_buckets", statsBuckets, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.stats_entries", statsEntries, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.bytes", bytes, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.retries", retries, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.splits", splits, nil, 1)
+	_ = w.statsd.Count("datadog.trace_agent.stats_writer.errors", errors, nil, 1)
+
+	if w.telemetry != nil {
+		w.telemetry.clientPayloads.Add(float64(clientPayloads))
+		w.telemetry.payloads.Add(float64(payloads))
+		w.telemetry.statsBuckets.Add(float64(statsBuckets))
+		w.telemetry.statsEntries.Add(float64(statsEntries))
+		w.telemetry.bytes.Add(float64(bytes))
+		w.telemetry.retries.Add(float64(retries))
+		w.telemetry.splits.Add(float64(splits))
+		w.telemetry.errors.Add(float64(errors))
+	}
 }
 
 // recordEvent implements eventRecorder.
@@ -384,6 +408,10 @@ func (w *DatadogStatsWriter) recordEvent(t eventType, data *eventData) {
 	if data != nil {
 		_ = w.statsd.Histogram("datadog.trace_agent.stats_writer.connection_fill", data.connectionFill, nil, 1)
 		_ = w.statsd.Histogram("datadog.trace_agent.stats_writer.queue_fill", data.queueFill, nil, 1)
+		if w.telemetry != nil {
+			w.telemetry.connectionFill.Observe(data.connectionFill)
+			w.telemetry.queueFill.Observe(data.queueFill)
+		}
 	}
 	switch t {
 	case eventTypeRetry:
@@ -404,5 +432,9 @@ func (w *DatadogStatsWriter) recordEvent(t eventType, data *eventData) {
 		w.easylog.Warn("Stats writer queue full. Payload dropped (%.2fKB).", float64(data.bytes)/1024)
 		_ = w.statsd.Count("datadog.trace_agent.stats_writer.dropped", 1, nil, 1)
 		_ = w.statsd.Count("datadog.trace_agent.stats_writer.dropped_bytes", int64(data.bytes), nil, 1)
+		if w.telemetry != nil {
+			w.telemetry.dropped.Inc()
+			w.telemetry.droppedBytes.Add(float64(data.bytes))
+		}
 	}
 }

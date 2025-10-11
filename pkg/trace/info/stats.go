@@ -23,12 +23,16 @@ import (
 // ReceiverStats is used to store all the stats per tags.
 type ReceiverStats struct {
 	sync.RWMutex
-	Stats map[Tags]*TagStats
+	Stats     map[Tags]*TagStats
+	telemetry *ReceiverTelemetry
 }
 
 // NewReceiverStats returns a new ReceiverStats
-func NewReceiverStats() *ReceiverStats {
-	return &ReceiverStats{sync.RWMutex{}, map[Tags]*TagStats{}}
+func NewReceiverStats(telemetry *ReceiverTelemetry) *ReceiverStats {
+	return &ReceiverStats{
+		Stats:     map[Tags]*TagStats{},
+		telemetry: telemetry,
+	}
 }
 
 // GetTagStats returns the struct in which the stats will be stored depending of their tags.
@@ -58,7 +62,7 @@ func (rs *ReceiverStats) Acc(recent *ReceiverStats) {
 func (rs *ReceiverStats) PublishAndReset(statsd statsd.ClientInterface) {
 	rs.RLock()
 	for _, tagStats := range rs.Stats {
-		tagStats.publishAndReset(statsd)
+		tagStats.publishAndReset(statsd, rs.telemetry)
 	}
 	rs.RUnlock()
 }
@@ -120,61 +124,102 @@ func (ts *TagStats) AsTags() []string {
 	return (&ts.Tags).toArray()
 }
 
-func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface) {
+func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface, telem *ReceiverTelemetry) {
 	// Atomically load and reset any metrics used multiple times from ts
 	tracesReceived := ts.TracesReceived.Swap(0)
 
 	// Publish the stats
 	tags := ts.Tags.toArray()
 
+	tracesFiltered := ts.TracesFiltered.Swap(0)
+	priorityNone := ts.TracesPriorityNone.Swap(0)
+	tracesBytes := ts.TracesBytes.Swap(0)
+	spansReceived := ts.SpansReceived.Swap(0)
+	spansDropped := ts.SpansDropped.Swap(0)
+	spansFiltered := ts.SpansFiltered.Swap(0)
+	eventsExtracted := ts.EventsExtracted.Swap(0)
+	eventsSampled := ts.EventsSampled.Swap(0)
+	payloadAccepted := ts.PayloadAccepted.Swap(0)
+	payloadRefused := ts.PayloadRefused.Swap(0)
+	clientDroppedSpans := ts.ClientDroppedP0Spans.Swap(0)
+	clientDroppedTraces := ts.ClientDroppedP0Traces.Swap(0)
+
 	_ = statsd.Count("datadog.trace_agent.receiver.trace", tracesReceived, tags, 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.traces_filtered",
-		ts.TracesFiltered.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.traces_priority",
-		ts.TracesPriorityNone.Swap(0), append(tags, "priority:none"), 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.traces_bytes",
-		ts.TracesBytes.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.spans_received",
-		ts.SpansReceived.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.spans_dropped",
-		ts.SpansDropped.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.spans_filtered",
-		ts.SpansFiltered.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.events_extracted",
-		ts.EventsExtracted.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.events_sampled",
-		ts.EventsSampled.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.payload_accepted",
-		ts.PayloadAccepted.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.payload_refused",
-		ts.PayloadRefused.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.client_dropped_p0_spans",
-		ts.ClientDroppedP0Spans.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.client_dropped_p0_traces",
-		ts.ClientDroppedP0Traces.Swap(0), tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.traces_filtered", tracesFiltered, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.traces_priority", priorityNone, append(tags, "priority:none"), 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.traces_bytes", tracesBytes, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.spans_received", spansReceived, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.spans_dropped", spansDropped, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.spans_filtered", spansFiltered, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.events_extracted", eventsExtracted, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.events_sampled", eventsSampled, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.payload_accepted", payloadAccepted, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.payload_refused", payloadRefused, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.client_dropped_p0_spans", clientDroppedSpans, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.client_dropped_p0_traces", clientDroppedTraces, tags, 1)
 
-	for reason, counter := range ts.TracesDropped.tagCounters() {
-		count := counter.Swap(0)
-		if count > 0 {
-			_ = statsd.Count("datadog.trace_agent.normalizer.traces_dropped",
-				count, append(tags, "reason:"+reason), 1)
-		}
+	if telem != nil {
+		labels := receiverLabelValues(ts.Tags)
+		telem.tracesReceived.Add(float64(tracesReceived), labels...)
+		telem.tracesFiltered.Add(float64(tracesFiltered), labels...)
+		telem.tracesBytes.Add(float64(tracesBytes), labels...)
+		telem.spansReceived.Add(float64(spansReceived), labels...)
+		telem.spansDropped.Add(float64(spansDropped), labels...)
+		telem.spansFiltered.Add(float64(spansFiltered), labels...)
+		telem.eventsExtracted.Add(float64(eventsExtracted), labels...)
+		telem.eventsSampled.Add(float64(eventsSampled), labels...)
+		telem.payloadAccepted.Add(float64(payloadAccepted), labels...)
+		telem.payloadRefused.Add(float64(payloadRefused), labels...)
+		telem.clientDroppedP0Spans.Add(float64(clientDroppedSpans), labels...)
+		telem.clientDroppedP0Traces.Add(float64(clientDroppedTraces), labels...)
+		telem.tracesPriority.Add(float64(priorityNone), append(labels, "none")...)
 	}
 
-	for reason, counter := range ts.SpansMalformed.tagCounters() {
-		count := counter.Swap(0)
-		if count > 0 {
-			_ = statsd.Count("datadog.trace_agent.normalizer.spans_malformed",
-				counter.Swap(0), append(tags, "reason:"+reason), 1)
+	if telem != nil {
+		labels := receiverLabelValues(ts.Tags)
+		for reason, counter := range ts.TracesDropped.tagCounters() {
+			count := counter.Swap(0)
+			if count > 0 {
+				_ = statsd.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+reason), 1)
+				telem.tracesDropped.Add(float64(count), append(labels, reason)...)
+			}
 		}
-	}
 
-	for priority, counter := range ts.TracesPerSamplingPriority.tagCounters() {
-		count := counter.Swap(0)
-		if count > 0 {
-			_ = statsd.Count("datadog.trace_agent.receiver.traces_priority",
-				count, append(tags, "priority:"+priority), 1)
+		for reason, counter := range ts.SpansMalformed.tagCounters() {
+			count := counter.Swap(0)
+			if count > 0 {
+				_ = statsd.Count("datadog.trace_agent.normalizer.spans_malformed", count, append(tags, "reason:"+reason), 1)
+				telem.spansMalformed.Add(float64(count), append(labels, reason)...)
+			}
+		}
+
+		for priority, counter := range ts.TracesPerSamplingPriority.tagCounters() {
+			count := counter.Swap(0)
+			if count > 0 {
+				_ = statsd.Count("datadog.trace_agent.receiver.traces_priority", count, append(tags, "priority:"+priority), 1)
+				telem.tracesPriority.Add(float64(count), append(labels, priority)...)
+			}
+		}
+	} else {
+		// Still need to drain the counters even if telemetry is nil
+		for _, counter := range ts.TracesDropped.tagCounters() {
+			count := counter.Swap(0)
+			if count > 0 {
+				_ = statsd.Count("datadog.trace_agent.normalizer.traces_dropped", count, append(tags, "reason:"+fmt.Sprint(counter)), 1)
+			}
+		}
+		for _, counter := range ts.SpansMalformed.tagCounters() {
+			count := counter.Swap(0)
+			if count > 0 {
+				_ = statsd.Count("datadog.trace_agent.normalizer.spans_malformed", count, append(tags, "reason:"+fmt.Sprint(counter)), 1)
+			}
+		}
+		for priority, counter := range ts.TracesPerSamplingPriority.tagCounters() {
+			count := counter.Swap(0)
+			if count > 0 {
+				_ = statsd.Count("datadog.trace_agent.receiver.traces_priority", count, append(tags, "priority:"+priority), 1)
+			}
 		}
 	}
 }

@@ -89,7 +89,8 @@ func reserveBodySize(buf *bytes.Buffer, req *http.Request) {
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
 type HTTPReceiver struct {
-	Stats *info.ReceiverStats
+	Stats             *info.ReceiverStats
+	receiverTelemetry *info.ReceiverTelemetry
 
 	out                 chan *Payload
 	conf                *config.AgentConfig
@@ -122,7 +123,8 @@ type HTTPReceiver struct {
 	Handlers map[string]http.Handler
 }
 
-// NewHTTPReceiver returns a pointer to a new HTTPReceiver
+// NewHTTPReceiver returns a pointer to a new HTTPReceiver.
+// Pass nil for receiverTelemetry in tests to avoid Prometheus registration conflicts.
 func NewHTTPReceiver(
 	conf *config.AgentConfig,
 	dynConf *sampler.DynamicConfig,
@@ -130,7 +132,8 @@ func NewHTTPReceiver(
 	statsProcessor StatsProcessor,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
-	timing timing.Reporter) *HTTPReceiver {
+	timing timing.Reporter,
+	receiverTelemetry *info.ReceiverTelemetry) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -146,7 +149,8 @@ func NewHTTPReceiver(
 	containerIDProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
-		Stats: info.NewReceiverStats(),
+		Stats:             info.NewReceiverStats(receiverTelemetry),
+		receiverTelemetry: receiverTelemetry,
 
 		out:                 out,
 		statsProcessor:      statsProcessor,
@@ -795,7 +799,7 @@ func (r *HTTPReceiver) loop() {
 	defer close(r.exit)
 
 	var lastLog time.Time
-	accStats := info.NewReceiverStats()
+	accStats := info.NewReceiverStats(r.receiverTelemetry)
 
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
@@ -809,6 +813,7 @@ func (r *HTTPReceiver) loop() {
 		case now := <-tw.C:
 			r.watchdog(now)
 		case now := <-t.C:
+			// TODO: double-tick this to the prometheus telem
 			_ = r.statsd.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
 			if cap(r.out) == 0 {
 				_ = r.statsd.Gauge("datadog.trace_agent.receiver.out_chan_fill", 0, []string{"is_trace_buffer_set:false"}, 1)
