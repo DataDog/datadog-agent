@@ -3534,6 +3534,19 @@ api_key:
 ## which is used for the orchestrator ECS check.
 #
 # ecs_task_collection_enabled: true
+
+## @param ecs_deployment_mode - string - optional - default: auto
+## @env DD_ECS_DEPLOYMENT_MODE - string - optional - default: auto
+## Controls how the agent collects ECS task metadata:
+## - auto: Use daemon mode on EC2, sidecar mode on Fargate (recommended)
+## - daemon: Collect all tasks on the host (requires v1 metadata API access)
+## - sidecar: Collect only the current task (works on both EC2 and Fargate)
+##
+## Use 'sidecar' when running the agent as a task sidecar on EC2 to ensure
+## it only reports on its own task, while still correctly identifying the
+## launch type as EC2.
+#
+# ecs_deployment_mode: auto
 {{ end -}}
 {{ if .CRI }}
 ###################################
