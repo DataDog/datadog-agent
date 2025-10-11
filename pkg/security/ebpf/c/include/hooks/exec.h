@@ -833,6 +833,6 @@ int hook_security_inode_follow_link(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     }
-    syscall->exec.is_through_symlink = 1;    
+    syscall->exec.is_through_symlink = 1;
     return 0;
 }

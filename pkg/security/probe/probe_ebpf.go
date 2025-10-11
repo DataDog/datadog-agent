@@ -101,6 +101,7 @@ var (
 		model.ForkEventType.String(),
 		model.ExecEventType.String(),
 		model.ExitEventType.String(),
+		model.TracerMemfdSealEventType.String(),
 	}
 )
 
@@ -1571,6 +1572,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		if event.PrCtl.IsNameTruncated {
 			p.MetricNameTruncated.Add(1)
+		}
+	case model.TracerMemfdSealEventType:
+		if !p.regularUnmarshalEvent(&event.TracerMemfdSeal, eventType, offset, dataLen, data) {
+			return false
 		}
 	}
 	return true
