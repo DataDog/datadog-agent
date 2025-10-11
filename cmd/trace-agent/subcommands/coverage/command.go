@@ -39,7 +39,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		RunE: func(*cobra.Command, []string) error {
 			return fxutil.OneShot(requestCoverage,
 				fx.Supply(config.NewAgentParams(globalParamsGetter().ConfPath, config.WithFleetPoliciesDirPath(globalParamsGetter().FleetPoliciesDirPath))),
-				logfx.Module(),
+				logfx.Module[config.Component](),
 				fx.Supply(log.ForOneShot(globalParamsGetter().LoggerName, "off", true)),
 				secretsnoopfx.Module(),
 				config.Module(),

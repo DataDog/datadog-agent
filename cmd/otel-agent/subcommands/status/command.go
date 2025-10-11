@@ -45,7 +45,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 				secretsnoopfx.Module(), // TODO: secret-enabled: is this required ?
 				fx.Supply(log.ForOneShot(globalParams.LoggerName, "off", true)),
 				coreconfig.Module(),
-				logfx.Module(),
+				logfx.Module[coreconfig.Component](),
 				ipcfx.ModuleReadOnly(),
 				otelagentStatusfx.Module(),
 			)

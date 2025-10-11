@@ -34,7 +34,7 @@ func Bundle() fxutil.BundleOptions {
 		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
 		config.Module(),
 		fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
-		logfx.Module(),
+		logfx.Module[config.Component](),
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
 		sysprobeconfigimpl.Module(),
 		telemetryimpl.Module(),
