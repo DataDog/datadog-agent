@@ -597,7 +597,6 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		agentConfigs      map[string]any
 		expectedPathtests []*common.Pathtest
 		expectedLogs      []logCount
-		lookupHostFn      func(host string) ([]string, error)
 	}{
 		{
 			name:              "zero conn",
@@ -797,18 +796,12 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 						Type:      model.ConnectionType_tcp,
 					},
 				},
-				Domains: []string{"example.com"},
+				Dns: map[string]*model.DNSEntry{
+					"93.184.216.34": {Names: []string{"example.com"}},
+				},
 			},
 			expectedPathtests: []*common.Pathtest{
 				{Hostname: "example.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
-			},
-			lookupHostFn: func(host string) ([]string, error) {
-				switch host {
-				case "example.com":
-					return []string{"93.184.216.34"}, nil
-				default:
-					return nil, fmt.Errorf("no IP found for domain: %s", host)
-				}
 			},
 		},
 		{
@@ -824,22 +817,16 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 						Type:      model.ConnectionType_tcp,
 					},
 				},
-				Domains: []string{"ipv6-example.com"},
+				Dns: map[string]*model.DNSEntry{
+					"2001:db8::1": {Names: []string{"ipv6-example.com"}},
+				},
 			},
 			expectedPathtests: []*common.Pathtest{
 				{Hostname: "ipv6-example.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
 			},
-			lookupHostFn: func(host string) ([]string, error) {
-				switch host {
-				case "ipv6-example.com":
-					return []string{"2001:db8::1"}, nil
-				default:
-					return nil, fmt.Errorf("no IP found for domain: %s", host)
-				}
-			},
 		},
 		{
-			name:         "domain lookup errors are logged",
+			name:         "multiple connections with and without domains",
 			agentConfigs: defaultagentConfigs,
 			conns: &model.Connections{
 				Conns: []*model.Connection{
@@ -849,34 +836,13 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 						Direction: model.ConnectionDirection_outgoing,
 						Type:      model.ConnectionType_tcp,
 					},
-					{
-						Laddr:     &model.Addr{Ip: "10.0.0.8", Port: int32(30001), ContainerId: "testId2"},
-						Raddr:     &model.Addr{Ip: "93.184.216.35", Port: int32(443)},
-						Direction: model.ConnectionDirection_outgoing,
-						Type:      model.ConnectionType_tcp,
-					},
 				},
-				Domains: []string{"valid.com", "error.com", "another-error.com"},
+				Dns: map[string]*model.DNSEntry{
+					"93.184.216.34": {Names: []string{"valid.com"}},
+				},
 			},
 			expectedPathtests: []*common.Pathtest{
 				{Hostname: "valid.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
-			},
-			lookupHostFn: func(host string) ([]string, error) {
-				switch host {
-				case "valid.com":
-					return []string{"93.184.216.34"}, nil
-				case "error.com":
-					return nil, fmt.Errorf("lookup failed for error.com")
-				case "another-error.com":
-					return nil, fmt.Errorf("dns timeout")
-				default:
-					return nil, fmt.Errorf("no IP found for domain: %s", host)
-				}
-			},
-			expectedLogs: []logCount{
-				{"[WARN] processScheduleConns: GetIPResolverForDomains errors:", 1},
-				{"error looking up IPs for domain error.com: lookup failed for error.com", 1},
-				{"error looking up IPs for domain another-error.com: dns timeout", 1},
 			},
 		},
 		{
@@ -943,20 +909,13 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 						Type:      model.ConnectionType_tcp,
 					},
 				},
-				Domains: []string{"blocked.com", "allowed.com"},
+				Dns: map[string]*model.DNSEntry{
+					"10.0.0.4": {Names: []string{"blocked.com"}},
+					"10.0.0.5": {Names: []string{"allowed.com"}},
+				},
 			},
 			expectedPathtests: []*common.Pathtest{
 				{Hostname: "allowed.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId2"},
-			},
-			lookupHostFn: func(host string) ([]string, error) {
-				switch host {
-				case "blocked.com":
-					return []string{"10.0.0.4"}, nil
-				case "allowed.com":
-					return []string{"10.0.0.5"}, nil
-				default:
-					return nil, fmt.Errorf("no IP found for domain: %s", host)
-				}
 			},
 		},
 		{
@@ -1030,11 +989,6 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			_, npCollector := newTestNpCollector(t, tt.agentConfigs, stats)
 			if tt.noInputChan {
 				npCollector.pathtestInputChan = nil
-			}
-
-			// Mock domain resolver lookup function if provided
-			if tt.lookupHostFn != nil {
-				npCollector.domainResolver.LookupHostFn = tt.lookupHostFn
 			}
 
 			var b bytes.Buffer

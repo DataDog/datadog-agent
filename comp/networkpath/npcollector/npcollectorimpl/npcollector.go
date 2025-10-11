@@ -18,7 +18,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/domainresolver"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
@@ -89,7 +88,6 @@ type npCollectorImpl struct {
 	runTraceroute func(cfg config.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 
 	networkDevicesNamespace string
-	domainResolver          *domainresolver.DomainResolver
 	filter                  *connfilter.ConnFilter
 }
 
@@ -141,8 +139,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 
 		runTraceroute: runTraceroute,
 
-		domainResolver: domainresolver.NewDomainResolver(statsd),
-		filter:         filter,
+		filter: filter,
 	}
 }
 
@@ -290,10 +287,15 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
+
+	marshal, _ := json.Marshal(conns)
+	s.logger.Errorf("model.Connections: %s", marshal)
+
 	s.rawConnectionsChan <- conns
 	scheduleDuration := s.TimeNowFn().Sub(startTime)
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.add_conns_to_queue_duration", scheduleDuration.Seconds(), nil, 1)
 }
+
 func (s *npCollectorImpl) processScheduleConns(conns *model.Connections) {
 	vpcSubnets, err := s.getVPCSubnets()
 	if err != nil {
@@ -303,13 +305,12 @@ func (s *npCollectorImpl) processScheduleConns(conns *model.Connections) {
 	startTime := s.TimeNowFn()
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns.Conns)), []string{}, 1)
 
-	ipToDomainResolver, errs := s.domainResolver.GetIPResolverForDomains(conns.Domains)
-	if len(errs) > 0 {
-		s.logger.Warnf("GetIPResolverForDomains errors: %s", errors.Join(errs...))
-	}
-
 	for _, conn := range conns.Conns {
-		domain := ipToDomainResolver.ResolveIPToDomain(conn.Raddr.GetIp())
+		// Get domain from conns.Dns
+		var domain string
+		if dnsEntry := conns.Dns[conn.Raddr.GetIp()]; dnsEntry != nil && len(dnsEntry.Names) > 0 {
+			domain = dnsEntry.Names[0]
+		}
 
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets, domain) {
 			protocol := convertProtocol(conn.GetType())
