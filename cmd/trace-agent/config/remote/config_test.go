@@ -58,7 +58,7 @@ func TestConfigEndpoint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 			grpc := agentGRPCConfigFetcher{}
-			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, nil)
 			mux := http.NewServeMux()
 			cfg := &config.AgentConfig{}
 			mux.Handle("/v0.7/config", ConfigHandler(rcv, &grpc, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}))
@@ -139,7 +139,7 @@ func TestUpstreamRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 			grpc := agentGRPCConfigFetcher{}
-			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, nil)
 
 			var request pbgo.ClientGetConfigsRequest
 			err := json.Unmarshal([]byte(tc.expectedUpstreamRequest), &request)
@@ -167,7 +167,7 @@ func TestUpstreamRequest(t *testing.T) {
 func TestForwardErrors(t *testing.T) {
 	assert := assert.New(t)
 	grpc := agentGRPCConfigFetcher{}
-	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, nil)
 
 	grpc.On("ClientGetConfigs", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, status.Error(codes.Unimplemented, "not implemented"))
@@ -186,7 +186,7 @@ func TestForwardErrors(t *testing.T) {
 func TestUnexpectedError(t *testing.T) {
 	assert := assert.New(t)
 	grpc := agentGRPCConfigFetcher{}
-	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, nil)
 
 	grpc.On("ClientGetConfigs", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, status.Error(codes.Unavailable, "unavailable"))
@@ -205,7 +205,7 @@ func TestUnexpectedError(t *testing.T) {
 func TestEmptyResponse(t *testing.T) {
 	assert := assert.New(t)
 	grpc := agentGRPCConfigFetcher{}
-	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, nil)
 
 	grpc.On("ClientGetConfigs", mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, nil)

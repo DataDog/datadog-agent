@@ -201,7 +201,7 @@ func (lp *LifecycleProcessor) processTrace(spans []*pb.Span) {
 	}
 
 	lp.ProcessTrace(&api.Payload{
-		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		Source:        info.NewReceiverStats(nil).GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})
 }
