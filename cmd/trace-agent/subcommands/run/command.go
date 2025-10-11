@@ -9,6 +9,7 @@ package run
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -95,6 +96,16 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 				Disable: serverlessenv.IsAzureAppServicesExtension,
 			},
 			tagger.NewRemoteParams()),
+		// Check infrastructure mode early - if basic mode is enabled, exit immediately
+		fx.Invoke(func(coreConfig coreconfig.Component, logger log.Component) error {
+			if coreConfig.GetString("infrastructure_mode") == "basic" {
+				logger.Info("Infrastructure basic mode is enabled - trace-agent is not allowed to run in basic mode")
+				logger.Info("The trace-agent (APM) is disabled in infrastructure basic mode")
+				logger.Info("To enable APM, set infrastructure_mode to 'full' in datadog.yaml")
+				return fmt.Errorf("trace-agent is not allowed in infrastructure basic mode")
+			}
+			return nil
+		}),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
