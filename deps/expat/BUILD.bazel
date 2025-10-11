@@ -19,8 +19,8 @@ license(
 )
 
 _PUBLIC_HEADERS = [
-    "expat.h",
-    "expat_external.h",
+    "lib/expat.h",
+    "lib/expat_external.h",
 ]
 
 _SRCS = ["@expat//:lib/%s" % src for src in [
@@ -36,12 +36,13 @@ _SRCS = ["@expat//:lib/%s" % src for src in [
     "xmlparse.c",
     "xmlrole.c",
     "xmlrole.h",
-    "xmltok_impl.c",
     "xmltok_impl.h",
-    "xmltok_ns.c",
     "xmltok.c",
     "xmltok.h",
-]]
+]] + select({
+    "@platforms//os:linux": ["linux/expat_config.h"],
+    "@platforms//os:macos": ["macos/expat_config.h"],
+})
 
 # Need to make symlinks for all the .h files, but why not copy out all the sources and .h
 
@@ -49,27 +50,41 @@ cc_library(
     name = "expat",
     srcs = _SRCS,
     hdrs = _PUBLIC_HEADERS,
-    copts = [
-        "-I",
-        ".",
-        "-isystem",
-        ".",
+    copts = select({
+        "@platforms//os:linux": ["-Ilinux"],
+        "@platforms//os:macos": ["-Imacos"],
+    }) + [
+        "-I.",
+        "-Ilib",
+        "-fPIC",
+        "-fno-strict-aliasing",
+        "-pedantic",
         "-Wall",
+        "-Wdouble-promotion",
+        "-Wextra",
+        "-Wformat=2",
+        "-Wmisleading-indentation",
+        "-Wmissing-prototypes",
+        "-Wnull-dereference",
+        "-Wshadow",
+        "-Wstrict-prototypes",
     ] + select({
         #"@platforms//os:aix": [
         #    "-fexceptions",
-        #    "-fno-strict-aliasing",
         #    "-qvisibility=hidden",
         #    "-O3",
         #],
         "//conditions:default": [
             "-fexceptions",
-            "-fno-strict-aliasing",
             "-fvisibility=hidden",
             "-fPIC",
             "-O3",
         ],
     }),
+    textual_hdrs = [
+        "lib/xmltok_impl.c",
+        "lib/xmltok_ns.c",
+    ],
     visibility = ["//visibility:public"],
 )
 
