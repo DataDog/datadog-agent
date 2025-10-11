@@ -112,6 +112,7 @@ host_heartbeat_validity_seconds: 1000000
 }
 
 func TestFactory(t *testing.T) {
+	fakeLog := logmock.New(t)
 	cfg := config.NewMock(t)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -119,7 +120,7 @@ func TestFactory(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	checkFactory := Factory(mockStore, mockFilterStore, cfg, fakeTagger)
+	checkFactory := Factory(fakeLog, mockStore, mockFilterStore, cfg, fakeTagger)
 	assert.NotNil(t, checkFactory)
 
 	check, ok := checkFactory.Get()
@@ -174,12 +175,13 @@ func TestConfigure(t *testing.T) {
 			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
 	))
+	fakeLog := logmock.New(t)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 	cfg := app.Cfg
 	mockStore := app.Store
 
-	checkFactory := Factory(mockStore, mockFilterStore, cfg, fakeTagger)
+	checkFactory := Factory(fakeLog, mockStore, mockFilterStore, cfg, fakeTagger)
 	assert.NotNil(t, checkFactory)
 
 	check, ok := checkFactory.Get()
