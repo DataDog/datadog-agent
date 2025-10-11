@@ -102,3 +102,18 @@ func (t *Telemetry) Log() {
 		log.Debugf("%s stats summary: %s", t.protocol, t.metricGroup.Summary())
 	}
 }
+
+// GetJoinerSummary returns the joiner (incomplete buffer) telemetry summary
+func (t *Telemetry) GetJoinerSummary() string {
+	// The joiner metric group contains telemetry about the incomplete buffer:
+	// - requests: orphan requests (no matching response yet)
+	// - responses: orphan responses (no matching request yet)
+	// - joined: successfully joined request+response pairs
+	// - responses_dropped: responses dropped because they're older than their request
+	// - aged: aged requests dropped from the buffer
+	return t.metricGroup.Summary() + " | joiner: requests=" + fmt.Sprint(t.joiner.requests.Get()) +
+		" responses=" + fmt.Sprint(t.joiner.responses.Get()) +
+		" joined=" + fmt.Sprint(t.joiner.requestJoined.Get()) +
+		" responses_dropped=" + fmt.Sprint(t.joiner.responsesDropped.Get()) +
+		" aged=" + fmt.Sprint(t.joiner.agedRequest.Get())
+}
