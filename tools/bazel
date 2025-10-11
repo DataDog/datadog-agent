@@ -38,17 +38,15 @@ common --repo_contents_cache=$ext_repo_contents_cache
 build --disk_cache=$BAZEL_DISK_CACHE
 EOF
 
-trap '
-  # Stop `bazel` (if still running) to close files and proceed with cleanup
-  "$BAZEL_REAL" shutdown --ui_event_filters=-info || true
-  rm "$CI_PROJECT_DIR/user.bazelrc"
-
-  # Reintegrate `--repo_contents_cache` to original directory
-  if [ -e "$ext_repo_contents_cache" ]; then
-    >&2 rm -frv "$BAZEL_REPO_CONTENTS_CACHE"
-    mv "$ext_repo_contents_cache" "$BAZEL_REPO_CONTENTS_CACHE"
-  fi
-' EXIT
-
-# Payload: execute `bazel` - done
+# Payload: execute `bazel`, failing fast
 "$BAZEL_REAL" "$@"
+
+# Stop `bazel` (if still running) to close files and proceed with cleanup
+"$BAZEL_REAL" shutdown --ui_event_filters=-info || true
+rm "$CI_PROJECT_DIR/user.bazelrc"
+
+# Reintegrate `--repo_contents_cache` to original directory
+if [ -e "$ext_repo_contents_cache" ]; then
+  >&2 rm -frv "$BAZEL_REPO_CONTENTS_CACHE"
+  mv "$ext_repo_contents_cache" "$BAZEL_REPO_CONTENTS_CACHE"
+fi
