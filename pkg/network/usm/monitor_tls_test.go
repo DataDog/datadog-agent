@@ -559,16 +559,9 @@ func testHTTP2GoTLSAttachProbes(t *testing.T, cfg *config.Config) {
 }
 
 func TestHTTP2GoTLSAttachProbes(t *testing.T) {
-	t.Run("netlink",
-		func(tt *testing.T) {
-			cfg := utils.NewUSMEmptyConfig()
-			cfg.EnableUSMEventStream = false
-			testHTTP2GoTLSAttachProbes(tt, cfg)
-		})
 	t.Run("event stream",
 		func(tt *testing.T) {
 			cfg := utils.NewUSMEmptyConfig()
-			cfg.EnableUSMEventStream = true
 			testHTTP2GoTLSAttachProbes(tt, cfg)
 		})
 }
@@ -958,7 +951,7 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config, reinit bool) *Monitor 
 	usmMonitor, err := NewMonitor(cfg, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
-	if cfg.EnableUSMEventStream && usmconfig.NeedProcessMonitor(cfg) {
+	if usmconfig.NeedProcessMonitor(cfg) {
 		if reinit {
 			reinitializeEventConsumer(t)
 		} else {
