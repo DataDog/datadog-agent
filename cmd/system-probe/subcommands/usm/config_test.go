@@ -187,63 +187,6 @@ protocols:
 	}
 }
 
-func TestOutputConfigYAML(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     interface{}
-		expectErr bool
-	}{
-		{
-			name: "simple config",
-			input: map[string]interface{}{
-				"enabled":                 true,
-				"max_tracked_connections": 1000,
-			},
-			expectErr: false,
-		},
-		{
-			name: "nested config",
-			input: map[string]interface{}{
-				"enabled": true,
-				"protocols": map[string]interface{}{
-					"http": map[string]interface{}{
-						"enabled": true,
-					},
-				},
-			},
-			expectErr: false,
-		},
-		{
-			name: "config with arrays",
-			input: map[string]interface{}{
-				"tags":              []string{"env:prod", "service:test"},
-				"excluded_versions": []string{"1.0", "2.0"},
-			},
-			expectErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Marshal to YAML
-			yamlData, err := yaml.Marshal(tt.input)
-			if tt.expectErr {
-				assert.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-
-			// Verify it's valid YAML
-			var decoded interface{}
-			err = yaml.Unmarshal(yamlData, &decoded)
-			require.NoError(t, err, "output should be valid YAML")
-
-			// Verify output is not empty
-			assert.NotEmpty(t, string(yamlData), "YAML output should not be empty")
-		})
-	}
-}
-
 func TestFullConfigWorkflow(t *testing.T) {
 	// This test simulates the full workflow: YAML -> Parse -> JSON conversion
 	fullConfigYAML := `
