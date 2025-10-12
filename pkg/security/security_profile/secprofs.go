@@ -19,8 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // fetchSilentWorkloads returns the list of workloads for which we haven't received any profile
@@ -188,6 +190,99 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 			}
 		}
 	}
+}
+
+// ProcessEventV2 processes event v2
+func (m *Manager) ProcessEventV2(event *model.Event) (*profile.Profile, bool) {
+	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+		return nil, false
+	}
+
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ContainerContext.Tags), "*")
+	if err != nil {
+		return nil, false
+	}
+
+	m.profilesLock.Lock()
+
+	secprof := m.profiles[selector]
+	if secprof == nil {
+		secprof = profile.New(
+			profile.WithPathsReducer(m.pathsReducer),
+			profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
+			profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
+			profile.WithEventTypes(m.config.RuntimeSecurity.ActivityDumpTracedEventTypes),
+			profile.WithWorkloadSelector(selector),
+		)
+		secprof.SetTreeType(secprof, "security_profile")
+
+		secprof.Metadata = mtdt.Metadata{
+			AgentVersion:      version.AgentVersion,
+			AgentCommit:       version.Commit,
+			KernelVersion:     m.kernelVersion.Code.String(),
+			LinuxDistribution: m.kernelVersion.OsRelease["PRETTY_NAME"],
+			Arch:              utils.RuntimeArch(),
+
+			Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
+			ProtobufVersion:   profile.ProtobufVersion,
+			DifferentiateArgs: m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
+			ContainerID:       event.ContainerContext.ContainerID,
+			CGroupContext:     *event.CGroupContext,
+			Start:             event.ResolveEventTime(),
+			End:               event.ResolveEventTime(),
+		}
+		secprof.Header.Host = m.hostname
+		secprof.Header.Source = ActivityDumpSource
+
+		var workloadID any
+		if len(secprof.Metadata.ContainerID) > 0 {
+			workloadID = containerutils.ContainerID(secprof.Metadata.ContainerID)
+		} else if len(secprof.Metadata.CGroupContext.CGroupID) > 0 {
+			workloadID = secprof.Metadata.CGroupContext.CGroupID
+		}
+
+		if workloadID != nil {
+			tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
+			if err != nil {
+				return nil, false
+
+			}
+			secprof.AddTags(tags)
+		}
+
+		m.profiles[selector] = secprof
+	}
+
+	m.profilesLock.Unlock()
+
+	if secprof.ActivityTree.Stats.ApproximateSize() >= int64(m.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
+		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
+		return nil, false
+	}
+
+	if _, ok := secprof.GetVersionContext(selector.Tag); !ok {
+		now := time.Now()
+		nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
+		tags := secprof.GetTags()
+		vCtx := &profile.VersionContext{
+			FirstSeenNano:  nowNano,
+			LastSeenNano:   nowNano,
+			EventTypeState: make(map[model.EventType]*profile.EventTypeState),
+			Syscalls:       secprof.ComputeSyscallsList(),
+			Tags:           make([]string, len(tags)),
+		}
+		copy(vCtx.Tags, tags)
+
+		secprof.AddVersionContext(selector.Tag, vCtx)
+	}
+
+	imageTag := secprof.GetTagValue("image_tag")
+	inserted, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	if err != nil {
+		return nil, false
+	}
+
+	return secprof, inserted
 }
 
 // tryAutolearn tries to autolearn the input event. It returns the profile state: stable, unstable, autolearning or workloadwarmup
