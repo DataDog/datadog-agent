@@ -64,19 +64,15 @@ type npCollectorImpl struct {
 	pathtestInputChan      chan *common.Pathtest
 	pathtestProcessingChan chan *pathteststore.PathtestContext
 
-	// Pipeline related
-	rawConnectionsChan chan *model.Connections
-
 	// Scheduling related
-	running                    bool
-	workers                    int
-	stopChan                   chan struct{}
-	flushLoopDone              chan struct{}
-	workersDone                chan struct{}
-	rawConnectionsListenerDone chan struct{}
-	pathtestsListenerDone      chan struct{}
-	flushInterval              time.Duration
-	inputChanFullLogLimit      *utillog.Limit
+	running               bool
+	workers               int
+	stopChan              chan struct{}
+	flushLoopDone         chan struct{}
+	workersDone           chan struct{}
+	pathtestsListenerDone chan struct{}
+	flushInterval         time.Duration
+	inputChanFullLogLimit *utillog.Limit
 
 	// Telemetry component
 	telemetrycomp telemetryComp.Component
@@ -118,7 +114,6 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.storeConfig, logger, statsd, time.Now),
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
-		rawConnectionsChan:     make(chan *model.Connections, collectorConfigs.pathtestRawConnectionsChanSize),
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
 		inputChanFullLogLimit:  utillog.NewLogLimit(10, time.Minute*5),
@@ -131,11 +126,10 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 
 		telemetrycomp: telemetrycomp,
 
-		stopChan:                   make(chan struct{}),
-		rawConnectionsListenerDone: make(chan struct{}),
-		pathtestsListenerDone:      make(chan struct{}),
-		flushLoopDone:              make(chan struct{}),
-		workersDone:                make(chan struct{}),
+		stopChan:              make(chan struct{}),
+		pathtestsListenerDone: make(chan struct{}),
+		flushLoopDone:         make(chan struct{}),
+		workersDone:           make(chan struct{}),
 
 		runTraceroute: runTraceroute,
 
@@ -144,16 +138,10 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 }
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
-func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry, domain string) common.Pathtest {
+func (s *npCollectorImpl) makePathtest(conn *model.Connection, domain string) common.Pathtest {
 	protocol := convertProtocol(conn.GetType())
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
-	}
-
-	rDNSEntry := dns[conn.Raddr.GetIp()]
-	var reverseDNSHostname string
-	if rDNSEntry != nil && len(rDNSEntry.Names) > 0 {
-		reverseDNSHostname = rDNSEntry.Names[0]
 	}
 
 	var remotePort uint16
@@ -177,7 +165,7 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, dns map[string]*m
 		Protocol:          protocol,
 		SourceContainerID: sourceContainer,
 		Metadata: common.PathtestMetadata{
-			ReverseDNSHostname: reverseDNSHostname,
+			ReverseDNSHostname: domain,
 		},
 	}
 }
@@ -283,20 +271,9 @@ func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
 }
 
 func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
-	startTime := s.TimeNowFn()
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
-
-	marshal, _ := json.Marshal(conns)
-	s.logger.Errorf("model.Connections: %s", marshal)
-
-	s.rawConnectionsChan <- conns
-	scheduleDuration := s.TimeNowFn().Sub(startTime)
-	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.add_conns_to_queue_duration", scheduleDuration.Seconds(), nil, 1)
-}
-
-func (s *npCollectorImpl) processScheduleConns(conns *model.Connections) {
 	vpcSubnets, err := s.getVPCSubnets()
 	if err != nil {
 		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
@@ -304,7 +281,6 @@ func (s *npCollectorImpl) processScheduleConns(conns *model.Connections) {
 	}
 	startTime := s.TimeNowFn()
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns.Conns)), []string{}, 1)
-
 	for _, conn := range conns.Conns {
 		// Get domain from conns.Dns
 		var domain string
@@ -314,10 +290,10 @@ func (s *npCollectorImpl) processScheduleConns(conns *model.Connections) {
 
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets, domain) {
 			protocol := convertProtocol(conn.GetType())
-			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s, domain=%s", conn.Raddr, protocol, domain)
+			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
 		}
-		pathtest := s.makePathtest(conn, conns.Dns, domain)
+		pathtest := s.makePathtest(conn, domain)
 
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
@@ -326,7 +302,7 @@ func (s *npCollectorImpl) processScheduleConns(conns *model.Connections) {
 	}
 
 	scheduleDuration := s.TimeNowFn().Sub(startTime)
-	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.process_conns_duration", scheduleDuration.Seconds(), nil, 1)
+	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", scheduleDuration.Seconds(), nil, 1)
 }
 
 // scheduleOne schedules pathtests.
@@ -359,7 +335,6 @@ func (s *npCollectorImpl) start() error {
 
 	s.logger.Info("Start NpCollector")
 
-	go s.listenRawConnections()
 	go s.listenPathtests()
 	go s.flushLoop()
 	go s.runWorkers()
@@ -375,24 +350,8 @@ func (s *npCollectorImpl) stop() {
 	close(s.stopChan)
 	<-s.flushLoopDone
 	<-s.workersDone
-	<-s.rawConnectionsListenerDone
 	<-s.pathtestsListenerDone
 	s.running = false
-}
-
-func (s *npCollectorImpl) listenRawConnections() {
-	s.logger.Debug("Starting listening for raw connections")
-	for {
-		select {
-		case <-s.stopChan:
-			s.logger.Info("Stopped listening for raw connections")
-			s.rawConnectionsListenerDone <- struct{}{}
-			return
-		case rawConns := <-s.rawConnectionsChan:
-			s.logger.Debug("Raw connectinos received")
-			s.processScheduleConns(rawConns)
-		}
-	}
 }
 
 func (s *npCollectorImpl) listenPathtests() {
@@ -526,7 +485,6 @@ func (s *npCollectorImpl) flush() {
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"processing_chan_size", float64(len(s.pathtestProcessingChan)), []string{}, 1)
 
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"input_chan_size", float64(len(s.pathtestInputChan)), []string{}, 1)
-	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"raw_connections_chan_size", float64(len(s.rawConnectionsChan)), []string{}, 1)
 }
 
 // enrichPathWithRDNS populates a NetworkPath with reverse-DNS queried hostnames.

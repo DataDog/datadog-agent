@@ -523,12 +523,10 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 
 	// WHEN
 	npCollector.ScheduleConns(conns)
-	npCollector.processScheduleConns(<-npCollector.rawConnectionsChan)
 
 	// THEN
 	calls := stats.GaugeCalls
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule.process_conns_duration", Value: 60.0, Tags: nil, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule.add_conns_to_queue_duration", Value: 60.0, Tags: nil, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule.duration", Value: 60.0, Tags: nil, Rate: 1})
 }
 
 func compactJSON(metadataEvent []byte) []byte {
@@ -698,7 +696,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			},
 			expectedPathtests: []*common.Pathtest{},
 			expectedLogs: []logCount{
-				{"[ERROR] processScheduleConns: Error scheduling pathtests: no input channel, please check that network path is enabled", 1},
+				{"[ERROR] ScheduleConns: Error scheduling pathtests: no input channel, please check that network path is enabled", 1},
 			},
 		},
 		{
@@ -763,7 +761,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
+				{Hostname: "known-hostname", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
 					Metadata: common.PathtestMetadata{ReverseDNSHostname: "known-hostname"}},
 			},
 		},
@@ -998,7 +996,6 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			utillog.SetupLogger(l, "debug")
 
 			npCollector.ScheduleConns(tt.conns)
-			npCollector.processScheduleConns(<-npCollector.rawConnectionsChan)
 
 			actualPathtests := []*common.Pathtest{}
 			for i := 0; i < len(tt.expectedPathtests); i++ {
@@ -1020,13 +1017,13 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			var scheduleDurationMetric teststatsd.MetricsArgs
 			calls := stats.GaugeCalls
 			for _, call := range calls {
-				if call.Name == "datadog.network_path.collector.schedule.process_conns_duration" {
+				if call.Name == "datadog.network_path.collector.schedule.duration" {
 					scheduleDurationMetric = call
 				}
 			}
 			assert.Less(t, scheduleDurationMetric.Value, float64(5)) // we can't easily assert precise value, hence we are only asserting that it's a low value e.g. 5 seconds
 			scheduleDurationMetric.Value = 0                         // We need to reset the metric value to ease testing time duration
-			assert.Equal(t, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule.process_conns_duration", Value: 0, Tags: nil, Rate: 1}, scheduleDurationMetric)
+			assert.Equal(t, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule.duration", Value: 0, Tags: nil, Rate: 1}, scheduleDurationMetric)
 
 			// Test using logs
 			for _, expectedLog := range tt.expectedLogs {
