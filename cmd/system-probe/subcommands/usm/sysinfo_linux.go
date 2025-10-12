@@ -9,18 +9,14 @@ package usm
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sort"
-	"strconv"
-	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -28,7 +24,9 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	sysconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // sysinfoParams holds CLI flags for the sysinfo command.
@@ -65,7 +63,7 @@ func makeSysinfoCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return cmd
 }
 
-// ProcessInfo holds information about a running process
+// ProcessInfo holds basic information about a process
 type ProcessInfo struct {
 	PID     int32  `json:"pid"`
 	Name    string `json:"name"`
@@ -85,8 +83,8 @@ type SystemInfo struct {
 func runSysinfo(_ sysconfigcomponent.Component, params *sysinfoParams) error {
 	sysInfo := &SystemInfo{}
 
-	// Get kernel version
-	kernelVersion, err := getKernelVersion()
+	// Get kernel version using existing utility
+	kernelVersion, err := kernel.Release()
 	if err != nil {
 		sysInfo.KernelVersion = fmt.Sprintf("<unable to detect: %v>", err)
 	} else {
@@ -105,12 +103,30 @@ func runSysinfo(_ sysconfigcomponent.Component, params *sysinfoParams) error {
 		sysInfo.Hostname = hostname
 	}
 
-	// Get all running processes with command lines (filter out kernel threads)
-	processes, err := getProcesses()
+	// Get processes using procutil (same as process-agent)
+	probe := procutil.NewProcessProbe()
+	defer probe.Close()
+
+	procs, err := probe.ProcessesByPID(time.Now(), false)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: unable to list processes: %v\n", err)
 	} else {
-		sysInfo.Processes = processes
+		// Convert to slice
+		procList := make([]ProcessInfo, 0, len(procs))
+		for _, proc := range procs {
+			procList = append(procList, ProcessInfo{
+				PID:     proc.Pid,
+				Name:    proc.Name,
+				Cmdline: formatCmdline(proc.Cmdline),
+			})
+		}
+
+		// Sort by PID for consistent output
+		sort.Slice(procList, func(i, j int) bool {
+			return procList[i].PID < procList[j].PID
+		})
+
+		sysInfo.Processes = procList
 	}
 
 	if params.outputJSON {
@@ -132,24 +148,38 @@ func outputSysinfoHumanReadable(info *SystemInfo) error {
 
 	fmt.Printf("Running Processes: %d\n", len(info.Processes))
 	fmt.Println()
-	fmt.Println("PID     | Name                           | Command Line")
-	fmt.Println("--------|--------------------------------|--------------------------------------------------")
+	fmt.Println("PID     | Name                      | Command")
+	fmt.Println("--------|---------------------------|--------------------------------------------------")
 
 	for _, p := range info.Processes {
-		// Truncate cmdline if too long
+		// Truncate fields if too long
+		name := p.Name
+		if len(name) > 25 {
+			name = name[:22] + "..."
+		}
 		cmdline := p.Cmdline
 		if len(cmdline) > 50 {
 			cmdline = cmdline[:47] + "..."
 		}
-		// Truncate name if too long
-		name := p.Name
-		if len(name) > 30 {
-			name = name[:27] + "..."
-		}
-		fmt.Printf("%-7d | %-30s | %s\n", p.PID, name, cmdline)
+		fmt.Printf("%-7d | %-25s | %s\n", p.PID, name, cmdline)
 	}
 
 	return nil
+}
+
+// formatCmdline joins cmdline args into a single string
+func formatCmdline(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	result := ""
+	for i, arg := range args {
+		if i > 0 {
+			result += " "
+		}
+		result += arg
+	}
+	return result
 }
 
 // outputSysinfoJSON encodes the system info as indented JSON.
@@ -157,79 +187,4 @@ func outputSysinfoJSON(info *SystemInfo) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(info)
-}
-
-// getProcesses reads process information from /proc on Linux
-func getProcesses() ([]ProcessInfo, error) {
-	if runtime.GOOS != "linux" {
-		return nil, errors.New("process listing only supported on Linux")
-	}
-
-	processes := make([]ProcessInfo, 0)
-
-	// Read /proc directory
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read /proc: %w", err)
-	}
-
-	for _, entry := range entries {
-		// Skip non-directory entries
-		if !entry.IsDir() {
-			continue
-		}
-
-		// Check if directory name is a number (PID)
-		pid, err := strconv.ParseInt(entry.Name(), 10, 32)
-		if err != nil {
-			continue
-		}
-
-		// Read process name from /proc/[pid]/comm
-		name, err := os.ReadFile(filepath.Join("/proc", entry.Name(), "comm"))
-		if err != nil {
-			continue
-		}
-		processName := strings.TrimSpace(string(name))
-
-		// Read command line from /proc/[pid]/cmdline
-		cmdlineBytes, err := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
-		if err != nil {
-			continue
-		}
-
-		// Convert null-separated cmdline to space-separated string
-		cmdline := strings.ReplaceAll(string(cmdlineBytes), "\x00", " ")
-		cmdline = strings.TrimSpace(cmdline)
-
-		// Only include processes with command lines (excludes kernel threads)
-		if cmdline != "" {
-			processes = append(processes, ProcessInfo{
-				PID:     int32(pid),
-				Name:    processName,
-				Cmdline: cmdline,
-			})
-		}
-	}
-
-	// Sort by PID for consistent output
-	sort.Slice(processes, func(i, j int) bool {
-		return processes[i].PID < processes[j].PID
-	})
-
-	return processes, nil
-}
-
-// getKernelVersion returns the kernel version string
-func getKernelVersion() (string, error) {
-	if runtime.GOOS != "linux" {
-		return "", errors.New("kernel version detection only supported on Linux")
-	}
-
-	var u unix.Utsname
-	if err := unix.Uname(&u); err != nil {
-		return "", fmt.Errorf("uname failed: %w", err)
-	}
-
-	return unix.ByteSliceToString(u.Release[:]), nil
 }

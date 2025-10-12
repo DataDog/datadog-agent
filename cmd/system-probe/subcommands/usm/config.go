@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -80,29 +79,20 @@ func runConfig(sysprobeconfig sysconfigcomponent.Component, params *configParams
 		return errors.New("service_monitoring_config not found in runtime config")
 	}
 
+	parentConfig := map[string]interface{}{
+		"service_monitoring_config": usmConfig,
+	}
 	if params.outputJSON {
-		return outputConfigJSON(usmConfig)
+		return outputConfigJSON(parentConfig)
 	}
 
-	return outputConfigYAML(usmConfig)
+	return outputConfigYAML(parentConfig)
 }
 
 // outputConfigYAML prints configuration in YAML format.
 func outputConfigYAML(cfg interface{}) error {
-	yamlData, err := yaml.Marshal(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	fmt.Println("service_monitoring_config:")
-	// Print with indentation
-	for _, line := range strings.Split(string(yamlData), "\n") {
-		if line != "" {
-			fmt.Printf("  %s\n", line)
-		}
-	}
-
-	return nil
+	enc := yaml.NewEncoder(os.Stdout)
+	return enc.Encode(cfg)
 }
 
 // outputConfigJSON encodes the configuration as indented JSON.
