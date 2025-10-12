@@ -66,6 +66,7 @@ func makeSysinfoCommand(globalParams *command.GlobalParams) *cobra.Command {
 // ProcessInfo holds basic information about a process
 type ProcessInfo struct {
 	PID     int32  `json:"pid"`
+	PPID    int32  `json:"ppid"`
 	Name    string `json:"name"`
 	Cmdline string `json:"cmdline"`
 }
@@ -116,6 +117,7 @@ func runSysinfo(_ sysconfigcomponent.Component, params *sysinfoParams) error {
 		for _, proc := range procs {
 			procList = append(procList, ProcessInfo{
 				PID:     proc.Pid,
+				PPID:    proc.Ppid,
 				Name:    proc.Name,
 				Cmdline: formatCmdline(proc.Cmdline),
 			})
@@ -148,8 +150,8 @@ func outputSysinfoHumanReadable(info *SystemInfo) error {
 
 	fmt.Printf("Running Processes: %d\n", len(info.Processes))
 	fmt.Println()
-	fmt.Println("PID     | Name                      | Command")
-	fmt.Println("--------|---------------------------|--------------------------------------------------")
+	fmt.Println("PID     | PPID    | Name                      | Command")
+	fmt.Println("--------|---------|---------------------------|--------------------------------------------------")
 
 	for _, p := range info.Processes {
 		// Truncate fields if too long
@@ -161,7 +163,7 @@ func outputSysinfoHumanReadable(info *SystemInfo) error {
 		if len(cmdline) > 50 {
 			cmdline = cmdline[:47] + "..."
 		}
-		fmt.Printf("%-7d | %-25s | %s\n", p.PID, name, cmdline)
+		fmt.Printf("%-7d | %-7d | %-25s | %s\n", p.PID, p.PPID, name, cmdline)
 	}
 
 	return nil
