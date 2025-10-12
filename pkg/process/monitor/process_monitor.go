@@ -5,29 +5,24 @@
 
 //go:build linux
 
-// Package monitor represents a wrapper to netlink, which gives us the ability to monitor process events like Exec and
-// Exit, and activate the registered callbacks for the relevant events
+// Package monitor represents a wrapper to process-events-data-stream, which gives us the ability to monitor process
+// events like Exec and Exit, and activate the registered callbacks for the relevant events
 package monitor
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
-	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	// The size of the process events queue of netlink.
-	processMonitorEventQueueSize = 2048
 	// The size of the callbacks queue for pending tasks.
 	pendingCallbacksQueueSize = 5000
 )
@@ -44,25 +39,18 @@ var (
 // processMonitorTelemetry
 type processMonitorTelemetry struct {
 	mg *telemetry.MetricGroup
-	// process monitor will process :
-	//  o events refer to netlink events received (not only exec and exit)
-	//  o exec process netlink events
-	//  o exit process netlink events
-	//  o restart the netlink connection
-	//
-	//  o reinit_failed is the number of failed re-initialisation after a netlink restart due to an error
-	//  o process_scan_failed would be > 0 if initial process scan failed
-	//  o callback_called numbers of callback called
-	events  *telemetry.Counter
-	exec    *telemetry.Counter
-	exit    *telemetry.Counter
-	restart *telemetry.Counter
 
-	reinitFailed      *telemetry.Counter
-	processScanFailed *telemetry.Counter
-	callbackExecuted  *telemetry.Counter
+	// exec counts how many Exec events were received.
+	exec *telemetry.Counter
+	// exit counts how many Exit events were received
+	exit *telemetry.Counter
 
+	// callbackExecuted counts how many callbacks were triggered.
+	callbackExecuted *telemetry.Counter
+
+	// processExecChannelIsFull counts how many events were dropped as our internal channel maintaining Exec events was full.
 	processExecChannelIsFull *telemetry.Counter
+	// processExitChannelIsFull counts how many events were dropped as our internal channel maintaining Exit events was full.
 	processExitChannelIsFull *telemetry.Counter
 }
 
@@ -72,23 +60,18 @@ func newProcessMonitorTelemetry() processMonitorTelemetry {
 		telemetry.OptPrometheus,
 	)
 	return processMonitorTelemetry{
-		mg:      metricGroup,
-		events:  metricGroup.NewCounter("events"),
-		exec:    metricGroup.NewCounter("exec"),
-		exit:    metricGroup.NewCounter("exit"),
-		restart: metricGroup.NewCounter("restart"),
+		mg:   metricGroup,
+		exec: metricGroup.NewCounter("exec"),
+		exit: metricGroup.NewCounter("exit"),
 
-		reinitFailed:      metricGroup.NewCounter("reinit_failed"),
-		processScanFailed: metricGroup.NewCounter("process_scan_failed"),
-		callbackExecuted:  metricGroup.NewCounter("callback_executed"),
+		callbackExecuted: metricGroup.NewCounter("callback_executed"),
 
 		processExecChannelIsFull: metricGroup.NewCounter("process_exec_channel_is_full"),
 		processExitChannelIsFull: metricGroup.NewCounter("process_exit_channel_is_full"),
 	}
 }
 
-// ProcessMonitor uses netlink process events like Exec and Exit and activate the registered callbacks for the relevant
-// events.
+// ProcessMonitor uses wraps process-events-data-streams and processes Exec and Exit events.
 // ProcessMonitor require root or CAP_NET_ADMIN capabilities
 type ProcessMonitor struct {
 	initOnce sync.Once
@@ -102,15 +85,7 @@ type ProcessMonitor struct {
 	// A channel to mark the main routines to halt.
 	done chan struct{}
 
-	// netlink channels for process event monitor.
-	netlinkEventsChannel chan netlink.ProcEvent
-	netlinkDoneChannel   chan struct{}
-	netlinkErrorsChannel chan error
-
-	useEventStream bool
-
 	// callback registration and parallel execution management
-
 	hasExecCallbacks          atomic.Bool
 	processExecCallbacksMutex sync.RWMutex
 	processExecCallbacks      map[*ProcessCallback]struct{}
@@ -132,7 +107,7 @@ type ProcessMonitor struct {
 // ProcessCallback is a callback function that is called on a given pid that represents a new process.
 type ProcessCallback = func(pid uint32)
 
-// GetProcessMonitor create a monitor (only once) that register to netlink process events.
+// GetProcessMonitor create a monitor (only once) that register to process-events-data-stream.
 //
 // This monitor can monitor.Subscribe(callback, filter) callback on particular event
 // like process EXEC, EXIT. The callback will be called when the filter will match.
@@ -149,7 +124,6 @@ type ProcessCallback = func(pid uint32)
 //
 // note: o GetProcessMonitor() will always return the same instance
 //
-//	  as we can only register once with netlink process event
 //	o mon.Subscribe() will subscribe callback before or after the Initialization
 //	o mon.Initialize() will scan current processes and call subscribed callback
 //
@@ -203,21 +177,6 @@ func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 	}
 }
 
-// initNetlinkProcessEventMonitor initialize the netlink socket filter for process event monitor.
-func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
-	pm.netlinkDoneChannel = make(chan struct{})
-	pm.netlinkErrorsChannel = make(chan error, 10)
-	pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
-
-	if err := netns.WithRootNS(kernel.ProcFSRoot(), func() error {
-		return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
-	}); err != nil {
-		return fmt.Errorf("couldn't initialize process monitor: %s", err)
-	}
-
-	return nil
-}
-
 // initCallbackRunner runs multiple workers that run tasks sent over a queue.
 func (pm *ProcessMonitor) initCallbackRunner() {
 	cpuNum, err := kernel.PossibleCPUs()
@@ -269,145 +228,16 @@ func (pm *ProcessMonitor) stopCallbackRunners() {
 	pm.callbackRunnersWG.Wait()
 }
 
-// mainEventLoop is an event loop receiving events from netlink, or periodic events, and handles them.
-func (pm *ProcessMonitor) mainEventLoop() {
-	log.Info("process monitor main event loop is starting")
-	logTicker := time.NewTicker(2 * time.Minute)
-
-	defer func() {
-		logTicker.Stop()
-		// Marking netlink to stop, so we won't get any new events.
-		close(pm.netlinkDoneChannel)
-
-		pm.stopCallbackRunners()
-
-		// We intentionally don't close the callbackRunner channel,
-		// as we don't want to panic if we're trying to send to it in another goroutine.
-
-		// Before shutting down, making sure we're cleaning all resources.
-		pm.processMonitorWG.Done()
-	}()
-
-	maxChannelSize := 0
-	for {
-		select {
-		case <-pm.done:
-			log.Info("process monitor main event loop is shutting down, having been marked to stop")
-			return
-		case event, ok := <-pm.netlinkEventsChannel:
-			if !ok {
-				log.Info("process monitor main event loop is shutting down, netlink events channel was closed")
-				return
-			}
-
-			if maxChannelSize < len(pm.netlinkEventsChannel) {
-				maxChannelSize = len(pm.netlinkEventsChannel)
-			}
-
-			pm.tel.events.Add(1)
-			switch ev := event.Msg.(type) {
-			case *netlink.ExecProcEvent:
-				pm.tel.exec.Add(1)
-				// handleProcessExec locks a mutex to access the exec callbacks array, if it is empty, then we're
-				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
-				// Checking an atomic boolean, is an atomic operation, hence much faster.
-				if pm.hasExecCallbacks.Load() {
-					pm.handleProcessExec(ev.ProcessPid)
-				}
-			case *netlink.ExitProcEvent:
-				pm.tel.exit.Add(1)
-				// handleProcessExit locks a mutex to access the exit callbacks array, if it is empty, then we're
-				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
-				// Checking an atomic boolean, is an atomic operation, hence much faster.
-				if pm.hasExitCallbacks.Load() {
-					pm.handleProcessExit(ev.ProcessPid)
-				}
-			}
-		case _, ok := <-pm.netlinkErrorsChannel:
-			if !ok {
-				log.Info("process monitor main event loop is shutting down, netlink errors channel was closed")
-				return
-			}
-			pm.tel.restart.Add(1)
-
-			pm.netlinkDoneChannel <- struct{}{}
-			// Netlink might suffer from temporary errors (insufficient buffer for example). We're trying to recover
-			// by reinitializing netlink socket.
-			// Waiting a bit before reinitializing.
-			time.Sleep(50 * time.Millisecond)
-			if err := pm.initNetlinkProcessEventMonitor(); err != nil {
-				log.Errorf("failed re-initializing process monitor: %s", err)
-				pm.tel.reinitFailed.Add(1)
-				return
-			}
-		case <-logTicker.C:
-			log.Debugf("process monitor stats - %s; max channel size: %d / 2 minutes)",
-				pm.tel.mg.Summary(),
-				maxChannelSize,
-			)
-			maxChannelSize = 0
-		}
-	}
-}
-
 // Initialize setting up the process monitor only once, no matter how many times it was called.
-// The initialization order:
-//  1. Initializes callback workers.
-//  2. Initializes the netlink process monitor.
-//  2. Run the main event loop in a goroutine.
-//  4. Scans already running processes and call the Exec callbacks on them.
-func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
+func (pm *ProcessMonitor) Initialize() error {
 	var initErr error
 	pm.initOnce.Do(
 		func() {
-			method := "netlink"
-			if useEventStream {
-				method = "event stream"
-			}
-			log.Infof("initializing process monitor (%s)", method)
+			log.Info("initializing process monitor event stream")
 			pm.tel = newProcessMonitorTelemetry()
 
-			pm.useEventStream = useEventStream
 			pm.done = make(chan struct{})
 			pm.initCallbackRunner()
-
-			if useEventStream {
-				return
-			}
-
-			pm.processMonitorWG.Add(1)
-			// Setting up the main loop
-			pm.netlinkDoneChannel = make(chan struct{})
-			pm.netlinkErrorsChannel = make(chan error, 10)
-			pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
-
-			go pm.mainEventLoop()
-
-			if err := netns.WithRootNS(kernel.ProcFSRoot(), func() error {
-				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
-			}); err != nil {
-				initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)
-			}
-
-			pm.processExecCallbacksMutex.RLock()
-			execCallbacksLength := len(pm.processExecCallbacks)
-			pm.processExecCallbacksMutex.RUnlock()
-
-			// Initialize should be called only once after we registered all callbacks. Thus, if we have no registered
-			// callback, no need to scan already running processes.
-			if execCallbacksLength > 0 {
-				handleProcessExecWrapper := func(pid int) error {
-					pm.handleProcessExec(uint32(pid))
-					return nil
-				}
-				// Scanning already running processes
-				log.Info("process monitor init, scanning all processes")
-				if err := kernel.WithAllProcs(kernel.ProcFSRoot(), handleProcessExecWrapper); err != nil {
-					initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
-					pm.tel.processScanFailed.Add(1)
-					return
-				}
-			}
 		},
 	)
 	return initErr
@@ -462,15 +292,7 @@ func (pm *ProcessMonitor) Stop() {
 	if pm.done != nil {
 		close(pm.done)
 
-		if pm.useEventStream {
-			// For the netlink case, the callback runners are waited for by the
-			// main event loop which we wait for with `processMonitorWG` below.
-			// However, for the event stream case, we don't have that event
-			// loop, so wait here for the callback runners.
-			pm.stopCallbackRunners()
-		} else {
-			pm.processMonitorWG.Wait()
-		}
+		pm.stopCallbackRunners()
 
 		pm.done = nil
 	}
@@ -492,14 +314,12 @@ func (pm *ProcessMonitor) Stop() {
 // InitializeEventConsumer initializes the event consumer with the event handling.
 func InitializeEventConsumer(consumer *consumers.ProcessConsumer) {
 	consumer.SubscribeExec(func(pid uint32) {
-		processMonitor.tel.events.Add(1)
 		processMonitor.tel.exec.Add(1)
 		if processMonitor.hasExecCallbacks.Load() {
 			processMonitor.handleProcessExec(pid)
 		}
 	})
 	consumer.SubscribeExit(func(pid uint32) {
-		processMonitor.tel.events.Add(1)
 		processMonitor.tel.exit.Add(1)
 		if processMonitor.hasExitCallbacks.Load() {
 			processMonitor.handleProcessExit(pid)

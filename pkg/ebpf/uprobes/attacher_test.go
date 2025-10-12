@@ -436,7 +436,7 @@ func TestMonitor(t *testing.T) {
 		return
 	}
 
-	procMon := launchProcessMonitor(t, false)
+	procMon := launchProcessMonitor(t)
 
 	config := AttacherConfig{
 		Rules: []*AttachRule{{
@@ -987,16 +987,8 @@ func TestAttacherSharedLibrary(t *testing.T) {
 			tt.Skip("shared library tracing not supported for this platform")
 		}
 
-		tt.Run("netlink", func(ttt *testing.T) {
-			processMonitor := launchProcessMonitor(ttt, false)
-
-			// Use a proxy so we can manually trigger events in case of misses
-			procmonObserver := newProcessMonitorProxy(processMonitor)
-			suite.Run(ttt, &SharedLibrarySuite{procMonitor: procmonObserver})
-		})
-
 		tt.Run("event stream", func(ttt *testing.T) {
-			processMonitor := launchProcessMonitor(ttt, true)
+			processMonitor := launchProcessMonitor(ttt)
 
 			// Use a proxy so we can manually trigger events in case of misses
 			procmonObserver := newProcessMonitorProxy(processMonitor)

@@ -33,32 +33,6 @@ const (
 // Global USM Configuration Tests
 // ========================================
 
-func TestUSMEventStream(t *testing.T) {
-	t.Run("default value", func(t *testing.T) {
-		mock.NewSystemProbe(t)
-		cfg := New()
-
-		expected := sysconfig.ProcessEventDataStreamSupported()
-		assert.Equal(t, expected, cfg.EnableUSMEventStream)
-	})
-
-	t.Run("via yaml", func(t *testing.T) {
-		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_event_stream", false)
-		cfg := New()
-
-		assert.False(t, cfg.EnableUSMEventStream)
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", "false")
-		cfg := New()
-
-		assert.False(t, cfg.EnableUSMEventStream)
-	})
-}
-
 func TestUSMKernelBufferPages(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)

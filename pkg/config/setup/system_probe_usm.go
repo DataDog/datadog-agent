@@ -21,7 +21,6 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnv(join(smNS, "enable_quantization"))      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnv(join(smNS, "enable_connection_rollup")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_ring_buffers"), true)
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
 	// kernel_buffer_pages determines the number of pages allocated *per CPU*
 	// for buffering kernel data, whether using a perf buffer or a ring buffer.
 	cfg.BindEnvAndSetDefault(join(smNS, "kernel_buffer_pages"), 16)

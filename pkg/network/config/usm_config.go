@@ -40,9 +40,6 @@ type USMConfig struct {
 	// EnableUSMRingBuffers enables the use of eBPF Ring Buffer types on supported kernels
 	EnableUSMRingBuffers bool
 
-	// EnableUSMEventStream enables USM to use the event stream instead of netlink for receiving process events
-	EnableUSMEventStream bool
-
 	// USMKernelBufferPages defines the number of pages to allocate for the USM kernel buffer
 	USMKernelBufferPages int
 
@@ -190,7 +187,6 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		EnableUSMQuantization:                 cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
 		EnableUSMConnectionRollup:             cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
 		EnableUSMRingBuffers:                  cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
-		EnableUSMEventStream:                  cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
 		USMKernelBufferPages:                  cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
 		USMDataChannelSize:                    cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
 		DisableMapPreallocation:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
