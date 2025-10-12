@@ -11,6 +11,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
@@ -113,12 +114,16 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 	}
 }
 
-func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
+func (b *incompleteBuffer) Flush(time.Time) []Transaction {
 	var (
 		joined   []Transaction
 		previous = b.data
-		nowUnix  = now.UnixNano()
 	)
+
+	nowUnix, err := ebpf.NowNanoseconds()
+	if err != nil {
+		nowUnix = 0
+	}
 
 	b.data = make(map[types.ConnectionKey]*txParts)
 	for key, parts := range previous {
