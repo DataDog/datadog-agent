@@ -9,6 +9,7 @@ package usm
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -161,7 +162,7 @@ func outputSysinfoJSON(info *SystemInfo) error {
 // getProcesses reads process information from /proc on Linux
 func getProcesses() ([]ProcessInfo, error) {
 	if runtime.GOOS != "linux" {
-		return nil, fmt.Errorf("process listing only supported on Linux")
+		return nil, errors.New("process listing only supported on Linux")
 	}
 
 	processes := make([]ProcessInfo, 0)
@@ -222,7 +223,7 @@ func getProcesses() ([]ProcessInfo, error) {
 // getKernelVersion returns the kernel version string
 func getKernelVersion() (string, error) {
 	if runtime.GOOS != "linux" {
-		return "", fmt.Errorf("kernel version detection only supported on Linux")
+		return "", errors.New("kernel version detection only supported on Linux")
 	}
 
 	var u unix.Utsname

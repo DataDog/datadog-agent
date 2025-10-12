@@ -8,6 +8,7 @@ package usm
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -76,7 +77,7 @@ func runConfig(sysprobeconfig sysconfigcomponent.Component, params *configParams
 	// Extract service_monitoring_config section
 	usmConfig, ok := fullConfig["service_monitoring_config"]
 	if !ok {
-		return fmt.Errorf("service_monitoring_config not found in runtime config")
+		return errors.New("service_monitoring_config not found in runtime config")
 	}
 
 	if params.outputJSON {
@@ -106,7 +107,28 @@ func outputConfigYAML(cfg interface{}) error {
 
 // outputConfigJSON encodes the configuration as indented JSON.
 func outputConfigJSON(cfg interface{}) error {
+	// Convert to JSON-compatible structure (yaml.v2 creates map[interface{}]interface{})
+	jsonCompatible := convertToJSONCompatible(cfg)
+
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(cfg)
+	return encoder.Encode(jsonCompatible)
+}
+
+// convertToJSONCompatible converts map[interface{}]interface{} to map[string]interface{}
+// recursively so it can be JSON encoded.
+func convertToJSONCompatible(i interface{}) interface{} {
+	switch x := i.(type) {
+	case map[interface{}]interface{}:
+		m := map[string]interface{}{}
+		for k, v := range x {
+			m[fmt.Sprint(k)] = convertToJSONCompatible(v)
+		}
+		return m
+	case []interface{}:
+		for i, v := range x {
+			x[i] = convertToJSONCompatible(v)
+		}
+	}
+	return i
 }
