@@ -63,7 +63,7 @@ func (b *incompleteBuffer) Add(tx http.Transaction) {
 }
 
 // Flush flushes the buffer and returns the joined transactions.
-func (b *incompleteBuffer) Flush(time.Time) []http.Transaction {
+func (b *incompleteBuffer) Flush() []http.Transaction {
 	var (
 		joined   []http.Transaction
 		previous = b.data
