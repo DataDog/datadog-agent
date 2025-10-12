@@ -8,7 +8,6 @@
 package usm
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
@@ -16,64 +15,34 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	sysconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-// sysinfoParams holds CLI flags for the sysinfo command.
-type sysinfoParams struct {
-	*command.GlobalParams
-	outputJSON bool
-}
-
 // makeSysinfoCommand returns the "usm sysinfo" cobra command.
 func makeSysinfoCommand(globalParams *command.GlobalParams) *cobra.Command {
-	params := &sysinfoParams{GlobalParams: globalParams}
-
-	cmd := &cobra.Command{
-		Use:   "sysinfo",
-		Short: "Show system information relevant to USM",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(
-				runSysinfo,
-				fx.Supply(params),
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
-					SysprobeConfigParams: sysconfigimpl.NewParams(sysconfigimpl.WithSysProbeConfFilePath(params.ConfFilePath),
-						sysconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams: log.ForOneShot("SYS-PROBE", "off", false),
-				}),
-				core.Bundle(),
-			)
-		},
-		SilenceUsage: true,
-	}
-
-	cmd.Flags().BoolVar(&params.outputJSON, "json", false, "Output system info as JSON")
-
-	return cmd
+	return makeOneShotCommand(
+		globalParams,
+		"sysinfo",
+		"Show system information relevant to USM",
+		runSysinfo,
+	)
 }
 
 // SystemInfo holds system information relevant to USM
 type SystemInfo struct {
-	KernelVersion string              `json:"kernel_version"`
-	OSType        string              `json:"os_type"`
-	Architecture  string              `json:"architecture"`
-	Hostname      string              `json:"hostname"`
-	Processes     []*procutil.Process `json:"processes"`
+	KernelVersion string
+	OSType        string
+	Architecture  string
+	Hostname      string
+	Processes     []*procutil.Process
 }
 
 // runSysinfo is the main implementation of the sysinfo command.
-func runSysinfo(_ sysconfigcomponent.Component, params *sysinfoParams) error {
+func runSysinfo(_ sysconfigcomponent.Component, params *cmdParams) error {
 	sysInfo := &SystemInfo{}
 
 	// Get kernel version using existing utility
@@ -119,7 +88,15 @@ func runSysinfo(_ sysconfigcomponent.Component, params *sysinfoParams) error {
 	}
 
 	if params.outputJSON {
-		return outputSysinfoJSON(sysInfo)
+		// Create simplified output with only essential process fields
+		output := map[string]interface{}{
+			"kernel_version": sysInfo.KernelVersion,
+			"os_type":        sysInfo.OSType,
+			"architecture":   sysInfo.Architecture,
+			"hostname":       sysInfo.Hostname,
+			"processes":      simplifyProcesses(sysInfo.Processes),
+		}
+		return outputJSON(output)
 	}
 
 	return outputSysinfoHumanReadable(sysInfo)
@@ -171,9 +148,16 @@ func formatCmdline(args []string) string {
 	return result
 }
 
-// outputSysinfoJSON encodes the system info as indented JSON.
-func outputSysinfoJSON(info *SystemInfo) error {
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(info)
+// simplifyProcesses extracts only the essential fields from processes for JSON output
+func simplifyProcesses(procs []*procutil.Process) []map[string]interface{} {
+	simplified := make([]map[string]interface{}, len(procs))
+	for i, p := range procs {
+		simplified[i] = map[string]interface{}{
+			"pid":     p.Pid,
+			"ppid":    p.Ppid,
+			"name":    p.Name,
+			"cmdline": p.Cmdline,
+		}
+	}
+	return simplified
 }

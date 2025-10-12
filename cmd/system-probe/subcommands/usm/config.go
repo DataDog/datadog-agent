@@ -7,118 +7,86 @@
 package usm
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
-	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	sysconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	fetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// configParams holds CLI flags for the config command.
-type configParams struct {
-	*command.GlobalParams
-	outputJSON bool
-}
 
 // makeConfigCommand returns the "usm config" cobra command.
 func makeConfigCommand(globalParams *command.GlobalParams) *cobra.Command {
-	params := &configParams{GlobalParams: globalParams}
-
-	cmd := &cobra.Command{
-		Use:   "config",
-		Short: "Show Universal Service Monitoring configuration",
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(
-				runConfig,
-				fx.Supply(params),
-				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams(""),
-					SysprobeConfigParams: sysconfigimpl.NewParams(sysconfigimpl.WithSysProbeConfFilePath(params.ConfFilePath), sysconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:            log.ForOneShot("SYS-PROBE", "off", false),
-				}),
-				core.Bundle(),
-			)
-		},
-		SilenceUsage: true,
-	}
-
-	cmd.Flags().BoolVar(&params.outputJSON, "json", false, "Output configuration as JSON")
-
-	return cmd
+	return makeOneShotCommand(
+		globalParams,
+		"config",
+		"Show Universal Service Monitoring configuration",
+		runConfig,
+	)
 }
 
 // runConfig is the main implementation of the config command.
-func runConfig(sysprobeconfig sysconfigcomponent.Component, params *configParams) error {
-	// Use the exact same logic as the config command - fetch from running system-probe
+func runConfig(sysprobeconfig sysconfigcomponent.Component, params *cmdParams) error {
+	// Fetch config from running system-probe (already formatted as YAML string)
 	runtimeConfig, err := fetcher.SystemProbeConfig(sysprobeconfig, nil)
 	if err != nil {
 		return err
 	}
 
-	// Parse the YAML config
-	var fullConfig map[string]interface{}
-	if err := yaml.Unmarshal([]byte(runtimeConfig), &fullConfig); err != nil {
-		return fmt.Errorf("failed to parse config: %w", err)
+	// Extract just the service_monitoring_config section
+	usmConfigYAML, err := extractUSMConfig(runtimeConfig)
+	if err != nil {
+		return err
 	}
 
-	// Extract service_monitoring_config section
-	usmConfig, ok := fullConfig["service_monitoring_config"]
-	if !ok {
-		return errors.New("service_monitoring_config not found in runtime config")
-	}
-
-	parentConfig := map[string]interface{}{
-		"service_monitoring_config": usmConfig,
-	}
 	if params.outputJSON {
-		return outputConfigJSON(parentConfig)
+		// Parse YAML and convert directly to JSON using yaml.v3 which handles types better
+		var config interface{}
+		if err := yaml.Unmarshal([]byte(usmConfigYAML), &config); err != nil {
+			return fmt.Errorf("failed to parse config: %w", err)
+		}
+		return outputJSON(config)
 	}
 
-	return outputConfigYAML(parentConfig)
+	// For YAML output, just print the extracted section directly
+	fmt.Print(usmConfigYAML)
+	return nil
 }
 
-// outputConfigYAML prints configuration in YAML format.
-func outputConfigYAML(cfg interface{}) error {
-	enc := yaml.NewEncoder(os.Stdout)
-	return enc.Encode(cfg)
-}
+// extractUSMConfig extracts the service_monitoring_config section from the full config YAML
+func extractUSMConfig(fullConfigYAML string) (string, error) {
+	lines := strings.Split(fullConfigYAML, "\n")
+	var usmLines []string
+	inUSMSection := false
+	baseIndent := ""
 
-// outputConfigJSON encodes the configuration as indented JSON.
-func outputConfigJSON(cfg interface{}) error {
-	// Convert to JSON-compatible structure (yaml.v2 creates map[interface{}]interface{})
-	jsonCompatible := convertToJSONCompatible(cfg)
-
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(jsonCompatible)
-}
-
-// convertToJSONCompatible converts map[interface{}]interface{} to map[string]interface{}
-// recursively so it can be JSON encoded.
-func convertToJSONCompatible(i interface{}) interface{} {
-	switch x := i.(type) {
-	case map[interface{}]interface{}:
-		m := map[string]interface{}{}
-		for k, v := range x {
-			m[fmt.Sprint(k)] = convertToJSONCompatible(v)
+	for _, line := range lines {
+		// Check if we're starting the service_monitoring_config section
+		if strings.HasPrefix(strings.TrimSpace(line), "service_monitoring_config:") {
+			inUSMSection = true
+			// Capture the indentation level
+			baseIndent = line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+			usmLines = append(usmLines, line)
+			continue
 		}
-		return m
-	case []interface{}:
-		for i, v := range x {
-			x[i] = convertToJSONCompatible(v)
+
+		if inUSMSection {
+			// Check if we've exited the section (line at same or lower indentation level)
+			trimmed := strings.TrimLeft(line, " \t")
+			if trimmed != "" && !strings.HasPrefix(line, baseIndent+" ") && !strings.HasPrefix(line, baseIndent+"\t") {
+				break
+			}
+			usmLines = append(usmLines, line)
 		}
 	}
-	return i
+
+	if len(usmLines) == 0 {
+		return "", errors.New("service_monitoring_config not found in runtime config")
+	}
+
+	return strings.Join(usmLines, "\n") + "\n", nil
 }

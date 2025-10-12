@@ -8,13 +8,12 @@
 package usm
 
 import (
-	"bytes"
 	"encoding/json"
-	"gopkg.in/yaml.v2"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -168,23 +167,18 @@ protocols:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Parse YAML (simulates what comes from system-probe)
+			// Parse YAML using v3 (simulates what comes from system-probe)
 			var config interface{}
 			err := yaml.Unmarshal([]byte(tt.yamlInput), &config)
 			require.NoError(t, err)
 
-			// Convert and encode to JSON
-			var buf bytes.Buffer
-			encoder := json.NewEncoder(&buf)
-			encoder.SetIndent("", "  ")
-
-			jsonCompatible := convertToJSONCompatible(config)
-			err = encoder.Encode(jsonCompatible)
+			// Encode directly to JSON (yaml.v3 produces JSON-compatible types)
+			jsonData, err := json.MarshalIndent(config, "", "  ")
 			require.NoError(t, err, "should successfully encode to JSON")
 
 			// Verify the output is valid JSON
 			var decoded map[string]interface{}
-			err = json.Unmarshal(buf.Bytes(), &decoded)
+			err = json.Unmarshal(jsonData, &decoded)
 			require.NoError(t, err, "output should be valid JSON")
 
 			// Run test-specific assertions
@@ -286,9 +280,8 @@ service_monitoring_config:
 	assert.Contains(t, string(yamlData), "enabled: true")
 	assert.Contains(t, string(yamlData), "enable_http_monitoring: true")
 
-	// Test JSON output
-	jsonCompatible := convertToJSONCompatible(usmConfig)
-	jsonData, err := json.MarshalIndent(jsonCompatible, "", "  ")
+	// Test JSON output (yaml.v3 produces JSON-compatible types)
+	jsonData, err := json.MarshalIndent(usmConfig, "", "  ")
 	require.NoError(t, err)
 
 	// Verify JSON is valid and contains expected fields
