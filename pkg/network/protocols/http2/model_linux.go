@@ -228,19 +228,22 @@ func (ew *EventWrapper) Method() http.Method {
 	var method string
 	var err error
 
+	if ew.methodSet {
+		return ew.method
+	}
+
 	// Case which the method is indexed.
 	if ew.Stream.Request_method.Static_table_entry != 0 {
 		switch ew.Stream.Request_method.Static_table_entry {
 		case GetValue:
-			return http.MethodGet
+			ew.SetRequestMethod(http.MethodGet)
 		case PostValue:
-			return http.MethodPost
+			ew.SetRequestMethod(http.MethodPost)
 		default:
 			return http.MethodUnknown
 		}
-	}
 
-	if ew.methodSet {
+		// reaching here means we have either Get or Post.
 		return ew.method
 	}
 
@@ -267,8 +270,7 @@ func (ew *EventWrapper) Method() http.Method {
 		return http.MethodUnknown
 	}
 
-	ew.method = http2Method
-	ew.methodSet = true
+	ew.SetRequestMethod(http2Method)
 	return ew.method
 }
 
@@ -352,9 +354,9 @@ func (ew *EventWrapper) RequestStarted() uint64 {
 }
 
 // SetRequestMethod sets the HTTP method of the transaction.
-func (ew *EventWrapper) SetRequestMethod(_ http.Method) {
-	// if we set Static_table_entry to be different from 0, and no indexed value, it will default to 0 which is "UNKNOWN"
-	ew.Stream.Request_method.Static_table_entry = 1
+func (ew *EventWrapper) SetRequestMethod(m http.Method) {
+	ew.method = m
+	ew.methodSet = true
 }
 
 // StaticTags returns the static tags of the transaction.
