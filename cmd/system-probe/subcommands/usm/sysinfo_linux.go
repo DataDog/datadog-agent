@@ -73,30 +73,18 @@ func runSysinfo(_ sysconfigcomponent.Component, params *cmdParams) error {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: unable to list processes: %v\n", err)
 	} else {
-		// Convert map to slice
-		procList := make([]*procutil.Process, 0, len(procs))
+		// Convert map to sorted slice by PID
+		sysInfo.Processes = make([]*procutil.Process, 0, len(procs))
 		for _, proc := range procs {
-			procList = append(procList, proc)
+			sysInfo.Processes = append(sysInfo.Processes, proc)
 		}
-
-		// Sort by PID for consistent output
-		sort.Slice(procList, func(i, j int) bool {
-			return procList[i].Pid < procList[j].Pid
+		sort.Slice(sysInfo.Processes, func(i, j int) bool {
+			return sysInfo.Processes[i].Pid < sysInfo.Processes[j].Pid
 		})
-
-		sysInfo.Processes = procList
 	}
 
 	if params.outputJSON {
-		// Create simplified output with only essential process fields
-		output := map[string]interface{}{
-			"kernel_version": sysInfo.KernelVersion,
-			"os_type":        sysInfo.OSType,
-			"architecture":   sysInfo.Architecture,
-			"hostname":       sysInfo.Hostname,
-			"processes":      simplifyProcesses(sysInfo.Processes),
-		}
-		return outputJSON(output)
+		return outputSysinfoJSON(sysInfo)
 	}
 
 	return outputSysinfoHumanReadable(sysInfo)
@@ -148,16 +136,25 @@ func formatCmdline(args []string) string {
 	return result
 }
 
-// simplifyProcesses extracts only the essential fields from processes for JSON output
-func simplifyProcesses(procs []*procutil.Process) []map[string]interface{} {
-	simplified := make([]map[string]interface{}, len(procs))
-	for i, p := range procs {
-		simplified[i] = map[string]interface{}{
+// outputSysinfoJSON outputs system info as JSON with simplified process data
+func outputSysinfoJSON(info *SystemInfo) error {
+	// Build simplified output with only essential process fields
+	processes := make([]map[string]interface{}, len(info.Processes))
+	for i, p := range info.Processes {
+		processes[i] = map[string]interface{}{
 			"pid":     p.Pid,
 			"ppid":    p.Ppid,
 			"name":    p.Name,
 			"cmdline": p.Cmdline,
 		}
 	}
-	return simplified
+
+	output := map[string]interface{}{
+		"kernel_version": info.KernelVersion,
+		"os_type":        info.OSType,
+		"architecture":   info.Architecture,
+		"hostname":       info.Hostname,
+		"processes":      processes,
+	}
+	return outputJSON(output)
 }
