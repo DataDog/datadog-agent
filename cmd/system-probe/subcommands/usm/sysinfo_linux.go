@@ -63,21 +63,13 @@ func makeSysinfoCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return cmd
 }
 
-// ProcessInfo holds basic information about a process
-type ProcessInfo struct {
-	PID     int32  `json:"pid"`
-	PPID    int32  `json:"ppid"`
-	Name    string `json:"name"`
-	Cmdline string `json:"cmdline"`
-}
-
 // SystemInfo holds system information relevant to USM
 type SystemInfo struct {
-	KernelVersion string        `json:"kernel_version"`
-	OSType        string        `json:"os_type"`
-	Architecture  string        `json:"architecture"`
-	Hostname      string        `json:"hostname"`
-	Processes     []ProcessInfo `json:"processes"`
+	KernelVersion string              `json:"kernel_version"`
+	OSType        string              `json:"os_type"`
+	Architecture  string              `json:"architecture"`
+	Hostname      string              `json:"hostname"`
+	Processes     []*procutil.Process `json:"processes"`
 }
 
 // runSysinfo is the main implementation of the sysinfo command.
@@ -112,20 +104,15 @@ func runSysinfo(_ sysconfigcomponent.Component, params *sysinfoParams) error {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: unable to list processes: %v\n", err)
 	} else {
-		// Convert to slice
-		procList := make([]ProcessInfo, 0, len(procs))
+		// Convert map to slice
+		procList := make([]*procutil.Process, 0, len(procs))
 		for _, proc := range procs {
-			procList = append(procList, ProcessInfo{
-				PID:     proc.Pid,
-				PPID:    proc.Ppid,
-				Name:    proc.Name,
-				Cmdline: formatCmdline(proc.Cmdline),
-			})
+			procList = append(procList, proc)
 		}
 
 		// Sort by PID for consistent output
 		sort.Slice(procList, func(i, j int) bool {
-			return procList[i].PID < procList[j].PID
+			return procList[i].Pid < procList[j].Pid
 		})
 
 		sysInfo.Processes = procList
@@ -159,11 +146,11 @@ func outputSysinfoHumanReadable(info *SystemInfo) error {
 		if len(name) > 25 {
 			name = name[:22] + "..."
 		}
-		cmdline := p.Cmdline
+		cmdline := formatCmdline(p.Cmdline)
 		if len(cmdline) > 50 {
 			cmdline = cmdline[:47] + "..."
 		}
-		fmt.Printf("%-7d | %-7d | %-25s | %s\n", p.PID, p.PPID, name, cmdline)
+		fmt.Printf("%-7d | %-7d | %-25s | %s\n", p.Pid, p.Ppid, name, cmdline)
 	}
 
 	return nil
