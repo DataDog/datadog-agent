@@ -196,32 +196,12 @@ func (ew *EventWrapper) ConnTuple() types.ConnectionKey {
 	}
 }
 
-// stringToHTTPMethod converts a string to an HTTP method.
-func stringToHTTPMethod(method string) (http.Method, error) {
-	switch strings.ToUpper(method) {
-	case "PUT":
-		return http.MethodPut, nil
-	case "DELETE":
-		return http.MethodDelete, nil
-	case "HEAD":
-		return http.MethodHead, nil
-	case "OPTIONS":
-		return http.MethodOptions, nil
-	case "PATCH":
-		return http.MethodPatch, nil
-	case "GET":
-		return http.MethodGet, nil
-	case "POST":
-		return http.MethodPost, nil
-	// Currently unsupported methods due to lack of support in http.Method.
-	case "CONNECT":
-		return http.MethodUnknown, nil
-	case "TRACE":
-		return http.MethodUnknown, nil
-	default:
-		return 0, fmt.Errorf("unsupported HTTP method: %s", method)
+var (
+	unsupportedMethods = map[http.Method]struct{}{
+		http.MethodConnect: {},
+		http.MethodTrace:   {},
 	}
-}
+)
 
 // Method returns the HTTP method of the transaction.
 func (ew *EventWrapper) Method() http.Method {
@@ -265,8 +245,12 @@ func (ew *EventWrapper) Method() http.Method {
 	} else {
 		method = string(ew.Stream.Request_method.Raw_buffer[:ew.Stream.Request_method.Length])
 	}
-	http2Method, err := stringToHTTPMethod(method)
-	if err != nil {
+
+	http2Method, ok := http.StringToMethod[strings.ToUpper(method)]
+	if !ok {
+		return http.MethodUnknown
+	}
+	if _, exists := unsupportedMethods[http2Method]; exists {
 		return http.MethodUnknown
 	}
 
