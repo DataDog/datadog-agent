@@ -799,7 +799,8 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "example.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
+				{Hostname: "example.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
+					Metadata: common.PathtestMetadata{ReverseDNSHostname: "example.com"}},
 			},
 		},
 		{
@@ -820,7 +821,8 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "ipv6-example.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
+				{Hostname: "ipv6-example.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
+					Metadata: common.PathtestMetadata{ReverseDNSHostname: "ipv6-example.com"}},
 			},
 		},
 		{
@@ -840,7 +842,8 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "valid.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
+				{Hostname: "valid.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
+					Metadata: common.PathtestMetadata{ReverseDNSHostname: "valid.com"}},
 			},
 		},
 		{
@@ -913,7 +916,8 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "allowed.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId2"},
+				{Hostname: "allowed.com", Port: uint16(443), Protocol: payload.ProtocolTCP, SourceContainerID: "testId2",
+					Metadata: common.PathtestMetadata{ReverseDNSHostname: "allowed.com"}},
 			},
 		},
 		{
