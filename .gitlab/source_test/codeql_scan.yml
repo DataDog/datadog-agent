@@ -3,7 +3,7 @@
 # Contains CodeQL scan job to perform security static analysis
 
 run_codeql_scan:
-  image: registry.ddbuild.io/code-scanning:v62112110-4faa53b-datadog-agent 
+  image: registry.ddbuild.io/code-scanning:v62112110-4faa53b-datadog-agent
   tags: ["arch:amd64", "specific:true"]
   stage: source_test
   rules:
@@ -30,7 +30,9 @@ run_codeql_scan:
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - export USE_SHORT_LIVED_GITLAB_TOKEN=1
+    - export token="$(dda inv -- -e auth.gitlab --repo codescanning)"
+    - git config --global url."https://gitlab-ci-token:${token}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
     - invoke install-tools
     - $CODEQL database create datadog-agent.codeql $DB_CONFIGS --command="inv -e agent.build --build-exclude=systemd"
