@@ -976,7 +976,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 }
 
 func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Event) *UserSessionContextSerializer {
-	e.FieldHandlers.ResolveUserSessionContext(ctx)
+	e.FieldHandlers.ResolveUserSessionContext(e, ctx)
 
 	return &UserSessionContextSerializer{
 		ID:          fmt.Sprintf("%x", ctx.ID),
