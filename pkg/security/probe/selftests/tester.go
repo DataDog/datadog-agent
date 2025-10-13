@@ -55,7 +55,6 @@ type SelfTester struct {
 	done            chan bool
 	selfTestRunning chan time.Duration
 	errorTimestamp  map[eval.RuleID]time.Time
-	wg              sync.WaitGroup
 }
 
 var _ rules.PolicyProvider = (*SelfTester)(nil)
@@ -112,8 +111,12 @@ func CreateTargetDir() (string, error) {
 
 // WaitForResult wait for self test results
 func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID)) {
-	t.wg.Add(1)
-	defer t.wg.Done()
+	t.Lock()
+	isClosed := t.isClosed
+	t.Unlock()
+	if isClosed {
+		return
+	}
 
 	for timeout := range t.selfTestRunning {
 		timer := time.After(timeout)
@@ -184,8 +187,6 @@ func (t *SelfTester) Close() error {
 	t.isClosed = true
 	close(t.selfTestRunning)
 	close(t.done)
-
-	t.wg.Wait()
 
 	if t.tmpDir != "" {
 		err := os.RemoveAll(t.tmpDir)
