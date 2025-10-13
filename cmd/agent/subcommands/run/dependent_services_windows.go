@@ -144,10 +144,8 @@ func (s *Servicedef) Stop() error {
 // IsEnabled checks to see if a given service should be started
 func (s *Servicedef) IsEnabled() bool {
 	// In infrastructure basic mode, process and cluster agents should not be started
-	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "basic" {
-		if s.name == "process" {
-			return false
-		}
+	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "basic" && s.name == "process" {
+		return false
 	}
 
 	for configKey, cfg := range s.configKeys {
