@@ -191,12 +191,7 @@ func (a *effects) unloadProgram(lp *loadedProgram) {
 	go func() {
 		defer a.wg.Done()
 
-		// Close kernel program & links.
 		lp.loaded.Close()
-
-		// Dataplane/sink lifecycle is owned by loader/runtime now.
-
-		// Notify state-machine that unloading is finished.
 		a.sendEvent(eventProgramUnloaded{programID: lp.programID})
 	}()
 }
