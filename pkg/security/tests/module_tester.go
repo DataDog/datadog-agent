@@ -820,7 +820,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
 		"SBOMEnabled":                                opts.enableSBOM,
 		"HostSBOMEnabled":                            opts.enableHostSBOM,
-		"SBOMUseV2Collector":                         opts.sbomUseV2Collector,
 		"EBPFLessEnabled":                            ebpfLessEnabled,
 		"FIMEnabled":                                 opts.enableFIM, // should only be enabled/disabled on windows
 		"NetworkIngressEnabled":                      opts.networkIngressEnabled,
