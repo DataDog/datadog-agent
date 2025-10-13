@@ -22,9 +22,9 @@ import (
 )
 
 var (
-	configCompiledPath  = filepath.Join(config.DefaultConfPath, "wls-policy.bin")
-	configJSONPath      = filepath.Join(config.DefaultConfPath, "wls-policy.json")
-	ddPolicyCompilePath = filepath.Join(config.InstallPath, "embedded", "bin", "dd-compile-policy")
+	configCompiledPath          = filepath.Join(config.DefaultConfPath, "wls-policy.bin")
+	configJSONPath              = filepath.Join(config.DefaultConfPath, "wls-policy.json")
+	ddPolicyCompileRelativePath = filepath.Join("embedded", "bin", "dd-compile-policy")
 )
 
 // Requires defines the dependencies for the workloadselection component
@@ -69,7 +69,7 @@ type workloadselectionComponent struct {
 }
 
 func isCompilePolicyBinaryAvailable() bool {
-	compilePath := filepath.Join(config.InstallPath, "embedded", "bin", "dd-policy-compile")
+	compilePath := filepath.Join(config.GetInstallPath(), ddPolicyCompileRelativePath)
 	_, err := os.Stat(compilePath)
 	return err == nil
 }
@@ -78,7 +78,7 @@ func compilePolicyBinary(rawConfig []byte) error {
 	if err := os.WriteFile(configJSONPath, rawConfig, 0644); err != nil {
 		return err
 	}
-	cmd := exec.Command(ddPolicyCompilePath, "--input-json", configJSONPath, "--output", configCompiledPath)
+	cmd := exec.Command(filepath.Join(config.GetInstallPath(), ddPolicyCompileRelativePath), "--input-json", configJSONPath, "--output", configCompiledPath)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
