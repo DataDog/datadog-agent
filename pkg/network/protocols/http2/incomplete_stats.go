@@ -56,8 +56,12 @@ func (b *incompleteBuffer) Add(tx http.Transaction) {
 		return
 	}
 
+	ebpfTxCopy := new(EbpfTx)
+	*ebpfTxCopy = *eventWrapper.EbpfTx
+
 	eventWrapperCopy := new(EventWrapper)
 	*eventWrapperCopy = *eventWrapper
+	eventWrapperCopy.EbpfTx = ebpfTxCopy
 
 	b.data = append(b.data, eventWrapperCopy)
 }

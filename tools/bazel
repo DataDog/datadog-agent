@@ -25,8 +25,8 @@ fi
 # - https://docs.gitlab.com/runner/configuration/advanced-configuration/ for `RUNNER_TEMP_PROJECT_DIR`
 # - https://sissource.ethz.ch/sispub/gitlab-ci-euler-image/-/blob/main/entrypoint.sh#L43 for inspiration
 ext_repo_contents_cache=$RUNNER_TEMP_PROJECT_DIR/bazel-repo-contents-cache
-if [ -e "$BAZEL_REPO_CONTENTS_CACHE" ]; then
-  >&2 rm -frv "$ext_repo_contents_cache"
+if [ -e "$BAZEL_REPO_CONTENTS_CACHE" ] && ! ([ "$(uname -s)" = "Linux" ] && [ "$(uname -m)" = "x86_64" ]); then
+  rm >&2 -frv "$ext_repo_contents_cache"
   mv "$BAZEL_REPO_CONTENTS_CACHE" "$ext_repo_contents_cache"
 fi
 
@@ -44,8 +44,9 @@ trap '
   rm "$CI_PROJECT_DIR/user.bazelrc"
 
   # Reintegrate `--repo_contents_cache` to original directory
-  if [ -e "$ext_repo_contents_cache" ]; then
-    >&2 rm -frv "$BAZEL_REPO_CONTENTS_CACHE"
+  # Skip on Linux x86_64 to avoid issues with persistent runners
+  if [ -e "$ext_repo_contents_cache" ] && ! ([ "$(uname -s)" = "Linux" ] && [ "$(uname -m)" = "x86_64" ]); then
+    rm >&2 -frv "$BAZEL_REPO_CONTENTS_CACHE"
     mv "$ext_repo_contents_cache" "$BAZEL_REPO_CONTENTS_CACHE"
   fi
 ' EXIT
