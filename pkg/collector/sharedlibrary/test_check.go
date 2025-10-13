@@ -20,7 +20,9 @@ import (
 /*
 #include "ffi.h"
 
-void mock_run_symbol(char *check_id, char *init_config, char *instance_config, const aggregator_t *aggregator, const char **error) {}
+void mock_run_symbol(char *check_id, char *init_config, char *instance_config, const aggregator_t *aggregator, const char **error) {
+	// do nothing
+}
 
 handles_t get_mock_lib_handles(void) {
 	// only the symbol is required to run the check, so the library handle can be set to NULL

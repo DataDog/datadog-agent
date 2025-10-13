@@ -26,7 +26,9 @@ var exampleCheckYaml string
 
 type sharedLibrarySuite struct {
 	e2e.BaseSuite[environments.Host]
-	descriptor osVM.Descriptor
+	descriptor   osVM.Descriptor
+	libraryName  string
+	targetFolder string
 }
 
 func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
@@ -43,8 +45,8 @@ func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 	return suiteOptions
 }
 
-// Test the shared library check after having it in the correct path
-func (v *sharedLibrarySuite) testCheckExecution() {
+// Test the shared library code to see if it returns the correct metrics
+func (v *sharedLibrarySuite) testCheckExecutionAndMetrics() {
 	v.T().Log("Running Shared Library Check Example test")
 
 	// Fetch the check status and metrics in JSON format
