@@ -49,7 +49,6 @@ func ensureLocalhostSSHAuth() error {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("ssh-keygen: %v (out: %s)", err, string(out))
 		}
-		fmt.Printf("Generated key : %s\n", keyPath)
 		_ = os.Chmod(keyPath, 0o600)
 		_ = os.Chmod(pubPath, 0o644)
 	}
@@ -156,18 +155,45 @@ func TestSSHUserSession(t *testing.T) {
 }
 
 func rotateAuthLog(logPath string) error {
-	cmd := exec.Command("sudo", "bash", "-c", `
-		set -e
-		mv `+logPath+` `+logPath+`.1
-		touch `+logPath+`
-		chown syslog:adm `+logPath+`
-		chmod 640 `+logPath+`
-		systemctl kill -s HUP rsyslog
-			`)
-	_, err := cmd.CombinedOutput()
-	return err
-}
+	st, err := os.Stat(logPath)
+	if err != nil {
+		return fmt.Errorf("stat before rotate: %w", err)
+	}
+	mode := st.Mode().Perm()
 
+	uid, gid := 0, 0
+	if sys, ok := st.Sys().(*syscall.Stat_t); ok {
+		uid = int(sys.Uid)
+		gid = int(sys.Gid)
+	}
+
+	if err := os.Rename(logPath, logPath+".1"); err != nil {
+		return fmt.Errorf("rename: %w", err)
+	}
+
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY, mode)
+	if err != nil {
+		return fmt.Errorf("create new log: %w", err)
+	}
+	_ = f.Close()
+
+	if err := os.Chown(logPath, uid, gid); err != nil {
+		return fmt.Errorf("chown new log: %w", err)
+	}
+	if err := os.Chmod(logPath, mode); err != nil {
+		return fmt.Errorf("chmod new log: %w", err)
+	}
+
+	if _, err := exec.LookPath("restorecon"); err == nil {
+		_ = exec.Command("restorecon", "-v", logPath).Run()
+	}
+
+	if err := exec.Command("systemctl", "reload", "rsyslog").Run(); err != nil {
+		_ = exec.Command("bash", "-c", "pidof rsyslogd >/dev/null 2>&1 && kill -HUP $(pidof rsyslogd)").Run()
+	}
+
+	return nil
+}
 func TestSSHUserSessionRotated(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -217,8 +243,9 @@ func TestSSHUserSessionRotated(t *testing.T) {
 	if logPath == "" {
 		t.Skip("No SSH log file found (/var/log/auth.log, /var/log/secure, or /var/log/messages)")
 	}
-
-	rotateAuthLog(logPath)
+	if err := rotateAuthLog(logPath); err != nil {
+		t.Fatalf("rotateAuthLog failed: %v", err)
+	}
 
 	stat, err := os.Stat(logPath)
 	if err != nil {
