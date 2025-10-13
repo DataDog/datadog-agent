@@ -111,7 +111,7 @@ func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments 
 			return out, fmt.Errorf("error removing container for retry: %w", removeErr)
 		}
 
-		log.Printf("Workload container could not start, retrying (attempt %d of %d)", retries+1, maxWorkloadRetries)
+		log.Printf("Workload container could not start, retrying (attempt %d of %d), error: %v", retries+1, maxWorkloadRetries, err)
 	}
 
 	if err != nil {
