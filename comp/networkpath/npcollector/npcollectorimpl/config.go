@@ -15,33 +15,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
-const defaultPathtestRawConnectionsChanSize = 10
-
 type collectorConfigs struct {
-	connectionsMonitoringEnabled   bool
-	workers                        int
-	timeout                        time.Duration
-	maxTTL                         int
-	pathtestInputChanSize          int
-	pathtestProcessingChanSize     int
-	pathtestRawConnectionsChanSize int
-	storeConfig                    pathteststore.Config
-	flushInterval                  time.Duration
-	reverseDNSEnabled              bool
-	reverseDNSTimeout              time.Duration
-	disableIntraVPCCollection      bool
-	networkDevicesNamespace        string
-	sourceExcludedConns            map[string][]string
-	destExcludedConns              map[string][]string
-	tcpMethod                      payload.TCPMethod
-	icmpMode                       payload.ICMPMode
-	tcpSynParisTracerouteMode      bool
-	tracerouteQueries              int
-	e2eQueries                     int
-	disableWindowsDriver           bool
-	filterConfig                   []connfilter.Config
-	monitorIPWithoutDomain         bool
-	ddSite                         string
+	connectionsMonitoringEnabled bool
+	workers                      int
+	timeout                      time.Duration
+	maxTTL                       int
+	pathtestInputChanSize        int
+	pathtestProcessingChanSize   int
+	storeConfig                  pathteststore.Config
+	flushInterval                time.Duration
+	reverseDNSEnabled            bool
+	reverseDNSTimeout            time.Duration
+	disableIntraVPCCollection    bool
+	networkDevicesNamespace      string
+	sourceExcludedConns          map[string][]string
+	destExcludedConns            map[string][]string
+	tcpMethod                    payload.TCPMethod
+	icmpMode                     payload.ICMPMode
+	tcpSynParisTracerouteMode    bool
+	tracerouteQueries            int
+	e2eQueries                   int
+	disableWindowsDriver         bool
+	filterConfig                 []connfilter.Config
+	monitorIPWithoutDomain       bool
+	ddSite                       string
 }
 
 func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
@@ -52,13 +49,12 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		filterConfigs = nil
 	}
 	return &collectorConfigs{
-		connectionsMonitoringEnabled:   agentConfig.GetBool("network_path.connections_monitoring.enabled"),
-		workers:                        agentConfig.GetInt("network_path.collector.workers"),
-		timeout:                        agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
-		maxTTL:                         agentConfig.GetInt("network_path.collector.max_ttl"),
-		pathtestInputChanSize:          agentConfig.GetInt("network_path.collector.input_chan_size"),
-		pathtestProcessingChanSize:     agentConfig.GetInt("network_path.collector.processing_chan_size"),
-		pathtestRawConnectionsChanSize: defaultPathtestRawConnectionsChanSize,
+		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
+		workers:                      agentConfig.GetInt("network_path.collector.workers"),
+		timeout:                      agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
+		maxTTL:                       agentConfig.GetInt("network_path.collector.max_ttl"),
+		pathtestInputChanSize:        agentConfig.GetInt("network_path.collector.input_chan_size"),
+		pathtestProcessingChanSize:   agentConfig.GetInt("network_path.collector.processing_chan_size"),
 		storeConfig: pathteststore.Config{
 			ContextsLimit:    agentConfig.GetInt("network_path.collector.pathtest_contexts_limit"),
 			TTL:              agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
