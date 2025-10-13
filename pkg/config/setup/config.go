@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -225,14 +224,11 @@ func (l *Listeners) IsProviderEnabled(provider string) bool {
 	return found
 }
 
-// DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
-type DataType string
-
 const (
 	// Metrics type covers series & sketches
-	Metrics DataType = "metrics"
+	Metrics string = "metrics"
 	// Logs type covers all outgoing logs
-	Logs DataType = "logs"
+	Logs string = "logs"
 )
 
 // serverlessConfigComponents are the config components that are used by all agents, and in particular serverless.
@@ -1852,10 +1848,18 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
 }
 
+// vector integration
 func vector(config pkgconfigmodel.Setup) {
-	// Vector integration
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
+}
+
+func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
+
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
 }
 
 func cloudfoundry(config pkgconfigmodel.Setup) {
@@ -2727,41 +2731,6 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 	}
 
 	return true
-}
-
-func bindVectorOptions(config pkgconfigmodel.Setup, datatype DataType) {
-	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
-	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
-
-	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
-	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
-}
-
-// GetObsPipelineURL returns the URL under the 'observability_pipelines_worker.' prefix for the given datatype
-func GetObsPipelineURL(datatype DataType, config pkgconfigmodel.Reader) (string, error) {
-	if config.GetBool(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype)) {
-		return getObsPipelineURLForPrefix(datatype, "observability_pipelines_worker", config)
-	} else if config.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
-		// Fallback to the `vector` config if observability_pipelines_worker is not set.
-		return getObsPipelineURLForPrefix(datatype, "vector", config)
-	}
-	return "", nil
-}
-
-func getObsPipelineURLForPrefix(datatype DataType, prefix string, config pkgconfigmodel.Reader) (string, error) {
-	if config.GetBool(fmt.Sprintf("%s.%s.enabled", prefix, datatype)) {
-		pipelineURL := config.GetString(fmt.Sprintf("%s.%s.url", prefix, datatype))
-		if pipelineURL == "" {
-			log.Errorf("%s.%s.enabled is set to true, but %s.%s.url is empty", prefix, datatype, prefix, datatype)
-			return "", nil
-		}
-		_, err := url.Parse(pipelineURL)
-		if err != nil {
-			return "", fmt.Errorf("could not parse %s %s endpoint: %s", prefix, datatype, err)
-		}
-		return pipelineURL, nil
-	}
-	return "", nil
 }
 
 // GetRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
