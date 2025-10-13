@@ -746,7 +746,6 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         """Clean up temporary files."""
         os.unlink(self.temp_config_file.name)
 
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_on_disk_size')
     def test_measure_image_success(self, mock_measure_disk, mock_get_wire_size, mock_ensure_available):
@@ -812,27 +811,9 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         mock_get_wire_size.assert_called_once()
         mock_measure_disk.assert_called_once()
 
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
-    def test_measure_image_ensure_available_failure(self, mock_ensure_available):
-        """Test Docker image measurement when image is not available."""
-        mock_ensure_available.side_effect = RuntimeError("Image not found locally")
-        mock_ctx = Mock()
-
-        with self.assertRaises(RuntimeError) as cm:
-            self.measurer.measure_image(
-                ctx=mock_ctx,
-                image_ref="nonexistent:latest",
-                gate_name="static_quality_gate_docker_agent_amd64",
-                build_job_name="test_build",
-            )
-
-        self.assertIn("Image not found locally", str(cm.exception))
-
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
-    def test_measure_image_wire_size_failure(self, mock_get_wire_size, mock_ensure_available):
+    def test_measure_image_wire_size_failure(self, mock_get_wire_size):
         """Test Docker image measurement when wire size measurement fails."""
-        mock_ensure_available.return_value = None
         mock_get_wire_size.side_effect = RuntimeError("crane manifest failed")
         mock_ctx = Mock()
 

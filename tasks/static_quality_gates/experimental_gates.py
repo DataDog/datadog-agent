@@ -629,35 +629,11 @@ class DockerProcessor:
         if debug:
             print(f"🐳 Measuring Docker image: {artifact_ref}")
 
-        self._ensure_image_available(ctx, artifact_ref, debug)
-
         wire_size = self._get_wire_size(ctx, artifact_ref, debug)
 
         disk_size, file_inventory, docker_info = self._measure_on_disk_size(ctx, artifact_ref, debug)
 
         return wire_size, disk_size, file_inventory, docker_info
-
-    def _ensure_image_available(self, ctx: Context, image_ref: str, debug: bool = False) -> None:
-        """Ensure the Docker image is available locally."""
-        try:
-            result = ctx.run(f"docker image inspect {image_ref}", hide=True, warn=True)
-            if result.exited == 0:
-                if debug:
-                    print(f"✅ Image {image_ref} found locally")
-                return
-
-            if debug:
-                print(f"📥 Pulling image {image_ref}...")
-
-            pull_result = ctx.run(f"docker pull {image_ref}", warn=True)
-            if pull_result.exited != 0:
-                raise RuntimeError(f"Failed to pull Docker image {image_ref}")
-
-            if debug:
-                print(f"✅ Successfully pulled image {image_ref}")
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to ensure image {image_ref} is available: {e}") from e
 
     def _measure_on_disk_size(
         self,
