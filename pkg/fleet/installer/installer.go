@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -721,15 +722,149 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 func (i *installerImpl) InstallExtension(ctx context.Context, url string, extension string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	// TODO: implement
+	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
+	}
+	span, ok := telemetry.SpanFromContext(ctx)
+	if ok {
+		span.SetResourceName(fmt.Sprintf("%s_%s", pkg.Name, extension))
+		span.SetTag("package_name", pkg.Name)
+		span.SetTag("package_version", pkg.Version)
+		span.SetTag("extension", extension)
+		span.SetTag("url", url)
+	}
+	dbPkg, err := i.db.GetPackage(pkg.Name)
+	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("could not get package: %w", err)
+	} else if err != nil && errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("package %s not found, cannot install extension", pkg.Name)
+	} else if err == nil && dbPkg.Version != pkg.Version {
+		return fmt.Errorf("cannot install extension version %s, version mismatch with package %s version %s", pkg.Name, pkg.Version, dbPkg.Version)
+	}
+
+	extensionInstalled, err := i.db.HasExtension(pkg.Name, pkg.Version, extension)
+	if err != nil && !errors.Is(err, db.ErrExtensionNotFound) {
+		return fmt.Errorf("could not get extension: %w", err)
+	}
+	if extensionInstalled {
+		return nil
+	}
+
+	// TODO: pre install hooks?
+
+	extractDir := filepath.Join(i.packagesDir, pkg.Name, pkg.Version)
+	tmpDir, err := i.packages.MkdirTemp()
+	if err != nil {
+		return fmt.Errorf("could not create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	err = pkg.ExtractLayers(oci.DatadogPackageExtensionLayerMediaType, tmpDir, oci.LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: extension})
+	if err != nil {
+		return fmt.Errorf("could not extract package layers: %w", err)
+	}
+
+	// Walk through tmpDir, collect files, and move them to extractDir
+	var installedFiles []string
+	err = filepath.Walk(tmpDir, func(srcPath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(tmpDir, srcPath)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+		if relPath == "." {
+			return nil
+		}
+		dstPath := filepath.Join(extractDir, relPath)
+		if info.IsDir() {
+			if err := os.MkdirAll(dstPath, info.Mode()); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", dstPath, err)
+			}
+			return nil
+		}
+
+		// For files, copy content and preserve permissions
+		srcFile, err := os.Open(srcPath)
+		if err != nil {
+			return fmt.Errorf("failed to open source file %s: %w", srcPath, err)
+		}
+		defer srcFile.Close()
+
+		if err := os.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
+			return fmt.Errorf("failed to create destination directory: %w", err)
+		}
+
+		// Create destination file with same permissions - fail if file already exists
+		dstFile, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode())
+		if err != nil {
+			return fmt.Errorf("failed to create destination file %s: %w", dstPath, err)
+		}
+		defer dstFile.Close()
+
+		if _, err := io.Copy(dstFile, srcFile); err != nil {
+			return fmt.Errorf("failed to copy file %s: %w", srcPath, err)
+		}
+
+		installedFiles = append(installedFiles, relPath)
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("could not move files from temp directory: %w", err)
+	}
+
+	// TODO: post install hooks?
+
+	err = i.db.SetExtension(pkg.Name, pkg.Version, db.Extension{
+		Name:    extension,
+		Version: pkg.Version,
+		Files:   installedFiles,
+	})
+	if err != nil {
+		return fmt.Errorf("could not set extension: %w", err)
+	}
 	return nil
 }
 
 // RemoveExtension removes a plugin.
-func (i *installerImpl) RemoveExtension(ctx context.Context, pkg string, extension string) error {
+func (i *installerImpl) RemoveExtension(_ context.Context, pkg string, extension string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	// TODO: implement
+
+	dbPkg, err := i.db.GetPackage(pkg)
+	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("could not get package: %w", err)
+	} else if err != nil && errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("package %s not found, cannot remove extension", pkg)
+	}
+
+	dbExtension, err := i.db.GetExtension(pkg, dbPkg.Version, extension)
+	if err != nil && !errors.Is(err, db.ErrExtensionNotFound) {
+		return fmt.Errorf("could not get extension: %w", err)
+	} else if err != nil && errors.Is(err, db.ErrExtensionNotFound) {
+		return nil // extension not installed
+	}
+
+	// TODO: pre remove hooks?
+
+	for _, file := range dbExtension.Files { // TODO: it's not very efficient nor transactional
+		err = os.Remove(filepath.Join(i.packagesDir, pkg, dbPkg.Version, file))
+		if err != nil {
+			return fmt.Errorf("could not remove extension file: %w", err)
+		}
+	}
+
+	// TODO: post remove hooks?
+
+	err = i.db.DeleteExtension(pkg, dbPkg.Version, extension)
+	if err != nil {
+		return fmt.Errorf("could not delete extension in db: %w", err)
+	}
 	return nil
 }
 
