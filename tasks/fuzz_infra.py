@@ -90,7 +90,7 @@ def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=2, duration=360
             try:
                 ctx.run(fuzz_build_cmd)
             except Exception as e:
-                print(f'❌ Failed to build {pkgname}/{func}: {e}... Skipping this fuzz target')
+                print(f'❌ Failed to build {pkgname}: {e}... Skipping this fuzz target')
                 continue
 
             build_full_path = directory + "/" + build_file
