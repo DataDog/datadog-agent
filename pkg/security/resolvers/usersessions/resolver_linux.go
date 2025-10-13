@@ -153,8 +153,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 	return ctx
 }
 
-// NewIncrementalFileReader creates a new IncrementalFileReader
-func NewIncrementalFileReader(path string) *incrementalFileReader {
+func newIncrementalFileReader(path string) *incrementalFileReader {
 	return &incrementalFileReader{
 		path: path,
 	}
@@ -332,7 +331,7 @@ func (r *Resolver) StartSSHUserSessionResolver() {
 		seclog.Errorf("failed to open ssh log file: %v", err)
 		return
 	}
-	r.sshLogReader = NewIncrementalFileReader(path)
+	r.sshLogReader = newIncrementalFileReader(path)
 	if path == "" {
 		return
 	}
