@@ -150,7 +150,6 @@ def run(
     ctx,
     git_ref="",
     here=False,
-    major_versions=None,
     repo_branch="dev",
     deploy=False,
     deploy_installer=False,
@@ -203,12 +202,6 @@ def run(
 
     if (git_ref == "" and not here) or (git_ref != "" and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
-
-    if major_versions:
-        print(
-            "[WARNING] --major-versions option will be deprecated soon. Both Agent 6 & 7 will be run everytime.",
-            file=sys.stderr,
-        )
 
     if here:
         git_ref = get_current_branch(ctx)
