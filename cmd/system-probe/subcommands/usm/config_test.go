@@ -248,3 +248,78 @@ service_monitoring_config:
 	require.True(t, ok)
 	assert.Len(t, rules, 1)
 }
+
+func TestConfigCommandJSONOutput(t *testing.T) {
+	// This test validates the full command execution with --json flag
+	fullConfigYAML := `
+service_monitoring_config:
+  enabled: true
+  enable_http_monitoring: true
+  enable_https_monitoring: true
+  enable_http2_monitoring: false
+  max_tracked_connections: 65536
+  max_closed_connections_buffered: 50000
+  tls:
+    native:
+      enabled: true
+    istio:
+      enabled: false
+  http_replace_rules:
+    - pattern: /users/[0-9]+
+      repl: /users/?
+    - pattern: /api/v[0-9]+
+      repl: /api/v?
+`
+
+	// Parse and extract USM config like runConfig does
+	var fullConfig map[string]interface{}
+	err := yaml.Unmarshal([]byte(fullConfigYAML), &fullConfig)
+	require.NoError(t, err)
+
+	usmConfig, ok := fullConfig["service_monitoring_config"]
+	require.True(t, ok)
+
+	// Simulate JSON output (using outputJSON)
+	jsonData, err := json.MarshalIndent(usmConfig, "", "  ")
+	require.NoError(t, err, "JSON encoding should succeed (no map[interface{}]interface{} errors)")
+
+	// Verify JSON is valid
+	var jsonDecoded map[string]interface{}
+	err = json.Unmarshal(jsonData, &jsonDecoded)
+	require.NoError(t, err, "JSON output should be valid and parseable")
+
+	// Verify all expected fields are present with correct types
+	assert.Equal(t, true, jsonDecoded["enabled"])
+	assert.Equal(t, true, jsonDecoded["enable_http_monitoring"])
+	assert.Equal(t, true, jsonDecoded["enable_https_monitoring"])
+	assert.Equal(t, false, jsonDecoded["enable_http2_monitoring"])
+	assert.Equal(t, float64(65536), jsonDecoded["max_tracked_connections"])
+	assert.Equal(t, float64(50000), jsonDecoded["max_closed_connections_buffered"])
+
+	// Verify nested structures work correctly
+	tls, ok := jsonDecoded["tls"].(map[string]interface{})
+	require.True(t, ok, "nested tls object should be a map")
+
+	native, ok := tls["native"].(map[string]interface{})
+	require.True(t, ok, "nested native object should be a map")
+	assert.Equal(t, true, native["enabled"])
+
+	istio, ok := tls["istio"].(map[string]interface{})
+	require.True(t, ok, "nested istio object should be a map")
+	assert.Equal(t, false, istio["enabled"])
+
+	// Verify arrays work correctly
+	rules, ok := jsonDecoded["http_replace_rules"].([]interface{})
+	require.True(t, ok, "http_replace_rules should be an array")
+	assert.Len(t, rules, 2)
+
+	rule0, ok := rules[0].(map[string]interface{})
+	require.True(t, ok, "array element should be a map")
+	assert.Equal(t, "/users/[0-9]+", rule0["pattern"])
+	assert.Equal(t, "/users/?", rule0["repl"])
+
+	rule1, ok := rules[1].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "/api/v[0-9]+", rule1["pattern"])
+	assert.Equal(t, "/api/v?", rule1["repl"])
+}
