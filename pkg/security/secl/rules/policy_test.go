@@ -428,15 +428,6 @@ func TestActionSetVariableTTL(t *testing.T) {
 
 	vStore := rs.evalOpts.NewStore
 
-	// existingVariable := opts.VariableStore.Get("var1")
-	// assert.NotNil(t, existingVariable)
-	// stringArrayVar, ok := existingVariable.(eval.Variable)
-	// assert.NotNil(t, stringArrayVar)
-	// assert.True(t, ok)
-	// strValue, _ := stringArrayVar.GetValue()
-	// assert.NotNil(t, strValue)
-	// assert.Contains(t, strValue, "foo")
-	// assert.IsType(t, strValue, []string{})
 	definition, ok := vStore.GetDefinition("var1")
 	assert.True(t, ok)
 	assert.NotNil(t, definition)
@@ -448,15 +439,6 @@ func TestActionSetVariableTTL(t *testing.T) {
 	assert.IsType(t, value, []string{})
 	assert.Contains(t, value, "foo")
 
-	// existingVariable = opts.VariableStore.Get("var2")
-	// assert.NotNil(t, existingVariable)
-	// intArrayVar, ok := existingVariable.(eval.Variable)
-	// assert.NotNil(t, intArrayVar)
-	// assert.True(t, ok)
-	// value, _ := intArrayVar.GetValue()
-	// assert.NotNil(t, value)
-	// assert.Contains(t, value, 123)
-	// assert.IsType(t, value, []int{})
 	definition, ok = vStore.GetDefinition("var2")
 	assert.True(t, ok)
 	assert.NotNil(t, definition)
@@ -469,15 +451,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	assert.Contains(t, value, 123)
 
 	ctx := eval.NewContext(event)
-	// existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
-	// assert.NotNil(t, existingScopedVariable)
-	// stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	// assert.NotNil(t, stringArrayScopedVar)
-	// assert.True(t, ok)
-	// value, _ = stringArrayScopedVar.GetValue(ctx)
-	// assert.NotNil(t, value)
-	// assert.Contains(t, value, "bar")
-	// assert.IsType(t, value, []string{})
+
 	definition, ok = vStore.GetDefinition("process.scopedvar1")
 	assert.True(t, ok)
 	assert.NotNil(t, definition)
@@ -489,15 +463,6 @@ func TestActionSetVariableTTL(t *testing.T) {
 	assert.IsType(t, value, []string{})
 	assert.Contains(t, value, "bar")
 
-	// existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
-	// assert.NotNil(t, existingScopedVariable)
-	// intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	// assert.NotNil(t, intArrayScopedVar)
-	// assert.True(t, ok)
-	// value, _ = intArrayScopedVar.GetValue(ctx)
-	// assert.NotNil(t, value)
-	// assert.Contains(t, value, 123)
-	// assert.IsType(t, value, []int{})
 	definition, ok = vStore.GetDefinition("process.scopedvar2")
 	assert.True(t, ok)
 	assert.NotNil(t, definition)
@@ -509,16 +474,6 @@ func TestActionSetVariableTTL(t *testing.T) {
 	assert.IsType(t, value, []int{})
 	assert.Contains(t, value, 123)
 
-	// existingContainerScopedVariable := opts.VariableStore.Get("container.simplevarwithttl")
-	// assert.NotNil(t, existingContainerScopedVariable)
-	// intVarScopedVar, ok := existingContainerScopedVariable.(eval.ScopedVariable)
-	// assert.NotNil(t, intVarScopedVar)
-	// assert.True(t, ok)
-	// value, isSet := intVarScopedVar.GetValue(ctx)
-	// assert.True(t, isSet)
-	// assert.NotNil(t, value)
-	// assert.Equal(t, 456, value)
-	// assert.IsType(t, int(0), value)
 	definition, ok = vStore.GetDefinition("container.simplevarwithttl")
 	assert.True(t, ok)
 	assert.NotNil(t, definition)
@@ -616,17 +571,8 @@ func TestActionSetVariableSize(t *testing.T) {
 
 	ctx := eval.NewContext(event)
 
-	// opts := rs.evalOpts
 	vStore := rs.evalOpts.NewStore
 
-	// existingVariable := opts.VariableStore.Get("var1")
-	// assert.NotNil(t, existingVariable)
-	// stringArrayVar, ok := existingVariable.(eval.Variable)
-	// assert.NotNil(t, stringArrayVar)
-	// assert.True(t, ok)
-	// value, set := stringArrayVar.GetValue()
-	// assert.NotNil(t, value)
-	// assert.False(t, set)
 	var1Definition, ok := vStore.GetDefinition("var1")
 	assert.True(t, ok)
 	assert.NotNil(t, var1Definition)
@@ -634,14 +580,6 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, stringArrayVar)
 
-	// existingVariable = opts.VariableStore.Get("var2")
-	// assert.NotNil(t, existingVariable)
-
-	// intArrayVar, ok := existingVariable.(eval.Variable)
-	// assert.NotNil(t, intArrayVar)
-	// assert.True(t, ok)
-	// _, set = intArrayVar.GetValue()
-	// assert.False(t, set)
 	var2Definition, ok := vStore.GetDefinition("var2")
 	assert.True(t, ok)
 	assert.NotNil(t, var2Definition)
@@ -649,11 +587,6 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, intArrayVar)
 
-	// existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
-	// assert.NotNil(t, existingScopedVariable)
-	// stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	// assert.NotNil(t, stringArrayScopedVar)
-	// assert.True(t, ok)
 	scopedVar1Definition, ok := vStore.GetDefinition("process.scopedvar1")
 	assert.True(t, ok)
 	assert.NotNil(t, scopedVar1Definition)
@@ -661,11 +594,6 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, stringArrayScopedVar)
 
-	// existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
-	// assert.NotNil(t, existingScopedVariable)
-	// intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	// assert.NotNil(t, intArrayScopedVar)
-	// assert.True(t, ok)
 	scopedVar2Definition, ok := vStore.GetDefinition("process.scopedvar2")
 	assert.True(t, ok)
 	assert.NotNil(t, scopedVar2Definition)
@@ -673,12 +601,6 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, intArrayScopedVar)
 
-	// _, set = stringArrayScopedVar.GetValue(ctx)
-	// assert.False(t, set)
-
-	// _, set = intArrayScopedVar.GetValue(ctx)
-	// assert.False(t, set)
-
 	if !rs.Evaluate(event) {
 		t.Errorf("Expected event to match rule")
 	}
@@ -686,11 +608,6 @@ func TestActionSetVariableSize(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	// value, set = stringArrayVar.GetValue()
-	// assert.Contains(t, value, "foo")
-	// assert.Len(t, value, 1)
-	// assert.IsType(t, value, []string{})
-	// assert.True(t, set)
 	stringArrayVar, err = var1Definition.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, stringArrayVar)
@@ -700,11 +617,6 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.Contains(t, value, "foo")
 	assert.Len(t, value, 1)
 
-	// value, set = intArrayVar.GetValue()
-	// assert.IsType(t, value, []int{})
-	// assert.Contains(t, value, 1)
-	// assert.Len(t, value, 1)
-	// assert.True(t, set)
 	intArrayVar, err = var2Definition.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, intArrayVar)
@@ -714,12 +626,6 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.Contains(t, value, 1)
 	assert.Len(t, value, 1)
 
-	// value, set = stringArrayScopedVar.GetValue(ctx)
-	// assert.NotNil(t, value)
-	// assert.Contains(t, value, "bar")
-	// assert.IsType(t, value, []string{})
-	// assert.Len(t, value, 1)
-	// assert.True(t, set)
 	stringArrayScopedVar, err = scopedVar1Definition.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, stringArrayScopedVar)
@@ -729,12 +635,6 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.Contains(t, value, "bar")
 	assert.Len(t, value, 1)
 
-	// value, set = intArrayScopedVar.GetValue(ctx)
-	// assert.NotNil(t, value)
-	// assert.Contains(t, value, 123)
-	// assert.IsType(t, value, []int{})
-	// assert.Len(t, value, 1)
-	// assert.True(t, set)
 	intArrayScopedVar, err = scopedVar2Definition.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, intArrayScopedVar)
@@ -781,15 +681,7 @@ func TestActionSetEmptyScope(t *testing.T) {
 		t.Error(err)
 	}
 
-	// opts := rs.evalOpts
-
 	vStore := rs.evalOpts.NewStore
-
-	// existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
-	// assert.NotNil(t, existingScopedVariable)
-	// stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	// assert.NotNil(t, stringArrayScopedVar)
-	// assert.True(t, ok)
 
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
@@ -813,9 +705,6 @@ func TestActionSetEmptyScope(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	// value, set := stringArrayScopedVar.GetValue(ctx)
-	// assert.Nil(t, value)
-	// assert.False(t, set)
 	stringArrayScopedVar, err = definition.GetInstance(ctx)
 	assert.ErrorAs(t, err, &expectedErr)
 	assert.Equal(t, expectedErr.VarName, "scopedvar1")
@@ -904,18 +793,7 @@ func TestActionSetVariableInitialValue(t *testing.T) {
 		t.Error(err)
 	}
 
-	// opts := rs.evalOpts
 	vStore := rs.evalOpts.NewStore
-
-	// existingVariable := opts.VariableStore.Get("var1")
-	// assert.NotNil(t, existingVariable)
-
-	// intVar, ok := existingVariable.(eval.Variable)
-	// assert.NotNil(t, intVar)
-	// assert.True(t, ok)
-	// value, set := intVar.GetValue()
-	// assert.Equal(t, 123, value)
-	// assert.False(t, set)
 
 	evaluator, err := vStore.GetEvaluator("var1")
 	assert.NoError(t, err)
@@ -938,9 +816,6 @@ func TestActionSetVariableInitialValue(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	// value, set = intVar.GetValue()
-	// assert.True(t, set)
-	// assert.Equal(t, 456, value)
 	definition, ok := vStore.GetDefinition("var1")
 	assert.True(t, ok)
 	assert.NotNil(t, definition)
@@ -1019,11 +894,8 @@ func TestActionSetVariableInherited(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// opts := rs.evalOpts
 	vStore := rs.evalOpts.NewStore
 
-	// existingScopedVariable := opts.VariableStore.Get("process.var1")
-	// assert.NotNil(t, existingScopedVariable)
 	processVar1Definition, ok := vStore.GetDefinition("process.var1")
 	assert.True(t, ok)
 	assert.NotNil(t, processVar1Definition)
@@ -1044,30 +916,15 @@ func TestActionSetVariableInherited(t *testing.T) {
 
 	ctx := eval.NewContext(event)
 
-	// assert.NotNil(t, existingScopedVariable)
-	// stringScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	// assert.NotNil(t, stringScopedVar)
-	// assert.True(t, ok)
 	variable, err := processVar1Definition.GetInstance(ctx)
 	assert.NoError(t, err)
+	// TODO(lebauce): should be 123. default_value are not properly handled
 	assert.Nil(t, variable)
-	// value := variable.GetValue()
-	// assert.Equal(t, 0, value)
-
-	// value, set := stringScopedVar.GetValue(ctx)
-	// assert.NotNil(t, value)
-	// // TODO(lebauce): should be 123. default_value are not properly handled
-	// assert.Equal(t, 0, value)
-	// assert.False(t, set)
 
 	if !rs.Evaluate(event) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	// value, set = stringScopedVar.GetValue(ctx)
-	// assert.NotNil(t, value)
-	// assert.Equal(t, 456, value)
-	// assert.True(t, set)
 	variable, err = processVar1Definition.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, variable)
@@ -1093,10 +950,6 @@ func TestActionSetVariableInherited(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	// value, set = stringScopedVar.GetValue(ctx)
-	// assert.NotNil(t, value)
-	// assert.Equal(t, 1000, value)
-	// assert.True(t, set)
 	variable, err = processVar1Definition.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, variable)
@@ -1217,25 +1070,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// opts := rs.evalOpts
 	vStore := rs.evalOpts.NewStore
 
-	// Fetch process.correlation_key variable
-	// correlationKeySECLVariable := opts.VariableStore.Get("process.correlation_key")
-	// assert.NotNil(t, correlationKeySECLVariable)
-	// correlationKeyScopedVariable, ok := correlationKeySECLVariable.(eval.ScopedVariable)
-	// assert.NotNil(t, correlationKeyScopedVariable)
-	// assert.True(t, ok)
 	correlationKeySECLVariableDef, ok := vStore.GetDefinition("process.correlation_key")
 	assert.True(t, ok)
 	assert.NotNil(t, correlationKeySECLVariableDef)
 
-	// Fetch process.parent_correlation_keys variable
-	// parentCorrelationKeysSECLVariable := opts.VariableStore.Get("process.parent_correlation_keys")
-	// assert.NotNil(t, parentCorrelationKeysSECLVariable)
-	// parentCorrelationKeysScopedVariable, ok := parentCorrelationKeysSECLVariable.(eval.ScopedVariable)
-	// assert.NotNil(t, parentCorrelationKeysScopedVariable)
-	// assert.True(t, ok)
 	parentCorrelationKeysSECLVariableDef, ok := vStore.GetDefinition("process.parent_correlation_keys")
 	assert.True(t, ok)
 	assert.NotNil(t, parentCorrelationKeysSECLVariableDef)
@@ -1243,11 +1083,6 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	event := fakeOpenEvent("/tmp/first", 1, nil)
 	ctx := eval.NewContext(event)
 
-	// test correlation key initial value
-	// correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, "", correlationKeyValue)
-	// assert.False(t, set)
 	correlationKeyVariable, err := correlationKeySECLVariableDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.Nil(t, correlationKeyVariable)
@@ -1256,30 +1091,18 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.True(t, strings.HasPrefix(correlationKeyValue.(string), "first_"))
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
 	correlationKeyFromFirstRule := correlationKeyVariable.GetValue().(string)
 	assert.True(t, strings.HasPrefix(correlationKeyFromFirstRule, "first_"))
 
-	// parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx)
-	// assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
 	assert.Equal(t, parentCorrelationKeysSECLVariableDef.GetInstancesCount(), 0)
-
-	// correlationKeyFromFirstRule := correlationKeyValue.(string)
 
 	// trigger the first rule again, and make sure nothing changes
 	event2 := fakeOpenEvent("/tmp/first", 2, event.ProcessCacheEntry)
 	ctx = eval.NewContext(event2)
 
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
@@ -1289,17 +1112,11 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Didn't expected event to match rule")
 	}
 
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
 	assert.Equal(t, correlationKeyFromFirstRule, correlationKeyVariable.GetValue().(string))
 
-	// parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
-	// assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
 	assert.Equal(t, parentCorrelationKeysSECLVariableDef.GetInstancesCount(), 0)
 
 	// jump to the third rule, check:
@@ -1308,10 +1125,6 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	event3 := fakeOpenEvent("/tmp/third", 3, event2.ProcessCacheEntry)
 	ctx = eval.NewContext(event3)
 
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
@@ -1321,18 +1134,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.True(t, strings.HasPrefix(correlationKeyValue.(string), "third_"))
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
 	correlationKeyFromThirdRule := correlationKeyVariable.GetValue().(string)
 	assert.True(t, strings.HasPrefix(correlationKeyFromThirdRule, "third_"))
 
-	// parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
-	// assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
 	parentCorrelationKeysSECLVariable, err := parentCorrelationKeysSECLVariableDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, parentCorrelationKeysSECLVariable)
@@ -1342,16 +1149,10 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	assert.Len(t, parentCorrelationKeysValue, 1)
 	assert.Contains(t, parentCorrelationKeysValue, correlationKeyFromFirstRule)
 
-	// correlationKeyFromThirdRule := correlationKeyValue.(string)
-
 	// trigger the second rule, make sure nothing changes
 	event4 := fakeOpenEvent("/tmp/second", 4, event3.ProcessCacheEntry)
 	ctx = eval.NewContext(event4)
 
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, correlationKeyValue, correlationKeyFromThirdRule)
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
@@ -1361,17 +1162,11 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Errorf("Didn't expected event to match rule")
 	}
 
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, correlationKeyValue, correlationKeyFromThirdRule)
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
 	assert.Equal(t, correlationKeyFromThirdRule, correlationKeyVariable.GetValue().(string))
 
-	// parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
-	// assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
 	parentCorrelationKeysSECLVariable, err = parentCorrelationKeysSECLVariableDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
@@ -1536,25 +1331,14 @@ func TestActionSetVariableScopeField(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// opts := rs.evalOpts
 	vStore := rs.evalOpts.NewStore
 
 	// Fetch process.correlation_key variable
-	// correlationKeySECLVariable := opts.VariableStore.Get("process.correlation_key")
-	// assert.NotNil(t, correlationKeySECLVariable)
-	// correlationKeyScopedVariable, ok := correlationKeySECLVariable.(eval.ScopedVariable)
-	// assert.NotNil(t, correlationKeyScopedVariable)
-	// assert.True(t, ok)
 	correlationKeySECLVariableDef, ok := vStore.GetDefinition("process.correlation_key")
 	assert.True(t, ok)
 	assert.NotNil(t, correlationKeySECLVariableDef)
 
 	// Fetch process.parent_correlation_keys variable
-	// parentCorrelationKeysSECLVariable := opts.VariableStore.Get("process.parent_correlation_keys")
-	// assert.NotNil(t, parentCorrelationKeysSECLVariable)
-	// parentCorrelationKeysScopedVariable, ok := parentCorrelationKeysSECLVariable.(eval.ScopedVariable)
-	// assert.NotNil(t, parentCorrelationKeysScopedVariable)
-	// assert.True(t, ok)
 	parentCorrelationKeysSECLVariableDef, ok := vStore.GetDefinition("process.parent_correlation_keys")
 	assert.True(t, ok)
 	assert.NotNil(t, parentCorrelationKeysSECLVariableDef)
@@ -1572,20 +1356,12 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	}
 
 	// check the correlation_key of the current process
-	// correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx1)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, "cgroup_write_first", correlationKeyValue.(string))
-	// assert.True(t, set)
 	correlationKeyVariable, err := correlationKeySECLVariableDef.GetInstance(ctx1)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
 	assert.Equal(t, "cgroup_write_first", correlationKeyVariable.GetValue().(string))
 
 	// check the correlation key of the PID from the cgroup_write
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, "first", correlationKeyValue.(string))
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx3)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
@@ -1596,18 +1372,12 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	}
 
 	// check the correlation_key of the current process
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, "cgroup_write_second", correlationKeyValue.(string))
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx1)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
 	assert.Equal(t, "cgroup_write_second", correlationKeyVariable.GetValue().(string))
 
 	// check the parent_correlation_keys of the current process
-	// parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx1)
-	// assert.Equal(t, []string{"cgroup_write_first"}, parentCorrelationKeysValue.([]string))
 	parentCorrelationKeysVariable, err := parentCorrelationKeysSECLVariableDef.GetInstance(ctx1)
 	assert.NoError(t, err)
 	assert.NotNil(t, parentCorrelationKeysVariable)
@@ -1618,18 +1388,12 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	assert.Contains(t, parentCorrelationKeysValue, "cgroup_write_first")
 
 	// check the correlation key of the PID from the cgroup_write
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, "second", correlationKeyValue.(string))
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx3)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
 	assert.Equal(t, "second", correlationKeyVariable.GetValue().(string))
 
 	// check the parent_correlation_keys of the PID from the cgroup_write
-	// parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3)
-	// assert.Equal(t, []string{"first"}, parentCorrelationKeysValue.([]string))
 	parentCorrelationKeysVariable, err = parentCorrelationKeysSECLVariableDef.GetInstance(ctx3)
 	assert.NoError(t, err)
 	assert.NotNil(t, parentCorrelationKeysVariable)
@@ -1644,18 +1408,12 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	}
 
 	// check the correlation_key of the current process
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, "cgroup_write_second", correlationKeyValue.(string))
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx1)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
 	assert.Equal(t, "cgroup_write_second", correlationKeyVariable.GetValue().(string))
 
 	// check the parent_correlation_keys of the current process
-	// parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx1)
-	// assert.Equal(t, []string{"cgroup_write_first"}, parentCorrelationKeysValue.([]string))
 	parentCorrelationKeysVariable, err = parentCorrelationKeysSECLVariableDef.GetInstance(ctx1)
 	assert.NoError(t, err)
 	assert.NotNil(t, parentCorrelationKeysVariable)
@@ -1666,18 +1424,12 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	assert.Contains(t, parentCorrelationKeysValue, "cgroup_write_first")
 
 	// check the correlation key of the PID from the cgroup_write
-	// correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
-	// assert.NotNil(t, correlationKeyValue)
-	// assert.Equal(t, "third", correlationKeyValue.(string))
-	// assert.True(t, set)
 	correlationKeyVariable, err = correlationKeySECLVariableDef.GetInstance(ctx3)
 	assert.NoError(t, err)
 	assert.NotNil(t, correlationKeyVariable)
 	assert.Equal(t, "third", correlationKeyVariable.GetValue().(string))
 
 	// check the parent_correlation_keys of the PID from the cgroup_write
-	// parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3)
-	// assert.ElementsMatch(t, []string{"first", "second"}, parentCorrelationKeysValue.([]string))
 	parentCorrelationKeysVariable, err = parentCorrelationKeysSECLVariableDef.GetInstance(ctx3)
 	assert.NoError(t, err)
 	assert.NotNil(t, parentCorrelationKeysVariable)
@@ -1763,70 +1515,37 @@ func TestActionSetVariableExpression(t *testing.T) {
 		t.Error(err)
 	}
 
-	// opts := rs.evalOpts
 	vStore := rs.evalOpts.NewStore
 	ctx := eval.NewContext(model.NewFakeEvent())
 
-	// existingVariable := opts.VariableStore.Get("var1")
-	// assert.NotNil(t, existingVariable)
 	var1Def, ok := vStore.GetDefinition("var1")
 	assert.True(t, ok)
 	assert.NotNil(t, var1Def)
 
-	// existingVariable2 := opts.VariableStore.Get("var3")
-	// assert.NotNil(t, existingVariable2)
 	var3Def, ok := vStore.GetDefinition("var3")
 	assert.True(t, ok)
 	assert.NotNil(t, var3Def)
 
-	// existingVariable3 := opts.VariableStore.Get("connected")
-	// assert.NotNil(t, existingVariable3)
 	connectedDef, ok := vStore.GetDefinition("connected")
 	assert.True(t, ok)
 	assert.NotNil(t, connectedDef)
 
-	// existingVariable4 := opts.VariableStore.Get("connected_to")
-	// assert.NotNil(t, existingVariable4)
 	connectedToDef, ok := vStore.GetDefinition("connected_to")
 	assert.True(t, ok)
 	assert.NotNil(t, connectedToDef)
 
-	// intVar, ok := existingVariable.(eval.Variable)
-	// assert.NotNil(t, intVar)
-	// assert.True(t, ok)
-	// value, set := intVar.GetValue()
-	// assert.NotNil(t, value)
-	// assert.False(t, set)
 	var1Var, err := var1Def.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.Nil(t, var1Var)
 
-	// strVar, ok := existingVariable2.(eval.Variable)
-	// assert.NotNil(t, strVar)
-	// assert.True(t, ok)
-	// value, set = strVar.GetValue()
-	// assert.NotNil(t, value)
-	// assert.False(t, set)
 	var3Var, err := var3Def.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.Nil(t, var3Var)
 
-	// connectedVar, ok := existingVariable3.(eval.Variable)
-	// assert.NotNil(t, connectedVar)
-	// assert.True(t, ok)
-	// value, set = connectedVar.GetValue()
-	// assert.NotNil(t, value)
-	// assert.False(t, set)
 	connectedVar, err := connectedDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.Nil(t, connectedVar)
 
-	// connectedToVar, ok := existingVariable4.(eval.Variable)
-	// assert.NotNil(t, connectedToVar)
-	// assert.True(t, ok)
-	// value, set = connectedToVar.GetValue()
-	// assert.NotNil(t, value)
-	// assert.False(t, set)
 	connectedToVar, err := connectedToDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.Nil(t, connectedToVar)
@@ -1842,18 +1561,12 @@ func TestActionSetVariableExpression(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	// value, set = intVar.GetValue()
-	// assert.True(t, set)
-	// assert.Equal(t, 247, value)
 	var1Var, err = var1Def.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, var1Var)
 	var1Val := var1Var.GetValue().(int)
 	assert.Equal(t, 247, var1Val)
 
-	// value, set = strVar.GetValue()
-	// assert.True(t, set)
-	// assert.Equal(t, "foo:foo", value)
 	var3Var, err = var3Def.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, var3Var)
@@ -1864,18 +1577,12 @@ func TestActionSetVariableExpression(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	// value, set = intVar.GetValue()
-	// assert.True(t, set)
-	// assert.Equal(t, 495, value)
 	var1Var, err = var1Def.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, var1Var)
 	var1Val = var1Var.GetValue().(int)
 	assert.Equal(t, 495, var1Val)
 
-	// value, set = strVar.GetValue()
-	// assert.True(t, set)
-	// assert.Equal(t, "foo:foo", value)
 	var3Var, err = var3Def.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, var3Var)
@@ -1897,21 +1604,12 @@ func TestActionSetVariableExpression(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	// value, set = connectedVar.GetValue()
-	// assert.True(t, set)
-	// assert.Equal(t, true, value)
 	connectedVar, err = connectedDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, connectedVar)
 	connectedVal := connectedVar.GetValue().(bool)
 	assert.Equal(t, true, connectedVal)
 
-	// value, set = connectedToVar.GetValue()
-	// assert.True(t, set)
-	// assert.Equal(t, []net.IPNet{{
-	// 	IP:   net.IPv4(192, 168, 1, 0).To4(),
-	// 	Mask: connectIP.Mask,
-	// }}, value)
 	connectedToVar, err = connectedToDef.GetInstance(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, connectedToVar)
@@ -2508,18 +2206,9 @@ func TestActionSetVariableLength(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	// opts := rs.evalOpts
 	vStore := rs.evalOpts.NewStore
 	ctx := eval.NewContext(model.NewFakeEvent())
 
-	// existingVariable := opts.VariableStore.Get("var2")
-	// assert.NotNil(t, existingVariable)
-	// intArrayVar, ok := existingVariable.(eval.Variable)
-	// assert.NotNil(t, intArrayVar)
-	// assert.True(t, ok)
-	// intValue, _ := intArrayVar.GetValue()
-	// assert.NotNil(t, intValue)
-	// assert.Equal(t, 3, intValue)
 	var2Def, ok := vStore.GetDefinition("var2")
 	assert.True(t, ok)
 	assert.NotNil(t, var2Def)
@@ -2529,14 +2218,6 @@ func TestActionSetVariableLength(t *testing.T) {
 	var2Val := var2Var.GetValue().(int)
 	assert.Equal(t, 3, var2Val)
 
-	// existingVariable = opts.VariableStore.Get("var4")
-	// assert.NotNil(t, existingVariable)
-	// intArrayVar, ok = existingVariable.(eval.Variable)
-	// assert.NotNil(t, intArrayVar)
-	// assert.True(t, ok)
-	// intValue, _ = intArrayVar.GetValue()
-	// assert.NotNil(t, intValue)
-	// assert.Equal(t, 2, intValue)
 	var4Def, ok := vStore.GetDefinition("var4")
 	assert.True(t, ok)
 	assert.NotNil(t, var4Def)

@@ -20,35 +20,6 @@ var VariableScopes = []string{
 	ScopeContainer,
 }
 
-// // DefaultStateScopes returns the default state scopes for variables
-// func DefaultStateScopes() map[Scope]VariableProviderFactory {
-// 	stateScopes := getCommonStateScopes()
-// 	stateScopes[ScopeCGroup] = func() VariableProvider {
-// 		return eval.NewScopedVariables(ScopeCGroup, func(ctx *eval.Context) eval.VariableScope {
-// 			if ctx.Event.(*model.Event).CGroupContext == nil || ctx.Event.(*model.Event).CGroupContext.CGroupFile.IsNull() {
-// 				return nil
-// 			}
-// 			return ctx.Event.(*model.Event).CGroupContext
-// 		})
-// 	}
-// 	return stateScopes
-// }
-
-// // DefaultVariableScopers returns the default variable scopers
-// func DefaultVariableScopers() map[string]eval.VariableScoper {
-// 	variableScopers := getCommonVariableScopers()
-// 	variableScopers[ScopeCGroup] = &Scoper{
-// 		name: ScopeCGroup,
-// 		getScopeCb: func(ctx *eval.Context) (eval.VariableScope, error) {
-// 			if ctx.Event.(*model.Event).CGroupContext == nil || ctx.Event.(*model.Event).CGroupContext.CGroupFile.IsNull() {
-// 				return nil, fmt.Errorf("failed to get cgroup scope")
-// 			}
-// 			return ctx.Event.(*model.Event).CGroupContext, nil
-// 		},
-// 	}
-// 	return variableScopers
-// }
-
 // DefaultVariableScopers returns the default variable scopers
 func DefaultVariableScopers() map[Scope]*eval.VariableScoper {
 	variableScopers := getCommonVariableScopers()

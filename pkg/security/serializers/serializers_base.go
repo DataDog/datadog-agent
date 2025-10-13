@@ -546,60 +546,6 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, scope eval.InternalSc
 	return variables
 }
 
-// func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
-// 	if rule != nil && rule.Opts.VariableStore != nil {
-// 		store := rule.Opts.VariableStore
-// 		for name, variable := range store.Variables {
-// 			// do not serialize hardcoded variables like process.pid
-// 			if _, found := model.SECLVariables[name]; found {
-// 				continue
-// 			}
-
-// 			if slices.Contains(bundled.InternalVariables[:], name) {
-// 				continue
-// 			}
-
-// 			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
-// 				(prefix == "" && strings.Contains(name, ".")) {
-// 				continue
-// 			}
-
-// 			// Skip private variables
-// 			if variable.GetVariableOpts().Private {
-// 				continue
-// 			}
-
-// 			evaluator := variable.GetEvaluator()
-// 			if evaluator, ok := evaluator.(eval.Evaluator); ok {
-// 				value := evaluator.Eval(eval.NewContext(e))
-// 				if variables == nil {
-// 					variables = Variables{}
-// 				}
-// 				if value != nil {
-// 					trimmedName := strings.TrimPrefix(name, prefix)
-// 					switch value := value.(type) {
-// 					case []string:
-// 						scrubbedValues := make([]string, 0, len(value))
-// 						for _, elem := range value {
-// 							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
-// 								scrubbedValues = append(scrubbedValues, scrubbed)
-// 							}
-// 						}
-// 						variables[trimmedName] = scrubbedValues
-// 					case string:
-// 						if scrubbed, err := scrubber.ScrubString(value); err == nil {
-// 							variables[trimmedName] = scrubbed
-// 						}
-// 					default:
-// 						variables[trimmedName] = value
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// 	return variables
-// }
-
 // EventStringerWrapper an event stringer wrapper
 type EventStringerWrapper struct {
 	Event interface{} // can be model.Event or events.CustomEvent
