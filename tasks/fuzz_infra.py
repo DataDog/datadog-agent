@@ -77,14 +77,22 @@ def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=2, duration=360
         with ctx.cd(directory):
             # eg: convert "/path/to/fuzz/target" to "datadog-agent-path-to-fuzz-target".
             # It's a unique identifier for the fuzz target.
+            # We also append the function name to the package name to make sure that every function inside the same package
+            # has a unique target name. This allows us to have different inputs for different functions in the same package.
             rel = directory.removeprefix("/go/src/github.com/DataDog/datadog-agent/")
             pkgname = "datadog-agent-"
             pkgname += "-".join(rel.split('/'))[:max_pkg_name_length]
+            pkgname += f"-{func}"
             build_file = "fuzz.test"
 
             print(f'Building {pkgname}/{func} for {git_sha}...')
-            fuzz_build_cmd = f'go test . -c -fuzz={func}$ -o {build_file} -cover -tags=test,linux_bpf'
-            ctx.run(fuzz_build_cmd)
+            fuzz_build_cmd = f'go test . -c -fuzz={func}$ -o {build_file} -cover -tags=test,linux_bpf,nvml'
+            try:
+                ctx.run(fuzz_build_cmd)
+            except Exception as e:
+                print(f'❌ Failed to build {pkgname}/{func}: {e}... Skipping this fuzz target')
+                continue
+
             build_full_path = directory + "/" + build_file
             if not os.path.exists(build_full_path):
                 print(
