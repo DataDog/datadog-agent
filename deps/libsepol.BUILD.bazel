@@ -1,0 +1,89 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+VERSION = "3.5"
+
+cc_library(
+    name = "libsepol",
+    srcs = glob(['src/*.c', 'src/*.h', 'cil/src/*.c', 'cil/src/*.h',]),
+    hdrs = glob(['include/sepol/**/*.h', 'cil/include/cil/*.h']),
+    local_defines = [
+        "_GNU_SOURCE",
+        # If we drop support for glibcs older than 2.28 we can provide this:
+        # "-DHAVE_REALLOCARRAY",
+    ],
+    copts = [
+        "-O2",
+        "-fno-semantic-interposition",
+        "-Isrc",
+        "-Icil/src/",
+    ],
+    includes = [
+        "include/",
+        "cil/include",
+    ]
+)
+
+cc_shared_library(
+    name = "sepol",
+    deps = [
+        ":libsepol",
+    ],
+    additional_linker_inputs = [
+        "src/libsepol.map.in",
+    ],
+    user_link_flags = [
+        "-Wl,-soname=libsepol.so",
+        "-Wl,--version-script=$(location src/libsepol.map.in)",
+    ],
+)
+
+expand_template(
+    name = "libsepol_pc",
+    out = "libsepol.pc",
+    substitutions = {
+        # Prepare the .pc file for our own substitution later
+        "@prefix@": "##PREFIX##",
+        # and make other values depend on the prefix declared in the .pc file
+        "@libdir@": "${prefix}/lib",
+        "@includedir@": "${prefix}/include",
+        "@VERSION@": VERSION,
+    },
+    template = ":src/libsepol.pc.in",
+)
+
+pkg_files(
+    name = "lib_files",
+    srcs = [":sepol"],
+    prefix = "lib",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = glob(["include/sepol/*.h", "cil/include/cil/*.h"]),
+    prefix = "include/sepol",
+)
+
+pkg_files(
+    name = "policy_hdr_files",
+    srcs = glob(["include/sepol/policydb/*.h"]),
+    prefix = "include/sepol/policydb",
+)
+
+pkg_files(
+    name = "pc_file",
+    srcs = [":libsepol_pc"],
+    prefix = "lib/pkgconfig",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":hdr_files",
+        ":policy_hdr_files",
+        ":lib_files",
+        ":pc_file",
+    ],
+)
