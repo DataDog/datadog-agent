@@ -36,7 +36,7 @@ var subservices = []Servicedef{
 		shouldShutdown: false,
 	},
 	{
-		name: "process", // Should be disabled for infra basic mode
+		name: "process",
 		configKeys: map[string]model.Config{
 			"process_config.enabled":                      pkgconfigsetup.Datadog(),
 			"process_config.process_collection.enabled":   pkgconfigsetup.Datadog(),
@@ -143,6 +143,13 @@ func (s *Servicedef) Stop() error {
 
 // IsEnabled checks to see if a given service should be started
 func (s *Servicedef) IsEnabled() bool {
+	// In infrastructure basic mode, process and cluster agents should not be started
+	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "basic" {
+		if s.name == "process" {
+			return false
+		}
+	}
+
 	for configKey, cfg := range s.configKeys {
 		if cfg.GetBool(configKey) {
 			return true
