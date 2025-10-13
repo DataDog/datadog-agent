@@ -839,7 +839,6 @@ class DockerProcessor:
             # Check if this is OCI format
             index_path = os.path.join(extract_dir, "index.json")
             oci_layout_path = os.path.join(extract_dir, "oci-layout")
-            manifest_path = os.path.join(extract_dir, "manifest.json")
 
             if os.path.exists(index_path) and os.path.exists(oci_layout_path):
                 # OCI format
@@ -848,14 +847,15 @@ class DockerProcessor:
 
                 # Get the manifest digest from the index
                 manifest_digest = index["manifests"][0]["digest"]
-                manifest_blob_path = os.path.join(extract_dir, "blobs", manifest_digest.replace(":", "/"))
+                manifest_path = os.path.join(extract_dir, "blobs", manifest_digest.replace(":", "/"))
 
-                with open(manifest_blob_path) as f:
+                with open(manifest_path) as f:
                     manifest = json.load(f)
 
                 # Get config digest from manifest
                 config_digest = manifest.get("config", {}).get("digest", "")
                 config_path = os.path.join(extract_dir, "blobs", config_digest.replace(":", "/"))
+                config_file = config_digest  # For OCI format, use digest as identifier
 
                 if not os.path.exists(config_path):
                     return None
@@ -867,8 +867,12 @@ class DockerProcessor:
                 layer_digests = [layer["digest"] for layer in manifest.get("layers", [])]
                 layer_files = [os.path.join("blobs", digest.replace(":", "/")) for digest in layer_digests]
 
-            elif os.path.exists(manifest_path):
+            else:
                 # Old tarball format
+                manifest_path = os.path.join(extract_dir, "manifest.json")
+                if not os.path.exists(manifest_path):
+                    return None
+
                 with open(manifest_path) as f:
                     manifest = json.load(f)[0]
 
@@ -882,8 +886,6 @@ class DockerProcessor:
                     config_data = json.load(f)
 
                 layer_files = manifest.get("Layers", [])
-            else:
-                return None
             layers = []
 
             for i, layer_file in enumerate(layer_files):
