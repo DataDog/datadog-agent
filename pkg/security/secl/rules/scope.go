@@ -33,36 +33,42 @@ func IsScopeVariable(varName string) bool {
 	return false
 }
 
+// Scoper represents a variable scoper
 type Scoper struct {
 	name       string
 	getScopeCb func(ctx *eval.Context) (eval.VariableScope, error)
 }
 
+// Name returns the name of this scoper
 func (s *Scoper) Name() string {
 	return s.name
 }
 
+// GetScope returns a variable scope based on the given Context
 func (s *Scoper) GetScope(ctx *eval.Context) (eval.VariableScope, error) {
 	return s.getScopeCb(ctx)
 }
 
+// GlobalScopeKey is the constant scope key used by the global scoper
 const GlobalScopeKey = ""
 
 type globalScopeType struct{}
 
 var globalScope = globalScopeType{}
 
+// Key always returns the same unique key of the global scoper
 func (gs *globalScopeType) Key() (string, bool) {
 	return GlobalScopeKey, true
 }
 
+// ParentScope returns the parent entity scope
 func (gs *globalScopeType) ParentScope() (eval.VariableScope, bool) {
 	return nil, false
 }
 
 func getCommonVariableScopers() map[Scope]*eval.VariableScoper {
 	return map[Scope]*eval.VariableScoper{
-		"": eval.NewVariableScoper(eval.GlobalScoperType, func(ctx *eval.Context) (eval.VariableScope, error) {
+		"": eval.NewVariableScoper(eval.GlobalScoperType, func(_ *eval.Context) (eval.VariableScope, error) {
 			return &globalScope, nil
 		}),
 		ScopeProcess: eval.NewVariableScoper(eval.ProcessScoperType, func(ctx *eval.Context) (eval.VariableScope, error) {

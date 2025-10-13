@@ -16,14 +16,13 @@ import (
 	"time"
 
 	ttlcache "github.com/jellydator/ttlcache/v3"
-
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
 var variableRegex = regexp.MustCompile(`\${[^}]*}`)
 
 const defaultMaxVariables = 100
 
+// StaticVariableType lists the types that a static variable can take
 type StaticVariableType interface {
 	int | string | bool
 }
@@ -32,25 +31,30 @@ type staticVariable[T StaticVariableType] struct {
 	getValueCb func(ctx *Context) T
 }
 
+// GetValue returns the value of the variable
 func (s *staticVariable[T]) GetValue(ctx *Context) any {
 	return s.getValueCb(ctx)
 }
 
+// StaticVariable represents a hard-coded variable
 type StaticVariable interface {
 	GetValue(ctx *Context) any
 }
 
+// NewStaticVariable returns a new static variable
 func NewStaticVariable[T StaticVariableType](getValue func(ctx *Context) T) StaticVariable {
 	return &staticVariable[T]{
 		getValueCb: getValue,
 	}
 }
 
+// VariableType lists the types that a SECL variable can take
 type VariableType interface {
 	string | int | bool | net.IPNet |
 		[]string | []int | []net.IPNet
 }
 
+// Definition represents the definition of a SECL variable
 type Definition interface {
 	AddNewInstance(ctx *Context) (Instance, bool, error)
 	GetInstance(ctx *Context) (Instance, error)
@@ -60,9 +64,10 @@ type Definition interface {
 	GetName(withScopePrefix bool) string
 	CleanupExpiredVariables()
 	getInstances() map[string]Instance
-	getScoper() *VariableScoper
+	GetScoper() *VariableScoper
 }
 
+// VariableOpts represents the options of a SECL variable
 type VariableOpts struct {
 	TTL       time.Duration
 	Size      int
@@ -83,6 +88,7 @@ type definition[T VariableType] struct {
 	instances     map[string]Instance
 }
 
+// NewVariableDefinition returns a new definition of a SECL variable
 func NewVariableDefinition[T VariableType](name string, scoper *VariableScoper, defaultValue T, opts VariableOpts) (Definition, error) {
 	return &definition[T]{
 		name:         name,
@@ -100,12 +106,14 @@ func (def *definition[T]) getInstances() map[string]Instance {
 	return maps.Clone(def.instances) // return a shallow clone of the map to avoid concurrency issues
 }
 
+// GetInstancesCount returns the number of instances this variable current has
 func (def *definition[T]) GetInstancesCount() int {
 	def.instancesLock.RLock()
 	defer def.instancesLock.RUnlock()
 	return len(def.instances)
 }
 
+// CleanupExpiredVariables deletes expired variable instances
 func (def *definition[T]) CleanupExpiredVariables() {
 	def.instancesLock.Lock()
 	defer def.instancesLock.Unlock()
@@ -116,6 +124,7 @@ func (def *definition[T]) CleanupExpiredVariables() {
 	}
 }
 
+// GetInstance returns a variable instance that corresponds to the given Context or nil if no instance was found
 func (def *definition[T]) GetInstance(ctx *Context) (Instance, error) {
 	var instance Instance
 
@@ -166,16 +175,17 @@ func (def *definition[T]) newInstance(freeCb func()) Instance {
 	case *definition[net.IPNet]:
 		return newSingleValueVariableInstance[net.IPNet](def.defaultValue, def.opts.TTL, freeCb)
 	case *definition[[]string]:
-		return newArrayValueVariable[string](def.defaultValue, def.opts.TTL, def.opts.Size, freeCb)
+		return newArrayValueVariable[string](def.opts.TTL, def.opts.Size, freeCb)
 	case *definition[[]int]:
-		return newArrayValueVariable[int](def.defaultValue, def.opts.TTL, def.opts.Size, freeCb)
+		return newArrayValueVariable[int](def.opts.TTL, def.opts.Size, freeCb)
 	case *definition[[]net.IPNet]:
-		return newIpArrayVariable(def.defaultValue, def.opts.TTL, def.opts.Size, freeCb)
+		return newIPArrayVariable(def.opts.TTL, def.opts.Size, freeCb)
 	default:
 		panic("unexpected type")
 	}
 }
 
+// AddNewInstance instanciates and adds a new variable instance for the given Context
 func (def *definition[T]) AddNewInstance(ctx *Context) (Instance, bool, error) {
 	scope, err := def.scoper.GetScope(ctx)
 	if err != nil {
@@ -212,18 +222,21 @@ func (def *definition[T]) AddNewInstance(ctx *Context) (Instance, bool, error) {
 	return newInstance, ok, nil
 }
 
+// GetDefaultValue returns the default value of the definition
 func (def *definition[T]) GetDefaultValue() any {
 	return def.defaultValue
 }
 
+// IsPrivate returns whether the variable is definied as private
 func (def *definition[T]) IsPrivate() bool {
 	return def.opts.Private
 }
 
-func (def *definition[T]) getScoper() *VariableScoper {
+func (def *definition[T]) GetScoper() *VariableScoper {
 	return def.scoper
 }
 
+// GetName returns the name if the variable
 func (def *definition[T]) GetName(withScopePrefix bool) string {
 	if !withScopePrefix {
 		return def.name
@@ -234,6 +247,7 @@ func (def *definition[T]) GetName(withScopePrefix bool) string {
 	return def.scoper.Type().VariablePrefix() + "." + def.name
 }
 
+// Instance represents an instance of a variable, indenpdently of its type
 type Instance interface {
 	Set(any) error
 	Append(any) error
@@ -284,6 +298,7 @@ func (i *instance[T]) touchTTL() {
 	}
 }
 
+// Set sets the value of the variable instance
 func (i *instance[T]) Set(value any) error {
 	if v, ok := value.(T); ok {
 		i.value = v
@@ -294,10 +309,12 @@ func (i *instance[T]) Set(value any) error {
 	return &ErrUnexpectedValueType{Expected: expected, Got: value}
 }
 
-func (i *instance[T]) Append(value any) error {
+// Append appends the given value to the variable instance
+func (i *instance[T]) Append(_ any) error {
 	return ErrOperatorNotSupported
 }
 
+// GetValue returns the value of the variable instance
 func (i *instance[T]) GetValue() any {
 	if i.IsExpired() {
 		var value T
@@ -306,6 +323,7 @@ func (i *instance[T]) GetValue() any {
 	return i.value
 }
 
+// IsExpired returns whether the variable instance is expired
 func (i *instance[T]) IsExpired() bool {
 	return i.ttl > 0 && time.Now().After(i.expirationDate)
 }
@@ -316,7 +334,7 @@ type ipArrayVariable struct {
 	lru *ttlcache.Cache[string, bool]
 }
 
-func newIpArrayVariable(defaultValue []net.IPNet, ttl time.Duration, size int, freeCb func()) *ipArrayVariable {
+func newIPArrayVariable(ttl time.Duration, size int, freeCb func()) *ipArrayVariable {
 	if size <= 0 {
 		size = defaultMaxVariables
 	}
@@ -330,10 +348,12 @@ func newIpArrayVariable(defaultValue []net.IPNet, ttl time.Duration, size int, f
 	return newInstance
 }
 
+// Set sets the value of the variable instance
 func (iav *ipArrayVariable) Set(value any) error {
 	return iav.Append(value)
 }
 
+// Append appends the given value to the variable instance
 func (iav *ipArrayVariable) Append(value any) error {
 	switch value := value.(type) {
 	case net.IPNet:
@@ -349,6 +369,7 @@ func (iav *ipArrayVariable) Append(value any) error {
 	return nil
 }
 
+// GetValue returns the value of the variable instance
 func (iav *ipArrayVariable) GetValue() any {
 	keys := iav.lru.Keys()
 	ips := make([]net.IPNet, 0, len(keys))
@@ -361,6 +382,7 @@ func (iav *ipArrayVariable) GetValue() any {
 	return ips
 }
 
+// IsExpired returns whether the variable instance is expired
 func (iav *ipArrayVariable) IsExpired() bool {
 	iav.lru.DeleteExpired()
 	return iav.lru.Len() == 0
@@ -376,7 +398,7 @@ type arrayValueVariable[T arrayValueVariableType] struct {
 	lru *ttlcache.Cache[T, bool]
 }
 
-func newArrayValueVariable[T arrayValueVariableType](defaultValue []T, ttl time.Duration, size int, freeCb func()) *arrayValueVariable[T] {
+func newArrayValueVariable[T arrayValueVariableType](ttl time.Duration, size int, freeCb func()) *arrayValueVariable[T] {
 	if size <= 0 {
 		size = defaultMaxVariables
 	}
@@ -390,10 +412,12 @@ func newArrayValueVariable[T arrayValueVariableType](defaultValue []T, ttl time.
 	return newInstance
 }
 
+// Set sets the value of the variable instance
 func (avv *arrayValueVariable[T]) Set(value any) error {
 	return avv.Append(value)
 }
 
+// Append appends the given value to the variable instance
 func (avv *arrayValueVariable[T]) Append(value any) error {
 	switch value := value.(type) {
 	case T:
@@ -409,20 +433,24 @@ func (avv *arrayValueVariable[T]) Append(value any) error {
 	return nil
 }
 
+// GetValue returns the value of the variable instance
 func (avv *arrayValueVariable[T]) GetValue() any {
 	return avv.lru.Keys()
 }
 
+// IsExpired returns whether the variable instance is expired
 func (avv *arrayValueVariable[T]) IsExpired() bool {
 	avv.lru.DeleteExpired()
 	return avv.lru.Len() == 0
 }
 
+// Store represents a collection of variables
 type Store struct {
 	staticVars  map[VariableName]StaticVariable
 	definitions map[VariableName]Definition
 }
 
+// NewStore returns a new Store
 func NewStore() *Store {
 	return &Store{
 		staticVars:  make(map[VariableName]StaticVariable),
@@ -430,19 +458,23 @@ func NewStore() *Store {
 	}
 }
 
+// AddStaticVariable adds a static variable to the store
 func (s *Store) AddStaticVariable(varName VariableName, variable StaticVariable) {
 	s.staticVars[varName] = variable
 }
 
+// GetDefinition returns the definition of a variable based on the given name
 func (s *Store) GetDefinition(varName VariableName) (Definition, bool) {
 	def, exists := s.definitions[varName]
 	return def, exists
 }
 
+// AddDefinition adds a variable definition to the store
 func (s *Store) AddDefinition(varName VariableName, definition Definition) {
 	s.definitions[varName] = definition
 }
 
+// GetEvaluator returns an evaluator based on the given variable name
 func (s *Store) GetEvaluator(varName VariableName) (any, error) {
 	static, ok := s.staticVars[varName]
 	if ok {
@@ -551,20 +583,23 @@ func (s *Store) GetEvaluator(varName VariableName) (any, error) {
 	return nil, fmt.Errorf("variable `%s` has unexpected type definition: %T", varName, def.GetDefaultValue())
 }
 
+// CleanupExpiredVariables deletes expired variable instances from the store
 func (s *Store) CleanupExpiredVariables() {
 	for _, definition := range s.definitions {
 		definition.CleanupExpiredVariables()
 	}
 }
 
+// GetOpts are the options to retrieve variable definitions
 type GetOpts struct {
 	ScoperType InternalScoperType
 }
 
+// GetDefinitions returns an iterator over variable definitions that match the given options
 func (s *Store) GetDefinitions(opts *GetOpts) iter.Seq[Definition] {
 	return func(yield func(Definition) bool) {
 		for _, definition := range s.definitions {
-			if opts.ScoperType != UndefinedScoperType && definition.getScoper().Type() != opts.ScoperType {
+			if opts.ScoperType != UndefinedScoperType && definition.GetScoper().Type() != opts.ScoperType {
 				continue
 			}
 			if !yield(definition) {
@@ -574,42 +609,11 @@ func (s *Store) GetDefinitions(opts *GetOpts) iter.Seq[Definition] {
 	}
 }
 
+// IterateVariables calls the given callback function on all variables
 func (s *Store) IterateVariables(cb func(definition Definition, instances map[string]Instance)) {
 	for _, definition := range s.definitions {
-		cb(definition, definition.GetInstances())
+		cb(definition, definition.getInstances())
 	}
-}
-
-func (s *Store) GetSECLVariables(globalScopeKey string) map[string]*api.SECLVariableState {
-	seclVariableStates := make(map[string]*api.SECLVariableState)
-
-	for _, definition := range s.definitions {
-		name := definition.GetName(true)
-		switch definition.getScoper().Type() {
-		case GlobalScoperType:
-			instances := definition.getInstances()
-			globalInstance, ok := instances[globalScopeKey]
-			if ok && !globalInstance.IsExpired() { // skip variables that expired but are yet to be cleaned up
-				seclVariableStates[name] = &api.SECLVariableState{
-					Name:  name,
-					Value: fmt.Sprintf("%+v", globalInstance.GetValue()),
-				}
-			}
-		case ProcessScoperType, CGroupScoperType, ContainerScoperType:
-			for scopeKey, instance := range definition.getInstances() {
-				if instance.IsExpired() { // skip variables that expired but are yet to be cleaned up
-					continue
-				}
-				scopedName := fmt.Sprintf("%s.%s", name, scopeKey)
-				seclVariableStates[scopedName] = &api.SECLVariableState{
-					Name:  scopedName,
-					Value: fmt.Sprintf("%+v", instance.GetValue()),
-				}
-			}
-		}
-	}
-
-	return seclVariableStates
 }
 
 // Gauge tracks the amount of a metric
@@ -646,8 +650,10 @@ func getValueType[T VariableType](value T) string {
 	}
 }
 
+// VariableName represents the name of a variable with its scope prefix included
 type VariableName string
 
+// GetVariableName returns a VariableName based on the given scope and variable names
 func GetVariableName(scope, name string) VariableName {
 	if scope == "" {
 		return VariableName(name)

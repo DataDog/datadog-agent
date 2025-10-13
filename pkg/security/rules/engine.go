@@ -398,30 +398,7 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-type seclVariableEventPreparator struct {
-	ctxPool *eval.ContextPool
-	event   *model.Event
-}
-
-func (e *RuleEngine) newSECLVariableEventPreparator() *seclVariableEventPreparator {
-	return &seclVariableEventPreparator{
-		ctxPool: eval.NewContextPool(),
-		event:   e.probe.PlatformProbe.NewEvent(),
-	}
-}
-
-var eventZeroer = model.NewEventZeroer()
-
-func (p *seclVariableEventPreparator) get(f func(event *model.Event)) *eval.Context {
-	eventZeroer(p.event)
-	f(p.event)
-	return p.ctxPool.Get(p.event)
-}
-
-func (p *seclVariableEventPreparator) put(ctx *eval.Context) {
-	p.ctxPool.Put(ctx)
-}
-
+// GetSECLVariables returns the state of all current variable instances
 func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 	rs := e.GetRuleSet()
 	if rs == nil {
