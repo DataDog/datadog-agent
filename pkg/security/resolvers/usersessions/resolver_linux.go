@@ -57,8 +57,8 @@ func (e *UserSessionData) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// IncrementalFileReader is used to read a file incrementally
-type IncrementalFileReader struct {
+// incrementalFileReader is used to read a file incrementally
+type incrementalFileReader struct {
 	path   string
 	f      *os.File
 	offset int64
@@ -73,7 +73,7 @@ type Resolver struct {
 
 	userSessionsMap *ebpf.Map
 
-	sshLogReader *IncrementalFileReader
+	sshLogReader *incrementalFileReader
 }
 
 // NewResolver returns a new instance of Resolver
@@ -154,14 +154,14 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 }
 
 // NewIncrementalFileReader creates a new IncrementalFileReader
-func NewIncrementalFileReader(path string) *IncrementalFileReader {
-	return &IncrementalFileReader{
+func NewIncrementalFileReader(path string) *incrementalFileReader {
+	return &incrementalFileReader{
 		path: path,
 	}
 }
 
 // Init opens the file and sets the initial offset
-func (r *IncrementalFileReader) Init(f *os.File) error {
+func (r *incrementalFileReader) Init(f *os.File) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -190,7 +190,7 @@ func (r *IncrementalFileReader) Init(f *os.File) error {
 
 // close closes the file.
 // The lock of IncrementalFileReader must be held
-func (r *IncrementalFileReader) close() error {
+func (r *incrementalFileReader) close() error {
 	if r.f != nil {
 		err := r.f.Close()
 		r.f = nil
@@ -208,7 +208,7 @@ func inodeOf(fi os.FileInfo) uint64 {
 }
 
 // reloadIfRotated reopens the file if the inode has changed.
-func (r *IncrementalFileReader) reloadIfRotated() error {
+func (r *incrementalFileReader) reloadIfRotated() error {
 	curSt, err := os.Stat(r.path)
 	if err != nil {
 		return err
@@ -242,7 +242,7 @@ func (r *IncrementalFileReader) reloadIfRotated() error {
 
 // ReadNewLines read all the lines that have been added since the last call without reopening the file.
 // Return new lines and update the offset.
-func (r *IncrementalFileReader) ReadNewLines() ([]string, error) {
+func (r *incrementalFileReader) ReadNewLines() ([]string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
