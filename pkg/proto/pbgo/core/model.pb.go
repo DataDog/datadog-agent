@@ -1060,6 +1060,7 @@ type TaggerState struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	State         map[string]*Entity     `protobuf:"bytes,1,rep,name=state,proto3" json:"state,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	PidMap        map[int32]string       `protobuf:"bytes,2,rep,name=pidMap,proto3" json:"pidMap,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Duration      int64                  `protobuf:"varint,3,opt,name=duration,proto3" json:"duration,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1106,6 +1107,13 @@ func (x *TaggerState) GetPidMap() map[int32]string {
 		return x.PidMap
 	}
 	return nil
+}
+
+func (x *TaggerState) GetDuration() int64 {
+	if x != nil {
+		return x.Duration
+	}
+	return 0
 }
 
 type TaggerStateResponse struct {
@@ -1672,10 +1680,11 @@ const file_datadog_model_v1_model_proto_rawDesc = "" +
 	"\apayload\x18\x03 \x01(\fR\apayload\x12\x10\n" +
 	"\x03pid\x18\x04 \x01(\x05R\x03pid\x12$\n" +
 	"\rancillarySize\x18\x05 \x01(\x05R\rancillarySize\x12\x1c\n" +
-	"\tancillary\x18\x06 \x01(\fR\tancillary\"\x9f\x02\n" +
+	"\tancillary\x18\x06 \x01(\fR\tancillary\"\xbb\x02\n" +
 	"\vTaggerState\x12>\n" +
 	"\x05state\x18\x01 \x03(\v2(.datadog.model.v1.TaggerState.StateEntryR\x05state\x12A\n" +
-	"\x06pidMap\x18\x02 \x03(\v2).datadog.model.v1.TaggerState.PidMapEntryR\x06pidMap\x1aR\n" +
+	"\x06pidMap\x18\x02 \x03(\v2).datadog.model.v1.TaggerState.PidMapEntryR\x06pidMap\x12\x1a\n" +
+	"\bduration\x18\x03 \x01(\x03R\bduration\x1aR\n" +
 	"\n" +
 	"StateEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12.\n" +

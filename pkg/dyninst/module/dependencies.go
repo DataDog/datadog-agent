@@ -13,15 +13,35 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
+
+// Dependencies is a collection of dependencies for the module.
+// It is exported for testing purposes. Tests can interact with the
+// through the WithDependencies option.
+type dependencies struct {
+	Actuator            Actuator[ActuatorTenant]
+	Scraper             Scraper
+	Dispatcher          Dispatcher
+	DecoderFactory      DecoderFactory
+	IRGenerator         IRGenerator
+	ProgramCompiler     ProgramCompiler
+	KernelLoader        KernelLoader
+	Attacher            Attacher
+	LogsFactory         LogsUploaderFactory[LogsUploader]
+	DiagnosticsUploader DiagnosticsUploader
+	symdbManager        *symdbManager
+}
 
 // ProcessSubscriber is an interface that can be used to subscribe to process
 // events.
@@ -35,6 +55,32 @@ type ProcessSubscriber interface {
 type Scraper interface {
 	// GetUpdates returns the current set of updates.
 	GetUpdates() []rcscrape.ProcessUpdate
+	// AsProcMonHandler returns a procmon.Handler attached to the Scraper.
+	AsProcMonHandler() procmon.Handler
+}
+
+// IRGenerator is used to generate IR from binary updates.
+type IRGenerator interface {
+	GenerateIR(
+		_ ir.ProgramID, binaryPath string, _ []ir.ProbeDefinition,
+	) (*ir.Program, error)
+}
+
+// ProgramCompiler turns IR into stack machine programs ready to be loaded.
+type ProgramCompiler interface {
+	GenerateProgram(*ir.Program) (compiler.Program, error)
+}
+
+// KernelLoader loads compiled programs into the kernel.
+type KernelLoader interface {
+	Load(compiler.Program) (*loader.Program, error)
+}
+
+// Attacher connects a loaded program to a target process.
+type Attacher interface {
+	Attach(
+		*loader.Program, actuator.Executable, actuator.ProcessID,
+	) (actuator.AttachedProgram, error)
 }
 
 // DecoderFactory is a factory for creating decoders.
@@ -53,13 +99,13 @@ type Decoder interface {
 	) ([]byte, ir.ProbeDefinition, error)
 }
 
-// DefaultDecoderFactory is the default decoder factory.
-type DefaultDecoderFactory struct {
+// decoderFactory is the default decoder factory.
+type decoderFactory struct {
 	approximateBootTime time.Time
 }
 
 // NewDecoder creates a new decoder using decode.NewDecoder.
-func (f DefaultDecoderFactory) NewDecoder(
+func (f decoderFactory) NewDecoder(
 	program *ir.Program,
 	executable procmon.Executable,
 ) (_ Decoder, retErr error) {
@@ -98,11 +144,7 @@ func (f DefaultDecoderFactory) NewDecoder(
 // Actuator is an interface that enables the Controller to create a new tenant.
 type Actuator[T ActuatorTenant] interface {
 	// NewTenant creates a new tenant.
-	NewTenant(
-		name string,
-		reporter actuator.Reporter,
-		irGenerator actuator.IRGenerator,
-	) T
+	NewTenant(name string, rt actuator.Runtime) T
 
 	Shutdown() error
 }
@@ -112,6 +154,13 @@ type Actuator[T ActuatorTenant] interface {
 type ActuatorTenant interface {
 	// HandleUpdate handles an update from the actuator.
 	HandleUpdate(actuator.ProcessesUpdate)
+}
+
+// Dispatcher coordinates with the output dispatcher runtime.
+type Dispatcher interface {
+	RegisterSink(progID ir.ProgramID, sink dispatcher.Sink)
+	UnregisterSink(progID ir.ProgramID)
+	Shutdown() error
 }
 
 // DiagnosticsUploader is an interface that enables the Controller to send

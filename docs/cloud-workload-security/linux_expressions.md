@@ -290,9 +290,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`process.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`process.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`process.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`process.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`process.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`process.ancestors.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 | [`process.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`process.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -475,18 +477,22 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.parent.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`process.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`process.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`process.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`process.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`process.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`process.parent.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 | [`process.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`process.user`](#common-credentials-user-doc) | User of the process |
+| [`process.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`process.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`process.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`process.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`process.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 
 ### Event `accept`
 
@@ -854,9 +860,11 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exec.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`exec.user`](#common-credentials-user-doc) | User of the process |
+| [`exec.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`exec.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`exec.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`exec.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`exec.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 
 ### Event `exit`
 
@@ -960,9 +968,11 @@ A process was terminated
 | [`exit.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exit.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`exit.user`](#common-credentials-user-doc) | User of the process |
+| [`exit.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`exit.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`exit.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`exit.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`exit.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 
 ### Event `imds`
 
@@ -1408,9 +1418,11 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`ptrace.tracee.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`ptrace.tracee.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`ptrace.tracee.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`ptrace.tracee.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`ptrace.tracee.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 | [`ptrace.tracee.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`ptrace.tracee.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`ptrace.tracee.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -1593,18 +1605,22 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.parent.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`ptrace.tracee.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`ptrace.tracee.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`ptrace.tracee.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`ptrace.tracee.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`ptrace.tracee.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 | [`ptrace.tracee.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`ptrace.tracee.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`ptrace.tracee.user`](#common-credentials-user-doc) | User of the process |
+| [`ptrace.tracee.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`ptrace.tracee.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`ptrace.tracee.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`ptrace.tracee.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`ptrace.tracee.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 
 ### Event `removexattr`
 
@@ -1872,9 +1888,11 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`setrlimit.target.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`setrlimit.target.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`setrlimit.target.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`setrlimit.target.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`setrlimit.target.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`setrlimit.target.ancestors.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 | [`setrlimit.target.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`setrlimit.target.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`setrlimit.target.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -2057,18 +2075,22 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`setrlimit.target.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`setrlimit.target.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`setrlimit.target.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`setrlimit.target.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`setrlimit.target.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`setrlimit.target.parent.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 | [`setrlimit.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`setrlimit.target.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`setrlimit.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`setrlimit.target.user`](#common-credentials-user-doc) | User of the process |
+| [`setrlimit.target.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`setrlimit.target.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`setrlimit.target.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`setrlimit.target.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`setrlimit.target.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 
 ### Event `setsockopt`
 
@@ -2241,9 +2263,11 @@ A signal was sent
 | [`signal.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`signal.target.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.target.ancestors.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`signal.target.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`signal.target.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`signal.target.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.target.ancestors.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 | [`signal.target.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`signal.target.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`signal.target.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -2426,18 +2450,22 @@ A signal was sent
 | [`signal.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`signal.target.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.target.parent.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`signal.target.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`signal.target.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`signal.target.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.target.parent.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 | [`signal.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`signal.target.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`signal.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`signal.target.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.target.user_session.id`](#common-usersessioncontext-id-doc) | Unique identifier of the user session on the host |
 | [`signal.target.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`signal.target.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`signal.target.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.target.user_session.session_type`](#common-usersessioncontext-session_type-doc) | Type of the user session |
 | [`signal.type`](#signal-type-doc) | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
 
 ### Event `splice`
@@ -2969,6 +2997,15 @@ Definition: ID of the cgroup
 `cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
 
 
+### `*.id` {#common-usersessioncontext-id-doc}
+Type: int
+
+Definition: Unique identifier of the user session on the host
+
+`*.id` has 14 possible prefixes:
+`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
 ### `*.ifname` {#common-networkdevicecontext-ifname-doc}
 Type: string
 
@@ -3326,6 +3363,15 @@ Definition: Rights of the file
 
 Constants: [File mode constants](#file-mode-constants)
 
+
+
+### `*.session_type` {#common-usersessioncontext-session_type-doc}
+Type: int
+
+Definition: Type of the user session
+
+`*.session_type` has 14 possible prefixes:
+`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `setrlimit.target.ancestors.user_session` `setrlimit.target.parent.user_session` `setrlimit.target.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
 
 ### `*.size` {#common-networkcontext-size-doc}

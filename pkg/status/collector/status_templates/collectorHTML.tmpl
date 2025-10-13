@@ -88,6 +88,30 @@
     <span/>
 </div>
 
+{{- with .workerStats }}
+<div class="stat">
+  <span class="stat_title">Check Worker Utilization</span>
+  <span class="stat_data">
+    {{- if .Count }}
+      <span class="stat_subtitle">Total Workers: {{.Count}}</span>
+      {{- if .AverageUtilization }}
+      <span class="stat_subdata">Average Utilization: {{percent .AverageUtilization}}%</span>
+      {{- end }}
+      {{- if .TopWorkers }}
+      <span class="stat_subtitle">Top Workers (by utilization):</span>
+      <span class="stat_subdata">
+        {{- range .TopWorkers }}
+        {{.Name}}: {{percent .Utilization}}%<br>
+        {{- end }}
+      </span>
+      {{- end }}
+    {{- else }}
+      <span class="stat_subdata">No worker utilization data available</span>
+    {{- end }}
+  </span>
+</div>
+{{- end }}
+
 {{- with .pyLoaderStats }}
   {{- if .Py3Warnings }}
   <div class="stat">

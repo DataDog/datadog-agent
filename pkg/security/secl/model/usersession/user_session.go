@@ -11,6 +11,7 @@ var (
 	UserSessionTypes = map[string]Type{
 		"unknown": 0,
 		"k8s":     1,
+		"ssh":     2,
 	}
 
 	// UserSessionTypeStrings is used to
