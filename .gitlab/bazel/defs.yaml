@@ -25,7 +25,7 @@
 
 .bazel:ext:windows:
   extends: .windows_docker_default
-  timeout: 30m # pulling images alone takes between 10m and 20m
+  timeout: 60m # pulling images alone can take more than 30m
   allow_failure: true
   retry: 0
   variables:
