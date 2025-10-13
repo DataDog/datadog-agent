@@ -744,6 +744,12 @@ def build_libpcap(ctx):
                 "--disable-bluetooth",
                 "--disable-dbus",
                 "--disable-rdma",
+                "--without-dag",
+                "--without-dpdk",
+                "--without-libnl",
+                "--without-septel",
+                "--without-snf",
+                "--without-turbocap",
             ]
             ctx.run(f"./configure {' '.join(config_opts)}")
             ctx.run("make install")
