@@ -258,7 +258,6 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
 		func(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ healthprobe.Component, settings settings.Component, deps module.FactoryDependencies) error {
 			defer StopSystemProbeWithDefaults()
-
 			err := startSystemProbe(log, telemetry, sysprobeconfig, rcclient, settings, deps)
 			if err != nil {
 				return err
