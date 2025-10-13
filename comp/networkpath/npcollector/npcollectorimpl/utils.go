@@ -19,7 +19,7 @@ func convertProtocol(connType model.ConnectionType) payload.Protocol {
 	return ""
 }
 
-func getDomain(conns *model.Connections, ip string) string {
+func getDNSNameForIP(conns *model.Connections, ip string) string {
 	var domain string
 	if dnsEntry := conns.Dns[ip]; dnsEntry != nil && len(dnsEntry.Names) > 0 {
 		// We are only using the first entry for now, but in the future, if we find a good solution,

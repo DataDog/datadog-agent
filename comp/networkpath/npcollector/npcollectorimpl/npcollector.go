@@ -283,7 +283,7 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns.Conns)), []string{}, 1)
 	for _, conn := range conns.Conns {
 		// Get domain from conns.Dns
-		domain := getDomain(conns, conn.Raddr.GetIp())
+		domain := getDNSNameForIP(conns, conn.Raddr.GetIp())
 
 		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets, domain) {
 			protocol := convertProtocol(conn.GetType())
