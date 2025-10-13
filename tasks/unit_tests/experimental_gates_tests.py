@@ -748,10 +748,9 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
 
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_on_disk_size')
-    def test_measure_image_success(self, mock_measure_disk, mock_get_wire_size, mock_ensure_available):
+    def test_measure_image_success(self, mock_measure_disk, mock_get_wire_size):
         """Test successful Docker image measurement."""
         # Setup mocks
-        mock_ensure_available.return_value = None
         mock_get_wire_size.return_value = 104857600  # 100 MiB
 
         # Mock file inventory
@@ -807,7 +806,6 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         self.assertEqual(report.docker_info.image_ref, "sha256:test123456789")
 
         # Verify mocks were called
-        mock_ensure_available.assert_called_once()
         mock_get_wire_size.assert_called_once()
         mock_measure_disk.assert_called_once()
 
@@ -838,13 +836,11 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
 
         self.assertIn("Gate configuration not found: nonexistent_gate", str(cm.exception))
 
-    @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._ensure_image_available')
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._get_wire_size')
     @patch('tasks.static_quality_gates.experimental_gates.DockerProcessor._measure_on_disk_size')
-    def test_measure_image_no_layer_analysis(self, mock_measure_disk, mock_get_wire_size, mock_ensure_available):
+    def test_measure_image_no_layer_analysis(self, mock_measure_disk, mock_get_wire_size):
         """Test Docker image measurement without layer analysis."""
         # Setup mocks
-        mock_ensure_available.return_value = None
         mock_get_wire_size.return_value = 52428800  # 50 MiB
 
         mock_file_inventory = [FileInfo("app/main", 1048576, "sha256:test123")]

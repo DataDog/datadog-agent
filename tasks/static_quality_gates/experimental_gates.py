@@ -641,42 +641,30 @@ class DockerProcessor:
         image_ref: str,
         debug: bool = False,
     ) -> tuple[int, list[FileInfo], DockerImageInfo | None]:
-        """Measure disk size and generate file inventory using crane pull extraction."""
+        """Measure disk size and generate file inventory using crane pull with OCI format."""
         try:
             if debug:
                 print(f"🔍 Measuring on disk size of image {image_ref}...")
 
-            with tempfile.NamedTemporaryFile(suffix='.tar', delete=False) as temp_tarball:
-                save_result = ctx.run(f"crane pull --format=oci {image_ref} {temp_tarball.name}", warn=True)
+            # Use OCI format which outputs directly to a directory
+            with tempfile.TemporaryDirectory() as oci_dir:
+                save_result = ctx.run(f"crane pull --format=oci {image_ref} {oci_dir}", warn=True)
                 if save_result.exited != 0:
                     raise RuntimeError(f"crane pull failed for {image_ref}")
 
-                try:
-                    # Extract tarball and analyze layers
-                    with tempfile.TemporaryDirectory() as extract_dir:
-                        extract_result = ctx.run(f"tar -xf {temp_tarball.name} -C {extract_dir}", warn=True)
-                        if extract_result.exited != 0:
-                            raise RuntimeError("Failed to extract image tarball")
+                if debug:
+                    print(f"📁 Pulled OCI image to: {oci_dir}")
 
-                        if debug:
-                            print(f"📁 Extracted tarball to: {extract_dir}")
+                disk_size, file_inventory = self._analyze_extracted_docker_layers(oci_dir, debug)
 
-                        disk_size, file_inventory = self._analyze_extracted_docker_layers(extract_dir, debug)
+                docker_info = self._extract_docker_metadata(oci_dir, image_ref, debug)
 
-                        docker_info = self._extract_docker_metadata(extract_dir, image_ref, debug)
+                if debug:
+                    print("✅ Disk analysis completed:")
+                    print(f"   • Disk size: {disk_size:,} bytes ({disk_size / 1024 / 1024:.2f} MB)")
+                    print(f"   • Files inventoried: {len(file_inventory):,}")
 
-                        if debug:
-                            print("✅ Disk analysis completed:")
-                            print(f"   • Disk size: {disk_size:,} bytes ({disk_size / 1024 / 1024:.2f} MB)")
-                            print(f"   • Files inventoried: {len(file_inventory):,}")
-
-                        return disk_size, file_inventory, docker_info
-
-                finally:
-                    try:
-                        os.unlink(temp_tarball.name)
-                    except Exception:
-                        pass  # Best effort cleanup
+                return disk_size, file_inventory, docker_info
 
         except Exception as e:
             raise RuntimeError(f"Failed to analyze image {image_ref}: {e}") from e
