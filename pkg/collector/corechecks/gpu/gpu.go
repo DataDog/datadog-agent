@@ -60,7 +60,7 @@ type checkTelemetry struct {
 	missingContainerGpuMapping   telemetry.Counter
 	multipleContainersGpuMapping telemetry.Counter
 	collectorTime                telemetry.Gauge
-	deviceCount                  telemetry.Gauge  // emitted as a telemetry metric too in order to send it through COAT
+	deviceCount                  telemetry.Gauge // emitted as a telemetry metric too in order to send it through COAT
 }
 
 // Factory creates a new check factory
