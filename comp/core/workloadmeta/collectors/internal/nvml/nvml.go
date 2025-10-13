@@ -32,9 +32,10 @@ const (
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 type collector struct {
-	id      string
-	catalog workloadmeta.AgentType
-	store   workloadmeta.Component
+	id        string
+	catalog   workloadmeta.AgentType
+	store     workloadmeta.Component
+	seenUUIDs map[string]struct{}
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -112,6 +113,15 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	} else {
 		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
 	}
+
+	virtMode, err := device.GetVirtualizationMode()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
+		}
+	} else {
+		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
+	}
 }
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
@@ -132,8 +142,9 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent,
+			id:        collectorID,
+			catalog:   workloadmeta.NodeAgent,
+			seenUUIDs: map[string]struct{}{},
 		},
 	}, nil
 }
@@ -160,24 +171,34 @@ func (c *collector) Pull(_ context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get NVML library : %w", err)
 	}
-	deviceCache, err := ddnvml.NewDeviceCacheWithOptions(lib)
-	if err != nil {
-		return fmt.Errorf("failed to get GPU devices: %w", err)
+
+	deviceCache := ddnvml.NewDeviceCacheWithOptions(lib)
+	if err := deviceCache.Refresh(); err != nil {
+		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
 	// driver version is equal to all devices of the same vendor
 	// currently we handle only nvidia.
 	// in the future this function should be refactored to support more vendors
 	driverVersion, err := lib.SystemGetDriverVersion()
-	//we try to get the driver version as best effort, just log warning if it fails
+	// we try to get the driver version as best effort, just log warning if it fails
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("%v", err)
 		}
 	}
 
+	// note: the device list can change over time so we need to set/unset for reconciliation
+	allDevices, err := deviceCache.All()
+	if err != nil {
+		// Should not happen as we check the last init error for the library
+		return fmt.Errorf("failed to get all devices: %w", err)
+	}
+
+	// add/update current devices
+	currentUUIDs := map[string]struct{}{}
 	var events []workloadmeta.CollectorEvent
-	for _, dev := range deviceCache.All() {
+	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
 		gpu.DriverVersion = driverVersion
 		if err != nil {
@@ -190,7 +211,28 @@ func (c *collector) Pull(_ context.Context) error {
 			Entity: gpu,
 		}
 		events = append(events, event)
+		currentUUIDs[dev.GetDeviceInfo().UUID] = struct{}{}
 	}
+
+	// remove previous devices that are no more available
+	for uuid := range c.seenUUIDs {
+		if _, ok := currentUUIDs[uuid]; ok {
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceRuntime,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					ID:   uuid,
+					Kind: workloadmeta.KindGPU,
+				},
+			},
+		})
+	}
+
+	c.seenUUIDs = currentUUIDs
 
 	c.store.Notify(events)
 
@@ -229,5 +271,21 @@ func gpuArchToString(nvmlArch nvml.DeviceArchitecture) string {
 		// to add a new case for a new architecture.
 		return "invalid"
 	}
+}
 
+func gpuVirtModeToString(nvmlVirtMode nvml.GpuVirtualizationMode) string {
+	switch nvmlVirtMode {
+	case nvml.GPU_VIRTUALIZATION_MODE_NONE:
+		return "none"
+	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU:
+		return "host_vgpu"
+	case nvml.GPU_VIRTUALIZATION_MODE_PASSTHROUGH:
+		return "passthrough"
+	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VSGA:
+		return "host_vsga"
+	case nvml.GPU_VIRTUALIZATION_MODE_VGPU:
+		return "vgpu"
+	default:
+		return "unknown"
+	}
 }

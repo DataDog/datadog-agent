@@ -336,7 +336,11 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 		},
 	}
 
-	devCount := p.sysCtx.deviceCache.Count()
+	// todo(jasondellaluce): device count can change over time, we may resize this in the future
+	devCount, err := p.sysCtx.deviceCache.Count()
+	if err != nil {
+		log.Warnf("failed to get device count to scale ring buffer size: %v. Will use 1 device for the ring buffer size calculation", err)
+	}
 	if devCount == 0 {
 		devCount = 1 // Don't let the buffer size be 0
 	}
@@ -465,7 +469,15 @@ func toPowerOf2(x int) int {
 func (p *Probe) GetDebugStats() map[string]interface{} {
 	var activeGpus []map[string]interface{}
 
-	for _, gpu := range p.sysCtx.deviceCache.All() {
+	allDevices, err := p.sysCtx.deviceCache.All()
+	if err != nil {
+		log.Warnf("failed to get all devices: %v", err)
+		return map[string]interface{}{
+			"active_gpus": activeGpus,
+		}
+	}
+
+	for _, gpu := range allDevices {
 		info := gpu.GetDeviceInfo()
 		wmetaGpu, err := p.sysCtx.workloadmeta.GetGPU(info.UUID)
 		_, isMIG := gpu.(*safenvml.MIGDevice)

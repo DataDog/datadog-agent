@@ -88,11 +88,11 @@ import (
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	return runcmd.Commands(globalParams, run, getExtraFxOptions())
+	return runcmd.Commands(globalParams, run, GetExtraFxOptions())
 }
 
 // GetExtraFxOptions returns the extra fx options for the agent
-func getExtraFxOptions() fx.Option {
+func GetExtraFxOptions() fx.Option {
 	return fx.Options(
 		fx.Provide(func() flaretypes.Provider {
 			return flaretypes.NewProvider(hostSbom.FlareProvider)

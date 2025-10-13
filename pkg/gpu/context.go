@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -60,6 +61,12 @@ type systemContext struct {
 
 	// cudaKernelCache caches kernel data and handles background loading
 	cudaKernelCache *cuda.KernelCache
+
+	// lastDeviceCacheRefreshTime is the last time in which the device cache was refreshed
+	lastDeviceCacheRefreshTime time.Time
+
+	// deviceCacheRefreshInterval is the minimum time passing between device cache refreshes
+	deviceCacheRefreshInterval time.Duration
 }
 
 type systemContextOptions struct {
@@ -122,21 +129,19 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 		visibleDevicesCache:          make(map[int][]ddnvml.Device),
 		cudaVisibleDevicesPerProcess: make(map[int]string),
 		workloadmeta:                 opts.wmeta,
+		deviceCache:                  ddnvml.NewDeviceCache(),
+		deviceCacheRefreshInterval:   opts.config.DeviceCacheRefreshInterval,
+		lastDeviceCacheRefreshTime:   time.Now(),
 	}
 
 	var err error
-	ctx.deviceCache, err = ddnvml.NewDeviceCache()
-	if err != nil {
-		return nil, fmt.Errorf("error creating device cache: %w", err)
-	}
-
 	ctx.timeResolver, err = ktime.NewResolver()
 	if err != nil {
 		return nil, fmt.Errorf("error creating time resolver: %w", err)
 	}
 
 	if opts.fatbinParsingEnabled {
-		ctx.cudaKernelCache, err = cuda.NewKernelCache(opts.procRoot, ctx.deviceCache.SMVersionSet(), opts.tm, opts.config.KernelCacheQueueSize)
+		ctx.cudaKernelCache, err = cuda.NewKernelCache(opts.procRoot, ctx.deviceCache.SMVersionSet, opts.tm, opts.config.KernelCacheQueueSize)
 		if err != nil {
 			return nil, fmt.Errorf("error creating kernel cache: %w", err)
 		}
@@ -234,14 +239,22 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (ddnvml.Device, error) {
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {
-		containerID := containerIDFunc()
+		err := ctx.periodicDeviceCacheRefresh()
+		if err != nil {
+			return nil, fmt.Errorf("error refreshing device cache: %w", err)
+		}
 
 		// Order is important! We need to filter the devices for the container
 		// first. In a container setting, the environment variable acts as a
 		// filter on the devices that are available to the process, not on the
 		// devices available on the host system.
-		var err error // avoid shadowing visibleDevices, declare error before so we can use = instead of :=
-		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.AllPhysicalDevices(), containerID)
+		allPhysicalDevices, err := ctx.deviceCache.AllPhysicalDevices()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get all physical devices: %w", err)
+		}
+
+		containerID := containerIDFunc()
+		visibleDevices, err = ctx.filterDevicesForContainer(allPhysicalDevices, containerID)
 		if err != nil {
 			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
 		}
@@ -299,4 +312,13 @@ func (ctx *systemContext) setUpdatedVisibleDevicesEnvVar(pid int, envVar string)
 
 	// Invalidate the visible devices cache to force a re-scan of the devices
 	delete(ctx.visibleDevicesCache, pid)
+}
+
+func (ctx *systemContext) periodicDeviceCacheRefresh() error {
+	now := time.Now()
+	if now.Sub(ctx.lastDeviceCacheRefreshTime) < ctx.deviceCacheRefreshInterval {
+		return nil
+	}
+	ctx.lastDeviceCacheRefreshTime = now
+	return ctx.deviceCache.Refresh()
 }

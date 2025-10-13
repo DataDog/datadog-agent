@@ -21,6 +21,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	compStatus "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/process"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -85,6 +86,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					},
 				),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				process.Bundle(),
 				logscompressionfx.Module(),
 				ipcfx.ModuleReadOnly(),

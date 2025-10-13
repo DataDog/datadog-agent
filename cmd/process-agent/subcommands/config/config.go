@@ -18,6 +18,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/process"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
@@ -54,6 +55,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(showRuntimeConfiguration,
 				fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				process.Bundle(),
 				logscompressionfx.Module(),
 				fx.Supply(params),
@@ -72,6 +74,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(listRuntimeConfigurableValue,
 					fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -88,6 +91,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(setConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -103,6 +107,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(getConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)

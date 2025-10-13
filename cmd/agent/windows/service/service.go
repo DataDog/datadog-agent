@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	runcmd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
+	runagentcmd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
@@ -37,7 +38,7 @@ func (s *service) Init() error {
 
 	s.ctxChan = make(chan context.Context)
 
-	errChan, err := runcmd.StartAgentWithDefaults(s.ctxChan)
+	errChan, err := runcmd.StartAgentWithDefaults(s.ctxChan, runagentcmd.GetExtraFxOptions())
 	if err != nil {
 		return err
 	}

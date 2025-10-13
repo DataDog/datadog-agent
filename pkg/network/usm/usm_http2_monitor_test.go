@@ -1798,11 +1798,16 @@ func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map
 			if statusCode == 0 {
 				statusCode = 200
 			}
-			hasTag := stat.Data[statusCode].StaticTags == ebpftls.ConnTagGo
+			statusCodeStats, ok := stat.Data[statusCode]
+			if !ok {
+				t.Logf("Bug was found; Path: %q; Status Code: %d; data: %#v", key.Path.Content.Get(), statusCode, stat.Data)
+				return false
+			}
+			hasTag := statusCodeStats.StaticTags == ebpftls.ConnTagGo
 			if hasTag != isTLS {
 				continue
 			}
-			count := stat.Data[statusCode].Count
+			count := statusCodeStats.Count
 			newKey := usmhttp.Key{
 				Path:   usmhttp.Path{Content: key.Path.Content},
 				Method: key.Method,

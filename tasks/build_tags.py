@@ -66,6 +66,7 @@ ALL_TAGS = {
     "zk",
     "zlib",
     "zstd",
+    "cel",
 }
 
 ### Tag inclusion lists
@@ -103,6 +104,7 @@ AGENT_TAGS = {
     "zk",
     "zlib",
     "zstd",
+    "cel",
 }
 
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
@@ -124,6 +126,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "podman",
         "systemd",
         "trivy",
+        "cel",
     }
 )
 
@@ -139,10 +142,11 @@ CLUSTER_AGENT_TAGS = {
     "zlib",
     "zstd",
     "ec2",
+    "cel",
 }
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
-CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "grpcnotrace"}
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "grpcnotrace", "cel"}
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
 DOGSTATSD_TAGS = {"containerd", "grpcnotrace", "no_dynamic_plugins", "docker", "kubelet", "podman", "zlib", "zstd"}
@@ -216,8 +220,6 @@ SYSTEM_PROBE_TAGS = {
     "npm",
     "nvml",
     "pcap",
-    "trivy",
-    "trivy_no_javadb",
     "zlib",
     "zstd",
 }
@@ -251,6 +253,8 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
 OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
+
+LOADER_TAGS = {"otlp"}
 
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
@@ -296,6 +300,7 @@ build_tags = {
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS,
         "sbomgen": SBOMGEN_TAGS,
         "otel-agent": OTEL_AGENT_TAGS,
+        "loader": LOADER_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
