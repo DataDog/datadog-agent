@@ -320,15 +320,19 @@ func (r *Resolver) StartSSHUserSessionResolver() {
 	}
 	path := ""
 	var err error
-	var f *os.File
 	for _, possiblePath := range possibleLogPaths {
-		f, err = os.OpenFile(possiblePath, os.O_RDONLY, 0644)
+		_, err = os.Stat(possiblePath)
 		if err == nil {
 			path = possiblePath
 			break
 		}
 	}
-
+	// Now we can open the file
+	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
+	if err != nil {
+		seclog.Errorf("failed to open ssh log file: %v", err)
+		return
+	}
 	r.sshLogReader = NewIncrementalFileReader(path)
 	if path == "" {
 		return
