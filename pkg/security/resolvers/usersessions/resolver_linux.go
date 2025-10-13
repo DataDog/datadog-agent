@@ -432,7 +432,7 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 
 func resolveFromJournalctl(ctx *model.UserSessionContext) {
 	// TODO : Find a Go librairy to avoid fork and exec here
-	cmd := exec.Command("sh", "-c", "journalctl")
+	cmd := exec.Command("journalctl")
 
 	var out bytes.Buffer
 	cmd.Stdout = &out
