@@ -111,19 +111,20 @@ func Test_batchSizeOptimizers_refreshIfOutdated(t *testing.T) {
 func Test_batchSizeOptimizer_onBatchSizeFailure(t *testing.T) {
 	tests := []struct {
 		name                       string
-		configBatchSize            int
-		batchSize                  int
-		failuresByBatchSize        map[int]int
+		batchSizeOptimizer         *oidBatchSizeOptimizer
 		expectedBatchSizeOptimizer *oidBatchSizeOptimizer
 		expectedBatchSizeChanged   bool
 	}{
 		{
-			name:            "batch size is 1",
-			configBatchSize: 4,
-			batchSize:       1,
-			failuresByBatchSize: map[int]int{
-				4: 1,
-				2: 1,
+			name: "batch size is 1",
+			batchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize: 4,
+				batchSize:       1,
+				failuresByBatchSize: map[int]int{
+					4: 1,
+					2: 1,
+				},
+				lastSuccessfulBatchSize: 1,
 			},
 			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
 				configBatchSize: 4,
@@ -133,15 +134,91 @@ func Test_batchSizeOptimizer_onBatchSizeFailure(t *testing.T) {
 					2: 1,
 					1: 1,
 				},
+				lastSuccessfulBatchSize: 1,
 			},
 			expectedBatchSizeChanged: false,
 		},
 		{
-			name:            "batch size should be decreased",
-			configBatchSize: 4,
-			batchSize:       4,
-			failuresByBatchSize: map[int]int{
-				4: 1,
+			name: "new batch size is lesser than the last successful batch size",
+			batchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize:         4,
+				batchSize:               4,
+				failuresByBatchSize:     map[int]int{},
+				lastSuccessfulBatchSize: 3,
+			},
+			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize: 4,
+				batchSize:       3,
+				failuresByBatchSize: map[int]int{
+					4: 1,
+				},
+				lastSuccessfulBatchSize: 3,
+			},
+			expectedBatchSizeChanged: true,
+		},
+		{
+			name: "batch size is equal to the last successful batch size",
+			batchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize:         4,
+				batchSize:               3,
+				failuresByBatchSize:     map[int]int{},
+				lastSuccessfulBatchSize: 3,
+			},
+			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize: 4,
+				batchSize:       3 / onFailureDecreaseFactor,
+				failuresByBatchSize: map[int]int{
+					3: 1,
+				},
+				lastSuccessfulBatchSize: 3,
+			},
+			expectedBatchSizeChanged: true,
+		},
+		{
+			name: "batch size is lesser to the last successful batch size",
+			batchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize:         4,
+				batchSize:               2,
+				failuresByBatchSize:     map[int]int{},
+				lastSuccessfulBatchSize: 3,
+			},
+			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize: 4,
+				batchSize:       2 / onFailureDecreaseFactor,
+				failuresByBatchSize: map[int]int{
+					2: 1,
+				},
+				lastSuccessfulBatchSize: 3,
+			},
+			expectedBatchSizeChanged: true,
+		},
+		{
+			name: "batch size is greater than the last successful batch size",
+			batchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize:         10,
+				batchSize:               10,
+				failuresByBatchSize:     map[int]int{},
+				lastSuccessfulBatchSize: 3,
+			},
+			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize: 10,
+				batchSize:       10 / onFailureDecreaseFactor,
+				failuresByBatchSize: map[int]int{
+					10: 1,
+				},
+				lastSuccessfulBatchSize: 3,
+			},
+			expectedBatchSizeChanged: true,
+		},
+		{
+			name: "batch size should be decreased",
+			batchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize: 4,
+				batchSize:       4,
+				failuresByBatchSize: map[int]int{
+					4: 1,
+				},
+				lastSuccessfulBatchSize: 0,
 			},
 			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
 				configBatchSize: 4,
@@ -149,6 +226,7 @@ func Test_batchSizeOptimizer_onBatchSizeFailure(t *testing.T) {
 				failuresByBatchSize: map[int]int{
 					4: 2,
 				},
+				lastSuccessfulBatchSize: 0,
 			},
 			expectedBatchSizeChanged: true,
 		},
@@ -156,13 +234,8 @@ func Test_batchSizeOptimizer_onBatchSizeFailure(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			batchSizeOptimizer := &oidBatchSizeOptimizer{
-				configBatchSize:     tt.configBatchSize,
-				batchSize:           tt.batchSize,
-				failuresByBatchSize: tt.failuresByBatchSize,
-			}
-			batchSizeChanged := batchSizeOptimizer.onBatchSizeFailure()
-			assert.Equal(t, tt.expectedBatchSizeOptimizer, batchSizeOptimizer)
+			batchSizeChanged := tt.batchSizeOptimizer.onBatchSizeFailure()
+			assert.Equal(t, tt.expectedBatchSizeOptimizer, tt.batchSizeOptimizer)
 			assert.Equal(t, tt.expectedBatchSizeChanged, batchSizeChanged)
 		})
 	}
@@ -171,17 +244,18 @@ func Test_batchSizeOptimizer_onBatchSizeFailure(t *testing.T) {
 func Test_batchSizeOptimizer_onBatchSizeSuccess(t *testing.T) {
 	tests := []struct {
 		name                       string
-		configBatchSize            int
-		batchSize                  int
-		failuresByBatchSize        map[int]int
+		batchSizeOptimizer         *oidBatchSizeOptimizer
 		expectedBatchSizeOptimizer *oidBatchSizeOptimizer
 	}{
 		{
-			name:            "new batch size has too much failures",
-			configBatchSize: 10,
-			batchSize:       6,
-			failuresByBatchSize: map[int]int{
-				7: maxFailuresPerWindow + 1,
+			name: "new batch size has too much failures",
+			batchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize: 10,
+				batchSize:       6,
+				failuresByBatchSize: map[int]int{
+					7: maxFailuresPerWindow + 1,
+				},
+				lastSuccessfulBatchSize: 5,
 			},
 			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
 				configBatchSize: 10,
@@ -189,14 +263,18 @@ func Test_batchSizeOptimizer_onBatchSizeSuccess(t *testing.T) {
 				failuresByBatchSize: map[int]int{
 					7: maxFailuresPerWindow + 1,
 				},
+				lastSuccessfulBatchSize: 6,
 			},
 		},
 		{
-			name:            "batch size is config batch size",
-			configBatchSize: 10,
-			batchSize:       10,
-			failuresByBatchSize: map[int]int{
-				6: 1,
+			name: "batch size is config batch size",
+			batchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize: 10,
+				batchSize:       10,
+				failuresByBatchSize: map[int]int{
+					6: 1,
+				},
+				lastSuccessfulBatchSize: 9,
 			},
 			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
 				configBatchSize: 10,
@@ -204,14 +282,18 @@ func Test_batchSizeOptimizer_onBatchSizeSuccess(t *testing.T) {
 				failuresByBatchSize: map[int]int{
 					6: 1,
 				},
+				lastSuccessfulBatchSize: 10,
 			},
 		},
 		{
-			name:            "batch size should be increased",
-			configBatchSize: 10,
-			batchSize:       6,
-			failuresByBatchSize: map[int]int{
-				6: 1,
+			name: "batch size should be increased",
+			batchSizeOptimizer: &oidBatchSizeOptimizer{
+				configBatchSize: 10,
+				batchSize:       6,
+				failuresByBatchSize: map[int]int{
+					6: 1,
+				},
+				lastSuccessfulBatchSize: 9,
 			},
 			expectedBatchSizeOptimizer: &oidBatchSizeOptimizer{
 				configBatchSize: 10,
@@ -219,19 +301,15 @@ func Test_batchSizeOptimizer_onBatchSizeSuccess(t *testing.T) {
 				failuresByBatchSize: map[int]int{
 					6: 1,
 				},
+				lastSuccessfulBatchSize: 6,
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			batchSizeOptimizer := &oidBatchSizeOptimizer{
-				configBatchSize:     tt.configBatchSize,
-				batchSize:           tt.batchSize,
-				failuresByBatchSize: tt.failuresByBatchSize,
-			}
-			batchSizeOptimizer.onBatchSizeSuccess()
-			assert.Equal(t, tt.expectedBatchSizeOptimizer, batchSizeOptimizer)
+			tt.batchSizeOptimizer.onBatchSizeSuccess()
+			assert.Equal(t, tt.expectedBatchSizeOptimizer, tt.batchSizeOptimizer)
 		})
 	}
 }
