@@ -10,11 +10,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -35,6 +36,10 @@ func TestMain(m *testing.M) {
 			&cobra.Group{
 				ID:    "apm",
 				Title: "APM Commands",
+			},
+			&cobra.Group{
+				ID:    "extensions",
+				Title: "Extensions Commands",
 			},
 		)
 		cmd.AddCommand(RootCommands()...)

@@ -62,6 +62,9 @@ type Installer interface {
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
+	InstallExtension(ctx context.Context, url string, extension string) error
+	RemoveExtension(ctx context.Context, pkg string, extension string) error
+
 	GarbageCollect(ctx context.Context) error
 
 	InstrumentAPMInjector(ctx context.Context, method string) error
@@ -711,6 +714,22 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 	if err != nil {
 		return fmt.Errorf("could not instrument APM: %w", err)
 	}
+	return nil
+}
+
+// InstallExtension installs a plugin.
+func (i *installerImpl) InstallExtension(ctx context.Context, url string, extension string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+	// TODO: implement
+	return nil
+}
+
+// RemoveExtension removes a plugin.
+func (i *installerImpl) RemoveExtension(ctx context.Context, pkg string, extension string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+	// TODO: implement
 	return nil
 }
 

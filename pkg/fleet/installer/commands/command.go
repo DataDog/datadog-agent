@@ -169,6 +169,7 @@ func RootCommands() []*cobra.Command {
 		purgeCommand(),
 		isInstalledCommand(),
 		apmCommands(),
+		extensionsCommands(),
 		getStateCommand(),
 		statusCommand(),
 		postinstCommand(),
@@ -550,5 +551,54 @@ func packageCommand() *cobra.Command {
 		},
 	}
 
+	return cmd
+}
+
+// extensionsCommands are the extensions installer commands
+func extensionsCommands() *cobra.Command {
+	ctlCmd := &cobra.Command{
+		Use:     "extensions [command]",
+		Short:   "Interact with the extensions",
+		GroupID: "extensions",
+	}
+	ctlCmd.AddCommand(extensionInstallCommand(), extensionRemoveCommand())
+	return ctlCmd
+}
+
+func extensionInstallCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "install [url] [extension]",
+		Short: "Install an extension",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("extension_install")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			i.span.SetTag("params.url", args[0])
+			i.span.SetTag("params.extension", args[1])
+			return i.InstallExtension(i.ctx, args[0], args[1])
+		},
+	}
+	return cmd
+}
+
+func extensionRemoveCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "remove [package] [extension]",
+		Short: "Remove an extension",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("extension_remove")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			i.span.SetTag("params.package", args[0])
+			i.span.SetTag("params.extension", args[1])
+			return i.RemoveExtension(i.ctx, args[0], args[1])
+		},
+	}
 	return cmd
 }
