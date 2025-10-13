@@ -47,7 +47,7 @@ def get_slack_channel_for_directory(directory_path: str) -> str:
         first_owner = owners[0].lower()
 
         # Map the owner to a slack channel
-        return GITHUB_SLACK_MAP.get(first_owner, DEFAULT_FUZZING_SLACK_CHANNEL)
+        return GITHUB_SLACK_MAP.get(first_owner, DEFAULT_FUZZING_SLACK_CHANNEL).replace("#", "")
 
     except Exception as e:
         print(
