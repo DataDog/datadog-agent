@@ -47,9 +47,9 @@ sudo ./system-probe usm sysinfo --json  # JSON output
 - Kernel version
 - OS type and architecture
 - Hostname
-- List of all running user-space processes with PIDs and command lines
+- List of all running processes with PIDs, PPIDs, names, and command lines
 
-**Example:**
+**Text Output Example:**
 ```
 === USM System Information ===
 
@@ -60,12 +60,38 @@ Hostname:       agent-dev-ubuntu-22
 
 Running Processes: 127
 
-PID     | Name                           | Command Line
---------|--------------------------------|--------------------------------------------------
-1       | systemd                        | /sbin/init
-156     | sshd                           | /usr/sbin/sshd -D
+PID     | PPID    | Name                      | Command
+--------|---------|---------------------------|--------------------------------------------------
+1       | 0       | systemd                   | /sbin/init
+156     | 1       | sshd                      | /usr/sbin/sshd -D
 ...
 ```
+
+**JSON Output Format:**
+```json
+{
+  "kernel_version": "5.15.0-73-generic",
+  "os_type": "linux",
+  "architecture": "amd64",
+  "hostname": "agent-dev-ubuntu-22",
+  "processes": [
+    {
+      "pid": 1,
+      "ppid": 0,
+      "name": "systemd",
+      "cmdline": ["/sbin/init"]
+    },
+    {
+      "pid": 156,
+      "ppid": 1,
+      "name": "sshd",
+      "cmdline": ["/usr/sbin/sshd", "-D"]
+    }
+  ]
+}
+```
+
+**Note**: JSON output includes only essential process fields (pid, ppid, name, cmdline) for cleaner output.
 
 ## Use Cases
 
@@ -95,7 +121,16 @@ Use `usm sysinfo` to see what processes are running that USM might be monitoring
 
 ## Implementation Notes
 
-- Both commands query the running system-probe instance via its API
-- `usm config` uses the same configuration fetcher as the `system-probe config` command
-- `usm sysinfo` filters out kernel threads (processes without command lines) to focus on user-space applications
-- Both commands support `--json` flag for programmatic access
+### Configuration Command
+- Queries the running system-probe instance via its API
+- Uses the same configuration fetcher as `system-probe config`
+- Extracts only the `service_monitoring_config` section
+- Uses `yaml.v3` for parsing to ensure JSON-compatible types
+- Supports both YAML (default) and JSON output formats
+
+### Sysinfo Command
+- Collects process information using `procutil.NewProcessProbe()` (same as process-agent)
+- Uses `kernel.Release()` for kernel version detection
+- JSON output filters to only essential process fields (pid, ppid, name, cmdline)
+- Processes are sorted by PID
+- Text output truncates long names/cmdlines for readability
