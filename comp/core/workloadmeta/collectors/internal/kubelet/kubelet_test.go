@@ -19,6 +19,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -83,10 +84,13 @@ func TestPodParser(t *testing.T) {
 						Image: "nginx:1.25.2",
 						Resources: &kubelet.ContainerResourcesSpec{
 							Requests: kubelet.ResourceList{
-								"nvidia.com/gpu": resource.Quantity{
-									Format: "1",
-								},
-								"cpu": resource.MustParse("100m"),
+								"nvidia.com/gpu":              resource.MustParse("1"),
+								"cpu":                         resource.MustParse("100m"),
+								"example.com/custom-resource": resource.MustParse("1"),
+							},
+							Limits: kubelet.ResourceList{
+								"cpu":                         resource.MustParse("200m"),
+								"example.com/custom-resource": resource.MustParse("2"),
 							},
 						},
 						Env: []kubelet.EnvVar{
@@ -158,7 +162,7 @@ func TestPodParser(t *testing.T) {
 		},
 	}
 
-	events := parsePods(referencePod, true)
+	events := util.ParseKubeletPods(referencePod, true)
 	parsedEntities := make([]workloadmeta.Entity, 0, len(events))
 	for _, event := range events {
 		parsedEntities = append(parsedEntities, event.Entity)
@@ -186,6 +190,16 @@ func TestPodParser(t *testing.T) {
 		Resources: workloadmeta.ContainerResources{
 			GPUVendorList: []string{"nvidia"},
 			CPURequest:    pointer.Ptr(10.0),
+			CPULimit:      pointer.Ptr(20.0),
+			RawRequests: map[string]string{
+				"nvidia.com/gpu":              "1",
+				"cpu":                         "100m",
+				"example.com/custom-resource": "1",
+			},
+			RawLimits: map[string]string{
+				"cpu":                         "200m",
+				"example.com/custom-resource": "2",
+			},
 		},
 		Owner: &workloadmeta.EntityID{
 			Kind: "kubernetes_pod",
@@ -351,6 +365,15 @@ func TestPodParser(t *testing.T) {
 				ImageID:      "5dbe7e1b6b9c",
 				Ready:        true,
 				RestartCount: 1,
+			},
+		},
+		EphemeralContainerStatuses: []workloadmeta.KubernetesContainerStatus{
+			{
+				ContainerID: "docker://ephemeral-container-id",
+				Name:        "ephemeral-container",
+				Image:       "busybox:latest",
+				ImageID:     "12345",
+				Ready:       false,
 			},
 		},
 		Conditions: []workloadmeta.KubernetesPodCondition{

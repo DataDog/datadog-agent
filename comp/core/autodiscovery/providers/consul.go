@@ -239,7 +239,14 @@ func (p *ConsulConfigProvider) getTemplates(ctx context.Context, key string) []i
 		log.Errorf("Failed to retrieve instances at %s. Error: %s", instanceKey, err)
 		return templates
 	}
-	return utils.BuildTemplates(key, checkNames, initConfigs, instances, false, "")
+
+	templates, err = utils.BuildTemplates(key, checkNames, initConfigs, instances, false, "")
+	if err != nil {
+		log.Errorf("Failed to build templates for %s. Error: %s", checkNameKey, err)
+		return nil
+	}
+
+	return templates
 }
 
 // getValue returns value, error

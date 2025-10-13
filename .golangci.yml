@@ -368,6 +368,9 @@ issues:
     - path: comp/otelcol/otlp/configcheck/configcheck.go
       linters:
         - pkgconfigusage
+    - path: comp/otelcol/otlp/configcheck/configcheck_test.go
+      linters:
+        - pkgconfigusage
     - path: comp/otelcol/otlp/integrationtest/integration_test.go
       linters:
         - pkgconfigusage
@@ -626,6 +629,12 @@ linters-settings:
       - p: ^setup.SetSystemProbe.*$
         pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
         msg: use pkg/config/mock instead for tests or the config component
+      - p: ^.*\.BindEnv$
+        pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
+        msg: use BindEnvAndSetDefault instead of BindEnv to ensure proper defaults are set
+      - p: ^.*\.SetKnown$
+        pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
+        msg: usage of SetKnown is discouraged
       - p: RevertFinishedBackToBuilder
         msg: RevertFinishedBackToBuilder is typically not needed, so using it is discouraged. Only existing OTel usage is allowed.
     analyze-types: true

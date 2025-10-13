@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // EC2Metadata contains a pointer to a VM and its AWS token
@@ -37,7 +40,7 @@ func NewEC2Metadata(t *testing.T, h *Host, osFamily os.Family) *EC2Metadata {
 	}
 
 	t.Log("Getting EC2 metadata token")
-	output := h.MustExecute(cmd)
+	output := runWithRetry(t, h, cmd)
 	return &EC2Metadata{osFamily: osFamily, token: output, host: h, t: t}
 }
 
@@ -55,5 +58,15 @@ func (m *EC2Metadata) Get(name string) string {
 	}
 
 	m.t.Log("Getting EC2 metadata for", name)
-	return strings.TrimRight(m.host.MustExecute(cmd), "\r\n")
+	return strings.TrimRight(runWithRetry(m.t, m.host, cmd), "\r\n")
+}
+
+func runWithRetry(t *testing.T, h *Host, cmd string) string {
+	var output string
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		var err error
+		output, err = h.Execute(cmd)
+		require.NoError(c, err)
+	}, time.Second*30, time.Second*1)
+	return output
 }
