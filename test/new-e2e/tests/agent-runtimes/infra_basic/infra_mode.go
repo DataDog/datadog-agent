@@ -141,8 +141,8 @@ instances:
 	return suiteOptions
 }
 
-// getRunnerStats retrieves the runner statistics from the agent status
-func (s *infraBasicSuite) getRunnerStats() (map[string]map[string]check.Runner, error) { //nolint:unused
+// getScheduledChecks retrieves the map of scheduled checks from the agent status
+func (s *infraBasicSuite) getScheduledChecks() (map[string]map[string]check.Runner, error) { //nolint:unused
 	status := s.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
 
 	var statusMap AgentStatusJSON
@@ -203,36 +203,27 @@ func (s *infraBasicSuite) verifyCheckRuns(checkName string) bool { //nolint:unus
 // verifyCheckSchedulingViaStatusAPI verifies that checks are in the expected scheduling state
 // by querying the agent status API. This is a helper function meant to be called within EventuallyWithT.
 func (s *infraBasicSuite) verifyCheckSchedulingViaStatusAPI(c *assert.CollectT, checks []string, shouldBeScheduled bool) { //nolint:unused
-	stats, err := s.getRunnerStats()
-	if !assert.NoError(c, err, "Failed to get runner stats") {
-		s.T().Logf("Failed to retrieve runner stats, will retry...")
+	scheduledChecks, err := s.getScheduledChecks()
+	if !assert.NoError(c, err, "Failed to get scheduled checks") {
+		s.T().Logf("Failed to retrieve scheduled checks, will retry...")
 		return
 	}
 
-	s.T().Logf("Found %d check types in runner stats", len(stats))
+	s.T().Logf("Found %d check types in agent status", len(scheduledChecks))
 
 	// Verify all checks match the expected scheduling state
 	for _, checkName := range checks {
-		scheduled := s.isCheckScheduled(checkName, stats)
-		if scheduled == shouldBeScheduled {
-			if shouldBeScheduled {
-				s.T().Logf("Check %s found in runner stats and has run", checkName)
-			} else {
-				s.T().Logf("Check %s correctly not scheduled", checkName)
-			}
+		scheduled := s.isCheckScheduled(checkName, scheduledChecks)
+
+		// Log current state
+		if scheduled {
+			s.T().Logf("Check %s is scheduled", checkName)
 		} else {
-			if shouldBeScheduled {
-				s.T().Logf("Check %s not yet scheduled", checkName)
-			} else {
-				s.T().Logf("Check %s incorrectly found in runner stats!", checkName)
-			}
+			s.T().Logf("Check %s is not scheduled", checkName)
 		}
 
-		if shouldBeScheduled {
-			assert.True(c, scheduled, "Check %s should be scheduled", checkName)
-		} else {
-			assert.False(c, scheduled, "Check %s should NOT be scheduled", checkName)
-		}
+		// Assert expected state
+		assert.Equal(c, shouldBeScheduled, scheduled, "Check %s scheduling state mismatch", checkName)
 	}
 }
 

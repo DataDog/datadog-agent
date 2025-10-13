@@ -27,13 +27,9 @@ type Aggregator struct {
 
 // Runner contains the check execution information
 type Runner struct {
-	CheckName         string `json:"CheckName"`
-	CheckConfigSource string `json:"CheckConfigSource"`
-	CheckLoader       string `json:"CheckLoader"`
-	CheckID           string `json:"CheckID"`
-	TotalRuns         int    `json:"TotalRuns"`
-	TotalErrors       int    `json:"TotalErrors"`
-	TotalWarnings     int    `json:"TotalWarnings"`
+	TotalRuns     int `json:"TotalRuns"`
+	TotalErrors   int `json:"TotalErrors"`
+	TotalWarnings int `json:"TotalWarnings"`
 }
 
 // Metric represents a metric emitted by a check
