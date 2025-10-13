@@ -148,12 +148,14 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 	return collectors, nil
 }
 
+// CollectorTelemetry holds telemetry metrics for the collector data
 type CollectorTelemetry struct {
 	Created          telemetry.Counter
 	CollectionErrors telemetry.Counter
 	Time             telemetry.Histogram
 }
 
+// NewCollectorTelemetry creates a new CollectorTelemetry with the given telemetry component
 func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
 	subsystem := consts.GpuTelemetryModule + "__collectors"
 
