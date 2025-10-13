@@ -329,6 +329,51 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	}, nil
 }
 
+func (s *syntheticsTestScheduler) setResultStatus(w *workerResult, result *common.Result) {
+	if result.Netstats.PacketLossPercentage == 100 {
+		if !hasAssertionOn100PacketLoss(w.assertionResult) {
+			result.Status = "failed"
+			result.Failure = common.APIError{
+				Code:    "NETUNREACH",
+				Message: "The remote server network is unreachable.",
+			}
+		}
+	}
+	if w.tracerouteError != nil {
+		result.Status = "failed"
+		result.Failure = common.APIError{
+			Code:    "UNKNOWN",
+			Message: w.tracerouteError.Error(),
+		}
+	}
+	if result.Status != "failed" {
+		for _, res := range w.assertionResult {
+			if !res.Valid {
+				result.Status = "failed"
+				assertionResultJSON, err := json.Marshal(w.assertionResult)
+				message := "Assertions failed"
+				if err == nil {
+					message = string(assertionResultJSON)
+				}
+
+				result.Failure = common.APIError{
+					Code:    incorrectAssertion,
+					Message: message,
+				}
+			}
+		}
+	}
+}
+
+func hasAssertionOn100PacketLoss(assertionResults []common.AssertionResult) bool {
+	for _, assertion := range assertionResults {
+		if assertion.Type == common.AssertionTypePacketLoss && assertion.Operator == common.OperatorIs && assertion.Expected == "100" {
+			return true
+		}
+	}
+	return false
+}
+
 // generateRandomStringUInt63 returns a cryptographically random uint63 as decimal string.
 func generateRandomStringUInt63(randIntFn func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
 	maxi := new(big.Int).Lsh(big.NewInt(1), 63) // 2^63
