@@ -16,6 +16,7 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -96,7 +97,7 @@ type CollectorDependencies struct {
 	// NsPidCache is a cache used for the resolution of nspids of processes
 	NsPidCache *NsPidCache
 	// Telemetry is the telemetry component to use for collecting metrics
-	Telemetry telemetry.Component
+	Telemetry *CollectorTelemetry
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
@@ -107,10 +108,6 @@ func BuildCollectors(devices []ddnvml.Device, deps *CollectorDependencies) ([]Co
 
 func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
-	var telemetry *collectorTelemetry
-	if deps.Telemetry != nil {
-		telemetry = newCollectorTelemetry(deps.Telemetry)
-	}
 
 	// Step 1: Build NVML collectors for physical devices only,
 	// (since most of NVML API doesn't support MIG devices)
@@ -119,15 +116,15 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 			c, err := builder(dev, deps)
 			if errors.Is(err, errUnsupportedDevice) {
 				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
-				telemetry.addCollector(name, "unsupported")
+				deps.Telemetry.addCollectorCreation(name, "unsupported")
 				continue
 			} else if err != nil {
 				log.Warnf("failed to create collector %s: %s", name, err)
-				telemetry.addCollector(name, "error")
+				deps.Telemetry.addCollectorCreation(name, "error")
 				continue
 			}
 
-			telemetry.addCollector(name, "success")
+			deps.Telemetry.addCollectorCreation(name, "success")
 			collectors = append(collectors, c)
 		}
 	}
@@ -139,11 +136,11 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 			spCollector, err := newEbpfCollector(dev, deps.NsPidCache, deps.SystemProbeCache)
 			if err != nil {
 				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
-				telemetry.addCollector(ebpf, "error")
+				deps.Telemetry.addCollectorCreation(ebpf, "error")
 				continue
 			}
 
-			telemetry.addCollector(ebpf, "success")
+			deps.Telemetry.addCollectorCreation(ebpf, "success")
 			collectors = append(collectors, spCollector)
 		}
 	}
@@ -151,20 +148,26 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 	return collectors, nil
 }
 
-type collectorTelemetry struct {
-	collectors telemetry.Counter
+type CollectorTelemetry struct {
+	Created          telemetry.Counter
+	CollectionErrors telemetry.Counter
+	Time             telemetry.Histogram
 }
 
-func newCollectorTelemetry(tm telemetry.Component) *collectorTelemetry {
-	return &collectorTelemetry{
-		collectors: tm.NewCounter("gpu.collectors", "created", []string{"collector", "status"}, "Number of collectors and their creation result"),
+func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
+	subsystem := consts.GpuTelemetryModule + "__collectors"
+
+	return &CollectorTelemetry{
+		Created:          tm.NewCounter(subsystem, "created", []string{"collector", "status"}, "Number of collectors and their creation result"),
+		CollectionErrors: tm.NewCounter(subsystem, "collection_errors", []string{"collector"}, "Number of errors from NVML collectors"),
+		Time:             tm.NewHistogram(subsystem, "time_ms", []string{"collector"}, "Time taken to collect metrics from NVML collectors, in milliseconds", []float64{10, 100, 500, 1000, 5000}),
 	}
 }
 
 // addCollector adds a collector to the telemetry, checking that the telemetry is not nil
-func (t *collectorTelemetry) addCollector(name CollectorName, status string) {
+func (t *CollectorTelemetry) addCollectorCreation(name CollectorName, status string) {
 	if t == nil {
 		return
 	}
-	t.collectors.Add(1, string(name), status)
+	t.Created.Add(1, string(name), status)
 }
