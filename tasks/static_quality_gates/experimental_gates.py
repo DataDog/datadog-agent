@@ -613,7 +613,7 @@ class PackageProcessor:
 class DockerProcessor:
     """Docker image processor implementing the ArtifactProcessor protocol.
 
-    Uses docker manifest inspect for wire size calculation and docker save for
+    Uses crane manifest for wire size calculation and crane pull for
     disk analysis and file inventory. This provides consistent wire size measurements
     regardless of image layer structure while maintaining detailed file analysis.
     """
@@ -625,7 +625,7 @@ class DockerProcessor:
         gate_config: QualityGateConfig,
         debug: bool,
     ) -> tuple[int, int, list[FileInfo], DockerImageInfo]:
-        """Measure Docker image using manifest inspection for wire size and docker save for disk analysis."""
+        """Measure Docker image using manifest inspection for wire size and crane pull for disk analysis."""
         if debug:
             print(f"🐳 Measuring Docker image: {artifact_ref}")
 
@@ -665,22 +665,22 @@ class DockerProcessor:
         image_ref: str,
         debug: bool = False,
     ) -> tuple[int, list[FileInfo], DockerImageInfo | None]:
-        """Measure disk size and generate file inventory using docker save extraction."""
+        """Measure disk size and generate file inventory using crane pull extraction."""
         try:
             if debug:
                 print(f"🔍 Measuring on disk size of image {image_ref}...")
 
             with tempfile.NamedTemporaryFile(suffix='.tar', delete=False) as temp_tarball:
-                save_result = ctx.run(f"docker save {image_ref} -o {temp_tarball.name}", warn=True)
+                save_result = ctx.run(f"crane pull --format=oci {image_ref} {temp_tarball.name}", warn=True)
                 if save_result.exited != 0:
-                    raise RuntimeError(f"Docker save failed for {image_ref}")
+                    raise RuntimeError(f"crane pull failed for {image_ref}")
 
                 try:
                     # Extract tarball and analyze layers
                     with tempfile.TemporaryDirectory() as extract_dir:
                         extract_result = ctx.run(f"tar -xf {temp_tarball.name} -C {extract_dir}", warn=True)
                         if extract_result.exited != 0:
-                            raise RuntimeError("Failed to extract Docker save tarball")
+                            raise RuntimeError("Failed to extract image tarball")
 
                         if debug:
                             print(f"📁 Extracted tarball to: {extract_dir}")
@@ -712,14 +712,12 @@ class DockerProcessor:
                 print(f"📋 Calculating wire size from manifest for {image_ref}...")
 
             manifest_output = ctx.run(
-                f"DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
-                f"{image_ref}"
-                f" | grep size | awk -F ':' '{{sum+=$NF}} END {{printf(\"%d\",sum)}}'",
+                f"crane manifest -v {image_ref} | grep size | awk -F ':' '{{sum+=$NF}} END {{printf(\"%d\",sum)}}'",
                 hide=True,
             )
 
             if manifest_output.exited != 0:
-                raise RuntimeError(f"Docker manifest inspect failed for {image_ref}")
+                raise RuntimeError(f"crane manifest failed for {image_ref}")
 
             wire_size = int(manifest_output.stdout.strip())
 
@@ -738,7 +736,7 @@ class DockerProcessor:
         extract_dir: str,
         debug: bool = False,
     ) -> tuple[int, list[FileInfo]]:
-        """Analyze extracted Docker save tarball to get disk size and file inventory."""
+        """Analyze extracted crane pull tarball to get disk size and file inventory."""
         import json
         import subprocess
 
@@ -748,7 +746,7 @@ class DockerProcessor:
         try:
             manifest_path = os.path.join(extract_dir, "manifest.json")
             if not os.path.exists(manifest_path):
-                raise RuntimeError("manifest.json not found in Docker save tarball")
+                raise RuntimeError("manifest.json not found in crane pull tarball")
 
             with open(manifest_path) as f:
                 manifest = json.load(f)[0]  # Typically one image per tarball
@@ -967,7 +965,7 @@ class InPlaceDockerMeasurer:
     Measures Docker image artifacts in-place and generates detailed reports.
 
     This class handles measurement of Docker images directly in build jobs or locally,
-    using docker manifest inspect for wire size and docker save for disk analysis
+    using crane manifest for wire size and crane pull for disk analysis
     and comprehensive file inventory.
 
     Uses composition with UniversalArtifactMeasurer and DockerProcessor.

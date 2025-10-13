@@ -17,11 +17,6 @@ while [[ $retry_count -lt $max_retries ]]; do
         if [[ "$(uname -s)" == "Darwin" ]]; then
             vault_name="kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent"
         fi
-        if [[ "$CI_RUNNER_TAGS" == *"docker-in-docker:arm64"* ]]; then
-            export VAULT_ADDR=https://vault.us1.ddbuild.io
-            vault login -method=aws -no-print
-            vault_name="kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent"
-        fi
         result="$(vault kv get -format="${format}" -field="${parameter_field}" "${vault_name}"/"${parameter_name}" 2> errorFile)"
     else
         # Using SSM; the [<format>] parameter is ignored

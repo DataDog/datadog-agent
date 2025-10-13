@@ -112,14 +112,13 @@
 
 .docker_build_amd64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["docker-in-docker:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   variables:
     ARCH: amd64
 
 .docker_build_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_arm64$CI_IMAGE_DOCKER_ARM64_SUFFIX:$CI_IMAGE_DOCKER_ARM64
-  tags: ["docker-in-docker:arm64"]
-  #["arch:arm64", "specific:true"]
+  tags: ["arch:arm64", "specific:true"]
   variables:
     ARCH: arm64
 

@@ -833,7 +833,7 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
     def test_measure_image_wire_size_failure(self, mock_get_wire_size, mock_ensure_available):
         """Test Docker image measurement when wire size measurement fails."""
         mock_ensure_available.return_value = None
-        mock_get_wire_size.side_effect = RuntimeError("Docker manifest inspect failed")
+        mock_get_wire_size.side_effect = RuntimeError("crane manifest failed")
         mock_ctx = Mock()
 
         with self.assertRaises(RuntimeError) as cm:
@@ -844,7 +844,7 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
                 build_job_name="test_build",
             )
 
-        self.assertIn("Docker manifest inspect failed", str(cm.exception))
+        self.assertIn("crane manifest failed", str(cm.exception))
 
     def test_measure_image_missing_config(self):
         """Test Docker image measurement with missing gate configuration."""
