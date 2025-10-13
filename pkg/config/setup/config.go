@@ -7,7 +7,6 @@
 package setup
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,7 +30,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -2729,25 +2727,6 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 	}
 
 	return true
-}
-
-// GetValidHostAliases validates host aliases set in `host_aliases` variable and returns
-// only valid ones.
-func GetValidHostAliases(_ context.Context, config pkgconfigmodel.Reader) ([]string, error) {
-	return getValidHostAliasesWithConfig(config), nil
-}
-
-func getValidHostAliasesWithConfig(config pkgconfigmodel.Reader) []string {
-	aliases := []string{}
-	for _, alias := range config.GetStringSlice("host_aliases") {
-		if err := validate.ValidHostname(alias); err == nil {
-			aliases = append(aliases, alias)
-		} else {
-			log.Warnf("skipping invalid host alias '%s': %s", alias, err)
-		}
-	}
-
-	return aliases
 }
 
 func bindVectorOptions(config pkgconfigmodel.Setup, datatype DataType) {

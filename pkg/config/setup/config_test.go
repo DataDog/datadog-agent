@@ -631,12 +631,6 @@ external_config:
 	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceAgentRuntime)
 }
 
-func TestGetValidHostAliasesWithConfig(t *testing.T) {
-	config := newTestConf(t)
-	config.SetWithoutSource("host_aliases", []string{"foo", "-bar"})
-	assert.EqualValues(t, getValidHostAliasesWithConfig(config), []string{"foo"})
-}
-
 func TestNetworkDevicesNamespace(t *testing.T) {
 	datadogYaml := `
 network_devices:
