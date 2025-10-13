@@ -141,11 +141,11 @@ func (m *MockCollector) RunCheck(c check.Check) (checkid.ID, error) {
 	return c.ID(), nil
 }
 
-func (m *MockCollector) StopCheck(id checkid.ID) error {
+func (m *MockCollector) StopCheck(_ checkid.ID) error {
 	return nil
 }
 
-func (m *MockCollector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error) {
+func (m *MockCollector) ReloadAllCheckInstances(_ string, _ []check.Check) ([]checkid.ID, error) {
 	return nil, nil
 }
 
