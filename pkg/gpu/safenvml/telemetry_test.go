@@ -46,10 +46,10 @@ func mockSuccessfulNvmlNew(_ ...nvml.LibraryOption) nvml.Interface {
 	}
 }
 
-func TestNvmlStateTracker_CheckUnavailable(t *testing.T) {
+func TestNvmlStateTelemetry_CheckUnavailable(t *testing.T) {
 	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
 	telemetryMock := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tracker := NewNvmlStateTracker(telemetryMock)
+	tracker := NewNvmlStateTelemetry(telemetryMock)
 
 	// First check - should increment error counter but not set unavailable gauge
 	tracker.Check()
@@ -85,10 +85,10 @@ func TestNvmlStateTracker_CheckUnavailable(t *testing.T) {
 	assert.Equal(t, float64(1), gaugeMetrics[0].Value())
 }
 
-func TestNvmlStateTracker_CheckMultipleErrors(t *testing.T) {
+func TestNvmlStateTelemetry_CheckMultipleErrors(t *testing.T) {
 	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
 	telemetryMock := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tracker := NewNvmlStateTracker(telemetryMock)
+	tracker := NewNvmlStateTelemetry(telemetryMock)
 
 	// Multiple checks before threshold
 	for i := 0; i < 5; i++ {
@@ -108,9 +108,9 @@ func TestNvmlStateTracker_CheckMultipleErrors(t *testing.T) {
 	assert.Equal(t, float64(0), gaugeMetrics[0].Value())
 }
 
-func TestNvmlStateTracker_CheckRecovery(t *testing.T) {
+func TestNvmlStateTelemetry_CheckRecovery(t *testing.T) {
 	telemetryMock := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tracker := NewNvmlStateTracker(telemetryMock)
+	tracker := NewNvmlStateTelemetry(telemetryMock)
 
 	// Start with failing initialization
 	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
@@ -156,11 +156,11 @@ func TestNvmlStateTracker_CheckRecovery(t *testing.T) {
 	assert.Equal(t, float64(2), errorMetrics[0].Value(), "Error counter should not increase after successful recovery")
 }
 
-func TestNvmlStateTracker_StartStop(t *testing.T) {
+func TestNvmlStateTelemetry_StartStop(t *testing.T) {
 	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
 	telemetryMock := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	// Use a short interval for testing
-	tracker := NewNvmlStateTracker(telemetryMock)
+	tracker := NewNvmlStateTelemetry(telemetryMock)
 	tracker.checkInterval = 100 * time.Millisecond
 
 	// Start the tracker
@@ -197,11 +197,11 @@ func TestNvmlStateTracker_StartStop(t *testing.T) {
 	assert.Equal(t, errorCountAfterStop, errorCountAfterWait, "No checks should occur after Stop()")
 }
 
-func TestNvmlStateTracker_StartPerformsImmediateCheck(t *testing.T) {
+func TestNvmlStateTelemetry_StartPerformsImmediateCheck(t *testing.T) {
 	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
 	telemetryMock := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	// Use a long interval so we can verify the immediate check
-	tracker := NewNvmlStateTracker(telemetryMock)
+	tracker := NewNvmlStateTelemetry(telemetryMock)
 	tracker.checkInterval = 10 * time.Second
 
 	// Start the tracker

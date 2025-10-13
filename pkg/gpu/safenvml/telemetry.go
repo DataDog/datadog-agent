@@ -25,10 +25,10 @@ const (
 	defaultCheckInterval = 30 * time.Second
 )
 
-// NvmlStateTracker tracks the state of the NVML library initialization
+// NvmlStateTelemetry tracks the state of the NVML library initialization
 // and reports telemetry when it remains unavailable for extended periods.
 // Not thread-safe, should only be used from a single goroutine.
-type NvmlStateTracker struct {
+type NvmlStateTelemetry struct {
 	firstCheckTime time.Time
 
 	// Telemetry metrics
@@ -41,11 +41,11 @@ type NvmlStateTracker struct {
 	wg   sync.WaitGroup
 }
 
-// NewNvmlStateTracker creates a new NvmlStateTracker with the given telemetry component.
-func NewNvmlStateTracker(tm telemetry.Component) *NvmlStateTracker {
+// NewNvmlStateTelemetry creates a new NvmlStateTelemetry with the given telemetry component.
+func NewNvmlStateTelemetry(tm telemetry.Component) *NvmlStateTelemetry {
 	subsystem := "gpu__nvml"
 
-	return &NvmlStateTracker{
+	return &NvmlStateTelemetry{
 		errorCounter:     tm.NewCounter(subsystem, "init_errors", nil, "Number of errors when initializing NVML library"),
 		unavailableGauge: tm.NewGauge(subsystem, "library_unavailable", nil, "Whether NVML library is unavailable after threshold time (1=unavailable, 0=available)"),
 		done:             make(chan struct{}),
@@ -56,8 +56,8 @@ func NewNvmlStateTracker(tm telemetry.Component) *NvmlStateTracker {
 // Check attempts to get the NVML library and tracks errors.
 // If the library remains unavailable for more than nvmlUnavailableThreshold,
 // it sets the unavailable gauge to 1. Should only be called from a single goroutine.
-func (n *NvmlStateTracker) Check() {
-	_, err := GetSafeNvmlLib()
+func (n *NvmlStateTelemetry) Check() {
+	_, err := GetSafeNvmlLib() // GetSafeNvmlLib is thread-safe
 	if err != nil {
 		// Track the first check time
 		if n.firstCheckTime.IsZero() {
@@ -80,7 +80,7 @@ func (n *NvmlStateTracker) Check() {
 }
 
 // Start begins periodic checking of the NVML library status in a background goroutine.
-func (n *NvmlStateTracker) Start() {
+func (n *NvmlStateTelemetry) Start() {
 	n.wg.Add(1)
 	go func() {
 		defer n.wg.Done()
@@ -103,7 +103,7 @@ func (n *NvmlStateTracker) Start() {
 }
 
 // Stop stops the background checking goroutine and waits for it to finish.
-func (n *NvmlStateTracker) Stop() {
+func (n *NvmlStateTelemetry) Stop() {
 	close(n.done)
 	n.wg.Wait()
 }

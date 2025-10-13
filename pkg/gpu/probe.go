@@ -109,20 +109,20 @@ type ProbeDependencies struct {
 
 // Probe represents the GPU monitoring probe
 type Probe struct {
-	m                *ddebpf.Manager
-	cfg              *config.Config
-	consumer         *cudaEventConsumer
-	attacher         *uprobes.UprobeAttacher
-	statsGenerator   *statsGenerator
-	deps             ProbeDependencies
-	sysCtx           *systemContext
-	eventHandler     ddebpf.EventHandler
-	telemetry        *probeTelemetry
-	mapCleanerEvents *ddebpf.MapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue]
-	streamHandlers   *streamCollection
-	lastCheck        atomic.Int64
-	ringBuffer       *manager.RingBuffer
-	nvmlStateTracker *safenvml.NvmlStateTracker
+	m                  *ddebpf.Manager
+	cfg                *config.Config
+	consumer           *cudaEventConsumer
+	attacher           *uprobes.UprobeAttacher
+	statsGenerator     *statsGenerator
+	deps               ProbeDependencies
+	sysCtx             *systemContext
+	eventHandler       ddebpf.EventHandler
+	telemetry          *probeTelemetry
+	mapCleanerEvents   *ddebpf.MapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue]
+	streamHandlers     *streamCollection
+	lastCheck          atomic.Int64
+	ringBuffer         *manager.RingBuffer
+	nvmlStateTelemetry *safenvml.NvmlStateTelemetry
 }
 
 type probeTelemetry struct {
@@ -162,11 +162,11 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	p := &Probe{
-		cfg:              cfg,
-		deps:             deps,
-		sysCtx:           sysCtx,
-		telemetry:        newProbeTelemetry(deps.Telemetry),
-		nvmlStateTracker: safenvml.NewNvmlStateTracker(deps.Telemetry),
+		cfg:                cfg,
+		deps:               deps,
+		sysCtx:             sysCtx,
+		telemetry:          newProbeTelemetry(deps.Telemetry),
+		nvmlStateTelemetry: safenvml.NewNvmlStateTelemetry(deps.Telemetry),
 	}
 
 	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
@@ -225,7 +225,7 @@ func (p *Probe) start() error {
 		return fmt.Errorf("error starting uprobes attacher: %w", err)
 	}
 
-	p.nvmlStateTracker.Start()
+	p.nvmlStateTelemetry.Start()
 
 	ddebpf.AddProbeFDMappings(p.m.Manager)
 
@@ -234,7 +234,7 @@ func (p *Probe) start() error {
 
 // Close stops the probe
 func (p *Probe) Close() {
-	p.nvmlStateTracker.Stop()
+	p.nvmlStateTelemetry.Stop()
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
 	ddebpf.ClearProgramIDMappings(consts.GpuModuleName)

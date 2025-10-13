@@ -41,16 +41,16 @@ var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	collectors        []nvidia.Collector           // collectors for NVML metrics
-	tagger            tagger.Component             // Tagger instance to add tags to outgoing metrics
-	telemetry         *checkTelemetry              // Telemetry component to emit internal telemetry
-	wmeta             workloadmeta.Component       // Workloadmeta store to get the list of containers
-	deviceTags        map[string][]string          // deviceTags is a map of device UUID to tags
-	deviceCache       ddnvml.DeviceCache           // deviceCache is a cache of GPU devices
-	spCache           *nvidia.SystemProbeCache     // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
-	deviceEvtGatherer *nvidia.DeviceEventsGatherer // deviceEvtGatherer asynchronously listens for device events and gathers them
-	nsPidCache        *nvidia.NsPidCache           // nsPidCache resolves and caches nspids for processes
-	nvmlStateTracker  *ddnvml.NvmlStateTracker     // nvmlStateTracker tracks the state of the NVML library
+	collectors         []nvidia.Collector           // collectors for NVML metrics
+	tagger             tagger.Component             // Tagger instance to add tags to outgoing metrics
+	telemetry          *checkTelemetry              // Telemetry component to emit internal telemetry
+	wmeta              workloadmeta.Component       // Workloadmeta store to get the list of containers
+	deviceTags         map[string][]string          // deviceTags is a map of device UUID to tags
+	deviceCache        ddnvml.DeviceCache           // deviceCache is a cache of GPU devices
+	spCache            *nvidia.SystemProbeCache     // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
+	deviceEvtGatherer  *nvidia.DeviceEventsGatherer // deviceEvtGatherer asynchronously listens for device events and gathers them
+	nsPidCache         *nvidia.NsPidCache           // nsPidCache resolves and caches nspids for processes
+	nvmlStateTelemetry *ddnvml.NvmlStateTelemetry   // nvmlStateTelemetry tracks the state of the NVML library
 }
 
 type checkTelemetry struct {
@@ -72,13 +72,13 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 
 func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
-		CheckBase:        core.NewCheckBase(CheckName),
-		tagger:           tagger,
-		telemetry:        newCheckTelemetry(telemetry),
-		wmeta:            wmeta,
-		deviceTags:       make(map[string][]string),
-		deviceCache:      ddnvml.NewDeviceCache(),
-		nvmlStateTracker: ddnvml.NewNvmlStateTracker(telemetry),
+		CheckBase:          core.NewCheckBase(CheckName),
+		tagger:             tagger,
+		telemetry:          newCheckTelemetry(telemetry),
+		wmeta:              wmeta,
+		deviceTags:         make(map[string][]string),
+		deviceCache:        ddnvml.NewDeviceCache(),
+		nvmlStateTelemetry: ddnvml.NewNvmlStateTelemetry(telemetry),
 	}
 }
 
@@ -198,7 +198,7 @@ func (c *Check) Run() error {
 	}
 
 	// Check the state of the NVML library for telemetry
-	c.nvmlStateTracker.Check()
+	c.nvmlStateTelemetry.Check()
 
 	// Refresh SP cache before collecting metrics, if it is available
 	if c.spCache != nil {
