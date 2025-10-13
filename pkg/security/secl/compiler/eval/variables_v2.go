@@ -9,6 +9,7 @@ package eval
 import (
 	"fmt"
 	"iter"
+	"maps"
 	"net"
 	"regexp"
 	"sync"
@@ -55,15 +56,17 @@ type VariableType interface {
 }
 
 type Definition interface {
-	GetInstances() map[string]Instance
 	AddNewInstance(ctx *Context) (Instance, bool, error)
 	GetInstance(ctx *Context) (Instance, error)
-	// NewInstance() Instance
-	// AddInstance(*Context, Instance) (bool, error)
+	GetInstancesCount() int
 	GetDefaultValue() any
 	IsPrivate() bool
-	GetScoper() *VariableScoper
 	GetName(withScopePrefix bool) string
+	CleanupExpiredVariables()
+	// NewInstance() Instance
+	// AddInstance(*Context, Instance) (bool, error)
+	getInstances() map[string]Instance
+	getScoper() *VariableScoper
 }
 
 type VariableOpts struct {
@@ -82,7 +85,8 @@ type definition[T VariableType] struct {
 	scoper       *VariableScoper
 	opts         *VariableOpts
 
-	instances map[string]Instance
+	instancesLock sync.RWMutex
+	instances     map[string]Instance
 }
 
 func NewVariableDefinition[T VariableType](name string, scoper *VariableScoper, defaultValue T, opts VariableOpts) (Definition, error) {
@@ -101,8 +105,26 @@ func NewVariableDefinition[T VariableType](name string, scoper *VariableScoper, 
 	}, nil
 }
 
-func (def *definition[T]) GetInstances() map[string]Instance {
-	return def.instances
+func (def *definition[T]) getInstances() map[string]Instance {
+	def.instancesLock.RLock()
+	defer def.instancesLock.RUnlock()
+	return maps.Clone(def.instances) // return a shallow clone of the map to avoid concurrency issues
+}
+
+func (def *definition[T]) GetInstancesCount() int {
+	def.instancesLock.RLock()
+	defer def.instancesLock.RUnlock()
+	return len(def.instances)
+}
+
+func (def *definition[T]) CleanupExpiredVariables() {
+	def.instancesLock.Lock()
+	defer def.instancesLock.Unlock()
+	for _, instance := range def.instances {
+		if instance.IsExpired() {
+			instance.free()
+		}
+	}
 }
 
 func (def *definition[T]) GetInstance(ctx *Context) (Instance, error) {
@@ -112,6 +134,8 @@ func (def *definition[T]) GetInstance(ctx *Context) (Instance, error) {
 	if err != nil {
 		return nil, &ErrScopeFailure{VarName: def.name, ScoperType: def.scoper.scoperType, ScoperErr: err}
 	}
+
+	def.instancesLock.RLock()
 
 	key, ok := scope.Key()
 	if ok {
@@ -129,8 +153,12 @@ func (def *definition[T]) GetInstance(ctx *Context) (Instance, error) {
 		}
 	}
 
+	def.instancesLock.RUnlock()
+
 	if instance != nil && instance.IsExpired() {
+		def.instancesLock.Lock()
 		instance.free()
+		def.instancesLock.Unlock()
 		instance = nil
 	}
 
@@ -225,7 +253,7 @@ func (def *definition[T]) AddNewInstance(ctx *Context) (Instance, bool, error) {
 			if def.opts.Telemetry != nil {
 				def.opts.Telemetry.TotalVariables.Dec(def.valueType, def.scoper.Type().String())
 			}
-			delete(def.instances, key)
+			delete(def.instances, key) // instancesLock must be held when this closure is called
 		})
 
 		if def.opts.Telemetry != nil {
@@ -253,9 +281,15 @@ func (def *definition[T]) AddNewInstance(ctx *Context) (Instance, bool, error) {
 		// }
 
 		if releaseable, ok := scope.(ReleasableVariableScope); ok {
-			releaseable.AppendReleaseCallback(newInstance.free)
+			releaseable.AppendReleaseCallback(func() {
+				def.instancesLock.Lock()
+				defer def.instancesLock.Unlock()
+				newInstance.free()
+			})
 		}
 
+		def.instancesLock.Lock()
+		defer def.instancesLock.Unlock()
 		def.instances[key] = newInstance
 	}
 
@@ -272,7 +306,7 @@ func (def *definition[T]) IsPrivate() bool {
 	return def.opts.Private
 }
 
-func (def *definition[T]) GetScoper() *VariableScoper {
+func (def *definition[T]) getScoper() *VariableScoper {
 	return def.scoper
 }
 
@@ -301,6 +335,7 @@ type instanceCommon struct {
 	freeCb   func()
 }
 
+// instancesLock must be held when free() is called
 func (ic *instanceCommon) free() {
 	if ic.freeCb != nil {
 		ic.freeOnce.Do(ic.freeCb)
@@ -650,11 +685,7 @@ func (s *Store) GetEvaluator(varName VariableName) (any, error) {
 
 func (s *Store) CleanupExpiredVariables() {
 	for _, definition := range s.definitions {
-		for _, instance := range definition.GetInstances() {
-			if instance.IsExpired() {
-				instance.free()
-			}
-		}
+		definition.CleanupExpiredVariables()
 	}
 }
 
@@ -665,7 +696,7 @@ type GetOpts struct {
 func (s *Store) GetDefinitions(opts *GetOpts) iter.Seq[Definition] {
 	return func(yield func(Definition) bool) {
 		for _, definition := range s.definitions {
-			if opts.ScoperType != UndefinedScoperType && definition.GetScoper().Type() != opts.ScoperType {
+			if opts.ScoperType != UndefinedScoperType && definition.getScoper().Type() != opts.ScoperType {
 				continue
 			}
 			if !yield(definition) {
@@ -686,9 +717,9 @@ func (s *Store) GetSECLVariables(globalScopeKey string) map[string]*api.SECLVari
 
 	for _, definition := range s.definitions {
 		name := definition.GetName(true)
-		switch definition.GetScoper().Type() {
+		switch definition.getScoper().Type() {
 		case GlobalScoperType:
-			instances := definition.GetInstances()
+			instances := definition.getInstances()
 			globalInstance, ok := instances[globalScopeKey]
 			if ok && !globalInstance.IsExpired() { // skip variables that expired but are yet to be cleaned up
 				seclVariableStates[name] = &api.SECLVariableState{
@@ -697,7 +728,7 @@ func (s *Store) GetSECLVariables(globalScopeKey string) map[string]*api.SECLVari
 				}
 			}
 		case ProcessScoperType, CGroupScoperType, ContainerScoperType:
-			for scopeKey, instance := range definition.GetInstances() {
+			for scopeKey, instance := range definition.getInstances() {
 				if instance.IsExpired() { // skip variables that expired but are yet to be cleaned up
 					continue
 				}
