@@ -161,6 +161,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_co_re"), true, "DD_ENABLE_CO_RE")
 	cfg.BindEnvAndSetDefault(join(spNS, "btf_path"), "", "DD_SYSTEM_PROBE_BTF_PATH")
 	cfg.BindEnvAndSetDefault(join(spNS, "btf_output_dir"), defaultBTFOutputDir, "DD_SYSTEM_PROBE_BTF_OUTPUT_DIR")
+	cfg.BindEnvAndSetDefault(join(spNS, "remote_config_btf_enabled"), false, "DD_SYSTEM_PROBE_REMOTE_CONFIG_BTF_ENABLED")
 	cfg.BindEnv(join(spNS, "enable_runtime_compiler"), "DD_ENABLE_RUNTIME_COMPILER") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	// deprecated in favor of allow_prebuilt_fallback below
 	cfg.BindEnv(join(spNS, "allow_precompiled_fallback"), "DD_ALLOW_PRECOMPILED_FALLBACK") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -338,6 +339,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "span_tracking.cache_size"), 4096)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "capabilities_monitoring.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "capabilities_monitoring.period"), "5s")
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "snapshot_using_listmount"), false)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), defaultEventMonitorAddress)
 	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 	cfg.BindEnvAndSetDefault(join(evNS, "env_vars_resolution.enabled"), true)
@@ -385,7 +387,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "enable_fatbin_parsing"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "fatbin_request_queue_size"), 100)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "ring_buffer_pages_per_device"), 32) // 32 pages = 128KB by default per device
+	cfg.BindEnvAndSetDefault(join(gpuNS, "ringbuffer_wakeup_size"), 3000)     // 3000 bytes is about ~10-20 events depending on the specific type
 	cfg.BindEnvAndSetDefault(join(gpuNS, "attacher_detailed_logs"), false)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "ringbuffer_flush_interval"), 1*time.Second)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "device_cache_refresh_interval"), 5*time.Second)
 
 	// gpu - stream config
 	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_kernel_launches"), 1000)

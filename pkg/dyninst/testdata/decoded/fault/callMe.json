@@ -18,7 +18,7 @@
           {
             "function": "main.callMe",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/fault/main.go",
-            "lineNumber": 53
+            "lineNumber": 55
           },
           {
             "function": "main.main",
@@ -64,6 +64,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

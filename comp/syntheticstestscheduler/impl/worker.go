@@ -150,8 +150,15 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 		cfg.MaxTTL = uint8(*ncr.MaxTTL)
 	}
 	if ncr.Timeout != nil {
-		cfg.Timeout = time.Duration(*ncr.Timeout) * time.Second
+		cfg.Timeout = time.Duration(float64(*ncr.Timeout) * 0.9 / float64(cfg.MaxTTL) * float64(time.Second))
 	}
+	if ncr.TracerouteCount != nil {
+		cfg.TracerouteQueries = *ncr.TracerouteCount
+	}
+	if ncr.ProbeCount != nil {
+		cfg.E2eQueries = *ncr.ProbeCount
+	}
+	cfg.ReverseDNS = true
 }
 
 // toNetpathConfig converts a SyntheticsTestConfig into a system-probe Config.
@@ -219,6 +226,7 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) erro
 	if err != nil {
 		return err
 	}
+
 	payloadBytes, err := json.Marshal(res)
 	if err != nil {
 		return err
@@ -263,6 +271,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	w.tracerouteResult.TestConfigID = w.testCfg.cfg.PublicID
 	w.tracerouteResult.TestResultID = testResultID
 	w.tracerouteResult.Origin = "synthetics"
+	w.tracerouteResult.Timestamp = w.finishedAt.UnixMilli()
 
 	result := common.Result{
 		ID:              testResultID,
@@ -288,25 +297,10 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		},
 		Netpath: w.tracerouteResult,
 		Status:  "passed",
+		RunType: w.testCfg.cfg.RunType,
 	}
 
-	if w.tracerouteError != nil {
-		result.Status = "failed"
-		result.Failure = common.APIError{
-			Code:    "UNKNOWN",
-			Message: w.tracerouteError.Error(),
-		}
-	} else {
-		for _, res := range w.assertionResult {
-			if !res.Valid || res.Failure.Code != "" {
-				result.Status = "failed"
-				result.Failure = common.APIError{
-					Code:    incorrectAssertion,
-					Message: w.tracerouteError.Error(),
-				}
-			}
-		}
-	}
+	s.setResultStatus(w, &result)
 
 	return &common.TestResult{
 		Location: struct {
@@ -317,6 +311,51 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		Test:   t,
 		V:      1,
 	}, nil
+}
+
+func (s *syntheticsTestScheduler) setResultStatus(w *workerResult, result *common.Result) {
+	if result.Netstats.PacketLossPercentage == 100 {
+		if !hasAssertionOn100PacketLoss(w.assertionResult) {
+			result.Status = "failed"
+			result.Failure = common.APIError{
+				Code:    "NETUNREACH",
+				Message: "The remote server network is unreachable.",
+			}
+		}
+	}
+	if w.tracerouteError != nil {
+		result.Status = "failed"
+		result.Failure = common.APIError{
+			Code:    "UNKNOWN",
+			Message: w.tracerouteError.Error(),
+		}
+	}
+	if result.Status != "failed" {
+		for _, res := range w.assertionResult {
+			if !res.Valid {
+				result.Status = "failed"
+				assertionResultJSON, err := json.Marshal(w.assertionResult)
+				message := "Assertions failed"
+				if err == nil {
+					message = string(assertionResultJSON)
+				}
+
+				result.Failure = common.APIError{
+					Code:    incorrectAssertion,
+					Message: message,
+				}
+			}
+		}
+	}
+}
+
+func hasAssertionOn100PacketLoss(assertionResults []common.AssertionResult) bool {
+	for _, assertion := range assertionResults {
+		if assertion.Type == common.AssertionTypePacketLoss && assertion.Operator == common.OperatorIs && assertion.Expected == "100" {
+			return true
+		}
+	}
+	return false
 }
 
 // generateRandomStringUInt63 returns a cryptographically random uint63 as decimal string.

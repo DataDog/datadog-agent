@@ -338,6 +338,8 @@ func TestStatsSyncWriter(t *testing.T) {
 		go sw.Run()
 		testSets := []*pb.StatsPayload{
 			{
+				AgentHostname: "1",
+				AgentEnv:      "1",
 				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,
@@ -349,6 +351,8 @@ func TestStatsSyncWriter(t *testing.T) {
 				}},
 			},
 			{
+				AgentHostname: "2",
+				AgentEnv:      "2",
 				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,

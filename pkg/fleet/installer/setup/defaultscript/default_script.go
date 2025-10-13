@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultInjectorVersion = "0.40.0-1"
+	defaultInjectorVersion = "0"
 )
 
 var (
@@ -103,6 +103,7 @@ func SetupDefaultScript(s *common.Setup) error {
 		return fmt.Errorf("failed to setup APM SSI script: %w", err)
 	}
 
+	s.NoConfig = false
 	return nil
 }
 

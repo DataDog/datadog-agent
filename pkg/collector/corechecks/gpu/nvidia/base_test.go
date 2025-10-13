@@ -20,11 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-// setupMockDevice creates a mock device for testing with optional customization.
-// If customize is nil, returns a basic mock device with all functions enabled.
-// If customize is provided, allows overriding specific device functions.
-func setupMockDevice(t *testing.T, customize func(device *mock.Device) *mock.Device) ddnvml.Device {
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
+func setupMockDeviceWithLibOpts(t *testing.T, customize func(device *mock.Device) *mock.Device, extraLibOpts ...testutil.NvmlMockOption) ddnvml.Device {
+	libOpts := []testutil.NvmlMockOption{
+		testutil.WithMIGDisabled(),
+		testutil.WithDeviceCount(1),
+	}
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(append(libOpts, extraLibOpts...)...)
 	device := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions())
 
 	// Apply customization if provided
@@ -41,11 +42,18 @@ func setupMockDevice(t *testing.T, customize func(device *mock.Device) *mock.Dev
 	}
 
 	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache, err := ddnvml.NewDeviceCache()
+	deviceCache := ddnvml.NewDeviceCache()
+	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
-	devices := deviceCache.AllPhysicalDevices()
 	require.NotEmpty(t, devices)
 	return devices[0]
+}
+
+// setupMockDevice creates a mock device for testing with optional customization.
+// If customize is nil, returns a basic mock device with all functions enabled.
+// If customize is provided, allows overriding specific device functions.
+func setupMockDevice(t *testing.T, customize func(device *mock.Device) *mock.Device) ddnvml.Device {
+	return setupMockDeviceWithLibOpts(t, customize)
 }
 
 func TestNewBaseCollector(t *testing.T) {

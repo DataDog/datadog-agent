@@ -10,9 +10,15 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 1
+        - ID: 2
+          Kind: Entry
           Type: 111 EventRootType Probe[main.callMe]
-          InjectionPoints: [{PC: "0xb752c", Frameless: true}]
+          InjectionPoints: [{PC: "0xb7538", Frameless: false}]
+          Condition: null
+        - ID: 1
+          Kind: Return
+          Type: 112 EventRootType Probe[main.callMe]Return
+          InjectionPoints: [{PC: "0xb75b8", Frameless: false}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -284,6 +290,9 @@ Types:
                   Variable: {subprogram: 1, index: 2, name: i}
                   Offset: 0
                   ByteSize: 8
+    - __kind: EventRootType
+      ID: 112
+      Name: Probe[main.callMe]Return
     - __kind: ArrayType
       ID: 92
       Name: '[0]uint8'
@@ -1439,7 +1448,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 41920
       GoKind: 26
-MaxTypeID: 111
+MaxTypeID: 112
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x191340", TypesOffset: 296}
 CommonTypes:

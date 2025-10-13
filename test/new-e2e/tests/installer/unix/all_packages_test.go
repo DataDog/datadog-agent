@@ -36,17 +36,17 @@ type packageTestsWithSkippedFlavors struct {
 var (
 	amd64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404,
-		// e2eos.AmazonLinux2,
-		// e2eos.Debian12,
-		// e2eos.RedHat9,
-		// // e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
-		// e2eos.CentOS7,
-		// e2eos.Suse15,
+		e2eos.AmazonLinux2,
+		e2eos.Debian12,
+		e2eos.RedHat9,
+		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
+		e2eos.CentOS7,
+		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		// e2eos.Ubuntu2404,
-		// e2eos.AmazonLinux2,
-		// e2eos.Suse15,
+		e2eos.Ubuntu2404,
+		e2eos.AmazonLinux2,
+		e2eos.Suse15,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
@@ -132,11 +132,12 @@ type packageBaseSuite struct {
 	e2e.BaseSuite[environments.Host]
 	host *host.Host
 
-	opts          []awshost.ProvisionerOption
-	pkg           string
-	arch          e2eos.Architecture
-	os            e2eos.Descriptor
-	installMethod InstallMethodOption
+	opts                 []awshost.ProvisionerOption
+	pkg                  string
+	arch                 e2eos.Architecture
+	os                   e2eos.Descriptor
+	installMethod        InstallMethodOption
+	pipelineAgentVersion string
 }
 
 func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption, opts ...awshost.ProvisionerOption) packageBaseSuite {
@@ -162,6 +163,7 @@ func (s *packageBaseSuite) SetupSuite() {
 	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
+	s.pipelineAgentVersion = PipelineAgentVersion(s.T())
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()

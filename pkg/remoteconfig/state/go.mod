@@ -14,12 +14,9 @@ require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	golang.org/x/crypto v0.42.0 // indirect
+	golang.org/x/crypto v0.43.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-// Pin github.com/stretchr/testify to v1.10.0 while waiting for https://github.com/DataDog/datadog-agent/pull/40182
-replace github.com/stretchr/testify => github.com/stretchr/testify v1.10.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
@@ -43,6 +40,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ../../../comp/core/secrets/fx
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ../../../comp/core/secrets/impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock => ../../../comp/core/secrets/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl => ../../../comp/core/secrets/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../../comp/core/secrets/utils
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ../../../comp/core/status/statusimpl
@@ -122,6 +120,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../pkg/metrics
+	github.com/DataDog/datadog-agent/pkg/network/driver => ../../../pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../pkg/network/payload
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ../../../pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ../../../pkg/networkpath/payload

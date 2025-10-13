@@ -21,7 +21,7 @@ from tasks.agent import generate_config
 from tasks.build_tags import add_fips_tags, get_default_build_tags
 from tasks.go import run_golangci_lint
 from tasks.libs.build.ninja import NinjaWriter
-from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -59,7 +59,6 @@ def build(
     race=False,
     rebuild=False,
     install_path=None,
-    major_version='7',
     go_mod="readonly",
     skip_assets=False,
     static=False,
@@ -69,11 +68,11 @@ def build(
     Build the security agent
     """
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, install_path=install_path)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
 
     main = "main."
     ld_vars = {
-        "Version": get_version(ctx, major_version=major_version),
+        "Version": get_version(ctx),
         "GoVersion": get_go_version(),
         "GitBranch": get_current_branch(ctx),
         "GitCommit": get_commit_sha(ctx, short=True),
@@ -84,7 +83,7 @@ def build(
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version)
+        vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/security-agent/windows_resources/security-agent.rc",
@@ -221,9 +220,11 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
     )
 
 
-def build_go_syscall_tester(ctx, build_dir):
+def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
+    arch = Arch.from_str(arch)
+    _, _, env = get_build_flags(ctx, arch=arch)
 
     go_build(
         ctx,
@@ -231,6 +232,7 @@ def build_go_syscall_tester(ctx, build_dir):
         build_tags=["syscalltesters", "osusergo", "netgo"],
         ldflags="-extldflags=-static",
         bin_path=syscall_tester_exe_file,
+        env=env,
     )
     return syscall_tester_exe_file
 
@@ -302,7 +304,7 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
-    build_go_syscall_tester(ctx, build_dir)
+    build_go_syscall_tester(ctx, build_dir, arch=arch)
 
 
 @task
@@ -311,7 +313,6 @@ def build_functional_tests(
     output='pkg/security/tests/testsuite',
     srcpath='pkg/security/tests',
     arch: str | Arch = CURRENT_ARCH,
-    major_version='7',
     build_tags='functionaltests',
     build_flags='',
     bundle_ebpf=True,
@@ -327,16 +328,22 @@ def build_functional_tests(
         if not skip_object_files:
             build_cws_object_files(
                 ctx,
-                major_version=major_version,
                 arch=arch,
                 kernel_release=kernel_release,
                 debug=debug,
                 bundle_ebpf=bundle_ebpf,
             )
-        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler)
+        build_embed_syscall_tester(
+            ctx,
+            compiler=syscall_tester_compiler,
+            arch=arch,
+        )
 
     arch = Arch.from_str(arch)
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, arch=arch)
+    common_ancestor = get_common_ancestor(ctx, "HEAD")
+    print(f"Using git ref {common_ancestor} as common ancestor between HEAD and main branch")
+    ldflags += f"-X {REPO_PATH}/{srcpath}.GitAncestorOnMain={common_ancestor} "
 
     env["CGO_ENABLED"] = "1"
 
@@ -397,7 +404,6 @@ def functional_tests(
     ctx,
     verbose=False,
     race=False,
-    major_version='7',
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
     testflags='',
@@ -406,7 +412,6 @@ def functional_tests(
 ):
     build_functional_tests(
         ctx,
-        major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
@@ -428,7 +433,6 @@ def ebpfless_functional_tests(
     verbose=False,
     race=False,
     arch=CURRENT_ARCH,
-    major_version='7',
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
     testflags='',
@@ -437,7 +441,6 @@ def ebpfless_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
@@ -459,7 +462,6 @@ def docker_functional_tests(
     verbose=False,
     race=False,
     arch=CURRENT_ARCH,
-    major_version='7',
     testflags='',
     bundle_ebpf=True,
     skip_linters=False,
@@ -467,7 +469,6 @@ def docker_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        major_version=major_version,
         output="pkg/security/tests/testsuite",
         bundle_ebpf=bundle_ebpf,
         static=True,
@@ -564,6 +565,7 @@ def cws_go_generate(ctx, verbose=False):
             "./pkg/security/serializers/serializers_linux_easyjson.go",
         )
 
+    ctx.run("go generate ./pkg/security/probe/custom_events.go")
     ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
     # synchronize the seclwin package from the secl package
@@ -784,9 +786,7 @@ def e2e_prepare_win(ctx):
 
 @task
 def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
-    build_cws_object_files(
-        ctx, major_version='7', kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH
-    )
+    build_cws_object_files(ctx, kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH)
 
     env = {"CGO_ENABLED": "1"}
 

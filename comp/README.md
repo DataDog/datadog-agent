@@ -186,6 +186,10 @@ doesn't exist or doesn't contain a PID for a running process.
 
 Package profiler provides a flare folder containing the output of various agent's pprof servers
 
+### [comp/core/remoteagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagent)
+
+Package remoteagent implements the remote agent component
+
 ### [comp/core/remoteagentregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagentregistry)
 
 Package remoteagentregistry provides an integration point for remote agents to register and be able to report their
@@ -355,6 +359,12 @@ by the Agent.
 *Datadog Team*: container-platform
 
 Package clusteragent is the metadata provider for datadog-cluster-agent process
+
+### [comp/metadata/clusterchecks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/clusterchecks)
+
+*Datadog Team*: container-platform
+
+Package clusterchecks provides the clusterchecks metadata component
 
 ### [comp/metadata/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/haagent)
 
@@ -668,6 +678,12 @@ Package payloadmodifier defines the trace payload modifier component interface
 
 Package status implements the core status component information provider interface
 
+### [comp/trace-telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace-telemetry)
+
+*Datadog Team*: agent-runtimes
+
+Package tracetelemetry sends telemetry about the trace-agent and its state
+
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
 *Datadog Team*: fleet windows-products
@@ -744,6 +760,12 @@ Package client implements a component to send process metadata to the Cluster-Ag
 *Datadog Team*: network-device-monitoring
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
+
+### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
+
+*Datadog Team*: windows-products
+
+Package publishermetadatacache provides a cache for Windows Event Log publisher metadata handles
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
