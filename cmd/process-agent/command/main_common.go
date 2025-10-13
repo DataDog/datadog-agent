@@ -187,8 +187,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		fx.Invoke(func(cfg config.Component, logger logcomp.Component) error {
 			if cfg.GetString("infrastructure_mode") == "basic" {
 				logger.Info("Infrastructure basic mode is enabled - process-agent is not allowed to run in basic mode")
-				logger.Info("The process-agent (continuous process monitoring) is disabled in infrastructure basic mode")
-				logger.Info("Note: Basic process information is still available via the 'process' check in the core agent")
 				logger.Info("To enable full process monitoring, set infrastructure_mode to 'full' in datadog.yaml")
 				return errAgentDisabled
 			}

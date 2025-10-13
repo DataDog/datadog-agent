@@ -288,7 +288,6 @@ func start(log log.Component,
 	// Check infrastructure mode early - if basic mode is enabled, exit immediately
 	if config.GetString("infrastructure_mode") == "basic" {
 		pkglog.Info("Infrastructure basic mode is enabled - cluster-agent is not allowed to run in basic mode")
-		pkglog.Info("The cluster-agent (Kubernetes cluster monitoring) is disabled in infrastructure basic mode")
 		pkglog.Info("To enable cluster monitoring, set infrastructure_mode to 'full' in datadog.yaml")
 
 		// A sleep is necessary to ensure that supervisor/init systems register this process as "STARTED"
