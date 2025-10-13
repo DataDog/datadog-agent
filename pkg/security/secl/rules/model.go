@@ -471,7 +471,7 @@ func (d *HumanReadableDuration) MarshalJSON() ([]byte, error) {
 	if d == nil || d.Duration == 0 {
 		return nil, nil
 	}
-	return json.Marshal(d.String())
+	return json.Marshal(d.GetDuration())
 }
 
 // UnmarshalJSON unmarshals a duration from a human readable format or from an integer
