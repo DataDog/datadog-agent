@@ -285,6 +285,18 @@ func start(log log.Component,
 		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
+	// Check infrastructure mode early - if basic mode is enabled, exit immediately
+	if config.GetString("infrastructure_mode") == "basic" {
+		pkglog.Info("Infrastructure basic mode is enabled - cluster-agent is not allowed to run in basic mode")
+		pkglog.Info("The cluster-agent (Kubernetes cluster monitoring) is disabled in infrastructure basic mode")
+		pkglog.Info("To enable cluster monitoring, set infrastructure_mode to 'full' in datadog.yaml")
+
+		// A sleep is necessary to ensure that supervisor/init systems register this process as "STARTED"
+		time.Sleep(5 * time.Second)
+
+		return fmt.Errorf("cluster-agent is not allowed in infrastructure basic mode")
+	}
+
 	// Setup Internal Profiling
 	common.SetupInternalProfiling(settings, config, "")
 
