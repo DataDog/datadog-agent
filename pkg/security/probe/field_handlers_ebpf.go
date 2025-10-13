@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
@@ -637,7 +638,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Pr
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (fh *EBPFFieldHandlers) ResolveUserSessionContext(evtCtx *model.UserSessionContext) {
 	if !evtCtx.Resolved {
-		if evtCtx.SessionType == 2 {
+		if evtCtx.SessionType == int(usersession.UserSessionTypeSSH) {
 			ctx := fh.resolvers.UserSessionsResolver.ResolveSSHUserSession(evtCtx)
 			if ctx != nil {
 				*evtCtx = *ctx
