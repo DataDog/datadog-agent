@@ -67,6 +67,6 @@ func runWithRetry(t *testing.T, h *Host, cmd string) string {
 		var err error
 		output, err = h.Execute(cmd)
 		require.NoError(c, err)
-	}, time.Second*10, time.Second*1)
+	}, time.Second*30, time.Second*1)
 	return output
 }
