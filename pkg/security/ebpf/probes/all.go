@@ -302,11 +302,11 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditMaxEntries,
 		}
 		editors["activity_dumps_config"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.TracedCgroupSize),
+			MaxEntries: uint32(opts.TracedCgroupSize * 2),
 			EditorFlag: manager.EditMaxEntries,
 		}
 		editors["activity_dump_rate_limiters"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.TracedCgroupSize),
+			MaxEntries: uint32(opts.TracedCgroupSize * 2),
 			EditorFlag: manager.EditMaxEntries,
 		}
 		editors["cgroup_wait_list"] = manager.MapSpecEditor{
