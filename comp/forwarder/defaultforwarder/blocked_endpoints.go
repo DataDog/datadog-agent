@@ -20,18 +20,19 @@ import (
 var TimeNow = time.Now
 
 const (
-	Unblocked = iota
-	HalfBlocked
-	Blocked
+	unblocked = iota
+	halfBlocked
+	blocked
 )
 
 type circuitBreakerState = int
 
 type block struct {
-	nbError int
-	until   time.Time
-	state   circuitBreakerState
-	m       sync.RWMutex
+	endpoint string
+	nbError  int
+	until    time.Time
+	state    circuitBreakerState
+	m        sync.RWMutex
 }
 
 type blockedEndpoints struct {
@@ -75,19 +76,18 @@ func newBlockedEndpoints(config config.Component, log log.Component) *blockedEnd
 
 func printState(prefix string, state circuitBreakerState) {
 	switch state {
-	case Unblocked:
+	case unblocked:
 		fmt.Println("\033[035m", prefix, "unblocked", "\033[0m")
-	case HalfBlocked:
+	case halfBlocked:
 		fmt.Println("\033[035m", prefix, "half blocked", "\033[0m")
-	case Blocked:
+	case blocked:
 		fmt.Println("\033[035m", prefix, "blocked", "\033[0m")
 	}
 
 }
 
-func (e *block) setState(state circuitBreakerState) {
-	e.state = state
-	printState("new state", e.state)
+func (b *block) setState(state circuitBreakerState) {
+	b.state = state
 }
 
 func (e *blockedEndpoints) getState(endpoint string) (bool, circuitBreakerState) {
@@ -107,25 +107,26 @@ func (e *blockedEndpoints) close(endpoint string) {
 		b = knownBlock
 	} else {
 		b = &block{
-			state: Unblocked,
+			endpoint: endpoint,
+			state:    unblocked,
 		}
 	}
 
 	switch b.state {
-	case Unblocked:
+	case unblocked:
 		// The circuit breaker is closed, we need to open it for a given time
 		b.nbError = e.backoffPolicy.IncError(b.nbError)
 		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
-		b.setState(Blocked)
-	case HalfBlocked:
+		b.setState(blocked)
+	case halfBlocked:
 		// There is a risk that this transaction was sent before the circuit breaker was
 		// moved to half open. Currently this assumes that it wasn't and we need to work
 		// out a way to solve this....
 		// The test transaction failed, so we need to mave back to closed.
 		b.nbError = e.backoffPolicy.IncError(b.nbError)
 		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
-		b.setState(Blocked)
-	case Blocked:
+		b.setState(blocked)
+	case blocked:
 		// We ignore all failures coming in when open. These are transactions sent
 		// before the first one returned with an error.
 	}
@@ -142,23 +143,24 @@ func (e *blockedEndpoints) recover(endpoint string) {
 		b = knownBlock
 	} else {
 		b = &block{
-			state: Unblocked,
+			endpoint: endpoint,
+			state:    unblocked,
 		}
 	}
 
 	switch b.state {
-	case Unblocked:
+	case unblocked:
 		// Nothing to do, we are already closed and running smoothly.
-	case HalfBlocked:
+	case halfBlocked:
 		// The test worked, we can ease off
 		b.nbError = e.backoffPolicy.DecError(b.nbError)
 		if b.nbError == 0 {
-			b.setState(Unblocked)
+			b.setState(unblocked)
 		} else {
 			b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
-			b.setState(Blocked)
+			b.setState(blocked)
 		}
-	case Blocked:
+	case blocked:
 		// If we are open and a successful transaction came through, we
 		// can't be sure if it was sent before the errored transaction or
 		// after, so we will ignore this.
@@ -167,27 +169,43 @@ func (e *blockedEndpoints) recover(endpoint string) {
 	e.errorPerEndpoint[endpoint] = b
 }
 
-// isBlockForRetry checks if the endpoint is blocked when deciding if
-// we want to add the transaction to the retry queue.
-// We check if an endpoint is blocked in two places.
-// Once when deciding if we want to requeue a transaction and another time
-// if we are deciding whether to send the transaction. The retry queue should
-// not also update the state as that is only used when sending the transaction
-// to ensure only one gets sent when in the `HalfBlock` state.
-func (e *blockedEndpoints) isBlockForRetry(endpoint string) bool {
+// isBlockForRetry checks if the endpoint is blocked when deciding if we want
+// to add the transaction to the retry queue.
+//
+// We check if an endpoint is blocked in two places:
+//
+// 1. When deciding if we want to requeue a transaction
+// 2. When deciding whether to send the transaction.
+//
+// When adding to the retry queue, we have a list of transactions that are to
+// be retried. They are sorted in priority order. If we are `blocked` and the timeout
+// has expired, we want to push a single (preferably high priority) transaction to the
+// worker to send a test transaction.
+// If we are `blocked` and the timeout has not expired, or we are `halfblocked`
+// (waiting for the results of the the test transaction) we block all transactions.
+func (e *blockedEndpoints) isBlockForRetry(endpoint string) (bool, bool) {
 	e.m.RLock()
 	defer e.m.RUnlock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
-		b.m.RLock()
-		defer b.m.RUnlock()
+		b.m.Lock()
+		defer b.m.Unlock()
 
-		return b.state == HalfBlocked ||
-			(b.state == Blocked && TimeNow().Before(b.until))
-
+		if b.state == blocked {
+			if TimeNow().Before(b.until) {
+				// Blocked and don't send
+				return true, false
+			} else {
+				// Blocked but send one transaction
+				return true, true
+			}
+		} else if b.state == halfBlocked {
+			// Blocked and don't send
+			return true, false
+		}
 	}
 
-	return false
+	return false, false
 }
 
 // isBlockForSend checks if the endpoint is blocked when deciding if
@@ -200,33 +218,24 @@ func (e *blockedEndpoints) isBlockForSend(endpoint string) bool {
 	defer e.m.RUnlock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
+		b.m.Lock()
+		defer b.m.Unlock()
 
-		b.m.RLock()
 		switch b.state {
-		case HalfBlocked:
+		case halfBlocked:
 			// We have already sent the single transactions to test if the endpoint is now up
-			b.m.RUnlock()
 			return true
-		case Blocked:
+		case blocked:
 			if TimeNow().Before(b.until) {
-				b.m.RUnlock()
 				return true
 			} else {
-				// Upgrade to a full lock so we can move
-				// to HalfOpen and send this transaction
-				// to test the endpoint.
-				b.m.RUnlock()
-				b.m.Lock()
-				defer b.m.Unlock()
-				if b.state == Blocked {
-					b.setState(HalfBlocked)
+				if b.state == blocked {
+					b.setState(halfBlocked)
 				}
 
 				return false
 			}
 		}
-
-		b.m.RUnlock()
 	}
 
 	return false

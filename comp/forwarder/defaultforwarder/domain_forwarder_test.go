@@ -247,7 +247,7 @@ func TestRetryTransactions(t *testing.T) {
 
 	forwarder.blockedList.errorPerEndpoint[t1.GetTarget()].until = time.Now().Add(-1 * time.Hour)
 	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].until = time.Now().Add(1 * time.Hour)
-	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].state = Blocked
+	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].state = blocked
 
 	forwarder.requeueTransaction(t2)
 	forwarder.requeueTransaction(t2) // this second one should be dropped
@@ -267,7 +267,7 @@ func TestForwarderRetry(t *testing.T) {
 
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Hour)
-	forwarder.blockedList.errorPerEndpoint["blocked"].state = Blocked
+	forwarder.blockedList.errorPerEndpoint["blocked"].state = blocked
 
 	ready := newTestTransactionDomainForwarder()
 	notReady := newTestTransactionDomainForwarder()
@@ -288,7 +288,7 @@ func TestForwarderRetry(t *testing.T) {
 	ready.AssertExpectations(t)
 	notReady.AssertExpectations(t)
 	notReady.AssertNumberOfCalls(t, "Process", 0)
-	notReady.AssertNumberOfCalls(t, "GetTarget", 1)
+	notReady.AssertNumberOfCalls(t, "GetTarget", 3)
 	trs, err := forwarder.retryQueue.ExtractTransactions()
 	require.NoError(t, err)
 	require.Len(t, trs, 1)
@@ -311,7 +311,7 @@ func TestForwarderRetryLifo(t *testing.T) {
 	transaction1.On("GetTarget").Return("").Times(1)
 
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
-	transaction2.On("GetTarget").Return("").Times(1)
+	transaction2.On("GetTarget").Return("").Times(3)
 
 	forwarder.retryTransactions(time.Now())
 

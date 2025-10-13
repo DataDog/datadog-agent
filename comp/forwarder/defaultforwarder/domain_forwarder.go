@@ -104,9 +104,19 @@ func (f *domainForwarder) retryTransactions(_ time.Time) {
 
 	f.transactionPrioritySorter.Sort(transactions)
 
+	// Cache the blocked results so that we don't start sending to an endpoint half way through
+	// the sorted list, ensuring we always send high priority transactions first.
+	blockedList := make(map[string]bool)
+
 	for _, t := range transactions {
 		transactionEndpointName := t.GetEndpointName()
-		if !f.blockedList.isBlockForRetry(t.GetTarget()) {
+		blocked, ok := blockedList[t.GetTarget()]
+		sendOne := false
+		if !ok {
+			blocked, sendOne = f.blockedList.isBlockForRetry(t.GetTarget())
+			blockedList[t.GetTarget()] = blocked
+		}
+		if !blocked || sendOne {
 			select {
 			case f.lowPrio <- t:
 				transactionsRetriedByEndpoint.Add(transactionEndpointName, 1)

@@ -224,7 +224,7 @@ func TestMaxBlock(t *testing.T) {
 
 	e.close("test")
 	e.errorPerEndpoint["test"].nbError = 1000000
-	e.errorPerEndpoint["test"].state = HalfBlocked
+	e.errorPerEndpoint["test"].state = halfBlocked
 
 	e.close("test")
 	now := time.Now()
@@ -272,18 +272,18 @@ func TestIsblockEndpointStaysClosedAfterFailedTest(t *testing.T) {
 
 	e.close("test")
 
-	assertState(t, e, "test", Blocked)
+	assertState(t, e, "test", blocked)
 
 	// Still blocked after 2 seconds
 	mocktime = mocktime.Add(2 * time.Second)
 
-	assertState(t, e, "test", Blocked)
+	assertState(t, e, "test", blocked)
 
 	// Testing again after another 2 seconds
 	mocktime = mocktime.Add(2 * time.Second)
 	assert.False(t, e.isBlockForSend("test"))
 	assert.True(t, e.isBlockForSend("test"))
-	assertState(t, e, "test", HalfBlocked)
+	assertState(t, e, "test", halfBlocked)
 }
 
 func TestIsblockEndpointReopensAfterSuccessfulTest(t *testing.T) {
@@ -313,7 +313,7 @@ func TestIsblockEndpointReopensAfterSuccessfulTest(t *testing.T) {
 	e.recover("test")
 
 	e.isBlockForSend("test")
-	assertState(t, e, "test", Unblocked)
+	assertState(t, e, "test", unblocked)
 }
 
 func TestIsblockEndpointReopensForTest(t *testing.T) {
