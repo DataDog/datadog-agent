@@ -15,7 +15,7 @@ const (
 	onSuccessIncreaseValue  = 1
 	onFailureDecreaseFactor = 2
 
-	failuresWindowDuration = 30 * time.Minute
+	failuresWindowDuration = 60 * time.Minute
 	maxFailuresPerWindow   = 2
 )
 
@@ -29,10 +29,11 @@ type OidBatchSizeOptimizers struct {
 
 // oidBatchSizeOptimizer holds data between check runs to be able to find an optimized batch size for SNMP requests
 type oidBatchSizeOptimizer struct {
-	snmpOperation       snmpOperation
-	configBatchSize     int
-	batchSize           int
-	failuresByBatchSize map[int]int
+	snmpOperation           snmpOperation
+	configBatchSize         int
+	batchSize               int
+	failuresByBatchSize     map[int]int
+	lastSuccessfulBatchSize int
 }
 
 // NewOidBatchSizeOptimizers creates a OidBatchSizeOptimizers
@@ -82,7 +83,11 @@ func (o *oidBatchSizeOptimizer) onBatchSizeFailure() bool {
 	o.failuresByBatchSize[o.batchSize]++
 
 	oldBatchSize := o.batchSize
+
 	newBatchSize := max(o.batchSize/onFailureDecreaseFactor, 1)
+	if oldBatchSize > o.lastSuccessfulBatchSize && newBatchSize < o.lastSuccessfulBatchSize {
+		newBatchSize = o.lastSuccessfulBatchSize
+	}
 
 	o.batchSize = newBatchSize
 
@@ -94,18 +99,19 @@ func (o *oidBatchSizeOptimizer) onBatchSizeFailure() bool {
 
 // onBatchSizeSuccess increases the batch size
 func (o *oidBatchSizeOptimizer) onBatchSizeSuccess() {
+	o.lastSuccessfulBatchSize = o.batchSize
+
 	if o.batchSize >= o.maxBatchSize() {
 		return
 	}
 
-	oldBatchSize := o.batchSize
 	newBatchSize := min(o.batchSize+onSuccessIncreaseValue, o.maxBatchSize())
 	if o.failuresByBatchSize[newBatchSize] >= maxFailuresPerWindow {
 		return
 	}
 
 	log.Debugf("SNMP fetch using %s with batch size %d success, new batch size is %d",
-		o.snmpOperation, oldBatchSize, newBatchSize)
+		o.snmpOperation, o.lastSuccessfulBatchSize, newBatchSize)
 
 	o.batchSize = newBatchSize
 }
