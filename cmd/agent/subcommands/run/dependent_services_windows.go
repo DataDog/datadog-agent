@@ -36,7 +36,7 @@ var subservices = []Servicedef{
 		shouldShutdown: false,
 	},
 	{
-		name: "process",
+		name: "process", // Should be disabled for infra basic mode
 		configKeys: map[string]model.Config{
 			"process_config.enabled":                      pkgconfigsetup.Datadog(),
 			"process_config.process_collection.enabled":   pkgconfigsetup.Datadog(),
@@ -165,14 +165,6 @@ func (s *Servicedef) ShouldStop() bool {
 }
 
 func startDependentServices() {
-	// In infrastructure basic mode, only the core agent should run
-	// All other agents (trace, process, system-probe, security, otel) should be disabled
-	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "basic" {
-		log.Info("Infrastructure basic mode enabled: dependent services will not be started")
-		log.Info("Only the core agent will run. To enable other agents, set infrastructure_mode to 'full'")
-		return
-	}
-
 	for _, svc := range subservices {
 		if svc.IsEnabled() {
 			log.Debugf("Attempting to start service: %s", svc.name)
@@ -189,13 +181,6 @@ func startDependentServices() {
 }
 
 func stopDependentServices() {
-	// In infrastructure basic mode, dependent services were never started
-	// so there's nothing to stop
-	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "basic" {
-		log.Debug("Infrastructure basic mode: no dependent services to stop")
-		return
-	}
-
 	for _, svc := range subservices {
 		if svc.ShouldStop() {
 			log.Debugf("Attempting to stop service: %s", svc.name)
