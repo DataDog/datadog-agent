@@ -250,7 +250,7 @@ filters:
 			expectedErr: "error building regex",
 		},
 		{
-			name:   "default datadog domain excluded",
+			name:   "default datadog domain excluded with site",
 			config: ``,
 			ddSite: "datad0g.com",
 			expectedMatches: []expectedMatch{
@@ -258,6 +258,19 @@ filters:
 				{domain: "dns.datadoghq.com", shouldMatch: false},
 				{domain: "dns.datadoghq.eu", shouldMatch: false},
 				{domain: "abc.datad0g.com", shouldMatch: false},
+				{domain: "1.datadog.pool.ntp.org", shouldMatch: false},
+			},
+			expectedErr: "",
+		},
+		{
+			name:   "default datadog domain excluded without site",
+			config: ``,
+			ddSite: "",
+			expectedMatches: []expectedMatch{
+				{domain: "zoom.us", shouldMatch: true},
+				{domain: "dns.datadoghq.com", shouldMatch: false},
+				{domain: "dns.datadoghq.eu", shouldMatch: false},
+				{domain: "abc.datad0g.com", shouldMatch: true},
 				{domain: "1.datadog.pool.ntp.org", shouldMatch: false},
 			},
 			expectedErr: "",

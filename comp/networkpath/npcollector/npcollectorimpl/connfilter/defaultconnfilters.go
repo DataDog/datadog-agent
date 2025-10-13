@@ -19,10 +19,12 @@ func getDefaultConnFilters(site string) []Config {
 			Type:        FilterTypeExclude,
 			MatchDomain: "*.datadoghq.eu",
 		},
-		{
+	}
+	if site != "" {
+		defaultConfig = append(defaultConfig, Config{
 			Type:        FilterTypeExclude,
 			MatchDomain: "*." + site,
-		},
+		})
 	}
 	return defaultConfig
 }
