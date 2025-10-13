@@ -553,13 +553,39 @@ func (m *Manager) startDumpWithConfig(containerID containerutils.ContainerID, cg
 }
 
 func (m *Manager) evictTracedCgroup(cgroup *model.CGroupContext) {
-	// first, push the evicted cgroup to the discarded map
+	// first, retrieve the cookie from the traced cgroup entry
+	var cookie uint64
+	if err := m.tracedCgroupsMap.Lookup(cgroup.CGroupFile, &cookie); err != nil {
+		if !errors.Is(err, ebpf.ErrKeyNotExist) {
+			seclog.Errorf("couldn't lookup activity dump cgroup %s cookie: %v", cgroup.CGroupID, err)
+		}
+		// if the entry doesn't exist, we still try to cleanup
+	}
+
+	// second, push the evicted cgroup to the discarded map
 	if err := m.tracedCgroupsDiscardedMap.Put(cgroup.CGroupFile, uint8(1)); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Errorf("couldn't discard activity dump cgroup %s: %v", cgroup.CGroupID, err)
 		}
 	}
-	// then evict if from the traced one
+
+	if cookie != 0 {
+		// third, cleanup the activity_dumps_config map using the cookie
+		if err := m.activityDumpsConfigMap.Delete(cookie); err != nil {
+			if !errors.Is(err, ebpf.ErrKeyNotExist) {
+				seclog.Errorf("couldn't delete activity dump config for cgroup %s (cookie %d): %v", cgroup.CGroupID, cookie, err)
+			}
+		}
+
+		// fourth, cleanup the activity_dump_rate_limiters map using the cookie
+		if err := m.activityDumpRateLimitersMap.Delete(cookie); err != nil {
+			if !errors.Is(err, ebpf.ErrKeyNotExist) {
+				seclog.Errorf("couldn't delete activity dump rate limiter for cgroup %s (cookie %d): %v", cgroup.CGroupID, cookie, err)
+			}
+		}
+	}
+
+	// finally, evict it from the traced one
 	if err := m.tracedCgroupsMap.Delete(cgroup.CGroupFile); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Errorf("couldn't delete activity dump filter cgroup %s: %v", cgroup.CGroupID, err)

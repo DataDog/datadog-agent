@@ -91,12 +91,13 @@ type Manager struct {
 	activityDumpLoadConfig *model.ActivityDumpLoadConfig
 
 	// ebpf maps
-	tracedPIDsMap              *ebpf.Map
-	tracedCgroupsMap           *ebpf.Map
-	tracedCgroupsDiscardedMap  *ebpf.Map
-	cgroupWaitList             *ebpf.Map
-	activityDumpsConfigMap     *ebpf.Map
-	activityDumpConfigDefaults *ebpf.Map
+	tracedPIDsMap               *ebpf.Map
+	tracedCgroupsMap            *ebpf.Map
+	tracedCgroupsDiscardedMap   *ebpf.Map
+	cgroupWaitList              *ebpf.Map
+	activityDumpsConfigMap      *ebpf.Map
+	activityDumpConfigDefaults  *ebpf.Map
+	activityDumpRateLimitersMap *ebpf.Map
 
 	ignoreFromSnapshot   map[model.PathKey]bool
 	dumpLimiter          *lru.Cache[cgroupModel.WorkloadSelector, *atomic.Uint64]
@@ -179,6 +180,11 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	activityDumpConfigDefaultsMap, err := managerhelper.Map(ebpf, "activity_dump_config_defaults")
+	if err != nil {
+		return nil, err
+	}
+
+	activityDumpRateLimitersMap, err := managerhelper.Map(ebpf, "activity_dump_rate_limiters")
 	if err != nil {
 		return nil, err
 	}
@@ -288,12 +294,13 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		newEvent:      newEvent,
 		pathsReducer:  activity_tree.NewPathsReducer(),
 
-		tracedPIDsMap:              tracedPIDs,
-		tracedCgroupsMap:           tracedCgroupsMap,
-		tracedCgroupsDiscardedMap:  tracedCgroupsDiscardedMap,
-		cgroupWaitList:             cgroupWaitList,
-		activityDumpsConfigMap:     activityDumpsConfigMap,
-		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
+		tracedPIDsMap:               tracedPIDs,
+		tracedCgroupsMap:            tracedCgroupsMap,
+		tracedCgroupsDiscardedMap:   tracedCgroupsDiscardedMap,
+		cgroupWaitList:              cgroupWaitList,
+		activityDumpsConfigMap:      activityDumpsConfigMap,
+		activityDumpConfigDefaults:  activityDumpConfigDefaultsMap,
+		activityDumpRateLimitersMap: activityDumpRateLimitersMap,
 
 		ignoreFromSnapshot:   make(map[model.PathKey]bool),
 		dumpLimiter:          dumpLimiter,
