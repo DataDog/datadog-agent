@@ -241,7 +241,7 @@ func TestMaxBlock(t *testing.T) {
 }
 
 func assertState(t *testing.T, e *blockedEndpoints, endpoint string, expected circuitBreakerState) {
-	exists, state := e.getState("test")
+	exists, state := e.getState(endpoint)
 	assert.True(t, exists)
 	assert.Equal(t, expected, state)
 }

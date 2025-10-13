@@ -6,7 +6,6 @@
 package defaultforwarder
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -72,18 +71,6 @@ func newBlockedEndpoints(config config.Component, log log.Component) *blockedEnd
 		errorPerEndpoint: make(map[string]*block),
 		backoffPolicy:    backoff.NewExpBackoffPolicy(backoffFactor, backoffBase, backoffMax, recInterval, recoveryReset),
 	}
-}
-
-func printState(prefix string, state circuitBreakerState) {
-	switch state {
-	case unblocked:
-		fmt.Println("\033[035m", prefix, "unblocked", "\033[0m")
-	case halfBlocked:
-		fmt.Println("\033[035m", prefix, "half blocked", "\033[0m")
-	case blocked:
-		fmt.Println("\033[035m", prefix, "blocked", "\033[0m")
-	}
-
 }
 
 func (b *block) setState(state circuitBreakerState) {
@@ -195,10 +182,10 @@ func (e *blockedEndpoints) isBlockForRetry(endpoint string) (bool, bool) {
 			if TimeNow().Before(b.until) {
 				// Blocked and don't send
 				return true, false
-			} else {
-				// Blocked but send one transaction
-				return true, true
 			}
+
+			// Blocked but send one transaction
+			return true, true
 		} else if b.state == halfBlocked {
 			// Blocked and don't send
 			return true, false
