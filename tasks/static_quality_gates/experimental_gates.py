@@ -675,8 +675,9 @@ class DockerProcessor:
             if debug:
                 print(f"📋 Calculating wire size from manifest for {image_ref}...")
 
+            # Use jq to properly parse JSON and sum config size + all layer sizes
             manifest_output = ctx.run(
-                f"crane manifest -v {image_ref} | grep size | awk -F ':' '{{sum+=$NF}} END {{printf(\"%d\",sum)}}'",
+                f"crane manifest {image_ref} | jq '[.config.size, (.layers[].size)] | add'",
                 hide=True,
             )
 
@@ -708,14 +709,43 @@ class DockerProcessor:
         all_files = {}  # Use dict to handle overwrites from different layers
 
         try:
+            # Check if this is OCI format (has index.json and oci-layout)
+            index_path = os.path.join(extract_dir, "index.json")
+            oci_layout_path = os.path.join(extract_dir, "oci-layout")
             manifest_path = os.path.join(extract_dir, "manifest.json")
-            if not os.path.exists(manifest_path):
-                raise RuntimeError("manifest.json not found in crane pull tarball")
 
-            with open(manifest_path) as f:
-                manifest = json.load(f)[0]  # Typically one image per tarball
+            if os.path.exists(index_path) and os.path.exists(oci_layout_path):
+                # OCI format
+                if debug:
+                    print("🔍 Detected OCI format")
 
-            layer_files = manifest.get("Layers", [])
+                with open(index_path) as f:
+                    index = json.load(f)
+
+                # Get the manifest digest from the index
+                manifest_digest = index["manifests"][0]["digest"]
+                manifest_blob_path = os.path.join(extract_dir, "blobs", manifest_digest.replace(":", "/"))
+
+                with open(manifest_blob_path) as f:
+                    manifest = json.load(f)
+
+                # Get layer digests from manifest
+                layer_digests = [layer["digest"] for layer in manifest.get("layers", [])]
+
+                # Convert to layer paths
+                layer_files = [os.path.join("blobs", digest.replace(":", "/")) for digest in layer_digests]
+
+            elif os.path.exists(manifest_path):
+                # Old tarball format
+                if debug:
+                    print("🔍 Detected Docker tarball format")
+
+                with open(manifest_path) as f:
+                    manifest = json.load(f)[0]  # Typically one image per tarball
+
+                layer_files = manifest.get("Layers", [])
+            else:
+                raise RuntimeError("Neither OCI format (index.json) nor tarball format (manifest.json) detected")
 
             if debug:
                 print(f"🔍 Found {len(layer_files)} layers in manifest")
@@ -806,23 +836,54 @@ class DockerProcessor:
         try:
             import json
 
+            # Check if this is OCI format
+            index_path = os.path.join(extract_dir, "index.json")
+            oci_layout_path = os.path.join(extract_dir, "oci-layout")
             manifest_path = os.path.join(extract_dir, "manifest.json")
-            if not os.path.exists(manifest_path):
+
+            if os.path.exists(index_path) and os.path.exists(oci_layout_path):
+                # OCI format
+                with open(index_path) as f:
+                    index = json.load(f)
+
+                # Get the manifest digest from the index
+                manifest_digest = index["manifests"][0]["digest"]
+                manifest_blob_path = os.path.join(extract_dir, "blobs", manifest_digest.replace(":", "/"))
+
+                with open(manifest_blob_path) as f:
+                    manifest = json.load(f)
+
+                # Get config digest from manifest
+                config_digest = manifest.get("config", {}).get("digest", "")
+                config_path = os.path.join(extract_dir, "blobs", config_digest.replace(":", "/"))
+
+                if not os.path.exists(config_path):
+                    return None
+
+                with open(config_path) as f:
+                    config_data = json.load(f)
+
+                # Get layer digests
+                layer_digests = [layer["digest"] for layer in manifest.get("layers", [])]
+                layer_files = [os.path.join("blobs", digest.replace(":", "/")) for digest in layer_digests]
+
+            elif os.path.exists(manifest_path):
+                # Old tarball format
+                with open(manifest_path) as f:
+                    manifest = json.load(f)[0]
+
+                config_file = manifest.get("Config", "")
+                config_path = os.path.join(extract_dir, config_file)
+
+                if not os.path.exists(config_path):
+                    return None
+
+                with open(config_path) as f:
+                    config_data = json.load(f)
+
+                layer_files = manifest.get("Layers", [])
+            else:
                 return None
-
-            with open(manifest_path) as f:
-                manifest = json.load(f)[0]
-
-            config_file = manifest.get("Config", "")
-            config_path = os.path.join(extract_dir, config_file)
-
-            if not os.path.exists(config_path):
-                return None
-
-            with open(config_path) as f:
-                config_data = json.load(f)
-
-            layer_files = manifest.get("Layers", [])
             layers = []
 
             for i, layer_file in enumerate(layer_files):
