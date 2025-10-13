@@ -230,7 +230,6 @@ func (r *IncrementalFileReader) reloadIfRotated() error {
 		// We restart from the beginning because it's a new file
 		r.offset = 0
 
-		_, err = r.f.Seek(r.offset, io.SeekStart)
 		if err != nil {
 			r.close()
 			r.f = nil
