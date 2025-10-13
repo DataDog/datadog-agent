@@ -58,6 +58,8 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 	err := json.Unmarshal([]byte(metadataStr), &metadata)
 	require.NoError(v.T(), err)
 
+	v.T().Logf("agent version: %s", v.Env().Agent.Client.Version())
+
 	hostnameStyles := map[string]interface{}{
 		"":                        hostname,
 		"os":                      hostname,
@@ -78,6 +80,18 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 			v.UpdateEnv(azurehost.ProvisionerNoFakeIntake(azurehost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))))
 
 			hostname := v.Env().Agent.Client.Hostname()
+
+			if hostnameStyle == "os_computer_name" {
+				v.T().Logf("hostname: %s", hostname)
+				v.T().Logf("expected when os_computer_name: %s", expected)
+
+				config := v.Env().Agent.Client.Config()
+				v.T().Logf("agent config: %s", config)
+
+				status := v.Env().Agent.Client.Status()
+				v.T().Logf("agent status: %s", status)
+			}
+
 			v.Equal(expected, hostname)
 		})
 	}
