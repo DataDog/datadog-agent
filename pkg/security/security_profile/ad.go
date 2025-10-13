@@ -513,7 +513,7 @@ workloadLoop:
 		}
 
 		if err := m.startDumpWithConfig(workloads[0].ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
-			if !errors.Is(err, unix.E2BIG) {
+			if errors.Is(err, unix.E2BIG) {
 				seclog.Debugf("%v", err)
 				break
 			}
@@ -589,7 +589,10 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 	defer m.m.Unlock()
 
 	if err := m.startDumpWithConfig(event.ContainerContext.ContainerID, event.CGroupContext, event.ConfigCookie, event.Config); err != nil {
-		seclog.Warnf("%v", err)
+		if errors.Is(err, unix.E2BIG) {
+			seclog.Debugf("%v", err)
+		}
+		seclog.Errorf("%v", err)
 	}
 }
 

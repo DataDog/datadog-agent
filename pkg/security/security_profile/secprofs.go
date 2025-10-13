@@ -9,6 +9,7 @@
 package securityprofile
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -21,6 +22,7 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"golang.org/x/sys/unix"
 )
 
 // fetchSilentWorkloads returns the list of workloads for which we haven't received any profile
@@ -318,11 +320,14 @@ func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *Manager) linkProfileMap(profile *profile.Profile, workload *tags.Workload) {
 	if err := m.securityProfileMap.Put(workload.CGroupFile.Inode, profile.GetProfileCookie()); err != nil {
-		seclog.Errorf("couldn't link workload %s (selector: %s, key: %v) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
+		if errors.Is(err, unix.E2BIG) {
+			seclog.Debugf("couldn't link workload %s (selector: %s, key: %v) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
+		} else {
+			seclog.Errorf("couldn't link workload %s (selector: %s, key: %v) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
+		}
 		return
 	}
 	seclog.Infof("%s %s (selector: %s) successfully linked to profile %s", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name)
-
 }
 
 // linkProfile applies a profile to the provided workload
