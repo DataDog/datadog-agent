@@ -168,4 +168,3 @@ func (t *collectorTelemetry) addCollector(name CollectorName, status string) {
 	}
 	t.collectors.Add(1, string(name), status)
 }
-
