@@ -67,8 +67,6 @@ type RuleSet struct {
 	fakeEventCtor    func() eval.Event
 	listenersLock    sync.RWMutex
 	listeners        []RuleSetListener
-	// globalVariables  *eval.Variables
-	// scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []eval.Field
 	logger log.Logger
@@ -434,25 +432,6 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					}
 				}
 
-				// var variable eval.SECLVariable
-				// var variableProvider VariableProvider
-
-				// if actionDef.Set.Scope != "" {
-				// 	if _, found := rs.scopedVariables[actionDef.Set.Scope]; !found {
-				// 		stateScopeBuilder := rs.opts.StateScopes[actionDef.Set.Scope]
-				// 		if stateScopeBuilder == nil {
-				// 			errs = multierror.Append(errs, fmt.Errorf("invalid scope '%s'", actionDef.Set.Scope))
-				// 			continue
-				// 		}
-
-				// 		rs.scopedVariables[actionDef.Set.Scope] = stateScopeBuilder()
-				// 	}
-
-				// 	variableProvider = rs.scopedVariables[actionDef.Set.Scope]
-				// } else {
-				// 	variableProvider = rs.globalVariables
-				// }
-
 				opts := eval.VariableOpts{
 					TTL:       actionDef.Set.TTL.GetDuration(),
 					Size:      actionDef.Set.Size,
@@ -472,10 +451,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						errs = multierror.Append(errs, fmt.Errorf("conflicting private flag for variable '%s'", varName))
 						continue
 					}
-					// continue
 				}
-
-				fmt.Printf("]>]]>]]>]]>]]> defining variable %s (val: %v)\n", varName, variableValue)
 
 				var newVariableDefinition eval.Definition
 				var errVariableDefinition error
@@ -914,33 +890,6 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 					return fmt.Errorf("failed to set %s value for variable '%s' in rule '%s': %w", reflect.TypeOf(value), varName, rule.ID, err)
 				}
 			}
-
-			/*variable := rs.evalOpts.VariableStore.Get(name)
-			if variable == nil {
-				return fmt.Errorf("unknown variable `%s` in rule `%s`", name, rule.ID)
-			}
-
-			if mutable, ok := variable.(eval.MutableVariable); ok {
-				value := action.Def.Set.Value
-				if field := action.Def.Set.Field; field != "" {
-					if evaluator := rs.fieldEvaluators[field]; evaluator != nil {
-						value = evaluator.Eval(ctx)
-					}
-				} else if expression := action.Def.Set.Expression; expression != "" {
-					if evaluator := rs.fieldEvaluators[expression]; evaluator != nil {
-						value = evaluator.Eval(ctx)
-					}
-				}
-				if action.Def.Set.Append {
-					if err := mutable.Append(ctx, value); err != nil {
-						return fmt.Errorf("append is not supported for type `%s` with variable `%s` in rule `%s`: %w", reflect.TypeOf(value), name, rule.ID, err)
-					}
-				} else {
-					if err := mutable.Set(ctx, value); err != nil {
-						return err
-					}
-				}
-			}*/
 
 			if rs.opts.ruleActionPerformedCb != nil {
 				rs.opts.ruleActionPerformedCb(rule, action.Def)

@@ -12,16 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// // VariableProvider is the interface implemented by SECL variable providers
-// // (Should be named VariableValueProvider)
-// type VariableProvider interface {
-// 	NewSECLVariable(name string, value interface{}, scope string, opts eval.VariableOpts) (eval.SECLVariable, error)
-// 	CleanupExpiredVariables()
-// }
-
-// VariableProviderFactory describes a function called to instantiate a variable provider
-// type VariableProviderFactory func() VariableProvider
-
 // RuleActionPerformedCb describes the callback function called after a rule action is performed
 type RuleActionPerformedCb func(r *Rule, action *ActionDefinition)
 

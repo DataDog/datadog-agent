@@ -24,8 +24,6 @@ var variableRegex = regexp.MustCompile(`\${[^}]*}`)
 
 const defaultMaxVariables = 100
 
-// StaticVariables
-
 type StaticVariableType interface {
 	int | string | bool
 }
@@ -48,8 +46,6 @@ func NewStaticVariable[T StaticVariableType](getValue func(ctx *Context) T) Stat
 	}
 }
 
-// VariableDefinition
-
 type VariableType interface {
 	string | int | bool | net.IPNet |
 		[]string | []int | []net.IPNet
@@ -63,8 +59,6 @@ type Definition interface {
 	IsPrivate() bool
 	GetName(withScopePrefix bool) string
 	CleanupExpiredVariables()
-	// NewInstance() Instance
-	// AddInstance(*Context, Instance) (bool, error)
 	getInstances() map[string]Instance
 	getScoper() *VariableScoper
 }
@@ -90,11 +84,6 @@ type definition[T VariableType] struct {
 }
 
 func NewVariableDefinition[T VariableType](name string, scoper *VariableScoper, defaultValue T, opts VariableOpts) (Definition, error) {
-	// scoper, ok := s.scopers[scope]
-	// if !ok {
-	// 	return nil, &ErrUnsupportedScope{VarName: name, Scope: scope}
-	// }
-
 	return &definition[T]{
 		name:         name,
 		defaultValue: defaultValue,
@@ -187,66 +176,13 @@ func (def *definition[T]) newInstance(freeCb func()) Instance {
 	}
 }
 
-// func (def *definition[T]) newInstance() Instance {
-// 	// TODO(yoanngh): switch case on def.(type) (or check def.opts.Append?): create instance with type specific for array values
-// 	instance := &instance[T]{
-// 		value: def.defaultValue,
-// 	}
-
-// 	if def.opts.TTL > 0 {
-// 		instance.ttl = def.opts.TTL
-// 		instance.expirationDate = time.Now().Add(def.opts.TTL)
-// 	}
-
-// 	return instance
-// }
-
-// func (def *definition[T]) AddInstance(ctx *Context, instance Instance) (bool, error) {
-// 	var ok bool
-// 	key := InstanceKey{Name: def.name}
-// 	scope, err := def.scoper.GetScope(ctx)
-// 	if err != nil {
-// 		return false, fmt.Errorf("failed to get scope `%s` of variable `%s`: %w", def.scoper.Name(), def.name, err)
-// 	}
-
-// 	key.ScopeKey, ok = scope.Key()
-// 	if ok {
-// 		varType, err := GetValueType(def.defaultValue)
-// 		if err != nil {
-// 			return false, err
-// 		}
-// 		def.instances[key] = instance
-// 		if def.opts.Telemetry != nil {
-// 			def.opts.Telemetry.TotalVariables.Inc(varType, def.scoper.Name())
-// 		}
-// 		if releaseable, ok := scope.(ReleasableVariableScope); ok {
-// 			releaseable.AppendReleaseCallback(func() {
-// 				if def.opts.Telemetry != nil {
-// 					def.opts.Telemetry.TotalVariables.Dec(varType, def.scoper.Name())
-// 				}
-// 				delete(def.instances, key)
-// 			})
-// 		}
-// 	}
-
-// 	// TODO(yoanngh): check if we need/want to attach the variable to a parent scope here
-
-// 	return ok, nil
-// }
-
-// func (def *definition[T]) NewInstance() Instance {
-// 	return def.newInstance()
-// }
-
 func (def *definition[T]) AddNewInstance(ctx *Context) (Instance, bool, error) {
 	scope, err := def.scoper.GetScope(ctx)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get scope `%s` of variable `%s`: %w", def.scoper.Type(), def.name, err)
 	}
 
-	// var newInstance *instance[T]
 	var newInstance Instance
-
 	key, ok := scope.Key()
 	if ok {
 		newInstance = def.newInstance(func() {
@@ -260,26 +196,6 @@ func (def *definition[T]) AddNewInstance(ctx *Context) (Instance, bool, error) {
 			def.opts.Telemetry.TotalVariables.Inc(def.valueType, def.scoper.Type().String())
 		}
 
-		// newInstance = &instance[T]{
-		// 	value: def.defaultValue,
-		// }
-
-		// if def.opts.TTL > 0 {
-		// 	newInstance.ttl = def.opts.TTL
-		// 	newInstance.expirationDate = time.Now().Add(def.opts.TTL)
-		// }
-
-		// if def.opts.Telemetry != nil {
-		// 	def.opts.Telemetry.TotalVariables.Inc(def.valueType, def.scoper.Type().String())
-		// }
-
-		// newInstance.freeCb = func() {
-		// 	if def.opts.Telemetry != nil {
-		// 		def.opts.Telemetry.TotalVariables.Dec(def.valueType, def.scoper.Type().String())
-		// 	}
-		// 	delete(def.instances, key)
-		// }
-
 		if releaseable, ok := scope.(ReleasableVariableScope); ok {
 			releaseable.AppendReleaseCallback(func() {
 				def.instancesLock.Lock()
@@ -292,8 +208,6 @@ func (def *definition[T]) AddNewInstance(ctx *Context) (Instance, bool, error) {
 		defer def.instancesLock.Unlock()
 		def.instances[key] = newInstance
 	}
-
-	// TODO(yoanngh): check if we need/want to attach the variable to a parent scope here
 
 	return newInstance, ok, nil
 }
@@ -320,8 +234,6 @@ func (def *definition[T]) GetName(withScopePrefix bool) string {
 	return def.scoper.Type().VariablePrefix() + "." + def.name
 }
 
-// VariableInstance
-
 type Instance interface {
 	Set(any) error
 	Append(any) error
@@ -341,8 +253,6 @@ func (ic *instanceCommon) free() {
 		ic.freeOnce.Do(ic.freeCb)
 	}
 }
-
-// singleValueVariableType
 
 type singleValueVariableType interface {
 	string | int | bool | net.IPNet
@@ -400,36 +310,6 @@ func (i *instance[T]) IsExpired() bool {
 	return i.ttl > 0 && time.Now().After(i.expirationDate)
 }
 
-// arrayValueVariableType
-
-// type LRU[T arrayValueVariableType, K comparable, V any] interface {
-// 	Set(key T, value V, ttl time.Duration) *ttlcache.Item[K, V]
-// 	Keys() []T
-// 	DeleteExpired()
-// 	Len() int
-// }
-
-// // TODO(yoanngh): use this struct to handle net.IPNet array-backed variable instances
-// type LRUWithCast[T arrayValueVariableType, K comparable, V any] struct {
-// 	TtoK func(T) K
-// 	KtoT func(K) T
-
-// 	lru *ttlcache.Cache[K, V]
-// }
-
-// func (lwc *LRUWithCast[T, K, V]) Set(key T, value V, ttl time.Duration) *ttlcache.Item[K, V] {
-// 	return lwc.lru.Set(lwc.TtoK(key), value, ttl)
-// }
-
-// func (lwc *LRUWithCast[T, K, V]) Keys() []T {
-// 	keys := lwc.lru.Keys()
-// 	keysT := make([]T, 0, len(keys))
-// 	for _, key := range keys {
-// 		keysT = append(keysT, lwc.KtoT(key))
-// 	}
-// 	return keysT
-// }
-
 type ipArrayVariable struct {
 	instanceCommon
 
@@ -444,8 +324,6 @@ func newIpArrayVariable(defaultValue []net.IPNet, ttl time.Duration, size int, f
 	newInstance := &ipArrayVariable{
 		lru: ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(size)), ttlcache.WithTTL[string, bool](ttl)),
 	}
-
-	// newInstance.Set(defaultValue)
 
 	newInstance.freeCb = freeCb
 
@@ -507,8 +385,6 @@ func newArrayValueVariable[T arrayValueVariableType](defaultValue []T, ttl time.
 		lru: ttlcache.New(ttlcache.WithCapacity[T, bool](uint64(size)), ttlcache.WithTTL[T, bool](ttl)),
 	}
 
-	// newInstance.Set(defaultValue)
-
 	newInstance.freeCb = freeCb
 
 	return newInstance
@@ -542,25 +418,17 @@ func (avv *arrayValueVariable[T]) IsExpired() bool {
 	return avv.lru.Len() == 0
 }
 
-// VariableStore
-
 type Store struct {
 	staticVars  map[VariableName]StaticVariable
 	definitions map[VariableName]Definition
-	// scopers     map[string]VariableScoper
 }
 
 func NewStore() *Store {
 	return &Store{
 		staticVars:  make(map[VariableName]StaticVariable),
 		definitions: make(map[VariableName]Definition),
-		// scopers:     make(map[string]VariableScoper),
 	}
 }
-
-// func (s *Store) SetScopers(scopers map[string]VariableScoper) {
-// 	s.scopers = scopers
-// }
 
 func (s *Store) AddStaticVariable(varName VariableName, variable StaticVariable) {
 	s.staticVars[varName] = variable
@@ -743,21 +611,6 @@ func (s *Store) GetSECLVariables(globalScopeKey string) map[string]*api.SECLVari
 
 	return seclVariableStates
 }
-
-// func (s *Store) GetInstances(opts *GetOpts) iter.Seq2[Definition, Instance] {
-// 	return func(yield func(Definition, Instance) bool) {
-// 		for _, definition := range s.definitions {
-// 			if opts.Scope != "" && definition.GetScope() != opts.Scope {
-// 				continue
-// 			}
-// 			for _, instance := range definition.GetInstances() {
-// 				if !yield(definition, instance) {
-// 					return
-// 				}
-// 			}
-// 		}
-// 	}
-// }
 
 // Gauge tracks the amount of a metric
 type Gauge interface {

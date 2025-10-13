@@ -16,11 +16,6 @@ var VariableScopes = []string{
 	ScopeContainer,
 }
 
-// // DefaultStateScopes returns the default state scopes for variables
-// func DefaultStateScopes() map[string]eval.VariableScoper {
-// 	return getCommonStateScopes()
-// }
-
 // DefaultVariableScopers returns the default variable scopers
 func DefaultVariableScopers() map[Scope]*eval.VariableScoper {
 	return getCommonVariableScopers()

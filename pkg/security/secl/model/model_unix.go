@@ -194,7 +194,6 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 
 // Key returns a unique key for the entity
 func (cg *CGroupContext) Key() (string, bool) {
-	fmt.Printf("]>]]>]]>]]>]]> scoping CGroupContext: %s\n", string(cg.CGroupID))
 	cgrpID := string(cg.CGroupID)
 	return cgrpID, cgrpID != ""
 }
