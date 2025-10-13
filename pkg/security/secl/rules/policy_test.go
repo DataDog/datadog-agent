@@ -328,9 +328,9 @@ func TestActionSetVariable(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, var4Definition)
 
-	assert.Equal(t, len(var4Definition.GetInstances()), 1)
+	assert.Equal(t, var4Definition.GetInstancesCount(), 1)
 	event.ProcessCacheEntry.Release()
-	assert.Equal(t, len(var4Definition.GetInstances()), 0)
+	assert.Equal(t, var4Definition.GetInstancesCount(), 0)
 }
 
 func TestActionSetVariableTTL(t *testing.T) {
@@ -807,7 +807,7 @@ func TestActionSetEmptyScope(t *testing.T) {
 	assert.Equal(t, expectedErr.ScoperType, eval.ProcessScoperType)
 	assert.Equal(t, expectedErr.ScoperErr.Error(), "failed to get process scope")
 	assert.Nil(t, stringArrayScopedVar)
-	assert.Len(t, definition.GetInstances(), 0)
+	assert.Equal(t, definition.GetInstancesCount(), 0)
 
 	if !rs.Evaluate(event) {
 		t.Errorf("Expected event to match rule")
@@ -822,9 +822,9 @@ func TestActionSetEmptyScope(t *testing.T) {
 	assert.Equal(t, expectedErr.ScoperType, eval.ProcessScoperType)
 	assert.Equal(t, expectedErr.ScoperErr.Error(), "failed to get process scope")
 	assert.Nil(t, stringArrayScopedVar)
-	assert.Len(t, definition.GetInstances(), 0)
+	assert.Equal(t, definition.GetInstancesCount(), 0)
 	assert.Nil(t, stringArrayScopedVar)
-	assert.Len(t, definition.GetInstances(), 0)
+	assert.Equal(t, definition.GetInstancesCount(), 0)
 }
 
 func TestActionSetVariableConflict(t *testing.T) {
@@ -1268,7 +1268,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 
 	// parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx)
 	// assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
-	assert.Len(t, parentCorrelationKeysSECLVariableDef.GetInstances(), 0)
+	assert.Equal(t, parentCorrelationKeysSECLVariableDef.GetInstancesCount(), 0)
 
 	// correlationKeyFromFirstRule := correlationKeyValue.(string)
 
@@ -1300,7 +1300,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 
 	// parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
 	// assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
-	assert.Len(t, parentCorrelationKeysSECLVariableDef.GetInstances(), 0)
+	assert.Equal(t, parentCorrelationKeysSECLVariableDef.GetInstancesCount(), 0)
 
 	// jump to the third rule, check:
 	//  - that the correlation key is updated with the pattern from the third rule
