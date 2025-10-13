@@ -23,6 +23,19 @@
     BAZEL_REPO_CONTENTS_CACHE: "$BAZEL_OUTPUT_USER_ROOT/repo-contents"
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
 
+.bazel:persistent-runner:
+  cache: []
+  variables:
+    XDG_CACHE_HOME: /data/bzl
+
+.bazel:persistent-runner:linux-amd64:
+  extends: .bazel:persistent-runner
+  tags: [ "linux-persistent:amd64", "specific:true" ]
+
+.bazel:persistent-runner:linux-arm64:
+  extends: .bazel:persistent-runner
+  tags: [ "linux-persistent:arm64", "specific:true" ]
+
 .bazel:ext:windows:
   extends: .windows_docker_default
   timeout: 60m # pulling images alone can take more than 30m
