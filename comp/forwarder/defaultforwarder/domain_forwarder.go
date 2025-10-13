@@ -113,9 +113,14 @@ func (f *domainForwarder) retryTransactions(_ time.Time) {
 		blocked, ok := blockedList[t.GetTarget()]
 		sendOne := false
 		if !ok {
-			blocked, sendOne = f.blockedList.isBlockForRetry(t.GetTarget())
+			shouldBlock := f.blockedList.isBlockForRetry(t.GetTarget())
+			blocked = shouldBlock == allowNone || shouldBlock == allowOne
 			blockedList[t.GetTarget()] = blocked
+			if shouldBlock == allowOne {
+				sendOne = true
+			}
 		}
+
 		if !blocked || sendOne {
 			select {
 			case f.lowPrio <- t:

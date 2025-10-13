@@ -156,6 +156,14 @@ func (e *blockedEndpoints) recover(endpoint string) {
 	e.errorPerEndpoint[endpoint] = b
 }
 
+const (
+	blockNone = iota
+	allowOne
+	allowNone
+)
+
+type shouldBlock = int
+
 // isBlockForRetry checks if the endpoint is blocked when deciding if we want
 // to add the transaction to the retry queue.
 //
@@ -170,7 +178,7 @@ func (e *blockedEndpoints) recover(endpoint string) {
 // worker to send a test transaction.
 // If we are `blocked` and the timeout has not expired, or we are `halfblocked`
 // (waiting for the results of the the test transaction) we block all transactions.
-func (e *blockedEndpoints) isBlockForRetry(endpoint string) (bool, bool) {
+func (e *blockedEndpoints) isBlockForRetry(endpoint string) shouldBlock {
 	e.m.RLock()
 	defer e.m.RUnlock()
 
@@ -180,19 +188,18 @@ func (e *blockedEndpoints) isBlockForRetry(endpoint string) (bool, bool) {
 
 		if b.state == blocked {
 			if TimeNow().Before(b.until) {
-				// Blocked and don't send
-				return true, false
+				return allowNone
 			}
 
-			// Blocked but send one transaction
-			return true, true
+			// Time has expired, allow one test transaction through
+			return allowOne
 		} else if b.state == halfBlocked {
-			// Blocked and don't send
-			return true, false
+			// Wait for the test transaction results
+			return allowNone
 		}
 	}
 
-	return false, false
+	return blockNone
 }
 
 // isBlockForSend checks if the endpoint is blocked when deciding if
