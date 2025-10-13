@@ -308,11 +308,16 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		}
 	} else {
 		for _, res := range w.assertionResult {
-			if !res.Valid || res.Failure.Code != "" {
+			if !res.Valid {
 				result.Status = "failed"
+				assertionResultJSON, err := json.Marshal(w.assertionResult)
+				message := "Assertions failed"
+				if err == nil {
+					message = string(assertionResultJSON)
+				}
 				result.Failure = common.APIError{
 					Code:    incorrectAssertion,
-					Message: w.tracerouteError.Error(),
+					Message: message,
 				}
 			}
 		}
