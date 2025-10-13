@@ -221,6 +221,7 @@ func (rs *RuleSet) ListMacroIDs() []MacroID {
 	return ids
 }
 
+// IterateVariables calls the given callback function on all variables
 func (rs *RuleSet) IterateVariables(cb func(definition eval.Definition, instances map[string]eval.Instance)) {
 	if rs.evalOpts == nil || rs.evalOpts.NewStore == nil {
 		return

@@ -63,7 +63,7 @@ func (o *Opts) WithLogger(logger log.Logger) *Opts {
 	return o
 }
 
-// WithStateScopes set state scopes
+// WithVariableScopers sets the variable scopers
 func (o *Opts) WithVariableScopers(scopers map[Scope]*eval.VariableScoper) *Opts {
 	o.VariableScopers = scopers
 	return o

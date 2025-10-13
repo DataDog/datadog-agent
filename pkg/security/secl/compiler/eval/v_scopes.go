@@ -6,22 +6,27 @@
 // Package eval holds eval related files
 package eval
 
+// VariableScope represents the scope of a variable
 type VariableScope interface {
 	Key() (string, bool)
 	ParentScope() (VariableScope, bool)
 }
 
+// ReleasableVariableScope represents a scope that can be released
 type ReleasableVariableScope interface {
 	AppendReleaseCallback(callback func())
 }
 
+// ScoperFnc is the signature of variable scoper callback
 type ScoperFnc func(ctx *Context) (VariableScope, error)
 
+// VariableScoper represents a variable scoper
 type VariableScoper struct {
 	scoperType InternalScoperType
 	getScopeCb ScoperFnc
 }
 
+// NewVariableScoper returns a new variable scoper
 func NewVariableScoper(scoperType InternalScoperType, cb ScoperFnc) *VariableScoper {
 	return &VariableScoper{
 		scoperType: scoperType,
@@ -29,24 +34,33 @@ func NewVariableScoper(scoperType InternalScoperType, cb ScoperFnc) *VariableSco
 	}
 }
 
+// Type returns the type of the variable scoper
 func (vs *VariableScoper) Type() InternalScoperType {
 	return vs.scoperType
 }
 
+// GetScope returns a variable scope based on the given Context
 func (vs *VariableScoper) GetScope(ctx *Context) (VariableScope, error) {
 	return vs.getScopeCb(ctx)
 }
 
+// InternalScoperType represents the type of a scoper
 type InternalScoperType int
 
 const (
+	// UndefinedScoperType is the undefinied scoper
 	UndefinedScoperType InternalScoperType = iota
+	// GlobalScoperType handles the global scope
 	GlobalScoperType
+	// ProcessScoperType handles process scopes
 	ProcessScoperType
+	// ContainerScoperType handles container scopes
 	ContainerScoperType
+	// CGroupScoperType handles cgroup scopes
 	CGroupScoperType
 )
 
+// String returns the name of the scoper
 func (isn InternalScoperType) String() string {
 	switch isn {
 	case GlobalScoperType:
@@ -62,6 +76,7 @@ func (isn InternalScoperType) String() string {
 	}
 }
 
+// VariablePrefix returns the variable prefix that corresponds to this scoper type
 func (isn InternalScoperType) VariablePrefix() string {
 	switch isn {
 	case ProcessScoperType:
