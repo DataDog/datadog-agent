@@ -283,7 +283,7 @@ func run(
 	}
 
 	// Check if the check is allowed in infrastructure basic mode
-	if !pkgcollector.IsCheckAllowedInInfraBasic(cliParams.checkName, pkgconfigsetup.Datadog()) {
+	if !pkgcollector.IsCheckAllowed(cliParams.checkName, pkgconfigsetup.Datadog()) {
 		return fmt.Errorf("check '%s' is not allowed in infrastructure basic mode", cliParams.checkName)
 	}
 

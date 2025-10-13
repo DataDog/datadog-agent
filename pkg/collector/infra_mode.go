@@ -57,10 +57,10 @@ func GetAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
 	return allowedMap
 }
 
-// IsCheckAllowedInInfraBasic returns true if the check is allowed.
+// IsCheckAllowed returns true if the check is allowed.
 // When not in basic mode, all checks are allowed (returns true).
 // When in basic mode, only checks in the allowed list are permitted.
-func IsCheckAllowedInInfraBasic(checkName string, cfg pkgconfigmodel.Reader) bool {
+func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 	allowedChecks := GetAllowedChecks(cfg)
 	if len(allowedChecks) == 0 {
 		return true

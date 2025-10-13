@@ -29,12 +29,8 @@ func TestInfraBasicWindowsSuite(t *testing.T) {
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
 
-func (s *infraBasicWindowsSuite) TestAllowedChecksWork() {
-	s.assertAllowedChecksWork()
-}
-
-func (s *infraBasicWindowsSuite) TestExcludedChecksAreBlocked() {
-	s.assertExcludedChecksAreBlocked()
+func (s *infraBasicWindowsSuite) TestCheckSchedulingBehavior() {
+	s.assertCheckSchedulingBehavior()
 }
 
 func (s *infraBasicWindowsSuite) TestAdditionalCheckWorks() {

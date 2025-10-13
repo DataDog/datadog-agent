@@ -200,90 +200,88 @@ func (s *infraBasicSuite) verifyCheckRuns(checkName string) bool { //nolint:unus
 	return true
 }
 
+// verifyCheckSchedulingViaStatusAPI verifies that checks are in the expected scheduling state
+// by querying the agent status API. This is a helper function meant to be called within EventuallyWithT.
+func (s *infraBasicSuite) verifyCheckSchedulingViaStatusAPI(c *assert.CollectT, checks []string, shouldBeScheduled bool) { //nolint:unused
+	stats, err := s.getRunnerStats()
+	if !assert.NoError(c, err, "Failed to get runner stats") {
+		s.T().Logf("Failed to retrieve runner stats, will retry...")
+		return
+	}
+
+	s.T().Logf("Found %d check types in runner stats", len(stats))
+
+	// Verify all checks match the expected scheduling state
+	for _, checkName := range checks {
+		scheduled := s.isCheckScheduled(checkName, stats)
+		if scheduled == shouldBeScheduled {
+			if shouldBeScheduled {
+				s.T().Logf("Check %s found in runner stats and has run", checkName)
+			} else {
+				s.T().Logf("Check %s correctly not scheduled", checkName)
+			}
+		} else {
+			if shouldBeScheduled {
+				s.T().Logf("Check %s not yet scheduled", checkName)
+			} else {
+				s.T().Logf("Check %s incorrectly found in runner stats!", checkName)
+			}
+		}
+
+		if shouldBeScheduled {
+			assert.True(c, scheduled, "Check %s should be scheduled", checkName)
+		} else {
+			assert.False(c, scheduled, "Check %s should NOT be scheduled", checkName)
+		}
+	}
+}
+
 // ============================================================================
 // Test Functions
 // ============================================================================
 
-// assertAllowedChecksWork verifies that allowed checks work in basic mode.
-// Tests both scheduler behavior (via status API) and CLI behavior.
+// assertCheckSchedulingBehavior verifies that checks are correctly scheduled or blocked in basic mode.
+// Tests both scheduler behavior (via status API) and CLI behavior for allowed and excluded checks.
 // Note: Check configurations are provisioned during suite setup via agentparams.WithIntegration()
-func (s *infraBasicSuite) assertAllowedChecksWork() { //nolint:unused
+func (s *infraBasicSuite) assertCheckSchedulingBehavior() { //nolint:unused
+	// First test: Verify scheduler behavior via status API
 	s.T().Run("via_status_api", func(t *testing.T) {
-		// Verify all checks are scheduled and running by querying agent status
-		allowedChecksForOS := s.getAllowedChecks()
-		t.Logf("Testing %d checks via status API...", len(allowedChecksForOS))
+		t.Run("allowed_checks_scheduled", func(t *testing.T) {
+			allowedChecksForOS := s.getAllowedChecks()
+			t.Logf("Verifying %d allowed checks are scheduled via status API...", len(allowedChecksForOS))
 
-		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			stats, err := s.getRunnerStats()
-			if !assert.NoError(c, err, "Failed to get runner stats") {
-				t.Logf("Failed to retrieve runner stats, will retry...")
-				return
-			}
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				s.verifyCheckSchedulingViaStatusAPI(c, allowedChecksForOS, true)
+			}, 1*time.Minute, 10*time.Second, "All allowed checks should be scheduled within 1 minute")
+		})
 
-			t.Logf("Found %d check types in runner stats, verifying all allowed checks are present...", len(stats))
+		t.Run("excluded_checks_not_scheduled", func(t *testing.T) {
+			t.Logf("Verifying %d excluded checks are not scheduled via status API...", len(excludedChecks))
 
-			// Verify all allowed checks are scheduled
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				s.verifyCheckSchedulingViaStatusAPI(c, excludedChecks, false)
+			}, 1*time.Minute, 10*time.Second, "All excluded checks should remain not scheduled within 1 minute")
+		})
+	})
+
+	// Second test: Verify CLI behavior
+	s.T().Run("via_cli", func(t *testing.T) {
+		t.Run("allowed_checks_runnable", func(t *testing.T) {
+			allowedChecksForOS := s.getAllowedChecks()
+			t.Logf("Testing %d allowed checks via CLI...", len(allowedChecksForOS))
 			for _, checkName := range allowedChecksForOS {
-				scheduled := s.isCheckScheduled(checkName, stats)
-				if !scheduled {
-					t.Logf("Check %s not yet scheduled in basic mode", checkName)
-				} else {
-					t.Logf("Check %s found in runner stats and has run", checkName)
-				}
-				assert.True(c, scheduled, "Check %s should be scheduled and running in basic mode", checkName)
+				ran := s.verifyCheckRuns(checkName)
+				assert.True(t, ran, "Check %s must be runnable via CLI in basic mode", checkName)
 			}
-		}, 1*time.Minute, 10*time.Second, "All allowed checks should be scheduled within 1 minute")
-	})
+		})
 
-	s.T().Run("via_cli", func(t *testing.T) {
-		// Also verify all checks can be run via CLI
-		// No need to setup configs - they're already provisioned during suite setup
-		allowedChecksForOS := s.getAllowedChecks()
-		t.Logf("Testing %d checks via CLI...", len(allowedChecksForOS))
-		for _, checkName := range allowedChecksForOS {
-			ran := s.verifyCheckRuns(checkName)
-			assert.True(t, ran, "Check %s must be runnable via CLI in basic mode", checkName)
-		}
-	})
-}
-
-// assertExcludedChecksAreBlocked verifies that excluded checks are blocked in basic mode.
-// Tests both scheduler behavior (via status API) and CLI behavior.
-// Note: Excluded check configurations are provisioned during suite setup to verify they're blocked
-func (s *infraBasicSuite) assertExcludedChecksAreBlocked() { //nolint:unused
-	s.T().Run("via_status_api", func(t *testing.T) {
-		// Verify checks are NOT scheduled by querying running agent
-		t.Logf("Verifying %d excluded checks are not scheduled...", len(excludedChecks))
-
-		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			stats, err := s.getRunnerStats()
-			if !assert.NoError(c, err, "Failed to get runner stats") {
-				t.Logf("Failed to retrieve runner stats, will retry...")
-				return
-			}
-
-			t.Logf("Found %d check types in runner stats, verifying excluded checks are not present...", len(stats))
-
-			// Verify all excluded checks are NOT scheduled
+		t.Run("excluded_checks_blocked", func(t *testing.T) {
+			t.Logf("Testing %d excluded checks via CLI...", len(excludedChecks))
 			for _, checkName := range excludedChecks {
-				scheduled := s.isCheckScheduled(checkName, stats)
-				if !scheduled {
-					t.Logf("Check %s correctly not scheduled in basic mode", checkName)
-				} else {
-					t.Logf("Check %s incorrectly found in runner stats!", checkName)
-				}
-				assert.False(c, scheduled, "Check %s should NOT be scheduled in basic mode", checkName)
+				ran := s.verifyCheckRuns(checkName)
+				assert.False(t, ran, "Check %s should be blocked via CLI in basic mode", checkName)
 			}
-		}, 1*time.Minute, 10*time.Second, "All excluded checks should remain not scheduled within 1 minute")
-	})
-
-	s.T().Run("via_cli", func(t *testing.T) {
-		// Verify checks are blocked via CLI even though configs exist
-		t.Logf("Testing %d excluded checks via CLI...", len(excludedChecks))
-		for _, checkName := range excludedChecks {
-			ran := s.verifyCheckRuns(checkName)
-			assert.False(t, ran, "Check %s should be blocked via CLI in basic mode", checkName)
-		}
+		})
 	})
 }
 
@@ -331,27 +329,11 @@ infra_basic_additional_checks:
 	))
 
 	s.T().Run("via_status_api", func(t *testing.T) {
-		// Verify the additional check is scheduled and running
-		t.Logf("Waiting for additional check %s to appear in runner stats...", additionalCheckName)
-
-		var cachedStats map[string]map[string]check.Runner
-		var statsErr error
+		t.Logf("Verifying additional check %s is scheduled via status API...", additionalCheckName)
 
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			cachedStats, statsErr = s.getRunnerStats()
-			if !assert.NoError(c, statsErr, "Failed to get runner stats") {
-				t.Logf("Failed to retrieve runner stats, will retry...")
-				return
-			}
-
-			scheduled := s.isCheckScheduled(additionalCheckName, cachedStats)
-			if !scheduled {
-				t.Logf("Check %s not yet scheduled (found %d check types), refetching...", additionalCheckName, len(cachedStats))
-			} else {
-				t.Logf("Check %s found in runner stats and has run", additionalCheckName)
-			}
-			assert.True(c, scheduled, "Check %s should be scheduled in basic mode when added via infra_basic_additional_checks", additionalCheckName)
-		}, 1*time.Minute, 10*time.Second, "Check %s did not appear in runner stats within 1 minute", additionalCheckName)
+			s.verifyCheckSchedulingViaStatusAPI(c, []string{additionalCheckName}, true)
+		}, 1*time.Minute, 10*time.Second, "Additional check should be scheduled within 1 minute")
 	})
 
 	s.T().Run("via_cli", func(t *testing.T) {
