@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package connfiltertype define config types for connfilter
-// A separate package for connfiltertype is needed to avoid cyclic import
-// when ConnFilterConfig is imported by pkg/config/setup/config.go
 package connfilter
 
 // FilterType is the filter type struct
@@ -28,8 +25,8 @@ const (
 	MatchDomainStrategyRegex MatchDomainStrategyType = "regex"
 )
 
-// ConnFilterConfig represent one filter
-type ConnFilterConfig struct {
+// Config represent one filter
+type Config struct {
 	Type                FilterType              `mapstructure:"type"`
 	MatchDomain         string                  `mapstructure:"match_domain"`
 	MatchDomainStrategy MatchDomainStrategyType `mapstructure:"match_domain_strategy"`

@@ -138,7 +138,7 @@ func TestNewConfig(t *testing.T) {
 				e2eQueries:                5,
 				disableWindowsDriver:      true,
 				networkDevicesNamespace:   "custom-ns",
-				filterConfig: []connfilter.ConnFilterConfig{
+				filterConfig: []connfilter.Config{
 					{
 						Type:        "include",
 						MatchDomain: "*.example.com",
