@@ -75,7 +75,11 @@ func defaultConfig() component.Config {
 			Version:                        "0.0.0",
 			DisableDebugSectionCompression: false,
 		},
-		EnableSplitByService: true,
+
+		EnableSplitByService: config.DefaultSplitByService,
+		ReporterConfig: ReporterConfig{
+			CollectContext: config.DefaultCollectContext,
+		},
 	}
 }
 

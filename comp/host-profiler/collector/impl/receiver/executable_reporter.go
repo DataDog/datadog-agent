@@ -28,8 +28,8 @@ type executableReporter struct {
 
 func newExecutableReporter(config *reporter.SymbolUploaderConfig, logger *zap.Logger) (*executableReporter, error) {
 	config.SymbolEndpoints = runner.GetValidSymbolEndpoints(
-		config.SymbolEndpoints,
 		os.Getenv("DD_SITE"), os.Getenv("DD_API_KEY"), os.Getenv("DD_APP_KEY"),
+		config.SymbolEndpoints,
 		func(msg string) { logger.Info(msg) }, func(msg string) { logger.Warn(msg) })
 
 	symbolUploader, err := reporter.NewDatadogSymbolUploader(config)

@@ -152,8 +152,8 @@ github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f h1:O+
 github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f/go.mod h1:E+dFku5SVIXDUj6apiBdDAzrUOR3xLz1bMgUOGjRAVQ=
 github.com/DataDog/datadog-traceroute v0.1.28 h1:aakZepsIXOy0kcDNHkiHMnbIVn0cY8it6gzx/8+rmmU=
 github.com/DataDog/datadog-traceroute v0.1.28/go.mod h1:PU0w0AsVMEapWPgaqXEtBuDUlPQGlnHsaADsXVMKMts=
-github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251003133917-9a733a744e7e h1:rjXbMGmrP4BNz3bfCH1hJkwHeUc0a76U0dfkYGfgLz0=
-github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251003133917-9a733a744e7e/go.mod h1:inkKXnNcJR5TNK8CvXcxybKj9J878mj4+4Ri9cziHbE=
+github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0 h1:OEDWHLCabNtLF+OkbI1DlVLkxxK9QUVQUSIt8uZ3VY8=
+github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0/go.mod h1:KsvZuiis+8Ix3r+FEIew7LvryZeeIDrYyiTPMR14GOY=
 github.com/DataDog/dd-trace-go/v2 v2.2.2 h1:t7RCS6et5z+xrvM9dqUPtCGoNOWTj0pcApzbktMZi2k=
 github.com/DataDog/dd-trace-go/v2 v2.2.2/go.mod h1:xvdSukALA8/NnVfTAnxqkZfLLO/6Vi4y5ooxfVy6dfk=
 github.com/DataDog/ebpf-manager v0.7.14 h1:k08TW46xdUEHggumRmbs9y+ymcZIJ1LKrRcXEq7EgIM=

@@ -950,7 +950,7 @@ require (
 )
 
 require (
-	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251003133917-9a733a744e7e
+	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0
 	github.com/google/btree v1.1.3
 	go.opentelemetry.io/ebpf-profiler v0.0.202540-0.20251001054907-eb8909ecce3f
 )
