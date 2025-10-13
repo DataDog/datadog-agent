@@ -7,6 +7,7 @@ package http
 
 import (
 	"errors"
+	nethttp "net/http"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 
@@ -49,54 +50,35 @@ const (
 )
 
 var (
-	methods = []Method{
-		MethodPut,
-		MethodDelete,
-		MethodHead,
-		MethodOptions,
-		MethodPatch,
-		MethodGet,
-		MethodPost,
-		MethodTrace,
-		MethodConnect,
-	}
 	// StringToMethod maps string representations of the methods to their enums.
-	StringToMethod = map[string]Method{}
+	StringToMethod = map[string]Method{
+		nethttp.MethodPut:     MethodPut,
+		nethttp.MethodDelete:  MethodDelete,
+		nethttp.MethodHead:    MethodHead,
+		nethttp.MethodOptions: MethodOptions,
+		nethttp.MethodPatch:   MethodPatch,
+		nethttp.MethodGet:     MethodGet,
+		nethttp.MethodPost:    MethodPost,
+		nethttp.MethodTrace:   MethodTrace,
+		nethttp.MethodConnect: MethodConnect,
+	}
 	// MethodToString maps the enums to their string representations
 	MethodToString = map[Method]string{}
 )
 
 func init() {
-	for _, method := range methods {
-		StringToMethod[method.String()] = method
-		MethodToString[method] = method.String()
+	for str, method := range StringToMethod {
+		MethodToString[method] = str
 	}
 }
 
 // Method returns a string representing the HTTP method of the request
 func (m Method) String() string {
-	switch m {
-	case MethodGet:
-		return "GET"
-	case MethodPost:
-		return "POST"
-	case MethodPut:
-		return "PUT"
-	case MethodHead:
-		return "HEAD"
-	case MethodDelete:
-		return "DELETE"
-	case MethodOptions:
-		return "OPTIONS"
-	case MethodPatch:
-		return "PATCH"
-	case MethodTrace:
-		return "TRACE"
-	case MethodConnect:
-		return "CONNECT"
-	default:
+	value, ok := MethodToString[m]
+	if !ok {
 		return "UNKNOWN"
 	}
+	return value
 }
 
 var (

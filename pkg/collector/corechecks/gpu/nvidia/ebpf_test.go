@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestSystemProbeCache(t *testing.T) {
@@ -113,7 +114,7 @@ func testCollectWithInvalidCache(t *testing.T) {
 	dev := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := NewSystemProbeCache()
 
-	collector, err := newEbpfCollector(dev, cache)
+	collector, err := newEbpfCollector(dev, &NsPidCache{}, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -122,6 +123,10 @@ func testCollectWithInvalidCache(t *testing.T) {
 }
 
 func testCollectWithSingleActiveProcess(t *testing.T) {
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 123, NsPid: 3, Cmdline: exe, Command: exe, Exe: exe}})
+	kernel.WithFakeProcFS(t, procRoot)
+
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
 		{
@@ -138,7 +143,7 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &NsPidCache{}, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -151,26 +156,33 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(50), coreUsage.Value)
-	assert.Equal(t, []string{"pid:123"}, coreUsage.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:3"}, coreUsage.Tags)
 
 	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(1024), memoryUsage.Value)
-	assert.Equal(t, []string{"pid:123"}, memoryUsage.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:3"}, memoryUsage.Tags)
 
 	// Verify limit metrics have aggregated PID tags
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
 	assert.Equal(t, float64(testutil.DefaultGpuCores), coreLimit.Value)
-	assert.Equal(t, []string{"pid:123"}, coreLimit.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:3"}, coreLimit.Tags)
 
 	memoryLimit := findMetric(metrics, "memory.limit")
 	require.NotNil(t, memoryLimit)
 	assert.Equal(t, float64(testutil.DefaultTotalMemory), memoryLimit.Value)
-	assert.Equal(t, []string{"pid:123"}, memoryLimit.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:3"}, memoryLimit.Tags)
 }
 
 func testCollectWithMultipleActiveProcesses(t *testing.T) {
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: 123, NsPid: 3, Cmdline: exe, Command: exe, Exe: exe},
+		{Pid: 456, NsPid: 33, Cmdline: exe, Command: exe, Exe: exe},
+	})
+	kernel.WithFakeProcFS(t, procRoot)
+
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
 		{
@@ -199,7 +211,7 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &NsPidCache{}, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -211,7 +223,7 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 	// Verify limit metrics have aggregated PID tags
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	expectedPidTags := []string{"pid:123", "pid:456"}
+	expectedPidTags := []string{"pid:123", "nspid:3", "pid:456", "nspid:33"}
 	slices.Sort(coreLimit.Tags)
 	slices.Sort(expectedPidTags)
 	assert.Equal(t, expectedPidTags, coreLimit.Tags)
@@ -223,6 +235,10 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 }
 
 func testCollectWithInactiveProcesses(t *testing.T) {
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 123, NsPid: 5, Cmdline: exe, Command: exe, Exe: exe}})
+	kernel.WithFakeProcFS(t, procRoot)
+
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
 		{
@@ -239,7 +255,7 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &NsPidCache{}, cache)
 	require.NoError(t, err)
 
 	// First collect with process 123
@@ -260,20 +276,27 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(0), coreUsage.Value)
-	assert.Equal(t, []string{"pid:123"}, coreUsage.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:5"}, coreUsage.Tags)
 
 	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(0), memoryUsage.Value)
-	assert.Equal(t, []string{"pid:123"}, memoryUsage.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:5"}, memoryUsage.Tags)
 
 	// Verify limit metrics still include inactive process PID
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	assert.Equal(t, []string{"pid:123"}, coreLimit.Tags)
+	assert.Equal(t, []string{"pid:123", "nspid:5"}, coreLimit.Tags)
 }
 
 func testCollectFiltersByDeviceUUID(t *testing.T) {
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: 123, NsPid: 7, Cmdline: exe, Command: exe, Exe: exe},
+		{Pid: 456, NsPid: 77, Cmdline: exe, Command: exe, Exe: exe},
+	})
+	kernel.WithFakeProcFS(t, procRoot)
+
 	device1UUID := "device-1-uuid"
 	device2UUID := "device-2-uuid"
 
@@ -305,7 +328,7 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &NsPidCache{}, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -316,11 +339,19 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 
 	// All metrics should be for PID 123 only
 	for _, metric := range metrics {
-		assert.Equal(t, []string{"pid:123"}, metric.Tags)
+		assert.Equal(t, []string{"pid:123", "nspid:7"}, metric.Tags)
 	}
 }
 
 func testCollectAggregatesPidTagsForLimits(t *testing.T) {
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: 123, NsPid: 1, Cmdline: exe, Command: exe, Exe: exe},
+		{Pid: 456, NsPid: 11, Cmdline: exe, Command: exe, Exe: exe},
+		{Pid: 789, NsPid: 111, Cmdline: exe, Command: exe, Exe: exe},
+	})
+	kernel.WithFakeProcFS(t, procRoot)
+
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := createMockCacheWithStats([]model.StatsTuple{
 		{
@@ -361,7 +392,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &NsPidCache{}, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -373,7 +404,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	// Verify limit metrics have all PID tags aggregated
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	expectedPidTags := []string{"pid:123", "pid:456", "pid:789"}
+	expectedPidTags := []string{"pid:123", "nspid:1", "pid:456", "nspid:11", "pid:789", "nspid:111"}
 	slices.Sort(coreLimit.Tags)
 	slices.Sort(expectedPidTags)
 	assert.Equal(t, expectedPidTags, coreLimit.Tags)
@@ -387,8 +418,9 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	usageMetrics := findAllMetricsWithName(metrics, "process.core.usage")
 	assert.Len(t, usageMetrics, 3)
 	for _, metric := range usageMetrics {
-		assert.Len(t, metric.Tags, 1)
+		require.Len(t, metric.Tags, 2)
 		assert.Contains(t, metric.Tags[0], "pid:")
+		assert.Contains(t, metric.Tags[1], "nspid:")
 	}
 }
 

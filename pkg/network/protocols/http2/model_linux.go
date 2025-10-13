@@ -108,24 +108,23 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8, output []byte) ([]b
 
 // Path returns the URL from the request fragment captured in eBPF.
 func (ew *EventWrapper) Path(buffer []byte) ([]byte, bool) {
+	if ew.Stream.Path.Static_table_entry != 0 {
+		switch ew.Stream.Path.Static_table_entry {
+		case EmptyPathValue:
+			return []byte("/"), true
+		case IndexPathValue:
+			return []byte("/index.html"), true
+		default:
+			return nil, false
+		}
+	}
+
 	if ew.pathSet {
 		n := copy(buffer, ew.path.Get())
 		return buffer[:n], true
 	}
 
 	var err error
-
-	if ew.Stream.Path.Static_table_entry != 0 {
-		value, ok := pathStaticTable[ew.Stream.Path.Static_table_entry]
-		if !ok {
-			return nil, false
-		}
-		ew.path = value
-		ew.pathSet = true
-		n := copy(buffer, ew.path.Get())
-		return buffer[:n], true
-	}
-
 	if ew.Stream.Path.Is_huffman_encoded {
 		buffer, err = decodeHTTP2Path(ew.Stream.Path.Raw_buffer, ew.Stream.Path.Length, buffer)
 		if err != nil {
@@ -213,13 +212,19 @@ func (ew *EventWrapper) Method() http.Method {
 		return ew.method
 	}
 
+	// Case which the method is indexed.
 	if ew.Stream.Request_method.Static_table_entry != 0 {
-		value, ok := methodStaticTable[ew.Stream.Request_method.Static_table_entry]
-		if ok {
-			ew.SetRequestMethod(value)
-			return value
+		switch ew.Stream.Request_method.Static_table_entry {
+		case GetValue:
+			ew.SetRequestMethod(http.MethodGet)
+		case PostValue:
+			ew.SetRequestMethod(http.MethodPost)
+		default:
+			return http.MethodUnknown
 		}
-		return http.MethodUnknown
+
+		// reaching here means we have either Get or Post.
+		return ew.method
 	}
 
 	// if the length of the method is greater than the buffer, then we return 0.
@@ -263,12 +268,28 @@ func (ew *EventWrapper) StatusCode() uint16 {
 	}
 
 	if ew.Stream.Status_code.Static_table_entry != 0 {
-		value, ok := statusStaticTable[ew.Stream.Status_code.Static_table_entry]
-		if ok {
-			ew.SetStatusCode(value)
-			return value
+		statusCode := uint16(0)
+		switch ew.Stream.Status_code.Static_table_entry {
+		case K200Value:
+			statusCode = 200
+		case K204Value:
+			statusCode = 204
+		case K206Value:
+			statusCode = 206
+		case K304Value:
+			statusCode = 304
+		case K400Value:
+			statusCode = 400
+		case K404Value:
+			statusCode = 404
+		case K500Value:
+			statusCode = 500
+		default:
+			return 0
 		}
-		return 0
+
+		ew.SetStatusCode(statusCode)
+		return statusCode
 	}
 
 	if ew.Stream.Status_code.Is_huffman_encoded {
@@ -317,8 +338,8 @@ func (ew *EventWrapper) RequestStarted() uint64 {
 }
 
 // SetRequestMethod sets the HTTP method of the transaction.
-func (ew *EventWrapper) SetRequestMethod(method http.Method) {
-	ew.method = method
+func (ew *EventWrapper) SetRequestMethod(m http.Method) {
+	ew.method = m
 	ew.methodSet = true
 }
 
