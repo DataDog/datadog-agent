@@ -192,38 +192,6 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 	assert.Equal(t, "somefile", testConfig.Get("hostname_file"))
 }
 
-func TestIsCloudProviderEnabled(t *testing.T) {
-	config := newTestConf(t)
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
-	assert.True(t, IsCloudProviderEnabled("AWS", config))
-	assert.True(t, IsCloudProviderEnabled("GCP", config))
-	assert.True(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.True(t, IsCloudProviderEnabled("Azure", config))
-	assert.True(t, IsCloudProviderEnabled("Tencent", config))
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{"aws"})
-	assert.True(t, IsCloudProviderEnabled("AWS", config))
-	assert.False(t, IsCloudProviderEnabled("GCP", config))
-	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.False(t, IsCloudProviderEnabled("Azure", config))
-	assert.False(t, IsCloudProviderEnabled("Tencent", config))
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
-	assert.False(t, IsCloudProviderEnabled("AWS", config))
-	assert.False(t, IsCloudProviderEnabled("GCP", config))
-	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.False(t, IsCloudProviderEnabled("Azure", config))
-	assert.True(t, IsCloudProviderEnabled("Tencent", config))
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{})
-	assert.False(t, IsCloudProviderEnabled("AWS", config))
-	assert.False(t, IsCloudProviderEnabled("GCP", config))
-	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.False(t, IsCloudProviderEnabled("Azure", config))
-	assert.False(t, IsCloudProviderEnabled("Tencent", config))
-}
-
 func TestEnvNestedConfig(t *testing.T) {
 	config := newTestConf(t)
 	config.BindEnv("foo.bar.nested") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'

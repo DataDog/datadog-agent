@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,7 +51,7 @@ func isTagExcluded(tag string) bool {
 // GetInstanceInfo collects information about the EC2 instance as host tags. This mimic the tags set by the AWS
 // integration in Datadog backend allowing customer to collect those information without having to enable the crawler.
 func GetInstanceInfo(ctx context.Context) ([]string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
+	if !configutils.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
@@ -218,7 +219,7 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2internal.EC2Iden
 var fetchTags = fetchEc2Tags
 
 func fetchTagsFromCache(ctx context.Context) ([]string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
+	if !configutils.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
