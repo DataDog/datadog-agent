@@ -42,6 +42,9 @@
                     },
                     {
                         "$ref": "hash.schema.json"
+                    },
+                    {
+                        "$ref": "network_filter.schema.json"
                     }
                 ]
             }

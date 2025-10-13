@@ -4,6 +4,7 @@
 #include "bpf_metadata.h"
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
+#include "cfa.h"
 #include "compiler.h"
 #include "context.h"
 #include "framing.h"
@@ -21,7 +22,61 @@ struct {
   __type(value, uint64_t);
 } throttled_events SEC(".maps");
 
-SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
+static inline __attribute__((always_inline)) void
+read_g_fields(uint64_t g_ptr, uint64_t stack_ptr, uint64_t* goid, uint32_t* stack_byte_depth) {
+  if (OFFSET_runtime_dot_g__goid == 0 && OFFSET_runtime_dot_g__m == 0) {
+    return;
+  }
+  if (bpf_probe_read_user(
+          goid, sizeof(*goid),
+          (void*)(g_ptr + OFFSET_runtime_dot_g__goid))) {
+    LOG(2, "failed to read goid %llx", g_ptr);
+    return;
+  }
+  if (*goid == 0) {
+    // This is pseudo-g. Extract g_ptr->m->curg->goid.
+    uint64_t m_ptr;
+    if (bpf_probe_read_user(
+            &m_ptr, sizeof(m_ptr),
+            (void*)(g_ptr + OFFSET_runtime_dot_g__m))) {
+      LOG(2, "failed to read m %llx", g_ptr);
+      return;
+    }
+    if (bpf_probe_read_user(
+            &g_ptr, sizeof(g_ptr),
+            (void*)(m_ptr + OFFSET_runtime_dot_m__curg))) {
+      LOG(2, "failed to read curg %llx", m_ptr);
+      return;
+    }
+    if (bpf_probe_read_user(
+            goid, sizeof(*goid),
+            (void*)(g_ptr + OFFSET_runtime_dot_g__goid))) {
+      LOG(2, "failed to read goid %llx", g_ptr);
+      return;
+    }
+  }
+  uint64_t stack_hi;
+  if (bpf_probe_read_user(
+          &stack_hi, sizeof(stack_hi),
+          (void*)(g_ptr + OFFSET_runtime_dot_g__stack + OFFSET_runtime_dot_stack__hi))) {
+    LOG(2, "failed to read stack.lo %llx", g_ptr);
+    return;
+  }
+  *stack_byte_depth = (stack_hi - stack_ptr);
+  return;
+}
+
+const uint32_t zero_uint32 = 0;
+
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __uint(max_entries, 1);
+  __type(key, uint32_t);
+  __type(value, call_depths_t);
+} in_progress_calls_buf SEC(".maps");
+
+SEC("uprobe")
+int probe_run_with_cookie(struct pt_regs* regs) {
   uint64_t start_ns = bpf_ktime_get_ns();
 
   const uint64_t cookie = bpf_get_attach_cookie(regs);
@@ -33,16 +88,20 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     return 0;
   }
 
-  if (should_throttle(params->throttler_idx, start_ns)) {
-    uint32_t zero = 0;
-    uint64_t* cnt = bpf_map_lookup_elem(&throttled_events, &zero);
-    if (cnt) {
-      ++*cnt;
+  if (params->kind != EVENT_KIND_RETURN) {
+    if (should_throttle(params->throttler_idx, start_ns)) {
+      uint32_t zero = 0;
+      uint64_t* cnt = bpf_map_lookup_elem(&throttled_events, &zero);
+      if (cnt) {
+        ++*cnt;
+      }
+      return 0;
     }
-    return 0;
   }
+  LOG(4, "probe_run_with_cookie: %d %d %llx",
+      params->probe_id, cookie, params->stack_machine_pc);
   global_ctx_t global_ctx;
-  global_ctx.stack_machine = stack_machine_ctx_load(params->pointer_chasing_limit);
+  global_ctx.stack_machine = stack_machine_ctx_load(params);
   if (!global_ctx.stack_machine) {
     return 0;
   }
@@ -52,11 +111,14 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   }
   global_ctx.regs = NULL;
 
+  // TODO: Move this check to after we've interacted with the call state.
   const int64_t out_ringbuf_avail_data =
       bpf_ringbuf_query(&out_ringbuf, BPF_RB_AVAIL_DATA);
   const int64_t out_ringbuf_avail_space =
       (int64_t)(RINGBUF_CAPACITY)-out_ringbuf_avail_data;
   if (out_ringbuf_avail_space < (int64_t)SCRATCH_BUF_LEN) {
+    LOG(1, "probe_run_with_cookie: out_ringbuf_avail_space < SCRATCH_BUF_LEN: %lld < %d",
+        out_ringbuf_avail_space, SCRATCH_BUF_LEN);
     // TODO: Report dropped events metric.
     return 0;
   }
@@ -70,17 +132,99 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
       .stack_byte_len = 0, // set this if we collect stacks
       .ktime_ns = start_ns,
       .prog_id = prog_id,
+      .probe_id = params->probe_id,
   };
+#if defined(bpf_target_x86)
+  if (params->frameless) {
+    read_g_fields(regs->DWARF_REGISTER_14, regs->DWARF_SP_REG, &header->goid, &header->stack_byte_depth);
+  } else {
+    read_g_fields(regs->DWARF_REGISTER_14, regs->DWARF_BP_REG, &header->goid, &header->stack_byte_depth);
+  }
+#elif defined(bpf_target_arm64)
+  read_g_fields(regs->DWARF_REGISTER(28), regs->DWARF_SP_REG, &header->goid, &header->stack_byte_depth);
+#else
+#error "Unsupported architecture"
+#endif
 
+  if (params->kind == EVENT_KIND_RETURN) {
+    // There was no corresponding call, so the deletion failed.
+    call_depths_t* depths = bpf_map_lookup_elem(&in_progress_calls, &header->goid);
+    if (!depths) {
+      // Common case where the associated call was not found.
+      LOG(4, "failed to lookup in_progress_calls %lld (%lld): %d",
+          header->goid, header->stack_byte_depth, params->probe_id);
+      return 0;
+    }
+    int remaining;
+    if (!call_depths_delete(depths, header->stack_byte_depth, params->probe_id, &remaining)) {
+      // Somewhat common case where the goroutine has open calls, but it's not
+      // this one.
+      LOG(4, "failed to delete in_progress_calls %lld (%lld): %d",
+          header->goid, header->stack_byte_depth, params->probe_id);
+      return 0;
+    }
+    // If we're the last call for this goid, delete the entry.
+    if (remaining == 0) {
+      int ret = bpf_map_delete_elem(&in_progress_calls, &header->goid);
+      if (ret != 0) {
+        // No clue why this would happen.
+        LOG(1, "failed to delete in_progress_calls %lld (%lld) %d: %d",
+            header->goid, header->stack_byte_depth, params->probe_id, ret);
+      }
+    }
+    header->event_pairing_expectation = EVENT_PAIRING_ENTRY_PAIRING_EXPECTED;
+  } else if (params->kind == EVENT_KIND_ENTRY && params->has_associated_return) {
+    header->event_pairing_expectation = EVENT_PAIRING_RETURN_PAIRING_EXPECTED;
+    // Optimistically assume this is the first call for this goid by just
+    // attempting to insert with a single entry.
+    //
+    // In order to do an update, we need a value to write. We keep a per-cpu
+    // array (in_progress_calls_buf) with a single element in the first slot
+    // that we can use to update the in_progress_calls map.
+    call_depths_t* depths = bpf_map_lookup_elem(&in_progress_calls_buf, &zero_uint32);
+    if (!depths) {
+      // This should never happen.
+      LOG(1, "failed to get in_progress_calls_buf for %lld", header->goid);
+      return 0;
+    }
+    depths->depths[0].depth = header->stack_byte_depth;
+    depths->depths[0].probe_id = params->probe_id;
+    int ret = bpf_map_update_elem(&in_progress_calls, &header->goid, depths, BPF_NOEXIST);
+    if (ret != 0) {
+      if (ret == -E2BIG) {
+        // If the map is full, we can't insert any more calls so make sure we
+        // tell userspace not to expect a return event.
+        header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CALL_MAP_FULL;
+      } else if (ret == -EEXIST) {
+        // If there are outstanding calls for this goid, we need to add this one
+        // to the set.
+        depths = bpf_map_lookup_elem(&in_progress_calls, &header->goid);
+        if (!depths) {
+          LOG(1, "failed to lookup in_progress_calls for goid %lld after failing to insert", header->goid);
+          return 0;
+        }
+        // If we can't insert this call, we need to tell userspace not to expect
+        // a return event.
+        if (!call_depths_insert(depths, header->stack_byte_depth, params->probe_id)) {
+          header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CALL_COUNT_EXCEEDED;
+        }
+      }
+    }
+  } else {
+    header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_NONE;
+  }
   __maybe_unused int process_steps = 0;
   __maybe_unused int chase_steps = 0;
   uint64_t stack_hash = 0;
   global_ctx.stack_walk->regs = *regs;
-  global_ctx.stack_walk->stack.pcs.pcs[0] = regs->DWARF_PC_REG;
+  global_ctx.stack_walk->stack.pcs.pcs[0] = regs->DWARF_PC_REG + params->top_pc_offset;
+  LOG(5, "wrote event pairing expectation %d %lld %d %d %llx",
+      header->event_pairing_expectation, header->goid, header->stack_byte_depth,
+      params->probe_id, global_ctx.stack_walk->stack.pcs.pcs[0]);
 #if defined(bpf_target_x86)
-  bool frameless = *(volatile bool *)&params->frameless;
   global_ctx.stack_walk->stack.fps[0] = regs->DWARF_BP_REG;
-  if (frameless) {
+  if (params->frameless) {
+    // Call instruction saves return address on the stack.
     if (bpf_probe_read_user(&global_ctx.stack_walk->stack.pcs.pcs[1],
                             sizeof(global_ctx.stack_walk->stack.pcs.pcs[1]),
                             (void*)(regs->sp))) {
@@ -90,14 +234,15 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     global_ctx.stack_walk->idx_shift = 1;
   }
 #elif defined(bpf_target_arm64)
-  // Use the link register to populate the next frame's pc.
-  global_ctx.stack_walk->stack.pcs.pcs[1] = regs->DWARF_REGISTER(30);
-  // For reasons explained below when setting up the cfa, the BP register is
-  // pointing to the caller's frame pointer at this point.
-  global_ctx.stack_walk->stack.fps[1] = regs->DWARF_BP_REG;
-  global_ctx.stack_walk->idx_shift = 1;
+  global_ctx.stack_walk->stack.fps[0] = regs->DWARF_SP_REG - 8;
+  if (params->frameless) {
+    // Call instruction saves return address in the link register.
+    global_ctx.stack_walk->stack.pcs.pcs[1] = regs->DWARF_REGISTER(30);
+    global_ctx.stack_walk->stack.fps[1] = regs->DWARF_SP_REG - 8;
+    global_ctx.stack_walk->idx_shift = 1;
+  }
 #else
-  #error "Unsupported architecture"
+#error "Unsupported architecture"
 #endif
   global_ctx.stack_walk->stack.pcs.len =
       bpf_loop(STACK_DEPTH, populate_stack_frame, &global_ctx.stack_walk, 0) +
@@ -114,52 +259,17 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
         .buf = global_ctx.buf,
     };
     bpf_loop(global_ctx.stack_walk->stack.pcs.len, copy_stack_loop,
-              &copy_stack_ctx, 0);
+             &copy_stack_ctx, 0);
     scratch_buf_increment_len(global_ctx.buf, header->stack_byte_len);
   } else {
     stack_hash = 0;
   }
   global_ctx.regs = &global_ctx.stack_walk->regs;
   frame_data_t frame_data = {
-    .stack_idx = 0,
+      .stack_idx = 0,
   };
-// Stack layout is slightly different in Go between arm64 and x86_64.
-// Established based on following documentation and machine code reads:
-// https://tip.golang.org/src/cmd/compile/abi-internal#architecture-specifics
-//
-// There's some trickery to get our hands on the CFA in Go based on whether or
-// not the leaf function is frameless. If it is frameless, then we need to
-// assume that the frame pointer is actually set up for the caller's frame.
-#if defined(bpf_target_arm64)
-// On arm, if the function is framless, the base pointer will be pointing to at
-// the lowest entry of our caller's frame which is almost our CFA. If it's not
-// frameless, then the base pointer will be pointing to the lowest entry of our
-// frame and it needs to be dereferenced to get to the CFA. Fortunately, we
-// already did that dereferencing in the stack walk.
-//
-// Or at least you might think that'd be the situation. Unfortunately, or
-// perhaps fortunately, Go is marking the beginning of the prologue stack
-// adjustment as the end of the prologue. So, when we use the prologue_end
-// marker set by Go in DWARF to find the prologue end, we're actually getting
-// the beginning of the prologue adjustment and can assume the registers are
-// still set up for the caller's frame.
-//
-// See https://github.com/golang/go/issues/74357.
-    *(volatile uint64_t*)(&frame_data.cfa) = global_ctx.regs->DWARF_BP_REG + 8;
-#elif defined(bpf_target_x86)
-// On x86, if the function is frameless, the stack pointer is pointing to the
-// return pc, so one word above that is our CFA. If it's not frameless, then the
-// base pointer is pointing to our frame pointer which is 16 bytes less than our
-// CFA.
-    if (frameless) {
-      *(volatile uint64_t*)(&frame_data.cfa) = global_ctx.regs->DWARF_SP_REG + 8;
-    } else {
-      *(volatile uint64_t*)(&frame_data.cfa) = global_ctx.regs->DWARF_BP_REG + 16;
-    }
-#else
-    #error "Unsupported architecture"
-#endif
-
+  frame_data.cfa = calculate_cfa(global_ctx.regs, params->frameless);
+  LOG(5, "cfa: %llx %d %llx %llx", frame_data.cfa, params->frameless, regs->DWARF_BP_REG, regs->DWARF_SP_REG);
   if (params->stack_machine_pc != 0) {
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
                                                 params->stack_machine_pc);
@@ -167,6 +277,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   chase_steps = stack_machine_chase_pointers(&global_ctx);
   if (!events_scratch_buf_submit(global_ctx.buf)) {
     // TODO: Report dropped events metric.
+    LOG(1, "probe_run output dropped");
   }
   if (stack_hash != 0) {
     upsert_stack_hash(stack_hash);

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -40,8 +41,12 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmo
 	builder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(t))
 	payloads, err := stream.BuildJSONPayload(builder, m)
 	assert.NoError(t, err)
-	var uncompressedPayloads [][]byte
+	return decodePayload(t, cfg, payloads)
+}
 
+func decodePayload(t *testing.T, cfg pkgconfigmodel.Config, payloads []*transaction.BytesPayload) [][]byte {
+	var uncompressedPayloads [][]byte
+	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
 	for _, compressedPayload := range payloads {
 		payload, err := compressor.Decompress(compressedPayload.GetContent())
 		assert.NoError(t, err)

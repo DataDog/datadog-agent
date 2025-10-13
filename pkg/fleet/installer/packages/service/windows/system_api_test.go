@@ -10,6 +10,7 @@ package windows
 import (
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
 )
 
 // Mock implementations
@@ -23,9 +24,9 @@ func (m *mockSystemAPI) GetServiceProcessID(serviceName string) (uint32, error) 
 	return args.Get(0).(uint32), args.Error(1)
 }
 
-func (m *mockSystemAPI) IsServiceRunning(serviceName string) (bool, error) {
+func (m *mockSystemAPI) GetServiceState(serviceName string) (svc.State, error) {
 	args := m.Called(serviceName)
-	return args.Bool(0), args.Error(1)
+	return args.Get(0).(svc.State), args.Error(1)
 }
 
 func (m *mockSystemAPI) StopService(serviceName string) error {

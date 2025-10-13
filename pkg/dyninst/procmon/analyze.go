@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"iter"
 	"os"
 	"path"
@@ -25,6 +26,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/htlhash"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -43,6 +45,13 @@ type ContainerResolver interface {
 	GetContainerContext(pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error)
 }
 
+func errIsInteresting(err error) bool {
+	return err != nil &&
+		!errors.Is(err, fs.ErrNotExist) &&
+		!errors.Is(err, fs.ErrPermission) &&
+		!errors.Is(err, syscall.ESRCH)
+}
+
 // analyzeProcess performs light analysis of the process and its binary
 // to determine if it's interesting, and what its executable is.
 func analyzeProcess(
@@ -52,7 +61,7 @@ func analyzeProcess(
 	executableAnalyzer executableAnalyzer,
 ) (processAnalysis, error) {
 	maybeWrapErr := func(msg string, err error) error {
-		if err == nil || errors.Is(err, os.ErrNotExist) {
+		if !errIsInteresting(err) {
 			return nil
 		}
 		pid, msg, err := pid, msg, err
@@ -68,7 +77,7 @@ func analyzeProcess(
 	}
 
 	exeFile, err := os.Open(exePath)
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrPermission) {
 		// Try to open the exe under the proc root which can work when the
 		// file exists inside a container.
 		exePath = path.Join(
@@ -82,6 +91,9 @@ func analyzeProcess(
 				pid, exePath,
 			)
 		}
+		// Overwrite the error with the new one. This might mean that we don't
+		// see the original error, but we know it's not interesting so we
+		// wouldn't see it anyway.
 		exeFile, err = os.Open(exePath)
 	}
 	if err != nil {
@@ -138,6 +150,8 @@ func analyzeProcess(
 
 	return processAnalysis{
 		service:     ddEnv.serviceName,
+		version:     ddEnv.serviceVersion,
+		environment: ddEnv.environmentName,
 		exe:         Executable{Path: exePath, Key: fileKey},
 		interesting: true,
 		gitInfo: GitInfo{
@@ -150,12 +164,16 @@ func analyzeProcess(
 
 type ddEnvVars struct {
 	serviceName      string
+	serviceVersion   string
+	environmentName  string
 	diEnabled        bool
 	gitCommitSha     string
 	gitRepositoryURL string
 }
 
 const ddServiceEnvVar = "DD_SERVICE"
+const ddVersionEnvVar = "DD_VERSION"
+const ddEnvironmentEnvVar = "DD_ENV"
 const ddDynInstEnabledEnvVar = "DD_DYNAMIC_INSTRUMENTATION_ENABLED"
 const ddGitCommitShaEnvVar = "DD_GIT_COMMIT_SHA"
 const ddGitRepositoryURLEnvVar = "DD_GIT_REPOSITORY_URL"
@@ -174,7 +192,7 @@ func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 
 	f, err := os.Open(procEnv)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if os.IsNotExist(err) || errors.Is(err, syscall.ESRCH) {
 			return ddEnvVars{}, nil
 		}
 		return ddEnvVars{}, fmt.Errorf(
@@ -192,6 +210,10 @@ func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 		switch unsafe.String(unsafe.SliceData(envVar), len(envVar)) {
 		case ddServiceEnvVar:
 			ddEnv.serviceName = string(val)
+		case ddVersionEnvVar:
+			ddEnv.serviceVersion = string(val)
+		case ddEnvironmentEnvVar:
+			ddEnv.environmentName = string(val)
 		case ddDynInstEnabledEnvVar:
 			ddEnv.diEnabled, _ = strconv.ParseBool(string(val))
 		case ddGitCommitShaEnvVar:
@@ -287,9 +309,10 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 	}
 	defer elfFile.Close() // no-op, but why not
 
-	var symtabSection *safeelf.Section
+	var symtabSection *safeelf.SectionHeader
 	var hasDebugInfo, hasGoSections bool
-	for _, section := range elfFile.Elf.Sections {
+	sectionHeaders := elfFile.SectionHeaders()
+	for _, section := range sectionHeaders {
 		if _, ok := goSections[section.Name]; ok {
 			hasGoSections = true
 		}
@@ -314,16 +337,16 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 	// find the string table for the symbol table and then scan it for the
 	// strings corresponding to the symbols we might care about.
 	symtabStringsSectionIdx := symtabSection.Link
-	if symtabStringsSectionIdx >= uint32(len(elfFile.Elf.Sections)) {
+	if symtabStringsSectionIdx >= uint32(len(sectionHeaders)) {
 		return false, nil
 	}
-	symtabStringsSection := elfFile.Elf.Sections[symtabStringsSectionIdx]
-	symtabStrings, err := elfFile.MMap(symtabStringsSection, 0, symtabStringsSection.Size)
+	symtabStringsSection := sectionHeaders[symtabStringsSectionIdx]
+	symtabStrings, err := elfFile.SectionData(symtabStringsSection)
 	if err != nil {
 		return false, fmt.Errorf("failed to get symbols: %w", err)
 	}
 	defer symtabStrings.Close()
-	return bytes.Contains(symtabStrings.Data, ddTraceSymbolSuffix), nil
+	return bytes.Contains(symtabStrings.Data(), ddTraceSymbolSuffix), nil
 }
 
 var ddTraceSymbolSuffix = []byte("ddtrace/tracer.passProbeConfiguration")
@@ -395,7 +418,7 @@ func (a *fileKeyCacheExecutableAnalyzer) isInteresting(
 
 type htlHashCacheExecutableAnalyzer struct {
 	inner        executableAnalyzer
-	htlHashCache *lru.Cache[string, bool]
+	htlHashCache *lru.Cache[htlhash.Hash, bool]
 }
 
 func newHtlHashCacheExecutableAnalyzer(
@@ -404,7 +427,7 @@ func newHtlHashCacheExecutableAnalyzer(
 ) executableAnalyzer {
 	return &htlHashCacheExecutableAnalyzer{
 		inner:        inner,
-		htlHashCache: mustNewLruCache[string, bool](cacheSize),
+		htlHashCache: mustNewLruCache[htlhash.Hash, bool](cacheSize),
 	}
 }
 
@@ -412,7 +435,7 @@ func (a *htlHashCacheExecutableAnalyzer) isInteresting(
 	f *os.File,
 	key FileKey,
 ) (bool, error) {
-	hash, err := computeHtlHash(f)
+	hash, err := htlhash.Compute(f)
 	if err != nil {
 		return false, err
 	}

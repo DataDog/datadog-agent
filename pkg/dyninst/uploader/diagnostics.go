@@ -73,7 +73,7 @@ type Diagnostic struct {
 	RuntimeID    string `json:"runtimeId"`
 	ProbeID      string `json:"probeId"`
 	Status       Status `json:"status"`
-	ProbeVersion int    `json:"probeVersion,omitempty"`
+	ProbeVersion int    `json:"probeVersion"`
 
 	*DiagnosticException `json:"exception,omitempty"`
 }

@@ -9,7 +9,9 @@ from invoke import Collection, Task
 
 from tasks import (
     agent,
+    agent_ci_api,
     ami,
+    auth,
     bench,
     buildimages,
     cluster_agent,
@@ -24,6 +26,7 @@ from tasks import (
     diff,
     docker_tasks,
     dogstatsd,
+    dyntest,
     ebpf,
     emacs,
     epforwarder,
@@ -39,6 +42,7 @@ from tasks import (
     issue,
     kmt,
     linter,
+    loader,
     macos,
     modules,
     msi,
@@ -69,6 +73,7 @@ from tasks import (
     testwasher,
     trace_agent,
     vim,
+    virustotal,
     vscode,
     winbuild,
     windows_dev_env,
@@ -166,8 +171,10 @@ ns.add_task(build_and_upload_fuzz)
 ns.add_task(lint_go)
 
 # add namespaced tasks to the root
+ns.add_collection(auth)
 ns.add_collection(agent)
 ns.add_collection(ami)
+ns.add_collection(agent_ci_api)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
@@ -182,6 +189,7 @@ ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(vim)
 ns.add_collection(macos)
+ns.add_collection(dyntest)
 ns.add_collection(epforwarder)
 ns.add_collection(fips)
 ns.add_collection(go)
@@ -192,6 +200,7 @@ ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
+ns.add_collection(loader)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
@@ -231,6 +240,7 @@ ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
+ns.add_collection(virustotal)
 ns.configure(
     {
         "run": {

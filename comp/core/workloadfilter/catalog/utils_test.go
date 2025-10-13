@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build cel
+
 package catalog
 
 import (
@@ -22,22 +24,28 @@ func TestConvertOldToNewFilter_Success(t *testing.T) {
 		expected    string
 	}{
 		{
-			"single name filter",
+			"container name filter",
 			workloadfilter.ContainerType,
 			[]string{"name:foo-.*"},
 			`container.name.matches("foo-.*")`,
 		},
 		{
-			"single image filter",
+			"container image filter",
 			workloadfilter.ContainerType,
 			[]string{"image:nginx.*"},
 			`container.image.matches("nginx.*")`,
 		},
 		{
+			"container namespace filter",
+			workloadfilter.ContainerType,
+			[]string{"kube_namespace:foo-.*"},
+			`container.pod.namespace.matches("foo-.*")`,
+		},
+		{
 			"multiple filters",
 			workloadfilter.ContainerType,
-			[]string{"name:foo-.*", "image:nginx.*"},
-			`container.name.matches("foo-.*") || container.image.matches("nginx.*")`,
+			[]string{"name:foo-.*", "image:nginx.*", "image:busybox:latest"},
+			`container.name.matches("foo-.*") || container.image.matches("nginx.*") || container.image.matches("busybox:latest")`,
 		},
 		{
 			"filter with single quote and backslash",
@@ -60,26 +68,20 @@ func TestConvertOldToNewFilter_Success(t *testing.T) {
 		{
 			"exclude omitted image key in pod",
 			workloadfilter.PodType,
-			[]string{"name:foo-.*", "image:nginx.*"},
-			`pod.name.matches("foo-.*")`,
+			[]string{"kube_namespace:foo-.*", "image:nginx.*"},
+			`pod.namespace.matches("foo-.*")`,
 		},
 		{
 			"exclude omitted image key in service",
 			workloadfilter.ServiceType,
 			[]string{"name:foo-.*", "image:nginx.*"},
-			`service.name.matches("foo-.*")`,
+			`kube_service.name.matches("foo-.*")`,
 		},
 		{
 			"exclude omitted image key in endpoint",
 			workloadfilter.EndpointType,
 			[]string{"name:foo-.*", "image:nginx.*"},
-			`endpoint.name.matches("foo-.*")`,
-		},
-		{
-			"image filter on image type",
-			workloadfilter.ImageType,
-			[]string{"image:nginx.*"},
-			`image.name.matches("nginx.*")`,
+			`kube_endpoint.name.matches("foo-.*")`,
 		},
 	}
 	for _, tt := range tests {

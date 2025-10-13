@@ -25,6 +25,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -596,7 +597,7 @@ func fexitSupported(funcName string) bool {
 	}
 	defer l.Close()
 
-	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	hasPotentialFentryDeadlock, err := bugs.HasTasksRCUExitLockSymbol()
 	if hasPotentialFentryDeadlock || (err != nil) {
 		// incase of error, let's be safe and assume the bug is present
 		return false

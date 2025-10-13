@@ -7,6 +7,7 @@
 package probe
 
 import (
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -201,4 +202,14 @@ func (fh *FieldHandlers) ResolveFileMetadataCompression(_ *model.Event, _ *model
 // ResolveFileMetadataIsGarbleObfuscated resolves file metadata is_garble_obfuscated
 func (fh *FieldHandlers) ResolveFileMetadataIsGarbleObfuscated(_ *model.Event, _ *model.FileMetadata) bool {
 	return false
+}
+
+// ResolveFimFileExtension resolves the extension of a file
+func (fh *FieldHandlers) ResolveFimFileExtension(ev *model.Event, f *model.FimFileEvent) string {
+	if f.Extension == "" {
+		if baseName := ev.FieldHandlers.ResolveFimFileBasename(ev, f); baseName != "" {
+			f.Extension = filepath.Ext(baseName)
+		}
+	}
+	return f.Extension
 }

@@ -330,3 +330,38 @@ func FuzzEncodingRoundTrip(f *testing.F) {
 		}
 	})
 }
+
+// FuzzParseEncodedTextUntailored tests all encoding parsers with completely
+// arbitrary input data, without attempting to construct valid encoded text.
+// This complements the encoding-specific fuzz tests which use carefully
+// crafted inputs.
+//
+// The purpose is to ensure the parsers never panic regardless of input, testing
+// their robustness against malformed, corrupted, or completely random data that
+// might be encountered.
+func FuzzParseEncodedTextUntailored(f *testing.F) {
+	f.Add([]byte("\xFF\xFE\x48\x00\x65\x00\x6C\x00\x6C\x00\x6F\x00")) // UTF-16LE with BOM
+	f.Add([]byte("\xFE\xFF\x00\x48\x00\x65\x00\x6C\x00\x6C\x00\x6F")) // UTF-16BE with BOM
+	f.Add([]byte("\x93\xFA\x96\x7B"))                                 // Shift JIS
+	f.Add([]byte(""))
+	f.Add([]byte(" "))
+	f.Add([]byte("\x00\x01\x02\x03"))
+	f.Add([]byte("\xFF\xFE\xFD\xFC"))
+
+	// Test all encodings with the same input
+	encodings := []Encoding{UTF16LE, UTF16BE, SHIFTJIS}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		for _, encoding := range encodings {
+			parser := New(encoding)
+			msg := message.NewMessage(data, nil, "", 0)
+
+			// The only invariant: parser must not panic and must return a valid result
+			result, _ := parser.Parse(msg)
+
+			if result == nil {
+				t.Fatalf("%v: Parse returned nil", encoding)
+			}
+		}
+	})
+}

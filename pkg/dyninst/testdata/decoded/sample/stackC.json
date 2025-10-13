@@ -6,7 +6,7 @@
       "name": "",
       "method": "main.stackC",
       "version": 0,
-      "thread_id": 0,
+      "thread_id": "[goid]",
       "thread_name": ""
     },
     "debugger": {
@@ -14,7 +14,43 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": [
+          {
+            "function": "main.stackC",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go",
+            "lineNumber": 25
+          },
+          {
+            "function": "main.stackB",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go",
+            "lineNumber": 19
+          },
+          {
+            "function": "main.stackA",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go",
+            "lineNumber": 13
+          },
+          {
+            "function": "main.executeStack",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go",
+            "lineNumber": 30
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 33
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
         "probe": {
           "id": "stackC",
           "location": {
@@ -22,12 +58,18 @@
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {}
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "hello 1!"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

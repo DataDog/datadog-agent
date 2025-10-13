@@ -8,17 +8,24 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
@@ -54,6 +61,12 @@ type systemContext struct {
 
 	// cudaKernelCache caches kernel data and handles background loading
 	cudaKernelCache *cuda.KernelCache
+
+	// lastDeviceCacheRefreshTime is the last time in which the device cache was refreshed
+	lastDeviceCacheRefreshTime time.Time
+
+	// deviceCacheRefreshInterval is the minimum time passing between device cache refreshes
+	deviceCacheRefreshInterval time.Duration
 }
 
 type systemContextOptions struct {
@@ -116,21 +129,19 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 		visibleDevicesCache:          make(map[int][]ddnvml.Device),
 		cudaVisibleDevicesPerProcess: make(map[int]string),
 		workloadmeta:                 opts.wmeta,
+		deviceCache:                  ddnvml.NewDeviceCache(),
+		deviceCacheRefreshInterval:   opts.config.DeviceCacheRefreshInterval,
+		lastDeviceCacheRefreshTime:   time.Now(),
 	}
 
 	var err error
-	ctx.deviceCache, err = ddnvml.NewDeviceCache()
-	if err != nil {
-		return nil, fmt.Errorf("error creating device cache: %w", err)
-	}
-
 	ctx.timeResolver, err = ktime.NewResolver()
 	if err != nil {
 		return nil, fmt.Errorf("error creating time resolver: %w", err)
 	}
 
 	if opts.fatbinParsingEnabled {
-		ctx.cudaKernelCache, err = cuda.NewKernelCache(opts.procRoot, ctx.deviceCache.SMVersionSet(), opts.tm, opts.config.KernelCacheQueueSize)
+		ctx.cudaKernelCache, err = cuda.NewKernelCache(opts.procRoot, ctx.deviceCache.SMVersionSet, opts.tm, opts.config.KernelCacheQueueSize)
 		if err != nil {
 			return nil, fmt.Errorf("error creating kernel cache: %w", err)
 		}
@@ -173,7 +184,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 		// If we don't find the container, we assume all devices are available.
 		// This can happen sometimes, e.g. if we don't have the container in the
 		// store yet. Do not block metrics on that.
-		if errors.IsNotFound(err) {
+		if dderrors.IsNotFound(err) {
 			return devices, nil
 		}
 
@@ -182,45 +193,25 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 		return nil, fmt.Errorf("cannot retrieve data for container %s: %s", containerID, err)
 	}
 
-	var filteredDevices []ddnvml.Device
-	numContainerGPUs := 0
-	for _, resource := range container.ResolvedAllocatedResources {
-		// Only consider NVIDIA GPUs
-		if !gpuutil.IsNvidiaKubernetesResource(resource.Name) {
-			continue
-		}
-
-		numContainerGPUs++
-
-	outer:
-		for _, device := range devices {
-			if resource.ID == device.GetDeviceInfo().UUID {
-				filteredDevices = append(filteredDevices, device)
-				break
-			}
-
-			// If the device has MIG children, check if any of them matches the resource ID
-			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
-			if ok {
-				for _, migChild := range physicalDevice.MIGChildren {
-					if resource.ID == migChild.UUID {
-						filteredDevices = append(filteredDevices, migChild)
-						break outer
-					}
-				}
-			}
-		}
-	}
+	filteredDevices, err := containers.MatchContainerDevices(container, devices)
 
 	// Found matching devices, return them
 	if len(filteredDevices) > 0 {
+		if err != nil {
+			if logLimitProbe.ShouldLog() {
+				log.Warnf("error matching some container devices: %s. Will continue with the available devices", err)
+			}
+		}
 		return filteredDevices, nil
 	}
 
-	// We didn't match any devices to the container. This could be caused by
-	// multiple reasons. One option is that the container has no GPUs assigned
-	// to it. This could be a problem in the PodResources API.
-	if numContainerGPUs == 0 {
+	// We didn't match any devices to the container, but there were not errors
+	// while matching, which means that there were no GPU devices assigned to
+	// the container to try and match. This could be a problem in the PodResources
+	// API, or it could be due to the container environment being different
+	// (e.g., Docker instead of k8s). In any case, we return the available
+	// devices as a fallback.
+	if err == nil {
 		// An special case is when we only have one GPU in the system. In that
 		// case, we don't need the API as there's only one device available, so
 		// return it directly as a fallback
@@ -236,7 +227,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 	// If the container has GPUs assigned to it but we couldn't match it to our
 	// devices, return the error for this case and show the allocated resources
 	// for debugging purposes.
-	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.ResolvedAllocatedResources)
+	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v: %w", containerID, container.ResolvedAllocatedResources, err)
 }
 
 // getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
@@ -248,14 +239,22 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (ddnvml.Device, error) {
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {
-		containerID := containerIDFunc()
+		err := ctx.periodicDeviceCacheRefresh()
+		if err != nil {
+			return nil, fmt.Errorf("error refreshing device cache: %w", err)
+		}
 
 		// Order is important! We need to filter the devices for the container
 		// first. In a container setting, the environment variable acts as a
 		// filter on the devices that are available to the process, not on the
 		// devices available on the host system.
-		var err error // avoid shadowing visibleDevices, declare error before so we can use = instead of :=
-		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.AllPhysicalDevices(), containerID)
+		allPhysicalDevices, err := ctx.deviceCache.AllPhysicalDevices()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get all physical devices: %w", err)
+		}
+
+		containerID := containerIDFunc()
+		visibleDevices, err = ctx.filterDevicesForContainer(allPhysicalDevices, containerID)
 		if err != nil {
 			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
 		}
@@ -264,7 +263,13 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 		if !ok {
 			envVar, err = kernel.GetProcessEnvVariable(pid, ctx.procRoot, cuda.CudaVisibleDevicesEnvVar)
 			if err != nil {
-				return nil, fmt.Errorf("error getting env var %s for process %d: %w", cuda.CudaVisibleDevicesEnvVar, pid, err)
+				// Check if procRoot/pid exists, if not, the process has exited and we can't get the env var. Don't
+				// block metrics on that.
+				if _, err := os.Stat(filepath.Join(ctx.procRoot, strconv.Itoa(pid))); err != nil && errors.Is(err, fs.ErrNotExist) {
+					envVar = ""
+				} else {
+					return nil, fmt.Errorf("error getting env var %s for process %d: %w", cuda.CudaVisibleDevicesEnvVar, pid, err)
+				}
 			}
 		}
 
@@ -307,4 +312,13 @@ func (ctx *systemContext) setUpdatedVisibleDevicesEnvVar(pid int, envVar string)
 
 	// Invalidate the visible devices cache to force a re-scan of the devices
 	delete(ctx.visibleDevicesCache, pid)
+}
+
+func (ctx *systemContext) periodicDeviceCacheRefresh() error {
+	now := time.Now()
+	if now.Sub(ctx.lastDeviceCacheRefreshTime) < ctx.deviceCacheRefreshInterval {
+		return nil
+	}
+	ctx.lastDeviceCacheRefreshTime = now
+	return ctx.deviceCache.Refresh()
 }

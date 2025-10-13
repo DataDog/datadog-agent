@@ -33,8 +33,7 @@ type loggerPointer struct {
 
 var (
 	// Logger is the main DatadogLogger
-	logger    loggerPointer
-	jmxLogger loggerPointer
+	logger loggerPointer
 
 	// This buffer holds log lines sent to the logger before its
 	// initialization. Even if initializing the logger is one of the first
@@ -232,8 +231,8 @@ func (sw *loggerPointer) replaceInnerLogger(li LoggerInterface) LoggerInterface 
 // Flush flushes the underlying inner log
 func Flush() {
 	logger.flush()
-	jmxLogger.flush()
 }
+
 func (sw *loggerPointer) flush() {
 	l := sw.Load()
 	if l == nil {
@@ -915,23 +914,4 @@ func CriticalStackDepth(depth int, v ...interface{}) error {
 	return logWithError(CriticalLvl, func() { _ = CriticalStackDepth(depth, v...) }, func(s string) error {
 		return logger.criticalStackDepth(s, depth)
 	}, true, v...)
-}
-
-/*
-*	JMX Logger Section
- */
-
-// JMXError Logs for JMX check
-func JMXError(v ...interface{}) error {
-	return logWithError(ErrorLvl, func() { _ = JMXError(v...) }, jmxLogger.error, true, v...)
-}
-
-// JMXInfo Logs
-func JMXInfo(v ...interface{}) {
-	log(InfoLvl, func() { JMXInfo(v...) }, jmxLogger.info, v...)
-}
-
-// SetupJMXLogger setup JMXfetch specific logger
-func SetupJMXLogger(i LoggerInterface, level string) {
-	jmxLogger.Store(setupCommonLogger(i, level))
 }

@@ -23,12 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
 	"golang.org/x/net/http/httpproxy"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 )
 
 const megaByte = 1024 * 1024
@@ -109,7 +110,8 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
 }
 
-func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarder.DefaultForwarder, error) {
+// InitSerializer initializes the serializer and forwarder for sending metrics. Should only be used in OSS Datadog exporter or in tests.
+func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarder.DefaultForwarder, error) {
 	var f defaultforwarder.Component
 	var s *serializer.Serializer
 	app := fx.New(

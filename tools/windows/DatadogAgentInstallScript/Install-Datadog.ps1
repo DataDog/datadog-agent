@@ -3,17 +3,36 @@
    Downloads and installs Datadog on the machine.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Default')]
-$SCRIPT_VERSION = "1.1.0"
+$SCRIPT_VERSION = "1.2.1"
 $GENERAL_ERROR_CODE = 1
 
 # Set some defaults if not provided
-$ddInstallerUrl = $env:DD_INSTALLER_URL
-if (-Not $ddInstallerUrl) {
-   $ddInstallerUrl = "https://install.datadoghq.com/datadog-installer-x86_64.exe"
-}
-
 if (-Not $env:DD_REMOTE_UPDATES) {
    $env:DD_REMOTE_UPDATES = "false"
+}
+
+$ddInstallerUrl = $env:DD_INSTALLER_URL
+if (-Not $ddInstallerUrl) {
+   # Craft the URL to the installer executable
+   #
+   # Use DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE if it's set,
+   # otherwise craft the URL based on the DD_SITE
+   #
+   # We must not set DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE based on DD_SITE
+   # because the environment variable will persist after the script finishes,
+   # and a change to DD_SITE won't update the the variable again, which is confusing.
+   # The go code at pkg\fleet\installer\oci\download.go will use DD_SITE to determine
+   # the registry URL so it's simpler to let it do that.
+   if ($env:DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE) {
+      $ddInstallerRegistryUrl = $env:DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE
+   } else {
+      if ($env:DD_SITE -eq "datad0g.com") {
+         $ddInstallerRegistryUrl = "install.datad0g.com"
+      } else {
+         $ddInstallerRegistryUrl = "install.datadoghq.com"
+      }
+   }
+   $ddInstallerUrl = "https://$ddInstallerRegistryUrl/datadog-installer-x86_64.exe"
 }
 
 # ExitCodeException can be used to report failures from executables that set $LASTEXITCODE
@@ -23,36 +42,6 @@ class ExitCodeException : Exception {
    ExitCodeException($message, $lastExitCode) : base($message) {
       $this.LastExitCode = $lastExitCode
    }
-}
-
-function Get-DatadogConfigPath() {
-   if (
-      (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent") -and
-      ($null -ne (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("ConfigRoot"))
-   ) {
-      return (Join-Path (Get-ItemPropertyValue -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent" -Name "ConfigRoot") "datadog.yaml")
-   }
-   return "C:\\ProgramData\\Datadog\\datadog.yaml"
-}
-
-function Update-DatadogConfigFile($regex, $replacement) {
-   $configFile = Get-DatadogConfigPath
-   if (-Not (Test-Path $configFile)) {
-      throw "datadog.yaml doesn't exist"
-   }
-
-   # Read file as list of lines
-   $content = @(Get-Content $configFile)
-   if (($content | Select-String $regex | Measure-Object).Count -eq 0) {
-      # Entry does not exist, append to list
-      $content += $replacement
-   }
-   else {
-      # Replace existing line that matches regex
-      $content = $content -replace $regex, $replacement
-   }
-
-   Set-Content -Path $configFile -Value $content
 }
 
 function Send-Telemetry($payload) {
@@ -77,6 +66,24 @@ function Send-Telemetry($payload) {
       # It's enough to just print a message since there's no further error handling to be done.
       Write-Host "Error sending telemetry"
    }
+}
+
+function Test-InstallerIntegrity($installer) {
+   if ($env:DD_SKIP_CODE_SIGNING_CHECK) {
+      Write-Host "Skipping code signing check"
+      return $true
+   }
+   $signature = Get-AuthenticodeSignature -FilePath $installer
+
+   # We don't expect this value to be localized, it is an enum name
+   # https://learn.microsoft.com/en-us/dotnet/api/system.management.automation.signaturestatus
+   if ($signature.Status -ne "Valid") {
+      throw "Installer signature is not valid: $($signature.StatusMessage)"
+   }
+   if (-Not ($signature.SignerCertificate.Subject.Contains('CN="Datadog, Inc"'))) {
+      throw "Installer is not signed by CN=`"Datadog, Inc`": $($signature.SignerCertificate.Subject)"
+   }
+   return $true
 }
 
 function Show-Error($errorMessage, $errorCode) {
@@ -139,12 +146,14 @@ function Start-ProcessWithOutput {
    $stderr = Register-ObjectEvent -InputObject $process -EventName 'ErrorDataReceived' `
       -Action {
       if (![String]::IsNullOrEmpty($EventArgs.Data)) {
-         # Print stderr from process into host stderr
-         # Unfortunately that means this output cannot be captured from within PowerShell
-         # and it won't work within PowerShell ISE because it is not a console host.
-         [Console]::ForegroundColor = 'red'
-         [Console]::Error.WriteLine($EventArgs.Data)
-         [Console]::ResetColor()
+         # Different environments seem to show/hide different output streams
+         # PSRemoting and ISE won't see console
+         # PSRemoting sees Write-Error but neither console nor ISE do
+         # Write-Host seems pretty universal, though we lose the stdout/stderr distinction
+         # The only thing we're doing with the output right now is displaying to
+         # the user, so this seems okay. If we need the distinction later we can
+         # figure out how to output it.
+         Write-Host $EventArgs.Data -ForegroundColor 'red'
       }
    }
    [void]$process.Start()
@@ -164,90 +173,6 @@ function Test-DatadogAgentPresence() {
       (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent") -and
       ($null -ne (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("InstallPath"))
    )
-}
-
-function Update-DatadogAgentConfig() {
-    if ($env:DD_API_KEY) {
-        Write-Host "Writing DD_API_KEY"
-        Update-DatadogConfigFile "^[ #]*api_key:.*" "api_key: $env:DD_API_KEY"
-    }
-
-    if ($env:DD_SITE) {
-        Write-Host "Writing DD_SITE"
-        Update-DatadogConfigFile "^[ #]*site:.*" "site: $env:DD_SITE"
-    }
-
-    if ($env:DD_URL) {
-        Write-Host "Writing DD_URL"
-        Update-DatadogConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
-    }
-
-    if ($env:DD_REMOTE_UPDATES) {
-        Write-Host "Writing DD_REMOTE_UPDATES"
-        Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($env:DD_REMOTE_UPDATES.ToLower())"
-    }
-
-    if ($env:DD_LOGS_ENABLED) {
-        Write-Host "Writing DD_LOGS_ENABLED"
-        Update-DatadogConfigFile "^[ #]*logs_enabled:.*" "logs_enabled: $($env:DD_LOGS_ENABLED.ToLower())"
-    }
-
-    if ($env:DD_TAGS) {
-        Write-Host "Writing DD_TAGS"
-
-        $tags = $env:DD_TAGS -split ","
-        $yamlTags = @("tags:") + ($tags | ForEach-Object { "  - $_" })
-
-        $configFile = Get-DatadogConfigPath
-        $lines = Get-Content $configFile
-        $output = @()
-
-        $inTagsBlock = $false
-        $didReplace = $false
-
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            $line = $lines[$i]
-
-            # Skip commented tag blocks
-            if ($line -match '^\s*#\s*tags:') {
-                $output += $line
-                continue
-            }
-
-            # Handle inline array: tags: ['env:staging', 'team:infra']
-            if (-not $didReplace -and $line -match '^\s*tags:\s*\[.*\]') {
-                $output += $yamlTags
-                $didReplace = $true
-                continue
-            }
-
-            # Only replace top-level tags:
-            if (-not $didReplace -and $line -match '^tags:\s*$') {
-                $output += $yamlTags
-                $didReplace = $true
-                $inTagsBlock = $true
-                continue
-            }
-
-            # If inside a tags block, skip original tag lines
-            if ($inTagsBlock) {
-                if ($line -match '^\s*-\s*\S+:') {
-                    continue
-                } else {
-                    $inTagsBlock = $false
-                }
-            }
-
-            $output += $line
-        }
-
-        # If no tags block found, append it
-        if (-not $didReplace) {
-            $output += $yamlTags
-        }
-
-        Set-Content -Path $configFile -Value $output
-    }
 }
 
 if ($env:SCRIPT_IMPORT_ONLY) {
@@ -270,26 +195,6 @@ try {
       throw "This script must be run with administrative privileges."
    }
 
-   # First thing to do is to stop the services if they are started
-   if (Test-DatadogAgentPresence) {
-      Write-Host "Stopping Datadog Agent services"
-      & ((Get-ItemProperty "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").InstallPath + "bin\\agent.exe") stop-service
-   }
-
-   if ((Get-Service "Datadog Installer" -ea silent | Measure-Object).Count -eq 1) {
-      Write-Host "Stopping Datadog Installer service"
-      Stop-Service "Datadog Installer"
-   }
-
-   $configUpdated = $False
-   # Write the config before-hand if it exists, that way if the Agent/Installer services start
-   # once installed, they will have a valid configuration.
-   # This allows the MSI to emit some telemetry as well.
-   if (Test-Path (Get-DatadogConfigPath)) {
-      Update-DatadogAgentConfig
-      $configUpdated = $True
-   }
-
    # Powershell does not enable TLS 1.2 by default, & we want it enabled for faster downloads
    Write-Host "Forcing web requests to TLS v1.2"
    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -308,24 +213,22 @@ try {
       [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
    }
 
-   # set so `default-packages` won't contain the Datadog Agent
-   # as it is now installed during the beginning of the bootstrap process
-   $env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT = "False"
-
-   Write-Host "Starting bootstrap process"
-   $result = Start-ProcessWithOutput -Path $installer -ArgumentList "bootstrap"
-   if ($result -ne 0) {
-      # bootstrap only fails if it fails to install to install the Datadog Installer, so it's possible the Agent was not installed
-      throw [ExitCodeException]::new("Bootstrap failed", $result)
+   Write-Host "Verifying installer integrity..."
+   if (-Not (Test-InstallerIntegrity $installer)) {
+      throw "Installer is not signed by Datadog"
    }
-   Write-Host "Bootstrap execution done"
+   Write-Host "Installer integrity verified."
+
+   Write-Host "Starting the Datadog installer..."
+   $result = Start-ProcessWithOutput -Path $installer
+   if ($result -ne 0) {
+      # setup only fails if it fails to install to install the Datadog Installer, so it's possible the Agent was not installed
+      throw [ExitCodeException]::new("Installer failed", $result)
+   }
+   Write-Host "Installer completed"
 
    if (-Not (Test-DatadogAgentPresence)) {
       throw "Agent is not installed"
-   }
-
-   if (-Not ($configUpdated)) {
-      Update-DatadogAgentConfig
    }
 
    Send-Telemetry @"
@@ -345,12 +248,6 @@ try {
    }
 }
 "@
-   # The datadog.yaml configuration was potentially modified so restart the services
-   Write-Host "Starting Datadog Installer service"
-   Restart-Service "Datadog Installer"
-   # This command handles restarting the dependent services as well
-   Write-Host "Starting Datadog Agent services"
-   & ((Get-ItemProperty "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").InstallPath + "bin\\agent.exe") restart-service
 }
 catch [ExitCodeException] {
    Show-Error $_.Exception.Message $_.Exception.LastExitCode

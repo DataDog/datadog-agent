@@ -1,9 +1,9 @@
-
 .lint:
   stage: lint
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   needs: []
+  retry: !reference [.retry_only_infra_failure, retry]
 
 lint_licenses:
   extends: .lint
@@ -17,7 +17,6 @@ lint_licenses:
 lint_shell:
   extends: .lint
   script:
-    - dda inv -- -e install-shellcheck
     - shellcheck --version
     #Excludes:
     #SC2028: echo may not expand escape sequences. Use printf.
@@ -44,11 +43,10 @@ lint_components:
   script:
     - dda inv -- -e lint-components lint-fxutil-oneshot-test
 
-
 lint_python:
   extends: .lint
   script:
-    - dda inv -- -e linter.python
+    - dda inv -- -e linter.python --show-versions
 
 lint_update_go:
   extends: .lint
@@ -60,6 +58,14 @@ validate_modules:
   script:
     - dda inv -- -e modules.validate
     - dda inv -- -e modules.validate-used-by-otel
+
+check_modules_replace:
+  extends: .lint
+  needs: ["go_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - dda inv -- -e modules.check-all-replace
 
 validate_experiment_systemd_units:
   extends: .lint

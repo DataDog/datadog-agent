@@ -25,7 +25,8 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -83,10 +84,10 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(loadArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				logscompressionfx.Module(),
 			)
 		},
@@ -162,10 +163,10 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(eventArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
+				secretsfx.Module(),
 				logscompressionfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)

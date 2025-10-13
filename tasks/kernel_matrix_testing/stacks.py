@@ -26,15 +26,10 @@ from tasks.kernel_matrix_testing.libvirt import (
     resume_domains,
 )
 from tasks.kernel_matrix_testing.tool import Exit, error, info, warn
-from tasks.kernel_matrix_testing.vars import VMCONFIG
+from tasks.kernel_matrix_testing.vars import AWS_ACCOUNT, VMCONFIG
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr
-
-try:
-    import libvirt
-except ImportError:
-    libvirt = None
 
 X86_INSTANCE_TYPE = "m5d.metal"
 ARM_INSTANCE_TYPE = "m6gd.metal"
@@ -64,6 +59,16 @@ def check_and_get_stack(stack: str | None) -> str:
 
 def stack_exists(stack: str):
     return os.path.exists(f"{get_kmt_os().stacks_dir}/{stack}")
+
+
+def check_and_get_stack_or_exit(stack: str | None) -> str:
+    stack = check_and_get_stack(stack)
+    if not stack_exists(stack):
+        raise Exit(
+            f"Stack {stack} does not exist. Please create with 'dda inv kmt.gen-config --vms=<vms> --stack=<name>'"
+        )
+
+    return stack
 
 
 def vm_config_exists(stack: str):
@@ -184,11 +189,15 @@ def check_env(ctx: Context):
 
 
 def launch_stack(
-    ctx: Context, stack: str | None, ssh_key: str | None, x86_ami: str, arm_ami: str, provision_microvms: bool
+    ctx: Context,
+    stack: str | None,
+    ssh_key: str | None,
+    x86_ami: str,
+    arm_ami: str,
+    provision_microvms: bool,
+    with_gdb: bool,
 ):
-    stack = check_and_get_stack(stack)
-    if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
     if not vm_config_exists(stack):
         raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'dda inv kmt.gen-config --help'")
@@ -231,11 +240,12 @@ def launch_stack(
         vmconfig=vm_config,
         stack_name=stack,
         local=local,
+        with_gdb=with_gdb,
     )
 
     prefix = ""
     if provision_instance:
-        prefix = "aws-vault exec sso-sandbox-account-admin -- "
+        prefix = f"aws-vault exec {AWS_ACCOUNT} -- "
     ctx.run(f"{prefix}{start_cmd}", env=env)
     info(f"[+] Stack {stack} successfully setup")
 
@@ -256,7 +266,7 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
     vm_config = f"{stack_dir}/{VMCONFIG}"
     prefix = ""
     if remote_vms_in_config(vm_config):
-        prefix = "aws-vault exec sso-sandbox-account-admin -- "
+        prefix = f"aws-vault exec {AWS_ACCOUNT} -- "
 
     build_start_microvms_binary(ctx)
     start_cmd = start_microvms_cmd(infra_env="aws/sandbox", stack_name=stack, destroy=True, local=True)
@@ -286,6 +296,7 @@ def start_microvms_cmd(
     provision_microvms=False,
     run_agent=False,
     agent_version=None,
+    with_gdb=False,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -305,6 +316,7 @@ def start_microvms_cmd(
         f"--agent-version {agent_version}" if agent_version else "",
         "--provision-instance" if provision_instance else "",
         "--provision-microvms" if provision_microvms else "",
+        "--setup-gdb" if with_gdb else "",
     ]
     go_args = ' '.join(filter(lambda x: x != "", args))
     return f"./test/new-e2e/start-microvms {go_args}"
@@ -312,7 +324,7 @@ def start_microvms_cmd(
 
 def ec2_instance_ids(ctx: Context, ip_list: list[str]) -> list[str]:
     ip_addresses = ','.join(ip_list)
-    list_instances_cmd = f"aws-vault exec sso-sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
+    list_instances_cmd = f"aws-vault exec {AWS_ACCOUNT} -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
 
     res = ctx.run(list_instances_cmd, warn=True)
     if res is None or not res.ok:
@@ -353,9 +365,7 @@ def destroy_ec2_instances(ctx: Context, stack: str):
         raise Exit("Too many instance_ids")
 
     ids = ' '.join(instance_ids)
-    res = ctx.run(
-        f"aws-vault exec sso-sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
-    )
+    res = ctx.run(f"aws-vault exec {AWS_ACCOUNT} -- aws ec2 terminate-instances --instance-ids {ids}", warn=True)
     if res is None or not res.ok:
         error(f"[-] Failed to terminate instances {ids}. Use console to terminate instances")
     else:
@@ -379,6 +389,8 @@ def destroy_stack_force(ctx: Context, stack: str):
     vm_config = os.path.join(stack_dir, VMCONFIG)
 
     if os.path.exists(vm_config) and local_vms_in_config(vm_config):
+        import libvirt
+
         conn = libvirt.open(get_kmt_os().libvirt_socket)
         if not conn:
             raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
@@ -417,9 +429,7 @@ def destroy_stack_force(ctx: Context, stack: str):
 
 
 def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | None):
-    stack = check_and_get_stack(stack)
-    if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
     info(f"[*] Destroying stack {stack}")
     if pulumi:
@@ -431,24 +441,26 @@ def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | 
 
 
 def pause_stack(stack: str | None = None):
-    stack = check_and_get_stack(stack)
-    if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    import libvirt
+
+    stack = check_and_get_stack_or_exit(stack)
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     pause_domains(conn, stack)
     conn.close()
 
 
 def resume_stack(stack=None):
-    stack = check_and_get_stack(stack)
-    if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    import libvirt
+
+    stack = check_and_get_stack_or_exit(stack)
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     resume_domains(conn, stack)
     conn.close()
 
 
 def read_libvirt_sock():
+    import libvirt
+
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("read_libvirt_sock: Failed to open connection to qemu:///system")
@@ -477,6 +489,8 @@ testPoolXML = """
 
 
 def write_libvirt_sock():
+    import libvirt
+
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("write_libvirt_sock: Failed to open connection to qemu:///system")

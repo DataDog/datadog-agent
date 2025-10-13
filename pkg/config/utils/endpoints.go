@@ -165,6 +165,30 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 			Keys:              []string{c.GetString("multi_region_failover.api_key")},
 		}}
 	}
+
+	// Populate preaggregation endpoint
+	if c.GetBool("preaggregation.enabled") {
+		preaggURL := c.GetString("preaggregation.dd_url")
+		if preaggURL == "" {
+			return nil, fmt.Errorf("preaggregation.dd_url is required when preaggregation.enabled is true")
+		}
+		if preaggURL == ddURL {
+			return nil, fmt.Errorf("preaggregation.dd_url must not match primary URL")
+		}
+		if _, exists := additionalEndpoints[preaggURL]; exists {
+			return nil, fmt.Errorf("preaggregation.dd_url must not match any additional endpoints")
+		}
+
+		apiKey := c.GetString("preaggregation.api_key")
+		if apiKey == "" {
+			return nil, fmt.Errorf("preaggregation.api_key is required when preaggregation.enabled is true")
+		}
+		additionalEndpoints[preaggURL] = []APIKeys{{
+			ConfigSettingPath: "preaggregation.api_key",
+			Keys:              []string{apiKey},
+		}}
+	}
+
 	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
 }
 
@@ -176,7 +200,7 @@ var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|dd
 // https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 func BuildURLWithPrefix(prefix, site string) string {
 	site = strings.TrimSpace(site)
-	if wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
+	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
 		site += "."
 	}
 	return prefix + site

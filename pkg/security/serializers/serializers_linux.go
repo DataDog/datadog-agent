@@ -23,6 +23,7 @@ import (
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -36,6 +37,8 @@ type FileSerializer struct {
 	Path string `json:"path,omitempty"`
 	// File basename
 	Name string `json:"name,omitempty"`
+	// File extension
+	Extension string `json:"extension,omitempty"`
 	// Error message from path resolution
 	PathResolutionError string `json:"path_resolution_error,omitempty"`
 	// File inode number
@@ -72,6 +75,16 @@ type FileSerializer struct {
 	PackageName string `json:"package_name,omitempty"`
 	// System package version
 	PackageVersion string `json:"package_version,omitempty"`
+	// System package epoch
+	PackageEpoch int `json:"package_epoch,omitempty"`
+	// System package release
+	PackageRelease string `json:"package_release,omitempty"`
+	// System package source version
+	PackageSrcVersion string `json:"package_source_version,omitempty"`
+	// System package source epoch
+	PackageSrcEpoch int `json:"package_source_epoch,omitempty"`
+	// System package source release
+	PackageSrcRelease string `json:"package_source_release,omitempty"`
 	// List of cryptographic hashes of the file
 	Hashes []string `json:"hashes,omitempty"`
 	// State of the hashes or reason why they weren't computed
@@ -83,9 +96,9 @@ type FileSerializer struct {
 	// MountOrigin origin of the mount
 	MountOrigin string `json:"mount_origin,omitempty"`
 	// MountVisible origin of the mount
-	MountVisible bool `json:"mount_visible"`
+	MountVisible *bool `json:"mount_visible,omitempty"`
 	// MountDetached origin of the mount
-	MountDetached bool `json:"mount_detached"`
+	MountDetached *bool `json:"mount_detached,omitempty"`
 
 	FileMetadata *FileMetadataSerializer `json:"metadata,omitempty"`
 }
@@ -247,6 +260,10 @@ type ProcessSerializer struct {
 	ExitTime *utils.EasyjsonTime `json:"exit_time,omitempty"`
 	// Credentials associated with the process
 	Credentials *ProcessCredentialsSerializer `json:"credentials,omitempty"`
+	// CapsAttempted lists the capabilities that this process tried to use
+	CapsAttempted []string `json:"caps_attempted,omitempty"`
+	// CapsUsed lists the capabilities that this process effectively made use of
+	CapsUsed []string `json:"caps_used,omitempty"`
 	// Context of the user session for this event
 	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
 	// File information of the executable
@@ -581,6 +598,17 @@ type SetSockOptEventSerializer struct {
 	FilterHash string `json:"filter_hash,omitempty"`
 }
 
+// PrCtlEventSerializer serializes a prctl event
+// easyjson:json
+type PrCtlEventSerializer struct {
+	// PrCtl Option
+	Option string `json:"option"`
+	// New name of the process
+	NewName string `json:"new_name,omitempty"`
+	// Name truncated
+	IsNameTruncated bool `json:"is_name_truncated,omitempty"`
+}
+
 // CGroupWriteEventSerializer serializes a cgroup_write event
 // easyjson:json
 type CGroupWriteEventSerializer struct {
@@ -681,6 +709,7 @@ type SyscallContextSerializer struct {
 	Mkdir      *SyscallArgsSerializer `json:"mkdir,omitempty"`
 	Rmdir      *SyscallArgsSerializer `json:"rmdir,omitempty"`
 	SetSockOpt *SyscallArgsSerializer `json:"setsockopt,omitempty"`
+	PrCtl      *SyscallArgsSerializer `json:"prctl,omitempty"`
 }
 
 func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event, attachEventypeCb func(*SyscallContextSerializer, *SyscallArgsSerializer)) *SyscallContextSerializer {
@@ -732,6 +761,8 @@ type EventSerializer struct {
 	*SysCtlEventSerializer        `json:"sysctl,omitempty"`
 	*SetSockOptEventSerializer    `json:"setsockopt,omitempty"`
 	*CGroupWriteEventSerializer   `json:"cgroup_write,omitempty"`
+	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
+	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -743,6 +774,22 @@ func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer
 		})
 	}
 	return &ses
+}
+
+// CapabilitiesEventSerializer serializes a capabilities usage event
+// easyjson:json
+type CapabilitiesEventSerializer struct {
+	// Capabilities that the process attempted to use since it started running
+	CapsAttempted []string `json:"caps_attempted,omitempty"`
+	// Capabilities that the process successfully used since it started running
+	CapsUsed []string `json:"caps_used,omitempty"`
+}
+
+func newCapabilitiesEventSerializer(e *model.Event, ce *model.CapabilitiesEvent) *CapabilitiesEventSerializer {
+	return &CapabilitiesEventSerializer{
+		CapsAttempted: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
+		CapsUsed:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+	}
 }
 
 func getInUpperLayer(f *model.FileFields) *bool {
@@ -764,6 +811,7 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		Path:                e.FieldHandlers.ResolveFilePath(e, fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.FieldHandlers.ResolveFileBasename(e, fe),
+		Extension:           e.FieldHandlers.ResolveFileExtension(e, fe),
 		Inode:               createNumPointer(inode),
 		MountID:             createNumPointer(fe.MountID),
 		Filesystem:          e.FieldHandlers.ResolveFileFilesystem(e, fe),
@@ -777,12 +825,22 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		InUpperLayer:        getInUpperLayer(&fe.FileFields),
 		PackageName:         e.FieldHandlers.ResolvePackageName(e, fe),
 		PackageVersion:      e.FieldHandlers.ResolvePackageVersion(e, fe),
+		PackageEpoch:        e.FieldHandlers.ResolvePackageEpoch(e, fe),
+		PackageRelease:      e.FieldHandlers.ResolvePackageRelease(e, fe),
+		PackageSrcVersion:   e.FieldHandlers.ResolvePackageSourceVersion(e, fe),
+		PackageSrcEpoch:     e.FieldHandlers.ResolvePackageSourceEpoch(e, fe),
+		PackageSrcRelease:   e.FieldHandlers.ResolvePackageSourceRelease(e, fe),
 		HashState:           fe.HashState.String(),
 		MountPath:           fe.MountPath,
 		MountSource:         model.MountSourceToString(fe.MountSource),
 		MountOrigin:         model.MountOriginToString(fe.MountOrigin),
-		MountVisible:        fe.MountVisible,
-		MountDetached:       fe.MountDetached,
+	}
+
+	if fe.MountVisibilityResolved {
+		visible := fe.MountVisible
+		detached := fe.MountDetached
+		fs.MountVisible = &visible
+		fs.MountDetached = &detached
 	}
 
 	if metadata != nil {
@@ -861,6 +919,8 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			IsKworker:     ps.IsKworker,
 			IsExecExec:    ps.IsExecExec,
 			Source:        model.ProcessSourceToString(ps.Source),
+			CapsAttempted: model.KernelCapability(ps.CapsAttempted).StringArray(),
+			CapsUsed:      model.KernelCapability(ps.CapsUsed).StringArray(),
 		}
 
 		if ps.HasInterpreter() {
@@ -897,8 +957,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 		if len(ps.CGroup.CGroupID) > 0 {
 			psSerializer.CGroup = &CGroupContextSerializer{
-				ID:      string(ps.CGroup.CGroupID),
-				Manager: ps.CGroup.CGroupManager,
+				ID: string(ps.CGroup.CGroupID),
 			}
 		}
 
@@ -921,7 +980,7 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 
 	return &UserSessionContextSerializer{
 		ID:          fmt.Sprintf("%x", ctx.ID),
-		SessionType: ctx.SessionType.String(),
+		SessionType: usersession.Type(ctx.SessionType).String(),
 		K8SUsername: ctx.K8SUsername,
 		K8SUID:      ctx.K8SUID,
 		K8SGroups:   ctx.K8SGroups,
@@ -1144,12 +1203,19 @@ func newNetworkDeviceSerializer(deviceCtx *model.NetworkDeviceContext, e *model.
 }
 
 func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawPacketSerializer {
-	return &RawPacketSerializer{
+	rps := &RawPacketSerializer{
 		NetworkContextSerializer: newNetworkContextSerializer(e, &rp.NetworkContext),
 		TLSContext: &TLSContextSerializer{
 			Version: model.TLSVersion(rp.TLSContext.Version).String(),
 		},
 	}
+
+	if e.GetEventType() == model.RawPacketActionEventType {
+		rps.Dropped = new(bool)
+		*rps.Dropped = true
+	}
+
+	return rps
 }
 
 func newNetworkStatsSerializer(networkStats *model.NetworkStats, _ *model.Event) *NetworkStatsSerializer {
@@ -1317,6 +1383,7 @@ func newNetworkContextSerializer(e *model.Event, networkCtx *model.NetworkContex
 		Destination:      newIPPortSerializer(&networkCtx.Destination),
 		Size:             networkCtx.Size,
 		NetworkDirection: model.NetworkDirection(networkCtx.NetworkDirection).String(),
+		Type:             model.NetworkProtocolType(networkCtx.Type).String(),
 	}
 }
 
@@ -1356,6 +1423,14 @@ func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 		SetSockOptEventSerializer.OptName = fmt.Sprintf("%d", e.SetSockOpt.OptName)
 	}
 	return &SetSockOptEventSerializer
+}
+
+func newPrCtlEventSerializer(e *model.Event) *PrCtlEventSerializer {
+	return &PrCtlEventSerializer{
+		Option:          model.PrCtlOption(e.PrCtl.Option).String(),
+		NewName:         e.PrCtl.NewName,
+		IsNameTruncated: e.PrCtl.IsNameTruncated,
+	}
 }
 
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
@@ -1412,10 +1487,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	}
 
 	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
-		manager := event.FieldHandlers.ResolveCGroupManager(event, event.CGroupContext)
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.CGroupContext.CGroupID),
-			Manager:   manager,
 			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}
@@ -1661,7 +1734,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Exec = args
 		})
-	case model.RawPacketEventType:
+	case model.RawPacketFilterEventType, model.RawPacketActionEventType:
 		s.RawPacketSerializer = newRawPacketEventSerializer(&event.RawPacket, event)
 	case model.NetworkFlowMonitorEventType:
 		s.NetworkFlowMonitorSerializer = newNetworkFlowMonitorSerializer(&event.NetworkFlowMonitor, event)
@@ -1672,6 +1745,10 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(event)
 	case model.CgroupWriteEventType:
 		s.CGroupWriteEventSerializer = newCGroupWriteEventSerializer(event)
+	case model.CapabilitiesEventType:
+		s.CapabilitiesEventSerializer = newCapabilitiesEventSerializer(event, &event.CapabilitiesUsage)
+	case model.PrCtlEventType:
+		s.PrCtlEventSerializer = newPrCtlEventSerializer(event)
 	}
 
 	return s

@@ -10,12 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/certificatehost"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
 
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -43,17 +45,34 @@ func multiVMEnvProvisioner() provisioners.PulumiEnvRunFunc[multiVMEnv] {
 			return err
 		}
 
-		agentHost, err := ec2.NewVM(awsEnv, "agenthost", ec2.WithOS(os.WindowsDefault))
+		agentHost, err := ec2.NewVM(awsEnv, "agenthost", ec2.WithOS(os.WindowsServerDefault))
 		if err != nil {
 			return err
 		}
 		agentHost.Export(ctx, &env.AgentHost.HostOutput)
 
-		certificateHost, err := ec2.NewVM(awsEnv, "certificatehost", ec2.WithOS(os.WindowsDefault))
+		certificateHost, err := ec2.NewVM(awsEnv, "certificatehost", ec2.WithOS(os.WindowsServerDefault))
 		if err != nil {
 			return err
 		}
 		certificateHost.Export(ctx, &env.CertificateHost.HostOutput)
+
+		// Setup Windows Defender to be disabled
+		defenderManager, err := defender.NewDefender(awsEnv.CommonEnvironment, certificateHost,
+			defender.WithDefenderDisabled())
+		if err != nil {
+			return err
+		}
+
+		// Setup the certificate host with required configuration
+		// This depends on Defender being configured first
+		_, err = certificatehost.NewCertificateHost(awsEnv.CommonEnvironment, certificateHost,
+			certificatehost.WithUser(TestUser, TestPassword),
+			certificatehost.WithSelfSignedCert("CN=test_cert"),
+			certificatehost.WithPulumiResourceOptions(pulumi.DependsOn(defenderManager.Resources)))
+		if err != nil {
+			return err
+		}
 
 		return nil
 	}
@@ -64,6 +83,7 @@ type multiVMSuite struct {
 }
 
 func TestRemoteCertificates(t *testing.T) {
+	flake.Mark(t)
 	t.Parallel()
 	e2e.Run(t, &multiVMSuite{}, e2e.WithPulumiProvisioner(multiVMEnvProvisioner(), nil))
 }
@@ -75,53 +95,7 @@ func (v *multiVMSuite) SetupSuite() {
 	agentHost := v.Env().AgentHost
 	certificateHost := v.Env().CertificateHost
 
-	createTestUser := fmt.Sprintf("net user %s %s /add", TestUser, TestPassword)
-	addAdmingroup := fmt.Sprintf("net localgroup administrators %s /add", TestUser)
-	selfSignedCert := `New-SelfSignedCertificate -Subject "CN=test_cert" ` +
-		`-CertStoreLocation "Cert:\\LocalMachine\\My" ` +
-		`-KeyExportPolicy Exportable -KeySpec Signature ` +
-		`-KeyLength 2048 -KeyAlgorithm RSA -HashAlgorithm SHA256`
-
-	createTestUserOut, err := certificateHost.Execute(createTestUser)
-	v.Require().NoError(err)
-	v.Require().NotEmpty(createTestUserOut)
-
-	addAdmingroupOut, err := certificateHost.Execute(addAdmingroup)
-	v.Require().NoError(err)
-	v.Require().NotEmpty(addAdmingroupOut)
-
-	err = windowsCommon.DisableDefender(certificateHost)
-	v.Require().NoError(err)
-
-	// This will require a reboot to apply the policy
-	// Reboot will be done once everything else is configured on certificateHost
-	err = windowsCommon.SetNewItemDWORDProperty(certificateHost, `HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System`,
-		"LocalAccountTokenFilterPolicy", 1)
-	v.Require().NoError(err)
-
-	_, err = certificateHost.Execute(`New-NetFirewallRule -DisplayName "Allow SMB TCP 445" -Direction Inbound -Protocol TCP -LocalPort 445 -Action Allow`)
-	v.Require().NoError(err)
-
-	err = windowsCommon.StartService(certificateHost, "RemoteRegistry")
-	v.Require().NoError(err)
-
-	selfSignedCertOut, err := certificateHost.Execute(selfSignedCert)
-	v.Require().NoError(err)
-	v.Require().NotEmpty(selfSignedCertOut)
-
-	// When setting, LocalAccountTokenFilterPolicy, we need to reboot the host to apply the policy
-	err = RebootHost(certificateHost)
-	v.Require().NoError(err)
-
-	// Reconnect to the host
-	err = certificateHost.Reconnect()
-	v.Require().NoError(err)
-
-	// Start the LanmanServer to ensure that the Agent can connect to the IPC$ share
-	err = windowsCommon.StartService(certificateHost, "LanmanServer")
-	v.Require().NoError(err)
-
-	// Wait for the LanmanServer service to be running
+	// Wait for LanmanServer to be running
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		output, err := windowsCommon.GetServiceStatus(certificateHost, "LanmanServer")
 		if err != nil {
@@ -132,13 +106,13 @@ func (v *multiVMSuite) SetupSuite() {
 		v.T().Logf("LanmanServer status: %s", output)
 	}, 10*time.Minute, 10*time.Second)
 
+	// Install the agent
 	agentPackage, err := windowsAgent.GetPackageFromEnv()
 	v.Require().NoError(err)
 	v.T().Logf("Using Agent: %#v", agentPackage)
 	_, err = windowsAgent.InstallAgent(agentHost,
 		windowsAgent.WithPackage(agentPackage))
 	v.Require().NoError(err)
-
 }
 
 func (v *multiVMSuite) TestGetRemoteCertificate() {
@@ -157,7 +131,7 @@ instances:
 	_, err := agentHost.WriteFile("C:\\ProgramData\\Datadog\\conf.d\\windows_certificate.d\\conf.yaml", []byte(checkConfig))
 	v.Require().NoError(err)
 
-	err = windowsCommon.RestartService(agentHost, "datadogagent")
+	err = restartAgent(v, agentHost)
 	v.Require().NoError(err)
 
 	agent := `C:\Program Files\Datadog\Datadog Agent\bin\agent.exe`
@@ -206,7 +180,7 @@ instances:
 	_, err := agentHost.WriteFile("C:\\ProgramData\\Datadog\\conf.d\\windows_certificate.d\\conf.yaml", []byte(checkConfig))
 	v.Require().NoError(err)
 
-	err = windowsCommon.RestartService(agentHost, "datadogagent")
+	err = restartAgent(v, agentHost)
 	v.Require().NoError(err)
 
 	agent := `C:\Program Files\Datadog\Datadog Agent\bin\agent.exe`
@@ -239,8 +213,20 @@ instances:
 
 }
 
-func RebootHost(host *components.RemoteHost) error {
-	_, err := powershell.PsHost().Reboot().Execute(host)
+func restartAgent(v *multiVMSuite, host *components.RemoteHost) error {
+
+	// Make sure the agent is running before restarting it
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		output, err := windowsCommon.GetServiceStatus(host, "datadogagent")
+		if err != nil {
+			v.T().Logf("Getting datadogagent status failed %v", err)
+		}
+		assert.NoError(c, err)
+		assert.Contains(c, output, "Running")
+		v.T().Logf("datadogagent status: %s", output)
+	}, 10*time.Minute, 10*time.Second)
+
+	err := windowsCommon.RestartService(host, "datadogagent")
 	if err != nil {
 		return err
 	}

@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
@@ -187,7 +187,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	family := config.GetFamilyAddress(socketPath)
+	family := common.GetFamilyAddress(socketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("unix sockets are not supported on Windows")

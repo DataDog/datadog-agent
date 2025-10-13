@@ -8,6 +8,7 @@
 package module
 
 import (
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,10 +32,10 @@ func isEBPFOptional(factories []*Factory) bool {
 	return false
 }
 
-func preRegister(_ *sysconfigtypes.Config, moduleFactories []*Factory) error {
+func preRegister(_ *sysconfigtypes.Config, rcclient rcclient.Component, moduleFactories []*Factory) error {
 	needed := isEBPFRequired(moduleFactories)
 	if needed || isEBPFOptional(moduleFactories) {
-		err := ebpf.Setup(ebpf.NewConfig())
+		err := ebpf.Setup(ebpf.NewConfig(), rcclient)
 		if err != nil && !needed {
 			log.Warnf("ignoring eBPF setup error: %v", err)
 			return nil
@@ -46,14 +47,18 @@ func preRegister(_ *sysconfigtypes.Config, moduleFactories []*Factory) error {
 }
 
 func postRegister(cfg *sysconfigtypes.Config, moduleFactories []*Factory) error {
-	if isEBPFRequired(moduleFactories) || isEBPFOptional(moduleFactories) {
-		ebpf.FlushBTF()
-	}
+	needBTFFlush := isEBPFRequired(moduleFactories) || isEBPFOptional(moduleFactories)
+
 	if cfg.TelemetryEnabled && ebpf.ContentionCollector != nil {
+		needBTFFlush = true
 		if err := ebpf.ContentionCollector.Initialize(ebpf.TrackAllEBPFResources); err != nil {
 			// do not prevent system-probe from starting if lock contention collector fails
 			log.Errorf("failed to initialize ebpf lock contention collector: %v", err)
 		}
+	}
+
+	if needBTFFlush {
+		ebpf.FlushBTF()
 	}
 	return nil
 }

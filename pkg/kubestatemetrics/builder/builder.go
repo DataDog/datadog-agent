@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,11 +29,13 @@ import (
 	ksmbuild "k8s.io/kube-state-metrics/v2/pkg/builder"
 	ksmtypes "k8s.io/kube-state-metrics/v2/pkg/builder/types"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 	metricsstore "k8s.io/kube-state-metrics/v2/pkg/metrics_store"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 	"k8s.io/kube-state-metrics/v2/pkg/watch"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,15 +55,23 @@ type Builder struct {
 
 	resync time.Duration
 
-	collectPodsFromKubelet    bool
 	collectOnlyUnassignedPods bool
-	KubeletReflector          *kubeletReflector
+	useWorkloadmetaForPods    bool
+	WorkloadmetaReflector     *workloadmetaReflector
+	workloadmetaStore         workloadmeta.Component
+
+	callbackEnabledResources map[string]bool // resource types that should have callbacks enabled
+
+	eventCallbacks map[string]map[store.StoreEventType]store.StoreEventCallback
+	eventMutex     sync.RWMutex
 }
 
 // New returns new Builder instance
 func New() *Builder {
 	return &Builder{
-		ksmBuilder: ksmbuild.NewBuilder(),
+		ksmBuilder:               ksmbuild.NewBuilder(),
+		callbackEnabledResources: make(map[string]bool),
+		eventCallbacks:           make(map[string]map[store.StoreEventType]store.StoreEventCallback),
 	}
 }
 
@@ -75,6 +86,42 @@ func (b *Builder) WithNamespaces(nss options.NamespaceList) {
 func (b *Builder) WithFamilyGeneratorFilter(l generator.FamilyGeneratorFilter) {
 	b.allowDenyList = l
 	b.ksmBuilder.WithFamilyGeneratorFilter(l)
+}
+
+// WithCallbacksForResources configures which resource types should have event callbacks enabled
+func (b *Builder) WithCallbacksForResources(resourceTypes []string) {
+	for _, resourceType := range resourceTypes {
+		b.callbackEnabledResources[resourceType] = true
+	}
+}
+
+// RegisterStoreEventCallback registers a callback for a specific resource type and event type
+func (b *Builder) RegisterStoreEventCallback(resourceType string, eventType store.StoreEventType, callback store.StoreEventCallback) {
+	b.eventMutex.Lock()
+	defer b.eventMutex.Unlock()
+
+	if b.eventCallbacks[resourceType] == nil {
+		b.eventCallbacks[resourceType] = make(map[store.StoreEventType]store.StoreEventCallback)
+	}
+	b.eventCallbacks[resourceType][eventType] = callback
+}
+
+// NotifyStoreEvent calls the registered callback for a resource type and event type
+func (b *Builder) NotifyStoreEvent(eventType store.StoreEventType, resourceType string, obj interface{}) {
+	b.eventMutex.RLock()
+	resourceCallbacks, resourceExists := b.eventCallbacks[resourceType]
+	if !resourceExists {
+		b.eventMutex.RUnlock()
+		return
+	}
+
+	callback, callbackExists := resourceCallbacks[eventType]
+	b.eventMutex.RUnlock()
+
+	if callbackExists {
+		namespace, name := store.ExtractNamespaceAndName(obj)
+		callback(eventType, resourceType, namespace, name, obj)
+	}
 }
 
 // WithFieldSelectorFilter sets the fieldSelector property of a Builder.
@@ -137,11 +184,12 @@ func (b *Builder) WithAllowAnnotations(l map[string][]string) {
 	_ = b.ksmBuilder.WithAllowAnnotations(l)
 }
 
-// WithPodCollectionFromKubelet configures the builder to collect pods from the
-// Kubelet instead of the API server. This has no effect if pod collection is
-// disabled.
-func (b *Builder) WithPodCollectionFromKubelet() {
-	b.collectPodsFromKubelet = true
+// WithPodCollectionFromWorkloadmeta configures the builder to collect pods from
+// workloadmeta instead of the API server. This has no effect if pod collection
+// is disabled.
+func (b *Builder) WithPodCollectionFromWorkloadmeta(store workloadmeta.Component) {
+	b.useWorkloadmetaForPods = true
+	b.workloadmetaStore = store
 }
 
 // WithUnassignedPodsCollection configures the builder to only collect pods that
@@ -162,11 +210,11 @@ func (b *Builder) Build() metricsstore.MetricsWriterList {
 func (b *Builder) BuildStores() [][]cache.Store {
 	stores := b.ksmBuilder.BuildStores()
 
-	if b.KubeletReflector != nil {
-		// Starting the reflector here allows us to start just one for all stores.
-		err := b.KubeletReflector.start(b.ctx)
+	if b.WorkloadmetaReflector != nil {
+		// Starting the workloadmeta reflector here allows us to start just one for all stores.
+		err := b.WorkloadmetaReflector.start(b.ctx)
 		if err != nil {
-			log.Errorf("Failed to start the kubelet reflector: %s", err)
+			log.Errorf("Failed to start the workloadmeta reflector: %s", err)
 		}
 	}
 
@@ -212,7 +260,7 @@ func GenerateStores[T any](
 	}
 
 	if b.namespaces.IsAllNamespaces() {
-		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
+		store := b.createStoreForType(composedMetricGenFuncs, expectedType)
 
 		if isPod {
 			// Pods are handled differently because depending on the configuration
@@ -228,7 +276,7 @@ func GenerateStores[T any](
 
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
-		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
+		store := b.createStoreForType(composedMetricGenFuncs, expectedType)
 		if isPod {
 			// Pods are handled differently because depending on the configuration
 			// they're collected from the API server or the Kubelet.
@@ -323,23 +371,23 @@ func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object
 }
 
 func handlePodCollection[T any](b *Builder, store cache.Store, client T, listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher, namespace string, useAPIServerCache bool) {
-	if b.collectPodsFromKubelet {
-		if b.KubeletReflector == nil {
-			kr, err := newKubeletReflector(b.namespaces)
+	if b.useWorkloadmetaForPods {
+		if b.WorkloadmetaReflector == nil {
+			wr, err := newWorkloadmetaReflector(b.workloadmetaStore, b.namespaces)
 			if err != nil {
-				log.Errorf("Failed to create kubeletReflector: %s", err)
+				log.Errorf("Failed to create workloadmetaReflector: %s", err)
 				return
 			}
-			b.KubeletReflector = &kr
+			b.WorkloadmetaReflector = &wr
 		}
 
-		err := b.KubeletReflector.addStore(store)
+		err := b.WorkloadmetaReflector.addStore(store)
 		if err != nil {
-			log.Errorf("Failed to add store to kubeletReflector: %s", err)
+			log.Errorf("Failed to add store to workloadmetaReflector: %s", err)
 			return
 		}
 
-		// The kubelet reflector will be started when all stores are added.
+		// The workloadmeta reflector will be started when all stores are added.
 		return
 	}
 
@@ -450,4 +498,16 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 			}), nil
 		},
 	}
+}
+
+func (b *Builder) createStoreForType(composedMetricGenFuncs func(interface{}) []metric.FamilyInterface, expectedType interface{}) cache.Store {
+	typeName := reflect.TypeOf(expectedType).String()
+	metricsStore := store.NewMetricsStore(composedMetricGenFuncs, typeName)
+
+	// Enable callbacks if this resource type is configured for them
+	if b.callbackEnabledResources[typeName] {
+		metricsStore.EnableCallbacks(b)
+	}
+
+	return metricsStore
 }

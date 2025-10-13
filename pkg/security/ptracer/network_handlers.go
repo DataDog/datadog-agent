@@ -11,9 +11,10 @@ package ptracer
 import (
 	"encoding/binary"
 	"errors"
-	"golang.org/x/sys/unix"
 	"net"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 )
@@ -49,6 +50,12 @@ func registerNetworkHandlers(handlers map[int]syscallHandler) []string {
 			Func:       handleSocket,
 			ShouldSend: nil,
 			RetFunc:    handleSocketRet,
+		},
+		{
+			ID:         syscallID{ID: SetsockoptNr, Name: "setsockopt"},
+			Func:       handleSetsockopt,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
 		},
 	}
 
@@ -186,25 +193,18 @@ func handleConnect(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, r
 func handleSocket(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	socketMsg := &ebpfless.SocketSyscallFakeMsg{
 		AddressFamily: uint16(tracer.ReadArgInt32(regs, 0)),
+		SocketType:    uint16(tracer.ReadArgInt32(regs, 1)),
 	}
-
-	if socketMsg.AddressFamily != unix.AF_INET && socketMsg.AddressFamily != unix.AF_INET6 && socketMsg.AddressFamily != unix.AF_UNIX {
-		return nil
+	socketMsg.Protocol = uint16(tracer.ReadArgInt32(regs, 2))
+	if socketMsg.Protocol == 0 {
+		switch socketMsg.SocketType {
+		case unix.SOCK_STREAM:
+			socketMsg.Protocol = unix.IPPROTO_TCP
+		case unix.SOCK_DGRAM:
+			socketMsg.Protocol = unix.IPPROTO_UDP
+		default:
+		}
 	}
-
-	protocol := int16(tracer.ReadArgInt32(regs, 1))
-	// This argument can be masked, so just get what we need
-	protocol &= 0b1111
-
-	switch protocol {
-	case unix.SOCK_STREAM:
-		socketMsg.Protocol = unix.IPPROTO_TCP
-	case unix.SOCK_DGRAM:
-		socketMsg.Protocol = unix.IPPROTO_UDP
-	default:
-		return nil
-	}
-
 	msg.Socket = socketMsg
 	return nil
 }
@@ -256,6 +256,7 @@ func handleSocketRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 		process.FdToSocket[ret] = SocketInfo{
 			AddressFamily: msg.Socket.AddressFamily,
 			Protocol:      msg.Socket.Protocol,
+			SocketType:    msg.Socket.SocketType,
 		}
 	}
 
@@ -273,4 +274,112 @@ func shouldSendAccept(msg *ebpfless.SyscallMsg) bool {
 
 func shouldSendBind(msg *ebpfless.SyscallMsg) bool {
 	return msg.Retval >= 0 || msg.Retval == -int64(syscall.EACCES) || msg.Retval == -int64(syscall.EPERM) || msg.Retval == -int64(syscall.EADDRINUSE) || msg.Retval == -int64(syscall.EFAULT)
+}
+
+func readRemote(pid int, addr uintptr, dst []byte) error {
+	local := []unix.Iovec{{Base: &dst[0], Len: uint64(len(dst))}}
+	remote := []unix.RemoteIovec{{Base: addr, Len: len(dst)}}
+	n, err := unix.ProcessVMReadv(pid, local, remote, 0)
+	if err != nil {
+		return err
+	}
+	if n != len(dst) {
+		return errors.New("short read from remote process")
+	}
+	return nil
+}
+
+func handleSetsockopt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+	level := tracer.ReadArgUint32(regs, 1)
+	optname := tracer.ReadArgUint32(regs, 2)
+
+	fd := int32(tracer.ReadArgUint32(regs, 0))
+	socketInfo, ok := process.FdToSocket[fd]
+	var socketFamily uint16
+	var socketProtocol uint16
+	var socketType uint16
+
+	if ok {
+		socketFamily = socketInfo.AddressFamily
+		socketProtocol = socketInfo.Protocol
+		socketType = socketInfo.SocketType
+	}
+
+	if optname != unix.SO_ATTACH_FILTER {
+		// Send incomplete event because there is not filter
+		msg.Type = ebpfless.SyscallTypeSetsockopt
+		msg.Setsockopt = &ebpfless.SetsockoptSyscallMsg{
+			Level:          level,
+			OptName:        optname,
+			Filter:         nil,
+			FilterLen:      0,
+			SocketFamily:   socketFamily,
+			SocketProtocol: socketProtocol,
+			SocketType:     socketType,
+		}
+		return nil
+	}
+
+	optLen := int(tracer.ReadArgUint32(regs, 4))
+	// Check if optLen matches sock_fprog (16 bytes: 2 bytes for length, 6 bytes for padding, 8 bytes for pointer)
+	if optLen != 16 {
+		// Send incomplete event because there is an invalid filter / len
+		msg.Type = ebpfless.SyscallTypeSetsockopt
+		msg.Setsockopt = &ebpfless.SetsockoptSyscallMsg{
+			Level:          level,
+			OptName:        optname,
+			Filter:         nil,
+			FilterLen:      0,
+			SocketFamily:   socketFamily,
+			SocketProtocol: socketProtocol,
+			SocketType:     socketType,
+		}
+		return errors.New("invalid optLen")
+	}
+	// Read the sock_fprog header from argument 3 (optval)
+	// Expected size on 64-bit: 16 bytes (2 bytes length, 6 bytes padding, 8 bytes pointer)
+	hdr, err := tracer.ReadArgData(process.Pid, regs, 3, 16)
+	if err != nil {
+		return err
+	}
+	fLen := binary.NativeEndian.Uint16(hdr[0:2])
+
+	ptrFilter := binary.NativeEndian.Uint64(hdr[8:16])
+
+	// Nothing to do if no filters
+	if fLen == 0 || ptrFilter == 0 {
+
+		msg.Type = ebpfless.SyscallTypeSetsockopt
+		msg.Setsockopt = &ebpfless.SetsockoptSyscallMsg{
+			Level:          level,
+			OptName:        optname,
+			Filter:         nil,
+			FilterLen:      0,
+			SocketFamily:   socketFamily,
+			SocketProtocol: socketProtocol,
+			SocketType:     socketType,
+		}
+		return nil
+	}
+
+	const insnSize = 8
+	total := int(fLen) * insnSize
+	raw := make([]byte, total)
+
+	// Read the sock_filter array from the target process's memory
+	if err := readRemote(process.Pid, uintptr(ptrFilter), raw); err != nil {
+		return err
+	}
+
+	msg.Type = ebpfless.SyscallTypeSetsockopt
+	msg.Setsockopt = &ebpfless.SetsockoptSyscallMsg{
+		Level:          level,
+		OptName:        optname,
+		Filter:         raw,
+		FilterLen:      fLen,
+		SocketFamily:   socketFamily,
+		SocketProtocol: socketProtocol,
+		SocketType:     socketType,
+	}
+	return nil
 }

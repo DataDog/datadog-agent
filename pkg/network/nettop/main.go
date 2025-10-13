@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkConfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -31,8 +32,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	pkgconfigsetup.Datadog().SetConfigFile(*cfgpath)
-	if _, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil); err != nil {
+	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
+	ddcfg.SetConfigFile(*cfgpath)
+	if _, err := pkgconfigsetup.LoadWithSecret(ddcfg, secretsnoop.NewComponent().Comp, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

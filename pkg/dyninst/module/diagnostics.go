@@ -27,7 +27,7 @@ func newDiagnosticTracker(name string) *diagnosticTracker {
 	}
 }
 
-func (e *diagnosticTracker) mark(runtimeID string, probeID string) (first bool) {
+func (e *diagnosticTracker) mark(runtimeID string, probeID string, probeVersion int) (first bool) {
 	var byProbeID *sync.Map
 	{
 		byProbeIDi, ok := e.byRuntimeID.Load(runtimeID)
@@ -36,38 +36,46 @@ func (e *diagnosticTracker) mark(runtimeID string, probeID string) (first bool) 
 		}
 		byProbeID = byProbeIDi.(*sync.Map)
 	}
-	_, ok := byProbeID.LoadOrStore(probeID, struct{}{})
-	if !ok {
+	v, ok := byProbeID.LoadOrStore(probeID, probeVersion)
+	prevVersion, _ := v.(int)
+	first = !ok || prevVersion < probeVersion
+	if first {
 		log.Tracef(
-			"mark %s: probeId %v marked for runtimeId %v",
-			e.name, probeID, runtimeID,
+			"mark %s: probeId %v (version %v) marked for runtimeId %v",
+			e.name, probeID, probeVersion, runtimeID,
 		)
 	}
-	return !ok
+	return first
 }
 
 type diagnosticsManager struct {
-	uploader  *uploader.DiagnosticsUploader
+	uploader  DiagnosticsUploader
 	received  *diagnosticTracker
 	installed *diagnosticTracker
 	emitted   *diagnosticTracker
+	errors    *diagnosticTracker
 }
 
-func newDiagnosticsManager(uploader *uploader.DiagnosticsUploader) *diagnosticsManager {
+func newDiagnosticsManager(uploader DiagnosticsUploader) *diagnosticsManager {
 	return &diagnosticsManager{
 		uploader:  uploader,
 		received:  newDiagnosticTracker("received"),
 		installed: newDiagnosticTracker("installed"),
 		emitted:   newDiagnosticTracker("emitted"),
+		errors:    newDiagnosticTracker("errors"),
 	}
 }
 
 func (m *diagnosticsManager) enqueue(
+	tracker *diagnosticTracker,
 	runtimeID procRuntimeID,
 	probe ir.ProbeIDer,
 	status uploader.Status,
 	exception *uploader.DiagnosticException,
-) {
+) bool {
+	if !tracker.mark(runtimeID.runtimeID, probe.GetID(), probe.GetVersion()) {
+		return false
+	}
 	diag := uploader.Diagnostic{
 		RuntimeID:           runtimeID.runtimeID,
 		ProbeID:             probe.GetID(),
@@ -78,29 +86,34 @@ func (m *diagnosticsManager) enqueue(
 	if err := m.uploader.Enqueue(uploader.NewDiagnosticMessage(runtimeID.service, diag)); err != nil {
 		log.Warnf("error enqueuing %q diagnostic: %v", diag.Status, err)
 	}
+	return true
 }
 
 func (m *diagnosticsManager) reportReceived(runtimeID procRuntimeID, probe ir.ProbeIDer) {
-	if m.received.mark(runtimeID.runtimeID, probe.GetID()) {
-		m.enqueue(runtimeID, probe, uploader.StatusReceived, nil)
-	}
+	m.enqueue(m.received, runtimeID, probe, uploader.StatusReceived, nil)
 }
 
 func (m *diagnosticsManager) reportInstalled(runtimeID procRuntimeID, probe ir.ProbeIDer) {
-	if m.installed.mark(runtimeID.runtimeID, probe.GetID()) {
-		m.enqueue(runtimeID, probe, uploader.StatusInstalled, nil)
-	}
+	m.enqueue(m.installed, runtimeID, probe, uploader.StatusInstalled, nil)
 }
 
 func (m *diagnosticsManager) reportEmitting(runtimeID procRuntimeID, probe ir.ProbeIDer) {
-	if m.emitted.mark(runtimeID.runtimeID, probe.GetID()) {
-		m.enqueue(runtimeID, probe, uploader.StatusEmitting, nil)
-	}
+	m.enqueue(m.emitted, runtimeID, probe, uploader.StatusEmitting, nil)
 }
 
-func (m *diagnosticsManager) reportError(runtimeID procRuntimeID, probe ir.ProbeIDer, e error, errType string) {
-	m.enqueue(runtimeID, probe, uploader.StatusError, &uploader.DiagnosticException{
+func (m *diagnosticsManager) reportError(
+	runtimeID procRuntimeID, probe ir.ProbeIDer, e error, errType string,
+) (reported bool) {
+	return m.enqueue(m.errors, runtimeID, probe, uploader.StatusError, &uploader.DiagnosticException{
 		Type:    errType,
 		Message: e.Error(),
 	})
+}
+
+func (m *diagnosticsManager) remove(runtimeID string) {
+	id := any(runtimeID) // only box the string once
+	m.received.byRuntimeID.Delete(id)
+	m.installed.byRuntimeID.Delete(id)
+	m.emitted.byRuntimeID.Delete(id)
+	m.errors.byRuntimeID.Delete(id)
 }

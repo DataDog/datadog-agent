@@ -6,22 +6,21 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
+	mapstructure "github.com/go-viper/mapstructure/v2"
 )
 
-// ConfigFileNotFoundError wrapper error for when a config file is not found
-type ConfigFileNotFoundError struct {
-	Err error
-}
+// ErrConfigFileNotFound is an error for when the config file is not found
+var ErrConfigFileNotFound = errors.New("Config File Not Found")
 
-// Error returns the error message
-func (e ConfigFileNotFoundError) Error() string {
-	return fmt.Sprintf("Config File Not Found %v", e.Err.Error())
+// NewConfigFileNotFoundError returns a well known error for the config file missing
+func NewConfigFileNotFoundError(err error) error {
+	return fmt.Errorf("%w: %w", ErrConfigFileNotFound, err)
 }
 
 // Source stores what edits a setting as a string
@@ -124,16 +123,7 @@ type Proxy struct {
 // NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
 // configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
 // 'NotificationReceiver' should not be blocking.
-type NotificationReceiver func(setting string, oldValue, newValue any, sequenceID uint64)
-
-// ConfigChangeNotification stores the information about a change in the configuration and is sent to the listeners.
-type ConfigChangeNotification struct {
-	Key           string
-	PreviousValue interface{}
-	NewValue      interface{}
-	SequenceID    uint64
-	Receivers     []NotificationReceiver
-}
+type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64)
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
@@ -156,6 +146,7 @@ type Reader interface {
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
+	GetSubfields(key string) []string
 
 	ConfigFileUsed() string
 	ExtraConfigFilesUsed() []string
@@ -275,15 +266,29 @@ type Compound interface {
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
 	MergeFleetPolicy(configPath string) error
+
+	// Revert a finished configuration so that more can be build on top of it.
+	// When building is completed, the caller should call BuildSchema.
+	// NOTE: This method should not be used by any new callsites, it is needed
+	// currently because of the unique requirements of OTel's configuration.
+	RevertFinishedBackToBuilder() BuildableConfig
 }
 
-// Config represents an object that can load and store configuration parameters
-// coming from different kind of sources:
-// - defaults
-// - files
-// - environment variables
-// - flags
+// Config is an interface that can read/write the config after it has been
+// build and initialized.
 type Config interface {
+	ReaderWriter
+	Compound
+	// TODO: This method shouldn't be here, but it is depended upon by an external repository
+	// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e7c3295769637e61558c6892be732398840dd5f5/pkg/datadog/agentcomponents/agentcomponents.go#L166
+	SetKnown(key string)
+}
+
+// BuildableConfig is the most-general interface for the Config, it can be
+// used both to build the config and also to read/write its values. It should
+// only be used when necessary, such as when constructing a new config object
+// from scratch.
+type BuildableConfig interface {
 	ReaderWriter
 	Setup
 	Compound

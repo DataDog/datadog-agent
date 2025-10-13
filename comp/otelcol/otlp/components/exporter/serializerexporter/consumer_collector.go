@@ -8,9 +8,11 @@ package serializerexporter
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter"
 )
 
 // collectorConsumer is a consumer OSS collector uses to send metrics to the DataDog.
@@ -52,7 +54,7 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 	c.series = series
 }
 
-func (c *collectorConsumer) addTelemetryMetric(_ string) {
+func (c *collectorConsumer) addTelemetryMetric(_ string, _ exporter.Settings, _ telemetry.Gauge) {
 }
 
 // ConsumeHost implements the metrics.HostConsumer interface.

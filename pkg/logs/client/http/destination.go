@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package http
 
 import (
@@ -39,6 +38,12 @@ const (
 	ProtobufContentType = "application/x-protobuf"
 )
 
+// NoTimeoutOverride is a special value that tells the httpClientFactory to use the logs_config.http_timeout setting.
+// This should generally be used for all HTTP destinations barring special cases like the HTTP connectivity check.
+const (
+	NoTimeoutOverride = -1
+)
+
 // HTTP errors.
 var (
 	errClient  = errors.New("client error")
@@ -52,10 +57,8 @@ var (
 	expVarInUseMsMapKey = "inUseMs"
 )
 
-// emptyJsonPayload is an empty payload used to check HTTP connectivity without sending logs.
-//
-//nolint:revive // TODO(AML) Fix revive linter
-var emptyJsonPayload = message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("{}")}
+// emptyJSONPayload is an empty payload used to check HTTP connectivity without sending logs.
+var emptyJSONPayload = message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("{}")}
 
 type destinationResult struct {
 	latency time.Duration
@@ -112,7 +115,7 @@ func NewDestination(endpoint config.Endpoint,
 	return newDestination(endpoint,
 		contentType,
 		destinationsContext,
-		time.Second*10,
+		NoTimeoutOverride,
 		shouldRetry,
 		destMeta,
 		cfg,
@@ -125,7 +128,7 @@ func NewDestination(endpoint config.Endpoint,
 func newDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
-	timeout time.Duration,
+	timeoutOverride time.Duration,
 	shouldRetry bool,
 	destMeta *client.DestinationMetadata,
 	cfg pkgconfigmodel.Reader,
@@ -157,7 +160,7 @@ func newDestination(endpoint config.Endpoint,
 		url:                 buildURL(endpoint),
 		endpoint:            endpoint,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg, timeoutOverride)),
 		destinationsContext: destinationsContext,
 		workerPool:          workerPool,
 		wg:                  sync.WaitGroup{},
@@ -179,11 +182,11 @@ func newDestination(endpoint config.Endpoint,
 func errorToTag(err error) string {
 	if err == nil {
 		return "none"
-	} else if _, ok := err.(*client.RetryableError); ok {
-		return "retryable"
-	} else {
-		return "non-retryable"
 	}
+	if _, ok := err.(*client.RetryableError); ok {
+		return "retryable"
+	}
+	return "non-retryable"
 }
 
 // IsMRF indicates that this destination is a Multi-Region Failover destination.
@@ -372,11 +375,11 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 	log.Tracef("Log payload sent to %s. Response resolved with protocol %s in %d ms", d.url, resp.Proto, latency)
 
-	metrics.DestinationHttpRespByStatusAndUrl.Add(strconv.Itoa(resp.StatusCode), 1)
-	metrics.TlmDestinationHttpRespByStatusAndUrl.Inc(strconv.Itoa(resp.StatusCode), d.url)
+	metrics.DestinationHTTPRespByStatusAndURL.Add(strconv.Itoa(resp.StatusCode), 1)
+	metrics.TlmDestinationHTTPRespByStatusAndURL.Inc(strconv.Itoa(resp.StatusCode), d.url)
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
+		log.Warnf("failed to post http payload. code=%d, url=%s, EvP track type=%s, content type=%s, EvP category=%s, origin=%s, response=%s", resp.StatusCode, d.url, d.endpoint.TrackType, d.contentType, d.destMeta.EvpCategory(), d.origin, string(response))
 	}
 	if resp.StatusCode == http.StatusBadRequest ||
 		resp.StatusCode == http.StatusUnauthorized ||
@@ -390,10 +393,9 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// the server could not serve the request, most likely because of an
 		// internal error. We should retry these requests.
 		return client.NewRetryableError(errServer)
-	} else {
-		d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
-		return nil
 	}
+	d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
+	return nil
 }
 
 func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
@@ -408,22 +410,24 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 		d.lastRetryError = err
 
 		return true
-	} else { //nolint:revive // TODO(AML) Fix revive linter
-		d.nbErrors = d.backoff.DecError(d.nbErrors)
-		if isRetrying != nil && d.lastRetryError != nil {
-			isRetrying <- false
-		}
-		d.lastRetryError = nil
-
-		return false
 	}
+	d.nbErrors = d.backoff.DecError(d.nbErrors)
+	if isRetrying != nil && d.lastRetryError != nil {
+		isRetrying <- false
+	}
+	d.lastRetryError = nil
+
+	return false
 }
 
-func httpClientFactory(cfg pkgconfigmodel.Reader) func() *http.Client {
+func httpClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) func() *http.Client {
 	var transport *http.Transport
 
 	transportConfig := cfg.Get("logs_config.http_protocol")
-	timeout := time.Second * time.Duration(cfg.GetInt("logs_config.http_timeout"))
+	timeout := timeoutOverride
+	if timeout == NoTimeoutOverride {
+		timeout = time.Second * time.Duration(cfg.GetInt("logs_config.http_timeout"))
+	}
 
 	// Configure transport based on user setting
 	switch transportConfig {
@@ -470,9 +474,9 @@ func buildURL(endpoint config.Endpoint) string {
 		Host:   address,
 	}
 	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
-		url.Path = fmt.Sprintf("/api/v2/%s", endpoint.TrackType)
+		url.Path = fmt.Sprintf("%s/api/v2/%s", endpoint.PathPrefix, endpoint.TrackType)
 	} else {
-		url.Path = "/v1/input"
+		url.Path = fmt.Sprintf("%s/v1/input", endpoint.PathPrefix)
 	}
 	return url.String()
 }
@@ -496,7 +500,7 @@ func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reade
 func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Destination) error {
 	ctx.Start()
 	defer ctx.Stop()
-	return destination.unconditionalSend(&emptyJsonPayload)
+	return destination.unconditionalSend(&emptyJSONPayload)
 }
 
 // CheckConnectivity check if sending logs through HTTP works
@@ -513,7 +517,7 @@ func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) conf
 	return err == nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// CheckConnectivityDiagnose checks HTTP connectivity to an endpoint and returns the URL and any errors for diagnostic purposes
 func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (url string, err error) {
 	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	return destination.url, completeCheckConnectivity(ctx, destination)

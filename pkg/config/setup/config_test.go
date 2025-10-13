@@ -17,20 +17,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.Config {
+func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)
 	conf.SetConfigType("yaml")
 	err := conf.ReadConfig(strings.NewReader(yamlConfig))
@@ -231,7 +226,7 @@ func TestIsCloudProviderEnabled(t *testing.T) {
 
 func TestEnvNestedConfig(t *testing.T) {
 	config := newTestConf(t)
-	config.BindEnv("foo.bar.nested")
+	config.BindEnv("foo.bar.nested") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	t.Setenv("DD_FOO_BAR_NESTED", "baz")
 
 	assert.Equal(t, "baz", config.GetString("foo.bar.nested"))
@@ -263,7 +258,9 @@ func TestProxy(t *testing.T) {
 		{
 			name: "from configuration",
 			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
-				config.SetWithoutSource("proxy", expectedProxy)
+				config.SetWithoutSource("proxy.http", expectedProxy.HTTP)
+				config.SetWithoutSource("proxy.https", expectedProxy.HTTPS)
+				config.SetWithoutSource("proxy.no_proxy", expectedProxy.NoProxy)
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())
@@ -471,15 +468,12 @@ func TestProxy(t *testing.T) {
 			os.WriteFile(configPath, nil, 0o600)
 			config.SetConfigFile(configPath)
 
-			resolver := fxutil.Test[secrets.Component](t, fx.Options(
-				secretsimpl.MockModule(),
-				nooptelemetry.Module(),
-			))
+			resolver := secretsmock.New(t)
 			if c.setup != nil {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", resolver, nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -585,15 +579,12 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 			os.WriteFile(configPath, nil, 0o600)
 			config.SetConfigFile(configPath)
 
-			resolver := fxutil.Test[secrets.Component](t, fx.Options(
-				secretsimpl.MockModule(),
-				nooptelemetry.Module(),
-			))
+			resolver := secretsmock.New(t)
 			if c.setup != nil {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", resolver, nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -624,22 +615,11 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 func TestNumWorkers(t *testing.T) {
 	config := newTestConf(t)
 
-	config.SetWithoutSource("python_version", "2")
-	config.SetWithoutSource("tracemalloc_debug", true)
 	config.SetWithoutSource("check_runners", 4)
+	config.SetWithoutSource("tracemalloc_debug", false)
 
 	setNumWorkers(config)
 	workers := config.GetInt("check_runners")
-	assert.Equal(t, workers, config.GetInt("check_runners"))
-
-	config.SetWithoutSource("tracemalloc_debug", false)
-	setNumWorkers(config)
-	workers = config.GetInt("check_runners")
-	assert.Equal(t, workers, config.GetInt("check_runners"))
-
-	config.SetWithoutSource("python_version", "3")
-	setNumWorkers(config)
-	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
 	config.SetWithoutSource("tracemalloc_debug", true)
@@ -720,6 +700,7 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
+	assert.Equal(t, false, config.GetBool("network_path.collector.disable_windows_driver"))
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -758,6 +739,7 @@ skip_ssl_validation: true
 apm_config:
   apm_dd_url: https://somehost:1234
   profiling_dd_url: https://somehost:1234
+  profiling_receiver_timeout: 30
   telemetry:
     dd_url: https://somehost:1234
 
@@ -1027,21 +1009,6 @@ func TestComputeStatsBySpanKindEnv(t *testing.T) {
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 }
 
-func TestIsRemoteConfigEnabled(t *testing.T) {
-	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
-	testConfig := newTestConf(t)
-	require.True(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_FIPS_ENABLED", "true")
-	testConfig = newTestConf(t)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-
-	t.Setenv("DD_FIPS_ENABLED", "false")
-	t.Setenv("DD_SITE", "ddog-gov.com")
-	testConfig = newTestConf(t)
-	require.False(t, IsRemoteConfigEnabled(testConfig))
-}
-
 func TestGetRemoteConfigurationAllowedIntegrations(t *testing.T) {
 	// EMPTY configuration
 	testConfig := newTestConf(t)
@@ -1149,7 +1116,7 @@ func TestProxyLoadedFromEnvVars(t *testing.T) {
 	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
 	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
 
-	LoadWithoutSecret(conf, []string{})
+	LoadWithSecret(conf, secretsmock.New(t), []string{})
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")
@@ -1169,7 +1136,7 @@ func TestProxyLoadedFromConfigFile(t *testing.T) {
 	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0o644)
 
 	conf.AddConfigPath(tempDir)
-	LoadWithoutSecret(conf, []string{})
+	LoadWithSecret(conf, secretsmock.New(t), []string{})
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")
@@ -1192,7 +1159,7 @@ func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0o644)
 
 	conf.AddConfigPath(tempDir)
-	LoadWithoutSecret(conf, []string{})
+	LoadWithSecret(conf, secretsmock.New(t), []string{})
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")
@@ -1410,18 +1377,10 @@ use_proxy_for_cloud_metadata: true
 	os.WriteFile(configPath, testMinimalConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	resolver := fxutil.Test[secrets.Component](t, fx.Options(
-		secretsimpl.MockModule(),
-		nooptelemetry.Module(),
-	))
-
-	mockresolver := resolver.(secrets.Mock)
-	mockresolver.SetBackendCommand("command")
-	mockresolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
-		return map[string]string{
-			"some_url": "first_value",
-			"diff_url": "second_value",
-		}, nil
+	resolver := secretsmock.New(t)
+	resolver.SetSecrets(map[string]string{
+		"some_url": "first_value",
+		"diff_url": "second_value",
 	})
 
 	err := LoadCustom(config, nil)
@@ -1435,7 +1394,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver to modify a 2nd config with a different origin
-	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test")
+	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test", "", "")
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
@@ -1445,7 +1404,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver again, but with the original origin now
-	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test")
+	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test", "", "")
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
@@ -1496,7 +1455,7 @@ use_proxy_for_cloud_metadata: true
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 24)
+	require.Len(t, serverlessConfigComponents, 25)
 }
 
 func TestServerlessConfigInit(t *testing.T) {
@@ -1594,7 +1553,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	_, err = LoadDatadogCustom(cfg, "test", option.None[secrets.Component](), []string{})
+	_, err = LoadDatadogCustom(cfg, "test", secretsmock.New(t), []string{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -1613,9 +1572,9 @@ yet_another_key: "********"`
 
 func TestLoadProxyFromEnv(t *testing.T) {
 	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.SetKnown("proxy.http")
-	cfg.SetKnown("proxy.https")
-	cfg.SetKnown("proxy.no_proxy")
+	cfg.SetKnown("proxy.http")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetKnown("proxy.https")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetKnown("proxy.no_proxy") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	t.Setenv("DD_PROXY_HTTP", "http://www.example.com/")
 	cfg.BuildSchema()
 

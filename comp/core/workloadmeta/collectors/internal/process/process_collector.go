@@ -20,6 +20,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 
@@ -38,14 +40,14 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	collectorID               = "process-collector"
-	componentName             = "workloadmeta-process"
-	cacheValidityNoRT         = 2 * time.Second
-	serviceCollectionInterval = 60 * time.Second // TODO: this should be made configurable in the future
+	collectorID       = "process-collector"
+	componentName     = "workloadmeta-process"
+	cacheValidityNoRT = 2 * time.Second
 
 	// Service discovery constants
 	maxPortCheckTries = 10
@@ -65,12 +67,14 @@ type collector struct {
 	containerProvider      proccontainers.ContainerProvider
 
 	// Service discovery fields
-	sysProbeClient *http.Client
-	startTime      time.Time
-	startupTimeout time.Duration
-	serviceRetries map[int32]uint
-	ignoredPids    core.PidSet
-	pidHeartbeats  map[int32]time.Time
+	sysProbeClient           *http.Client
+	startTime                time.Time
+	startupTimeout           time.Duration
+	serviceRetries           map[int32]uint
+	ignoredPids              core.PidSet
+	pidHeartbeats            map[int32]time.Time
+	knownInjectionStatusPids core.PidSet // Track PIDs whose injection status we've already reported (but have no service data yet)
+	metricDiscoveredServices telemetry.Gauge
 }
 
 // EventType represents the type of collector event
@@ -102,12 +106,13 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
 
 		// Initialize service discovery fields
-		sysProbeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-		startTime:      clock.Now(),
-		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
-		serviceRetries: make(map[int32]uint),
-		ignoredPids:    make(core.PidSet),
-		pidHeartbeats:  make(map[int32]time.Time),
+		sysProbeClient:           sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		startTime:                clock.Now().UTC(),
+		startupTimeout:           pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
+		serviceRetries:           make(map[int32]uint),
+		ignoredPids:              make(core.PidSet),
+		pidHeartbeats:            make(map[int32]time.Time),
+		knownInjectionStatusPids: make(core.PidSet),
 	}
 }
 
@@ -121,10 +126,30 @@ type dependencies struct {
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewProcessCollectorProvider(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	// process probe is not yet componentized, so we can't use fx injection for that
-	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe(), deps.Config, deps.Sysconfig)
+	probe := procutil.NewProcessProbe(
+		procutil.WithIgnoreZombieProcesses(deps.Config.GetBool("process_config.ignore_zombie_processes")),
+	)
+	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), probe, deps.Config, deps.Sysconfig)
 	return workloadmeta.CollectorProvider{
 		Collector: &collector,
 	}, nil
+}
+
+// Pull triggers an entity collection. To be used by collectors that
+// don't have streaming functionality, and called periodically by the
+// store. This is not needed for the process collector.
+func (c *collector) Pull(_ context.Context) error {
+	return nil
+}
+
+// GetID returns the identifier for the respective component.
+func (c *collector) GetID() string {
+	return c.id
+}
+
+// GetTargetCatalog gets the expected catalog.
+func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
+	return c.catalog
 }
 
 // GetFxOptions returns the FX framework options for the collector
@@ -134,15 +159,16 @@ func GetFxOptions() fx.Option {
 
 // isProcessCollectionEnabled returns a boolean indicating if the process collector is enabled
 func (c *collector) isProcessCollectionEnabled() bool {
-	// TODO: implement the logic to check if the process collector is enabled based on dependent configs (process collection, language detection, service discovery)
-	// hardcoded to false until the new collector has all functionality/consolidation completed (service discovery, language collection, etc)
-	return false
+	return c.config.GetBool("process_config.process_collection.enabled")
 }
 
 // isServiceDiscoveryEnabled returns a boolean indicating if service discovery is enabled
 func (c *collector) isServiceDiscoveryEnabled() bool {
-	// TODO: implement the logic to check if service discovery is enabled based on configuration
-	return false
+	return c.systemProbeConfig.GetBool("discovery.enabled")
+}
+
+func (c *collector) getServiceCollectionInterval() time.Duration {
+	return c.systemProbeConfig.GetDuration("discovery.service_collection_interval")
 }
 
 // isLanguageCollectionEnabled returns a boolean indicating if language collection is enabled
@@ -150,18 +176,33 @@ func (c *collector) isLanguageCollectionEnabled() bool {
 	return c.config.GetBool("language_detection.enabled")
 }
 
-// collectionIntervalConfig returns the configured collection interval
-func (c *collector) collectionIntervalConfig() time.Duration {
-	// TODO: read configured collection interval once implemented
-	return time.Second * 10
+// processCollectionIntervalConfig returns the configured collection interval
+func (c *collector) processCollectionIntervalConfig() time.Duration {
+	processCollectionInterval := checks.GetInterval(c.config, checks.ProcessCheckName)
+	serviceCollectionInterval := c.getServiceCollectionInterval()
+	// service discovery data will be incorrect/empty if the process collection interval > service collection interval
+	// therefore, the service collection interval must be the max interval for process collection
+	if processCollectionInterval > serviceCollectionInterval {
+		log.Warnf("process collection interval %v cannot be larger than the service collection interval %v. falling back to service collection interval",
+			processCollectionInterval, serviceCollectionInterval)
+		return serviceCollectionInterval
+	}
+	return processCollectionInterval
 }
 
 // Start starts the collector. The collector should run until the context
 // is done. It also gets a reference to the store that started it so it
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() {
-		return errors.NewDisabled(componentName, "process collection and service discovery are disabled")
+	// TODO: process_config.process_collection.use_wlm is temporary and will eventually be removed
+	// we want to gate everything for this new collector by the use_wlm config, but eventually
+	// this collector will be gated separately for process_collector OR service discovery
+	if !c.config.GetBool("process_config.process_collection.use_wlm") {
+		return errors.NewDisabled(componentName, "wlm process collection disabled")
+	}
+
+	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() && !c.isLanguageCollectionEnabled() {
+		return errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled")
 	}
 
 	if c.containerProvider == nil {
@@ -173,14 +214,26 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 	c.store = store
 
-	if c.isProcessCollectionEnabled() {
-		go c.collectProcesses(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
+	if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
+		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()))
 	}
 
 	if c.isServiceDiscoveryEnabled() {
-		if c.isProcessCollectionEnabled() {
+		serviceCollectionInterval := c.getServiceCollectionInterval()
+		// Initialize service discovery metric
+		c.metricDiscoveredServices = telemetry.NewGaugeWithOpts(
+			collectorID,
+			"discovered_services",
+			[]string{},
+			"Number of discovered alive services.",
+			telemetry.DefaultOptions,
+		)
+
+		if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
+			log.Debug("Starting cached service collection (process collection enabled)")
 			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval))
 		} else {
+			log.Debug("Starting non-cached service collection (process collection disabled)")
 			go c.collectServicesNoCache(ctx, c.clock.Ticker(serviceCollectionInterval))
 		}
 	}
@@ -264,14 +317,13 @@ func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemo
 	return nil
 }
 
-// filterPidsToRequest filters PIDs to only request services for new or stale processes.
-// It returns a slice of pids to request (to be used as a request parameters), and
-// a map of pids to *model.Service to be filled up with the response received from
-// system-probe. This map is useful to know for which pids we have not received
-// service info and that needs to be handled by the retry mechanism.
-func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]int32, map[int32]*model.Service) {
-	now := c.clock.Now()
-	pidsToRequest := make([]int32, 0, len(alivePids))
+// filterPidsToRequest filters PIDs to categorize them as new or needing heartbeat refresh.
+// It returns separate slices for new PIDs and heartbeat PIDs, along with a map of pids to *model.Service
+// to be filled up with the response received from system-probe.
+func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]int32, []int32, map[int32]*model.Service) {
+	now := c.clock.Now().UTC()
+	newPids := make([]int32, 0, len(alivePids))
+	heartbeatPids := make([]int32, 0, len(alivePids))
 	pidsToService := make(map[int32]*model.Service, len(alivePids))
 
 	for pid := range alivePids {
@@ -281,7 +333,7 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 
 		// Filter out processes that started less than a minute ago
 		if proc, exists := procs[pid]; exists {
-			processStartTime := time.UnixMilli(proc.Stats.CreateTime)
+			processStartTime := time.UnixMilli(proc.Stats.CreateTime).UTC()
 			if now.Sub(processStartTime) < time.Minute {
 				continue
 			}
@@ -289,25 +341,29 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 
 		// Check if service data is stale or never collected
 		lastHeartbeat, exists := c.pidHeartbeats[pid]
-		if !exists || now.Sub(lastHeartbeat) > core.HeartbeatTime {
-			// Service data is stale or never collected, need to refresh it
-			pidsToRequest = append(pidsToRequest, pid)
+		if !exists {
+			// Never seen this process before, need full service info
+			newPids = append(newPids, pid)
+			pidsToService[pid] = nil
+		} else if now.Sub(lastHeartbeat) > core.HeartbeatTime {
+			// Service data is stale, need heartbeat refresh
+			// Since we have a pidHeartbeats entry, we know service data exists
+			heartbeatPids = append(heartbeatPids, pid)
 			pidsToService[pid] = nil
 		}
 	}
 
-	return pidsToRequest, pidsToService
+	return newPids, heartbeatPids, pidsToService
 }
 
 // getDiscoveryServices calls the system-probe /discovery/services endpoint
-func (c *collector) getDiscoveryServices(pids []int32) (*model.ServicesEndpointResponse, error) {
-	var responseData model.ServicesEndpointResponse
+func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32) (*model.ServicesResponse, error) {
+	var responseData model.ServicesResponse
 
-	// Create params with PIDs and convert to JSON
-	params := core.DefaultParams()
-	for _, pid := range pids {
-		params.Pids = append(params.Pids, int(pid))
-	}
+	// Create params with categorized PIDs and convert to JSON
+	params := core.Params{}
+	params.NewPids = newPids
+	params.HeartbeatPids = heartbeatPids
 
 	jsonBody, err := params.ToJSON()
 	if err != nil {
@@ -358,27 +414,89 @@ func (c *collector) handleServiceRetries(pid int32) {
 }
 
 // getProcessEntitiesFromServices creates Process entities with service discovery data
-func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService map[int32]*model.Service) []*workloadmeta.Process {
-	entities := make([]*workloadmeta.Process, 0, len(pids))
-	now := c.clock.Now()
+func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service, injectedPids core.PidSet) []*workloadmeta.Process {
+	entities := make([]*workloadmeta.Process, 0, len(pidsToService))
+	now := c.clock.Now().UTC()
 
-	for _, pid := range pids {
+	// Process new PIDs - create complete entities
+	for _, pid := range newPids {
+		service := pidsToService[pid]
+
+		if service == nil {
+			c.handleServiceRetries(pid)
+
+			// Skip creating entity if we already reported this PID's injection status
+			if c.knownInjectionStatusPids.Has(pid) {
+				continue
+			}
+
+			c.knownInjectionStatusPids.Add(pid)
+		} else {
+			c.knownInjectionStatusPids.Remove(pid)
+			c.pidHeartbeats[int32(service.PID)] = now
+		}
+
+		injectionState := workloadmeta.InjectionNotInjected
+		if injectedPids.Has(pid) {
+			injectionState = workloadmeta.InjectionInjected
+		}
+
+		entity := &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(pid)),
+			},
+			Pid:            pid,
+			InjectionState: injectionState,
+		}
+
+		if service != nil {
+			entity.Service = convertModelServiceToService(service)
+			// language is captured here since language+process collection can be disabled
+			entity.Language = convertServiceLanguageToWLMLanguage(service.Language)
+		}
+
+		entities = append(entities, entity)
+	}
+
+	// Process heartbeat PIDs - only update entities that have existing Service data
+	for _, pid := range heartbeatPids {
 		service := pidsToService[pid]
 		if service == nil {
 			c.handleServiceRetries(pid)
 			continue
 		}
 
-		// Update the heartbeat cache for this PID
+		// Verify existing entity has Service data (should always be true for heartbeat PIDs)
+		existingProcess, err := c.store.GetProcess(pid)
+		if err != nil || existingProcess == nil || existingProcess.Service == nil {
+			log.Debugf("Heartbeat for pid %d but no existing service found, skipping", pid)
+			continue
+		}
+
 		c.pidHeartbeats[int32(service.PID)] = now
+
+		// For heartbeat updates, preserve static fields from existing service
+		// Since workloadmeta replaces entities from the same source instead of merging,
+		// we need to preserve static fields here
+		newService := convertModelServiceToService(service)
+
+		// Copy existing service and update only dynamic fields
+		preservedService := *existingProcess.Service
+		preservedService.TCPPorts = newService.TCPPorts
+		preservedService.UDPPorts = newService.UDPPorts
+		preservedService.LogFiles = newService.LogFiles
 
 		entity := &workloadmeta.Process{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindProcess,
 				ID:   strconv.Itoa(service.PID),
 			},
-			Pid:     int32(service.PID),
-			Service: convertModelServiceToService(service),
+			Pid:            int32(service.PID),
+			Service:        &preservedService,
+			InjectionState: existingProcess.InjectionState, // Preserve injection status from existing process
+			// Preserve language from existing process
+			Language: existingProcess.Language,
 		}
 
 		entities = append(entities, entity)
@@ -387,30 +505,14 @@ func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService m
 	return entities
 }
 
-// convertModelServiceToService converts model.Service to workloadmeta.Service
-func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
-	return &workloadmeta.Service{
-		GeneratedName:            modelService.GeneratedName,
-		GeneratedNameSource:      modelService.GeneratedNameSource,
-		AdditionalGeneratedNames: modelService.AdditionalGeneratedNames,
-		TracerMetadata:           modelService.TracerMetadata,
-		DDService:                modelService.DDService,
-		DDServiceInjected:        modelService.DDServiceInjected,
-		Ports:                    modelService.Ports,
-		APMInstrumentation:       modelService.APMInstrumentation,
-		Type:                     modelService.Type,
-		LogFiles:                 modelService.LogFiles,
-	}
-}
-
 // updateServices retrieves service discovery data for alive processes and returns workloadmeta entities
-func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, map[int32]*model.Service) {
-	pidsToRequest, pidsToService := c.filterPidsToRequest(alivePids, procs)
-	if len(pidsToRequest) == 0 {
+func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, core.PidSet) {
+	newPids, heartbeatPids, pidsToService := c.filterPidsToRequest(alivePids, procs)
+	if len(newPids) == 0 && len(heartbeatPids) == 0 {
 		return nil, nil
 	}
 
-	resp, err := c.getDiscoveryServices(pidsToRequest)
+	resp, err := c.getDiscoveryServices(newPids, heartbeatPids)
 	if err != nil {
 		if time.Since(c.startTime) < c.startupTimeout {
 			log.Warnf("service collector: system-probe not started yet: %v", err)
@@ -424,40 +526,31 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 		pidsToService[int32(service.PID)] = &resp.Services[i]
 	}
 
-	return c.getProcessEntitiesFromServices(pidsToRequest, pidsToService), pidsToService
+	// Convert InjectedPIDs to PidSet for efficient lookup
+	injectedPids := make(core.PidSet)
+	for _, pid := range resp.InjectedPIDs {
+		injectedPids.Add(int32(pid))
+	}
+
+	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids), injectedPids
 }
 
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
-	entities, pidsToService := c.updateServices(alivePids, procs)
-
-	// Only detect languages for services when process collection is disabled,
-	// otherwise the collectProcesses goroutine already did it for us.
-	var pidToLanguage map[int32]*languagemodels.Language
-	serviceProcs := make([]*procutil.Process, 0, len(pidsToService))
-	for pid := range pidsToService {
-		if proc, exists := procs[pid]; exists {
-			serviceProcs = append(serviceProcs, proc)
-		}
-	}
-	languages := c.detectLanguages(serviceProcs)
-
-	// Create pidToLanguage map directly
-	pidToLanguage = make(map[int32]*languagemodels.Language)
-	for i, proc := range serviceProcs {
-		if i < len(languages) && languages[i] != nil {
-			pidToLanguage[proc.Pid] = languages[i]
-		}
-	}
+	entities, _ := c.updateServices(alivePids, procs)
 
 	for _, entity := range entities {
 		if proc, exists := procs[entity.Pid]; exists {
+			// process fields should be set when the process collector is disabled
+			entity.NsPid = proc.NsPid
+			entity.Ppid = proc.Ppid
+			entity.Name = proc.Name
+			entity.Cwd = proc.Cwd
+			entity.Exe = proc.Exe
+			entity.Comm = proc.Comm
 			entity.Cmdline = proc.Cmdline
 			entity.CreationTime = time.UnixMilli(proc.Stats.CreateTime).UTC()
-
-			// Add language if available
-			if language, hasLanguage := pidToLanguage[entity.Pid]; hasLanguage {
-				entity.Language = language
-			}
+			entity.Uids = proc.Uids
+			entity.Gids = proc.Gids
 		}
 	}
 
@@ -467,7 +560,7 @@ func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32
 // getProcessDataForServices returns alive pids and processes
 func (c *collector) getProcessDataForServices() (core.PidSet, map[int32]*procutil.Process, error) {
 	// If process collection is disabled, scan processes ourselves
-	procs, err := c.processProbe.ProcessesByPID(c.clock.Now(), false)
+	procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -528,6 +621,18 @@ func (c *collector) cleanDiscoveryMaps(alivePids core.PidSet) {
 	cleanPidMaps(alivePids, c.ignoredPids)
 	cleanPidMaps(alivePids, c.serviceRetries)
 	cleanPidMaps(alivePids, c.pidHeartbeats)
+	cleanPidMaps(alivePids, c.knownInjectionStatusPids)
+}
+
+// updateDiscoveredServicesMetric updates the metric with the count of discovered services
+func (c *collector) updateDiscoveredServicesMetric() {
+	if c.metricDiscoveredServices == nil {
+		return
+	}
+
+	count := len(c.pidHeartbeats)
+	log.Debugf("discovered services count: %d", count)
+	c.metricDiscoveredServices.Set(float64(count))
 }
 
 // getDiscoveryURL builds the URL for the discovery endpoint
@@ -551,7 +656,7 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 		select {
 		case <-collectionTicker.C:
 			// fetch process data and submit events to streaming channel for asynchronous processing
-			procs, err := c.processProbe.ProcessesByPID(c.clock.Now(), false)
+			procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
 			if err != nil {
 				log.Errorf("Error getting processes by pid: %v", err)
 				return
@@ -618,6 +723,7 @@ func (c *collector) collectServicesNoCache(ctx context.Context, collectionTicker
 			c.mux.Unlock()
 
 			c.cleanDiscoveryMaps(alivePids)
+			c.updateDiscoveredServicesMetric()
 		case <-ctx.Done():
 			log.Infof("The %s service collector has stopped", collectorID)
 			return
@@ -653,6 +759,20 @@ func (c *collector) collectServicesCached(ctx context.Context, collectionTicker 
 				})
 			}
 
+			// Check for deleted processes whose injection status we reported (but had no service)
+			for pid := range c.knownInjectionStatusPids {
+				if alivePids.Has(pid) {
+					continue
+				}
+
+				wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   strconv.Itoa(int(pid)),
+					},
+				})
+			}
+
 			c.mux.RLock()
 			wlmServiceEntities, _ := c.updateServices(alivePids, c.lastCollectedProcesses)
 			c.mux.RUnlock()
@@ -666,6 +786,7 @@ func (c *collector) collectServicesCached(ctx context.Context, collectionTicker 
 			}
 
 			c.cleanDiscoveryMaps(alivePids)
+			c.updateDiscoveredServicesMetric()
 		case <-ctx.Done():
 			log.Infof("The %s service collector has stopped", collectorID)
 			return
@@ -743,19 +864,66 @@ func processToWorkloadMetaProcess(process *procutil.Process) *workloadmeta.Proce
 	}
 }
 
-// Pull triggers an entity collection. To be used by collectors that
-// don't have streaming functionality, and called periodically by the
-// store. This is not needed for the process collector.
-func (c *collector) Pull(_ context.Context) error {
-	return nil
+// convertModelServiceToService converts model.Service to workloadmeta.Service
+func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
+	return &workloadmeta.Service{
+		GeneratedName:            modelService.GeneratedName,
+		GeneratedNameSource:      modelService.GeneratedNameSource,
+		AdditionalGeneratedNames: modelService.AdditionalGeneratedNames,
+		TracerMetadata:           modelService.TracerMetadata,
+		TCPPorts:                 modelService.TCPPorts,
+		UDPPorts:                 modelService.UDPPorts,
+		APMInstrumentation:       modelService.APMInstrumentation,
+		Type:                     modelService.Type,
+		LogFiles:                 modelService.LogFiles,
+		UST: workloadmeta.UST{
+			Service: modelService.UST.Service,
+			Env:     modelService.UST.Env,
+			Version: modelService.UST.Version,
+		},
+	}
 }
 
-// GetID returns the identifier for the respective component.
-func (c *collector) GetID() string {
-	return c.id
-}
-
-// GetTargetCatalog gets the expected catalog.
-func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
-	return c.catalog
+// convertServiceLanguageToWLMLanguage converts service language to the support language in workloadmeta since there are
+// enum value differences between service discovery and our language model
+// TODO: this is something we could consolidate in the future
+func convertServiceLanguageToWLMLanguage(serviceLanguage string) *languagemodels.Language {
+	switch serviceLanguage {
+	case string(language.Java):
+		return &languagemodels.Language{
+			Name: languagemodels.Java,
+		}
+	case string(language.Node):
+		return &languagemodels.Language{
+			Name: languagemodels.Node,
+		}
+	case string(language.Python):
+		return &languagemodels.Language{
+			Name: languagemodels.Python,
+		}
+	case string(language.Ruby):
+		return &languagemodels.Language{
+			Name: languagemodels.Ruby,
+		}
+	case string(language.DotNet):
+		return &languagemodels.Language{
+			Name: languagemodels.Dotnet,
+		}
+	case string(language.Go):
+		return &languagemodels.Language{
+			Name: languagemodels.Go,
+		}
+	case string(language.CPlusPlus):
+		return &languagemodels.Language{
+			Name: languagemodels.CPP,
+		}
+	case string(language.PHP):
+		return &languagemodels.Language{
+			Name: languagemodels.PHP,
+		}
+	default:
+		return &languagemodels.Language{
+			Name: languagemodels.Unknown,
+		}
+	}
 }

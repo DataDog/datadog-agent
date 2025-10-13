@@ -13,8 +13,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
+	"golang.org/x/sys/windows/svc"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // WinServiceManager implements ServiceManager using the SystemAPI interface
@@ -36,12 +40,46 @@ func NewWinServiceManagerWithAPI(api systemAPI) *WinServiceManager {
 	}
 }
 
+// getTerminatePolicy returns the terminate policy for the Agent.
+//
+// Default is true.
+//
+// The terminate policy can be configured by setting the registry key to the desired value:
+// `HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\TerminatePolicy`
+func getTerminatePolicy() bool {
+	defaultTerminatePolicy := true
+
+	// open the registry key
+	keyname := "SOFTWARE\\Datadog\\Datadog Agent"
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		keyname,
+		registry.ALL_ACCESS)
+	if err != nil {
+		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
+		log.Debugf("Windows installation key root not found, using default")
+		return defaultTerminatePolicy
+	}
+	defer k.Close()
+	val, _, err := k.GetIntegerValue("TerminatePolicy")
+	if err != nil {
+		log.Warnf("Windows installation key TerminatePolicy not found, using default")
+		return defaultTerminatePolicy
+	}
+	return val == 1
+}
+
 // terminateServiceProcess terminates a service by killing its process.
 // Returns nil if the service is not running or does not exist.
 func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, serviceName string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "terminate_service_process")
 	defer func() { span.Finish(err) }()
 	span.SetTag("service_name", serviceName)
+
+	terminatePolicy := getTerminatePolicy()
+	if !terminatePolicy {
+		log.Debugf("TerminatePolicy is false, skipping termination of service %s", serviceName)
+		return fmt.Errorf("TerminatePolicy is false, skipping termination of service %s", serviceName)
+	}
 
 	// Get the process ID for the service
 	processID, err := w.api.GetServiceProcessID(serviceName)
@@ -142,12 +180,13 @@ func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, servi
 	var failedServices []error
 	for _, serviceName := range serviceNames {
 
-		running, err := w.api.IsServiceRunning(serviceName)
+		state, err := w.api.GetServiceState(serviceName)
 		if err != nil {
-			if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-				continue
+			if !errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+				failedServices = append(failedServices, fmt.Errorf("could not get service state for %s: %w", serviceName, err))
 			}
-		} else if !running {
+			continue
+		} else if state == svc.Stopped {
 			continue
 		}
 
@@ -155,10 +194,10 @@ func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, servi
 		err = w.terminateServiceProcess(ctx, serviceName)
 		if err != nil {
 			// Check if service is actually stopped despite the termination error
-			running, runningErr := w.api.IsServiceRunning(serviceName)
-			if runningErr != nil {
-				failedServices = append(failedServices, fmt.Errorf("%s: termination failed (%w) and state verification failed (%w)", serviceName, err, runningErr))
-			} else if running {
+			state, stateErr := w.api.GetServiceState(serviceName)
+			if stateErr != nil {
+				failedServices = append(failedServices, fmt.Errorf("%s: termination failed (%w) and state verification failed (%w)", serviceName, err, stateErr))
+			} else if state != svc.Stopped {
 				failedServices = append(failedServices, fmt.Errorf("%s: termination failed and service still running: %w", serviceName, err))
 			}
 		}

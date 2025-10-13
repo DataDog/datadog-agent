@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type NamespaceCollector struct {
 // NewNamespaceCollector creates a new collector for the Kubernetes
 // Namespace resource.
 func NewNamespaceCollector(metadataAsTags utils.MetadataAsTags) *NamespaceCollector {
-	resourceType := getResourceType(namespaceName, namespaceVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.NamespaceName, utilTypes.NamespaceVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewNamespaceCollector(metadataAsTags utils.MetadataAsTags) *NamespaceCollec
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 namespaceName,
+			Name:                                 utilTypes.NamespaceName,
 			Kind:                                 kubernetes.NamespaceKind,
 			NodeType:                             orchestrator.K8sNamespace,
-			Version:                              namespaceVersion,
+			Version:                              utilTypes.NamespaceVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

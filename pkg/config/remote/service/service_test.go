@@ -630,11 +630,11 @@ func TestService(t *testing.T) {
 	*api = mockAPI{}
 
 	root3 := []byte(`{"signatures": "testroot3", "signed": "signed"}`)
-	canonicalRoot3 := []byte(`{"signatures":"testroot3","signed":"signed"}`)
+	canonicalRoot3 := []byte(`{"signatures": "testroot3", "signed": "signed"}`)
 	root4 := []byte(`{"signed": "signed", "signatures": "testroot4"}`)
-	canonicalRoot4 := []byte(`{"signatures":"testroot4","signed":"signed"}`)
+	canonicalRoot4 := []byte(`{"signed": "signed", "signatures": "testroot4"}`)
 	targets := []byte(`{"signatures": "testtargets", "signed": "stuff"}`)
-	canonicalTargets := []byte(`{"signatures":"testtargets","signed":"stuff"}`)
+	canonicalTargets := []byte(`{"signatures": "testtargets", "signed": "stuff"}`)
 	testTargetsCustom := []byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`)
 	client := &pbgo.Client{
 		Id: "testid",
@@ -733,6 +733,14 @@ func TestService(t *testing.T) {
 	assert.Equal(t, 2, len(stateResponse.DirectorState))
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
+
+	_, err = service.ConfigResetState()
+	assert.NoError(t, err)
+
+	// The state should be reset, so we should not be able to get the state again
+	// because the state is empty.
+	_, err = service.ConfigGetState()
+	assert.Error(t, err)
 }
 
 // Test for client predicates
@@ -921,12 +929,14 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockCoreAgentUptane{}
 	updatedKey := "notUpdated"
-	notifications := make(chan string, 10)
+
 	api.On("UpdateAPIKey", mock.Anything).Run(func(args mock.Arguments) {
 		updatedKey = args.Get(0).(string)
-		notifications <- updatedKey
 	})
-	api.On("FetchOrgData", mock.Anything).Return(&pbgo.OrgDataResponse{Uuid: "firstUuid"}, nil)
+	orgResponse := pbgo.OrgDataResponse{
+		Uuid: "firstUuid",
+	}
+	api.On("FetchOrgData", mock.Anything).Return(&orgResponse, nil)
 	uptaneClient.On("StoredOrgUUID").Return("firstUuid", nil)
 
 	cfg := configmock.New(t)
@@ -946,22 +956,13 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	service.uptane = uptaneClient
 
 	cfg.SetWithoutSource("api_key", "updated")
-	select {
-	case <-notifications:
-		assert.Equal(t, "updated", updatedKey)
-	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for notification")
-	}
+	assert.Equal(t, "updated", updatedKey)
 
 	// We still use the new key even if the new org doesn't match the old org.
-	api.On("FetchOrgData", mock.Anything).Return(&pbgo.OrgDataResponse{Uuid: "badUuid"}, nil)
+	orgResponse.Uuid = "badUuid"
 	cfg.SetWithoutSource("api_key", "BAD_ORG")
-	select {
-	case <-notifications:
-		assert.Equal(t, "BAD_ORG", updatedKey)
-	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for notification")
-	}
+	assert.Equal(t, "BAD_ORG", updatedKey)
+
 }
 
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
@@ -1435,7 +1436,7 @@ func TestHTTPClientRecentUpdate(t *testing.T) {
 	require.Len(t, u.ClientConfigs, 1)
 	require.Equal(t, "datadog/2/TESTING1/id/1", u.ClientConfigs[0])
 	require.Len(t, u.TUFRoots, 1)
-	require.Equal(t, []byte(`{"signatures":"testroot1","signed":"one"}`), u.TUFRoots[0])
+	require.Equal(t, []byte(`{"signatures": "testroot1", "signed": "one"}`), u.TUFRoots[0])
 }
 
 // TestHTTPClientUpdateSuccess tests that a stale state will trigger an update of the cached state
@@ -1487,7 +1488,7 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 			require.Len(t, u.ClientConfigs, 1)
 			require.Equal(t, "datadog/2/TESTING1/id/1", u.ClientConfigs[0])
 			require.Len(t, u.TUFRoots, 1)
-			require.Equal(t, []byte(`{"signatures":"testroot1","signed":"one"}`), u.TUFRoots[0])
+			require.Equal(t, []byte(`{"signatures": "testroot1", "signed": "one"}`), u.TUFRoots[0])
 		})
 	}
 }

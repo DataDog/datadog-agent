@@ -10,13 +10,11 @@ package clihelpers
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"runtime"
 
-	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
@@ -172,10 +170,9 @@ func EvalRule(evalArgs EvalRuleParams) error {
 }
 
 func eventFromTestData(testData TestData) (eval.Event, error) {
-
-	kind := secconfig.ParseEvalEventType(testData.Type)
-	if kind == model.UnknownEventType {
-		return nil, errors.New("unknown event type")
+	kind, err := model.ParseEvalEventType(testData.Type)
+	if err != nil {
+		return nil, err
 	}
 
 	event := &model.Event{

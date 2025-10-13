@@ -5,9 +5,10 @@ exporters:
       fail_on_invalid_key: false
       key: '[REDACTED]'
       site: datadoghq.com
+    force_attempt_http2: true
     headers: {}
     host_metadata:
-      enabled: false
+      enabled: true
       hostname_source: config_or_system
       reporter_period: 30m0s
       tags: []
@@ -65,13 +66,22 @@ exporters:
     sampling_initial: 2
     sampling_thereafter: 1
     use_internal_logger: true
+    sending_queue:
+      batch: null
+      block_on_overflow: false
+      enabled: true
+      num_consumers: 10
+      queue_size: 1
+      sizer: {}
+      storage: null
+      wait_for_result: false
     verbosity: Detailed
 extensions: {}
 processors: {}
 receivers:
   otlp:
     protocols:
-      grpc: 
+      grpc:
         endpoint: 0.0.0.0:4317
         keepalive:
           enforcement_policy: {}
@@ -79,7 +89,7 @@ receivers:
         read_buffer_size: 524288
         transport: tcp
       http:
-        cors: {}
+        cors: null
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
         logs_url_path: /v1/logs

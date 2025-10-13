@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
@@ -53,7 +52,6 @@ type ContainerContext struct {
 	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"`    // SECLDoc[tags] Definition:`Tags of the container`
 	Resolved    bool                       `field:"-"`
-	Runtime     string                     `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
 // Hash returns a unique key for the entity
@@ -102,6 +100,7 @@ type NetworkContext struct {
 	Destination      IPPortContext `field:"destination"`       // destination of the network packet
 	NetworkDirection uint32        `field:"network_direction"` // SECLDoc[network_direction] Definition:`Network direction of the network packet` Constants:`Network directions`
 	Size             uint32        `field:"size"`              // SECLDoc[size] Definition:`Size in bytes of the network packet`
+	Type             uint32        `field:"type"`              // SECLDoc[type] Definition:`Type of the network packet` Constants:`Network Protocol Types`
 }
 
 // IsZero returns if there is a network context
@@ -150,6 +149,7 @@ type BaseEvent struct {
 	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad|gen_getters"` // SECLDoc[event.service] Definition:`Service associated with the event`
 	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`                        // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
 	RuleTags      []string       `field:"event.rule.tags"`                                               // SECLDoc[event.rule.tags] Definition:`Tags associated with the rule that's used to evaluate the event`
+	Source        string         `field:"event.source,handler:ResolveSource"`                            // SECLDoc[event.source] Definition:`[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.`
 
 	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`
@@ -227,6 +227,11 @@ func (e *Event) IsAnomalyDetectionEvent() bool {
 	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
 }
 
+// IsSnapshotEvent returns true if the event is generated from a snapshot replay
+func (e *Event) IsSnapshotEvent() bool {
+	return e.Flags&EventFlagsIsSnapshot > 0
+}
+
 // AddToFlags adds a flag to the event
 func (e *Event) AddToFlags(flag uint32) {
 	e.Flags |= flag
@@ -293,9 +298,9 @@ func (e *Event) ResolveService() string {
 // UserSessionContext describes the user session context
 // Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
 type UserSessionContext struct {
-	ID          uint64           `field:"-"`
-	SessionType usersession.Type `field:"-"`
-	Resolved    bool             `field:"-"`
+	ID          uint64 `field:"id"`           // SECLDoc[id] Definition:`Unique identifier of the user session on the host`
+	SessionType int    `field:"session_type"` // SECLDoc[session_type] Definition:`Type of the user session`
+	Resolved    bool   `field:"-"`
 	// Kubernetes User Session context
 	K8SUsername string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`
 	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
@@ -579,6 +584,11 @@ type DNSEvent struct {
 	ID       uint16       `field:"id"` // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
 	Question DNSQuestion  `field:"question"`
 	Response *DNSResponse `field:"response,check:HasResponse"`
+}
+
+// FailedDNSEvent represents a DNS packet that was failed to be decoded (inbound or outbound)
+type FailedDNSEvent struct {
+	Payload []byte `field:"-"`
 }
 
 // DNSResponse represents a DNS response event

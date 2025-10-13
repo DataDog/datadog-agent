@@ -10,7 +10,10 @@
 package payload
 
 import (
+	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 // HostMetadata includes metadata about the host tags,
@@ -90,3 +93,13 @@ func NewEmpty() HostMetadata {
 		Processes: &gohai.ProcessesPayload{},
 	}
 }
+
+// MarshalJSON implements the JSONMarshaler.MarshalJSON interface
+func (p *HostMetadata) MarshalJSON() ([]byte, error) {
+	// use an alias to avoid infinite recursion while serializing
+	type PayloadAlias HostMetadata
+
+	return json.Marshal((*PayloadAlias)(p))
+}
+
+var _ marshaler.JSONMarshaler = (*HostMetadata)(nil)

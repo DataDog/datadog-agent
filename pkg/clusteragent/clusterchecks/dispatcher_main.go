@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -33,7 +35,7 @@ type dispatcher struct {
 	unscheduledCheckThresholdSeconds int64
 	extraTags                        []string
 	clcRunnersClient                 clusteragent.CLCRunnerClientInterface
-	advancedDispatching              bool
+	advancedDispatching              atomic.Bool
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
@@ -61,6 +63,25 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		log.Debugf("Adding global tags to cluster check dispatcher: %v", d.extraTags)
 	}
 
+	hname, _ := hostname.Get(context.TODO())
+	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
+	clusterTagName := pkgconfigsetup.Datadog().GetString("cluster_checks.cluster_tag_name")
+	if clusterTagValue != "" {
+		if clusterTagName != "" && !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
+			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
+		}
+		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
+	}
+
+	clusterIDTagValue, err := clustername.GetClusterID()
+	if err != nil {
+		log.Warnf("Failed to get cluster ID: %v", err)
+	}
+	if clusterIDTagValue != "" {
+		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
+	}
+
 	excludedChecks := pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks")
 	// This option will almost always be empty
 	if len(excludedChecks) > 0 {
@@ -81,31 +102,16 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 
-	hname, _ := hostname.Get(context.TODO())
-	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
-	clusterTagName := pkgconfigsetup.Datadog().GetString("cluster_checks.cluster_tag_name")
-	if clusterTagValue != "" {
-		if clusterTagName != "" && !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
-			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
-			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
-		}
-		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
-	}
-
-	clusterIDTagValue, _ := clustername.GetClusterID()
-	if clusterIDTagValue != "" {
-		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
-	}
-
-	d.advancedDispatching = pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
-	if !d.advancedDispatching {
+	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
+	if !advancedDispatchingEnabled {
 		return d
 	}
 
 	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
 	if err != nil {
 		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
-		d.advancedDispatching = false
+	} else {
+		d.advancedDispatching.Store(true)
 	}
 	return d
 }
@@ -229,6 +235,37 @@ func (d *dispatcher) scanUnscheduledChecks() {
 	}
 }
 
+// UpdateAdvancedDispatchingMode checks if any node agents are in the pool
+// and disables advanced dispatching if found
+func (d *dispatcher) UpdateAdvancedDispatchingMode() {
+	if !d.advancedDispatching.Load() {
+		return
+	}
+
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	// Check if any node agents are in the pool
+	hasNodeAgent := false
+	for _, node := range d.store.nodes {
+		if node.nodetype == cctypes.NodeTypeNodeAgent {
+			hasNodeAgent = true
+			break
+		}
+	}
+
+	if hasNodeAgent {
+		d.disableAdvancedDispatching()
+	}
+}
+
+// disableAdvancedDispatching disables advanced dispatching mode
+func (d *dispatcher) disableAdvancedDispatching() {
+	if d.advancedDispatching.CompareAndSwap(true, false) {
+		log.Info("Node agents detected in cluster check pool, disabling advanced dispatching")
+	}
+}
+
 // run is the main management goroutine for the dispatcher
 func (d *dispatcher) run(ctx context.Context) {
 	d.store.Lock()
@@ -269,7 +306,7 @@ func (d *dispatcher) run(ctx context.Context) {
 			// Check for configs that have been dangling longer than expected
 			d.scanUnscheduledChecks()
 		case <-rebalanceTicker.C:
-			if d.advancedDispatching {
+			if d.advancedDispatching.Load() {
 				d.rebalance(false)
 			}
 		}

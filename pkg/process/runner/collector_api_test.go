@@ -38,7 +38,7 @@ func setProcessEndpointsForTest(config pkgconfigmodel.Config, eps ...apicfg.Endp
 	for i, ep := range eps {
 		if i == 0 {
 			config.SetWithoutSource("api_key", ep.APIKey)
-			config.SetWithoutSource("process_config.process_dd_url", ep.Endpoint)
+			config.SetWithoutSource("process_config.process_dd_url", ep.Endpoint.String())
 		} else {
 			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
 		}
@@ -51,7 +51,7 @@ func setProcessEventsEndpointsForTest(config pkgconfigmodel.Config, eps ...apicf
 	for i, ep := range eps {
 		if i == 0 {
 			config.SetWithoutSource("api_key", ep.APIKey)
-			config.SetWithoutSource("process_config.events_dd_url", ep.Endpoint)
+			config.SetWithoutSource("process_config.events_dd_url", ep.Endpoint.String())
 		} else {
 			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
 		}

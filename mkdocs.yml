@@ -48,13 +48,40 @@ theme:
 nav:
 - Home:
   - About: index.md
-  - Setup: setup.md
+  - Setup:
+    - Required: setup/required.md
+    - Optional: setup/optional.md
+    - Manual: setup/manual.md
+- How-to:
+  - Build:
+    - Standalone agents: how-to/build/standalone.md
+    - Distribution packages: how-to/build/distributions.md
+  - Test:
+    - Unit tests: how-to/test/unit.md
+    - Static analysis: how-to/test/static-analysis.md
+  - Go:
+    - Add nested modules: how-to/go/modules.md
+  - Debug agents:
+    - how-to/debug-agents/index.md
+    - Linux: how-to/debug-agents/linux.md
+    - Windows: how-to/debug-agents/windows.md
+  - Memory profiling:
+    - Overview: how-to/memory-profiling/overview.md
+    - Go: how-to/memory-profiling/go.md
+    - Python: how-to/memory-profiling/python.md
+    - C++: how-to/memory-profiling/c++.md
+- Tutorials:
+  - Develop:
+    - Environment usage: tutorials/dev/env.md
 - Guidelines:
   - Contributing: guidelines/contributing.md
   - Documentation: guidelines/docs.md
-- How-to:
-  - Go:
-    - Add module: how-to/go/add-module.md
+  - Languages:
+    - Go: guidelines/languages/go.md
+  - Testing:
+    - Test categories: guidelines/testing/test-categories.md
+  - Conventions:
+    - Logging: guidelines/conventions/logging.md
 - Components:
   - Overview: components/overview.md
   - Components:
@@ -73,10 +100,17 @@ nav:
   #     - TODO workloadmeta: components/shared_features/workloadmeta.md
   #     - TODO more ?: TMP
   # - Fx overview: components/fx.md
+  # - JMXFetch overview: components/jmxfetch.md
   # - FAQ: components/faq.md
 - Architecture:
   - DogStatsD:
     - Internals: architecture/dogstatsd/internals.md
+- Reference:
+  - Images:
+    - Developer environment: reference/images/dev.md
+    - Builders: reference/images/builders.md
+  - Agent buildables:
+    - Agent components: reference/builds/components.md
 
 watch:
 - .go-version
@@ -97,6 +131,9 @@ plugins:
   git-revision-date-localized:
     type: date
     strict: false
+  redirects:
+    redirect_maps:
+      setup.md: setup/required.md
 
 markdown_extensions:
 # Built-in

@@ -17,9 +17,10 @@ from collections import defaultdict
 from collections.abc import Callable, Iterable
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import gitlab
+import gitlab.exceptions
 import yaml
 from invoke.context import Context
 from invoke.tasks import task
@@ -30,6 +31,7 @@ from tasks.kernel_matrix_testing.ci import KMTPipeline, KMTTestRunJob, get_test_
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import update_rootfs
+from tasks.kernel_matrix_testing.gdb import GDBPaths, setup_gdb_debugging
 from tasks.kernel_matrix_testing.infra import (
     SSH_OPTIONS,
     HostInstance,
@@ -45,8 +47,10 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
-from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
+from tasks.kernel_matrix_testing.setup import check_requirements, get_requirements
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_get_stack_or_exit, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
+from tasks.kernel_matrix_testing.types import PlatformInfo, component_from_str
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import (
@@ -55,7 +59,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     post_process_gitlab_ci_configuration,
     resolve_gitlab_ci_configuration,
 )
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
@@ -70,6 +74,7 @@ from tasks.system_probe import (
     TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
     check_for_ninja,
+    compute_go_parallelism,
     get_ebpf_build_dir,
     get_ebpf_runtime_dir,
     get_sysprobe_test_buildtags,
@@ -93,14 +98,6 @@ try:
     from tabulate import tabulate
 except ImportError:
     tabulate = None
-
-
-try:
-    from termcolor import colored
-except ImportError:
-
-    def colored(text: str, color: str | None) -> str:  # noqa: U100
-        return text
 
 
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
@@ -136,7 +133,7 @@ def gen_config(
     init_stack=True,
     vcpu: str | None = None,
     memory: str | None = None,
-    new=False,
+    new=True,
     ci=False,
     arch: str = "",
     output_file: str = "vmconfig.json",
@@ -298,6 +295,49 @@ def gen_config_from_ci_pipeline(
 
 
 @task
+def attach_gdb(ctx: Context, vm: str, stack: str | None = None, dry=True):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+
+    if not os.path.exists(f"{Path.home()}/.gdbinit-gef.py"):
+        resp = ask(
+            "It is recommended to use gdb with the bata24 extension (https://github.com/bata24/gef) which greatly enhances the kernel debugging experience. You can install the extension with `inv -e kmt.install_bata24_gef`. Continue without installing? (y/N)"
+        )
+        if resp.lower().strip() != "y":
+            raise Exit("Aborted by user")
+
+    domains = get_target_domains(ctx, stack, None, None, vm, None)
+    assert len(domains) > 0, f"no running VM discovered for the provided vm {vm}"
+    assert len(domains) == 1, "GDB can only be attached to one VM at a time"
+
+    domain = domains[0]
+    if domain.gdb_port == 0:
+        raise Exit(
+            "VM was not launched with GDB debugging support. To use this feature specify the `--gdb` flag when invoke the `kmt.launch-stack` task"
+        )
+
+    platforms = get_platforms()
+    kmt_arch = Arch.from_str(domain.arch).kmt_arch
+    platinfo = platforms[kmt_arch][domain.tag]
+    gdb_paths = GDBPaths(domain.tag, platinfo['image_version'], stack, domain.arch)
+
+    cmd = f"gdb \
+-ex \"add-auto-load-safe-path {gdb_paths.kernel_source}\" \
+-ex \"file {gdb_paths.vmlinux}\" \
+-ex \"set arch i386:x86-64:intel\" -ex \"target remote localhost:{domain.gdb_port}\" \
+-ex \"source {gdb_paths.kernel_source}/vmlinux-gdb.py\" \
+-ex \"set disassembly-flavor intel\" \
+-ex \"set pagination off\" \
+"
+
+    if dry:
+        info(f"[+] Run the following command: {cmd}")
+    else:
+        ctx.run(cmd)
+
+
+@task
 def launch_stack(
     ctx: Context,
     stack: str | None = None,
@@ -306,14 +346,22 @@ def launch_stack(
     arm_ami: str = ARM_AMI_ID_SANDBOX,
     provision_microvms: bool = True,
     provision_script: str | None = None,
+    gdb: bool = False,
 ):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
-    stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
+    if gdb and get_kmt_os().name != "linux":
+        # TODO: add kernel debugging support for MacOS
+        raise Exit("GDB attached to guest VM is only supported for linux systems")
+
+    stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms, gdb)
+
     if provision_script is not None:
         provision_stack(ctx, provision_script, stack, ssh_key)
+
+    if gdb:
+        setup_gdb_debugging(ctx, stack)
+        info("[+] GDB setup complete")
 
 
 @task
@@ -323,9 +371,7 @@ def provision_stack(
     stack: str | None = None,
     ssh_key: str | None = None,
 ):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
@@ -369,9 +415,19 @@ def ls(_, distro=True, custom=False):
         "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
         "all-images": "Download all available VM images for the current architecture.",
         "skip-ssh-setup": "Skip step to setup SSH files for interacting with remote AWS VMs",
+        "exclude-requirements": "Comma separated list of requirements to exclude. Refer to the output of `dda inv kmt.selfcheck` for the available requirements.",
+        "only-requirements": "Comma separated list of requirements to include, no other requirements will be checked. Refer to the output of `dda inv kmt.selfcheck` for the available requirements.",
     }
 )
-def init(ctx: Context, images: str | None = None, all_images=False, remote_setup_only=False, skip_ssh_setup=False):
+def init(
+    ctx: Context,
+    images: str | None = None,
+    all_images=False,
+    remote_setup_only=False,
+    skip_ssh_setup=False,
+    exclude_requirements: list[str] | None = None,
+    only_requirements: list[str] | None = None,
+):
     if not remote_setup_only and not all_images and images is None:
         if (
             ask(
@@ -387,7 +443,14 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
         info("[+] Use `dda inv kmt.update-resources --images=<list>` to download specific images for local use.")
 
     try:
-        init_kernel_matrix_testing_system(ctx, images, all_images, remote_setup_only)
+        init_kernel_matrix_testing_system(
+            ctx,
+            images,
+            all_images,
+            remote_setup_only,
+            exclude_requirements,
+            only_requirements,
+        )
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
@@ -398,6 +461,35 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
     info(
         "[+] Kernel matrix testing system initialized successfully. Refer to https://github.com/DataDog/datadog-agent/blob/main/tasks/kernel_matrix_testing/README.md for next steps."
     )
+
+
+@task
+def selfcheck(
+    ctx: Context,
+    remote_setup_only: bool = False,
+    fix: bool = False,
+    exclude_requirements: list[str] | None = None,
+    only_requirements: list[str] | None = None,
+    show_flare_for_failures: bool = False,
+):
+    requirements = get_requirements(remote_setup_only, exclude_requirements, only_requirements)
+    failed = check_requirements(
+        ctx,
+        requirements,
+        fix=fix,
+        echo=True,
+        verbose=ctx.config["run"]["echo"],
+        show_flare_for_failures=show_flare_for_failures,
+    )
+
+    # flush stdout to ensure formatting is correct
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    if failed:
+        raise Exit("[-] KMT setup incorrect")
+    else:
+        info("[+] KMT setup correct")
 
 
 @task
@@ -584,11 +676,13 @@ def is_root():
     return os.getuid() == 0
 
 
-def ninja_define_rules(nw: NinjaWriter):
-    # go build does not seem to be designed to run concurrently on the same
-    # source files. To make go build work with ninja we create a pool to force
-    # only a single instance of go to be running.
-    nw.pool(name="gobuild", depth=1)
+def ninja_define_rules(
+    nw: NinjaWriter,
+    debug: bool = False,
+    ci: bool = False,
+):
+    go_parallelism = compute_go_parallelism(debug=debug, ci=ci)
+    nw.pool(name="gobuild", depth=go_parallelism)
 
     nw.rule(
         name="gotestsuite",
@@ -597,7 +691,7 @@ def ninja_define_rules(nw: NinjaWriter):
     nw.rule(name="copyextra", command="cp -r $in $out")
     nw.rule(
         name="gobin",
-        command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
+        command="$chdir && $env $go build -o $out $tags $extra_arguments $ldflags $in $tool",
     )
     nw.rule(name="copyfiles", command="mkdir -p $$(dirname $out) && install $in $out $mode")
 
@@ -721,7 +815,7 @@ def ninja_copy_ebpf_files(
 @task
 def kmt_secagent_prepare(
     ctx: Context,
-    stack: str | None = None,
+    stack: str,
     arch: Arch | str = "local",
     packages: str | None = None,
     verbose: bool = True,
@@ -753,7 +847,7 @@ def kmt_secagent_prepare(
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file)
 
-        ninja_define_rules(nw)
+        ninja_define_rules(nw, debug=verbose, ci=ci)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(
             nw,
@@ -789,6 +883,9 @@ def prepare(
     if ci:
         stack = "ci"
         return _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only)
+
+    if stack is None:
+        raise Exit("stack is required")
 
     domains = None
     if not compile_only:
@@ -881,6 +978,9 @@ def _prepare(
     if ci or compile_only:
         return
 
+    if domains is None:
+        raise Exit("domains is required when not in CI or compile_only mode")
+
     info(f"[+] Preparing VMs in stack {stack} for {arch_obj}")
 
     target_instances: list[HostInstance] = []
@@ -924,10 +1024,12 @@ def build_run_config(run: str | None, packages: list[str]):
 
     for p in packages:
         p = p.removeprefix("./")
+        if "filters" not in c:
+            c["filters"] = {}
         if run is not None:
-            c["filters"] = {p: {"run-only": [run]}}
+            c["filters"][p] = {"run-only": [run]}
         else:
-            c["filters"] = {p: {"exclude": False}}
+            c["filters"][p] = {"exclude": False}
 
     return c
 
@@ -1032,7 +1134,7 @@ def kmt_sysprobe_prepare(
             env_str += f"{key}='{new_val}' "
         env_str = env_str.rstrip()
 
-        ninja_define_rules(nw)
+        ninja_define_rules(nw, debug=True, ci=ci)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
         ninja_add_dyninst_test_programs(
@@ -1144,6 +1246,9 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
     not_matches = []
     for tag in platforms[arch]:
         platinfo = platforms[arch][tag]
+        if 'os_id' not in platinfo or 'os_version' not in platinfo:
+            continue
+
         vmid = f"{platinfo['os_id']}_{platinfo['os_version']}"
 
         check_tag = False
@@ -1257,6 +1362,7 @@ def test(
     stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
     domains = get_target_domains(ctx, stack, ssh_key, None, vms, alien_vms)
     used_archs = get_archs_in_domains(domains)
+    component = component_from_str(component)
 
     if alien_vms is not None:
         err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
@@ -1343,10 +1449,7 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
             stacks.create_stack(ctx, stack)
         return stack
 
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
     return stack
 
 
@@ -1429,10 +1532,7 @@ def build(
 
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
 
     ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
@@ -1561,21 +1661,23 @@ def status(ctx: Context, stack: str | None = None, all=False, ssh_key: str | Non
             else:
                 instance_id = ec2_instance_ids(ctx, [instance.ip])
                 if len(instance_id) == 0:
-                    status[stack].append(f"· {arch} AWS instance {instance.ip} - {colored('not running', 'red')}")
+                    status[stack].append(
+                        f"· {arch} AWS instance {instance.ip} - {color_message('not running', Color.RED)}"
+                    )
                     instances_down += 1
                 else:
                     status[stack].append(
-                        f"· {arch} AWS instance {instance.ip} - {colored('running', 'green')} - ID {instance_id[0]}"
+                        f"· {arch} AWS instance {instance.ip} - {color_message('running', Color.GREEN)} - ID {instance_id[0]}"
                     )
                     instances_up += 1
 
             for vm in instance.microvms:
                 vm_id = f"{vm.tag:14} | IP {vm.ip}"
                 if vm.check_reachable(ctx):
-                    status[stack].append(f"  - {vm_id} - {colored('up', 'green')}")
+                    status[stack].append(f"  - {vm_id} - {color_message('up', Color.GREEN)}")
                     vms_up += 1
                 else:
-                    status[stack].append(f"  - {vm_id} - {colored('down', 'red')}")
+                    status[stack].append(f"  - {vm_id} - {color_message('down', Color.RED)}")
                     vms_down += 1
 
             stack_status[stack] = (instances_down, instances_up, vms_down, vms_up)
@@ -1586,22 +1688,22 @@ def status(ctx: Context, stack: str | None = None, all=False, ssh_key: str | Non
         instances_down, instances_up, vms_down, vms_up = stack_status[stack]
 
         if instances_down == 0 and instances_up == 0:
-            status_str = colored("Empty", "grey")
+            status_str = color_message("Empty", Color.GREY)
         elif instances_up == 0:
-            status_str = colored("Hosts down", "red")
+            status_str = color_message("Hosts down", Color.RED)
         elif instances_down == 0:
-            status_str = colored("Hosts active", "green")
+            status_str = color_message("Hosts active", Color.GREEN)
         else:
-            status_str = colored("Hosts partially active", "yellow")
+            status_str = color_message("Hosts partially active", Color.ORANGE)
 
         if vms_down == 0 and vms_up == 0:
-            vm_status_str = colored("No VMs defined", "grey")
+            vm_status_str = color_message("No VMs defined", Color.GREY)
         elif vms_up == 0:
-            vm_status_str = colored("All VMs down", "red")
+            vm_status_str = color_message("All VMs down", Color.RED)
         elif vms_down == 0:
-            vm_status_str = colored("All VMs up", "green")
+            vm_status_str = color_message("All VMs up", Color.GREEN)
         else:
-            vm_status_str = colored("Some VMs down", "yellow")
+            vm_status_str = color_message("Some VMs down", Color.ORANGE)
 
         print(f"Stack {stack} - {status_str} - {vm_status_str}")
         for line in lines:
@@ -1681,23 +1783,17 @@ def update_platform_info(
                 warn(f"[!] Image {image_name} matches the exclude filter, skipping")
                 continue
 
-            manifest_to_platinfo_keys = {
+            manifest_to_platinfo_keys: dict[str, Literal['os_name', 'os_id', 'kernel', 'os_version']] = {
                 'NAME': 'os_name',
                 'ID': 'os_id',
                 'KERNEL_VERSION': 'kernel',
                 'VERSION_ID': 'os_version',
             }
 
-            if image_name not in platforms[arch.kmt_arch]:
-                platforms[arch.kmt_arch][image_name] = {}
-            img_data = platforms[arch.kmt_arch][image_name]
-
+            img_data = PlatformInfo(image=image_filename + ".xz", image_version=version)
             for mkey, pkey in manifest_to_platinfo_keys.items():
                 if mkey in keyvals:
                     img_data[pkey] = keyvals[mkey]
-
-            img_data['image'] = image_filename + ".xz"
-            img_data['image_version'] = version
 
             if 'VERSION_CODENAME' in keyvals:
                 altname = keyvals['VERSION_CODENAME']
@@ -1707,6 +1803,11 @@ def update_platform_info(
                     altnames.append(altname)
 
                 img_data['alt_version_names'] = altnames
+
+            if image_name not in platforms[arch.kmt_arch]:
+                platforms[arch.kmt_arch][image_name] = img_data
+            else:
+                platforms[arch.kmt_arch][image_name].update(img_data)
 
     info(f"[+] Writing output to {platforms_file}...")
 
@@ -2025,10 +2126,7 @@ def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None)
 
 @task
 def show_last_test_results(ctx: Context, stack: str | None = None):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
@@ -2089,10 +2187,10 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
             total_by_vm[vm_name] = tuple(x + y for x, y in zip(result_tuple, total_by_vm[vm_name], strict=True))  # type: ignore
 
     def _color_result(result: tuple[int, int, int, int]) -> str:
-        success = colored(str(result[0]), "green" if result[0] > 0 else None)
-        success_on_retry = colored(str(result[1]), "blue" if result[1] > 0 else None)
-        failures = colored(str(result[2]), "red" if result[2] > 0 else None)
-        skipped = colored(str(result[3]), "yellow" if result[3] > 0 else None)
+        success = color_message(str(result[0]), Color.GREEN if result[0] > 0 else Color.GREY)
+        success_on_retry = color_message(str(result[1]), Color.BLUE if result[1] > 0 else Color.GREY)
+        failures = color_message(str(result[2]), Color.RED if result[2] > 0 else Color.GREY)
+        skipped = color_message(str(result[3]), Color.ORANGE if result[3] > 0 else Color.GREY)
 
         return f"{success}/{success_on_retry}/{failures}/{skipped}"
 
@@ -2230,18 +2328,21 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
     kmt_pipeline = KMTPipeline(pipeline_id)
     kmt_pipeline.retrieve_jobs()
     matching_jobs = [j for j in kmt_pipeline.setup_jobs if j.arch == arch.kmt_arch and j.component == component]
-    if len(matching_jobs) != 1:
-        raise Exit(f"Search for setup_job for {arch} {component} failed: result = {matching_jobs}")
-
-    setup_job = matching_jobs[0]
 
     def _check_status(_):
-        setup_job.refresh()
-        info(f"[+] Status for job {setup_job.name}: {setup_job.status}")
-        return setup_job.status.has_finished(), None
+        has_finished = True
+        for setup_job in matching_jobs:
+            setup_job.refresh()
+            info(f"[+] Status for job {setup_job.name} ({setup_job.id}): {setup_job.status}")
+            if not setup_job.status.has_finished():
+                has_finished = False
+
+        return has_finished, None
 
     loop_status(_check_status, timeout_sec=timeout_sec)
-    info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
+
+    for setup_job in matching_jobs:
+        info(f"[+] Setup job {setup_job.name} ({setup_job.id}) finished with status {setup_job.status}")
 
 
 # by default the PyYaml dumper does not indent lists correctly using to problem when
@@ -2287,6 +2388,9 @@ def install_ddagent(
         with open("release.json") as f:
             release = json.load(f)
         version = release["last_stable"]["7"]
+
+    if version is None:
+        raise Exit("version is required")
 
     match = VERSION_RE.match(version)
     if not match:
@@ -2544,3 +2648,8 @@ def start_microvms(
             agent_version=agent_version,
         )
     )
+
+
+@task
+def install_bata24_gef(ctx):
+    ctx.run("tasks/kernel_matrix_testing/provision/bata24.sh")

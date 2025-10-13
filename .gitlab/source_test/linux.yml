@@ -44,12 +44,13 @@
       junit: "**/junit-out-*.xml"
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 .linux_x64:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
 
-tests_deb-x64-py3:
+tests_linux-x64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
@@ -70,7 +71,7 @@ tests_nodetreemodel:
   after_script:
     # Don't upload junit results, which prevents e2e tests from running (they will fail)
     - !reference [.upload_coverage]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules:
     - !reference [.except_mergequeue]
     - !reference [.except_disable_unit_tests]
@@ -81,7 +82,25 @@ tests_nodetreemodel:
     DD_CONF_NODETREEMODEL: enable
   allow_failure: true
 
-tests_flavor_iot_deb-x64:
+tests_nodetreemodel_unmarshal:
+  extends:
+    - .rtloader_tests
+    - .linux_tests
+    - .linux_x64
+  after_script:
+    - !reference [.upload_junit_source]
+    - !reference [.upload_coverage]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+  variables:
+    CONDA_ENV: ddpy3
+    # This env var enables the pkg/config/structure to unmarshal config
+    DD_CONF_NODETREEMODEL: unmarshal
+
+tests_flavor_iot_linux-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
@@ -92,7 +111,7 @@ tests_flavor_iot_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavor iot'
 
-tests_flavor_dogstatsd_deb-x64:
+tests_flavor_dogstatsd_linux-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
@@ -103,7 +122,7 @@ tests_flavor_dogstatsd_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavor dogstatsd'
 
-tests_flavor_heroku_deb-x64:
+tests_flavor_heroku_linux-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
@@ -114,42 +133,18 @@ tests_flavor_heroku_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavor heroku'
 
-tests_rpm-x64-py3:
+tests_linux-arm64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64
-  tags: ["arch:amd64"]
-  variables:
-    CONDA_ENV: ddpy3
-    EXTRA_OPTS: '--build-exclude=systemd'
-
-tests_deb-arm64-py3:
-  extends:
-    - .rtloader_tests
-    - .linux_tests
-  after_script:
-    - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$CI_IMAGE_DEB_ARM64_SUFFIX:$CI_IMAGE_DEB_ARM64
-  tags: ["arch:arm64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
   variables:
     CONDA_ENV: ddpy3
 
-tests_rpm-arm64-py3:
-  extends:
-    - .rtloader_tests
-    - .linux_tests
-  after_script:
-    - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_arm64$CI_IMAGE_RPM_ARM64_SUFFIX:$CI_IMAGE_RPM_ARM64
-  tags: ["arch:arm64"]
-  variables:
-    CONDA_ENV: ddpy3
 
 tests_serverless-init:
   extends: .linux_x64
@@ -163,6 +158,17 @@ tests_serverless-init:
     - !reference [.retrieve_linux_go_deps]
     - go test -tags "serverless otlp test" ./cmd/serverless-init/.
 
+tests_serverless-init-logs:
+  extends: .linux_x64
+  stage: source_test
+  needs: ["go_deps"]
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - go test -tags "serverless otlp test" ./cmd/serverless-init/.
 
 # Check consistency of go.mod file with project imports
 go_mod_tidy_check:
@@ -182,7 +188,7 @@ go_mod_tidy_check:
 new-e2e-unit-tests:
   extends: .linux_tests
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs:
     - go_e2e_deps
     - go_deps

@@ -51,7 +51,7 @@ func TestLogsExporter(t *testing.T) {
 				{
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
-					"instance_num":         "1",
+					"instance_num":         float64(1),
 					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
@@ -85,7 +85,7 @@ func TestLogsExporter(t *testing.T) {
 				{
 					"message":              "hello",
 					"app":                  "server",
-					"instance_num":         "1",
+					"instance_num":         float64(1),
 					"datadog.log.source":   "custom_source",
 					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
@@ -121,7 +121,7 @@ func TestLogsExporter(t *testing.T) {
 				{
 					"message":              "This is a log message",
 					"app":                  "server",
-					"instance_num":         "1",
+					"instance_num":         float64(1),
 					"datadog.log.source":   "custom_source_rattr",
 					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
@@ -154,7 +154,7 @@ func TestLogsExporter(t *testing.T) {
 				{
 					"message":              "This is a log message",
 					"app":                  "server",
-					"instance_num":         "1",
+					"instance_num":         float64(1),
 					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Fatal",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
@@ -186,7 +186,7 @@ func TestLogsExporter(t *testing.T) {
 				{
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
-					"instance_num":         "1",
+					"instance_num":         float64(1),
 					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
@@ -220,7 +220,7 @@ func TestLogsExporter(t *testing.T) {
 				{
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
-					"instance_num":         "1",
+					"instance_num":         float64(1),
 					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
@@ -265,7 +265,7 @@ func TestLogsExporter(t *testing.T) {
 				{
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
-					"instance_num":         "1",
+					"instance_num":         float64(1),
 					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),

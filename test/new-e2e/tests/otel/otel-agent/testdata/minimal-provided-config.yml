@@ -19,9 +19,10 @@ exporters:
       fail_on_invalid_key: false
       key: "${env:DD_API_KEY}"
       site: datadoghq.com
+    force_attempt_http2: true
     headers: {}
     host_metadata:
-      enabled: false
+      enabled: true
       hostname_source: config_or_system
       reporter_period: 30m0s
       tags: []
@@ -86,7 +87,7 @@ processors:
 receivers:
   otlp:
     protocols:
-      grpc: 
+      grpc:
         endpoint: 0.0.0.0:4317
         keepalive:
           enforcement_policy: {}
@@ -94,7 +95,7 @@ receivers:
         read_buffer_size: 524288
         transport: tcp
       http:
-        cors: {}
+        cors: null
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
         logs_url_path: /v1/logs

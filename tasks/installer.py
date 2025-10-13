@@ -4,6 +4,7 @@ installer namespaced tasks
 
 import glob
 import hashlib
+import sys
 from os import makedirs, path
 
 from invoke import task
@@ -11,12 +12,11 @@ from invoke import task
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 DIR_BIN = path.join(".", "bin", "installer")
 INSTALLER_BIN = path.join(DIR_BIN, bin_name("installer"))
 INSTALL_SCRIPT_TEMPLATE = path.join("pkg", "fleet", "installer", "setup", "install.sh")
-
-MAJOR_VERSION = '7'
 
 
 @task
@@ -37,9 +37,17 @@ def build(
     Build the installer.
     """
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=MAJOR_VERSION, install_path=install_path, run_path=run_path
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, run_path=run_path)
+
+    if sys.platform == 'win32':
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx)
+        build_rc(
+            ctx,
+            "cmd/installer/windows_resources/datadog-installer.rc",
+            vars=vars,
+            out="cmd/installer/rsrc.syso",
+        )
 
     build_include = (
         get_default_build_tags(

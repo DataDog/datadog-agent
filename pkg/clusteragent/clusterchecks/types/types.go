@@ -17,9 +17,23 @@ const (
 	ExtraHeartbeatLastChangeValue int64 = -1
 )
 
+/*
+NodeType represents the type of node reporting status to the cluster agent.
+It is used to distinguish between CLC runners, node agents, and unknown types.
+*/
+type NodeType uint8
+
+const (
+	// NodeTypeCLCRunner represents a cluster check runner.
+	NodeTypeCLCRunner NodeType = 1
+	// NodeTypeNodeAgent represents a node agent.
+	NodeTypeNodeAgent NodeType = 2
+)
+
 // NodeStatus holds the status report from the node-agent
 type NodeStatus struct {
-	LastChange int64 `json:"last_change"`
+	LastChange int64    `json:"last_change"`
+	NodeType   NodeType `json:"node_type,omitempty"`
 }
 
 // StatusResponse holds the DCA response for a status report

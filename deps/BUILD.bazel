@@ -1,0 +1,18 @@
+# Do not depend on this.
+# This is a temporary target to make it easy to force build dependencies
+# before they are used by other targets.
+filegroup(
+    name = "smoketest",
+    srcs = [
+        "@bzip2",
+        "@bzip2//:bz2",
+        "@libffi",
+        "@libyaml",
+        "@lua//:liblua",
+        "@sqlite3",
+        "@xz",
+        "@xz//:lzma",
+        "@zlib//:libz_so",
+    ],
+    visibility = ["//visibility:private"],
+)

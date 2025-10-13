@@ -37,7 +37,7 @@ from tasks.libs.common.utils import (
     parse_kernel_version,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
-from tasks.libs.types.arch import ALL_ARCHS, Arch
+from tasks.libs.types.arch import ALL_ARCHS, ARCH_ARM64, Arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -57,9 +57,10 @@ TEST_PACKAGES_LIST = [
     "./pkg/process/monitor/...",
     "./pkg/dyninst/...",
     "./pkg/gpu/...",
+    "./pkg/logs/launchers/file/",
+    "./pkg/privileged-logs/test/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
-    "./pkg/networkpath/traceroute/packets/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -101,8 +102,8 @@ def get_ebpf_runtime_dir() -> Path:
     return Path("pkg/ebpf/bytecode/build/runtime")
 
 
-def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
-    maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
+def ninja_define_windows_resources(ctx, nw: NinjaWriter):
+    maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx).split(".")
     nw.variable("maj_ver", maj_ver)
     nw.variable("min_ver", min_ver)
     nw.variable("patch_ver", patch_ver)
@@ -112,6 +113,13 @@ def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
         name="windres",
         command="windres --define MAJ_VER=$maj_ver --define MIN_VER=$min_ver --define PATCH_VER=$patch_ver "
         + "-i $in --target $windrestarget -O coff -o $out",
+    )
+
+
+def ninja_define_binary_compiler(nw: NinjaWriter):
+    nw.rule(
+        name="cbin",
+        command="$cc $cflags -o $out $in $ldflags",
     )
 
 
@@ -223,7 +231,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=0",
+            "flags": security_flags,
             "kheaders": kheaders,
         },
     )
@@ -237,7 +245,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=syscall_wrapper_outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1",
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER",
             "kheaders": kheaders,
         },
     )
@@ -251,7 +259,7 @@ def ninja_security_ebpf_programs(
         infile=infile,
         outfile=syscall_wrapper_outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1 -DUSE_FENTRY=1",
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER -DUSE_FENTRY",
             "kheaders": kheaders,
         },
     )
@@ -343,6 +351,35 @@ def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
         ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
 
 
+def ninja_kernel_bug_binaries(nw: NinjaWriter, arch: str | Arch):
+    arch = Arch.from_str(arch)
+
+    # do not build for arm64
+    if arch == ARCH_ARM64:
+        return
+
+    ebpf_c_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
+    embedded_bins = ["detect-seccomp-bug"]
+
+    for binary in embedded_bins:
+        infile = os.path.join(ebpf_c_dir, f"{binary}.c")
+        outfile = os.path.join(ebpf_c_dir, binary)
+        cc = "gcc"
+
+        nw.build(
+            inputs=[infile],
+            outputs=[outfile],
+            rule="cbin",
+            variables={"cc": cc, "cflags": "-static", "ldflags": "-lseccomp"},
+        )
+
+
+def ninja_test_ebpf_program(nw: NinjaWriter, build_dir, ebpf_c_dir, test_flags, prog):
+    infile = os.path.join(ebpf_c_dir, f"{prog}.c")
+    outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
+    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": test_flags})
+
+
 def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     ebpf_bpf_dir = os.path.join("pkg", "ebpf")
     ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
@@ -351,11 +388,12 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     test_programs = ["logdebug-test", "error_telemetry", "uprobe_attacher-test"]
 
     for prog in test_programs:
-        infile = os.path.join(ebpf_c_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_ebpf_co_re_program(
-            nw, infile, outfile, {"flags": test_flags}
-        )  # All test ebpf programs are just for testing, so we always build them with debug symbols
+        ninja_test_ebpf_program(nw, build_dir, ebpf_c_dir, test_flags, prog)
+
+
+def ninja_kernel_bugs_ebpf_programs(nw: NinjaWriter):
+    build_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
+    ninja_test_ebpf_program(nw, build_dir, build_dir, "", "uprobe-trigger")
 
 
 def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
@@ -443,7 +481,6 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
-        "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
         "pkg/gpu/compile.go": "gpu",
     }
 
@@ -563,7 +600,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
             ],
-            "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/base_event.h"],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
             ],
@@ -617,7 +653,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
 def ninja_generate(
     ctx: Context,
     ninja_path,
-    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     debug=False,
     strip_object_files=False,
@@ -632,7 +667,7 @@ def ninja_generate(
         nw = NinjaWriter(ninja_file, width=120)
 
         if is_windows:
-            ninja_define_windows_resources(ctx, nw, major_version)
+            ninja_define_windows_resources(ctx, nw)
             # messagestrings
             in_path = MESSAGESTRINGS_MC_PATH
             in_name = os.path.splitext(os.path.basename(in_path))[0]
@@ -654,9 +689,12 @@ def ninja_generate(
         else:
             gobin = get_gobin(ctx)
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
+            ninja_define_binary_compiler(nw)
             ninja_define_co_re_compiler(nw, arch=arch)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, co_re_build_dir)
+            ninja_kernel_bugs_ebpf_programs(nw)
+            ninja_kernel_bug_binaries(nw, arch)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
@@ -706,6 +744,12 @@ def build_libpcap(ctx):
                 "--disable-bluetooth",
                 "--disable-dbus",
                 "--disable-rdma",
+                "--without-dag",
+                "--without-dpdk",
+                "--without-libnl",
+                "--without-septel",
+                "--without-snf",
+                "--without-turbocap",
             ]
             ctx.run(f"./configure {' '.join(config_opts)}")
             ctx.run("make install")
@@ -739,7 +783,6 @@ def build(
     ctx,
     race=False,
     rebuild=False,
-    major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
@@ -758,7 +801,6 @@ def build(
     if not is_macos:
         build_object_files(
             ctx,
-            major_version=major_version,
             kernel_release=kernel_release,
             debug=debug,
             strip_object_files=strip_object_files,
@@ -768,7 +810,6 @@ def build(
 
     build_sysprobe_binary(
         ctx,
-        major_version=major_version,
         bundle_ebpf=bundle_ebpf,
         go_mod=go_mod,
         race=race,
@@ -796,7 +837,6 @@ def build_sysprobe_binary(
     ctx,
     race=False,
     rebuild=False,
-    major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
     binary=BIN_PATH,
@@ -812,7 +852,6 @@ def build_sysprobe_binary(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
-        major_version=major_version,
         arch=arch_obj,
         static=static,
     )
@@ -1042,7 +1081,9 @@ def go_package_dirs(packages, build_tags):
     else:
         packages_arg = " ".join(packages)
 
-    cmd = f"go list -find -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
+    # Disable buildvcs to avoid attempting to invoke git, which can be slow in
+    # VMs and we don't need its output here.
+    cmd = f"go list -find -buildvcs=false -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
 
     target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
     return [p for p in target_packages if len(p) > 0]
@@ -1424,7 +1465,6 @@ def run_ninja(
     task="",
     target="",
     explain=False,
-    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1436,7 +1476,6 @@ def run_ninja(
     ninja_generate(
         ctx,
         nf_path,
-        major_version,
         arch,
         debug,
         strip_object_files,
@@ -1556,7 +1595,6 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
 @task(aliases=["object-files"])
 def build_object_files(
     ctx,
-    major_version='7',
     arch: str = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1577,7 +1615,6 @@ def build_object_files(
     run_ninja(
         ctx,
         explain=True,
-        major_version=major_version,
         kernel_release=kernel_release,
         debug=debug,
         strip_object_files=strip_object_files,
@@ -1623,7 +1660,6 @@ def build_object_files(
 
 def build_cws_object_files(
     ctx,
-    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1634,7 +1670,6 @@ def build_cws_object_files(
     run_ninja(
         ctx,
         target="cws",
-        major_version=major_version,
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
@@ -1642,11 +1677,10 @@ def build_cws_object_files(
     )
 
 
-def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
+def clean_object_files(ctx, kernel_release=None, debug=False, strip_object_files=False):
     run_ninja(
         ctx,
         task="clean",
-        major_version=major_version,
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
@@ -1719,10 +1753,6 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
         nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
         nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
-        nw.rule(
-            name="compress_minimized_btf",
-            command="tar --mtime=@0 -cJf $out -C $tar_working_directory $rel_in && rm $in",
-        )
 
         for root, dirs, files in os.walk(source_dir):
             path_from_root = os.path.relpath(root, source_dir)
@@ -1756,17 +1786,62 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     },
                 )
 
-                nw.build(
-                    rule="compress_minimized_btf",
-                    inputs=[minimized_btf_path],
-                    outputs=[f"{minimized_btf_path}.tar.xz"],
-                    variables={
-                        "tar_working_directory": os.path.join(output_dir, path_from_root),
-                        "rel_in": btf_filename,
-                    },
-                )
-
     ctx.run(f"ninja -f {ninja_file_path}", env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "})
+
+
+def compute_go_parallelism(debug: bool = False, ci: bool | None = None) -> int:
+    """
+    Compute Go build parallelism.
+
+    Uses platform-specific heuristics: macOS=1 (due to Go bugs), CI=4,
+    local=(CPU_count/2)+1. Can be overridden with NINJA_GO_PARALLELISM env var.
+
+    Args:
+        debug: Enable debug logging
+        ci: Force CI mode (conservative defaults)
+
+    Returns:
+        Number of parallel Go builds to run (>= 1)
+    """
+
+    def log(message: str):
+        print(message, flush=True, file=sys.stderr)
+
+    def debug_log(message: str):
+        if debug:
+            log(message)
+
+    # We want to bound the number of go builds to run concurrently to be well
+    # below the core count to avoid OOMing the system.
+    env_override = os.environ.get("NINJA_GO_PARALLELISM")
+    go_parallelism = None
+    if env_override:
+        try:
+            go_parallelism = int(env_override)
+            log(f"[+] Using parallelism of {go_parallelism} for Go builds (NINJA_GO_PARALLELISM)")
+        except ValueError:
+            log(f"Invalid value for NINJA_GO_PARALLELISM: {env_override}. Using parallelism of 1.")
+            go_parallelism = 1
+    else:
+        if sys.platform == "darwin":
+            # On macOS there's some bug with running Go builds in parallel.
+            reason = "on macOS, see https://github.com/golang/go/issues/59657"
+            go_parallelism = 1
+        elif ci:
+            # Arbitrary, but high enough for a win and low enough to not OOM.
+            reason = "CI"
+            go_parallelism = 4
+        else:
+            # This heuristic is okay but it runs into trouble in containers
+            # in docker or k8s where the limits on CPU are much lower than the
+            # host has cores. This is the situation in CI
+            reason = "derived from host CPU count"
+            go_parallelism = (os.cpu_count() / 2) + 1
+        debug_log(
+            f"[+] Using parallelism of {go_parallelism} for Go builds ({reason});"
+            + " override with NINJA_GO_PARALLELISM"
+        )
+    return go_parallelism
 
 
 @task
@@ -2064,17 +2139,15 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
 
 
 @task
-def build_dyninst_test_programs(ctx: Context, output_root: Path = "."):
+def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False):
     nf_path = os.path.join(output_root, "system-probe-dyninst-test-programs.ninja")
     with open(nf_path, "w") as nf:
         nw = NinjaWriter(nf)
-        # NB: This mirrors the ninja setup used in the kmt.py file. The choice
-        # not to parallelize the build there at all is suspect, but we'll copy
-        # it here for now.
-        nw.pool(name="gobuild", depth=1)
+        go_parallelism = compute_go_parallelism(debug, ci=False)
+        nw.pool(name="gobuild", depth=go_parallelism)
         nw.rule(
             name="gobin",
-            command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
+            command="$chdir && $env $go build -o $out $extra_arguments $tags $ldflags $in $tool",
         )
         ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
     ctx.run(f"ninja -d explain -v -f {nf_path}")
@@ -2102,11 +2175,13 @@ def ninja_add_dyninst_test_programs(
 
     # Find the dependencies of the test programs.
     tags_flag = f"-tags \"{','.join(build_tags)}\""
-    list_format = "{{ .ImportPath }} {{ .Module.Main }}: {{ join .Deps \" \" }}"
+    list_format = "{{ .ImportPath }} {{ .Name }}: {{ join .Deps \" \" }}"
     # Run from within the progs directory so that the go list command can find
     # the go.mod file.
     with ctx.cd(progs_path):
-        list_cmd = f"go list -test -f '{list_format}' {tags_flag} ./..."
+        # Disable buildvcs to avoid attempting to invoke git, which can be
+        # slow in VMs and we don't need it for our tests.
+        list_cmd = f"go list -buildvcs=false -mod=readonly -test -f '{list_format}' {tags_flag} ./..."
         # Disable GOWORK because our testprogs go.mod isn't listed there.
         env = {"GOWORK": "off"}
         res = ctx.run(list_cmd, hide=True, env=env)
@@ -2115,14 +2190,13 @@ def ninja_add_dyninst_test_programs(
     pkg_deps = {}
     for line in res.stdout.splitlines():
         pkg_main, deps = line.split(": ", 1)
-        pkg, main = pkg_main.split(" ", 1)
+        pkg, name = pkg_main.split(" ", 1)
         pkg = pkg.removeprefix(progs_prefix)
-        if bool(main):
+        if name == "main":
             deps = (d for d in deps.split(" ") if d.startswith(progs_prefix))
             pkg_deps[pkg] = {d.removeprefix(progs_prefix) for d in deps}
 
-    # In the future, we may want to support multiple go versions.
-    go_versions = ["go1.24.3"]
+    go_versions = ["go1.23.11", "go1.24.3", "go1.25.0"]
     archs = ["amd64", "arm64"]
 
     # Avoiding cgo aids in reproducing the build environment. It's less good in
@@ -2137,6 +2211,7 @@ def ninja_add_dyninst_test_programs(
     ):
         direct = glob.glob(f"{progs_path}/{pkg}/*.go")
         go_files = set(direct)
+        go_files.add(f"{progs_path}/go.mod")
         for dep in pkg_deps[pkg]:
             dep_files = glob.glob(f"{progs_path}/{dep}/*.go")
             dep_files = [p for p in dep_files if not p.endswith("test.go")]
@@ -2154,6 +2229,16 @@ def ninja_add_dyninst_test_programs(
             pool="gobuild",
             variables={
                 "go": go_path,
+                "extra_arguments": " ".join(
+                    [
+                        # Trimpath is used so that the binaries have predictable
+                        # source paths.
+                        "-trimpath",
+                        # Disable buildvcs to avoid attempting to invoke git, which can
+                        # be slow in VMs and we don't need it for our tests.
+                        "-buildvcs=false",
+                    ]
+                ),
                 # Run from within the package directory so that the go build
                 # command finds the go.mod file.
                 "chdir": f"cd {pkg_path}",

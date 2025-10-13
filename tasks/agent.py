@@ -18,10 +18,6 @@ from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_defau
 from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.gointegrationtest import (
-    CORE_AGENT_WINDOWS_IT_CONF,
-    containerized_integration_tests,
-)
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -81,9 +77,10 @@ AGENT_CORECHECKS = [
     "orchestrator_ecs",
     "cisco_sdwan",
     "network_path",
-    "service_discovery",
     "gpu",
     "wlan",
+    "discovery",
+    "versa",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -131,7 +128,6 @@ def build(
     embedded_path=None,
     rtloader_root=None,
     python_home_3=None,
-    major_version='7',
     exclude_rtloader=False,
     include_sds=False,
     go_mod="readonly",
@@ -165,7 +161,6 @@ def build(
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
-        major_version=major_version,
     )
 
     bundled_agents = ["agent"]
@@ -177,7 +172,7 @@ def build(
         # Do not call build_rc when cross-compiling on Linux as the intend is more
         # to streamline the development process that producing a working executable / installer
         if sys.platform == 'win32':
-            vars = versioninfo_vars(ctx, major_version=major_version)
+            vars = versioninfo_vars(ctx)
             build_rc(
                 ctx,
                 "cmd/agent/windows_resources/agent.rc",
@@ -450,10 +445,12 @@ def hacky_dev_image_build(
     target_image="agent",
     process_agent=False,
     trace_agent=False,
+    system_probe=False,
     push=False,
     race=False,
     signed_pull=False,
     arch=None,
+    development=True,
 ):
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
@@ -485,13 +482,15 @@ def hacky_dev_image_build(
             f"docker run --platform linux/{arch} --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
         )
 
-        os.environ["DELVE"] = "1"
+        if development:
+            os.environ["DELVE"] = "1"
         os.environ["LD_LIBRARY_PATH"] = (
             os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
         )
         build(
             ctx,
             race=race,
+            development=development,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(
@@ -510,6 +509,12 @@ def hacky_dev_image_build(
         trace_agent_build(ctx)
         copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
 
+    if system_probe:
+        from tasks.system_probe import build as system_probe_build
+
+        system_probe_build(ctx)
+        copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
             f'''FROM ubuntu:latest AS src
@@ -526,6 +531,7 @@ RUN apt-get update && \
     apt-get install -y patchelf
 
 COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
+COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
@@ -559,6 +565,7 @@ COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
 {copy_extra_agents}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
@@ -578,17 +585,6 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
         if push:
             ctx.run(f'docker push {target_image}')
-
-
-@task
-def integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
-    """
-    Run integration tests for the Agent
-    """
-    if sys.platform == 'win32':
-        return containerized_integration_tests(
-            ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, go_mod=go_mod, timeout=timeout
-        )
 
 
 def check_supports_python_version(check_dir, python):
@@ -611,7 +607,16 @@ def check_supports_python_version(check_dir, python):
         if 'requires-python' not in project_metadata:
             return True
 
-        specifier = SpecifierSet(project_metadata['requires-python'])
+        requires_python = project_metadata['requires-python']
+        # Handle malformed requires-python values (e.g., just ">=" without version)
+        if not requires_python or requires_python.strip() in ['>=', '>', '<=', '<', '==', '!=', '~=', '===']:
+            return True
+
+        try:
+            specifier = SpecifierSet(requires_python)
+        except Exception:
+            # If the specifier is malformed, assume it supports the Python version
+            return True
         # It might be e.g. `>=3.8` which would not immediatelly contain `3`
         for minor_version in range(100):
             if specifier.contains(f'{python}.{minor_version}'):
@@ -699,7 +704,6 @@ def version(
     url_safe=False,
     omnibus_format=False,
     git_sha_length=7,
-    major_version='7',
     cache_version=False,
     pipeline_id=None,
     include_git=True,
@@ -725,7 +729,6 @@ def version(
         include_git=include_git,
         url_safe=url_safe,
         git_sha_length=git_sha_length,
-        major_version=major_version,
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
         include_pre=include_pre,

@@ -22,6 +22,8 @@ import (
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"os"
+
+	"github.com/stretchr/testify/suite"
 )
 
 // BaseSuite the base suite for all installer tests on Windows (install script, MSI, exe etc...).
@@ -45,6 +47,7 @@ type BaseSuite struct {
 	stableAgent        *AgentVersionManager
 	CreateCurrentAgent func() (*AgentVersionManager, error)
 	CreateStableAgent  func() (*AgentVersionManager, error)
+	dumpFolder         string
 }
 
 // Installer The Datadog Installer for testing.
@@ -106,6 +109,17 @@ func (s *BaseSuite) SetupSuite() {
 	s.T().Logf("current agent version: %s", s.CurrentAgentVersion())
 	s.createStableAgent()
 	s.T().Logf("stable agent version: %s", s.StableAgentVersion())
+
+	// Enable crash dumps
+	host := s.Env().RemoteHost
+	s.dumpFolder = `C:\dumps`
+	err := windowscommon.EnableWERGlobalDumps(host, s.dumpFolder)
+	s.Require().NoError(err, "should enable WER dumps")
+	// Set the environment variable at the machine level.
+	// The tests will be re-installing services so the per-service environment
+	// won't be persisted.
+	_, err = host.Execute(`[Environment]::SetEnvironmentVariable("GOTRACEBACK", "wer", "Machine")`)
+	s.Require().NoError(err, "should set GOTRACEBACK environment variable")
 }
 
 // createCurrentAgent sets the current agent version for the test suite.
@@ -243,7 +257,74 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.Require().NoError(os.MkdirAll(outputDir, 0755))
 
 	s.installer = NewDatadogInstaller(s.Env(), s.CurrentAgentVersion().MSIPackage().URL, outputDir)
-	s.installScriptImpl = NewDatadogInstallScript(s.Env())
+	s.installScriptImpl = NewDatadogInstallScript(s.Env().RemoteHost)
+
+	// clear the event logs before each test
+	for _, logName := range []string{"System", "Application"} {
+		s.T().Logf("Clearing %s event log", logName)
+		err := windowscommon.ClearEventLog(s.Env().RemoteHost, logName)
+		s.Require().NoError(err, "should clear %s event log", logName)
+	}
+
+}
+
+// AfterTest collects the event logs and agent logs after each test
+// NOTE: AfterTest is not called after subtests
+func (s *BaseSuite) AfterTest(suiteName, testName string) {
+	if afterTest, ok := any(&s.BaseSuite).(suite.AfterTest); ok {
+		afterTest.AfterTest(suiteName, testName)
+	}
+
+	// look for and download crashdumps
+	dumps, err := windowscommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
+	s.Assert().NoError(err, "should download crash dumps")
+	if !s.Assert().Empty(dumps, "should not have crash dumps") {
+		s.T().Logf("Found crash dumps:")
+		for _, dump := range dumps {
+			s.T().Logf("  %s", dump)
+		}
+	}
+
+	if s.T().Failed() {
+		// If the test failed, export the event logs for debugging
+		vm := s.Env().RemoteHost
+		for _, logName := range []string{"System", "Application"} {
+			// collect the full event log as an evtx file
+			s.T().Logf("Exporting %s event log", logName)
+			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
+			err := windowscommon.ExportEventLog(vm, logName, outputPath)
+			s.Assert().NoError(err, "should export %s event log", logName)
+			// Log errors and warnings to the screen for easy access
+			out, err := windowscommon.GetEventLogErrorsAndWarnings(vm, logName)
+			if s.Assert().NoError(err, "should get errors and warnings from %s event log", logName) && out != "" {
+				s.T().Logf("Errors and warnings from %s event log:\n%s", logName, out)
+			}
+		}
+		// collect agent logs
+		s.collectAgentLogs()
+	}
+}
+
+func (s *BaseSuite) collectAgentLogs() {
+	host := s.Env().RemoteHost
+
+	s.T().Logf("Collecting agent logs")
+	logsFolder, err := host.GetLogsFolder()
+	if !s.Assert().NoError(err, "should get logs folder") {
+		return
+	}
+	entries, err := host.ReadDir(logsFolder)
+	if !s.Assert().NoError(err, "should read log folder") {
+		return
+	}
+	for _, entry := range entries {
+		s.T().Logf("Found log file: %s", entry.Name())
+		err = host.GetFile(
+			filepath.Join(logsFolder, entry.Name()),
+			filepath.Join(s.SessionOutputDir(), entry.Name()),
+		)
+		s.Assert().NoError(err, "should download %s", entry.Name())
+	}
 }
 
 // SetCatalogWithCustomPackage sets the catalog with a custom package
@@ -294,8 +375,7 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 
 	// Assert
 	// have to wait for experiment to finish installing
-	err := s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	s.Require().Host(s.Env().RemoteHost).
 		HasDatadogInstaller().
@@ -307,10 +387,41 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 // StartExperimentCurrentVersion starts an experiment of current agent version
 func (s *BaseSuite) StartExperimentCurrentVersion() (string, error) {
 	return s.startExperimentWithCustomPackage(WithName(consts.AgentPackage),
-		// Default to using OCI package from current pipeline
-		WithPipeline(s.Env().Environment.PipelineID()),
-		WithDevEnvOverrides("CURRENT_AGENT"),
+		WithPackage(s.CurrentAgentVersion().OCIPackage()),
 	)
+}
+
+func (s *BaseSuite) startxperf() {
+	host := s.Env().RemoteHost
+
+	err := host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+	s.Require().NoError(err)
+
+	// extract if C:/xperf dir does not exist
+	_, err = host.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
+	s.Require().NoError(err)
+
+	outputPath := "C:/kernel.etl"
+	xperfPath := "C:/xperf/xperf.exe"
+	_, err = host.Execute(fmt.Sprintf(`& "%s" -On Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f %s -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular`, xperfPath, outputPath))
+	s.Require().NoError(err)
+}
+
+func (s *BaseSuite) collectxperf() {
+	host := s.Env().RemoteHost
+
+	xperfPath := "C:/xperf/xperf.exe"
+	outputPath := "C:/full_host_profiles.etl"
+
+	_, err := host.Execute(fmt.Sprintf(`& "%s" -stop -d %s`, xperfPath, outputPath))
+	s.Require().NoError(err)
+
+	// collect xperf if the test failed
+	if s.T().Failed() {
+		outDir := s.SessionOutputDir()
+		err = host.GetFile(outputPath, filepath.Join(outDir, "full_host_profiles.etl"))
+		s.Require().NoError(err)
+	}
 }
 
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
@@ -328,8 +439,7 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 
 	// Assert
 	// have to wait for experiment to finish installing
-	err := s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	// sanity check: make sure we did indeed install the current version
 	s.Require().Host(s.Env().RemoteHost).
@@ -437,9 +547,17 @@ func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 	s.T().Helper()
 
+	// service must be running before we can get the PID
+	// might be redundant in some cases but we keep forgetting to ensure it
+	// in others and it keeps causing flakes.
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+
 	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 	s.Require().NoError(err)
 	s.Require().Greater(originalPID, 0)
+
+	s.startxperf()
+	defer s.collectxperf()
 
 	f()
 

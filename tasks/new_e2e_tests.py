@@ -24,20 +24,26 @@ from invoke.tasks import task
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.common.color import Color
-from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.git import get_commit_sha, get_modified_files
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import (
     REPO_PATH,
     color_message,
+    environ,
     gitlab_section,
     running_in_ci,
 )
+from tasks.libs.dynamic_test.backend import S3Backend
+from tasks.libs.dynamic_test.executor import DynTestExecutor
+from tasks.libs.dynamic_test.index import IndexKind
 from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
-from tasks.tools.e2e_stacks import destroy_remote_stack
+from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stack_local
+
+DEFAULT_DYNTEST_BUCKET_URI = "s3://dd-ci-persistent-artefacts-build-stable/datadog-agent"
 
 
 class TestState:
@@ -64,7 +70,7 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
         binary_path = output_path / binary_name
 
         # Build test binary
-        cmd = f"go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
 
         result = ctx.run(cmd, hide=True)
         if result.ok:
@@ -221,6 +227,7 @@ def build_binaries(
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
         "max_retries": "Maximum number of retries for failed tests, default 3",
+        "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
     },
 )
 def run(
@@ -232,12 +239,9 @@ def run(
     verbose=True,
     run=[],  # noqa: B006
     skip=[],  # noqa: B006
-    osversion="",
-    platform="",
-    arch="",
+    impacted=False,
     flavor="",
-    major_version="",
-    cws_supported_osversion="",
+    cws_supported_osdescriptors="",
     src_agent_version="",
     dest_agent_version="",
     keep_stacks=False,
@@ -256,6 +260,7 @@ def run(
     stack_name_suffix="",
     use_prebuilt_binaries=False,
     max_retries=0,
+    osdescriptors="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -272,6 +277,24 @@ def run(
     if targets:
         e2e_module.test_targets = targets
 
+    if impacted and running_in_ci():
+        try:
+            print(color_message("Using dynamic tests", "yellow"))
+            # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
+            with environ({"AWS_PROFILE": "DELETE"}):
+                backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
+                executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
+                changed_files = get_modified_files(ctx)
+                changed_packages = list({os.path.dirname(change) for change in changed_files})
+                print(color_message(f"The following changes were detected: {changed_files}", "yellow"))
+                to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changed_packages + changed_files)
+                ctx.run(f"datadog-ci metric --level job --metrics 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
+                print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
+                skip.extend(to_skip)
+        except Exception as e:
+            print(color_message(f"Error using dynamic tests: {e}", "red"))
+            print(color_message("Continuing with static tests", "yellow"))
+
     env_vars = {}
     if profile:
         env_vars["E2E_PROFILE"] = profile
@@ -281,11 +304,11 @@ def run(
     # Outside of CI try to automatically configure the secret to pull agent image
     if not running_in_ci():
         # Authentication against agent-qa is required for all kubernetes tests, to use the cache
-        parsed_params["ddagent:imagePullPassword"] = ctx.run(
-            "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True
-        ).stdout.strip()
-        parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-        parsed_params["ddagent:imagePullUsername"] = "AWS"
+        ecr_password = _get_agent_qa_ecr_password(ctx)
+        if ecr_password:
+            parsed_params["ddagent:imagePullPassword"] = ecr_password
+            parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+            parsed_params["ddagent:imagePullUsername"] = "AWS"
         # If we use an agent image from sandbox registry we need to authenticate against it
         if "376334461865" in agent_image or "376334461865" in cluster_agent_image:
             parsed_params["ddagent:imagePullPassword"] += (
@@ -353,7 +376,7 @@ def run(
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
 
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []
@@ -372,13 +395,10 @@ def run(
         "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
         "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
         "test_run_arg": test_run_arg,
-        "osversion": f"-osversion {osversion}" if osversion else "",
-        "platform": f"-platform {platform}" if platform else "",
-        "arch": f"-arch {arch}" if arch else "",
         "flavor": f"-flavor {flavor}" if flavor else "",
-        "major_version": f"-major-version {major_version}" if major_version else "",
-        "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}"
-        if cws_supported_osversion
+        "osdescriptors": f"-osdescriptors {osdescriptors}" if osdescriptors else "",
+        "cws_supported_osdescriptors": f"-cws-supported-osdescriptors {cws_supported_osdescriptors}"
+        if cws_supported_osdescriptors
         else "",
         "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else "",
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else "",
@@ -415,6 +435,9 @@ def run(
             result_json=partial_result_json,
             test_profiler=None,
         )
+        if test_res is None:
+            ctx.run("datadog-ci tag --level job --tags 'e2e.skipped_all_tests:true'")
+            return
 
         washer = TestWasher(test_output_json_file=partial_result_json)
 
@@ -501,7 +524,7 @@ def run(
         # Do not print all the params, they could contain secrets needed only in the CI
         params = [f"--targets {t}" for t in targets]
 
-        param_keys = ("osversion", "platform", "arch")
+        param_keys = ("osversion", "osdescriptors", "platform", "arch")
         for param_key in param_keys:
             if args.get(param_key):
                 params.append(f"-{args[param_key]}")
@@ -592,6 +615,12 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
     if not running_in_ci():
         raise Exit("This task should be run in CI only", 1)
 
+    remote_stack_cleaning = os.getenv("REMOTE_STACK_CLEANING") == "true"
+    if remote_stack_cleaning:
+        print("Using remote stack cleaning")
+    else:
+        print("Using local stack cleaning")
+
     stack_regex = re.compile(stack_regex)
 
     # Ideally we'd use the pulumi CLI to list all the stacks. However we have way too much stacks in the bucket so the commands hang forever.
@@ -624,15 +653,16 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
 
     print("About to delete the following stacks:", to_delete_stacks)
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
-        res = pool.map(destroy_remote_stack, to_delete_stacks)
+        destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
+        res = pool.map(destroy_func, to_delete_stacks)
         destroyed_stack = set()
         failed_stack = set()
-        for r, stack in res:
-            if r.returncode != 0:
+        for exit_code, stdout, stderr, stack in res:
+            if exit_code != 0:
                 failed_stack.add(stack)
             else:
                 destroyed_stack.add(stack)
-            print(f"Stack {stack}: {r.stdout} {r.stderr}")
+            print(f"Stack {stack}: {stdout} {stderr}")
 
     for stack in destroyed_stack:
         print(f"Stack {stack} destroyed successfully")
@@ -807,7 +837,9 @@ def deps(ctx, verbose=False):
 
 
 def _get_default_env():
-    return {"PULUMI_SKIP_UPDATE_CHECK": "true"}
+    return {
+        "PULUMI_SKIP_UPDATE_CHECK": "true",
+    }
 
 
 def _get_home_dir():
@@ -911,12 +943,16 @@ def _destroy_stack(ctx: Context, stack: str):
     # running in temp dir as this is where datadog-agent test
     # stacks are stored. It is expected to fail on stacks existing locally
     # with resources removed by agent-sandbox clean up job
+
+    destroy_env = _get_default_env()
+    destroy_env["PULUMI_K8S_DELETE_UNREACHABLE"] = "true"
+
     with ctx.cd(tempfile.gettempdir()):
         ret = ctx.run(
             f"pulumi destroy --stack {stack} --yes --remove --skip-preview",
             warn=True,
             hide=True,
-            env=_get_default_env(),
+            env=destroy_env,
         )
         if ret is not None and ret.exited != 0:
             if "No valid credential sources found" in ret.stdout:
@@ -936,7 +972,7 @@ def _destroy_stack(ctx: Context, stack: str):
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
                 warn=True,
                 hide=True,
-                env=_get_default_env(),
+                env=destroy_env,
             )
         if ret is not None and ret.exited != 0:
             raise Exit(
@@ -974,3 +1010,19 @@ def _is_local_state(pulumi_about: dict) -> bool:
     if url is None or not isinstance(url, str):
         return False
     return url.startswith("file://")
+
+
+def _get_agent_qa_ecr_password(ctx: Context) -> str:
+    ecr_password_res = ctx.run(
+        "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True, warn=True
+    )
+    if ecr_password_res.exited != 0:
+        ecr_password_res = ctx.run(
+            "aws-vault exec sso-agent-qa-account-admin -- aws ecr get-login-password", hide=True, warn=True
+        )
+    if ecr_password_res.exited != 0:
+        print(
+            "WARNING: Could not get ECR password for agent-qa account, if your test need to pull image from agent-qa ECR it is likely to fail"
+        )
+        return ""
+    return ecr_password_res.stdout.strip()

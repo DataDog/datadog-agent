@@ -382,6 +382,9 @@ var (
 	// MetricRulesStatus is the name of the metric used to report the rule status
 	// Tags: -
 	MetricRulesStatus = newRuntimeMetric(".rules_status")
+	// MetricSECLTotalVariables tracks the total number of SECL variables
+	// Tags: type ('bool', 'integer', 'string', 'ip', 'strings', 'integers', 'ips'), scope ('global', 'process', 'cgroup', 'container')
+	MetricSECLTotalVariables = newITRuntimeMetric("rule_engine", "total_variables")
 
 	// Enforcement metrics
 
@@ -588,6 +591,12 @@ var (
 	//MetricBPFFilterTruncated is the name of the metric used to report truncated BPF filter
 	// Tags: -
 	MetricBPFFilterTruncated = newRuntimeMetric(".bpf_filter.truncated")
+
+	// PrCtl metrics
+
+	// MetricNameTruncated is the name of the metric used to report truncated name used in prctl
+	// Tags: -
+	MetricNameTruncated = newRuntimeMetric(".prctl.name_truncated")
 )
 
 var (

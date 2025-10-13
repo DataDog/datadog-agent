@@ -148,5 +148,5 @@ func TestStatusEndpoints(t *testing.T) {
 	initStatus(t)
 
 	status := Get(false)
-	assert.Equal(t, "Reliable: Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com. on port 10516", status.Endpoints[0])
+	assert.Equal(t, "Reliable: Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com. on port 10516 (API Key: ********)", status.Endpoints[0])
 }

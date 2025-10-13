@@ -8,13 +8,19 @@
 package rcscrape
 
 import (
-	"errors"
+	"cmp"
+	"fmt"
+	"slices"
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -22,13 +28,23 @@ import (
 // Scraper is a component that scrapes remote config files from processes.
 // It coalesces updates and reports them via the GetUpdates method.
 type Scraper struct {
-	tenant *actuator.Tenant
-	mu     struct {
+	tenant      ActuatorTenant
+	loader      Loader
+	dispatcher  Dispatcher
+	irGenerator IRGenerator
+
+	mu struct {
 		sync.Mutex
 
-		sinks     map[ir.ProgramID]*scraperSink
+		processes map[actuator.ProcessID]*trackedProcess
 		debouncer debouncer
 	}
+}
+
+type trackedProcess struct {
+	pu procmon.ProcessUpdate
+	// The runtimeID reported by the tracer inside this process.
+	runtimeID string
 }
 
 // defaultIdlePeriod is the default idle period for the debouncer. This value
@@ -38,42 +54,91 @@ type Scraper struct {
 const defaultIdlePeriod = 250 * time.Millisecond
 
 // Actuator is an interface that enables the Scraper to create a new tenant.
-type Actuator interface {
-	NewTenant(
-		name string,
-		reporter actuator.Reporter,
-		irGenerator actuator.IRGenerator,
-	) *actuator.Tenant
+type Actuator[AT ActuatorTenant] interface {
+	NewTenant(name string, runtime actuator.Runtime) AT
+}
+
+// ActuatorTenant is an interface that enables the Scraper to handle updates.
+type ActuatorTenant interface {
+	HandleUpdate(update actuator.ProcessesUpdate)
+}
+
+// Dispatcher is an interface that enables the Scraper to register and unregister
+// sinks.
+type Dispatcher interface {
+	RegisterSink(programID ir.ProgramID, sink dispatcher.Sink)
+	UnregisterSink(programID ir.ProgramID)
+}
+
+// Loader is an interface that enables the Scraper to load programs.
+type Loader interface {
+	Load(compiler.Program) (*loader.Program, error)
+}
+
+// IRGenerator is an interface that enables the Scraper to generate IR.
+type IRGenerator interface {
+	GenerateIR(
+		_ ir.ProgramID, executablePath string, _ []ir.ProbeDefinition,
+	) (*ir.Program, error)
 }
 
 // NewScraper creates a new Scraper.
-func NewScraper(
-	a Actuator,
+func NewScraper[A Actuator[AT], AT ActuatorTenant](
+	a A, d Dispatcher, loader Loader,
 ) *Scraper {
-	v := &Scraper{}
-	v.mu.sinks = make(map[ir.ProgramID]*scraperSink)
+	return newScraper(a, d, loader, irGenerator{})
+}
+
+func newScraper[A Actuator[AT], AT ActuatorTenant](
+	a A, d Dispatcher, loader Loader, irGenerator IRGenerator,
+) *Scraper {
+	v := &Scraper{
+		dispatcher:  d,
+		loader:      loader,
+		irGenerator: irGenerator,
+	}
 	v.mu.debouncer = makeDebouncer(defaultIdlePeriod)
-	v.tenant = a.NewTenant(
-		"rc-scrape",
-		(*scraperReporter)(v),
-		irGenerator{},
-	)
+	v.mu.processes = make(map[actuator.ProcessID]*trackedProcess)
+	v.tenant = a.NewTenant("rc-scrape", (*scraperRuntime)(v))
 	return v
 }
 
-// ProcessUpdate is a wrapper around an actuator.ProcessUpdate that includes
-// the runtime ID of the process.
+// ProcessUpdate represents the current state of a process, which may have
+// changed since the last time the Scraper returned information about that
+// process. An update doesn't tell you exactly what changed, and ProcessUpdates
+// can be produced even when nothing at all changed.
 type ProcessUpdate struct {
 	procmon.ProcessUpdate
-	RuntimeID string
-	Probes    []ir.ProbeDefinition
+	RuntimeID         string
+	Probes            []ir.ProbeDefinition
+	ShouldUploadSymDB bool
 }
 
-// GetUpdates returns the current set of updates.
+// GetUpdates returns the current state of processes that have pending updates
+// (i.e. updates not previously returned by GetUpdates).
 func (s *Scraper) GetUpdates() []ProcessUpdate {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.mu.debouncer.coalesceInFlight(time.Now())
+	updates := s.mu.debouncer.getUpdates(time.Now())
+	res := make([]ProcessUpdate, 0, len(updates))
+	for _, u := range updates {
+		p, ok := s.mu.processes[u.procID]
+		if !ok {
+			log.Warnf("bug: debouncer update for untracked process: %v", u.procID)
+			continue
+		}
+		res = append(res, ProcessUpdate{
+			ProcessUpdate:     p.pu,
+			RuntimeID:         p.runtimeID,
+			Probes:            u.probes,
+			ShouldUploadSymDB: u.symdbEnabled,
+		})
+	}
+
+	slices.SortFunc(res, func(a, b ProcessUpdate) int {
+		return cmp.Compare(a.ProcessID.PID, b.ProcessID.PID)
+	})
+	return res
 }
 
 // AsProcMonHandler returns a procmon.Handler attached to the Scraper.
@@ -81,12 +146,77 @@ func (s *Scraper) AsProcMonHandler() procmon.Handler {
 	return (*procMonHandler)(s)
 }
 
+// AddUpdate accumulates a remote config update for a process, to be returned
+// later by GetUpdates.
+func (s *Scraper) AddUpdate(
+	now time.Time,
+	processID actuator.ProcessID,
+	file remoteConfigFile,
+) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.mu.processes[processID]
+	if !ok {
+		// Update corresponds to an untracked process. This can happen because
+		// notifications about process removal can race with reading updates
+		// from the BPF ringbuf.
+		return
+	}
+	s.checkRuntimeIDLocked(p, file.RuntimeID)
+
+	s.mu.debouncer.addUpdate(now, processID, file)
+
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef(
+			"rcscrape: process %v: got update for %s",
+			p.pu.ProcessID, file.ConfigPath,
+		)
+	}
+}
+
+// AddSymdbEnabled accumulates a SymDB enablement update for a process, to be
+// returned later by GetUpdates.
+func (s *Scraper) addSymdbEnabled(
+	now time.Time,
+	processID actuator.ProcessID,
+	runtimeID string,
+	symdbEnabled bool,
+) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.mu.processes[processID]
+	if !ok {
+		// Update corresponds to an untracked process.
+		return
+	}
+	s.checkRuntimeIDLocked(p, runtimeID)
+
+	s.mu.debouncer.addSymdbEnabled(now, processID, symdbEnabled)
+
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef(
+			"rcscrape: process %v: SymDB enabled: %t",
+			p.pu.ProcessID, symdbEnabled,
+		)
+	}
+}
+
+func (s *Scraper) checkRuntimeIDLocked(p *trackedProcess, runtimeID string) {
+	if p.runtimeID != "" && p.runtimeID != runtimeID {
+		log.Warnf(
+			"rcscrape: process %v: runtime ID mismatch: %s != %s",
+			p.pu.ProcessID, p.runtimeID, runtimeID,
+		)
+		s.mu.debouncer.clear(p.pu.ProcessID)
+	}
+	p.runtimeID = runtimeID
+}
+
 type procMonHandler Scraper
 
-// HandleProcessesUpdate is called by the actuator to track the current set of
-// processes.
+// HandleUpdate is called by the actuator to track the current set of processes.
 func (h *procMonHandler) HandleUpdate(update procmon.ProcessesUpdate) {
-	(*Scraper)(h).trackUpdate(update)
+	(*Scraper)(h).handleProcmonUpdates(update)
 	updates := make([]actuator.ProcessUpdate, 0, len(update.Processes))
 	for i := range update.Processes {
 		process := &update.Processes[i]
@@ -94,8 +224,9 @@ func (h *procMonHandler) HandleUpdate(update procmon.ProcessesUpdate) {
 			ProcessID:  process.ProcessID,
 			Executable: process.Executable,
 			Probes: []ir.ProbeDefinition{
-				remoteConfigProbeDefinitionV1,
-				remoteConfigProbeDefinitionV2,
+				probeDefinitionV1{},
+				probeDefinitionV2{},
+				symdbProbeDefinition{},
 			},
 		})
 	}
@@ -106,128 +237,83 @@ func (h *procMonHandler) HandleUpdate(update procmon.ProcessesUpdate) {
 }
 
 type scraperSink struct {
-	// This is baking in on a deep level that the program is 1:1 with the
-	// process ID.
-	programID  ir.ProgramID
-	processID  actuator.ProcessID
-	executable actuator.Executable
-	scraper    *Scraper
-	decoder    *decoder
+	programID ir.ProgramID
+	processID actuator.ProcessID
+	scraper   *Scraper
+	decoder   *decoder
 }
 
-func (s *scraperSink) HandleEvent(ev output.Event) error {
+var sinkErrLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+
+func (s *scraperSink) HandleEvent(msg dispatcher.Message) (retErr error) {
+	defer msg.Release()
+	ev := msg.Event()
+	// We don't want to fail out the actuator if we can't decode an event.
+	// Instead, we log the error and continue, but we'll make sure to clear
+	// the debouncer state for the process.
+	defer func() {
+		if retErr == nil {
+			return
+		}
+		if sinkErrLogLimiter.Allow() {
+			log.Errorf("rcscrape: error in HandleEvent: %v", retErr)
+		} else {
+			log.Debugf("rcscrape: error in HandleEvent: %v", retErr)
+		}
+		retErr = nil
+		s.scraper.mu.Lock()
+		defer s.scraper.mu.Unlock()
+		s.scraper.mu.debouncer.clear(s.processID)
+	}()
 	now := time.Now()
-	rcFile, err := s.decoder.HandleMessage(ev)
+	d, err := s.decoder.getEventDecoder(ev)
 	if err != nil {
 		return err
 	}
-	s.scraper.mu.Lock()
-	defer s.scraper.mu.Unlock()
-	s.scraper.mu.debouncer.addInFlight(now, s.processID, rcFile)
-	return nil
+	switch d := d.(type) {
+	case *remoteConfigEventDecoder:
+		rcFile, err := d.decodeRemoteConfigFile(ev)
+		if err != nil {
+			return err
+		}
+		s.scraper.AddUpdate(now, s.processID, rcFile)
+		return nil
+	case *symdbEventDecoder:
+		runtimeID, symdbEnabled, err := d.decodeSymdbEnabled(ev)
+		if err != nil {
+			return err
+		}
+		s.scraper.addSymdbEnabled(now, s.processID, runtimeID, symdbEnabled)
+		return nil
+	default:
+		return fmt.Errorf("unknown event decoder: %T", d)
+	}
 }
 
 func (s *scraperSink) Close() {
-	s.scraper.mu.Lock()
-	defer s.scraper.mu.Unlock()
-	delete(s.scraper.mu.sinks, s.programID)
 }
 
-func (s *Scraper) trackUpdate(update procmon.ProcessesUpdate) {
+func (s *Scraper) handleProcmonUpdates(update procmon.ProcessesUpdate) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, process := range update.Processes {
-		s.mu.debouncer.track(process)
+	for _, proc := range update.Processes {
+		s.mu.processes[proc.ProcessID] = &trackedProcess{
+			pu:        proc,
+			runtimeID: "",
+		}
 	}
-	for _, process := range update.Removals {
-		s.mu.debouncer.untrack(process)
+	for _, pid := range update.Removals {
+		s.untrackLocked(pid)
 	}
 }
 
-type scraperReporter Scraper
-
-// ReportAttached implements actuator.Reporter.
-func (s *scraperReporter) ReportAttached(
-	procID actuator.ProcessID,
-	_ *ir.Program,
-) {
-	log.Tracef("rcscrape: attached to process %v", procID)
-}
-
-// ReportAttachingFailed implements actuator.Reporter.
-func (s *scraperReporter) ReportAttachingFailed(
-	procID actuator.ProcessID,
-	_ *ir.Program,
-	err error,
-) {
-	log.Infof("rcscrape: failed to attach probes to process %v: %v", procID, err)
-	s.untrack(procID)
-}
-
-// ReportDetached implements actuator.Reporter.
-func (s *scraperReporter) ReportDetached(
-	procID actuator.ProcessID,
-	_ *ir.Program,
-) {
-	log.Tracef("rcscrape: detached from process %v", procID)
-	s.untrack(procID)
-}
-
-var noSuccessProbesError = &actuator.NoSuccessfulProbesError{}
-
-// ReportIRGenFailed implements actuator.Reporter.
-func (s *scraperReporter) ReportIRGenFailed(
-	processID actuator.ProcessID,
-	err error,
-	_ []ir.ProbeDefinition,
-) {
-	if errors.Is(err, noSuccessProbesError) {
-		log.Tracef(
-			"rcscrape: process %v has no successful probes, skipping", processID,
-		)
-	} else {
-		log.Errorf("rcscrape: failed to generate IR for process %v: %v", processID, err)
-	}
-	s.untrack(processID)
-}
-
-// ReportLoaded implements actuator.Reporter.
-func (s *scraperReporter) ReportLoaded(
-	processID actuator.ProcessID,
-	executable actuator.Executable,
-	program *ir.Program,
-) (actuator.Sink, error) {
-	decoder, err := newDecoder(program)
-	if err != nil {
-		return nil, err
-	}
-	sd := &scraperSink{
-		programID:  program.ID,
-		scraper:    (*Scraper)(s),
-		decoder:    decoder,
-		processID:  processID,
-		executable: executable,
-	}
+func (s *Scraper) untrack(pid actuator.ProcessID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.mu.sinks[program.ID] = sd
-	return sd, nil
+	s.untrackLocked(pid)
 }
 
-// ReportLoadingFailed implements actuator.Reporter.
-func (s *scraperReporter) ReportLoadingFailed(
-	processID actuator.ProcessID,
-	_ *ir.Program,
-	err error,
-) {
-	log.Errorf("rcscrape: failed to load program for process %v: %v", processID, err)
-	s.untrack(processID)
+func (s *Scraper) untrackLocked(pid actuator.ProcessID) {
+	s.mu.debouncer.clear(pid)
+	delete(s.mu.processes, pid)
 }
-
-func (s *scraperReporter) untrack(processID actuator.ProcessID) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.mu.debouncer.untrack(processID)
-}
-
-var _ actuator.Reporter = (*scraperReporter)(nil)

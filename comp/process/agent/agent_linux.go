@@ -62,11 +62,10 @@ func enabledHelper(config config.Component, checkComponents []types.CheckCompone
 		}
 
 		if runInCoreAgent {
-			l.Info("The process checks will run in the core agent")
+			l.Info("The process checks will run in the core agent via the process-component")
 		} else if processEnabled {
 			l.Info("Process/Container Collection in the Process Agent will be deprecated in a future release " +
-				"and will instead be run in the Core Agent. " +
-				"Set process_config.run_in_core_agent.enabled to true to switch now.")
+				"and will instead be run in the Core Agent. ")
 		}
 
 		return !runInCoreAgent || npmEnabled

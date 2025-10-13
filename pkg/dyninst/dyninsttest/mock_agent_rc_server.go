@@ -79,10 +79,13 @@ func (s *MockAgentRCServer) UpdateRemoteConfig(
 	var clientConfigs []string
 
 	// local structs to build the targets.json
+	type customVersion struct {
+		V int `json:"v"`
+	}
 	type fileMeta struct {
 		Length int64             `json:"length"`
 		Hashes map[string]string `json:"hashes"`
-		Custom json.RawMessage   `json:"custom,omitempty"`
+		Custom customVersion     `json:"custom,omitempty"`
 	}
 	type signedTargets struct {
 		Type        string              `json:"_type"`
@@ -93,7 +96,6 @@ func (s *MockAgentRCServer) UpdateRemoteConfig(
 	}
 
 	targetsMap := make(map[string]fileMeta)
-	customVersion := json.RawMessage(`{"v": 1}`)
 
 	for path, fileContents := range entries {
 		hash := sha256.Sum256(fileContents)
@@ -102,7 +104,7 @@ func (s *MockAgentRCServer) UpdateRemoteConfig(
 			Hashes: map[string]string{
 				"sha256": hex.EncodeToString(hash[:]),
 			},
-			Custom: customVersion,
+			Custom: customVersion{V: int(s.mu.configVersion)},
 		}
 
 		targetFiles = append(targetFiles, &core.File{

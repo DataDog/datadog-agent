@@ -17,10 +17,12 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -30,16 +32,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
+	// and lowering it might cause constant cpu usage.
+	// Defined as a var to allow tests to override it.
+	scanTerminatedProcessesInterval = 30 * time.Second
+)
+
 const (
 	offsetsDataMap            = "offsets_data"
 	goTLSReadArgsMap          = "go_tls_read_args"
 	goTLSWriteArgsMap         = "go_tls_write_args"
 	connectionTupleByGoTLSMap = "conn_tup_by_go_tls_conn"
 	goTLSConnByTupleMap       = "go_tls_conn_by_tuple"
-
-	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
-	// and lowering it might cause constant cpu usage.
-	scanTerminatedProcessesInterval = 30 * time.Second
 
 	connReadProbe     = "uprobe__crypto_tls_Conn_Read"
 	connReadRetProbe  = "uprobe__crypto_tls_Conn_Read__return"
@@ -60,6 +65,11 @@ type goTLSProgram struct {
 	cfg       *config.Config
 	procMon   *monitor.ProcessMonitor
 	manager   *manager.Manager
+
+	// goTLSReadArgsMapCleaner a cleaner for the goTLSReadArgsMap.
+	goTLSReadArgsMapCleaner *ddebpf.MapCleaner[gotls.TlsFunctionsArgsKey, gotls.TlsReadArgsData]
+	// goTLSWriteArgsMapCleaner a cleaner for the goTLSWriteArgsMap.
+	goTLSWriteArgsMapCleaner *ddebpf.MapCleaner[gotls.TlsFunctionsArgsKey, gotls.TlsWriteArgsData]
 }
 
 var goTLSSpec = &protocols.ProtocolSpec{
@@ -115,6 +125,11 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 		return nil, nil
 	}
 
+	prog := &goTLSProgram{
+		cfg:     c,
+		manager: mgr,
+	}
+
 	attacherCfg := uprobes.AttacherConfig{
 		EbpfConfig: &c.Config,
 		Rules: []*uprobes.AttachRule{{
@@ -142,32 +157,28 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 		PerformInitialScan:             false, // the process monitor will scan for new processes at startup
 		EnablePeriodicScanNewProcesses: true,
 		ScanProcessesInterval:          scanTerminatedProcessesInterval,
+		OnSyncCallback:                 prog.cleanupDeadPids,
 	}
 
 	if c.GoTLSExcludeSelf {
 		attacherCfg.ExcludeTargets |= uprobes.ExcludeSelf
 	}
 
-	inspector := &goTLSBinaryInspector{
+	prog.inspector = &goTLSBinaryInspector{
 		structFieldsLookupFunctions: structFieldsLookupFunctions,
 		paramLookupFunctions:        paramLookupFunctions,
 		binAnalysisMetric:           libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
 		binNoSymbolsMetric:          libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
 	}
 
-	procMon := monitor.GetProcessMonitor()
-	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, GoTLSAttacherName, attacherCfg, mgr, uprobes.NopOnAttachCallback, inspector, procMon)
+	prog.procMon = monitor.GetProcessMonitor()
+	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, GoTLSAttacherName, attacherCfg, mgr, uprobes.NopOnAttachCallback, prog.inspector, prog.procMon)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 	}
+	prog.attacher = attacher
 
-	return &goTLSProgram{
-		cfg:       c,
-		inspector: inspector,
-		attacher:  attacher,
-		procMon:   procMon,
-		manager:   mgr,
-	}, nil
+	return prog, nil
 }
 
 // Name return the program's name.
@@ -192,9 +203,26 @@ func (p *goTLSProgram) ConfigureOptions(options *manager.Options) {
 	}
 }
 
+// initAllMapCleaners creates map cleaner for `go_tls_read_args` and `go_tls_write_args` maps.
+func (p *goTLSProgram) initAllMapCleaners() error {
+	var err error
+
+	p.goTLSReadArgsMapCleaner, err = initMapCleaner[gotls.TlsFunctionsArgsKey, gotls.TlsReadArgsData](p.manager, goTLSReadArgsMap, GoTLSAttacherName)
+	if err != nil {
+		return err
+	}
+
+	p.goTLSWriteArgsMapCleaner, err = initMapCleaner[gotls.TlsFunctionsArgsKey, gotls.TlsWriteArgsData](p.manager, goTLSWriteArgsMap, GoTLSAttacherName)
+
+	return err
+}
+
 // PreStart launches the goTLS main goroutine to handle events.
 func (p *goTLSProgram) PreStart() error {
-	var err error
+	err := p.initAllMapCleaners()
+	if err != nil {
+		return fmt.Errorf("could not initialize map cleaners: %w", err)
+	}
 
 	p.inspector.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
 	if err != nil {
@@ -226,6 +254,19 @@ func (p *goTLSProgram) GetStats() (*protocols.ProtocolStats, func()) {
 func (p *goTLSProgram) Stop() {
 	p.procMon.Stop()
 	p.attacher.Stop()
+}
+
+// cleanupDeadPids clears maps of terminated processes.
+func (p *goTLSProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
+	p.goTLSReadArgsMapCleaner.Clean(nil, nil, func(_ int64, key gotls.TlsFunctionsArgsKey, _ gotls.TlsReadArgsData) bool {
+		_, isAlive := alivePIDs[key.Pid]
+		return !isAlive
+	})
+
+	p.goTLSWriteArgsMapCleaner.Clean(nil, nil, func(_ int64, key gotls.TlsFunctionsArgsKey, _ gotls.TlsWriteArgsData) bool {
+		_, isAlive := alivePIDs[key.Pid]
+		return !isAlive
+	})
 }
 
 // GoTLSAttachPID attaches Go TLS hooks on the binary of process with

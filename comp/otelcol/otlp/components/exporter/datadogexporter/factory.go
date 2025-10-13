@@ -19,12 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	tracepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configretry"
@@ -40,6 +40,10 @@ type factory struct {
 	setupErr               error
 	onceSetupTraceAgentCmp sync.Once
 
+	onceReporter sync.Once
+	reporter     *inframetadata.Reporter
+	reporterErr  error
+
 	registry       *featuregate.Registry
 	s              serializer.MetricSerializer
 	logsAgent      logsagentpipeline.Component
@@ -47,6 +51,7 @@ type factory struct {
 	traceagentcmp  traceagent.Component
 	mclientwrapper *metricsclient.StatsdClientWrapper
 	gatewayUsage   otel.GatewayUsage
+	store          serializerexporter.TelemetryStore
 }
 
 // setupTraceAgentCmp sets up the trace agent component.
@@ -72,6 +77,7 @@ func newFactoryWithRegistry(
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
+	store serializerexporter.TelemetryStore,
 ) exporter.Factory {
 	f := &factory{
 		registry:       registry,
@@ -81,6 +87,7 @@ func newFactoryWithRegistry(
 		h:              h,
 		mclientwrapper: mclientwrapper,
 		gatewayUsage:   gatewayUsage,
+		store:          store,
 	}
 
 	return exporter.NewFactory(
@@ -92,20 +99,6 @@ func newFactoryWithRegistry(
 	)
 }
 
-type tagEnricher struct{}
-
-func (t *tagEnricher) SetCardinality(_ string) (err error) {
-	return nil
-}
-
-// Enrich of a given dimension.
-func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
-	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
-	enrichedTags = append(enrichedTags, extraTags...)
-	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-	return enrichedTags
-}
-
 // NewFactory creates a Datadog exporter factory
 func NewFactory(
 	traceagentcmp traceagent.Component,
@@ -114,8 +107,9 @@ func NewFactory(
 	h serializerexporter.SourceProviderFunc,
 	mclientwrapper *metricsclient.StatsdClientWrapper,
 	gatewayUsage otel.GatewayUsage,
+	store serializerexporter.TelemetryStore,
 ) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage)
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper, gatewayUsage, store)
 }
 
 // CreateDefaultConfig creates the default exporter configuration
@@ -123,7 +117,6 @@ func CreateDefaultConfig() component.Config {
 	ddcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config)
 	ddcfg.Traces.TracesConfig.ComputeTopLevelBySpanKind = true
 	ddcfg.Logs.Endpoint = "https://agent-http-intake.logs.datadoghq.com"
-	ddcfg.HostMetadata.Enabled = false
 	return ddcfg
 }
 
@@ -143,9 +136,6 @@ func logWarnings(cfg *datadogconfig.Config, logger *zap.Logger) {
 	cfg.LogWarnings(logger)
 	if cfg.Hostname != "" {
 		logger.Warn(fmt.Sprintf("hostname \"%s\" is ignored in the embedded collector", cfg.Hostname))
-	}
-	if cfg.HostMetadata.Enabled {
-		logger.Warn("host_metadata should not be enabled and is ignored in the embedded collector")
 	}
 	if cfg.OnlyMetadata {
 		logger.Warn("only_metadata should not be enabled and is ignored in the embedded collector")
@@ -174,11 +164,15 @@ func (f *factory) createTracesExporter(
 	}
 	f.mclientwrapper.SetDelegate(otelmclient)
 
+	if _, err = f.Reporter(set, cfg.HostMetadata.ReporterPeriod, cfg.HostMetadata.Enabled); err != nil {
+		return nil, err
+	}
+
 	if cfg.OnlyMetadata {
 		return nil, fmt.Errorf("datadog::only_metadata should not be set in OTel Agent")
 	}
 
-	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage)
+	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces, f.reporter)
 
 	return exporterhelper.NewTraces(
 		ctx,
@@ -208,12 +202,18 @@ func (f *factory) createMetricsExporter(
 		return nil, err
 	}
 	f.mclientwrapper.SetDelegate(otelmclient)
+
+	if _, err = f.Reporter(set, cfg.HostMetadata.ReporterPeriod, cfg.HostMetadata.Enabled); err != nil {
+		return nil, err
+	}
+
 	var wg sync.WaitGroup // waits for consumeStatsPayload to exit
 	statsIn := make(chan []byte, 1000)
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
 	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, f.gatewayUsage)
+
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: serializerexporter.MetricsConfig{
 			Metrics: cfg.Metrics,
@@ -221,6 +221,7 @@ func (f *factory) createMetricsExporter(
 		TimeoutConfig: exporterhelper.TimeoutConfig{
 			Timeout: cfg.Timeout,
 		},
+		HostMetadata:     cfg.HostMetadata,
 		QueueBatchConfig: cfg.QueueSettings,
 		ShutdownFunc: func(context.Context) error {
 			cancel()  // first cancel context
@@ -274,11 +275,35 @@ func (f *factory) createLogsExporter(
 	if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
 		logch = provider.NextPipelineChan()
 	}
-	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage)
+
+	if _, err := f.Reporter(set, cfg.HostMetadata.ReporterPeriod, cfg.HostMetadata.Enabled); err != nil {
+		return nil, err
+	}
+
+	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.reporter)
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,
 		QueueSettings: cfg.QueueSettings,
+		HostMetadata:  cfg.HostMetadata,
 	}
 	return lf.CreateLogs(ctx, set, lc)
+}
+
+// Reporter builds and returns an *inframetadata.Reporter.
+func (f *factory) Reporter(params exporter.Settings, reporterPeriod time.Duration, enableHostMetadata bool) (*inframetadata.Reporter, error) {
+	if !enableHostMetadata {
+		return nil, nil
+	}
+	f.onceReporter.Do(func() {
+		r, err := inframetadata.NewReporter(params.Logger, serializerexporter.NewPusher(f.s), reporterPeriod)
+		if err != nil {
+			f.reporterErr = fmt.Errorf("failed to build host metadata reporter: %w", err)
+		} else {
+			f.reporter = r
+		}
+		// No need to do f.reporter.Run() in DDOT because DDOT only *pushes* host metadata from OTel resource attributes.
+		// DDOT should never periodically report host metadata from source providers, unlike in OSS.
+	})
+	return f.reporter, f.reporterErr
 }

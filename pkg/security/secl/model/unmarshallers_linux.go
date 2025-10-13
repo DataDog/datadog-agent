@@ -22,7 +22,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 )
 
@@ -40,30 +39,15 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8+16 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
-
-	n, err := e.CGroupFile.UnmarshalBinary(data[8:])
+	n, err := e.CGroupFile.UnmarshalBinary(data)
 	if err != nil {
 		return 0, err
 	}
-
-	return 8 + n, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalString(data, ContainerIDLen)
-	if err != nil {
-		return 0, err
-	}
-
-	e.ContainerID = containerutils.ContainerID(id)
-
-	return ContainerIDLen, nil
+	return n, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -259,19 +243,19 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 288 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 292 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
 	var read int
 
-	n, err := e.UnmarshalProcEntryBinary((data))
+	n, err := e.UnmarshalProcEntryBinary(data)
 	if err != nil {
 		return 0, err
 	}
 	read += n
 
-	n, err = e.UnmarshalPidCacheBinary((data[read:]))
+	n, err = e.UnmarshalPidCacheBinary(data[read:])
 	if err != nil {
 		return 0, err
 	}
@@ -303,6 +287,8 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.EnvsTruncated = binary.NativeEndian.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
+	e.IsThroughSymLink = (binary.NativeEndian.Uint32(data[read:read+4]) > 0)
+	read += 4
 	return validateReadSize(size, read)
 }
 
@@ -985,17 +971,11 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.ContainerContext)
+	read, err := UnmarshalBinary(data, &e.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
 	cursor := read
-
-	read, err = UnmarshalBinary(data[cursor:], &e.CGroupContext)
-	if err != nil {
-		return 0, err
-	}
-	cursor += read
 
 	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
 	if err != nil {
@@ -1026,15 +1006,12 @@ func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Pid = binary.NativeEndian.Uint32(data[read : read+4])
 	read += 4
 
-	e.CGroupFlags = binary.NativeEndian.Uint32(data[read : read+4])
-	read += 4
-
 	return read, nil
 }
 
 // EventUnmarshalBinary unmarshals a binary representation of itself
 func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 56 {
+	if len(data) < 48 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1051,9 +1028,7 @@ func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, erro
 	adlc.Rate = binary.NativeEndian.Uint16(data[40:42])
 	// 2 bytes of padding
 	adlc.Paused = binary.NativeEndian.Uint32(data[44:48])
-	adlc.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint32(data[48:52]))
-	// +4 bytes of padding
-	return 56, nil
+	return 48, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -1088,8 +1063,8 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 	SliceToArray(data[read+16:read+32], dstIP[:])
 	e.Source.Port = binary.BigEndian.Uint16(data[read+32 : read+34])
 	e.Destination.Port = binary.BigEndian.Uint16(data[read+34 : read+36])
-	e.L4Protocol = binary.NativeEndian.Uint16(data[read+36 : read+38])
-	e.L3Protocol = binary.NativeEndian.Uint16(data[read+38 : read+40])
+	e.L3Protocol = binary.NativeEndian.Uint16(data[read+36 : read+38])
+	e.L4Protocol = binary.NativeEndian.Uint16(data[read+38 : read+40])
 
 	e.Size = binary.NativeEndian.Uint32(data[read+40 : read+44])
 	e.NetworkDirection = binary.NativeEndian.Uint32(data[read+44 : read+48])
@@ -1402,17 +1377,20 @@ func (e *NetworkStats) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Flow) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 40 {
+	if len(data) < 72 {
 		return 0, ErrNotEnoughData
 	}
 
 	var srcIP, dstIP [16]byte
 	SliceToArray(data[0:16], srcIP[:])
 	SliceToArray(data[16:32], dstIP[:])
+
+	// NOTE: currently only TCP & UDP are supported
 	e.Source.Port = binary.BigEndian.Uint16(data[32:34])
 	e.Destination.Port = binary.BigEndian.Uint16(data[34:36])
-	e.L4Protocol = binary.NativeEndian.Uint16(data[36:38])
-	e.L3Protocol = binary.NativeEndian.Uint16(data[38:40])
+
+	e.L3Protocol = binary.NativeEndian.Uint16(data[36:38])
+	e.L4Protocol = binary.NativeEndian.Uint16(data[38:40])
 
 	// readjust IP sizes depending on the protocol
 	switch e.L3Protocol {
@@ -1574,4 +1552,34 @@ func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.RlimMax = binary.NativeEndian.Uint64(data[read+16 : read+24])
 
 	return read + 24, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *CapabilitiesEvent) UnmarshalBinary(data []byte) (int, error) {
+	const size = 16
+	if len(data) < size {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Attempted = binary.NativeEndian.Uint64(data[0:8])
+	e.Used = binary.NativeEndian.Uint64(data[8:16])
+
+	return 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+	if len(data) < 12 {
+		return 0, ErrNotEnoughData
+	}
+	e.Option = int(binary.NativeEndian.Uint32(data[0:4]))
+	sizeToRead := int(binary.NativeEndian.Uint32(data[4:8]))
+	e.IsNameTruncated = binary.NativeEndian.Uint32(data[8:12]) > 0
+	e.NewName = string(data[12 : sizeToRead+12])
+	return sizeToRead + 12, nil
 }

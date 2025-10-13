@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -40,7 +41,7 @@ type HorizontalPodAutoscalerCollector struct {
 // NewHorizontalPodAutoscalerCollector creates a new collector for the Kubernetes
 // HorizontalPodAutoscaler resource.
 func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *HorizontalPodAutoscalerCollector {
-	resourceType := getResourceType(hpaName, hpaVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.HpaName, utilTypes.HpaVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -51,10 +52,10 @@ func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *H
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 hpaName,
+			Name:                                 utilTypes.HpaName,
 			Kind:                                 kubernetes.HorizontalPodAutoscalerKind,
 			NodeType:                             orchestrator.K8sHorizontalPodAutoscaler,
-			Version:                              hpaVersion,
+			Version:                              utilTypes.HpaVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

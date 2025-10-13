@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,7 +22,7 @@ import (
 // - removed and recreated
 // - truncated
 func (t *Tailer) DidRotate() (bool, error) {
-	f, err := filesystem.OpenShared(t.fullpath)
+	f, err := opener.OpenLogFile(t.fullpath)
 	if err != nil {
 		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
 	}
@@ -51,4 +51,32 @@ func (t *Tailer) DidRotate() (bool, error) {
 	}
 
 	return recreated || truncated, nil
+}
+
+// DidRotateViaFingerprint returns true if the file has been log-rotated via fingerprint.
+//
+// On *nix, when a log rotation occurs, the file can be either:
+// - renamed and recreated
+// - removed and recreated
+// - truncated
+func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, error) {
+	newFingerprint, err := fingerprinter.ComputeFingerprint(t.file)
+
+	// If computing the fingerprint led to an error there was likely an IO issue, handle this appropriately below.
+	if err != nil {
+		return false, err
+	}
+	// If the original fingerprint is nil, we can't detect rotation
+	if t.fingerprint == nil {
+		return false, nil
+	}
+
+	// If fingerprints are different, it means the file was rotated.
+	// This is also true if the new fingerprint is invalid (Value=0), which means the file was truncated.
+	rotated := !t.fingerprint.Equals(newFingerprint)
+	if rotated {
+		log.Debugf("File rotation detected via fingerprint mismatch for %s (old: 0x%x, new: 0x%x)",
+			t.file.Path, t.fingerprint.Value, newFingerprint.Value)
+	}
+	return rotated, nil
 }

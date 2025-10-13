@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
@@ -75,10 +73,7 @@ type testState struct {
 func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeIPResults map[string]*fakeResults, delay time.Duration) *testState {
 	lc := compdef.NewTestLifecycle(t)
 
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
-	))
+	config := config.NewMockWithOverrides(t, overrides)
 
 	logComp := logmock.New(t)
 	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())

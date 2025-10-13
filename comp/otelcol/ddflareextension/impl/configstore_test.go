@@ -19,6 +19,7 @@ import (
 
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
@@ -41,7 +42,7 @@ import (
 
 // this is only used for config unmarshalling.
 func addFactories(factories otelcol.Factories) {
-	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.NewDisabledGatewayUsage())
+	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{})
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil, func(context.Context) (string, error) {
 		return "hostname", nil
 	})

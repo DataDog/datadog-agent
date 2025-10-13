@@ -44,17 +44,20 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	coresettings "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	haagentmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
@@ -121,10 +124,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         c,
-					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), false),
 				}),
+				secretfx.Module(),
 				flare.Module(flare.NewLocalParams(
 					defaultpaths.GetDistPath(),
 					defaultpaths.PyChecksPath,
@@ -138,7 +141,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType:  workloadmeta.NodeAgent,
-					InitHelper: common.GetWorkloadmetaInit(),
+					InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 				}),
 				fx.Provide(func(config config.Component) coresettings.Params {
 					return coresettings.Params{
@@ -203,6 +206,7 @@ func makeFlare(flareComp flare.Component,
 	flareprofiler flareprofilerdef.Component,
 	client ipc.HTTPClient,
 	senderManager diagnosesendermanager.Component,
+	filterStore workloadfilter.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
@@ -286,12 +290,12 @@ func makeFlare(flareComp flare.Component,
 	var filePath string
 
 	if cliParams.forceLocal {
-		diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
+		diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, filterStore, wmeta, ac, secretResolver, tagger, config)
 		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil, diagnoseresult)
 	} else {
 		filePath, err = requestArchive(profile, client, cliParams.providerTimeout)
 		if err != nil {
-			diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
+			diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, filterStore, wmeta, ac, secretResolver, tagger, config)
 			filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, err, diagnoseresult)
 		}
 	}
@@ -382,13 +386,14 @@ func runLocalDiagnose(
 	diagnoseConfig diagnose.Config,
 	log log.Component,
 	senderManager diagnosesendermanager.Component,
+	filterStore workloadfilter.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	tagger tagger.Component,
 	config config.Component) []byte {
 
-	result, err := diagnoseLocal.Run(diagnoseComponent, diagnose.Config{Verbose: true}, log, senderManager, wmeta, ac, secretResolver, tagger, config)
+	result, err := diagnoseLocal.Run(diagnoseComponent, diagnose.Config{Verbose: true}, log, senderManager, filterStore, wmeta, ac, secretResolver, tagger, config)
 
 	if err != nil {
 		return []byte(color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))

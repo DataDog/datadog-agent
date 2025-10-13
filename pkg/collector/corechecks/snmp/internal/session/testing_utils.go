@@ -8,6 +8,8 @@
 package session
 
 import (
+	"go.uber.org/atomic"
+
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/mock"
 
@@ -17,9 +19,12 @@ import (
 // MockSession mocks a connection session
 type MockSession struct {
 	mock.Mock
-	ConnectErr error
-	CloseErr   error
-	Version    gosnmp.SnmpVersion
+	ConnectErr       error
+	CloseErr         error
+	snmpGetCount     *atomic.Uint32
+	snmpGetBulkCount *atomic.Uint32
+	snmpGetNextCount *atomic.Uint32
+	Version          gosnmp.SnmpVersion
 }
 
 // Configure configures the session
@@ -41,20 +46,38 @@ func (s *MockSession) Close() error {
 
 // Get will send a SNMPGET command
 func (s *MockSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	s.snmpGetCount.Inc()
 	args := s.Mock.Called(oids)
 	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
 }
 
 // GetBulk will send a SNMP BULKGET command
 func (s *MockSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error) {
+	s.snmpGetBulkCount.Inc()
 	args := s.Mock.Called(oids, bulkMaxRepetitions)
 	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
 }
 
 // GetNext will send a SNMP GETNEXT command
 func (s *MockSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	s.snmpGetNextCount.Inc()
 	args := s.Mock.Called(oids)
 	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
+}
+
+// GetSnmpGetCount returns the number of SNMPGET request that has been done
+func (s *MockSession) GetSnmpGetCount() uint32 {
+	return s.snmpGetCount.Load()
+}
+
+// GetSnmpGetBulkCount returns the number of SNMP BULKGET request that has been done
+func (s *MockSession) GetSnmpGetBulkCount() uint32 {
+	return s.snmpGetBulkCount.Load()
+}
+
+// GetSnmpGetNextCount returns the number of SNMP GETNEXT request that has been done
+func (s *MockSession) GetSnmpGetNextCount() uint32 {
+	return s.snmpGetNextCount.Load()
 }
 
 // GetVersion returns the snmp version used
@@ -64,7 +87,11 @@ func (s *MockSession) GetVersion() gosnmp.SnmpVersion {
 
 // CreateMockSession creates a mock session
 func CreateMockSession() *MockSession {
-	session := &MockSession{}
+	session := &MockSession{
+		snmpGetCount:     atomic.NewUint32(0),
+		snmpGetBulkCount: atomic.NewUint32(0),
+		snmpGetNextCount: atomic.NewUint32(0),
+	}
 	session.Version = gosnmp.Version2c
 	return session
 }

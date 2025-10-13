@@ -7,14 +7,17 @@ package http
 
 import (
 	"errors"
+	nethttp "net/http"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // Interner is used to intern strings to save memory allocations.
@@ -42,31 +45,45 @@ const (
 	MethodPatch
 	// MethodTrace represents the TRACE request method
 	MethodTrace
+	// MethodConnect represents the CONNECT request method
+	MethodConnect
 )
+
+var (
+	// StringToMethod maps string representations of the methods to their enums.
+	StringToMethod = map[string]Method{
+		nethttp.MethodPut:     MethodPut,
+		nethttp.MethodDelete:  MethodDelete,
+		nethttp.MethodHead:    MethodHead,
+		nethttp.MethodOptions: MethodOptions,
+		nethttp.MethodPatch:   MethodPatch,
+		nethttp.MethodGet:     MethodGet,
+		nethttp.MethodPost:    MethodPost,
+		nethttp.MethodTrace:   MethodTrace,
+		nethttp.MethodConnect: MethodConnect,
+	}
+	// MethodToString maps the enums to their string representations
+	MethodToString = map[Method]string{}
+)
+
+func init() {
+	for str, method := range StringToMethod {
+		MethodToString[method] = str
+	}
+}
 
 // Method returns a string representing the HTTP method of the request
 func (m Method) String() string {
-	switch m {
-	case MethodGet:
-		return "GET"
-	case MethodPost:
-		return "POST"
-	case MethodPut:
-		return "PUT"
-	case MethodHead:
-		return "HEAD"
-	case MethodDelete:
-		return "DELETE"
-	case MethodOptions:
-		return "OPTIONS"
-	case MethodPatch:
-		return "PATCH"
-	case MethodTrace:
-		return "TRACE"
-	default:
+	value, ok := MethodToString[m]
+	if !ok {
 		return "UNKNOWN"
 	}
+	return value
 }
+
+var (
+	requestStatPool = ddsync.NewDefaultTypedPool[RequestStat]()
+)
 
 // Path represents the HTTP path
 type Path struct {
@@ -123,7 +140,7 @@ type RequestStat struct {
 	StaticTags uint64
 
 	// Dynamic tags (if attached)
-	DynamicTags []string
+	DynamicTags common.StringSet
 }
 
 func (r *RequestStat) initSketch() error {
@@ -139,7 +156,13 @@ func (r *RequestStat) close() {
 	if r.Latencies != nil {
 		r.Latencies.Clear()
 		protocols.SketchesPool.Put(r.Latencies)
+		r.Latencies = nil
 	}
+
+	r.Count = 0
+	r.FirstLatencySample = 0
+	r.StaticTags = 0
+	clear(r.DynamicTags)
 }
 
 // RequestStats stores HTTP request statistics.
@@ -152,11 +175,6 @@ func NewRequestStats() *RequestStats {
 	return &RequestStats{
 		Data: make(map[uint16]*RequestStat),
 	}
-}
-
-// isValid checks is the status code is in the range of valid HTTP responses.
-func (r *RequestStats) isValid(status uint16) bool {
-	return status >= 100 && status < 600
 }
 
 // CombineWith merges the data in 2 RequestStats objects
@@ -204,20 +222,25 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags []string) {
-	if !r.isValid(statusCode) {
+func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags uint64, dynamicTags common.StringSet) {
+	if !isValidStatusCode(statusCode) {
 		return
 	}
 
 	stats, exists := r.Data[statusCode]
 	if !exists {
-		stats = &RequestStat{}
+		stats = requestStatPool.Get()
 		r.Data[statusCode] = stats
 	}
 
 	stats.StaticTags |= staticTags
 	if len(dynamicTags) != 0 {
-		stats.DynamicTags = append(stats.DynamicTags, dynamicTags...)
+		if stats.DynamicTags == nil {
+			stats.DynamicTags = common.NewStringSet()
+		}
+		for tag := range dynamicTags {
+			stats.DynamicTags.Add(tag)
+		}
 	}
 
 	stats.Count++
@@ -259,6 +282,13 @@ func (r *RequestStats) Close() {
 	for _, stats := range r.Data {
 		if stats != nil {
 			stats.close()
+			requestStatPool.Put(stats)
 		}
 	}
+	clear(r.Data)
+}
+
+// isValidStatusCode checks if the status code is in the range of valid HTTP responses
+func isValidStatusCode(statusCode uint16) bool {
+	return statusCode >= 100 && statusCode < 600
 }

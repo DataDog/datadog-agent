@@ -49,10 +49,17 @@ type FunctionWhere interface {
 	Location() (functionName string)
 }
 
+// LineWhere is a where clause of a probe that is a line within a function.
+type LineWhere interface {
+	Where
+	Line() (functionName string, sourceFile string, lineNumber string)
+}
+
 // CaptureConfig is the capture configuration of a probe.
 type CaptureConfig interface {
 	GetMaxReferenceDepth() uint32
 	GetMaxFieldCount() uint32
+	GetMaxLength() uint32
 	GetMaxCollectionSize() uint32
 }
 

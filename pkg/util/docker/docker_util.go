@@ -19,17 +19,18 @@ import (
 	"sync"
 	"time"
 
-	dcontainer "github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
-
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	cerrdefs "github.com/containerd/errdefs"
+	dcontainer "github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/client"
 )
 
 // DockerUtil wraps interactions with a local docker API.
@@ -139,7 +140,7 @@ func (d *DockerUtil) RawContainerList(ctx context.Context, options dcontainer.Li
 }
 
 // RawContainerListWithFilter is like RawContainerList but with a container filter.
-func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dcontainer.ListOptions, filter *containers.Filter, wmeta workloadmeta.Component) ([]dcontainer.Summary, error) {
+func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dcontainer.ListOptions, filter workloadfilter.FilterBundle, wmeta workloadmeta.Component) ([]dcontainer.Summary, error) {
 	containers, err := d.RawContainerList(ctx, options)
 	if err != nil {
 		return nil, err
@@ -150,13 +151,12 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dco
 	}
 
 	isExcluded := func(container dcontainer.Summary) bool {
-		var annotations map[string]string
-		if pod, err := wmeta.GetKubernetesPodForContainer(container.ID); err == nil {
-			annotations = pod.Annotations
-		}
+		pod, _ := wmeta.GetKubernetesPodForContainer(container.ID)
+		filterablePod := workloadmetafilter.CreatePod(pod)
 		for _, name := range container.Names {
-			if filter.IsExcluded(annotations, name, container.Image, "") {
-				log.Tracef("Container with name %q and image %q is filtered-out", name, container.Image)
+			filterableContainer := workloadfilter.CreateContainer(container.ID, name, container.Image, filterablePod)
+			if filter.IsExcluded(filterableContainer) {
+				log.Tracef("Container with ID %q and image %q is filtered-out", container.ID, container.Image)
 				return true
 			}
 		}
@@ -220,7 +220,7 @@ func (d *DockerUtil) ResolveImageName(ctx context.Context, image string) (string
 	if err != nil {
 		// Only log errors that aren't "not found" because some images may
 		// just not be available in docker inspect.
-		if !client.IsErrNotFound(err) {
+		if !cerrdefs.IsNotFound(err) {
 			d.Unlock()
 			return image, err
 		}
@@ -335,7 +335,7 @@ func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize boo
 	defer cancel()
 
 	container, _, err := d.cli.ContainerInspectWithRaw(ctx, id, withSize)
-	if client.IsErrNotFound(err) {
+	if cerrdefs.IsNotFound(err) {
 		return container, dderrors.NewNotFound(fmt.Sprintf("docker container %s", id))
 	}
 	if err != nil {

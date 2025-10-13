@@ -49,10 +49,10 @@
 //
 // Test Suites Overview:
 //
-// @team/windows-agent
+// @team/windows-products
 //   - suites/installer-package: (deprecated) Old test suite for the Installer MSI. Contents should be eventually be moved to the Agent MSI tests.
 //   - suites/agent-package Tests remote upgrade and MSI operations of the Datadog Agent package using the Datadog installer.
 //
-// APM and @team/windows-agent
+// APM and @team/windows-products
 //   - suites/apm-library-dotnet-package: Tests the .NET APM Library for IIS package through remote upgrades and the Agent MSI
 package installer

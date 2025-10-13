@@ -63,6 +63,10 @@ const (
 	AcceptNr         = unix.SYS_ACCEPT            // AcceptNr defines the syscall ID for arm64
 	Accept4Nr        = unix.SYS_ACCEPT4           // Accept4Nr defines the syscall ID for arm64
 	SocketNr         = unix.SYS_SOCKET            // SocketNr defines the syscall ID for arm64
+	SetsockoptNr     = unix.SYS_SETSOCKOPT        // SetsockoptNr defines the syscall ID for arm64
+	SetrlimitNr      = unix.SYS_SETRLIMIT         // SetrlimitNr defines the syscall ID for arm64
+	Prlimit64Nr      = unix.SYS_PRLIMIT64         // Prlimit64Nr defines the syscall ID for arm64
+	PrctlNr          = unix.SYS_PRCTL             // PrctlNr defines the syscall ID for arm64
 
 	OpenNr      = -1  // OpenNr not available on arm64
 	ForkNr      = -2  // ForkNr not available on arm64

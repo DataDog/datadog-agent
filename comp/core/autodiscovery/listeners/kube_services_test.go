@@ -74,6 +74,10 @@ func TestProcessService(t *testing.T) {
 	sort.Strings(expectedTags)
 	sort.Strings(tags)
 	assert.Equal(t, expectedTags, tags)
+
+	namespaceName, err := svc.GetExtraConfig("namespace")
+	assert.NoError(t, err)
+	assert.Equal(t, "default", namespaceName)
 }
 
 func TestServicesDiffer(t *testing.T) {
@@ -731,7 +735,7 @@ func TestKubeServiceFiltering(t *testing.T) {
 					},
 				},
 			},
-			expectedMetricsExcl: false,
+			expectedMetricsExcl: true,
 			expectedGlobalExcl:  true,
 		},
 	}

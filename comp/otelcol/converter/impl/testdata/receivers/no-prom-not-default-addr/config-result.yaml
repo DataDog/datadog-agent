@@ -27,6 +27,14 @@ extensions:
     
 processors:
   infraattributes/user-defined:
+  filter/drop-prometheus-internal-metrics/dd-autoconfigured:
+    metrics: 
+      exclude:
+        match_type: regexp
+        metric_names:
+          - ^scrape_.*$
+          - ^up$
+          - ^promhttp_metric_handler_errors_total$
 
 service:
   telemetry:
@@ -56,4 +64,5 @@ service:
           exporters: [datadog]
       metrics/dd-autoconfigured/datadog:
           receivers: [prometheus/dd-autoconfigured]
+          processors: [filter/drop-prometheus-internal-metrics/dd-autoconfigured]
           exporters: [datadog]

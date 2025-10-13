@@ -2,6 +2,279 @@
 Release Notes
 =============
 
+.. _Release Notes_7.71.0:
+
+7.71.0
+======
+
+.. _Release Notes_7.71.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-10-01
+Pinned to datadog-agent v7.71.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7710>`_.
+
+.. _Release Notes_7.71.0_New Features:
+
+New Features
+------------
+
+- Added support for gradual rollout in K8s SSI deployments.
+  This feature is enabled if the following conditions are met:
+  - ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_ENABLED=true`` and/or ``DD_APM_INSTRUMENTATION_ENABLED=true``
+  - Remote config is enabled in the organization
+  - Using a Datadog registry (gcr.io/datadoghq, hub.docker.com/r/datadog, gallery.ecr.aws/datadog)
+  This gradually rolls out access to new injector and tracer library releases to subsets of customers, with the ability to pause if issues are detected.
+
+
+.. _Release Notes_7.71.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Collect Datadog custom resources in the orchestrator check.
+
+- Add the ability to collect Argo Rollouts and Karpenter custom resources by default.
+
+
+.. _Release Notes_7.70.2:
+
+7.70.2
+======
+
+.. _Release Notes_7.70.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-09-15
+Pinned to datadog-agent v7.70.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7702>`_.
+
+.. _Release Notes_7.70.1:
+
+7.70.1
+======
+
+.. _Release Notes_7.70.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-09-10
+Pinned to datadog-agent v7.70.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7701>`_.
+
+.. _Release Notes_7.70.0:
+
+7.70.0
+======
+
+.. _Release Notes_7.70.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-09-03
+Pinned to datadog-agent v7.70.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7700>`_.
+
+.. _Release Notes_7.70.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Created a new configuration option `orchestrator_explorer.custom_resources.max_count` that will allow customers to increase the number of custom resources they can collect in the Cluster Agent.
+
+- Time zones are now collected for CronJobs in the `orchestrator` check
+
+- Collect EndpointSlices by default.
+
+
+.. _Release Notes_7.70.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Correctly set the VerticalPodAutoscaler mode to "Auto" when not provided
+
+- Fixed an issue that caused some Datadog Cluster Agent replicas to restart
+  during the first install.
+
+- When using leases for leader election with the
+  ``leader_election_default_resource`` option, the Datadog Cluster Agent no
+  longer creates an unused config map.
+
+- Fix the ``cronjob.on_schedule_check`` service check of the ``kubernetes_state`` check for CronJobs that have a specific time zone.
+
+
+.. _Release Notes_7.69.4:
+
+7.69.4
+======
+
+.. _Release Notes_7.69.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-08-27
+Pinned to datadog-agent v7.69.4: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7694>`_.
+
+.. _Release Notes_7.69.3:
+
+7.69.3
+======
+
+.. _Release Notes_7.69.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-08-26
+Pinned to datadog-agent v7.69.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7693>`_.
+
+.. _Release Notes_7.69.2:
+
+7.69.2
+======
+
+.. _Release Notes_7.69.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-08-20
+Pinned to datadog-agent v7.69.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7692>`_.
+
+.. _Release Notes_7.69.1:
+
+7.69.1
+======
+
+.. _Release Notes_7.69.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-08-18
+Pinned to datadog-agent v7.69.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7691>`_.
+
+.. _Release Notes_7.69.0:
+
+7.69.0
+======
+
+.. _Release Notes_7.69.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-08-14
+Pinned to datadog-agent v7.69.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7690>`_.
+
+.. _Release Notes_7.69.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The auto-instrumentation webhook supports labels and annotations as tags configuration.
+  If any of the label or annotation mappings for the incoming pod correspond to Universal
+  Service Tags (``service``, ``env``, or ``version``), the webhook will also add the corresponding
+  UST environment variable to the pod (``DD_SERVICE``, ``DD_ENV``, or ``DD_VERSION``).
+
+- The autoinstrumentation webhook will now set a default security context for init containers
+  if the pod is in a namespace with a restricted security context.  This can still be overridden by setting
+  the environment variable ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT``.
+
+- Collect agent version in orchestrator check.
+
+
+.. _Release Notes_7.68.3:
+
+7.68.3
+======
+
+.. _Release Notes_7.68.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-07-28
+Pinned to datadog-agent v7.68.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7683>`_.
+
+.. _Release Notes_7.68.2:
+
+7.68.2
+======
+
+.. _Release Notes_7.68.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-07-21
+Pinned to datadog-agent v7.68.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7682>`_.
+
+.. _Release Notes_7.68.1:
+
+7.68.1
+======
+
+.. _Release Notes_7.68.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-07-17
+Pinned to datadog-agent v7.68.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7681>`_.
+
+.. _Release Notes_7.68.0:
+
+7.68.0
+======
+
+.. _Release Notes_7.68.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-07-10
+Pinned to datadog-agent v7.68.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7680>`_.
+
+.. _Release Notes_7.68.0_New Features:
+
+New Features
+------------
+
+- The admission controller can now enable kubelet API logging in the
+  injected agent sidecar.
+
+
+.. _Release Notes_7.68.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added a new metric to expose the ksm ``kube_cronjob_status_last_successful_time`` metric. The name of the metric is ``kubernetes_state.cronjob.duration_since_last_successful``.
+
+- Single Step Instrumentation now uses the Python tracer major version 3 by default.
+
+
+.. _Release Notes_7.68.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Stop sending telemetry associated with a DatadogMetric when the object is deleted.
+
+- Fix a bug in the Kubernetes State Metrics (KSM) check where custom resource
+  metrics were incorrectly named using the `kubernetes_state.customresource.<name>`
+  pattern instead of the intended `kubernetes_state_customresource.<prefix>_<name>` format.
+
+- Fixes a bug in the admission controller webhook that caused volume mounts to be skipped when other webhooks injected init containers after our own volume mounts had been added.
+
+- Properly take into account the ``timeZone`` field of the ``CronJob`` objects in the ``kubernetes_state.cronjob.on_schedule_check`` service check.
+
+
 .. _Release Notes_7.67.1:
 
 7.67.1

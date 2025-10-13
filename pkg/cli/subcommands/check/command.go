@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,13 +40,15 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -159,11 +160,11 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true),
 				}),
 				core.Bundle(),
+				secretsfx.Module(),
 
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
@@ -201,7 +202,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(option.None[integrations.Component]()),
 
 				getPlatformModules(),
-				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
+				jmxloggerimpl.Module(jmxloggerimpl.NewCliParams("")),
 				haagentfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -247,6 +248,7 @@ func run(
 	cliParams *cliParams,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
+	filterStore workloadfilter.Component,
 	tagger tagger.Component,
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
@@ -287,14 +289,14 @@ func run(
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry, nil, nil)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil)
 
-	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, tagger, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger)
+	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger, filterStore)
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
@@ -603,11 +605,6 @@ func run(
 			color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
 		}
 		color.Yellow("This check type has %d instances. If you're looking for a different check instance, try filtering on a specific one using the --instance-filter flag or set --discovery-min-instances to a higher value", len(cs))
-	}
-
-	warnings := config.Warnings()
-	if warnings != nil && warnings.TraceMallocEnabledWithPy2 {
-		return errors.New("tracemalloc is enabled but unavailable with python version 2")
 	}
 
 	if cliParams.saveFlare {

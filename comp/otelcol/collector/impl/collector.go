@@ -26,11 +26,13 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -62,6 +64,7 @@ type Requires struct {
 	// and shutdown hooks.
 	Lc         compdef.Lifecycle
 	Shutdowner compdef.Shutdowner
+	Context    context.Context
 
 	CollectorContrib collectorcontrib.Component
 	URIs             []string
@@ -78,6 +81,8 @@ type Requires struct {
 	StatsdClientWrapper *metricsclient.StatsdClientWrapper
 	Hostname            hostnameinterface.Component
 	Ipc                 ipc.Component
+	Telemetry           telemetry.Component
+	AgentTelemetry      agenttelemetry.Component
 	Params              Params
 }
 
@@ -91,6 +96,8 @@ type RequiresNoAgent struct {
 	URIs             []string
 	Config           config.Component
 	Converter        confmap.Converter
+	Tagger           tagger.Component
+	Hostname         hostnameinterface.Component
 }
 
 // Provides declares the output types from the constructor
@@ -132,10 +139,25 @@ func newConfigProviderSettings(uris []string, converter confmap.Converter, enhan
 }
 
 func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.GatewayUsage, byoc bool) {
+	store := serializerexporter.TelemetryStore{}
+	if reqs.Telemetry != nil {
+		store.DDOTTraces = reqs.Telemetry.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_traces",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric of OTLP traces in DDOT",
+		)
+		store.DDOTMetrics = reqs.Telemetry.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_metrics",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric of OTLP metrics in DDOT",
+		)
+	}
 	if v, ok := reqs.LogsAgent.Get(); ok {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)
 	} else {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
@@ -144,7 +166,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.129.0",
+	Version:     "v0.137.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }
@@ -193,6 +215,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		OnStart: c.start,
 		OnStop:  c.stop,
 	})
+
+	setupShutdown(reqs.Context, reqs.Log, reqs.Shutdowner)
+
 	return Provides{
 		Comp: c,
 	}, nil
@@ -207,6 +232,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 	}
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.None[ipc.Component](), false)
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	set := otelcol.CollectorSettings{

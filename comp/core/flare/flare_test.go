@@ -28,7 +28,8 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
@@ -55,13 +56,10 @@ func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Opti
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
-			fx.Replace(config.MockParams{
-				Overrides: overrides,
-			}),
-			secretsimpl.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			nooptelemetry.Module(),
 			hostnameimpl.MockModule(),
+			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
 			fx.Provide(func() Params { return Params{} }),
 			collector.NoneModule(),

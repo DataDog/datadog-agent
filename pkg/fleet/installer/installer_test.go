@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
@@ -42,18 +43,22 @@ type testPackageManager struct {
 
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
 	packages := repository.NewRepositories(rootPath, nil)
-	configs := repository.NewRepositories(t.TempDir(), nil)
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	hooks := &testHooks{}
+	userConfigsDir := t.TempDir()
+	config := &config.Directories{
+		StablePath:     filepath.Join(userConfigsDir, "stable"),
+		ExperimentPath: filepath.Join(userConfigsDir, "experiment"),
+	}
 	return &testPackageManager{
 		installerImpl: installerImpl{
 			env:            &env.Env{},
 			db:             db,
 			downloader:     oci.NewDownloader(&env.Env{}, s.Client()),
 			packages:       packages,
-			configs:        configs,
-			userConfigsDir: t.TempDir(),
+			userConfigsDir: userConfigsDir,
+			config:         config,
 			packagesDir:    rootPath,
 			hooks:          hooks,
 		},
@@ -162,8 +167,8 @@ func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string)
 	return nil
 }
 
-func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
-	return os.DirFS(filepath.Join(i.userConfigsDir, f.Package))
+func (i *testPackageManager) ConfigFS(_ fixtures.Fixture) fs.FS {
+	return os.DirFS(filepath.Join(i.userConfigsDir, "datadog-agent"))
 }
 
 func TestInstallStable(t *testing.T) {
@@ -404,7 +409,28 @@ func TestPurge(t *testing.T) {
 		installer := newTestPackageManager(t, s, rootPath)
 		installer.testHooks.noop = true
 
-		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+		// Create a tmppath and set it as the root tmp directory
+		tmpPath := filepath.Join(rootPath, "tmp")
+		err := os.MkdirAll(tmpPath, 0755)
+		assert.NoError(t, err)
+
+		oldPurgeTmpDirectory := purgeTmpDirectory
+		purgeTmpDirectory = func(_ string) error {
+			err := os.RemoveAll(tmpPath)
+			if err != nil {
+				t.Fatalf("could not delete tmp directory: %v", err)
+			}
+			return nil
+		}
+		defer func() {
+			purgeTmpDirectory = oldPurgeTmpDirectory
+		}()
+
+		// Create a file in the tmp directory
+		err = os.WriteFile(filepath.Join(tmpPath, "test.txt"), []byte("test"), 0644)
+		assert.NoError(t, err)
+
+		err = instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
 		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 
@@ -416,6 +442,7 @@ func TestPurge(t *testing.T) {
 		assert.NoFileExists(t, filepath.Join(rootPath, "packages.db"), "purge should remove the packages database")
 		assert.NoDirExists(t, rootPath, "purge should remove the packages directory")
 		assert.Nil(t, installer.db, "purge should close the packages database")
+		assert.NoDirExists(t, tmpPath, "purge should remove the tmp directory")
 	})
 }
 
@@ -490,44 +517,31 @@ func TestNoOutsideImport(t *testing.T) {
 	}
 }
 
-func TestWriteConfigSymlinks(t *testing.T) {
-	fleetDir := t.TempDir()
-	userDir := t.TempDir()
-	err := os.WriteFile(filepath.Join(userDir, "datadog.yaml"), []byte("user config"), 0644)
-	assert.NoError(t, err)
-	err = os.WriteFile(filepath.Join(fleetDir, "datadog.yaml"), []byte("fleet config"), 0644)
-	assert.NoError(t, err)
-	err = os.MkdirAll(filepath.Join(fleetDir, "conf.d"), 0755)
+// Test that only files older than 24 hours are deleted
+func TestTmpDirectoryCleanup(t *testing.T) {
+	tempDir := t.TempDir()
+
+	oldFile := filepath.Join(tempDir, "old.txt")
+	newFile := filepath.Join(tempDir, "new.txt")
+
+	err := os.WriteFile(oldFile, []byte("old"), 0644)
 	assert.NoError(t, err)
 
-	err = writeConfigSymlinks(userDir, fleetDir)
+	err = os.WriteFile(newFile, []byte("new"), 0644)
 	assert.NoError(t, err)
-	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml"))
-	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml.override"))
-	assert.FileExists(t, filepath.Join(userDir, "conf.d.override"))
-	configContent, err := os.ReadFile(filepath.Join(userDir, "datadog.yaml"))
-	assert.NoError(t, err)
-	overrideConfigConent, err := os.ReadFile(filepath.Join(userDir, "datadog.yaml.override"))
-	assert.NoError(t, err)
-	assert.Equal(t, "user config", string(configContent))
-	assert.Equal(t, "fleet config", string(overrideConfigConent))
 
-	fleetDir = t.TempDir()
-	err = writeConfigSymlinks(userDir, fleetDir)
-	assert.NoError(t, err)
-	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml"))
-	assert.NoFileExists(t, filepath.Join(userDir, "datadog.yaml.override"))
-	assert.NoFileExists(t, filepath.Join(userDir, "conf.d.override"))
-}
+	oldTime := time.Now().Add(-25 * time.Hour)
+	newTime := time.Now().Add(-1 * time.Hour)
 
-func TestConfigNames(t *testing.T) {
-	// test that the config name is allowed after cleaning
-	// e.g. b/c filepath.Clean on Windows will convert forward slashes to backslashes
-	t.Run("allowed-after-clean", func(t *testing.T) {
-		for _, f := range allowedConfigFiles {
-			cleaned := cleanConfigName(f)
-			assert.Equal(t, cleaned, f)
-			assert.True(t, configNameAllowed(cleaned), "config name %s should be allowed", cleaned)
-		}
-	})
+	err = os.Chtimes(oldFile, oldTime, oldTime)
+	assert.NoError(t, err)
+
+	err = os.Chtimes(newFile, newTime, newTime)
+	assert.NoError(t, err)
+
+	err = cleanupTmpDirectory(tempDir)
+	assert.NoError(t, err)
+
+	assert.NoFileExists(t, oldFile, "old file should be deleted")
+	assert.FileExists(t, newFile, "new file should be kept")
 }

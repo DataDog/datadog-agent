@@ -46,8 +46,18 @@ func (c *cgroupV1) GetMemoryStats(stats *MemoryStats) error {
 			}
 		case "total_rss_huge":
 			stats.RSSHuge = &intVal
+		case "total_shmem":
+			stats.Shmem = &intVal
 		case "total_mapped_file":
-			stats.MappedFile = &intVal
+			stats.FileMapped = &intVal
+		case "total_dirty":
+			stats.FileDirty = &intVal
+		case "total_writeback":
+			stats.FileWriteback = &intVal
+		case "total_workingset_refault_anon":
+			stats.RefaultAnon = &intVal
+		case "total_workingset_refault_file":
+			stats.RefaultFile = &intVal
 		case "total_pgpgin":
 			stats.Pgpgin = &intVal
 		case "total_pgpgout":

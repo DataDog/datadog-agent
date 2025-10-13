@@ -76,6 +76,26 @@ instances:
 		//	``,
 		//	true,
 		//},
+		{
+			"collect ethtool metrics",
+			`init_config:
+instances:
+  - collect_ethtool_stats: true
+    collect_ethtool_metrics: true
+`,
+			``,
+			true,
+		},
+		{
+			"collect aws ena metrics",
+			`init_config:
+instances:
+  - collect_ethtool_stats: true
+    collect_aws_ena_metrics: true
+`,
+			``,
+			true,
+		},
 	}
 
 	for _, testCase := range testCases {

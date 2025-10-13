@@ -61,7 +61,7 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 		aggr.isActive = false
 	}
 
-	for handler := range g.streamHandlers.allStreams() {
+	for _, handler := range g.streamHandlers.allStreams() {
 		aggr, err := g.getOrCreateAggregator(handler.metadata)
 		if err != nil {
 			log.Errorf("Error getting or creating aggregator for handler metadata %v: %s", handler.metadata, err)
@@ -69,14 +69,16 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 		}
 
 		currData := handler.getCurrentData(uint64(nowKtime))
-		pastData := handler.getPastData(true)
+		pastData := handler.getPastData()
 
 		if currData != nil {
 			aggr.processCurrentData(currData)
+			currData.releaseSpans()
 		}
 
 		if pastData != nil {
 			aggr.processPastData(pastData)
+			pastData.releaseSpans()
 		}
 	}
 
@@ -177,9 +179,9 @@ func (g *statsGenerator) getNormalizationFactors(stats []model.StatsTuple) (map[
 
 	normFactors := make(map[string]normalizationFactors)
 	for uuid, usage := range usages {
-		device, ok := g.sysCtx.deviceCache.GetByUUID(uuid)
-		if !ok {
-			return nil, fmt.Errorf("cannot find device for UUID %s", uuid)
+		device, err := g.sysCtx.deviceCache.GetByUUID(uuid)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get device for UUID %s: %w", uuid, err)
 		}
 
 		var deviceFactors normalizationFactors

@@ -126,18 +126,28 @@ type ProcessGoInterfaceOp struct {
 
 type ProcessGoHmapOp struct {
 	baseOp
-	BucketsArray ir.ArrayType
+	BucketsType      *ir.GoSliceDataType
+	BucketType       *ir.GoHMapBucketType
+	FlagsOffset      uint8
+	BOffset          uint8
+	BucketsOffset    uint8
+	OldBucketsOffset uint8
 }
 
 type ProcessGoSwissMapOp struct {
 	baseOp
-	TablePtrSlice ir.GoSliceHeaderType
+	TablePtrSlice *ir.GoSliceDataType
 	Group         ir.Type
+	DirPtrOffset  uint8
+	DirLenOffset  uint8
 }
 
 type ProcessGoSwissMapGroupsOp struct {
 	baseOp
-	Group ir.Type
+	DataOffset       uint8
+	LengthMaskOffset uint8
+	GroupSlice       *ir.GoSliceDataType
+	Group            ir.Type
 }
 
 // Top level ops.

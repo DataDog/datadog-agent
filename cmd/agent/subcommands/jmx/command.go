@@ -37,9 +37,11 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -113,7 +115,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		}
 		params := core.BundleParams{
 			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-			SecretParams: secrets.NewEnabledParams(),
 			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false),
 		}
 		if cliParams.logFile != "" {
@@ -124,6 +125,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(params),
 			core.Bundle(),
+			secretfx.Module(),
 			diagnosesendermanagerimpl.Module(),
 			fx.Supply(func(diagnoseSenderManager diagnosesendermanager.Component) (sender.SenderManager, error) {
 				return diagnoseSenderManager.LazyGetSenderManager()
@@ -281,6 +283,7 @@ func disableCmdPort() {
 // with the Console reporter
 func runJmxCommandConsole(config config.Component,
 	cliParams *cliParams,
+	filterStore workloadfilter.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
 	diagnoseSendermanager diagnosesendermanager.Component,
@@ -302,12 +305,12 @@ func runJmxCommandConsole(config config.Component,
 	}
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(secretResolver, wmeta, ac, config.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, tagger, ac, config.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver, tagger)
+	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver, tagger, filterStore)
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.

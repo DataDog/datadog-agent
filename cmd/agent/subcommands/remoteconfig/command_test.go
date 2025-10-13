@@ -8,11 +8,8 @@ package remoteconfig
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -21,7 +18,13 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"remote-config"},
 		state,
-		func(_ *cliParams, _ core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, false, secretParams.Enabled)
-		})
+		func(_ *cliParams, _ core.BundleParams) {})
+}
+
+func TestResetCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"remote-config", "reset"},
+		reset,
+		func(_ *cliParams, _ core.BundleParams) {})
 }

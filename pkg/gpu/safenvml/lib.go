@@ -11,9 +11,11 @@
 package safenvml
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -48,8 +50,13 @@ func getNonCriticalAPIs() []string {
 		"nvmlGpmMetricsGet",
 		"nvmlGpmQueryDeviceSupport",
 		"nvmlGpmSampleGet",
+		"nvmlEventSetCreate",
+		"nvmlEventSetFree",
+		"nvmlEventSetWait_v1",
+		"nvmlEventSetWait_v2", // it can be either v1 or v2
 		toNativeName("GetArchitecture"),
 		toNativeName("GetAttributes"),
+		toNativeName("GetBAR1MemoryInfo"),
 		toNativeName("GetClockInfo"),
 		toNativeName("GetComputeRunningProcesses"),
 		toNativeName("GetCurrentClocksThrottleReasons"),
@@ -61,6 +68,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetMaxClockInfo"),
 		toNativeName("GetMaxMigDeviceCount"),
 		toNativeName("GetMemoryBusWidth"),
+		toNativeName("GetMemoryInfo_v2"),
 		toNativeName("GetMigDeviceHandleByIndex"),
 		toNativeName("GetMigMode"),
 		toNativeName("GetNvLinkState"),
@@ -68,12 +76,16 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetPerformanceState"),
 		toNativeName("GetPowerManagementLimit"),
 		toNativeName("GetPowerUsage"),
+		toNativeName("GetProcessUtilization"),
 		toNativeName("GetRemappedRows"),
 		toNativeName("GetSamples"),
 		toNativeName("GetTemperature"),
 		toNativeName("GetTotalEnergyConsumption"),
 		toNativeName("GetUtilizationRates"),
 		toNativeName("IsMigDeviceHandle"),
+		toNativeName("GetVirtualizationMode"),
+		toNativeName("GetSupportedEventTypes"),
+		toNativeName("RegisterEvents"),
 	}
 }
 
@@ -101,6 +113,12 @@ type SafeNVML interface {
 	GpmSampleFree(sample nvml.GpmSample) error
 	// GpmMetricsGet calculates the metrics from the given samples
 	GpmMetricsGet(metrics *nvml.GpmMetricsGetType) error
+	// EventSetCreate creates an event set object
+	EventSetCreate() (nvml.EventSet, error)
+	// EventSetFree frees an event set object
+	EventSetFree(evtSet nvml.EventSet) error
+	// EventSetWait waits (up to timeout) for an event to appear on the given set and returns it
+	EventSetWait(evtSet nvml.EventSet, timeout time.Duration) (DeviceEventData, error)
 }
 
 type safeNvml struct {
@@ -184,6 +202,54 @@ func (s *safeNvml) GpmMetricsGet(metrics *nvml.GpmMetricsGetType) error {
 	return NewNvmlAPIErrorOrNil("GpmMetricsGet", ret)
 }
 
+func (s *safeNvml) EventSetCreate() (nvml.EventSet, error) {
+	if err := s.lookup("nvmlEventSetCreate"); err != nil {
+		return nil, err
+	}
+	evtSet, ret := s.lib.EventSetCreate()
+	return evtSet, NewNvmlAPIErrorOrNil("nvmlEventSetCreate", ret)
+}
+
+func (s *safeNvml) EventSetFree(evtSet nvml.EventSet) error {
+	if err := s.lookup("nvmlEventSetFree"); err != nil {
+		return err
+	}
+	ret := s.lib.EventSetFree(evtSet)
+	return NewNvmlAPIErrorOrNil("nvmlEventSetFree", ret)
+}
+
+func (s *safeNvml) EventSetWait(evtSet nvml.EventSet, timeout time.Duration) (DeviceEventData, error) {
+	v1Err := errors.Join(s.lookup("nvmlEventSetWait_v1"))
+	v2Err := errors.Join(s.lookup("nvmlEventSetWait_v2"))
+	if v1Err != nil && v2Err != nil {
+		return DeviceEventData{}, errors.Join(v1Err, v2Err)
+	}
+	if timeout < time.Millisecond {
+		return DeviceEventData{}, errors.New("can't use sub-millisecond timeout in EventSetWait")
+	}
+
+	data, ret := s.lib.EventSetWait(evtSet, uint32(timeout.Milliseconds()))
+	retErr := NewNvmlAPIErrorOrNil("nvmlEventSetWait", ret)
+	safeData := DeviceEventData{
+		EventType:         data.EventType,
+		EventData:         data.EventData,
+		GPUInstanceID:     data.GpuInstanceId,
+		ComputeInstanceID: data.ComputeInstanceId,
+	}
+
+	// attempt safe resolution of device UUID
+	if data.Device != nil {
+		uuid, err := (&safeDeviceImpl{nvmlDevice: data.Device, lib: s}).GetUUID()
+		if err != nil {
+			err = fmt.Errorf("can't retrieve device UUID: %w", err)
+			return DeviceEventData{}, errors.Join(err, retErr)
+		}
+		safeData.DeviceUUID = uuid
+	}
+
+	return safeData, retErr
+}
+
 // populateCapabilities verifies nvml API symbols exist in the native library (libnvidia-ml.so).
 // It returns an error only if a critical symbol is missing (to properly initialize device list and create a new safe device wrapper)
 func populateCapabilities(lib nvml.Interface) (map[string]struct{}, error) {
@@ -244,7 +310,7 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 		libpath = cfg.GetString(strings.Join([]string{consts.GPUNS, "nvml_lib_path"}, "."))
 	} else {
 		cfg := pkgconfigsetup.Datadog()
-		libpath = cfg.GetString("nvml_lib_path")
+		libpath = cfg.GetString("gpu.nvml_lib_path")
 	}
 
 	lib := nvmlNewFunc(nvml.WithLibraryPath(libpath))

@@ -32,8 +32,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/remotecommand"
 )
 
 const (
@@ -53,6 +51,7 @@ var GitCommit string
 
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
+	envSpecificClusterTags []string
 }
 
 func (suite *k8sSuite) SetupSuite() {
@@ -246,7 +245,7 @@ func (suite *k8sSuite) TestVersion() {
 				Limit:         1,
 			})
 			if suite.NoError(err) && len(linuxPods.Items) >= 1 {
-				stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, tt.container, []string{"agent", "version"})
+				stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", linuxPods.Items[0].Name, tt.container, []string{"agent", "version"})
 				if suite.NoError(err) {
 					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)
@@ -284,7 +283,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	suite.Require().Len(pod.Items, 1)
 
 	suite.Run("agent status", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "status"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "status"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent status` should be empty")
 		suite.Contains(stdout, "Collector")
@@ -296,7 +295,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 
 	suite.Run("agent status --json", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "status", "--json"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "status", "--json"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent status` should be empty")
 		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `agent status --json` isn’t valid JSON") {
@@ -310,7 +309,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 
 	suite.Run("agent checkconfig", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "checkconfig"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "checkconfig"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent checkconfig` should be empty")
 		suite.Contains(stdout, "=== container check ===")
@@ -323,7 +322,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	suite.Run("agent check -r container", func() {
 		var stdout string
 		suite.EventuallyWithT(func(c *assert.CollectT) {
-			stdout, _, err = suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-t", "3", "container", "--table", "--delay", "1000", "--pause", "5000"})
+			stdout, _, err = suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-t", "3", "container", "--table", "--delay", "1000", "--pause", "5000"})
 			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoError(c, err) {
 				return
@@ -341,7 +340,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	suite.Run("agent check -r container --json", func() {
 		var stdout string
 		suite.EventuallyWithT(func(c *assert.CollectT) {
-			stdout, _, err = suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "check", "-r", "container", "--table", "--delay", "1000", "--json"})
+			stdout, _, err = suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "check", "-r", "container", "--table", "--delay", "1000", "--json"})
 			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoError(c, err) {
 				return
@@ -358,7 +357,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 
 	suite.Run("agent workload-list", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent workload-list` should be empty")
 		suite.Contains(stdout, "=== Entity container sources(merged):[node_orchestrator runtime] id: ")
@@ -369,7 +368,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 
 	suite.Run("agent tagger-list", func() {
-		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent tagger-list` should be empty")
 		suite.Contains(stdout, "=== Entity container_id://")
@@ -381,23 +380,45 @@ func (suite *k8sSuite) testAgentCLI() {
 }
 
 func (suite *k8sSuite) testClusterAgentCLI() {
-	leaderDcaPodName := suite.testDCALeaderElection(false) //check cluster agent leaderelection without restart
+	leaderDcaPodName := suite.testDCALeaderElection(false) // check cluster agent leaderelection without restart
 	suite.Require().NotEmpty(leaderDcaPodName, "Leader DCA pod name should not be empty")
 
 	suite.Run("cluster-agent status", func() {
-		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "status"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "status"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
 		suite.Contains(stdout, "Collector")
 		suite.Contains(stdout, "Running Checks")
-		suite.Contains(stdout, "kubernetes_state_core")
+		suite.Contains(stdout, "kubernetes_apiserver")
+		if suite.Env().Agent.FIPSEnabled {
+			// Verify FIPS mode is reported as enabled
+			suite.Contains(stdout, "FIPS Mode: enabled", "Cluster agent should report FIPS Mode as enabled")
+			suite.T().Logf("Cluster agent correctly reports FIPS status as enabled")
+		} else {
+			suite.NotContains(stdout, "FIPS Mode: enabled", "Cluster agent should not report FIPS Mode as enabled")
+		}
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
 	})
 
+	suite.Run("cluster-agent version", func() {
+		if suite.Env().Agent.FIPSEnabled {
+			stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "version"})
+			suite.Require().NoError(err)
+			suite.Empty(stderr, "Standard error of `datadog-cluster-agent version` should be empty")
+			suite.Contains(stdout, "Cluster Agent")
+			// Verify cluster agent is built with Go-Boring SSL (X:boringcrypto)
+			suite.Contains(stdout, "X:boringcrypto", "Cluster agent must be built with Go-Boring SSL")
+			suite.T().Logf("Cluster agent correctly reports Go-Boring SSL via X:boringcrypto flag")
+			if suite.T().Failed() {
+				suite.T().Log(stdout)
+			}
+		}
+	})
+
 	suite.Run("cluster-agent status --json", func() {
-		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
 		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `datadog-cluster-agent status --json` isn’t valid JSON") {
@@ -411,26 +432,79 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent checkconfig", func() {
-		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent checkconfig` should be empty")
-		suite.Contains(stdout, "=== kubernetes_state_core check ===")
-		suite.Contains(stdout, "Config for instance ID: kubernetes_state_core:")
+		suite.Contains(stdout, "=== kubernetes_apiserver check ===")
+		suite.Contains(stdout, "Config for instance ID: kubernetes_apiserver:")
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
 	})
 
 	suite.Run("cluster-agent clusterchecks", func() {
-		stdout, stderr, err := suite.podExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent clusterchecks` should be empty")
 		suite.Contains(stdout, "agents reporting ===")
 		suite.Contains(stdout, "===== Checks on ")
 		suite.Contains(stdout, "=== helm check ===")
+		suite.Contains(stdout, "=== kubernetes_state_core check ===")
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
+	})
+
+	suite.Run("cluster-agent autoscaler-list --localstore", func() {
+		// First verify the command exists and autoscaling is enabled
+		checkStdout, checkStderr, checkErr := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
+			"datadog",
+			leaderDcaPodName,
+			"cluster-agent",
+			[]string{"sh", "-c", "datadog-cluster-agent autoscaler-list --localstore 2>&1 || echo 'Exit code:' $?"},
+		)
+		suite.T().Logf("Initial check - stdout: %s, stderr: %s, err: %v", checkStdout, checkStderr, checkErr)
+
+		// Wait for some workload metrics to be collected in the local store
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			// Execute the CLI command to list workload metrics from local store
+			stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
+				"datadog",
+				leaderDcaPodName,
+				"cluster-agent",
+				[]string{"datadog-cluster-agent", "autoscaler-list", "--localstore"},
+			)
+			// Assert that the command executes successfully
+			assert.NoError(c, err, "autoscaler-list command should execute successfully. stdout: %s, stderr: %s", stdout, stderr)
+			// The output should contain workload metrics information
+			// Format: Namespace: <ns>, PodOwner: <owner>, MetricName: <metric>, Datapoints: <count>
+			assert.NotEmpty(c, stdout, "workload-list --local-store should return data")
+
+			// Log full output for debugging
+			suite.T().Logf("Output:\n%s", stdout)
+
+			validEntryCount := 0
+			lines := strings.Split(stdout, "\n")
+
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line == "" {
+					continue
+				}
+
+				// Each line should have the format: "Namespace: ..., PodOwner: ..., MetricName: ..., Datapoints: ..."
+				if strings.Contains(line, "Namespace:") &&
+					strings.Contains(line, "PodOwner:") &&
+					strings.Contains(line, "MetricName:") &&
+					strings.Contains(line, "Datapoints:") {
+					validEntryCount++
+					assert.NotContains(c, line, "datadog", "datadog namespace should be filtered")
+				}
+			}
+
+			suite.T().Logf("Found %d workload metric entries in local store", validEntryCount)
+			assert.GreaterOrEqual(c, validEntryCount, 10, "Should have at least 10 workload entries in local store, but got %d", validEntryCount)
+		}, 3*time.Minute, 10*time.Second, "Failed to get workload metrics from local store")
 	})
 }
 
@@ -446,7 +520,7 @@ func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) string {
 		})
 		assert.NoError(c, err)
 		assert.Len(c, pods.Items, 1, "Expected at least one running cluster agent pod")
-		stdout, stderr, err := suite.podExec("datadog", pods.Items[0].Name, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pods.Items[0].Name, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
 		assert.NoError(c, err)
 		assert.Empty(c, stderr, "Standard error of `datadog-cluster-agent status` should be empty")
 		var blob interface{}
@@ -538,7 +612,7 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^cluster_name:`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
@@ -546,7 +620,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_namespace:workload-nginx$`,
 				`^kube_service:nginx$`,
 				`^url:http://`,
-			},
+			}),
 		},
 	})
 
@@ -560,8 +634,9 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:`,
+				`^cluster_name:`,
 				`^orch_cluster_id:`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
@@ -571,7 +646,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^sub-team:contint$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
 				Min: 1,
@@ -665,14 +740,15 @@ func (suite *k8sSuite) TestRedis() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:`,
+				`^cluster_name:`,
 				`^orch_cluster_id:`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
 				Min: 1,
@@ -823,6 +899,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-stress-ng$`,
+				`^kube_static_cpus:false$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 250000000,
@@ -859,6 +936,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-stress-ng$`,
+				`^kube_static_cpus:false$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 0.2,
@@ -878,8 +956,9 @@ func (suite *k8sSuite) TestKSM() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-nginx$`,
 				`^org:agent-org$`,
@@ -887,7 +966,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
@@ -904,13 +983,14 @@ func (suite *k8sSuite) TestKSM() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
@@ -923,8 +1003,9 @@ func (suite *k8sSuite) TestKSM() {
 			Name: "kubernetes_state_customresource.ddm_value",
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^customresource_group:datadoghq.com$`,
 				`^customresource_version:v1alpha1$`,
@@ -934,7 +1015,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^ddm_name:(?:nginx|redis)$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 		},
 	})
 }
@@ -1114,7 +1195,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			suite.Require().NoError(err)
 			suite.Require().Len(agentPod.Items, 1)
 
-			stdout, _, err := suite.podExec("datadog", agentPod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
+			stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
 			suite.Require().NoError(err)
 			suite.Contains(stdout, "Language: python")
 			if suite.T().Failed() {
@@ -1190,7 +1271,9 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	)
 
 	if suite.Contains(hostPathVolumes, "datadog") {
-		suite.Equal("/var/run/datadog", hostPathVolumes["datadog"].Path)
+		// trim trailing '/' if exists
+		ddHostPath := strings.TrimSuffix(hostPathVolumes["datadog"].Path, "/")
+		suite.Contains("/var/run/datadog", ddHostPath)
 		suite.Contains(volumesMarkedAsSafeToEvict, "datadog")
 	}
 
@@ -1228,7 +1311,6 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			}, volumeMounts["datadog-auto-instrumentation"])
 		}
 	}
-
 }
 
 func (suite *k8sSuite) TestContainerImage() {
@@ -1606,45 +1688,6 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 	})
 }
 
-type podExecOption func(*corev1.PodExecOptions)
-
-func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string, podOptions ...podExecOption) (stdout, stderr string, err error) {
-	req := suite.Env().KubernetesCluster.Client().CoreV1().RESTClient().Post().Resource("pods").Namespace(namespace).Name(pod).SubResource("exec")
-	option := &corev1.PodExecOptions{
-		Stdin:     false,
-		Stdout:    true,
-		Stderr:    true,
-		TTY:       false,
-		Container: container,
-		Command:   cmd,
-	}
-
-	for _, podOption := range podOptions {
-		podOption(option)
-	}
-
-	req.VersionedParams(
-		option,
-		scheme.ParameterCodec,
-	)
-
-	exec, err := remotecommand.NewSPDYExecutor(suite.Env().KubernetesCluster.KubernetesClient.K8sConfig, "POST", req.URL())
-	if err != nil {
-		return "", "", err
-	}
-
-	var stdoutSb, stderrSb strings.Builder
-	err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
-		Stdout: &stdoutSb,
-		Stderr: &stderrSb,
-	})
-	if err != nil {
-		return "", "", err
-	}
-
-	return stdoutSb.String(), stderrSb.String(), nil
-}
-
 func (suite *k8sSuite) TestTraceUDS() {
 	suite.testTrace(kubeDeploymentTracegenUDSWorkload)
 }
@@ -1695,4 +1738,9 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 		}
 		require.NoErrorf(c, err, "Failed finding trace with proper tags")
 	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
+}
+
+func (suite *k8sSuite) testClusterTags(tags []string) *[]string {
+	combined := append(tags, suite.envSpecificClusterTags...)
+	return &combined
 }

@@ -10,6 +10,7 @@ package kubernetesadmissionevents
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -24,10 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
@@ -41,6 +41,14 @@ const (
 	eventType      = "kubernetes_admission_events"
 )
 
+// compareText compares text while ignoring the timestamp
+func compareText(expected, actual event.Event) bool {
+	re := regexp.MustCompile(`\*\*Time:\*\*.*?(\\n|$)`)
+	expectedText := re.ReplaceAllString(expected.Text, "**Time:** <TIME>\n")
+	actualText := re.ReplaceAllString(actual.Text, "**Time:** <TIME>\n")
+	return expectedText == actualText
+}
+
 // TestKubernetesAdmissionEvents tests the KubernetesAdmissionEvents webhook.
 func TestKubernetesAdmissionEvents(t *testing.T) {
 	// Mock demultiplexer and sender
@@ -50,7 +58,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Mock Datadog Config
-	datadogConfigMock := fxutil.Test[config.Component](t, core.MockBundle())
+	datadogConfigMock := config.NewMock(t)
 	datadogConfigMock.SetWithoutSource("admission_controller.kubernetes_admission_events.enabled", true)
 
 	tests := []struct {
@@ -258,7 +266,7 @@ func TestKubernetesAdmissionEvents(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, validated)
 			if tt.expectedEmitted {
-				mockSender.AssertEvent(t, tt.expectedEvent, 1*time.Second)
+				mockSender.AssertEventWithCompareFunc(t, tt.expectedEvent, 1*time.Second, compareText)
 			} else {
 				mockSender.AssertNotCalled(t, "Event")
 			}

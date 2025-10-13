@@ -115,3 +115,32 @@ func FuzzParseDockerFile(f *testing.F) {
 		}
 	})
 }
+
+// FuzzParseDockerFileUntailored tests the dockerfile parser with completely
+// arbitrary input data, without attempting to construct valid JSON. This
+// complements the FuzzParseDockerFile test which uses carefully crafted inputs.
+//
+// The purpose is to ensure the parser never panics regardless of input, testing
+// its robustness against malformed, corrupted, or completely random data that
+// might be encountered.
+func FuzzParseDockerFileUntailored(f *testing.F) {
+	f.Add([]byte(`{"log":"hello\n","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}`))
+	f.Add([]byte(""))
+	f.Add([]byte(" "))
+	f.Add([]byte("not json"))
+	f.Add([]byte("\x00\x01\x02\x03"))
+	f.Add([]byte("\xFF\xFE\xFD\xFC"))
+
+	parser := New()
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		msg := message.NewMessage(data, nil, "", 0)
+
+		// The only invariant: parser must not panic and must return a valid result
+		result, _ := parser.Parse(msg)
+
+		if result == nil {
+			t.Fatal("Parse returned nil")
+		}
+	})
+}

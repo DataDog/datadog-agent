@@ -38,6 +38,8 @@ var sources string
 func TestOTelAgentMinimal(t *testing.T) {
 	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
@@ -138,7 +140,8 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
     metrics/dd-autoconfigured/datadog:
       exporters:
       - datadog
-      processors: []
+      processors:
+      - filter/drop-prometheus-internal-metrics/dd-autoconfigured
       receivers:
       - prometheus/dd-autoconfigured
     traces:

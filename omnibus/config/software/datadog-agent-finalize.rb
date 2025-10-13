@@ -32,25 +32,20 @@ build do
             # load isn't supported by windows
             delete "#{confd_dir}/load.d"
 
-            # service_discovery isn't supported by windows
-            delete "#{confd_dir}/service_discovery.d"
-
             # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end
 
         if linux_target? || osx_target?
-            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
-            # default to `pip2` if the default Python runtime is Python 2.
-            delete "#{install_dir}/embedded/bin/pip"
-            link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
-
-            delete "#{install_dir}/embedded/bin/python"
-            link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
-
-            # Used in https://docs.datadoghq.com/agent/guide/python-3/
-            delete "#{install_dir}/embedded/bin/2to3"
-            link "#{install_dir}/embedded/bin/2to3-3.12", "#{install_dir}/embedded/bin/2to3"
+            delete "#{install_dir}/embedded/bin/pip"  # copy of pip3.13
+            delete "#{install_dir}/embedded/bin/pip3"  # copy of pip3.13
+            block 'create relative symlinks within embedded Python distribution' do
+              Dir.chdir "#{install_dir}/embedded/bin" do
+                File.symlink 'pip3.13', 'pip3'
+                File.symlink 'pip3', 'pip'
+                File.symlink 'python3', 'python'
+              end
+            end
 
             delete "#{install_dir}/embedded/lib/config_guess"
 
@@ -83,8 +78,10 @@ build do
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
             end
 
-            # Create the installer symlink
-            link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
+            # Create the installer symlink if the file doesn't already exist
+            unless File.exist?("#{install_dir}/embedded/bin/installer")
+              link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
+            end
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
@@ -133,6 +130,14 @@ build do
             # removing the info folder to reduce package size by ~4MB
             delete "#{install_dir}/embedded/share/info"
 
+            # remove some debug ebpf object files to reduce the size of the package
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/shared-libraries-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/shared-libraries-debug.o"
+
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
             #    https://github.com/pypa/manylinux/issues/119
@@ -154,12 +159,20 @@ build do
             # Most postgres binaries are removed in postgres' own software
             # recipe, but we need pg_config to build psycopq.
             delete "#{install_dir}/embedded/bin/pg_config"
+
+            # Deduplicate files using symlinks
+            command "dda inv -- omnibus.deduplicate-files --directory #{install_dir}/embedded", cwd: Dir.pwd
+
+            # Edit rpath from a true path to relative path for each binary if install_dir contains /opt/datadog-packages
+            if install_dir.include?("/opt/datadog-packages")
+              # The healthcheck will fail as the rpath doesn't contain install_dir
+              command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
+            end
         end
 
         if osx_target?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
-            delete "#{install_dir}/etc/conf.d/service_discovery.d"
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
@@ -179,14 +192,21 @@ build do
             if code_signing_identity
                 # Sometimes the timestamp service is not available, so we retry
                 codesign = "../tools/ci/retry.sh codesign"
+                app = "'#{install_dir}/Datadog Agent.app'"
 
-                # Codesign all Mach-O binaries leveraging parallelism (~280 binaries out of ~28000 files)
+                # Codesign ~480 files (out of ~28000)
                 command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
                     set -euo pipefail
-                    find #{install_dir} -type f -print0 |
-                        xargs -0 -n1000 -P#{workers} file -n --mime-type |
-                        awk -F: '$0 ~ /[^)]:[[:space:]]*application\\/x-mach-binary/ { printf "%s%c", $1, 0 }' |
-                        xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
+                    (
+                        # Gather all executables, whether binaries or scripts
+                        find #{install_dir} -path #{app} -prune -o -type f -perm +111 -print0
+                        # Gather non executable Mach-O binaries leveraging parallelism
+                        find #{install_dir} -path #{app} -prune -o -type f ! -perm +111 -print0 |
+                            xargs -0 -n1000 -P#{workers} file -n --mime-type |
+                            awk -F: '/[^)]:[[:space:]]*application\\/x-mach-binary/ { printf "%s%c", $1, 0 }'
+                        # Add .app bundle at once to avoid corruption from partial parallel signing of its content
+                        printf '%s\\0' #{app}
+                    ) | xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
                 SH
             end
         end

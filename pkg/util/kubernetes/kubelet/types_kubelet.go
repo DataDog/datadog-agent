@@ -36,6 +36,7 @@ type PodMetadata struct {
 	Labels            map[string]string `json:"labels,omitempty"`
 	Owners            []PodOwner        `json:"ownerReferences,omitempty"`
 	CreationTimestamp time.Time         `json:"creationTimestamp,omitempty"`
+	DeletionTimestamp *time.Time        `json:"deletionTimestamp,omitempty"`
 }
 
 // PodOwner contains fields for unmarshalling a Pod.Metadata.Owners
@@ -76,6 +77,7 @@ type ContainerSpec struct {
 	Env             []EnvVar                      `json:"env,omitempty"`
 	SecurityContext *ContainerSecurityContextSpec `json:"securityContext,omitempty"`
 	Resources       *ContainerResourcesSpec       `json:"resources,omitempty"`
+	ResizePolicy    []ContainerResizePolicySpec   `json:"resizePolicy,omitempty"`
 }
 
 // Toleration contains fields for unmarshalling a Pod.Spec.Tolerations
@@ -105,6 +107,15 @@ const (
 	ResourceEphemeralStorage ResourceName = "ephemeral-storage"
 )
 
+// RestartPolicyName is the type for the allowed restart policies
+type RestartPolicyName string
+
+// Restart policies
+const (
+	RestartPolicyNotRequired      RestartPolicyName = "NotRequired"
+	RestartPolicyRestartContainer RestartPolicyName = "RestartContainer"
+)
+
 // GetGPUResourceNames returns the list of GPU resource names
 func GetGPUResourceNames() []ResourceName {
 	return []ResourceName{ResourcePrefixNvidiaMIG, ResourceGenericNvidiaGPU, ResourcePrefixIntelGPU, ResourcePrefixAMDGPU}
@@ -117,6 +128,12 @@ type ResourceList map[ResourceName]resource.Quantity
 type ContainerResourcesSpec struct {
 	Requests ResourceList `json:"requests,omitempty"`
 	Limits   ResourceList `json:"limits,omitempty"`
+}
+
+// ContainerResizePolicySpec contains fields for unmarshalling a Pod.Spec.Containers.ResizePolicy
+type ContainerResizePolicySpec struct {
+	ResourceName  ResourceName      `json:"resourceName,omitempty"`
+	RestartPolicy RestartPolicyName `json:"restartPolicy,omitempty"`
 }
 
 // ContainerPortSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
@@ -220,6 +237,7 @@ func (s *Status) GetAllContainers() []ContainerStatus {
 type Conditions struct {
 	Type   string `json:"type,omitempty"`
 	Status string `json:"status,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers
@@ -279,4 +297,16 @@ type ContainerStateTerminated struct {
 	StartedAt  time.Time `json:"startedAt"`
 	FinishedAt time.Time `json:"finishedAt"`
 	Reason     string    `json:"reason"`
+}
+
+// ConfigSpec is the kubelet configuration, only the
+// necessary fields are stored
+type ConfigSpec struct {
+	CPUManagerPolicy string `json:"cpuManagerPolicy"`
+}
+
+// ConfigDocument is the wrapper struct that holds
+// the kubelet config
+type ConfigDocument struct {
+	KubeletConfig ConfigSpec `json:"kubeletconfig"`
 }

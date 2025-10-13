@@ -13,7 +13,6 @@ package service
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -27,7 +26,6 @@ import (
 	"github.com/DataDog/go-tuf/data"
 	tufutil "github.com/DataDog/go-tuf/util"
 	"github.com/benbjohnson/clock"
-	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"go.etcd.io/bbolt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 const (
@@ -104,11 +103,7 @@ func (s *Service) getNewDirectorRoots(uptane uptaneClient, currentVersion uint64
 		if err != nil {
 			return nil, err
 		}
-		canonicalRoot, err := enforceCanonicalJSON(root)
-		if err != nil {
-			return nil, err
-		}
-		roots = append(roots, canonicalRoot)
+		roots = append(roots, root)
 	}
 	return roots, nil
 }
@@ -187,6 +182,14 @@ type CoreAgentService struct {
 
 	// set the interval for which we will poll the org status
 	orgStatusRefreshInterval time.Duration
+
+	site         string
+	configRoot   string
+	directorRoot string
+
+	// A background task used to perform connectivity tests using a WebSocket -
+	// data gathering for future development.
+	websocketTest startstop.StartStoppable
 }
 
 // uptaneClient provides functions to get TUF/uptane repo data.
@@ -471,6 +474,14 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	clock := clock.New()
 
+	// WebSocket test actor - must call Start() to spawn the background task.
+	var websocketTest startstop.StartStoppable
+	if cfg.GetBool("remote_configuration.no_websocket_echo") {
+		websocketTest = &noOpRunnable{}
+	} else {
+		websocketTest = NewWebSocketTestActor(http)
+	}
+
 	now := clock.Now().UTC()
 	cas := &CoreAgentService{
 		Service: Service{
@@ -509,6 +520,10 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		stopConfigPoller:         make(chan struct{}),
 		disableConfigPollLoop:    options.disableConfigPollLoop,
 		orgStatusRefreshInterval: options.orgStatusRefreshInterval,
+		site:                     options.site,
+		configRoot:               configRoot,
+		directorRoot:             directorRoot,
+		websocketTest:            websocketTest,
 	}
 
 	cfg.OnUpdate(cas.apiKeyUpdateCallback())
@@ -549,6 +564,8 @@ func (s *CoreAgentService) Start() {
 		}
 
 	}()
+
+	s.websocketTest.Start()
 }
 
 // UpdatePARJWT updates the stored JWT for Private Action Runners
@@ -621,6 +638,10 @@ func logRefreshError(s *CoreAgentService, err error) {
 
 // Stop stops the refresh loop and closes the on-disk DB cache
 func (s *CoreAgentService) Stop() error {
+	// NOTE: Stop() MAY be called more than once - cleanup SHOULD be idempotent.
+
+	s.websocketTest.Stop()
+
 	if s.stopConfigPoller != nil {
 		close(s.stopConfigPoller)
 	}
@@ -941,14 +962,10 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if err != nil {
 		return nil, err
 	}
-	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
-	if err != nil {
-		return nil, err
-	}
 
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
-		Targets:       canonicalTargets,
+		Targets:       targetsRaw,
 		TargetFiles:   targetFiles,
 		ClientConfigs: matchedClientConfigs,
 		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_OK,
@@ -986,8 +1003,8 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 	return filteredList, nil
 }
 
-func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any, uint64) {
-	return func(setting string, _, newvalue any, _ uint64) {
+func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any, any, uint64) {
+	return func(setting string, _ model.Source, _, newvalue any, _ uint64) {
 		if setting != "api_key" {
 			return
 		}
@@ -1046,6 +1063,41 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 	maps.Copy(response.TargetFilenames, state.TargetFilenames)
 
 	return response, nil
+}
+
+// ConfigResetState resets the remote configuration state, clearing the local store and reinitializing the uptane client
+func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, error) {
+	s.Lock()
+	defer s.Unlock()
+	metadata, err := getMetadata(s.db)
+	if err != nil {
+		return nil, fmt.Errorf("could not read metadata from the database: %w", err)
+	}
+
+	path := s.db.Path()
+	s.db.Close()
+	db, err := recreate(path, metadata.Version, metadata.APIKeyHash, metadata.URL)
+	if err != nil {
+		return nil, err
+	}
+	s.db = db
+
+	opt := []uptane.ClientOption{
+		uptane.WithConfigRootOverride(s.site, s.configRoot),
+		uptane.WithDirectorRootOverride(s.site, s.directorRoot),
+	}
+	uptaneClient, err := uptane.NewCoreAgentClient(
+		db,
+		newRCBackendOrgUUIDProvider(s.api),
+		opt...,
+	)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	s.uptane = uptaneClient
+
+	return &pbgo.ResetStateConfigResponse{}, err
 }
 
 func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
@@ -1142,15 +1194,6 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 	}
 
 	return nil
-}
-
-func enforceCanonicalJSON(raw []byte) ([]byte, error) {
-	canonical, err := cjson.EncodeCanonical(json.RawMessage(raw))
-	if err != nil {
-		return nil, err
-	}
-
-	return canonical, nil
 }
 
 // HTTPClient fetches Remote Configurations from an HTTP(s)-based backend
@@ -1301,14 +1344,10 @@ func (c *HTTPClient) getUpdate(
 	if err != nil {
 		return nil, err
 	}
-	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
-	if err != nil {
-		return nil, err
-	}
 
 	return &state.Update{
 		TUFRoots:      roots,
-		TUFTargets:    canonicalTargets,
+		TUFTargets:    targetsRaw,
 		TargetFiles:   fileMap,
 		ClientConfigs: configs,
 	}, nil
