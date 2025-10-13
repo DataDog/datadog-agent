@@ -84,6 +84,7 @@ service:
 
 	conf := readFromYamlFile(t, yaml)
 	require.Equal(t, conf, map[string]any{
+		"extensions": map[string]any{},
 		"service": map[string]any{
 			"extensions": []any{},
 		},

@@ -28,16 +28,11 @@ func newConverter(_ confmap.ConverterSettings) confmap.Converter {
 }
 
 func (c *converterNoAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	conf.Delete("processors::" + infraAttributesName())
-	conf.Delete("extensions::" + ddprofilingName())
-
 	confStringMap := conf.ToStringMap()
-
-	if err := removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", infraAttributesName()); err != nil {
+	if err := removeInfraAttributesProcessor(confStringMap); err != nil {
 		return err
 	}
-
-	if err := removeFromList(confStringMap, []string{"service"}, "extensions", ddprofilingName()); err != nil {
+	if err := removeDDProfilingExtension(confStringMap); err != nil {
 		return err
 	}
 
@@ -46,12 +41,39 @@ func (c *converterNoAgent) Convert(_ context.Context, conf *confmap.Conf) error 
 
 }
 
+func removeInfraAttributesProcessor(confStringMap map[string]any) error {
+	if err := removeFromMap(confStringMap, []string{"processors"}, infraAttributesName()); err != nil {
+		return err
+	}
+
+	return removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", infraAttributesName())
+}
+
+func removeDDProfilingExtension(confStringMap map[string]any) error {
+	if err := removeFromMap(confStringMap, []string{"extensions"}, ddprofilingName()); err != nil {
+		return err
+	}
+
+	return removeFromList(confStringMap, []string{"service"}, "extensions", ddprofilingName())
+}
+
 func infraAttributesName() string {
 	return "infraattributes/default"
 }
 
 func ddprofilingName() string {
 	return "ddprofiling/default"
+}
+
+func removeFromMap(confStringMap map[string]any, parentNames []string, mapName string) error {
+	parentMap, err := getMapStr(confStringMap, parentNames)
+	if err != nil {
+		return err
+	}
+	if parentMap != nil {
+		delete(parentMap, mapName)
+	}
+	return nil
 }
 
 func removeFromList(confStringMap map[string]any, parentNames []string, listName string, itemToRemove string) error {
