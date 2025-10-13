@@ -307,7 +307,6 @@ type UserSessionContext struct {
 	K8SGroups   []string            `field:"k8s_groups,handler:ResolveK8SGroups" json:"groups,omitempty"`       // SECLDoc[k8s_groups] Definition:`Kubernetes groups of the user that executed the process`
 	K8SExtra    map[string][]string `json:"extra,omitempty"`
 	// SSH User Session context
-	SSHUsername   string    `field:"ssh_username,handler:ResolveSSHUsername"`      // SECLDoc[ssh_username] Definition:`SSH username of the user that executed the process`
 	SSHPort       int       `field:"ssh_port,handler:ResolveSSHPort"`              // SECLDoc[ssh_port] Definition:`SSH port of the user that executed the process`
 	SSHClientIP   net.IPNet `field:"ssh_client_ip,handler:ResolveSSHClientIP"`     // SECLDoc[ssh_client_ip] Definition:`SSH client IP of the user that executed the process`
 	SSHAuthMethod int       `field:"ssh_auth_method,handler:ResolveSSHAuthMethod"` // SECLDoc[ssh_auth_method] Definition:`SSH authentication method used by the user` Constants:`SSHAuthMethod`

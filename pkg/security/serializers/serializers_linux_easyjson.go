@@ -112,8 +112,6 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers(in
 				}
 				in.Delim('}')
 			}
-		case "ssh_username":
-			out.SSHUsername = string(in.String())
 		case "ssh_port":
 			out.SSHPort = int(in.Int())
 		case "ssh_client_ip":
@@ -225,16 +223,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers(ou
 			}
 			out.RawByte('}')
 		}
-	}
-	if in.SSHUsername != "" {
-		const prefix string = ",\"ssh_username\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.String(string(in.SSHUsername))
 	}
 	if in.SSHPort != 0 {
 		const prefix string = ",\"ssh_port\":"

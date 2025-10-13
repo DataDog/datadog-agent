@@ -1042,12 +1042,6 @@ func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model
 	return usedCapabilities
 }
 
-// ResolveSSHUsername resolves the ssh username of the event
-func (fh *EBPFFieldHandlers) ResolveSSHUsername(_ *model.Event, evtCtx *model.UserSessionContext) string {
-	fh.ResolveUserSessionContext(evtCtx)
-	return evtCtx.SSHUsername
-}
-
 // ResolveSSHClientIP resolves the ssh username of the event
 func (fh *EBPFFieldHandlers) ResolveSSHClientIP(_ *model.Event, evtCtx *model.UserSessionContext) net.IPNet {
 	fh.ResolveUserSessionContext(evtCtx)

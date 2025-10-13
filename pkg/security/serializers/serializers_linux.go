@@ -227,8 +227,6 @@ type UserSessionContextSerializer struct {
 	K8SGroups []string `json:"k8s_groups,omitempty"`
 	// Extra of the Kubernetes "kubectl exec" session
 	K8SExtra map[string][]string `json:"k8s_extra,omitempty"`
-	// Username of the SSH session
-	SSHUsername string `json:"ssh_username,omitempty"`
 	// Port of the SSH session
 	SSHPort int `json:"ssh_port,omitempty"`
 	// Client IP of the SSH session
@@ -1007,7 +1005,6 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 		K8SUID:        ctx.K8SUID,
 		K8SGroups:     ctx.K8SGroups,
 		K8SExtra:      ctx.K8SExtra,
-		SSHUsername:   ctx.SSHUsername,
 		SSHPort:       ctx.SSHPort,
 		SSHClientIP:   ctx.SSHClientIP.IP.String(),
 		SSHAuthMethod: sshAuthMethod,
