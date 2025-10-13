@@ -2235,12 +2235,12 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
-	if err := ResolveSecrets(config, secretResolver, "datadog.yaml"); err != nil {
+	if err := resolveSecrets(config, secretResolver, "datadog.yaml"); err != nil {
 		return err
 	}
 
 	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
-	if EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
+	if envVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
 		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
 	}
 
@@ -2442,10 +2442,10 @@ func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url 
 	config.Set(configPrefix+"logs_dd_url", url, pkgconfigmodel.SourceAgentRuntime)
 }
 
-// ResolveSecrets merges all the secret values from origin into config. Secret values
+// resolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
-func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
+func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
 	log.Info("Starting to resolve secrets")
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
@@ -2611,8 +2611,8 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	return nil
 }
 
-// EnvVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.
-func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
+// envVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.
+func envVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 	lhsValue, lhsIsSet := os.LookupEnv(lhsName)
 	rhsValue, rhsIsSet := os.LookupEnv(rhsName)
 
