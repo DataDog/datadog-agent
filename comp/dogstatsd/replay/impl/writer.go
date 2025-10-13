@@ -210,7 +210,7 @@ func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, 
 		}
 	}
 
-	n, err := tc.writeState()
+	n, err := tc.writeState(d)
 	if err != nil {
 		log.Warnf("There was an issue writing the capture state, capture file may be corrupt: %v", err)
 	} else {
@@ -307,11 +307,12 @@ func (tc *TrafficCaptureWriter) writeHeader() error {
 }
 
 // writeState writes the tagger state to the capture file.
-func (tc *TrafficCaptureWriter) writeState() (int, error) {
+func (tc *TrafficCaptureWriter) writeState(duration time.Duration) (int, error) {
 
 	pbState := &pb.TaggerState{
-		State:  make(map[string]*pb.Entity),
-		PidMap: tc.taggerState,
+		State:    make(map[string]*pb.Entity),
+		PidMap:   tc.taggerState,
+		Duration: duration.Milliseconds(),
 	}
 
 	// iterate entities

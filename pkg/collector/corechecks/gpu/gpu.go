@@ -41,13 +41,15 @@ var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	collectors  []nvidia.Collector       // collectors for NVML metrics
-	tagger      tagger.Component         // Tagger instance to add tags to outgoing metrics
-	telemetry   *checkTelemetry          // Telemetry component to emit internal telemetry
-	wmeta       workloadmeta.Component   // Workloadmeta store to get the list of containers
-	deviceTags  map[string][]string      // deviceTags is a map of device UUID to tags
-	deviceCache ddnvml.DeviceCache       // deviceCache is a cache of GPU devices
-	spCache     *nvidia.SystemProbeCache // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
+	collectors        []nvidia.Collector           // collectors for NVML metrics
+	tagger            tagger.Component             // Tagger instance to add tags to outgoing metrics
+	telemetry         *checkTelemetry              // Telemetry component to emit internal telemetry
+	wmeta             workloadmeta.Component       // Workloadmeta store to get the list of containers
+	deviceTags        map[string][]string          // deviceTags is a map of device UUID to tags
+	deviceCache       ddnvml.DeviceCache           // deviceCache is a cache of GPU devices
+	spCache           *nvidia.SystemProbeCache     // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
+	deviceEvtGatherer *nvidia.DeviceEventsGatherer // deviceEvtGatherer asynchronously listens for device events and gathers them
+	nsPidCache        *nvidia.NsPidCache           // nsPidCache resolves and caches nspids for processes
 }
 
 type checkTelemetry struct {
@@ -69,11 +71,12 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 
 func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
-		CheckBase:  core.NewCheckBase(CheckName),
-		tagger:     tagger,
-		telemetry:  newCheckTelemetry(telemetry),
-		wmeta:      wmeta,
-		deviceTags: make(map[string][]string),
+		CheckBase:   core.NewCheckBase(CheckName),
+		tagger:      tagger,
+		telemetry:   newCheckTelemetry(telemetry),
+		wmeta:       wmeta,
+		deviceTags:  make(map[string][]string),
+		deviceCache: ddnvml.NewDeviceCache(),
 	}
 }
 
@@ -100,6 +103,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 
+	c.nsPidCache = &nvidia.NsPidCache{}
+	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
+
 	// Compute whether we should prefer system-probe process metrics
 	if pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled") {
 		c.spCache = nvidia.NewSystemProbeCache()
@@ -108,37 +114,50 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	return nil
 }
 
-func (c *Check) ensureInitDeviceCache() error {
-	if c.deviceCache != nil {
-		return nil
-	}
-
-	c.deviceCache = ddnvml.NewDeviceCache()
-
-	if err := c.deviceCache.EnsureInit(); err != nil {
-		return fmt.Errorf("failed to initialize device cache: %w", err)
-	}
-
-	return nil
-}
-
 // ensureInitCollectors initializes the NVML library and the collectors if they are not already initialized.
 // It returns an error if the initialization fails.
 func (c *Check) ensureInitCollectors() error {
-	//TODO: in the future we need to support hot-plugging of GPU devices,
-	// as we currently create a collector per GPU device.
-	// also we map the device tags in this function only once, so new hot-lugged devices won't have the tags
-	if c.collectors != nil {
-		return nil
-	}
-
-	if err := c.ensureInitDeviceCache(); err != nil {
-		return fmt.Errorf("failed to initialize device cache: %w", err)
-	}
-
-	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{DeviceCache: c.deviceCache}, c.spCache)
+	// the list of devices can change over time, so grab the latest and:
+	// - remove collectors for the devices that are not present anymore
+	// - collect devices for which a new collector must be added
+	physicalDevices, err := c.deviceCache.AllPhysicalDevices()
 	if err != nil {
-		return fmt.Errorf("failed to build NVML collectors: %w", err)
+		return fmt.Errorf("failed to retrieve physical devices: %w", err)
+	}
+	curDevices := map[string]ddnvml.Device{}
+	for _, d := range physicalDevices {
+		curDevices[d.GetDeviceInfo().UUID] = d
+	}
+
+	// discard collectors of devices that are no more available
+	collectors := []nvidia.Collector{}
+	collectorUUIDs := map[string]struct{}{}
+	for _, c := range c.collectors {
+		if _, ok := curDevices[c.DeviceUUID()]; ok {
+			collectors = append(collectors, c)
+			collectorUUIDs[c.DeviceUUID()] = struct{}{}
+		}
+	}
+
+	// figure out which devices do not have a collector yet and build new ones accordingly
+	missingDevices := []ddnvml.Device{}
+	for uuid, d := range curDevices {
+		if _, ok := collectorUUIDs[uuid]; !ok {
+			missingDevices = append(missingDevices, d)
+		}
+	}
+	if len(missingDevices) > 0 {
+		newCollectors, err := nvidia.BuildCollectors(
+			missingDevices,
+			&nvidia.CollectorDependencies{
+				DeviceEventsGatherer: c.deviceEvtGatherer,
+				SystemProbeCache:     c.spCache,
+				NsPidCache:           c.nsPidCache,
+			})
+		if err != nil {
+			return fmt.Errorf("failed to build NVML collectors: %w", err)
+		}
+		collectors = append(collectors, newCollectors...)
 	}
 
 	c.collectors = collectors
@@ -148,8 +167,14 @@ func (c *Check) ensureInitCollectors() error {
 
 // Cancel stops the check
 func (c *Check) Cancel() {
+	if err := c.deviceEvtGatherer.Stop(); err != nil {
+		log.Warnf("error stopping event set gatherer: %v", err)
+	}
+
 	if lib, err := ddnvml.GetSafeNvmlLib(); err == nil {
-		_ = lib.Shutdown()
+		if err := lib.Shutdown(); err != nil {
+			log.Warnf("error shutting down NVML lib: %v", err)
+		}
 	}
 
 	c.CheckBase.Cancel()
@@ -166,8 +191,8 @@ func (c *Check) Run() error {
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
 
-	if err := c.ensureInitDeviceCache(); err != nil {
-		return fmt.Errorf("failed to initialize device cache: %w", err)
+	if err := c.deviceCache.Refresh(); err != nil {
+		return fmt.Errorf("failed to refresh device cache: %w", err)
 	}
 
 	// Refresh SP cache before collecting metrics, if it is available
@@ -179,6 +204,23 @@ func (c *Check) Run() error {
 			// Continue with NVML-only metrics, SP collectors will return empty metrics
 		}
 	}
+
+	// start device event gatherer if we have not already
+	if !c.deviceEvtGatherer.Started() {
+		if err := c.deviceEvtGatherer.Start(); err != nil {
+			log.Warnf("error starting device events collection: %v", err)
+		}
+	}
+
+	// Attempt refreshing device events
+	if err := c.deviceEvtGatherer.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+		log.Warnf("error refreshing device events cache: %v", err)
+		// Might cause empty metrics in collectors depending on device events
+	}
+
+	// Make sure ns pid resolution attempts retrieving the most up to date values.
+	// Invalidated cache entries (from previous runs) might still be used as a fallback.
+	c.nsPidCache.Invalidate()
 
 	// build the mapping of GPU devices -> containers to allow tagging device
 	// metrics with the tags of containers that are using them
