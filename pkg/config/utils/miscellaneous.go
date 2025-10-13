@@ -8,6 +8,7 @@ package utils
 
 import (
 	"path/filepath"
+	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
@@ -72,4 +73,25 @@ func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 func IsFed(cfg pkgconfigmodel.Reader) bool {
 	isFipsAgent, _ := pkgfips.Enabled()
 	return cfg.GetBool("fips.enabled") || isFipsAgent || cfg.GetString("site") == "ddog-gov.com" || cfg.GetString("dd_url") == "https://app.ddog-gov.com"
+}
+
+// IsCloudProviderEnabled checks the cloud provider family provided in
+// pkg/util/<cloud_provider>.go against the value for cloud_provider: on the
+// global config object Datadog
+func IsCloudProviderEnabled(cloudProviderName string, config pkgconfigmodel.Reader) bool {
+	cloudProviderFromConfig := config.GetStringSlice("cloud_provider_metadata")
+
+	for _, cloudName := range cloudProviderFromConfig {
+		if strings.EqualFold(cloudName, cloudProviderName) {
+			log.Debugf("cloud_provider_metadata is set to %s in agent configuration, trying endpoints for %s Cloud Provider",
+				cloudProviderFromConfig,
+				cloudProviderName)
+			return true
+		}
+	}
+
+	log.Debugf("cloud_provider_metadata is set to %s in agent configuration, skipping %s Cloud Provider",
+		cloudProviderFromConfig,
+		cloudProviderName)
+	return false
 }

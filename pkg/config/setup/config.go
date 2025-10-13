@@ -2679,27 +2679,6 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.SetKnown(prefix + "dev_mode_no_ssl") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
-// IsCloudProviderEnabled checks the cloud provider family provided in
-// pkg/util/<cloud_provider>.go against the value for cloud_provider: on the
-// global config object Datadog
-func IsCloudProviderEnabled(cloudProviderName string, config pkgconfigmodel.Reader) bool {
-	cloudProviderFromConfig := config.GetStringSlice("cloud_provider_metadata")
-
-	for _, cloudName := range cloudProviderFromConfig {
-		if strings.EqualFold(cloudName, cloudProviderName) {
-			log.Debugf("cloud_provider_metadata is set to %s in agent configuration, trying endpoints for %s Cloud Provider",
-				cloudProviderFromConfig,
-				cloudProviderName)
-			return true
-		}
-	}
-
-	log.Debugf("cloud_provider_metadata is set to %s in agent configuration, skipping %s Cloud Provider",
-		cloudProviderFromConfig,
-		cloudProviderName)
-	return false
-}
-
 // pathExists returns true if the given path exists
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
