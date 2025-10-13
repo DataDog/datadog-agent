@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfiltertype"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -68,7 +68,7 @@ func TestNewConfig(t *testing.T) {
 				e2eQueries:                50,
 				disableWindowsDriver:      false,
 				networkDevicesNamespace:   "default",
-				filterConfig:              []connfiltertype.ConnFilterConfig{},
+				filterConfig:              nil,
 				monitorIPWithoutDomain:    false,
 				ddSite:                    "",
 			},
@@ -138,7 +138,7 @@ func TestNewConfig(t *testing.T) {
 				e2eQueries:                5,
 				disableWindowsDriver:      true,
 				networkDevicesNamespace:   "custom-ns",
-				filterConfig: []connfiltertype.ConnFilterConfig{
+				filterConfig: []connfilter.ConnFilterConfig{
 					{
 						Type:        "include",
 						MatchDomain: "*.example.com",

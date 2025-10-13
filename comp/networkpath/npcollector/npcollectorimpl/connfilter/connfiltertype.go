@@ -6,7 +6,7 @@
 // Package connfiltertype define config types for connfilter
 // A separate package for connfiltertype is needed to avoid cyclic import
 // when ConnFilterConfig is imported by pkg/config/setup/config.go
-package connfiltertype
+package connfilter
 
 // FilterType is the filter type struct
 type FilterType string

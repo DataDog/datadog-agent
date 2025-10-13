@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfiltertype"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
@@ -39,13 +39,13 @@ type collectorConfigs struct {
 	tracerouteQueries              int
 	e2eQueries                     int
 	disableWindowsDriver           bool
-	filterConfig                   []connfiltertype.ConnFilterConfig
+	filterConfig                   []connfilter.ConnFilterConfig
 	monitorIPWithoutDomain         bool
 	ddSite                         string
 }
 
 func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
-	var filterConfigs []connfiltertype.ConnFilterConfig
+	var filterConfigs []connfilter.ConnFilterConfig
 	err := agentConfig.UnmarshalKey("network_path.collector.filters", &filterConfigs)
 	if err != nil {
 		logger.Errorf("Error unmarshalling network_path.collector.filters")

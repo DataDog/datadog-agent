@@ -5,24 +5,22 @@
 
 package connfilter
 
-import "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfiltertype"
-
-func getDefaultConnFilters(site string) []connfiltertype.ConnFilterConfig {
-	defaultConfig := []connfiltertype.ConnFilterConfig{
+func getDefaultConnFilters(site string) []ConnFilterConfig {
+	defaultConfig := []ConnFilterConfig{
 		{
-			Type:        connfiltertype.FilterTypeExclude,
+			Type:        FilterTypeExclude,
 			MatchDomain: "*.datadog.pool.ntp.org",
 		},
 		{
-			Type:        connfiltertype.FilterTypeExclude,
+			Type:        FilterTypeExclude,
 			MatchDomain: "*.datadoghq.com",
 		},
 		{
-			Type:        connfiltertype.FilterTypeExclude,
+			Type:        FilterTypeExclude,
 			MatchDomain: "*.datadoghq.eu",
 		},
 		{
-			Type:        connfiltertype.FilterTypeExclude,
+			Type:        FilterTypeExclude,
 			MatchDomain: "*." + site,
 		},
 	}
