@@ -2731,21 +2731,6 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 	return true
 }
 
-// GetBindHost returns `bind_host` variable or default value
-// Not using `config.BindEnvAndSetDefault` as some processes need to know
-// if value was default one or not (e.g. trace-agent)
-func GetBindHost(config pkgconfigmodel.Reader) string {
-	return GetBindHostFromConfig(config)
-}
-
-// GetBindHostFromConfig returns the bind_host value from the config
-func GetBindHostFromConfig(cfg pkgconfigmodel.Reader) string {
-	if cfg.IsSet("bind_host") {
-		return cfg.GetString("bind_host")
-	}
-	return "localhost"
-}
-
 // GetValidHostAliases validates host aliases set in `host_aliases` variable and returns
 // only valid ones.
 func GetValidHostAliases(_ context.Context, config pkgconfigmodel.Reader) ([]string, error) {
