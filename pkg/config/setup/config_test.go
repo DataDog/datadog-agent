@@ -1360,7 +1360,7 @@ use_proxy_for_cloud_metadata: true
 	err := loadCustom(config, nil)
 	assert.NoError(t, err)
 
-	err = ResolveSecrets(config, resolver, "unit_test")
+	err = resolveSecrets(config, resolver, "unit_test")
 	require.NoError(t, err)
 
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
