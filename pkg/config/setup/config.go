@@ -2732,20 +2732,3 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 
 	return true
 }
-
-// GetRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
-// with remote-config
-func GetRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[string]bool {
-	allowList := cfg.GetStringSlice("remote_configuration.agent_integrations.allow_list")
-	allowMap := map[string]bool{}
-	for _, integration := range allowList {
-		allowMap[strings.ToLower(integration)] = true
-	}
-
-	blockList := cfg.GetStringSlice("remote_configuration.agent_integrations.block_list")
-	for _, blockedIntegration := range blockList {
-		allowMap[strings.ToLower(blockedIntegration)] = false
-	}
-
-	return allowMap
-}
