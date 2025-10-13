@@ -415,7 +415,7 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 		}
 
 		if mounted, _ := mountinfo.Mounted(utilkernel.ProcFSRoot()); !mounted {
-			err = multierror.Append(err, errors.New("/etc/group doesn't seem to be a mountpoint"))
+			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", utilkernel.ProcFSRoot()))
 		}
 
 		if mounted, _ := mountinfo.Mounted(p.kernelVersion.OsReleasePath); !mounted {
