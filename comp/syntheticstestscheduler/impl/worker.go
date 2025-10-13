@@ -300,28 +300,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		RunType: w.testCfg.cfg.RunType,
 	}
 
-	if w.tracerouteError != nil {
-		result.Status = "failed"
-		result.Failure = common.APIError{
-			Code:    "UNKNOWN",
-			Message: w.tracerouteError.Error(),
-		}
-	} else {
-		for _, res := range w.assertionResult {
-			if !res.Valid {
-				result.Status = "failed"
-				assertionResultJSON, err := json.Marshal(w.assertionResult)
-				message := "Assertions failed"
-				if err == nil {
-					message = string(assertionResultJSON)
-				}
-				result.Failure = common.APIError{
-					Code:    incorrectAssertion,
-					Message: message,
-				}
-			}
-		}
-	}
+	s.setResultStatus(w, &result)
 
 	return &common.TestResult{
 		Location: struct {
