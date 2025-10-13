@@ -271,6 +271,14 @@ func (s *Launcher) scan() {
 				}
 				continue
 			}
+			if fingerprint != nil && !fingerprint.ValidFingerprint() {
+				if hasOldInfo {
+					log.Debugf("Pass 2: Fingerprint for %s invalid but rotation in progress; starting tailer without fingerprint", file.Path)
+					fingerprint = nil
+				} else {
+					continue
+				}
+			}
 			// allow tailing with invalid fingerprints (empty files)
 		}
 
