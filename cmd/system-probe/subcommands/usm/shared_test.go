@@ -8,21 +8,26 @@ package usm
 import (
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestMakeOneShotCommand(t *testing.T) {
 	globalParams := &command.GlobalParams{}
+
+	// Dummy run function for testing
+	dummyRun := func() {}
 
 	// Create a test command using makeOneShotCommand
 	cmd := makeOneShotCommand(
 		globalParams,
 		"test",
 		"Test command description",
-		func() {}, // dummy run function
+		dummyRun,
 	)
 
 	// Verify command was created correctly
@@ -36,6 +41,13 @@ func TestMakeOneShotCommand(t *testing.T) {
 	require.NotNil(t, jsonFlag, "--json flag should exist")
 	assert.Equal(t, "false", jsonFlag.DefValue, "--json should default to false")
 	assert.Equal(t, "Output as JSON", jsonFlag.Usage)
+
+	// Test the OneShot integration
+	fxutil.TestOneShotSubcommand(t,
+		[]*cobra.Command{cmd},
+		[]string{"test"},
+		dummyRun,
+		func() {})
 }
 
 func TestOutputJSON(t *testing.T) {
