@@ -14,11 +14,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -268,10 +270,42 @@ func (r *IncrementalFileReader) ReadNewLines() ([]string, error) {
 	}
 
 	var lines []string
+
+	// Wait until rsyslog has written new lines
+	timer := time.NewTimer(3 * time.Second)
+	defer timer.Stop()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	readChan := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				currentSt, err := r.f.Stat()
+				if err != nil {
+					return
+				}
+				if currentSt.Size() > r.offset {
+					close(readChan)
+					return
+				}
+			case <-timer.C:
+				return
+			}
+		}
+	}()
+	select {
+	case <-readChan:
+	case <-timer.C:
+	}
+
 	sc := bufio.NewScanner(r.f)
 	for sc.Scan() {
 		line := sc.Text()
 		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		seclog.Warnf("no new lines found eventhough a ssh session was opened")
 	}
 	r.offset, err = r.f.Seek(0, io.SeekCurrent)
 	return lines, err
@@ -325,7 +359,7 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 		SSHVersion             string
 		Remaining              string
 	}
-	for i := 0; i < len(lines)-1; i++ {
+	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 		// separate the line into words
 		words := strings.Split(line, " ")
@@ -369,7 +403,9 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 				Remaining:              strings.Join(sshWords[9:], " "),
 			}
 			// We compare port and IP to ensure that the line is the one we want
-			if sshParsedLine.IP == ctx.SSHClientIP.IP.String() && sshParsedLine.Port == fmt.Sprintf("%d", ctx.SSHPort) {
+			// Convert string IP to net.IP and compare normalized values
+			parsedIP := net.ParseIP(sshParsedLine.IP)
+			if parsedIP != nil && parsedIP.Equal(ctx.SSHClientIP.IP) && sshParsedLine.Port == fmt.Sprintf("%d", ctx.SSHPort) {
 				ctx.SSHUsername = sshParsedLine.User
 				switch sshParsedLine.AuthentificationMethod {
 				case "publickey":
