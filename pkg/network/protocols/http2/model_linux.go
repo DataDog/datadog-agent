@@ -196,51 +196,34 @@ func (ew *EventWrapper) ConnTuple() types.ConnectionKey {
 	}
 }
 
-// stringToHTTPMethod converts a string to an HTTP method.
-func stringToHTTPMethod(method string) (http.Method, error) {
-	switch strings.ToUpper(method) {
-	case "PUT":
-		return http.MethodPut, nil
-	case "DELETE":
-		return http.MethodDelete, nil
-	case "HEAD":
-		return http.MethodHead, nil
-	case "OPTIONS":
-		return http.MethodOptions, nil
-	case "PATCH":
-		return http.MethodPatch, nil
-	case "GET":
-		return http.MethodGet, nil
-	case "POST":
-		return http.MethodPost, nil
-	// Currently unsupported methods due to lack of support in http.Method.
-	case "CONNECT":
-		return http.MethodUnknown, nil
-	case "TRACE":
-		return http.MethodUnknown, nil
-	default:
-		return 0, fmt.Errorf("unsupported HTTP method: %s", method)
+var (
+	unsupportedMethods = map[http.Method]struct{}{
+		http.MethodConnect: {},
+		http.MethodTrace:   {},
 	}
-}
+)
 
 // Method returns the HTTP method of the transaction.
 func (ew *EventWrapper) Method() http.Method {
 	var method string
 	var err error
 
+	if ew.methodSet {
+		return ew.method
+	}
+
 	// Case which the method is indexed.
 	if ew.Stream.Request_method.Static_table_entry != 0 {
 		switch ew.Stream.Request_method.Static_table_entry {
 		case GetValue:
-			return http.MethodGet
+			ew.SetRequestMethod(http.MethodGet)
 		case PostValue:
-			return http.MethodPost
+			ew.SetRequestMethod(http.MethodPost)
 		default:
 			return http.MethodUnknown
 		}
-	}
 
-	if ew.methodSet {
+		// reaching here means we have either Get or Post.
 		return ew.method
 	}
 
@@ -262,13 +245,16 @@ func (ew *EventWrapper) Method() http.Method {
 	} else {
 		method = string(ew.Stream.Request_method.Raw_buffer[:ew.Stream.Request_method.Length])
 	}
-	http2Method, err := stringToHTTPMethod(method)
-	if err != nil {
+
+	http2Method, ok := http.StringToMethod[strings.ToUpper(method)]
+	if !ok {
+		return http.MethodUnknown
+	}
+	if _, exists := unsupportedMethods[http2Method]; exists {
 		return http.MethodUnknown
 	}
 
-	ew.method = http2Method
-	ew.methodSet = true
+	ew.SetRequestMethod(http2Method)
 	return ew.method
 }
 
@@ -277,29 +263,33 @@ func (ew *EventWrapper) Method() http.Method {
 // Otherwise, f the status code is huffman encoded, then we decode it and convert it from string to int.
 // Otherwise, we convert the status code from byte array to int.
 func (ew *EventWrapper) StatusCode() uint16 {
+	if ew.statusCodeSet {
+		return ew.statusCode
+	}
+
 	if ew.Stream.Status_code.Static_table_entry != 0 {
+		statusCode := uint16(0)
 		switch ew.Stream.Status_code.Static_table_entry {
 		case K200Value:
-			return 200
+			statusCode = 200
 		case K204Value:
-			return 204
+			statusCode = 204
 		case K206Value:
-			return 206
+			statusCode = 206
 		case K304Value:
-			return 304
+			statusCode = 304
 		case K400Value:
-			return 400
+			statusCode = 400
 		case K404Value:
-			return 404
+			statusCode = 404
 		case K500Value:
-			return 500
+			statusCode = 500
 		default:
 			return 0
 		}
-	}
 
-	if ew.statusCodeSet {
-		return ew.statusCode
+		ew.SetStatusCode(statusCode)
+		return statusCode
 	}
 
 	if ew.Stream.Status_code.Is_huffman_encoded {
@@ -348,9 +338,9 @@ func (ew *EventWrapper) RequestStarted() uint64 {
 }
 
 // SetRequestMethod sets the HTTP method of the transaction.
-func (ew *EventWrapper) SetRequestMethod(_ http.Method) {
-	// if we set Static_table_entry to be different from 0, and no indexed value, it will default to 0 which is "UNKNOWN"
-	ew.Stream.Request_method.Static_table_entry = 1
+func (ew *EventWrapper) SetRequestMethod(m http.Method) {
+	ew.method = m
+	ew.methodSet = true
 }
 
 // StaticTags returns the static tags of the transaction.

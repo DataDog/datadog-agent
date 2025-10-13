@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -56,20 +57,24 @@ func TestOrphanEntries(t *testing.T) {
 		tel := NewTelemetry("http")
 		// Temporary cast until we introduce a HTTP2 dedicated implementation for incompleteBuffer.
 		buffer := NewIncompleteBuffer(config.New(), tel).(*incompleteBuffer)
-		now := time.Now()
-		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
+		startTime, err := ebpf.NowNanoseconds()
+		require.NoError(t, err)
+		buffer.minAgeNano = (1 * time.Second).Nanoseconds()
 		request := &EbpfEvent{
 			Http: EbpfTx{
 				Request_fragment: requestFragment([]byte("GET /foo/bar")),
-				Request_started:  uint64(now.UnixNano()),
+				Request_started:  uint64(startTime),
 			},
 		}
 		buffer.Add(request)
-		_ = buffer.Flush(now)
+		_ = buffer.Flush(time.Time{})
 
-		assert.True(t, len(buffer.data) > 0)
-		now = now.Add(35 * time.Second)
-		_ = buffer.Flush(now)
-		assert.True(t, len(buffer.data) == 0)
+		require.NotEmpty(t, buffer.data)
+		for key := range buffer.data {
+			buffer.data[key].requests[0].(*EbpfEvent).Http.Request_started = uint64(startTime - buffer.minAgeNano)
+		}
+
+		_ = buffer.Flush(time.Time{})
+		require.Empty(t, buffer.data)
 	})
 }
