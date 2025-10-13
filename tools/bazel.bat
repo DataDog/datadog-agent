@@ -42,11 +42,15 @@ if exist "!BAZEL_REPO_CONTENTS_CACHE!" (
 
 rem Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
 (
+  echo startup --connect_timeout_secs=30
   echo startup --output_user_root=!BAZEL_OUTPUT_USER_ROOT!
   echo common --config=cache
   echo common --repo_contents_cache=!ext_repo_contents_cache!
   echo build --disk_cache=!BAZEL_DISK_CACHE!
 ) >"!CI_PROJECT_DIR!\user.bazelrc"
+
+:: Diagnostics: print any stalled client/server before `bazel` execution
+>&2 powershell -NoProfile -Command "Get-Process bazel,java -ErrorAction SilentlyContinue | Select-Object 🟡,ProcessName,StartTime"
 
 rem Payload: execute `bazel` and remember exit status
 "!BAZEL_REAL!" %*
@@ -55,6 +59,13 @@ set "bazel_exit=!errorlevel!"
 rem Stop `bazel` (if still running) to close files and proceed with cleanup
 >&2 "!BAZEL_REAL!" shutdown --ui_event_filters=-info
 >&2 del /f /q "!CI_PROJECT_DIR!\user.bazelrc"
+
+:: Diagnostics: print any stalled client/server after `bazel` execution and dump JVM output on failure
+>&2 powershell -NoProfile -Command "Get-Process bazel,java -ErrorAction SilentlyContinue | Select-Object 🟡,ProcessName,StartTime"
+if !bazel_exit! neq 0 (
+  >&2 echo 🟡 JVM output:
+  >&2 type "!BAZEL_OUTPUT_USER_ROOT!\server\jvm.out"
+)
 
 rem Reintegrate `--repo_contents_cache` to original directory
 if exist "!ext_repo_contents_cache!" (
