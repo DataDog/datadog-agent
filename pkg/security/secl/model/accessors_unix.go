@@ -3482,17 +3482,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "exec.user_session.ssh_username":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Exec.Process.UserSession)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "exit.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -4801,17 +4790,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.Exit.Process.UserSession)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "exit.user_session.ssh_username":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Exit.Process.UserSession)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -11040,33 +11018,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
-	case "process.ancestors.user_session.ssh_username":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
-				if regID != "" {
-					element := iterator.At(ctx, regID, ctx.Registers[regID])
-					if element == nil {
-						return nil
-					}
-					result := ev.FieldHandlers.ResolveSSHUsername(ev, &element.ProcessContext.Process.UserSession)
-					return []string{result}
-				}
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
-				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveSSHUsername(ev, &current.ProcessContext.Process.UserSession)
-				})
-				ctx.StringCache[field] = results
-				return results
-			},
-			Field:  field,
-			Weight: eval.IteratorWeight,
-			Offset: offset,
-		}, nil
 	case "process.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -13781,20 +13732,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "process.parent.user_session.ssh_username":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				if !ev.BaseEvent.ProcessContext.HasParent() {
-					return ""
-				}
-				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "process.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -13955,17 +13892,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "process.user_session.ssh_username":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -17093,33 +17019,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
-	case "ptrace.tracee.ancestors.user_session.ssh_username":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
-				if regID != "" {
-					element := iterator.At(ctx, regID, ctx.Registers[regID])
-					if element == nil {
-						return nil
-					}
-					result := ev.FieldHandlers.ResolveSSHUsername(ev, &element.ProcessContext.Process.UserSession)
-					return []string{result}
-				}
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
-				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveSSHUsername(ev, &current.ProcessContext.Process.UserSession)
-				})
-				ctx.StringCache[field] = results
-				return results
-			},
-			Field:  field,
-			Weight: eval.IteratorWeight,
-			Offset: offset,
-		}, nil
 	case "ptrace.tracee.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -19834,20 +19733,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "ptrace.tracee.parent.user_session.ssh_username":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				if !ev.PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.PTrace.Tracee.Parent.UserSession)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "ptrace.tracee.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -20008,17 +19893,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.PTrace.Tracee.Process.UserSession)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "ptrace.tracee.user_session.ssh_username":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.PTrace.Tracee.Process.UserSession)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -24570,33 +24444,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
-	case "setrlimit.target.ancestors.user_session.ssh_username":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
-				if regID != "" {
-					element := iterator.At(ctx, regID, ctx.Registers[regID])
-					if element == nil {
-						return nil
-					}
-					result := ev.FieldHandlers.ResolveSSHUsername(ev, &element.ProcessContext.Process.UserSession)
-					return []string{result}
-				}
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
-				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveSSHUsername(ev, &current.ProcessContext.Process.UserSession)
-				})
-				ctx.StringCache[field] = results
-				return results
-			},
-			Field:  field,
-			Weight: eval.IteratorWeight,
-			Offset: offset,
-		}, nil
 	case "setrlimit.target.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -27311,20 +27158,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "setrlimit.target.parent.user_session.ssh_username":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				if !ev.Setrlimit.Target.HasParent() {
-					return ""
-				}
-				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Setrlimit.Target.Parent.UserSession)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "setrlimit.target.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -27485,17 +27318,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.Setrlimit.Target.Process.UserSession)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "setrlimit.target.user_session.ssh_username":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Setrlimit.Target.Process.UserSession)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -31144,33 +30966,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
-	case "signal.target.ancestors.user_session.ssh_username":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
-				if regID != "" {
-					element := iterator.At(ctx, regID, ctx.Registers[regID])
-					if element == nil {
-						return nil
-					}
-					result := ev.FieldHandlers.ResolveSSHUsername(ev, &element.ProcessContext.Process.UserSession)
-					return []string{result}
-				}
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
-				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveSSHUsername(ev, &current.ProcessContext.Process.UserSession)
-				})
-				ctx.StringCache[field] = results
-				return results
-			},
-			Field:  field,
-			Weight: eval.IteratorWeight,
-			Offset: offset,
-		}, nil
 	case "signal.target.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -33885,20 +33680,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "signal.target.parent.user_session.ssh_username":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				if !ev.Signal.Target.HasParent() {
-					return ""
-				}
-				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Signal.Target.Parent.UserSession)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "signal.target.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -34059,17 +33840,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSSHPublicKey(ev, &ev.Signal.Target.Process.UserSession)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "signal.target.user_session.ssh_username":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveSSHUsername(ev, &ev.Signal.Target.Process.UserSession)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -35505,7 +35275,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.user_session.ssh_client_ip",
 		"exec.user_session.ssh_port",
 		"exec.user_session.ssh_public_key",
-		"exec.user_session.ssh_username",
 		"exit.args",
 		"exit.args_flags",
 		"exit.args_options",
@@ -35611,7 +35380,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.user_session.ssh_client_ip",
 		"exit.user_session.ssh_port",
 		"exit.user_session.ssh_public_key",
-		"exit.user_session.ssh_username",
 		"imds.aws.is_imds_v2",
 		"imds.aws.security_credentials.type",
 		"imds.cloud_provider",
@@ -35979,7 +35747,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.user_session.ssh_client_ip",
 		"process.ancestors.user_session.ssh_port",
 		"process.ancestors.user_session.ssh_public_key",
-		"process.ancestors.user_session.ssh_username",
 		"process.args",
 		"process.args_flags",
 		"process.args_options",
@@ -36171,7 +35938,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.user_session.ssh_client_ip",
 		"process.parent.user_session.ssh_port",
 		"process.parent.user_session.ssh_public_key",
-		"process.parent.user_session.ssh_username",
 		"process.pid",
 		"process.ppid",
 		"process.tid",
@@ -36187,7 +35953,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.user_session.ssh_client_ip",
 		"process.user_session.ssh_port",
 		"process.user_session.ssh_public_key",
-		"process.user_session.ssh_username",
 		"ptrace.request",
 		"ptrace.retval",
 		"ptrace.tracee.ancestors.args",
@@ -36294,7 +36059,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.user_session.ssh_client_ip",
 		"ptrace.tracee.ancestors.user_session.ssh_port",
 		"ptrace.tracee.ancestors.user_session.ssh_public_key",
-		"ptrace.tracee.ancestors.user_session.ssh_username",
 		"ptrace.tracee.args",
 		"ptrace.tracee.args_flags",
 		"ptrace.tracee.args_options",
@@ -36486,7 +36250,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.user_session.ssh_client_ip",
 		"ptrace.tracee.parent.user_session.ssh_port",
 		"ptrace.tracee.parent.user_session.ssh_public_key",
-		"ptrace.tracee.parent.user_session.ssh_username",
 		"ptrace.tracee.pid",
 		"ptrace.tracee.ppid",
 		"ptrace.tracee.tid",
@@ -36502,7 +36265,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.user_session.ssh_client_ip",
 		"ptrace.tracee.user_session.ssh_port",
 		"ptrace.tracee.user_session.ssh_public_key",
-		"ptrace.tracee.user_session.ssh_username",
 		"removexattr.file.change_time",
 		"removexattr.file.destination.name",
 		"removexattr.file.destination.namespace",
@@ -36737,7 +36499,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.user_session.ssh_client_ip",
 		"setrlimit.target.ancestors.user_session.ssh_port",
 		"setrlimit.target.ancestors.user_session.ssh_public_key",
-		"setrlimit.target.ancestors.user_session.ssh_username",
 		"setrlimit.target.args",
 		"setrlimit.target.args_flags",
 		"setrlimit.target.args_options",
@@ -36929,7 +36690,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.user_session.ssh_client_ip",
 		"setrlimit.target.parent.user_session.ssh_port",
 		"setrlimit.target.parent.user_session.ssh_public_key",
-		"setrlimit.target.parent.user_session.ssh_username",
 		"setrlimit.target.pid",
 		"setrlimit.target.ppid",
 		"setrlimit.target.tid",
@@ -36945,7 +36705,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.user_session.ssh_client_ip",
 		"setrlimit.target.user_session.ssh_port",
 		"setrlimit.target.user_session.ssh_public_key",
-		"setrlimit.target.user_session.ssh_username",
 		"setsockopt.filter_hash",
 		"setsockopt.filter_instructions",
 		"setsockopt.filter_len",
@@ -37099,7 +36858,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.user_session.ssh_client_ip",
 		"signal.target.ancestors.user_session.ssh_port",
 		"signal.target.ancestors.user_session.ssh_public_key",
-		"signal.target.ancestors.user_session.ssh_username",
 		"signal.target.args",
 		"signal.target.args_flags",
 		"signal.target.args_options",
@@ -37291,7 +37049,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.user_session.ssh_client_ip",
 		"signal.target.parent.user_session.ssh_port",
 		"signal.target.parent.user_session.ssh_public_key",
-		"signal.target.parent.user_session.ssh_username",
 		"signal.target.pid",
 		"signal.target.ppid",
 		"signal.target.tid",
@@ -37307,7 +37064,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.user_session.ssh_client_ip",
 		"signal.target.user_session.ssh_port",
 		"signal.target.user_session.ssh_public_key",
-		"signal.target.user_session.ssh_username",
 		"signal.type",
 		"splice.file.change_time",
 		"splice.file.extension",
@@ -37996,8 +37752,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.Int, "int", nil
 	case "exec.user_session.ssh_public_key":
 		return "exec", reflect.String, "string", nil
-	case "exec.user_session.ssh_username":
-		return "exec", reflect.String, "string", nil
 	case "exit.args":
 		return "exit", reflect.String, "string", nil
 	case "exit.args_flags":
@@ -38207,8 +37961,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exit.user_session.ssh_port":
 		return "exit", reflect.Int, "int", nil
 	case "exit.user_session.ssh_public_key":
-		return "exit", reflect.String, "string", nil
-	case "exit.user_session.ssh_username":
 		return "exit", reflect.String, "string", nil
 	case "imds.aws.is_imds_v2":
 		return "imds", reflect.Bool, "bool", nil
@@ -38944,8 +38696,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "process.ancestors.user_session.ssh_public_key":
 		return "", reflect.String, "string", nil
-	case "process.ancestors.user_session.ssh_username":
-		return "", reflect.String, "string", nil
 	case "process.args":
 		return "", reflect.String, "string", nil
 	case "process.args_flags":
@@ -39328,8 +39078,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "process.parent.user_session.ssh_public_key":
 		return "", reflect.String, "string", nil
-	case "process.parent.user_session.ssh_username":
-		return "", reflect.String, "string", nil
 	case "process.pid":
 		return "", reflect.Int, "int", nil
 	case "process.ppid":
@@ -39359,8 +39107,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "process.user_session.ssh_port":
 		return "", reflect.Int, "int", nil
 	case "process.user_session.ssh_public_key":
-		return "", reflect.String, "string", nil
-	case "process.user_session.ssh_username":
 		return "", reflect.String, "string", nil
 	case "ptrace.request":
 		return "ptrace", reflect.Int, "int", nil
@@ -39573,8 +39319,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ptrace.tracee.ancestors.user_session.ssh_port":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ancestors.user_session.ssh_public_key":
-		return "ptrace", reflect.String, "string", nil
-	case "ptrace.tracee.ancestors.user_session.ssh_username":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.args":
 		return "ptrace", reflect.String, "string", nil
@@ -39958,8 +39702,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.parent.user_session.ssh_public_key":
 		return "ptrace", reflect.String, "string", nil
-	case "ptrace.tracee.parent.user_session.ssh_username":
-		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.pid":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ppid":
@@ -39989,8 +39731,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ptrace.tracee.user_session.ssh_port":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.user_session.ssh_public_key":
-		return "ptrace", reflect.String, "string", nil
-	case "ptrace.tracee.user_session.ssh_username":
 		return "ptrace", reflect.String, "string", nil
 	case "removexattr.file.change_time":
 		return "removexattr", reflect.Int, "int", nil
@@ -40460,8 +40200,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ancestors.user_session.ssh_public_key":
 		return "setrlimit", reflect.String, "string", nil
-	case "setrlimit.target.ancestors.user_session.ssh_username":
-		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.args":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.args_flags":
@@ -40844,8 +40582,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.parent.user_session.ssh_public_key":
 		return "setrlimit", reflect.String, "string", nil
-	case "setrlimit.target.parent.user_session.ssh_username":
-		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.pid":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ppid":
@@ -40875,8 +40611,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "setrlimit.target.user_session.ssh_port":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.user_session.ssh_public_key":
-		return "setrlimit", reflect.String, "string", nil
-	case "setrlimit.target.user_session.ssh_username":
 		return "setrlimit", reflect.String, "string", nil
 	case "setsockopt.filter_hash":
 		return "setsockopt", reflect.String, "string", nil
@@ -41183,8 +40917,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "signal.target.ancestors.user_session.ssh_port":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.ancestors.user_session.ssh_public_key":
-		return "signal", reflect.String, "string", nil
-	case "signal.target.ancestors.user_session.ssh_username":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.args":
 		return "signal", reflect.String, "string", nil
@@ -41568,8 +41300,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.parent.user_session.ssh_public_key":
 		return "signal", reflect.String, "string", nil
-	case "signal.target.parent.user_session.ssh_username":
-		return "signal", reflect.String, "string", nil
 	case "signal.target.pid":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.ppid":
@@ -41599,8 +41329,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "signal.target.user_session.ssh_port":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.user_session.ssh_public_key":
-		return "signal", reflect.String, "string", nil
-	case "signal.target.user_session.ssh_username":
 		return "signal", reflect.String, "string", nil
 	case "signal.type":
 		return "signal", reflect.Int, "int", nil
@@ -42570,8 +42298,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setIntFieldValue("exec.user_session.ssh_port", &ev.Exec.Process.UserSession.SSHPort, value)
 	case "exec.user_session.ssh_public_key":
 		return ev.setStringFieldValue("exec.user_session.ssh_public_key", &ev.Exec.Process.UserSession.SSHPublicKey, value)
-	case "exec.user_session.ssh_username":
-		return ev.setStringFieldValue("exec.user_session.ssh_username", &ev.Exec.Process.UserSession.SSHUsername, value)
 	case "exit.args":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -43206,11 +42932,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Exit.Process = &Process{}
 		}
 		return ev.setStringFieldValue("exit.user_session.ssh_public_key", &ev.Exit.Process.UserSession.SSHPublicKey, value)
-	case "exit.user_session.ssh_username":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
-		return ev.setStringFieldValue("exit.user_session.ssh_username", &ev.Exit.Process.UserSession.SSHUsername, value)
 	case "imds.aws.is_imds_v2":
 		return ev.setBoolFieldValue("imds.aws.is_imds_v2", &ev.IMDS.AWS.IsIMDSv2, value)
 	case "imds.aws.security_credentials.type":
@@ -44129,8 +43850,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setIntFieldValue("process.ancestors.user_session.ssh_port", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHPort, value)
 	case "process.ancestors.user_session.ssh_public_key":
 		return ev.setStringFieldValue("process.ancestors.user_session.ssh_public_key", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHPublicKey, value)
-	case "process.ancestors.user_session.ssh_username":
-		return ev.setStringFieldValue("process.ancestors.user_session.ssh_username", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHUsername, value)
 	case "process.args":
 		return ev.setStringFieldValue("process.args", &ev.BaseEvent.ProcessContext.Process.Args, value)
 	case "process.args_flags":
@@ -44738,8 +44457,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setIntFieldValue("process.parent.user_session.ssh_port", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHPort, value)
 	case "process.parent.user_session.ssh_public_key":
 		return ev.setStringFieldValue("process.parent.user_session.ssh_public_key", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHPublicKey, value)
-	case "process.parent.user_session.ssh_username":
-		return ev.setStringFieldValue("process.parent.user_session.ssh_username", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHUsername, value)
 	case "process.pid":
 		return ev.setUint32FieldValue("process.pid", &ev.BaseEvent.ProcessContext.Process.PIDContext.Pid, value)
 	case "process.ppid":
@@ -44775,8 +44492,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setIntFieldValue("process.user_session.ssh_port", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHPort, value)
 	case "process.user_session.ssh_public_key":
 		return ev.setStringFieldValue("process.user_session.ssh_public_key", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHPublicKey, value)
-	case "process.user_session.ssh_username":
-		return ev.setStringFieldValue("process.user_session.ssh_username", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHUsername, value)
 	case "ptrace.request":
 		return ev.setUint32FieldValue("ptrace.request", &ev.PTrace.Request, value)
 	case "ptrace.retval":
@@ -45728,14 +45443,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.ssh_public_key", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHPublicKey, value)
-	case "ptrace.tracee.ancestors.user_session.ssh_username":
-		if ev.PTrace.Tracee == nil {
-			ev.PTrace.Tracee = &ProcessContext{}
-		}
-		if ev.PTrace.Tracee.Ancestor == nil {
-			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
-		}
-		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.ssh_username", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHUsername, value)
 	case "ptrace.tracee.args":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -47225,14 +46932,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.ssh_public_key", &ev.PTrace.Tracee.Parent.UserSession.SSHPublicKey, value)
-	case "ptrace.tracee.parent.user_session.ssh_username":
-		if ev.PTrace.Tracee == nil {
-			ev.PTrace.Tracee = &ProcessContext{}
-		}
-		if ev.PTrace.Tracee.Parent == nil {
-			ev.PTrace.Tracee.Parent = &Process{}
-		}
-		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.ssh_username", &ev.PTrace.Tracee.Parent.UserSession.SSHUsername, value)
 	case "ptrace.tracee.pid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -47313,11 +47012,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.user_session.ssh_public_key", &ev.PTrace.Tracee.Process.UserSession.SSHPublicKey, value)
-	case "ptrace.tracee.user_session.ssh_username":
-		if ev.PTrace.Tracee == nil {
-			ev.PTrace.Tracee = &ProcessContext{}
-		}
-		return ev.setStringFieldValue("ptrace.tracee.user_session.ssh_username", &ev.PTrace.Tracee.Process.UserSession.SSHUsername, value)
 	case "removexattr.file.change_time":
 		return ev.setUint64FieldValue("removexattr.file.change_time", &ev.RemoveXAttr.File.FileFields.CTime, value)
 	case "removexattr.file.destination.name":
@@ -48525,14 +48219,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.ssh_public_key", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHPublicKey, value)
-	case "setrlimit.target.ancestors.user_session.ssh_username":
-		if ev.Setrlimit.Target == nil {
-			ev.Setrlimit.Target = &ProcessContext{}
-		}
-		if ev.Setrlimit.Target.Ancestor == nil {
-			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
-		}
-		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.ssh_username", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHUsername, value)
 	case "setrlimit.target.args":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50022,14 +49708,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.parent.user_session.ssh_public_key", &ev.Setrlimit.Target.Parent.UserSession.SSHPublicKey, value)
-	case "setrlimit.target.parent.user_session.ssh_username":
-		if ev.Setrlimit.Target == nil {
-			ev.Setrlimit.Target = &ProcessContext{}
-		}
-		if ev.Setrlimit.Target.Parent == nil {
-			ev.Setrlimit.Target.Parent = &Process{}
-		}
-		return ev.setStringFieldValue("setrlimit.target.parent.user_session.ssh_username", &ev.Setrlimit.Target.Parent.UserSession.SSHUsername, value)
 	case "setrlimit.target.pid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50110,11 +49788,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.user_session.ssh_public_key", &ev.Setrlimit.Target.Process.UserSession.SSHPublicKey, value)
-	case "setrlimit.target.user_session.ssh_username":
-		if ev.Setrlimit.Target == nil {
-			ev.Setrlimit.Target = &ProcessContext{}
-		}
-		return ev.setStringFieldValue("setrlimit.target.user_session.ssh_username", &ev.Setrlimit.Target.Process.UserSession.SSHUsername, value)
 	case "setsockopt.filter_hash":
 		return ev.setStringFieldValue("setsockopt.filter_hash", &ev.SetSockOpt.FilterHash, value)
 	case "setsockopt.filter_instructions":
@@ -51170,14 +50843,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("signal.target.ancestors.user_session.ssh_public_key", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHPublicKey, value)
-	case "signal.target.ancestors.user_session.ssh_username":
-		if ev.Signal.Target == nil {
-			ev.Signal.Target = &ProcessContext{}
-		}
-		if ev.Signal.Target.Ancestor == nil {
-			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
-		}
-		return ev.setStringFieldValue("signal.target.ancestors.user_session.ssh_username", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHUsername, value)
 	case "signal.target.args":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52667,14 +52332,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("signal.target.parent.user_session.ssh_public_key", &ev.Signal.Target.Parent.UserSession.SSHPublicKey, value)
-	case "signal.target.parent.user_session.ssh_username":
-		if ev.Signal.Target == nil {
-			ev.Signal.Target = &ProcessContext{}
-		}
-		if ev.Signal.Target.Parent == nil {
-			ev.Signal.Target.Parent = &Process{}
-		}
-		return ev.setStringFieldValue("signal.target.parent.user_session.ssh_username", &ev.Signal.Target.Parent.UserSession.SSHUsername, value)
 	case "signal.target.pid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52755,11 +52412,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("signal.target.user_session.ssh_public_key", &ev.Signal.Target.Process.UserSession.SSHPublicKey, value)
-	case "signal.target.user_session.ssh_username":
-		if ev.Signal.Target == nil {
-			ev.Signal.Target = &ProcessContext{}
-		}
-		return ev.setStringFieldValue("signal.target.user_session.ssh_username", &ev.Signal.Target.Process.UserSession.SSHUsername, value)
 	case "signal.type":
 		return ev.setUint32FieldValue("signal.type", &ev.Signal.Type, value)
 	case "splice.file.change_time":

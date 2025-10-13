@@ -123,7 +123,7 @@ func TestSSHUserSession(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_ssh_user_session",
-			Expression: `exec.user_session.id != 0 && exec.user_session.session_type == ssh && exec.user_session.ssh_username == "` + currentUser.Username + `" && exec.user_session.ssh_auth_method == publickey`,
+			Expression: `exec.user_session.id != 0 && exec.user_session.session_type == ssh && exec.user == "` + currentUser.Username + `" && exec.user_session.ssh_auth_method == publickey`,
 		},
 	}
 
@@ -148,7 +148,7 @@ func TestSSHUserSession(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_ssh_user_session")
 			assert.NotEqual(t, 0, event.ProcessContext.UserSession.ID)
 			assert.Equal(t, int(usersession.UserSessionTypes["ssh"]), event.ProcessContext.UserSession.SessionType)
-			assert.Equal(t, currentUser.Username, event.ProcessContext.UserSession.SSHUsername)
+			assert.Equal(t, currentUser.Username, event.Exec.User)
 			assert.Contains(t, []string{"127.0.0.1", "::1"}, event.ProcessContext.UserSession.SSHClientIP.IP.String())
 		})
 	})
@@ -205,7 +205,7 @@ func TestSSHUserSessionRotated(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_ssh_user_session",
-			Expression: `exec.user_session.id != 0 && exec.user_session.session_type == ssh && exec.user_session.ssh_username == "` + currentUser.Username + `" && exec.user_session.ssh_auth_method == publickey`,
+			Expression: `exec.user_session.id != 0 && exec.user_session.session_type == ssh && exec.user == "` + currentUser.Username + `" && exec.user_session.ssh_auth_method == publickey`,
 		},
 	}
 
@@ -271,7 +271,7 @@ func TestSSHUserSessionRotated(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_ssh_user_session")
 			assert.NotEqual(t, 0, event.ProcessContext.UserSession.ID)
 			assert.Equal(t, int(usersession.UserSessionTypes["ssh"]), event.ProcessContext.UserSession.SessionType)
-			assert.Equal(t, currentUser.Username, event.ProcessContext.UserSession.SSHUsername)
+			assert.Equal(t, currentUser.Username, event.Exec.User)
 			assert.Contains(t, []string{"127.0.0.1", "::1"}, event.ProcessContext.UserSession.SSHClientIP.IP.String())
 		})
 	})

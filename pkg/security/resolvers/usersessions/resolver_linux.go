@@ -409,7 +409,6 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 			// Convert string IP to net.IP and compare normalized values
 			parsedIP := net.ParseIP(sshParsedLine.IP)
 			if parsedIP != nil && parsedIP.Equal(ctx.SSHClientIP.IP) && sshParsedLine.Port == fmt.Sprintf("%d", ctx.SSHPort) {
-				ctx.SSHUsername = sshParsedLine.User
 				switch sshParsedLine.AuthentificationMethod {
 				case "publickey":
 					ctx.SSHAuthMethod = usersession.SSHAuthMethodPublicKey

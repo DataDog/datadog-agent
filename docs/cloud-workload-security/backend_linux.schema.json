@@ -2178,10 +2178,6 @@
           "type": "object",
           "description": "Extra of the Kubernetes \"kubectl exec\" session"
         },
-        "ssh_username": {
-          "type": "string",
-          "description": "Username of the SSH session"
-        },
         "ssh_port": {
           "type": "integer",
           "description": "Port of the SSH session"

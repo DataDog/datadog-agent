@@ -622,11 +622,6 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *mode
 	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
 }
 
-// ResolveSSHUsername resolves the ssh username of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHUsername(_ *model.Event, _ *model.UserSessionContext) string {
-	return "" // EBPFLess mode does not support SSH
-}
-
 // ResolveSSHClientIP resolves the ssh username of the event
 func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, _ *model.UserSessionContext) net.IPNet {
 	return net.IPNet{} // EBPFLess mode does not support SSH
