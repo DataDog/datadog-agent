@@ -115,8 +115,7 @@ func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 		}
 		return err
 	}
-	// TODO always uninstrument IIS just in cas
-	return uninstrumentDotnetLibraryIfNeeded(ctx.Context, "stable")
+	return uninstrumentDotnetLibrary(ctx.Context, "stable")
 }
 
 // asyncPreRemoveHookAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
@@ -134,13 +133,13 @@ func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath s
 	return true, nil
 }
 
-func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string, upgrade bool) (err error) {
+func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string, isUpgrade bool) (err error) {
 	envInst := env.FromEnv()
 	method := envInst.InstallScript.APMInstrumentationEnabled
-	return updateInstrumentation(ctx, method, target, upgrade)
+	return updateInstrumentation(ctx, method, target, isUpgrade)
 }
 
-func updateInstrumentation(ctx context.Context, newMethod, target string, upgrade bool) (err error) {
+func updateInstrumentation(ctx context.Context, newMethod, target string, isUpgrade bool) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "update_instrumentation")
 	defer func() { span.Finish(err) }()
 
@@ -155,103 +154,52 @@ func updateInstrumentation(ctx context.Context, newMethod, target string, upgrad
 	// The first version of SSI for IIS did not store the configured instrumentation
 	// So if it's an upgrade and not a reinstall, we assume it's IIS instrumentation
 	if currentMethod == env.APMInstrumentationNotSet {
-		if upgrade {
+		if isUpgrade {
 			currentMethod = env.APMInstrumentationEnabledIIS
 		} else {
 			currentMethod = env.APMInstrumentationDisabled
 		}
 	}
 
-	fmt.Printf("currentMethod: %s, newMethod: %s\n", currentMethod, newMethod)
-
 	// If no new method is provided, defaults to the current method
 	if newMethod == env.APMInstrumentationNotSet {
 		newMethod = currentMethod
 	}
 
-	if newMethod == env.APMInstrumentationDisabled {
-		return setAPMInstrumentationMethod(env.APMInstrumentationDisabled)
+	// If the instrumentation method is not IIS we have nothing to do here
+	if newMethod != env.APMInstrumentationEnabledIIS {
+		return nil
 	}
 
 	if currentMethod != env.APMInstrumentationDisabled && currentMethod != newMethod {
-		err = uninstrumentDotnetLibrary(ctx, currentMethod, target)
-		// TODO show an error but do not fail the installation
-		if err != nil {
-			log.Errorf("could not uninstrument dotnet library: %w", err)
-			span.SetTag("uninstrumentation_error", err.Error())
-		}
+		// TODO we should disable the other method somehow
 	}
 
-	if err = instrumentDotnetLibrary(ctx, newMethod, target); err != nil {
+	if err = instrumentDotnetLibrary(ctx, target); err != nil {
 		return fmt.Errorf("could not instrument dotnet library: %w", err)
 	}
 
-	return setAPMInstrumentationMethod(newMethod)
+	return setAPMInstrumentationMethod(env.APMInstrumentationEnabledIIS)
 }
 
-func instrumentDotnetLibrary(ctx context.Context, method, target string) (err error) {
-	switch method {
-	case env.APMInstrumentationEnabledIIS:
-		var installDir string
-		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
-		if err != nil {
-			return err
-		}
-		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-		_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
-		return err
-	case env.APMInstrumentationEnabledDotnet:
-		var installDir string
-		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
-		if err != nil {
-			return err
-		}
-		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-		_, err = dotnetExec.EnableGlobalInstrumentation(ctx, getLibraryPath(installDir))
-		return err
-	default:
-		return fmt.Errorf("unsupported instrumentation method: %s", method)
-	}
-}
-
-func uninstrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err error) {
-	var method string
-	method, err = getAPMInstrumentationMethod()
+func instrumentDotnetLibrary(ctx context.Context, target string) (err error) {
+	var installDir string
+	installDir, err = filepath.EvalSymlinks(getTargetPath(target))
 	if err != nil {
 		return err
 	}
-	fmt.Printf("uninstrumenting dotnet library with method: %s\n", method)
-	if method == env.APMInstrumentationNotSet {
-		return nil
-	}
-	err = uninstrumentDotnetLibrary(ctx, method, target)
-	if err != nil {
-		return fmt.Errorf("could not uninstrument dotnet library: %w", err)
-	}
-	return unsetAPMInstrumentationMethod()
+	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
+	return err
 }
 
-func uninstrumentDotnetLibrary(ctx context.Context, method, target string) (err error) {
-	switch method {
-	case env.APMInstrumentationEnabledIIS:
-		var installDir string
-		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
-		if err != nil {
-			return err
-		}
-		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-		_, err := dotnetExec.RemoveIISInstrumentation(ctx)
+func uninstrumentDotnetLibrary(ctx context.Context, target string) (err error) {
+	var installDir string
+	installDir, err = filepath.EvalSymlinks(getTargetPath(target))
+	if err != nil {
 		return err
-	case env.APMInstrumentationEnabledDotnet:
-		var installDir string
-		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
-		if err != nil {
-			return err
-		}
-		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-		_, err = dotnetExec.RemoveGlobalInstrumentation(ctx)
-		return err
-	default:
-		return fmt.Errorf("unsupported instrumentation method: %s", method)
 	}
+	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+	_, err = dotnetExec.RemoveIISInstrumentation(ctx)
+	return err
 }
