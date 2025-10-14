@@ -1402,7 +1402,7 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	// Read the message
 	msg := <-suite.outputChan
@@ -1420,7 +1420,7 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 	newFile.Close()
 
 	// Scan detects rotation
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	// After rotation, we should have:
 	// - 1 active tailer (for the new file)
@@ -1436,7 +1436,7 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 	s.activeSources = []*sources.LogSource{}
 
 	// Scan again - the rotated tailer should NOT be stopped
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	// The rotated tailer should still be in the rotatedTailers list
 	suite.True(s.isRotatedTailer(rotatedTailer), "Rotated tailer should still be in rotatedTailers list")
@@ -1474,7 +1474,7 @@ func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTai
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	// Read the message
 	msg := <-suite.outputChan
@@ -1497,7 +1497,7 @@ func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTai
 	newFile.Close()
 
 	// Scan to detect rotation
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	// After rotation:
 	// - The old tailer should be removed from the active container
