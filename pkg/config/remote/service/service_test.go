@@ -192,7 +192,7 @@ func uptaneFactoryOption(coreAgentUptane *mockCoreAgentUptane) Option {
 	})
 }
 
-func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUptane, clock clock.Clock) *CoreAgentService {
+func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUptane, clock clock.Clock, opts ...Option) *CoreAgentService {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("hostname", "test-hostname")
 
@@ -210,6 +210,7 @@ func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUp
 		WithTraceAgentEnv(traceAgentEnv),
 		WithAPIKey("abc"),
 	}
+	options = append(options, opts...)
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
