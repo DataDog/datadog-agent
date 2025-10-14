@@ -8,4 +8,4 @@
 ---
 other:
   - |
-    libarchive and its tools aren't bundled with the agent anymore.
+    libarchive and its tools are no longer bundled with the Agent.
