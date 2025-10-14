@@ -86,7 +86,7 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
 			if err != nil {
 				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
-				s.statsdClient.Incr(syntheticsMetricPrefix+"checks_failed", []string{"reason:error_test_config", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+				s.statsdClient.Incr(syntheticsMetricPrefix+".error_test_config", []string{"reason:error_test_config", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 			}
 
 			hname, err := s.hostNameService.Get(ctx)
