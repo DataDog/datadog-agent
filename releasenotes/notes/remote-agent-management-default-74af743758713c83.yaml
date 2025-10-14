@@ -8,7 +8,8 @@
 ---
 features:
   - |
-    [Remote Agent Management](https://docs.datadoghq.com/agent/fleet_automation/remote_management) is now enabled by default in the agent.
-    On linux and windows hosts, this is allows you to remotely upgrade and configure the Agent from the Datadog UI.
+    [Remote Agent Management](https://docs.datadoghq.com/agent/fleet_automation/remote_management)
+    is now enabled by default in the agent on linux and windows hosts.
+    This feature allows you to remotely upgrade and configure the Agent from the Datadog UI in Fleet Automation.
 
     If you wish to keep Remote Agent Management disabled, set ``remote_updates`` to ``false`` in the Agent configuration file.
