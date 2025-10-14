@@ -200,9 +200,6 @@ type InstrumentationConfig struct {
 	// used. If no target matches, the auto instrumentation will not be applied. Full config key:
 	// apm_config.instrumentation.targets
 	Targets []Target `mapstructure:"targets" json:"targets"`
-	// WorkloadSelection is a flag to enable the workload selection. Unused in the cluster agent today, but kept to
-	// avoid unmarshalling errors.
-	WorkloadSelection bool `mapstructure:"workload_selection" json:"workload_selection"`
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the

@@ -55,7 +55,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	var rcListener rctypes.ListenerProvider
-	if reqs.Config.GetBool("apm_config.instrumentation.workload_selection") || !isCompilePolicyBinaryAvailable() {
+	if reqs.Config.GetBool("apm_config.workload_selection") || !isCompilePolicyBinaryAvailable() {
 		reqs.Log.Debug("Enabling APM SSI Workload Selection listener")
 		rcListener.ListenerProvider = rctypes.RCListener{
 			state.ProductApmPolicies: wls.onConfigUpdate,
