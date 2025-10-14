@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -29,6 +30,34 @@ import (
 )
 
 const matchAllPackages = "*"
+
+// testsuiteError wraps an exec.ExitError from a testsuite to preserve its exit code
+type testsuiteError struct {
+	exitErr  *exec.ExitError
+	exitCode int // custom exit code extracted from test output
+}
+
+func (e *testsuiteError) Error() string {
+	return e.exitErr.Error()
+}
+
+func (e *testsuiteError) Unwrap() error {
+	return e.exitErr
+}
+
+// extractExitCodeFromOutput parses output to find "###TEST_EXIT_CODE:X###" marker
+// Returns -1 if no exit code is found
+func extractExitCodeFromOutput(output string) int {
+	// Look for "###TEST_EXIT_CODE:44###" pattern
+	re := regexp.MustCompile(`###TEST_EXIT_CODE:(\d+)###`)
+	matches := re.FindStringSubmatch(output)
+	if len(matches) >= 2 {
+		code := 0
+		fmt.Sscanf(matches[1], "%d", &code)
+		return code
+	}
+	return -1
+}
 
 func init() {
 	color.NoColor = false
@@ -267,6 +296,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 	}
 
+	var firstTestError error
 	for _, testsuite := range testsuites {
 		pkg, err := filepath.Rel(testConfig.testDirRoot, filepath.Dir(testsuite))
 		if err != nil {
@@ -287,12 +317,35 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		cmd.Env = append(cmd.Environ(), envVars...)
 
 		cmd.Dir = filepath.Dir(testsuite)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+
+		// Capture stdout to parse exit code marker
+		var stdoutBuf bytes.Buffer
+		cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
+
+		// Capture stderr for debug
+		var stderrBuf bytes.Buffer
+		cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
 
 		if err := cmd.Run(); err != nil {
-			// log but do not return error
-			fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", testsuite, err)
+			// log error and capture the first one to preserve exit code
+			fmt.Fprintf(os.Stderr, "\n>>> cmd run %s: %s\n", testsuite, err)
+			if firstTestError == nil {
+				exitCode := -1
+
+				// Try to extract exit code from stdout marker (reliable with gotestsum)
+				stdoutContent := stdoutBuf.String()
+				exitCode = extractExitCodeFromOutput(stdoutContent)
+				var exitErr *exec.ExitError
+				if errors.As(err, &exitErr) {
+					// Store the custom exit code if found, otherwise use the one from exitErr
+					if exitCode == -1 {
+						exitCode = exitErr.ExitCode()
+					}
+					firstTestError = &testsuiteError{exitErr: exitErr, exitCode: exitCode}
+				} else {
+					firstTestError = fmt.Errorf("testsuite %s failed: %w", testsuite, err)
+				}
+			}
 		}
 
 		if err := addProperties(xmlpath, props); err != nil {
@@ -303,7 +356,9 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	if err := concatenateJsons(jsonDir, jsonOutDir); err != nil {
 		return fmt.Errorf("concat json: %s", err)
 	}
-	return nil
+
+	// Return the first test error to preserve the exit code
+	return firstTestError
 }
 
 func getRealPath(dir string) (string, error) {
@@ -469,6 +524,13 @@ func run() error {
 
 func main() {
 	if err := run(); err != nil {
+		// Preserve the original exit code from testsuite errors (e.g., exit code 44)
+		// For other errors, use exit code 1
+		var tsErr *testsuiteError
+		if errors.As(err, &tsErr) {
+			os.Exit(tsErr.exitCode)
+		}
+		// Not a testsuite error
 		fmt.Fprintf(os.Stderr, "%s\n", color.RedString(err.Error()))
 		os.Exit(1)
 	}
