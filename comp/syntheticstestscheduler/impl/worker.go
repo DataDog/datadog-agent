@@ -59,15 +59,25 @@ func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 
 // flush enqueues tests whose nextRun is due.
 func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	var testsToRun []*runningTestState
 	for id, rt := range s.state.tests {
 		if flushTime.After(rt.nextRun) || flushTime.Equal(rt.nextRun) {
-			s.log.Debugf("enqueuing test %s", id)
-			s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
-				nextRun: flushTime,
-				cfg:     rt.cfg,
-			}
-			s.updateTestState(rt)
+			s.log.Debugf("test %s is due for execution", id)
+			testsToRun = append(testsToRun, rt)
 		}
+	}
+
+	for _, rt := range testsToRun {
+		s.log.Debugf("enqueuing test %s", rt.cfg.PublicID)
+		s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
+			nextRun: flushTime,
+			cfg:     rt.cfg,
+		}
+
+		rt.lastRun = rt.nextRun
+		rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
 	}
 }
 
@@ -212,14 +222,6 @@ type SyntheticsTestCtx struct {
 	cfg     common.SyntheticsTestConfig
 }
 
-// updateTestState updates lastRun and nextRun for a running test.
-func (s *syntheticsTestScheduler) updateTestState(rt *runningTestState) {
-	s.state.mu.Lock()
-	defer s.state.mu.Unlock()
-	rt.lastRun = rt.nextRun
-	rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
-}
-
 // sendSyntheticsTestResult marshals the workerResult and forwards it via the epForwarder.
 func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) error {
 	res, err := s.networkPathToTestResult(w)
@@ -233,6 +235,7 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) erro
 	}
 
 	s.log.Debugf("synthetics network path test event: %s", string(payloadBytes))
+	s.log.Infof("sending result public_id:<%s> result_id:<%s>", res.Test.ID, res.Result.ID)
 
 	m := message.NewMessage(payloadBytes, nil, "", 0)
 	return s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeSynthetics)
