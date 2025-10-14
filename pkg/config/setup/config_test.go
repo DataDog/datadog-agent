@@ -1455,7 +1455,7 @@ use_proxy_for_cloud_metadata: true
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 25)
+	require.Len(t, serverlessConfigComponents, 24)
 }
 
 func TestServerlessConfigInit(t *testing.T) {
