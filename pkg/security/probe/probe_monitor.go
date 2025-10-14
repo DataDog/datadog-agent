@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/dns"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -29,7 +28,6 @@ type EBPFMonitors struct {
 	ebpfProbe *EBPFProbe
 
 	eventStreamMonitor *eventstream.Monitor
-	runtimeMonitor     *runtime.Monitor
 	discarderMonitor   *discarder.Monitor
 	cgroupsMonitor     *cgroups.Monitor
 	approverMonitor    *approver.Monitor
@@ -53,10 +51,6 @@ func (m *EBPFMonitors) Init() error {
 	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager, p.statsdClient, p.onEventLost, p.useRingBuffers)
 	if err != nil {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
-	}
-
-	if p.config.Probe.RuntimeMonitor {
-		m.runtimeMonitor = runtime.NewRuntimeMonitor(p.statsdClient)
 	}
 
 	m.discarderMonitor, err = discarder.NewDiscarderMonitor(p.Manager, p.statsdClient)
@@ -146,12 +140,6 @@ func (m *EBPFMonitors) SendStats() error {
 
 	if err := m.eventStreamMonitor.SendStats(); err != nil {
 		return fmt.Errorf("failed to send events stats: %w", err)
-	}
-
-	if m.ebpfProbe.config.Probe.RuntimeMonitor {
-		if err := m.runtimeMonitor.SendStats(); err != nil {
-			return fmt.Errorf("failed to send runtime monitor stats: %w", err)
-		}
 	}
 
 	if err := m.discarderMonitor.SendStats(); err != nil {

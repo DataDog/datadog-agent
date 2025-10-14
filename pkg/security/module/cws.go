@@ -296,11 +296,11 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID)
 func (c *CWSConsumer) Stop() {
 	c.reloader.Stop()
 
+	c.cancelFnc()
+
 	if c.apiServer != nil {
 		c.apiServer.Stop()
 	}
-
-	c.cancelFnc()
 
 	c.ruleEngine.Stop()
 

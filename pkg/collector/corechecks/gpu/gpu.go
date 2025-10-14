@@ -49,6 +49,7 @@ type Check struct {
 	deviceCache       ddnvml.DeviceCache           // deviceCache is a cache of GPU devices
 	spCache           *nvidia.SystemProbeCache     // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
 	deviceEvtGatherer *nvidia.DeviceEventsGatherer // deviceEvtGatherer asynchronously listens for device events and gathers them
+	nsPidCache        *nvidia.NsPidCache           // nsPidCache resolves and caches nspids for processes
 }
 
 type checkTelemetry struct {
@@ -102,6 +103,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 
+	c.nsPidCache = &nvidia.NsPidCache{}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics
@@ -150,6 +152,7 @@ func (c *Check) ensureInitCollectors() error {
 			&nvidia.CollectorDependencies{
 				DeviceEventsGatherer: c.deviceEvtGatherer,
 				SystemProbeCache:     c.spCache,
+				NsPidCache:           c.nsPidCache,
 			})
 		if err != nil {
 			return fmt.Errorf("failed to build NVML collectors: %w", err)
@@ -214,6 +217,10 @@ func (c *Check) Run() error {
 		log.Warnf("error refreshing device events cache: %v", err)
 		// Might cause empty metrics in collectors depending on device events
 	}
+
+	// Make sure ns pid resolution attempts retrieving the most up to date values.
+	// Invalidated cache entries (from previous runs) might still be used as a fallback.
+	c.nsPidCache.Invalidate()
 
 	// build the mapping of GPU devices -> containers to allow tagging device
 	// metrics with the tags of containers that are using them
