@@ -982,7 +982,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.137.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.137.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
+	github.com/shoenig/go-m1cpu v0.1.7 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 )
 
