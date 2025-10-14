@@ -74,12 +74,14 @@ func removeFromList(confStringMap map[string]any, parentNames []string, listName
 func getMapStr(confStringMap map[string]any, keys []string) (map[string]any, error) {
 	for _, key := range keys {
 		value, ok := confStringMap[key]
-		if !ok {
+
+		// When having hostprofiler: {} in the config, the value is nil
+		if !ok || value == nil {
 			return nil, nil
 		}
 		confStringMap, ok = value.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("value is not a map[string]any:%v", value)
+			return nil, fmt.Errorf("value is type %T and not a map[string]any:%v", value, value)
 		}
 	}
 	return confStringMap, nil
