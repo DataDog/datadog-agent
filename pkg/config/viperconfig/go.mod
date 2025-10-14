@@ -5,8 +5,8 @@ go 1.24.0
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.62.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
-	github.com/DataDog/viper v1.14.1-0.20251002211519-52225e3aeac8
-	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
+	github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9
+	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
@@ -25,8 +25,8 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/time v0.12.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -35,6 +35,9 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../comp/core/agenttelemetry/def
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
@@ -53,6 +56,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ../../../comp/core/secrets/fx
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ../../../comp/core/secrets/impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock => ../../../comp/core/secrets/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl => ../../../comp/core/secrets/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../../comp/core/secrets/utils
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ../../../comp/core/status/statusimpl
@@ -169,9 +173,11 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../../pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../pkg/util/grpc
+	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../pkg/util/json
+	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../pkg/util/jsonquery
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option

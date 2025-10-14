@@ -33,7 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -354,7 +353,7 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 		info, err := discovery.getServiceInfo(int32(self), openFiles)
 		require.NoError(t, err)
 		require.Equal(t, language.CPlusPlus, language.Language(info.Language))
-		require.Equal(t, apm.Provided, apm.Instrumentation(info.APMInstrumentation))
+		require.Equal(t, true, info.APMInstrumentation)
 	})
 
 	t.Run("invalid metadata", func(t *testing.T) {
@@ -366,7 +365,7 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 
 		info, err := discovery.getServiceInfo(int32(self), openFiles)
 		require.NoError(t, err)
-		require.Equal(t, apm.None, apm.Instrumentation(info.APMInstrumentation))
+		require.Equal(t, false, info.APMInstrumentation)
 	})
 }
 
