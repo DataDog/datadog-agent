@@ -231,7 +231,7 @@ func (s *snapshotMessage) init(
 			ID:       uuid.New(),
 			Language: "go",
 		},
-		EvaluationErrors: []string{},
+		EvaluationErrors: []evaluationError{},
 	}
 	if event.EntryOrLine == nil {
 		return nil, fmt.Errorf("entry event is nil")
@@ -295,7 +295,10 @@ func (s *snapshotMessage) init(
 				log.Tracef("error symbolicating stack: %v", err)
 			}
 			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
-				fmt.Sprintf("error symbolicating stack: %v", err),
+				evaluationError{
+					Expression: "Stacktrace",
+					Message:    err.Error(),
+				},
 			)
 		} else {
 			decoder.stackFrames[stackHeader.Stack_hash] = stackFrames
