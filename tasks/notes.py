@@ -134,16 +134,16 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
                 code=1,
             )
 
-        # awk script that formats git output and retrieves branches
-        # from later releases (i.e. if we are on 7.67.2, and releases
-        # are being cut for 7.68.x and 7.69.x they would be retrieved)
+        # formats git output and retrieves branches from later
+        # releases (i.e. if we are on 7.67.2, and releases
+        # are being cut for 7.68.x and 7.69.x, they would be retrieved)
         awk_script = (
             f"awk -v min={new_version_int[1]} " + "{"
             "sub(\"refs/heads/\", \"\", $2); "
-                "if ($2 ~ /^7\\.[0-9]+\\.[xX]$/) {"
-                    "split($2, parts, \".\"); "
-                    "if (parts[2] > min) print $2;"
-                "}"
+            "if ($2 ~ /^7\\.[0-9]+\\.[xX]$/) {"
+            "split($2, parts, \".\"); "
+            "if (parts[2] > min) print $2;"
+            "}"
             "}'"
         )
         res = ctx.run(f"git ls-remote --heads origin | {awk_script}")
