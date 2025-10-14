@@ -1508,10 +1508,10 @@ func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTai
 
 	newTailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "New tailer should be in active container")
-	suite.NotEqual(initialTailer, newTailer, "New tailer should be different from initial tailer")
+	suite.True(initialTailer != newTailer, "New tailer should be different from initial tailer")
 
 	// The old tailer should be in rotatedTailers
-	suite.Equal(initialTailer, s.rotatedTailers[0], "Old tailer should be in rotatedTailers list")
+	suite.True(initialTailer == s.rotatedTailers[0], "Old tailer should be in rotatedTailers list")
 
 	// Read the new message
 	msg = <-suite.outputChan
