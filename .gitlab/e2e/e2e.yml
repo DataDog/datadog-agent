@@ -327,6 +327,7 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)SecretSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)DogstatsdReplaySuite"
 
 new-e2e-fips-compliance-test:
   extends: .new_e2e_template

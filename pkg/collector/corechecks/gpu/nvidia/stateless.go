@@ -78,23 +78,28 @@ func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
 }
 
 // processMemorySample handles process memory usage collection logic
-func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
+func processMemorySample(device ddnvml.Device, nsPidCache *NsPidCache) ([]Metric, uint64, error) {
 	procs, err := device.GetComputeRunningProcesses()
 
 	var processMetrics []Metric
 	var allPidTags []string
 
 	if err == nil {
+		// Create PID tag for this process
 		for _, proc := range procs {
-			pidTag := fmt.Sprintf("pid:%d", proc.Pid)
+			pidTags := []string{
+				fmt.Sprintf("pid:%d", proc.Pid),
+				fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(proc.Pid, true)),
+			}
+			allPidTags = append(allPidTags, pidTags...)
+
 			processMetrics = append(processMetrics, Metric{
 				Name:     "process.memory.usage",
 				Value:    float64(proc.UsedGpuMemory),
 				Type:     metrics.GaugeType,
 				Priority: High,
-				Tags:     []string{pidTag},
+				Tags:     pidTags,
 			})
-			allPidTags = append(allPidTags, pidTag)
 		}
 	}
 
@@ -112,7 +117,7 @@ func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
 }
 
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
-func createStatelessAPIs() []apiCallInfo {
+func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 	apis := []apiCallInfo{
 		// Memory collector APIs
 		{
@@ -381,7 +386,7 @@ func createStatelessAPIs() []apiCallInfo {
 		{
 			Name: "process_memory_usage",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				return processMemorySample(device)
+				return processMemorySample(device, nsPidCache)
 			},
 		},
 		// NVLink collector APIs
@@ -399,6 +404,6 @@ func createStatelessAPIs() []apiCallInfo {
 var statelessAPIFactory = createStatelessAPIs
 
 // newStatelessCollector creates a collector that consolidates all stateless collector types
-func newStatelessCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
-	return NewBaseCollector(stateless, device, statelessAPIFactory())
+func newStatelessCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
+	return NewBaseCollector(stateless, device, statelessAPIFactory(deps.NsPidCache))
 }

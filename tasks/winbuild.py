@@ -21,21 +21,18 @@ def agent_package(
     skip_deps=False,
     build_upgrade=False,
 ):
-    # Build installer
-    # TODO: merge into agent omnibus build
-    # TODO: must build installer first so the final build-summary.json
-    #       is from the Agent omnibus build
-    omnibus_build(
-        ctx,
-        skip_deps=skip_deps,
-        target_project="installer",
-    )
-
     # Build agent
     omnibus_build(
         ctx,
         flavor=flavor,
         skip_deps=skip_deps,
+    )
+
+    # Move the installer binary to a separate folder
+    os.makedirs(os.path.join(OPT_SOURCE_DIR, "datadog-installer"))
+    shutil.move(
+        os.path.join(OPT_SOURCE_DIR, "datadog-agent", "datadog-installer.exe"),
+        os.path.join(OPT_SOURCE_DIR, "datadog-installer"),
     )
 
     # Package Agent into MSI

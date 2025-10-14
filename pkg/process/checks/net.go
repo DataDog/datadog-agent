@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"runtime"
 	"sort"
+	"strconv"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -19,7 +20,6 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -35,6 +35,7 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -186,8 +187,9 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
 
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
+	getProcessTagsCB := c.getProcessTagsCallback()
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
 }
 
@@ -241,6 +243,17 @@ func (c *ConnectionsCheck) getContainerTagsCallback(relevantContainers map[strin
 		}
 		// If the container is not relevant for explicit tagging, we return an empty slice.
 		return nil, nil
+	}
+}
+
+// getProcessTagsCallback returns a callback that returns the process tags for the given pid.
+func (c *ConnectionsCheck) getProcessTagsCallback() func(int32) ([]string, error) {
+	return func(pid int32) ([]string, error) {
+		if pid <= 0 {
+			return nil, nil
+		}
+		processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(pid)))
+		return c.tagger.Tag(processEntityID, types.HighCardinality)
 	}
 }
 
@@ -374,6 +387,7 @@ func batchConnections(
 	hostInfo *HostInfo,
 	hostTagProvider *hosttags.HostTagProvider,
 	containerTagProvider func(string) ([]string, error),
+	processTagProvider func(int32) ([]string, error),
 	maxConnsPerMessage int,
 	groupID int32,
 	cxs []*model.Connection,
@@ -448,6 +462,15 @@ func batchConnections(
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
+
+			// Get process tags and add them to the connection tags
+			if processTagProvider != nil {
+				if processTags, err := processTagProvider(c.Pid); err != nil {
+					log.Debugf("error getting tags for process %v: %v", c.Pid, err)
+				} else {
+					tagsStr = append(tagsStr, processTags...)
+				}
+			}
 
 			if len(tagsStr) > 0 {
 				c.Tags = nil
@@ -528,7 +551,7 @@ func batchConnections(
 		}
 
 		// Add OS telemetry
-		if hostInfo := hostMetadataUtils.GetInformation(); hostInfo != nil {
+		if hostInfo := hostinfoutils.GetInformation(); hostInfo != nil {
 			cc.KernelVersion = hostInfo.KernelVersion
 			cc.Architecture = hostInfo.KernelArch
 			cc.Platform = hostInfo.Platform
