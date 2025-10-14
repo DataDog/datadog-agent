@@ -1364,3 +1364,101 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 func getScanKey(path string, source *sources.LogSource) string {
 	return filetailer.NewFile(path, source, false).GetScanKey()
 }
+
+// TestRotatedTailersNotStoppedDuringScan tests that rotated tailers are not stopped during scan
+func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
+	// Create initial file with content
+	_, err := suite.testFile.WriteString("initial content\n")
+	suite.Nil(err)
+
+	// Read the message
+	msg := <-suite.outputChan
+	suite.Equal("initial content", string(msg.GetContent()))
+
+	// Rotate the file
+	rotatedPath := suite.testPath + ".1"
+	err = os.Rename(suite.testPath, rotatedPath)
+	suite.Nil(err)
+
+	newFile, err := os.Create(suite.testPath)
+	suite.Nil(err)
+	_, err = newFile.WriteString("new content\n")
+	suite.Nil(err)
+	newFile.Close()
+
+	// Scan detects rotation
+	suite.s.scan()
+
+	// After rotation, we should have:
+	// - 1 active tailer (for the new file)
+	// - 1 rotated tailer (still draining the old file)
+	suite.Equal(1, suite.s.tailers.Count(), "Should have 1 active tailer")
+	suite.Equal(1, len(suite.s.rotatedTailers), "Should have 1 rotated tailer")
+
+	// Get the rotated tailer
+	rotatedTailer := suite.s.rotatedTailers[0]
+
+	// Change the source path to simulate the file no longer matching
+	// This should normally cause the tailer to be stopped, but rotated tailers should be skipped
+	suite.s.activeSources = []*sources.LogSource{}
+
+	// Scan again - the rotated tailer should NOT be stopped
+	suite.s.scan()
+
+	// The rotated tailer should still be in the rotatedTailers list
+	suite.True(suite.s.isRotatedTailer(rotatedTailer), "Rotated tailer should still be in rotatedTailers list")
+
+	// Clean up
+	os.Remove(rotatedPath)
+}
+
+// TestRestartTailerAfterFileRotationRemovesTailer tests that restartTailerAfterFileRotation removes the old tailer
+func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTailer() {
+	// Create initial file
+	_, err := suite.testFile.WriteString("line1\n")
+	suite.Nil(err)
+
+	// Read the message
+	msg := <-suite.outputChan
+	suite.Equal("line1", string(msg.GetContent()))
+
+	// Get initial tailer
+	initialTailer, _ := suite.s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	suite.NotNil(initialTailer)
+
+	// Simulate rotation
+	rotatedPath := suite.testPath + ".1"
+	err = os.Rename(suite.testPath, rotatedPath)
+	suite.Nil(err)
+
+	// Create new file
+	newFile, err := os.Create(suite.testPath)
+	suite.Nil(err)
+	_, err = newFile.WriteString("line2\n")
+	suite.Nil(err)
+	newFile.Close()
+
+	// Scan to detect rotation
+	suite.s.scan()
+
+	// After rotation:
+	// - The old tailer should be removed from the active container
+	// - The old tailer should be in rotatedTailers list
+	// - A new tailer should be in the active container
+	suite.Equal(1, suite.s.tailers.Count(), "Should have 1 active tailer")
+	suite.Equal(1, len(suite.s.rotatedTailers), "Should have 1 rotated tailer")
+
+	newTailer, found := suite.s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	suite.True(found, "New tailer should be in active container")
+	suite.NotEqual(initialTailer, newTailer, "New tailer should be different from initial tailer")
+
+	// The old tailer should be in rotatedTailers
+	suite.Equal(initialTailer, suite.s.rotatedTailers[0], "Old tailer should be in rotatedTailers list")
+
+	// Read the new message
+	msg = <-suite.outputChan
+	suite.Equal("line2", string(msg.GetContent()))
+
+	// Clean up
+	os.Remove(rotatedPath)
+}
