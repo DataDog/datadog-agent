@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    Add a flag `enable_otel_compliant_translation` that can be added to apm_config.features to enable new translation logic that more closely aligns with the OpenTelemetry specification. If attributes are in the wrong place or collide with attributes in other locations, they will be prefixed - e.g. if env in set in both span and resource attributes, the span attribute will be renamed to otel.span.env.
+    Add a stricter translation mode for OpenTelemetry traces, enabled by the `enable_otel_compliant_translation` feature flag. When active, attributes in incorrect locations are prefixed to prevent data loss; for example, an `env` attribute on a span becomes `otel.span.env`. A new metric, `datadog.trace_agent.otlp.misconfigured_attributes`, is now emitted to help identify affected traces.
   - |
     Add new methods to `pkg/opentelemetry-mapping-go/otlp/attributes` that translate attributes from OpenTelemetry to Datadog semantics.
