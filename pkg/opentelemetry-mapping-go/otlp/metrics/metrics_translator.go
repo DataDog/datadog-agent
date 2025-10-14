@@ -296,6 +296,19 @@ func (t *Translator) mapNumberMonotonicMetrics(
 	}
 }
 
+func getBounds(explicitBounds pcommon.Float64Slice, idx int) (lowerBound float64, upperBound float64) {
+	// See https://github.com/open-telemetry/opentelemetry-proto/blob/v0.10.0/opentelemetry/proto/metrics/v1/metrics.proto#L427-L439
+	lowerBound = math.Inf(-1)
+	upperBound = math.Inf(1)
+	if idx > 0 {
+		lowerBound = explicitBounds.At(idx - 1)
+	}
+	if idx < explicitBounds.Len() {
+		upperBound = explicitBounds.At(idx)
+	}
+	return
+}
+
 type histogramInfo struct {
 	// sum of histogram (exact)
 	sum float64
