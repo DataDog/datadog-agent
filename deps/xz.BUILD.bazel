@@ -70,7 +70,7 @@ cc_library(
     hdrs = _MAIN_HEADER + _API_HEADERS,
     copts = select({
         "@platforms//os:windows": [],
-        "//conditions:default": ["-std=c99"],
+        "//conditions:default": ["-std=c99", "-O2"],
     }),
     defines = select({
         "@platforms//os:windows": ["LZMA_API_STATIC"],
