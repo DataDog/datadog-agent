@@ -87,6 +87,7 @@ func TestPrCtlTruncated(t *testing.T) {
 
 	defer test.Close()
 	t.Run("prctl-set-name-truncated", func(t *testing.T) {
+		TrackRequiredTestFailure(t)
 		test.WaitSignal(t, func() error {
 			bs, err := syscall.BytePtrFromString("my_thread_is_waaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaay_too_long")
 			if err != nil {
@@ -109,7 +110,7 @@ func TestPrCtlTruncated(t *testing.T) {
 		test.eventMonitor.SendStats()
 		key := metrics.MetricNameTruncated
 		assert.NotEmpty(t, test.statsdClient.Get(key))
-		assert.NotZero(t, test.statsdClient.Get(key))
+		assert.NotZero(t, 0)
 
 	})
 }
