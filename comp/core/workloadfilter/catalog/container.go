@@ -16,52 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-// LegacyContainerMetricsProgram creates a program for filtering container metrics
-func LegacyContainerMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "LegacyContainerMetricsProgram"
-	include := filterConfig.ContainerIncludeMetrics
-	exclude := filterConfig.ContainerExcludeMetrics
-	return createFromOldFilters(programName, include, exclude, workloadfilter.ContainerType, logger)
-}
-
-// LegacyContainerLogsProgram creates a program for filtering container logs
-func LegacyContainerLogsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "LegacyContainerLogsProgram"
-	include := filterConfig.ContainerIncludeLogs
-	exclude := filterConfig.ContainerExcludeLogs
-	return createFromOldFilters(programName, include, exclude, workloadfilter.ContainerType, logger)
-}
-
-// LegacyContainerACExcludeProgram creates a program for excluding containers via legacy `AC` filters
-func LegacyContainerACExcludeProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "LegacyContainerACExcludeProgram"
-	exclude := filterConfig.ACExclude
-	return createFromOldFilters(programName, nil, exclude, workloadfilter.ContainerType, logger)
-}
-
-// LegacyContainerACIncludeProgram creates a program for including containers via legacy `AC` filters
-func LegacyContainerACIncludeProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "LegacyContainerACIncludeProgram"
-	include := filterConfig.ACInclude
-	return createFromOldFilters(programName, include, nil, workloadfilter.ContainerType, logger)
-}
-
-// LegacyContainerGlobalProgram creates a program for filtering container globally
-func LegacyContainerGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "LegacyContainerGlobalProgram"
-	include := filterConfig.ContainerInclude
-	exclude := filterConfig.ContainerExclude
-	return createFromOldFilters(programName, include, exclude, workloadfilter.ContainerType, logger)
-}
-
-// LegacyContainerSBOMProgram creates a program for filtering container SBOMs
-func LegacyContainerSBOMProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "LegacyContainerSBOMProgram"
-	include := filterConfig.SBOMContainerInclude
-	exclude := filterConfig.SBOMContainerExclude
-	return createFromOldFilters(programName, include, exclude, workloadfilter.ContainerType, logger)
-}
-
 // ContainerPausedProgram creates a program for filtering paused containers
 func ContainerPausedProgram(_ *FilterConfig, logger log.Component) program.FilterProgram {
 	programName := "ContainerPausedProgram"

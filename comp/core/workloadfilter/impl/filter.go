@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
@@ -124,12 +125,24 @@ func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretel
 	}
 	genericADLogsProgramFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return genericADLogsProgram }
 
+	// Pre-compute legacy programs via `DD_CONTAINER_EXCLUDE*` that can be shared across entity types
+	legacyGlobalPrg := catalog.LegacyContainerGlobalProgram(filterConfig, logger)
+	legacyMetricsPrg := catalog.LegacyContainerMetricsProgram(filterConfig, logger)
+	legacyLogsPrg := catalog.LegacyContainerLogsProgram(filterConfig, logger)
+	legacyACIncludePrg := catalog.LegacyContainerACIncludeProgram(filterConfig, logger)
+	legacyACExcludePrg := catalog.LegacyContainerACExcludeProgram(filterConfig, logger)
+	legacyGlobalPrgFactory := func(_ *catalog.FilterConfig, _ log.Component) program.FilterProgram { return legacyGlobalPrg }
+	legacyMetricsPrgFactory := func(_ *catalog.FilterConfig, _ log.Component) program.FilterProgram { return legacyMetricsPrg }
+	legacyLogsPrgFactory := func(_ *catalog.FilterConfig, _ log.Component) program.FilterProgram { return legacyLogsPrg }
+	legacyACIncludePrgFactory := func(_ *catalog.FilterConfig, _ log.Component) program.FilterProgram { return legacyACIncludePrg }
+	legacyACExcludePrgFactory := func(_ *catalog.FilterConfig, _ log.Component) program.FilterProgram { return legacyACExcludePrg }
+
 	// Container Filters
-	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics), catalog.LegacyContainerMetricsProgram)
-	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerLogs), catalog.LegacyContainerLogsProgram)
-	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACInclude), catalog.LegacyContainerACIncludeProgram)
-	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACExclude), catalog.LegacyContainerACExcludeProgram)
-	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerGlobal), catalog.LegacyContainerGlobalProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics), legacyMetricsPrgFactory)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerLogs), legacyLogsPrgFactory)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACInclude), legacyACIncludePrgFactory)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACExclude), legacyACExcludePrgFactory)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerGlobal), legacyGlobalPrgFactory)
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerSBOM), catalog.LegacyContainerSBOMProgram)
 
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotations), genericADProgramFactory)
@@ -143,8 +156,8 @@ func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretel
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerCELGlobal), catalog.ContainerCELGlobalProgram)
 
 	// Service Filters
-	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceGlobal), catalog.LegacyServiceGlobalProgram)
-	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceMetrics), catalog.LegacyServiceMetricsProgram)
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceGlobal), legacyGlobalPrgFactory)
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceMetrics), legacyMetricsPrgFactory)
 	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotationsMetrics), genericADMetricsProgramFactory)
 
@@ -152,8 +165,8 @@ func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretel
 	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceCELGlobal), catalog.ServiceCELGlobalProgram)
 
 	// Endpoints Filters
-	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointGlobal), catalog.LegacyEndpointsGlobalProgram)
-	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointMetrics), catalog.LegacyEndpointsMetricsProgram)
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointGlobal), legacyGlobalPrgFactory)
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointMetrics), legacyMetricsPrgFactory)
 	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotationsMetrics), genericADMetricsProgramFactory)
 
@@ -161,7 +174,8 @@ func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretel
 	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointCELGlobal), catalog.EndpointCELGlobalProgram)
 
 	// Pod Filters
-	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.LegacyPod), catalog.LegacyPodProgram)
+	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.LegacyPodMetrics), legacyMetricsPrgFactory)
+	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.LegacyPodGlobal), legacyGlobalPrgFactory)
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotationsMetrics), genericADMetricsProgramFactory)
 
