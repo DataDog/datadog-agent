@@ -58,5 +58,5 @@ func (v *windowsSharedLibrarySuite) TestWindowsCheckExample() {
 	v.testCheckExecutionAndMetrics()
 
 	// remove the lib after the test
-	//v.removeLibrary()
+	v.removeLibrary()
 }
