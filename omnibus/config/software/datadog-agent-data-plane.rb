@@ -8,6 +8,8 @@ name "datadog-agent-data-plane"
 # We manually pull in SBOM/license files from the ADP tarball and place them in the appropriate location.
 skip_transitive_dependency_licensing true
 
+always_build true
+
 adp_version = ENV['AGENT_DATA_PLANE_VERSION']
 adp_hashes = {}
 adp_hashes["linux-amd64"] = ENV['AGENT_DATA_PLANE_HASH_LINUX_AMD64']
