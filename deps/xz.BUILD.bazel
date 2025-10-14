@@ -46,9 +46,7 @@ copy_file(
     out = "src/liblzma/api/config.h",  # minimize the number of exported include paths
 )
 
-_MAIN_HEADER = glob([
-    "src/liblzma/api/lzma.h",
-])
+_MAIN_HEADER = ["src/liblzma/api/lzma.h"]
 
 _API_HEADERS = glob([
     "src/liblzma/api/lzma/*.h",
@@ -105,11 +103,6 @@ cc_library(
     ],
 )
 
-# cc_library(
-#     name = "xz_win_resources",
-#     srcs = ["xz_w32res.rc"],
-# )
-
 cc_library(
     name = "lzma_src_common",
     srcs = [
@@ -139,14 +132,7 @@ cc_library(
     name = "lzma_src_liblzma_api",
     hdrs = [
         "src/liblzma/api/config.h",  # Generated above, so missed by glob. In srcs so it's not public like the other headers
-    ] + glob(
-        [
-            "src/liblzma/api/**/*.h",
-        ],
-        exclude = [
-            "src/liblzma/api/lzma.h",  # The public header, only used in hdrs of main lib (//visibility:public)
-        ],
-    ),
+    ] + _API_HEADERS,
     strip_include_prefix = "src/liblzma/api",
 )
 
@@ -204,18 +190,6 @@ cc_shared_library(
     }),
     visibility = ["//visibility:public"],
 )
-
-# pkg_mklink(
-#     name = "so_major",
-#     link_name = "lib/liblzma.so.5",
-#     target = SONAME,
-# )
-#
-# pkg_mklink(
-#     name = "so",
-#     link_name = "lib/liblzma.so",
-#     target = SONAME,
-# )
 
 so_symlink(
     name = "lib_files",
