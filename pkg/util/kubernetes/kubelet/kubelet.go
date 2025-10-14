@@ -35,7 +35,7 @@ const (
 	kubeletMetricsPath     = "/metrics"
 	kubeletStatsSummary    = "/stats/summary"
 	authorizationHeaderKey = "Authorization"
-	podListCacheKey        = "KubeletPodListCacheKey"
+	nodenameCacheKey       = "KubeletNodenameCacheKey"
 	configSourceAnnotation = "kubernetes.io/config.source"
 )
 
@@ -131,7 +131,7 @@ func ResetGlobalKubeUtil() {
 
 // ResetCache deletes existing kubeutil related cache
 func ResetCache() {
-	cache.Cache.Delete(podListCacheKey)
+	cache.Cache.Delete(nodenameCacheKey)
 }
 
 // GetKubeUtilWithRetrier returns an instance of KubeUtil or a retrier
@@ -177,43 +177,55 @@ func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, conta
 
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
+	if cached, hit := cache.Cache.Get(nodenameCacheKey); hit {
+		if nodename, ok := cached.(string); ok {
+			return nodename, nil
+		}
+		log.Errorf("Invalid nodename cache format, forcing a cache miss")
+	}
+
+	var nodename string
+	var err error
+
 	if ku.useAPIServer {
 		if ku.kubeletClient.config.nodeName != "" {
-			return ku.kubeletClient.config.nodeName, nil
+			nodename = ku.kubeletClient.config.nodeName
+		} else {
+			var stats *kubeletv1alpha1.Summary
+			stats, err = ku.GetLocalStatsSummary(ctx)
+			if err == nil && stats.Node.NodeName != "" {
+				nodename = stats.Node.NodeName
+			} else {
+				return "", fmt.Errorf("failed to get kubernetes nodename from %s: %v", kubeletStatsSummary, err)
+			}
 		}
-		stats, err := ku.GetLocalStatsSummary(ctx)
-		if err == nil && stats.Node.NodeName != "" {
-			return stats.Node.NodeName, nil
+	} else {
+		var pods []*Pod
+		pods, err = ku.GetLocalPodList(ctx)
+		if err != nil {
+			return "", fmt.Errorf("error getting pod list from kubelet: %s", err)
 		}
-		return "", fmt.Errorf("failed to get kubernetes nodename from %s: %v", kubeletStatsSummary, err)
-	}
-	pods, err := ku.GetLocalPodList(ctx)
-	if err != nil {
-		return "", fmt.Errorf("error getting pod list from kubelet: %s", err)
+
+		for _, pod := range pods {
+			if pod.Spec.NodeName == "" {
+				continue
+			}
+			nodename = pod.Spec.NodeName
+			break
+		}
+
+		if nodename == "" {
+			return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
+		}
 	}
 
-	for _, pod := range pods {
-		if pod.Spec.NodeName == "" {
-			continue
-		}
-		return pod.Spec.NodeName, nil
-	}
+	cache.Cache.Set(nodenameCacheKey, nodename, ku.podListCacheDuration)
 
-	return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
+	return nodename, nil
 }
 
 func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
-	var ok bool
 	pods := PodList{}
-
-	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
-		pods, ok = cached.(PodList)
-		if !ok {
-			log.Errorf("Invalid pod list cache format, forcing a cache miss")
-		} else {
-			return &pods, nil
-		}
-	}
 
 	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
 	if err != nil {
@@ -254,9 +266,6 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 		}
 	}
 	pods.Items = tmpSlice
-
-	// cache the podList to reduce pressure on the kubelet
-	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
 
 	return &pods, nil
 }

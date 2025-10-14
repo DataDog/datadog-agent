@@ -401,7 +401,7 @@ func (suite *KubeletTestSuite) TestGetNodename() {
 	}
 }
 
-func (suite *KubeletTestSuite) TestPodlistCache() {
+func (suite *KubeletTestSuite) TestNodenameCache() {
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())
 
@@ -418,25 +418,29 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	kubeutil.GetLocalPodList(ctx)
+	nodename, err := kubeutil.GetNodename(ctx)
+	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), "my-node-name", nodename)
 	r := <-kubelet.Requests
 	require.Equal(suite.T(), "/pods", r.URL.Path)
 
-	// The request should be cached now
-	_, err = kubeutil.GetLocalPodList(ctx)
+	// The nodename should be cached now
+	nodename, err = kubeutil.GetNodename(ctx)
 	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), "my-node-name", nodename)
 
 	select {
 	case <-kubelet.Requests:
-		assert.FailNow(suite.T(), "podlist request should have been cached")
+		assert.FailNow(suite.T(), "nodename request should have been cached")
 	default:
 		// Cache working as expected
 	}
 
 	// test successful cache wipe
 	ResetCache()
-	_, err = kubeutil.GetLocalPodList(ctx)
+	nodename, err = kubeutil.GetNodename(ctx)
 	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), "my-node-name", nodename)
 	r = <-kubelet.Requests
 	require.Equal(suite.T(), "/pods", r.URL.Path)
 }
