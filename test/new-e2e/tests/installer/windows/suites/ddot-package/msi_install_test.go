@@ -41,16 +41,19 @@ func (s *testAgentMSIInstallsDDOT) TestInstallDDOTFromMSI() {
 	s.installPreviousAgentVersion()
 
 	// Act: install current Agent MSI and request DDOT install via MSI properties
+	// Build generic OCI install list for DDOT (single URL)
+	ddotURL := fmt.Sprintf("oci://%s/%s:%s",
+		"installtesting.datad0g.com.internal.dda-testing.com",
+		"ddot-package",
+		s.CurrentAgentVersion().OCIPackage().Version,
+	)
 	s.Require().NoError(s.Installer().Install(
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-ddot.log"),
 		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
-		installerwindows.WithMSIArg("DD_DDOT_ENABLED=1"),
-		// Use testing registry override until images are published to prod
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
-		// Pin DDOT to the current pipeline version to match OCI publish
-		installerwindows.WithMSIArg(fmt.Sprintf("DD_DDOT_VERSION=%s", s.CurrentAgentVersion().OCIPackage().Version)),
+		// Generic OCI install path: semicolon-separated URLs (single here)
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_OCI_INSTALL=%s", ddotURL)),
 	))
 
 	// Assert: DDOT package stable directory exists and contains otel-agent.exe
@@ -66,14 +69,17 @@ func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 	// Arrange: install previous Agent MSI (baseline)
 	s.installPreviousAgentVersion()
 	// Install current Agent MSI with DDOT enabled
+	ddotURL := fmt.Sprintf("oci://%s/%s:%s",
+		"installtesting.datad0g.com.internal.dda-testing.com",
+		"ddot-package",
+		s.CurrentAgentVersion().OCIPackage().Version,
+	)
 	s.Require().NoError(s.Installer().Install(
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-ddot.log"),
 		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
-		installerwindows.WithMSIArg("DD_DDOT_ENABLED=1"),
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithMSIArg(fmt.Sprintf("DD_DDOT_VERSION=%s", s.CurrentAgentVersion().OCIPackage().Version)),
+		installerwindows.WithMSIArg(fmt.Sprintf("DD_OCI_INSTALL=%s", ddotURL)),
 	))
 
 	stableDir := consts.GetStableDirFor("datadog-agent-ddot")
@@ -82,7 +88,8 @@ func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 	// Act: uninstall the Agent and request DDOT removal
 	s.Require().NoError(s.Installer().Uninstall(
 		installerwindows.WithMSILogFile("uninstall-ddot.log"),
-		installerwindows.WithMSIArg("DD_DDOT_UNINSTALL=1"),
+		// Generic OCI removal: semicolon-separated package names (single here)
+		installerwindows.WithMSIArg("DD_OCI_REMOVE=datadog-agent-ddot"),
 	))
 
 	// Assert: DDOT package directory removed

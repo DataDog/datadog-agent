@@ -129,15 +129,13 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                new Property("DD_DDOT_ENABLED")
+                // DDOT flags replaced by generic DD_OCI_* path
+                // Generic OCI install list (semicolon-separated URLs)
+                new Property("DD_OCI_INSTALL")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                new Property("DD_DDOT_VERSION")
-                {
-                    AttributesDefinition = "Secure=yes"
-                },
-                new Property("DD_DDOT_UNINSTALL")
+                new Property("DD_OCI_REMOVE")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
