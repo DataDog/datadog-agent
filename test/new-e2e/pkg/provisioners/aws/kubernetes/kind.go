@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
+	csidriver "github.com/DataDog/test-infra-definitions/components/datadog/csi-driver"
 	"github.com/DataDog/test-infra-definitions/components/kubernetes/argorollouts"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
-	csidriver "github.com/DataDog/test-infra-definitions/components/datadog/csi-driver"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
@@ -120,11 +120,6 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	// Deploy the datadog CSI driver
-	if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider, csiDriverCommitSHA); err != nil {
-		return err
-	}
-
 	vpaCrd, err := vpa.DeployCRD(&awsEnv, kubeProvider)
 	if err != nil {
 		return err
@@ -187,6 +182,8 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 datadog:
   kubelet:
     tlsVerify: false
+	csi:
+		enabled: true
 agents:
   useHostNetwork: true
 `
@@ -286,6 +283,10 @@ agents:
 	}
 
 	if params.deployOperator && params.operatorDDAOptions != nil {
+		// Deploy the datadog CSI driver
+		if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider, csiDriverCommitSHA); err != nil {
+			return err
+		}
 		ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("kind-with-operator"), kubeProvider, params.operatorDDAOptions...)
 		if err != nil {
 			return err
