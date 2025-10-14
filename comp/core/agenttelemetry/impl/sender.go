@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -216,7 +216,7 @@ func newSenderImpl(
 	}
 
 	// Get host information (only hostid is used for now)
-	info := metadatautils.GetInformation()
+	info := hostinfoutils.GetInformation()
 
 	// Complying with intake schema by providing dummy data (may change in the future)
 	host := HostPayload{

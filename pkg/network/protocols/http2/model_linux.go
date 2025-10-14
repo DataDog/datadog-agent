@@ -113,8 +113,6 @@ func (ew *EventWrapper) Path(buffer []byte) ([]byte, bool) {
 		return buffer[:n], true
 	}
 
-	var err error
-
 	if ew.Stream.Path.Static_table_entry != 0 {
 		value, ok := pathStaticTable[ew.Stream.Path.Static_table_entry]
 		if !ok {
@@ -126,6 +124,7 @@ func (ew *EventWrapper) Path(buffer []byte) ([]byte, bool) {
 		return buffer[:n], true
 	}
 
+	var err error
 	if ew.Stream.Path.Is_huffman_encoded {
 		buffer, err = decodeHTTP2Path(ew.Stream.Path.Raw_buffer, ew.Stream.Path.Length, buffer)
 		if err != nil {
@@ -213,6 +212,7 @@ func (ew *EventWrapper) Method() http.Method {
 		return ew.method
 	}
 
+	// Case which the method is indexed.
 	if ew.Stream.Request_method.Static_table_entry != 0 {
 		value, ok := methodStaticTable[ew.Stream.Request_method.Static_table_entry]
 		if ok {
@@ -317,8 +317,8 @@ func (ew *EventWrapper) RequestStarted() uint64 {
 }
 
 // SetRequestMethod sets the HTTP method of the transaction.
-func (ew *EventWrapper) SetRequestMethod(method http.Method) {
-	ew.method = method
+func (ew *EventWrapper) SetRequestMethod(m http.Method) {
+	ew.method = m
 	ew.methodSet = true
 }
 
