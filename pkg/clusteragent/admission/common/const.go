@@ -38,4 +38,7 @@ const (
 
 	// LibConfigV1AnnotKeyFormat is the format of the library config annotation
 	LibConfigV1AnnotKeyFormat = "admission.datadoghq.com/%s-lib.config.v1"
+
+	// KubeSystemNamespaceLabelKey is the label to select the kube-system namespace.
+	KubeSystemNamespaceLabelKey = "kubernetes.io/metadata.name"
 )

@@ -28,6 +28,11 @@ func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, object
 					Operator: metav1.LabelSelectorOpNotIn,
 					Values:   []string{"false"},
 				},
+				{
+					Key:      KubeSystemNamespaceLabelKey,
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   []string{"kube-system"},
+				},
 			},
 		}
 	} else {
