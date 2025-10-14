@@ -527,9 +527,9 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	}
 
 	gotCh := make(chan *workerResult, 1)
-	scheduler.sendResult = func(w *workerResult) error {
+	scheduler.sendResult = func(w *workerResult) (string, error) {
 		gotCh <- w // signal test that we got a result
-		return nil
+		return "", nil
 	}
 
 	testCfg := common.SyntheticsTestConfig{
