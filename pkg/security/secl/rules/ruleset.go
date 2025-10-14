@@ -221,12 +221,12 @@ func (rs *RuleSet) ListMacroIDs() []MacroID {
 	return ids
 }
 
-// IterateVariables calls the given callback function on all variables
-func (rs *RuleSet) IterateVariables(cb func(definition eval.Definition, instances map[string]eval.Instance)) {
-	if rs.evalOpts == nil || rs.evalOpts.NewStore == nil {
+// IterVariables calls the given callback function on all variables
+func (rs *RuleSet) IterVariables(cb func(definition eval.VariableDefinition, instances map[string]eval.VariableInstance)) {
+	if rs.evalOpts == nil || rs.evalOpts.VariableStore == nil {
 		return
 	}
-	rs.evalOpts.NewStore.IterateVariables(cb)
+	rs.evalOpts.VariableStore.IterVariables(cb)
 }
 
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
@@ -441,9 +441,9 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					Telemetry: rs.evalOpts.Telemetry,
 				}
 
-				existingDefiniton, exists := rs.evalOpts.NewStore.GetDefinition(varName)
+				existingDefiniton, exists := rs.evalOpts.VariableStore.GetDefinition(varName)
 				if exists {
-					existingValue := existingDefiniton.GetDefaultValue()
+					existingValue := existingDefiniton.DefaultValue()
 					if reflect.TypeOf(variableValue) != reflect.TypeOf(existingValue) {
 						errs = multierror.Append(errs, fmt.Errorf("conflicting types for variable '%s': %s != %s", varName, reflect.TypeOf(variableValue), reflect.TypeOf(existingValue)))
 						continue
@@ -454,7 +454,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					}
 				}
 
-				var newVariableDefinition eval.Definition
+				var newVariableDefinition eval.VariableDefinition
 				var errVariableDefinition error
 
 				switch value := variableValue.(type) {
@@ -510,7 +510,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					continue
 				}
 
-				rs.evalOpts.NewStore.AddDefinition(varName, newVariableDefinition)
+				rs.evalOpts.VariableStore.AddDefinition(varName, newVariableDefinition)
 			}
 
 			rule.Actions = append(rule.Actions, &Action{
@@ -851,12 +851,12 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 		case action.Def.Set != nil:
 			varName := eval.GetVariableName(string(action.Def.Set.Scope), action.Def.Set.Name)
 
-			definition, exists := rs.evalOpts.NewStore.GetDefinition(varName)
+			definition, exists := rs.evalOpts.VariableStore.GetDefinition(varName)
 			if !exists {
 				return fmt.Errorf("unknown variable '%s' in rule '%s'", varName, rule.ID)
 			}
 
-			var instance eval.Instance
+			var instance eval.VariableInstance
 			instance, err := definition.GetInstance(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to apply set action for variable '%s' of rule '%s': %w", varName, rule.ID, err)
@@ -1211,7 +1211,7 @@ func (rs *RuleSet) NewFakeEvent() eval.Event {
 
 // CleanupExpiredVariables cleans up all epxired variables in the ruleset
 func (rs *RuleSet) CleanupExpiredVariables() {
-	rs.evalOpts.NewStore.CleanupExpiredVariables()
+	rs.evalOpts.VariableStore.CleanupExpiredVariables()
 }
 
 // NewRuleSet returns a new ruleset for the specified data model
@@ -1222,11 +1222,8 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		evalOpts.WithMacroStore(&eval.MacroStore{})
 	}
 
-	// if evalOpts.VariableStore == nil {
-	// 	evalOpts.WithVariableStore(&eval.VariableStore{})
-	// }
-	if evalOpts.NewStore == nil {
-		evalOpts.NewStore = eval.NewStore()
+	if evalOpts.VariableStore == nil {
+		evalOpts.VariableStore = eval.NewVariableStore()
 	}
 
 	return &RuleSet{
@@ -1239,8 +1236,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		logger:           logger,
 		pool:             eval.NewContextPool(),
 		fieldEvaluators:  make(map[string]eval.Evaluator),
-		// scopedVariables:  make(map[Scope]VariableProvider),
-		// globalVariables:  eval.NewVariables(),
 	}
 }
 

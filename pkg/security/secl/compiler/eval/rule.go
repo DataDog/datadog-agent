@@ -57,8 +57,8 @@ func NewRule(id string, expression string, parsingContext *ast.ParsingContext, o
 	if opts.MacroStore == nil {
 		opts.WithMacroStore(&MacroStore{})
 	}
-	if opts.NewStore == nil {
-		opts.NewStore = NewStore()
+	if opts.VariableStore == nil {
+		opts.VariableStore = NewVariableStore()
 	}
 
 	labelSet, err := utils.NewLabelSet("rule_id", id)

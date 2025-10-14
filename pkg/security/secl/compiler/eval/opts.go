@@ -56,12 +56,11 @@ func (s *MacroStore) Contains(id string) bool {
 
 // Opts are the options to be passed to the evaluator
 type Opts struct {
-	LegacyFields map[Field]Field
-	Constants    map[string]interface{}
-	// VariableStore *VariableStore
-	MacroStore *MacroStore
-	Telemetry  *Telemetry
-	NewStore   *Store
+	LegacyFields  map[Field]Field
+	Constants     map[string]interface{}
+	VariableStore *VariableStore
+	MacroStore    *MacroStore
+	Telemetry     *Telemetry
 }
 
 // WithConstants set constants
@@ -72,20 +71,20 @@ func (o *Opts) WithConstants(constants map[string]interface{}) *Opts {
 
 // WithVariables set variables
 func (o *Opts) WithVariables(variables map[string]StaticVariable) *Opts {
-	if o.NewStore == nil {
-		o.NewStore = NewStore()
+	if o.VariableStore == nil {
+		o.VariableStore = NewVariableStore()
 	}
 
 	for n, v := range variables {
-		o.NewStore.AddStaticVariable(VariableName(n), v)
+		o.VariableStore.AddStaticVariable(VariableName(n), v)
 	}
 
 	return o
 }
 
 // WithVariableStore set the variable store
-func (o *Opts) WithVariableStore(store *Store) *Opts {
-	o.NewStore = store
+func (o *Opts) WithVariableStore(store *VariableStore) *Opts {
+	o.VariableStore = store
 	return o
 }
 
@@ -112,10 +111,10 @@ func (o *Opts) AddMacro(macro *Macro) *Opts {
 
 // AddVariable add a variable
 func (o *Opts) AddVariable(name string, variable StaticVariable) *Opts {
-	if o.NewStore == nil {
-		o.NewStore = NewStore()
+	if o.VariableStore == nil {
+		o.VariableStore = NewVariableStore()
 	}
-	o.NewStore.AddStaticVariable(VariableName(name), variable)
+	o.VariableStore.AddStaticVariable(VariableName(name), variable)
 	return o
 }
 

@@ -98,12 +98,12 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 	ctx := eval.NewContext(event)
 
 	for varName, value := range variables {
-		definition, ok := evalOpts.NewStore.GetDefinition(eval.VariableName(varName))
+		definition, ok := evalOpts.VariableStore.GetDefinition(eval.VariableName(varName))
 		if definition == nil || !ok {
 			var definedVariableNames []string
-			for definition := range evalOpts.NewStore.GetDefinitions(&eval.GetOpts{}) {
-				definedVariableNames = append(definedVariableNames, definition.GetName(true))
-			}
+			evalOpts.VariableStore.IterVariableDefinitions(func(definition eval.VariableDefinition) {
+				definedVariableNames = append(definedVariableNames, definition.VariableName(true))
+			})
 			return report, fmt.Errorf("no variable named `%s` was found in current ruleset (found: %q)", varName, definedVariableNames)
 		}
 		instance, added, err := definition.AddNewInstance(ctx)

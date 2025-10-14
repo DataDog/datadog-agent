@@ -8,13 +8,14 @@ package rules
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 const (
+	// ScopeGlobal is the global scope
+	ScopeGlobal = ""
 	// ScopeProcess is the scope for process variables
 	ScopeProcess = "process"
 	// ScopeContainer is the scope for container variables
@@ -23,53 +24,25 @@ const (
 	ScopeCGroup = "cgroup"
 )
 
-// IsScopeVariable returns true if the variable name is a scope variable
-func IsScopeVariable(varName string) bool {
-	for _, scope := range VariableScopes {
-		if strings.HasPrefix(varName, scope+".") {
-			return true
-		}
-	}
-	return false
-}
+type globalScope struct{}
 
-// Scoper represents a variable scoper
-type Scoper struct {
-	name       string
-	getScopeCb func(ctx *eval.Context) (eval.VariableScope, error)
-}
-
-// Name returns the name of this scoper
-func (s *Scoper) Name() string {
-	return s.name
-}
-
-// GetScope returns a variable scope based on the given Context
-func (s *Scoper) GetScope(ctx *eval.Context) (eval.VariableScope, error) {
-	return s.getScopeCb(ctx)
-}
-
-// GlobalScopeKey is the constant scope key used by the global scoper
+// GlobalScopeKey is the constant scope key used by the global scope
 const GlobalScopeKey = ""
 
-type globalScopeType struct{}
-
-var globalScope = globalScopeType{}
-
-// Key always returns the same unique key of the global scoper
-func (gs *globalScopeType) Key() (string, bool) {
+// Key always returns the same unique key of the global scope
+func (gs *globalScope) Key() (string, bool) {
 	return GlobalScopeKey, true
 }
 
 // ParentScope returns the parent entity scope
-func (gs *globalScopeType) ParentScope() (eval.VariableScope, bool) {
+func (gs *globalScope) ParentScope() (eval.VariableScope, bool) {
 	return nil, false
 }
 
 func getCommonVariableScopers() map[Scope]*eval.VariableScoper {
 	return map[Scope]*eval.VariableScoper{
-		"": eval.NewVariableScoper(eval.GlobalScoperType, func(_ *eval.Context) (eval.VariableScope, error) {
-			return &globalScope, nil
+		ScopeGlobal: eval.NewVariableScoper(eval.GlobalScoperType, func(_ *eval.Context) (eval.VariableScope, error) {
+			return &globalScope{}, nil
 		}),
 		ScopeProcess: eval.NewVariableScoper(eval.ProcessScoperType, func(ctx *eval.Context) (eval.VariableScope, error) {
 			scopeEvaluator := ctx.GetScopeFieldEvaluator()

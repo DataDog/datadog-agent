@@ -225,14 +225,14 @@ func isVariableName(str string) (string, bool) {
 }
 
 func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
-	variableEvaluator, err := opts.NewStore.GetEvaluator(VariableName(varname))
+	variableEvaluator, err := opts.VariableStore.GetEvaluator(VariableName(varname))
 	if err == nil {
 		return variableEvaluator, pos, nil
 	}
 
 	if strings.HasSuffix(varname, ".length") {
 		trimmedVariable := strings.TrimSuffix(varname, ".length")
-		if variableEvaluator, _ := opts.NewStore.GetEvaluator(VariableName(trimmedVariable)); variableEvaluator != nil {
+		if variableEvaluator, _ := opts.VariableStore.GetEvaluator(VariableName(trimmedVariable)); variableEvaluator != nil {
 			switch evaluator := variableEvaluator.(type) {
 			case *StringArrayEvaluator:
 				return &IntEvaluator{

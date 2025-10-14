@@ -407,9 +407,9 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 
 	seclVariableStates := make(map[string]*api.SECLVariableState)
 
-	rs.IterateVariables(func(definition eval.Definition, instances map[string]eval.Instance) {
-		name := definition.GetName(true)
-		switch definition.GetScoper().Type() {
+	rs.IterVariables(func(definition eval.VariableDefinition, instances map[string]eval.VariableInstance) {
+		name := definition.VariableName(true)
+		switch definition.Scoper().Type() {
 		case eval.GlobalScoperType:
 			globalInstance, ok := instances[rules.GlobalScopeKey]
 			if ok && !globalInstance.IsExpired() { // skip variables that expired but are yet to be cleaned up

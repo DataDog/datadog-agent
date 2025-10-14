@@ -10,12 +10,6 @@ package rules
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
-// VariableScopes is the list of scopes for variables
-var VariableScopes = []string{
-	ScopeProcess,
-	ScopeContainer,
-}
-
 // DefaultVariableScopers returns the default variable scopers
 func DefaultVariableScopers() map[Scope]*eval.VariableScoper {
 	return getCommonVariableScopers()
