@@ -11,7 +11,6 @@ package tests
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -29,9 +28,6 @@ func TestUserGroup(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	checkKernelCompatibility(t, "UserGroup test not consistent on CentOS7", func(kv *kernel.Version) bool {
-		return kv.IsRH7Kernel()
-	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
