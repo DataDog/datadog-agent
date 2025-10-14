@@ -5,7 +5,11 @@
 
 package info
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
 
 const (
 	traceTelemetrySubsystem = "trace_agent"
@@ -38,9 +42,21 @@ type ReceiverTelemetry struct {
 	spansMalformed        telemetry.Counter
 }
 
+// Singleton pattern to prevent duplicate Prometheus metric registration panics.
+// Many tests create multiple Agent instances in the same process, and each Agent
+// creates telemetry. Since Prometheus uses a global registry, registering the same
+// metric multiple times causes a panic. Using sync.Once ensures metrics are registered
+// exactly once per process, allowing tests to safely create multiple agents.
+// The alternative would be refactoring all tests to use mocks or reset global state.
+var (
+	receiverTelemetryInstance *ReceiverTelemetry
+	receiverTelemetryOnce     sync.Once
+)
+
 // NewReceiverTelemetry creates a new ReceiverTelemetry instance
 func NewReceiverTelemetry() *ReceiverTelemetry {
-	return &ReceiverTelemetry{
+	receiverTelemetryOnce.Do(func() {
+		receiverTelemetryInstance = &ReceiverTelemetry{
 		tracesReceived:        telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_received", receiverTelemetryLabelKeys, "Number of traces received by the trace-agent receiver", receiverTelemetryOpts),
 		tracesFiltered:        telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_filtered", receiverTelemetryLabelKeys, "Number of traces filtered by the trace-agent receiver", receiverTelemetryOpts),
 		tracesBytes:           telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_bytes", receiverTelemetryLabelKeys, "Volume of trace bytes received", receiverTelemetryOpts),
@@ -56,7 +72,9 @@ func NewReceiverTelemetry() *ReceiverTelemetry {
 		tracesPriority:        telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_priority", receiverTelemetryPriorityKeys, "Number of traces grouped by sampling priority", receiverTelemetryOpts),
 		tracesDropped:         telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "normalizer_traces_dropped", receiverTelemetryReasonKeys, "Number of traces dropped by the normalizer grouped by reason", receiverTelemetryOpts),
 		spansMalformed:        telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "normalizer_spans_malformed", receiverTelemetryReasonKeys, "Number of malformed spans grouped by reason", receiverTelemetryOpts),
-	}
+		}
+	})
+	return receiverTelemetryInstance
 }
 
 func receiverLabelValues(tags Tags) []string {
