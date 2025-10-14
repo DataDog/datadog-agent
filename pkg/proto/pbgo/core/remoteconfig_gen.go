@@ -2044,6 +2044,227 @@ func (z *ConfigSubscriptionResponse) Msgsize() (s int) {
 }
 
 // MarshalMsg implements msgp.Marshaler
+func (z *ConfigSubscriptionState) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 2
+	// string "SubscriptionId"
+	o = append(o, 0x82, 0xae, 0x53, 0x75, 0x62, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x64)
+	o = msgp.AppendUint64(o, z.SubscriptionId)
+	// string "TrackedClients"
+	o = append(o, 0xae, 0x54, 0x72, 0x61, 0x63, 0x6b, 0x65, 0x64, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.TrackedClients)))
+	for za0001 := range z.TrackedClients {
+		if z.TrackedClients[za0001] == nil {
+			o = msgp.AppendNil(o)
+		} else {
+			// map header, size 3
+			// string "RuntimeId"
+			o = append(o, 0x83, 0xa9, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x49, 0x64)
+			o = msgp.AppendString(o, z.TrackedClients[za0001].RuntimeId)
+			// string "SeenAny"
+			o = append(o, 0xa7, 0x53, 0x65, 0x65, 0x6e, 0x41, 0x6e, 0x79)
+			o = msgp.AppendBool(o, z.TrackedClients[za0001].SeenAny)
+			// string "Products"
+			o = append(o, 0xa8, 0x50, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74, 0x73)
+			o = msgp.AppendInt32(o, int32(z.TrackedClients[za0001].Products))
+		}
+	}
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *ConfigSubscriptionState) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "SubscriptionId":
+			z.SubscriptionId, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SubscriptionId")
+				return
+			}
+		case "TrackedClients":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "TrackedClients")
+				return
+			}
+			if cap(z.TrackedClients) >= int(zb0002) {
+				z.TrackedClients = (z.TrackedClients)[:zb0002]
+			} else {
+				z.TrackedClients = make([]*ConfigSubscriptionState_TrackedClient, zb0002)
+			}
+			for za0001 := range z.TrackedClients {
+				if msgp.IsNil(bts) {
+					bts, err = msgp.ReadNilBytes(bts)
+					if err != nil {
+						return
+					}
+					z.TrackedClients[za0001] = nil
+				} else {
+					if z.TrackedClients[za0001] == nil {
+						z.TrackedClients[za0001] = new(ConfigSubscriptionState_TrackedClient)
+					}
+					var zb0003 uint32
+					zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "TrackedClients", za0001)
+						return
+					}
+					for zb0003 > 0 {
+						zb0003--
+						field, bts, err = msgp.ReadMapKeyZC(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "TrackedClients", za0001)
+							return
+						}
+						switch msgp.UnsafeString(field) {
+						case "RuntimeId":
+							z.TrackedClients[za0001].RuntimeId, bts, err = msgp.ReadStringBytes(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "TrackedClients", za0001, "RuntimeId")
+								return
+							}
+						case "SeenAny":
+							z.TrackedClients[za0001].SeenAny, bts, err = msgp.ReadBoolBytes(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "TrackedClients", za0001, "SeenAny")
+								return
+							}
+						case "Products":
+							{
+								var zb0004 int32
+								zb0004, bts, err = msgp.ReadInt32Bytes(bts)
+								if err != nil {
+									err = msgp.WrapError(err, "TrackedClients", za0001, "Products")
+									return
+								}
+								z.TrackedClients[za0001].Products = ConfigSubscriptionProducts(zb0004)
+							}
+						default:
+							bts, err = msgp.Skip(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "TrackedClients", za0001)
+								return
+							}
+						}
+					}
+				}
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z *ConfigSubscriptionState) Msgsize() (s int) {
+	s = 1 + 15 + msgp.Uint64Size + 15 + msgp.ArrayHeaderSize
+	for za0001 := range z.TrackedClients {
+		if z.TrackedClients[za0001] == nil {
+			s += msgp.NilSize
+		} else {
+			s += 1 + 10 + msgp.StringPrefixSize + len(z.TrackedClients[za0001].RuntimeId) + 8 + msgp.BoolSize + 9 + msgp.Int32Size
+		}
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z ConfigSubscriptionState_TrackedClient) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 3
+	// string "RuntimeId"
+	o = append(o, 0x83, 0xa9, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x49, 0x64)
+	o = msgp.AppendString(o, z.RuntimeId)
+	// string "SeenAny"
+	o = append(o, 0xa7, 0x53, 0x65, 0x65, 0x6e, 0x41, 0x6e, 0x79)
+	o = msgp.AppendBool(o, z.SeenAny)
+	// string "Products"
+	o = append(o, 0xa8, 0x50, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74, 0x73)
+	o = msgp.AppendInt32(o, int32(z.Products))
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *ConfigSubscriptionState_TrackedClient) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "RuntimeId":
+			z.RuntimeId, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "RuntimeId")
+				return
+			}
+		case "SeenAny":
+			z.SeenAny, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SeenAny")
+				return
+			}
+		case "Products":
+			{
+				var zb0002 int32
+				zb0002, bts, err = msgp.ReadInt32Bytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Products")
+					return
+				}
+				z.Products = ConfigSubscriptionProducts(zb0002)
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z ConfigSubscriptionState_TrackedClient) Msgsize() (s int) {
+	s = 1 + 10 + msgp.StringPrefixSize + len(z.RuntimeId) + 8 + msgp.BoolSize + 9 + msgp.Int32Size
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
 func (z *DelegatedMeta) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// map header, size 3
@@ -2558,9 +2779,9 @@ func (z FileMetaState) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *GetStateConfigResponse) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 4
+	// map header, size 5
 	// string "ConfigState"
-	o = append(o, 0x84, 0xab, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x74, 0x61, 0x74, 0x65)
+	o = append(o, 0x85, 0xab, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x74, 0x61, 0x74, 0x65)
 	o = msgp.AppendMapHeader(o, uint32(len(z.ConfigState)))
 	for za0001, za0002 := range z.ConfigState {
 		o = msgp.AppendString(o, za0001)
@@ -2611,6 +2832,38 @@ func (z *GetStateConfigResponse) MarshalMsg(b []byte) (o []byte, err error) {
 			if err != nil {
 				err = msgp.WrapError(err, "ActiveClients", za0007)
 				return
+			}
+		}
+	}
+	// string "ConfigSubscriptionStates"
+	o = append(o, 0xb8, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x75, 0x62, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.ConfigSubscriptionStates)))
+	for za0008 := range z.ConfigSubscriptionStates {
+		if z.ConfigSubscriptionStates[za0008] == nil {
+			o = msgp.AppendNil(o)
+		} else {
+			// map header, size 2
+			// string "SubscriptionId"
+			o = append(o, 0x82, 0xae, 0x53, 0x75, 0x62, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x64)
+			o = msgp.AppendUint64(o, z.ConfigSubscriptionStates[za0008].SubscriptionId)
+			// string "TrackedClients"
+			o = append(o, 0xae, 0x54, 0x72, 0x61, 0x63, 0x6b, 0x65, 0x64, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x73)
+			o = msgp.AppendArrayHeader(o, uint32(len(z.ConfigSubscriptionStates[za0008].TrackedClients)))
+			for za0009 := range z.ConfigSubscriptionStates[za0008].TrackedClients {
+				if z.ConfigSubscriptionStates[za0008].TrackedClients[za0009] == nil {
+					o = msgp.AppendNil(o)
+				} else {
+					// map header, size 3
+					// string "RuntimeId"
+					o = append(o, 0x83, 0xa9, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x49, 0x64)
+					o = msgp.AppendString(o, z.ConfigSubscriptionStates[za0008].TrackedClients[za0009].RuntimeId)
+					// string "SeenAny"
+					o = append(o, 0xa7, 0x53, 0x65, 0x65, 0x6e, 0x41, 0x6e, 0x79)
+					o = msgp.AppendBool(o, z.ConfigSubscriptionStates[za0008].TrackedClients[za0009].SeenAny)
+					// string "Products"
+					o = append(o, 0xa8, 0x50, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74, 0x73)
+					o = msgp.AppendInt32(o, int32(z.ConfigSubscriptionStates[za0008].TrackedClients[za0009].Products))
+				}
 			}
 		}
 	}
@@ -2829,6 +3082,128 @@ func (z *GetStateConfigResponse) UnmarshalMsg(bts []byte) (o []byte, err error) 
 					}
 				}
 			}
+		case "ConfigSubscriptionStates":
+			var zb0008 uint32
+			zb0008, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ConfigSubscriptionStates")
+				return
+			}
+			if cap(z.ConfigSubscriptionStates) >= int(zb0008) {
+				z.ConfigSubscriptionStates = (z.ConfigSubscriptionStates)[:zb0008]
+			} else {
+				z.ConfigSubscriptionStates = make([]*ConfigSubscriptionState, zb0008)
+			}
+			for za0008 := range z.ConfigSubscriptionStates {
+				if msgp.IsNil(bts) {
+					bts, err = msgp.ReadNilBytes(bts)
+					if err != nil {
+						return
+					}
+					z.ConfigSubscriptionStates[za0008] = nil
+				} else {
+					if z.ConfigSubscriptionStates[za0008] == nil {
+						z.ConfigSubscriptionStates[za0008] = new(ConfigSubscriptionState)
+					}
+					var zb0009 uint32
+					zb0009, bts, err = msgp.ReadMapHeaderBytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "ConfigSubscriptionStates", za0008)
+						return
+					}
+					for zb0009 > 0 {
+						zb0009--
+						field, bts, err = msgp.ReadMapKeyZC(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "ConfigSubscriptionStates", za0008)
+							return
+						}
+						switch msgp.UnsafeString(field) {
+						case "SubscriptionId":
+							z.ConfigSubscriptionStates[za0008].SubscriptionId, bts, err = msgp.ReadUint64Bytes(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "ConfigSubscriptionStates", za0008, "SubscriptionId")
+								return
+							}
+						case "TrackedClients":
+							var zb0010 uint32
+							zb0010, bts, err = msgp.ReadArrayHeaderBytes(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "ConfigSubscriptionStates", za0008, "TrackedClients")
+								return
+							}
+							if cap(z.ConfigSubscriptionStates[za0008].TrackedClients) >= int(zb0010) {
+								z.ConfigSubscriptionStates[za0008].TrackedClients = (z.ConfigSubscriptionStates[za0008].TrackedClients)[:zb0010]
+							} else {
+								z.ConfigSubscriptionStates[za0008].TrackedClients = make([]*ConfigSubscriptionState_TrackedClient, zb0010)
+							}
+							for za0009 := range z.ConfigSubscriptionStates[za0008].TrackedClients {
+								if msgp.IsNil(bts) {
+									bts, err = msgp.ReadNilBytes(bts)
+									if err != nil {
+										return
+									}
+									z.ConfigSubscriptionStates[za0008].TrackedClients[za0009] = nil
+								} else {
+									if z.ConfigSubscriptionStates[za0008].TrackedClients[za0009] == nil {
+										z.ConfigSubscriptionStates[za0008].TrackedClients[za0009] = new(ConfigSubscriptionState_TrackedClient)
+									}
+									var zb0011 uint32
+									zb0011, bts, err = msgp.ReadMapHeaderBytes(bts)
+									if err != nil {
+										err = msgp.WrapError(err, "ConfigSubscriptionStates", za0008, "TrackedClients", za0009)
+										return
+									}
+									for zb0011 > 0 {
+										zb0011--
+										field, bts, err = msgp.ReadMapKeyZC(bts)
+										if err != nil {
+											err = msgp.WrapError(err, "ConfigSubscriptionStates", za0008, "TrackedClients", za0009)
+											return
+										}
+										switch msgp.UnsafeString(field) {
+										case "RuntimeId":
+											z.ConfigSubscriptionStates[za0008].TrackedClients[za0009].RuntimeId, bts, err = msgp.ReadStringBytes(bts)
+											if err != nil {
+												err = msgp.WrapError(err, "ConfigSubscriptionStates", za0008, "TrackedClients", za0009, "RuntimeId")
+												return
+											}
+										case "SeenAny":
+											z.ConfigSubscriptionStates[za0008].TrackedClients[za0009].SeenAny, bts, err = msgp.ReadBoolBytes(bts)
+											if err != nil {
+												err = msgp.WrapError(err, "ConfigSubscriptionStates", za0008, "TrackedClients", za0009, "SeenAny")
+												return
+											}
+										case "Products":
+											{
+												var zb0012 int32
+												zb0012, bts, err = msgp.ReadInt32Bytes(bts)
+												if err != nil {
+													err = msgp.WrapError(err, "ConfigSubscriptionStates", za0008, "TrackedClients", za0009, "Products")
+													return
+												}
+												z.ConfigSubscriptionStates[za0008].TrackedClients[za0009].Products = ConfigSubscriptionProducts(zb0012)
+											}
+										default:
+											bts, err = msgp.Skip(bts)
+											if err != nil {
+												err = msgp.WrapError(err, "ConfigSubscriptionStates", za0008, "TrackedClients", za0009)
+												return
+											}
+										}
+									}
+								}
+							}
+						default:
+							bts, err = msgp.Skip(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "ConfigSubscriptionStates", za0008)
+								return
+							}
+						}
+					}
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -2880,6 +3255,21 @@ func (z *GetStateConfigResponse) Msgsize() (s int) {
 			s += msgp.NilSize
 		} else {
 			s += z.ActiveClients[za0007].Msgsize()
+		}
+	}
+	s += 25 + msgp.ArrayHeaderSize
+	for za0008 := range z.ConfigSubscriptionStates {
+		if z.ConfigSubscriptionStates[za0008] == nil {
+			s += msgp.NilSize
+		} else {
+			s += 1 + 15 + msgp.Uint64Size + 15 + msgp.ArrayHeaderSize
+			for za0009 := range z.ConfigSubscriptionStates[za0008].TrackedClients {
+				if z.ConfigSubscriptionStates[za0008].TrackedClients[za0009] == nil {
+					s += msgp.NilSize
+				} else {
+					s += 1 + 10 + msgp.StringPrefixSize + len(z.ConfigSubscriptionStates[za0008].TrackedClients[za0009].RuntimeId) + 8 + msgp.BoolSize + 9 + msgp.Int32Size
+				}
+			}
 		}
 	}
 	return

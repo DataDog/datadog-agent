@@ -1221,8 +1221,8 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any
 // ConfigGetState returns the state of the configuration and the director repos in the local store
 func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	uptane := s.mu.uptane
-	s.mu.Unlock()
 
 	state, err := uptane.State()
 	if err != nil {
@@ -1245,6 +1245,23 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 	}
 
 	maps.Copy(response.TargetFilenames, state.TargetFilenames)
+
+	for _, subscription := range s.mu.subscriptions.subs {
+		trackedClients := make([]*pbgo.ConfigSubscriptionState_TrackedClient, 0, len(subscription.trackedClients))
+		for runtimeID, trackedClient := range subscription.trackedClients {
+			trackedClients = append(trackedClients, &pbgo.ConfigSubscriptionState_TrackedClient{
+				RuntimeId: runtimeID,
+				SeenAny:   trackedClient.seenAny,
+				Products:  trackedClient.products,
+			})
+		}
+		slices.SortFunc(trackedClients, func(a, b *pbgo.ConfigSubscriptionState_TrackedClient) int {
+			return cmp.Compare(a.RuntimeId, b.RuntimeId)
+		})
+		response.ConfigSubscriptionStates = append(response.ConfigSubscriptionStates, &pbgo.ConfigSubscriptionState{
+			TrackedClients: trackedClients,
+		})
+	}
 
 	return response, nil
 }
