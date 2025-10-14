@@ -1403,7 +1403,7 @@ func (suite *LauncherTestSuite) TestRotationWithEmptyFileAndNewData() {
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	// Read messages to confirm tailer is working
 	msg := <-suite.outputChan
@@ -1431,7 +1431,7 @@ func (suite *LauncherTestSuite) TestRotationWithEmptyFileAndNewData() {
 	suite.True(didRotate, "Should detect rotation when original file is moved and new file is created")
 
 	// Scan to handle rotation and create new tailer
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	afterRotationCount := s.tailers.Count()
 	if !suite.Equal(1, afterRotationCount, "Should have NEW tailer for rotated empty file") {
