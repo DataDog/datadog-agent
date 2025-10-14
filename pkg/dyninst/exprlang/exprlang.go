@@ -31,8 +31,8 @@ func (re *RefExpr) expr() {}
 
 // UnsupportedExpr represents an expression type that is not yet supported.
 type UnsupportedExpr struct {
-	operation string
-	argument  jsontext.Value
+	Operation string
+	Argument  jsontext.Value
 }
 
 func (ue *UnsupportedExpr) expr() {}
@@ -71,6 +71,18 @@ func Parse(dslJSON []byte) (Expr, error) {
 	defer pooled.put()
 	dec := pooled.decoder
 
+	// Closure to read and validate closing brace
+	readClosingBrace := func() error {
+		endObj, err := dec.ReadToken()
+		if err != nil {
+			return fmt.Errorf("parse error: failed to read closing brace: %w", err)
+		}
+		if kind := endObj.Kind(); kind != '}' {
+			return fmt.Errorf("parse error: malformed DSL: got token %v (%v), expected }", endObj, kind)
+		}
+		return nil
+	}
+
 	// Ensure we have a JSON object
 	objStart, err := dec.ReadToken()
 	if err != nil {
@@ -106,53 +118,28 @@ func Parse(dslJSON []byte) (Expr, error) {
 			return nil, fmt.Errorf("parse error: ref value cannot be empty")
 		}
 
-		// Read the closing brace
-		endObj, err := dec.ReadToken()
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to read closing brace: %w", err)
-		}
-		if kind := endObj.Kind(); kind != '}' {
-			return nil, fmt.Errorf("parse error: malformed DSL: got token %v (%v), expected }", endObj, kind)
+		if err := readClosingBrace(); err != nil {
+			return nil, err
 		}
 
 		return &RefExpr{Ref: refValue}, nil
 	default:
-		// Read the argument for unsupported operations
-		arg, err := dec.ReadToken()
+		// Read the argument for unsupported operations.
+		// We track the offset before and after reading the argument value
+		// so we can store the value after the decoder resets the internal slice
+		// containing the value bytes.
+		argument, err := dec.ReadValue()
 		if err != nil {
 			return nil, fmt.Errorf("parse error: failed to read argument: %w", err)
 		}
-
-		// Extract the argument value before the token gets voided
-		var argValue jsontext.Value
-		if arg.Kind() != 'n' { // not null
-			argValue = jsontext.Value(arg.String())
+		postReadOffset := dec.InputOffset()
+		if err := readClosingBrace(); err != nil {
+			return nil, err
 		}
-
-		// Read the closing brace
-		endObj, err := dec.ReadToken()
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to read closing brace: %w", err)
-		}
-		if kind := endObj.Kind(); kind != '}' {
-			return nil, fmt.Errorf("parse error: malformed DSL: got token %v (%v), expected }", endObj, kind)
-		}
-
+		unsupportedArgument := dslJSON[postReadOffset-int64(len(argument)) : postReadOffset]
 		return &UnsupportedExpr{
-			operation: operation,
-			argument:  argValue,
+			Operation: operation,
+			Argument:  unsupportedArgument,
 		}, nil
-	}
-}
-
-// IsSupported returns true if the expression uses only supported DSL features.
-func IsSupported(expr Expr) bool {
-	switch expr.(type) {
-	case *RefExpr:
-		return true
-	case *UnsupportedExpr:
-		return false
-	default:
-		return false
 	}
 }
