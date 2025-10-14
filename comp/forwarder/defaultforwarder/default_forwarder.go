@@ -105,7 +105,6 @@ type Options struct {
 	APIKeyValidationInterval       time.Duration
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
-	CompletionHandler              transaction.HTTPCompletionHandler
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -244,8 +243,6 @@ type DefaultForwarder struct {
 	internalState    *atomic.Uint32
 	m                sync.Mutex // To control Start/Stop races
 
-	completionHandler transaction.HTTPCompletionHandler
-
 	agentName                       string
 	queueDurationCapacity           *retry.QueueDurationCapacity
 	retryQueueDurationCapacityMutex sync.Mutex
@@ -269,7 +266,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
 		},
-		completionHandler: options.CompletionHandler,
 		agentName:         agentName,
 		localForwarder:    nil,
 	}
@@ -556,10 +552,6 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
 					if allowArbitraryTags {
 						t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
-					}
-
-					if f.completionHandler != nil {
-						t.CompletionHandler = f.completionHandler
 					}
 
 					tlmTxInputCount.Inc(domain, endpoint.Name)
