@@ -37,4 +37,6 @@ const (
 	PodResources Feature = "podresources"
 	// NVML library present for GPU detection
 	NVML Feature = "nvml"
+	// KubernetesDevicePlugins socket directory present and accessible
+	KubernetesDevicePlugins Feature = "kubernetes_deviceplugins"
 )
