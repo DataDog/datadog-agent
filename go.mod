@@ -174,7 +174,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/version v0.72.0-devel
-	github.com/DataDog/datadog-go/v5 v5.6.0
+	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
 	github.com/DataDog/datadog-traceroute v0.1.28
 	github.com/DataDog/dd-trace-go/v2 v2.2.2
