@@ -102,7 +102,7 @@ func TestParseTaskFromV2Endpoint(t *testing.T) {
 
 	collector := &collector{
 		metaV2: &fakev2EcsClient{
-			mockGetTask: func(ctx context.Context) (*v2.Task, error) {
+			mockGetTask: func(_ context.Context) (*v2.Task, error) {
 				return task, nil
 			},
 		},
@@ -149,7 +149,7 @@ func TestParseTaskFromV2Endpoint(t *testing.T) {
 func TestParseTaskFromV2EndpointError(t *testing.T) {
 	collector := &collector{
 		metaV2: &fakev2EcsClient{
-			mockGetTask: func(ctx context.Context) (*v2.Task, error) {
+			mockGetTask: func(_ context.Context) (*v2.Task, error) {
 				return nil, errors.New("connection refused")
 			},
 		},
