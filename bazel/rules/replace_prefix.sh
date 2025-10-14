@@ -30,7 +30,7 @@ for f in "$@"; do
             install_name_tool -add_rpath "$PREFIX/embedded/lib" "$f"
             ;;
         *.pc)
-            sed -ibak "s|##PREFIX##|$PREFIX|" "$f" && rm -f "$f.bak"
+            sed -ibak "s|##PREFIX##|$PREFIX|" "$f" && rm -f "${f}bak"
             ;;
         *)
             echo "Ignoring $f"
