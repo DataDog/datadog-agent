@@ -134,6 +134,21 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
                 code=1,
             )
 
+        # awk script that formats git output and retrieves branches
+        # from later releases (i.e. if we are on 7.67.2, and releases
+        # are being cut for 7.68.x and 7.69.x they would be retrieved)
+        awk_script = (
+            f"awk -v min={new_version_int[1]} " + "{"
+            "sub(\"refs/heads/\", \"\", $2); "
+                "if ($2 ~ /^7\\.[0-9]+\\.[xX]$/) {"
+                    "split($2, parts, \".\"); "
+                    "if (parts[2] > min) print $2;"
+                "}"
+            "}'"
+        )
+        res = ctx.run(f"git ls-remote --heads origin | {awk_script}")
+        backport_labels = [f"backport/{line.strip()}" for line in res.splitlines() if line.strip()]
+
         create_release_pr(
             f"Changelog update for {new_version} release",
             base_branch,
@@ -141,6 +156,7 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
             new_version,
             changelog_pr=True,
             milestone=str(new_version),
+            labels=backport_labels,
         )
 
 
