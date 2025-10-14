@@ -15,15 +15,12 @@ import (
 )
 
 var (
-	bucketPackages   = []byte("packages")
-	bucketExtensions = []byte("extensions")
+	bucketPackages = []byte("packages")
 )
 
 var (
 	// ErrPackageNotFound is returned when a package is not found
 	ErrPackageNotFound = fmt.Errorf("package not found")
-	// ErrExtensionNotFound is returned when an extension is not found
-	ErrExtensionNotFound = fmt.Errorf("extension not found")
 )
 
 // Package represents a package
@@ -31,16 +28,10 @@ type Package struct {
 	Name    string
 	Version string
 
-	Extensions map[string]Extension `json:"extensions,omitempty"`
+	// Extensions is a set of installed extension names for this package
+	Extensions map[string]struct{} `json:"extensions,omitempty"`
 
 	InstallerVersion string
-}
-
-// Extension represents an extension
-type Extension struct {
-	Name    string
-	Version string
-	Files   []string
 }
 
 // PackagesDB is a database that stores information about packages
@@ -77,9 +68,6 @@ func New(dbPath string, opts ...Option) (*PackagesDB, error) {
 	}
 	err = db.Update(func(tx *bbolt.Tx) error {
 		if _, err := tx.CreateBucketIfNotExists(bucketPackages); err != nil {
-			return err
-		}
-		if _, err := tx.CreateBucketIfNotExists(bucketExtensions); err != nil {
 			return err
 		}
 		return nil
@@ -200,171 +188,4 @@ func (p *PackagesDB) ListPackages() ([]Package, error) {
 		return nil, fmt.Errorf("could not list packages: %w", err)
 	}
 	return pkgs, nil
-}
-
-// SetExtension sets or updates an extension for a specific package name and version.
-// Assumes extension.Name, extension.Version are set and parent Package exists.
-func (p *PackagesDB) SetExtension(pkgName, pkgVersion string, extension Extension) error {
-	key := fmt.Sprintf("%s@%s", pkgName, pkgVersion)
-
-	return p.db.Update(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(bucketExtensions)
-		if b == nil {
-			return fmt.Errorf("bucket not found")
-		}
-
-		// Load existing extensions for this package-version, if any
-		var extensions map[string]Extension
-		val := b.Get([]byte(key))
-		if val != nil {
-			if err := json.Unmarshal(val, &extensions); err != nil {
-				return fmt.Errorf("could not unmarshal extensions: %w", err)
-			}
-		} else {
-			extensions = make(map[string]Extension)
-		}
-		// Set or update this extension
-		extensions[extension.Name] = extension
-
-		raw, err := json.Marshal(extensions)
-		if err != nil {
-			return fmt.Errorf("could not marshal extensions: %w", err)
-		}
-		return b.Put([]byte(key), raw)
-	})
-}
-
-// GetExtension returns an extension by package name, version, and extension name
-func (p *PackagesDB) GetExtension(pkgName, pkgVersion, extensionName string) (Extension, error) {
-	key := fmt.Sprintf("%s@%s", pkgName, pkgVersion)
-	var extension Extension
-
-	err := p.db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(bucketExtensions)
-		if b == nil {
-			return fmt.Errorf("bucket not found")
-		}
-
-		val := b.Get([]byte(key))
-		if val == nil {
-			return ErrExtensionNotFound
-		}
-
-		var extensions map[string]Extension
-		if err := json.Unmarshal(val, &extensions); err != nil {
-			return fmt.Errorf("could not unmarshal extensions: %w", err)
-		}
-
-		ext, found := extensions[extensionName]
-		if !found {
-			return ErrExtensionNotFound
-		}
-		extension = ext
-		return nil
-	})
-	if err != nil {
-		return Extension{}, fmt.Errorf("could not get extension: %w", err)
-	}
-	return extension, nil
-}
-
-// HasExtension checks if an extension exists for a specific package name, version, and extension name
-func (p *PackagesDB) HasExtension(pkgName, pkgVersion, extensionName string) (bool, error) {
-	key := fmt.Sprintf("%s@%s", pkgName, pkgVersion)
-	var hasExtension bool
-
-	err := p.db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(bucketExtensions)
-		if b == nil {
-			return fmt.Errorf("bucket not found")
-		}
-
-		val := b.Get([]byte(key))
-		if val == nil {
-			return nil
-		}
-
-		var extensions map[string]Extension
-		if err := json.Unmarshal(val, &extensions); err != nil {
-			return fmt.Errorf("could not unmarshal extensions: %w", err)
-		}
-
-		_, hasExtension = extensions[extensionName]
-		return nil
-	})
-	if err != nil {
-		return false, fmt.Errorf("could not check if extension exists: %w", err)
-	}
-	return hasExtension, nil
-}
-
-// ListExtensions returns all extensions for a specific package name and version
-func (p *PackagesDB) ListExtensions(pkgName, pkgVersion string) ([]Extension, error) {
-	key := fmt.Sprintf("%s@%s", pkgName, pkgVersion)
-	var extensionList []Extension
-
-	err := p.db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(bucketExtensions)
-		if b == nil {
-			return fmt.Errorf("bucket not found")
-		}
-
-		val := b.Get([]byte(key))
-		if val == nil {
-			// No extensions found for this package-version, return empty slice
-			return nil
-		}
-
-		var extensions map[string]Extension
-		if err := json.Unmarshal(val, &extensions); err != nil {
-			return fmt.Errorf("could not unmarshal extensions: %w", err)
-		}
-
-		for _, ext := range extensions {
-			extensionList = append(extensionList, ext)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("could not list extensions: %w", err)
-	}
-	return extensionList, nil
-}
-
-// DeleteExtension deletes a specific extension for a package name and version
-func (p *PackagesDB) DeleteExtension(pkgName, pkgVersion, extensionName string) error {
-	key := fmt.Sprintf("%s@%s", pkgName, pkgVersion)
-
-	return p.db.Update(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(bucketExtensions)
-		if b == nil {
-			return fmt.Errorf("bucket not found")
-		}
-
-		val := b.Get([]byte(key))
-		if val == nil {
-			// No extensions found for this package-version, nothing to delete
-			return nil
-		}
-
-		var extensions map[string]Extension
-		if err := json.Unmarshal(val, &extensions); err != nil {
-			return fmt.Errorf("could not unmarshal extensions: %w", err)
-		}
-
-		// Delete the extension from the map
-		delete(extensions, extensionName)
-
-		// If no extensions remain, delete the entire key
-		if len(extensions) == 0 {
-			return b.Delete([]byte(key))
-		}
-
-		// Otherwise, save the updated map
-		raw, err := json.Marshal(extensions)
-		if err != nil {
-			return fmt.Errorf("could not marshal extensions: %w", err)
-		}
-		return b.Put([]byte(key), raw)
-	})
 }

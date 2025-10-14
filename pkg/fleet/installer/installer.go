@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -746,17 +745,14 @@ func (i *installerImpl) InstallExtension(ctx context.Context, url string, extens
 		return fmt.Errorf("cannot install extension version %s, version mismatch with package %s version %s", pkg.Name, pkg.Version, dbPkg.Version)
 	}
 
-	extensionInstalled, err := i.db.HasExtension(pkg.Name, pkg.Version, extension)
-	if err != nil && !errors.Is(err, db.ErrExtensionNotFound) {
-		return fmt.Errorf("could not get extension: %w", err)
-	}
-	if extensionInstalled {
+	// Check if extension is already installed
+	if _, exists := dbPkg.Extensions[extension]; exists {
 		return nil
 	}
 
 	// TODO: pre install hooks?
 
-	extractDir := filepath.Join(i.packagesDir, pkg.Name, pkg.Version)
+	// Extract to a temporary directory first
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
 		return fmt.Errorf("could not create temp directory: %w", err)
@@ -768,65 +764,28 @@ func (i *installerImpl) InstallExtension(ctx context.Context, url string, extens
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
 
-	// Walk through tmpDir, collect files, and move them to extractDir
-	var installedFiles []string
-	err = filepath.Walk(tmpDir, func(srcPath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		relPath, err := filepath.Rel(tmpDir, srcPath)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path: %w", err)
-		}
-		if relPath == "." {
-			return nil
-		}
-		dstPath := filepath.Join(extractDir, relPath)
-		if info.IsDir() {
-			if err := os.MkdirAll(dstPath, info.Mode()); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", dstPath, err)
-			}
-			return nil
-		}
-
-		// For files, copy content and preserve permissions
-		srcFile, err := os.Open(srcPath)
-		if err != nil {
-			return fmt.Errorf("failed to open source file %s: %w", srcPath, err)
-		}
-		defer srcFile.Close()
-
-		if err := os.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
-			return fmt.Errorf("failed to create destination directory: %w", err)
-		}
-
-		// Create destination file with same permissions - fail if file already exists
-		dstFile, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode())
-		if err != nil {
-			return fmt.Errorf("failed to create destination file %s: %w", dstPath, err)
-		}
-		defer dstFile.Close()
-
-		if _, err := io.Copy(dstFile, srcFile); err != nil {
-			return fmt.Errorf("failed to copy file %s: %w", srcPath, err)
-		}
-
-		installedFiles = append(installedFiles, relPath)
-		return nil
-	})
+	extractDir := filepath.Join(i.packagesDir, pkg.Name, pkg.Version, "ext", extension)
+	if err := os.MkdirAll(filepath.Dir(extractDir), 0755); err != nil {
+		return fmt.Errorf("could not create extensions directory: %w", err)
+	}
+	err = os.Rename(tmpDir, extractDir)
 	if err != nil {
-		return fmt.Errorf("could not move files from temp directory: %w", err)
+		return fmt.Errorf("could not move extension to final location: %w", err)
 	}
 
 	// TODO: post install hooks?
 
-	err = i.db.SetExtension(pkg.Name, pkg.Version, db.Extension{
-		Name:    extension,
-		Version: pkg.Version,
-		Files:   installedFiles,
-	})
+	// Update package in DB with new extension
+	if dbPkg.Extensions == nil {
+		dbPkg.Extensions = make(map[string]struct{})
+	}
+	dbPkg.Extensions[extension] = struct{}{}
+
+	err = i.db.SetPackage(dbPkg)
 	if err != nil {
-		return fmt.Errorf("could not set extension: %w", err)
+		// Clean up on failure
+		os.RemoveAll(extractDir)
+		return fmt.Errorf("could not update package in db: %w", err)
 	}
 	return nil
 }
@@ -843,27 +802,27 @@ func (i *installerImpl) RemoveExtension(_ context.Context, pkg string, extension
 		return fmt.Errorf("package %s not found, cannot remove extension", pkg)
 	}
 
-	dbExtension, err := i.db.GetExtension(pkg, dbPkg.Version, extension)
-	if err != nil && !errors.Is(err, db.ErrExtensionNotFound) {
-		return fmt.Errorf("could not get extension: %w", err)
-	} else if err != nil && errors.Is(err, db.ErrExtensionNotFound) {
+	// Check if extension is installed
+	if _, exists := dbPkg.Extensions[extension]; !exists {
 		return nil // extension not installed
 	}
 
 	// TODO: pre remove hooks?
 
-	for _, file := range dbExtension.Files { // TODO: it's not very efficient nor transactional
-		err = os.Remove(filepath.Join(i.packagesDir, pkg, dbPkg.Version, file))
-		if err != nil {
-			return fmt.Errorf("could not remove extension file: %w", err)
-		}
+	// Remove the extension directory
+	extensionDir := filepath.Join(i.packagesDir, pkg, dbPkg.Version, "ext", extension)
+	err = os.RemoveAll(extensionDir)
+	if err != nil {
+		return fmt.Errorf("could not remove extension directory: %w", err)
 	}
 
 	// TODO: post remove hooks?
 
-	err = i.db.DeleteExtension(pkg, dbPkg.Version, extension)
+	// Update package in DB by removing the extension from the set
+	delete(dbPkg.Extensions, extension)
+	err = i.db.SetPackage(dbPkg)
 	if err != nil {
-		return fmt.Errorf("could not delete extension in db: %w", err)
+		return fmt.Errorf("could not update package in db: %w", err)
 	}
 	return nil
 }

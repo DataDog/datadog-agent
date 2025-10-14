@@ -367,13 +367,10 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string,
 				}
 
 				switch layerManifest.MediaType {
-				case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType:
+				case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType, DatadogPackageExtensionLayerMediaType:
 					err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
 				case DatadogPackageInstallerLayerMediaType:
 					err = writeBinary(uncompressedLayer, dir)
-				case DatadogPackageExtensionLayerMediaType:
-					// TODO: return the list of files installed
-					err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
 				default:
 					return fmt.Errorf("unsupported layer media type: %s", layerManifest.MediaType)
 				}
