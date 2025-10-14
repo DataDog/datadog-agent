@@ -1182,7 +1182,7 @@ api_key:
 #   # are split into multiple lines -- each lower than the limit -- with split lines having
 #   # `...TRUNCATED...` added as a suffix.
 #   #
-#   # Note: Datadog's ingest API will truncate any logs greater than 1 MB by discarding the
+#   # Note: Datadog's ingest API truncates any logs greater than 1 MB by discarding the
 #   # remainder. See https://docs.datadoghq.com/api/latest/logs/ for details.
 #
 #   max_message_size_bytes: 900000
