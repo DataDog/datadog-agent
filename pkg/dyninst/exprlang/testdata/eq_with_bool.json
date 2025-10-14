@@ -1,0 +1,12 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "eq",
+  "argument": [
+    {
+      "ref": "hits"
+    },
+    true
+  ],
+  "error": ""
+}

@@ -1,0 +1,7 @@
+{
+  "type": "error",
+  "ref": "",
+  "operation": "",
+  "argument": null,
+  "error": "parse error: failed to read ref value: jsontext: unexpected EOF within \"/ref\" after offset 10"
+}

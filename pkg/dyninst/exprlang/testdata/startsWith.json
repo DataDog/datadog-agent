@@ -1,0 +1,12 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "startsWith",
+  "argument": [
+    {
+      "ref": "local_string"
+    },
+    "hello"
+  ],
+  "error": ""
+}

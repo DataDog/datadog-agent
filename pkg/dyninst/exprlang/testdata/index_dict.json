@@ -1,0 +1,12 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "index",
+  "argument": [
+    {
+      "ref": "dict"
+    },
+    "world"
+  ],
+  "error": ""
+}

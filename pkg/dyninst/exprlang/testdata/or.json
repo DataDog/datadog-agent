@@ -1,0 +1,14 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "or",
+  "argument": [
+    {
+      "ref": "bar"
+    },
+    {
+      "ref": "foo"
+    }
+  ],
+  "error": ""
+}

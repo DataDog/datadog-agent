@@ -1,0 +1,12 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "instanceof",
+  "argument": [
+    {
+      "ref": "bar"
+    },
+    "int"
+  ],
+  "error": ""
+}

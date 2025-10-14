@@ -1,0 +1,16 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "any",
+  "argument": [
+    {
+      "ref": "coll"
+    },
+    {
+      "isEmpty": {
+        "ref": "@value"
+      }
+    }
+  ],
+  "error": ""
+}

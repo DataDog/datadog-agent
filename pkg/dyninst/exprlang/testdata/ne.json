@@ -1,0 +1,10 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "ne",
+  "argument": [
+    1,
+    2
+  ],
+  "error": ""
+}

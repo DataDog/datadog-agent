@@ -1,0 +1,12 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "getmember",
+  "argument": [
+    {
+      "ref": "self"
+    },
+    "name"
+  ],
+  "error": ""
+}

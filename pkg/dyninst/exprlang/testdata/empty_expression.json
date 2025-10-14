@@ -1,0 +1,7 @@
+{
+  "type": "error",
+  "ref": "",
+  "operation": "",
+  "argument": null,
+  "error": "parse error: malformed DSL: got key token } (}), expected string"
+}

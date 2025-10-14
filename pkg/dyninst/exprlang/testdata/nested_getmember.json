@@ -1,0 +1,17 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "getmember",
+  "argument": [
+    {
+      "getmember": [
+        {
+          "ref": "self"
+        },
+        "field1"
+      ]
+    },
+    "name"
+  ],
+  "error": ""
+}

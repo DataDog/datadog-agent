@@ -1,0 +1,26 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "and",
+  "argument": [
+    {
+      "eq": [
+        {
+          "ref": "hits"
+        },
+        42
+      ]
+    },
+    {
+      "gt": [
+        {
+          "len": {
+            "ref": "payload"
+          }
+        },
+        5
+      ]
+    }
+  ],
+  "error": ""
+}

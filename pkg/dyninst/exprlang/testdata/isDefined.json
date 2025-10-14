@@ -1,0 +1,7 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "isDefined",
+  "argument": "foobar",
+  "error": ""
+}

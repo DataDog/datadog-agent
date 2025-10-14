@@ -1,0 +1,29 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "any",
+  "argument": [
+    {
+      "getmember": [
+        {
+          "ref": "self"
+        },
+        "collectionField"
+      ]
+    },
+    {
+      "startsWith": [
+        {
+          "getmember": [
+            {
+              "ref": "@it"
+            },
+            "name"
+          ]
+        },
+        "foo"
+      ]
+    }
+  ],
+  "error": ""
+}

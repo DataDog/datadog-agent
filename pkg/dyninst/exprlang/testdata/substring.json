@@ -1,0 +1,13 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "substring",
+  "argument": [
+    {
+      "ref": "payload"
+    },
+    4,
+    7
+  ],
+  "error": ""
+}

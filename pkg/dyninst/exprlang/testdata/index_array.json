@@ -1,0 +1,12 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "index",
+  "argument": [
+    {
+      "ref": "arr"
+    },
+    1
+  ],
+  "error": ""
+}

@@ -1,0 +1,13 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "substring",
+  "argument": [
+    {
+      "ref": "s"
+    },
+    -5,
+    -1
+  ],
+  "error": ""
+}

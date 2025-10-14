@@ -1,0 +1,12 @@
+{
+  "type": "unsupported",
+  "ref": "",
+  "operation": "contains",
+  "argument": [
+    {
+      "ref": "payload"
+    },
+    "hello"
+  ],
+  "error": ""
+}
