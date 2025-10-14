@@ -92,6 +92,8 @@ type CollectorDependencies struct {
 	DeviceEventsGatherer *DeviceEventsGatherer
 	// SystemProbeCache is a (optional) cache of the latest metrics obtained from system probe
 	SystemProbeCache *SystemProbeCache
+	// NsPidCache is a cache used for the resolution of nspids of processes
+	NsPidCache *NsPidCache
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
@@ -101,6 +103,10 @@ func BuildCollectors(devices []ddnvml.Device, deps *CollectorDependencies) ([]Co
 }
 
 func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
+	if len(devices) == 0 {
+		return nil, nil
+	}
+
 	var collectors []Collector
 
 	// Step 1: Build NVML collectors for physical devices only,
@@ -112,7 +118,7 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
 				continue
 			} else if err != nil {
-				log.Warnf("failed to create collector %s: %s", name, err)
+				log.Warnf("failed to create collector %s for device %s: %s", name, dev.GetDeviceInfo().UUID, err)
 				continue
 			}
 
@@ -124,7 +130,7 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 	if deps.SystemProbeCache != nil {
 		log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
 		for _, dev := range devices {
-			spCollector, err := newEbpfCollector(dev, deps.SystemProbeCache)
+			spCollector, err := newEbpfCollector(dev, deps.NsPidCache, deps.SystemProbeCache)
 			if err != nil {
 				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
 				continue

@@ -26,8 +26,9 @@ const _HashState_name = "NoHashDoneFileNotFoundPathnameResolutionErrorFileTooBig
 var _HashState_index = [...]uint8{0, 6, 10, 22, 45, 55, 64, 77, 99, 117, 127, 139}
 
 func (i HashState) String() string {
-	if i < 0 || i >= HashState(len(_HashState_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_HashState_index)-1 {
 		return "HashState(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _HashState_name[_HashState_index[i]:_HashState_index[i+1]]
+	return _HashState_name[_HashState_index[idx]:_HashState_index[idx+1]]
 }

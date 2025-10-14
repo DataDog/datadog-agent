@@ -312,6 +312,11 @@ func runIntegrationTestSuite(
 		expectedOutput, err = getExpectedDecodedOutputOfProbes(service)
 		require.NoError(t, err)
 	}
+	// Generally we don't need to run all the tests individually in debug mode.
+	// It's useful when debugging an individual probe, but for that you can
+	// use this environment variable to run all the tests individually.
+	const runAllDebugTestsEnv = "RUN_ALL_DEBUG_TESTS"
+	runAllDebugTests, _ := strconv.ParseBool(os.Getenv(runAllDebugTestsEnv))
 	for _, cfg := range cfgs {
 		t.Run(cfg.String(), func(t *testing.T) {
 			if cfg.GOARCH != runtime.GOARCH {
@@ -356,12 +361,16 @@ func runIntegrationTestSuite(
 							"output has probes that are not expected",
 						)
 					})
+					if !runAllDebugTests {
+						t.Logf(
+							"skipping individual probe debug tests because %s is not set",
+							runAllDebugTestsEnv,
+						)
+						return
+					}
 					for i := range probes {
 						probeID := probes[i].GetID()
 						t.Run(probeID, func(t *testing.T) {
-							if testing.Short() {
-								t.Skip("skipping individual probe with short")
-							}
 							runTest(t, probes[i:i+1])
 						})
 					}
