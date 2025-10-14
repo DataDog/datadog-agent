@@ -276,7 +276,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 			log.Warnf("Unable to fetch tags for container: %s, err: %v", rawContainer.ID, err)
 		}
 
-		if collectContainerSize && (rawContainer.SizeRw > 0 || rawContainer.SizeRootFs > 0) {
+		if rawContainer.SizeRw > 0 || rawContainer.SizeRootFs > 0 {
 			sender.Gauge("docker.container.size_rw", float64(rawContainer.SizeRw), "", containerTags)
 			sender.Gauge("docker.container.size_rootfs", float64(rawContainer.SizeRootFs), "", containerTags)
 		}
