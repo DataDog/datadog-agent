@@ -107,6 +107,10 @@ func BuildCollectors(devices []ddnvml.Device, deps *CollectorDependencies) ([]Co
 }
 
 func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
+	if len(devices) == 0 {
+		return nil, nil
+	}
+
 	var collectors []Collector
 
 	// Step 1: Build NVML collectors for physical devices only,
@@ -119,7 +123,7 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 				deps.Telemetry.addCollectorCreation(name, "unsupported")
 				continue
 			} else if err != nil {
-				log.Warnf("failed to create collector %s: %s", name, err)
+				log.Warnf("failed to create collector %s for device %s: %s", name, dev.GetDeviceInfo().UUID, err)
 				deps.Telemetry.addCollectorCreation(name, "error")
 				continue
 			}
