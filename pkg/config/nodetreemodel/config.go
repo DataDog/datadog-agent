@@ -210,6 +210,13 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 			return
 		}
 	}
+	schemaNode := c.nodeAtPathFromNode(key, c.schema)
+	if _, ok := schemaNode.(LeafNode); schemaNode != missingLeaf && !ok {
+		panicInTest("Key '%s' is not a setting but part of the config tree: 'Set' method only works on settings", key)
+		c.Unlock()
+		return
+	}
+
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
