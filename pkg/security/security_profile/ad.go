@@ -597,11 +597,9 @@ func (m *Manager) SnapshotTracedCgroups() {
 		cgroupContext, _, err := m.resolvers.ResolveCGroupContext(cgroupFile)
 		if err != nil {
 			seclog.Warnf("couldn't resolve cgroup context for (%v): %v", cgroupFile, err)
-			_ = m.tracedCgroupsMap.Delete(cgroupFile)
 			continue
 		}
 		event.CGroupContext = *cgroupContext
-		event.ContainerContext.ContainerID = containerutils.FindContainerID(event.CGroupContext.CGroupID)
 
 		m.HandleCGroupTracingEvent(&event)
 	}

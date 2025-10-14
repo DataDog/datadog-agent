@@ -214,25 +214,16 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 		Expression: `open.filename =~ "/tmp/no-approver-*"`,
 	}
 
-	outputDir := t.TempDir()
-	expectedFormats := []string{"json", "protobuf"}
-	var testActivityDumpTracedEventTypes = []string{"exec", "open"}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpDuration:                testActivityDumpDuration,
-		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-	}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{enableActivityDump: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
+	if err := test.StopAllActivityDumps(); err != nil {
+		t.Fatal("Can't stop all running activity dumps")
+	}
+	// dockerInstance, err := test.StartACustomDocker("ubuntu")
 	dockerInstance, _, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)

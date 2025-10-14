@@ -210,9 +210,7 @@ func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	} else {
 		cr.hostWorkloads.Add(process.CGroup.CGroupID, newCGroup)
 	}
-	// Cache a copy instead of a pointer to avoid race conditions
-	cgroupCopy := process.CGroup
-	cr.cgroups.Add(process.CGroup.CGroupFile.Inode, &cgroupCopy)
+	cr.cgroups.Add(process.CGroup.CGroupFile.Inode, &process.CGroup)
 
 	cr.NotifyListeners(CGroupCreated, newCGroup)
 }
@@ -306,12 +304,7 @@ func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (*model.CGroupCon
 	cr.Lock()
 	defer cr.Unlock()
 
-	if cgroupContext, found := cr.cgroups.Get(cgroupPath.Inode); found {
-		// Return a copy to avoid race conditions when dereferencing the shared pointer
-		cgroupContextCopy := *cgroupContext
-		return &cgroupContextCopy, true
-	}
-	return nil, false
+	return cr.cgroups.Get(cgroupPath.Inode)
 }
 
 // Iterate iterates on all cached cgroups, callback may return 'true' to break iteration

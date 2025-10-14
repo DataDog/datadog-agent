@@ -1371,24 +1371,12 @@ func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*acti
 	}
 	dump := findLearningContainerID(dumps, containerutils.ContainerID(dockerInstance.containerID))
 	if dump == nil {
-		return nil, fmt.Errorf("ContainerID %s not found on activity dump list (%+v)", dockerInstance.containerID, dumps)
+		return nil, errors.New("ContainerID not found on activity dump list")
 	}
 	return dump, nil
 }
 
 func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIdentifier, error) {
-	// before starting the docker, we need to make sure the traced cgroup map is not filled with
-	// entries waiting to be evicted
-	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		return nil, nil, errors.New("not supported")
-	}
-	managers := p.GetProfileManager()
-	if managers == nil {
-		return nil, nil, errors.New("No manager")
-	}
-	managers.SnapshotTracedCgroups()
-
 	dockerInstance, err := tm.StartADocker()
 	if err != nil {
 		return nil, nil, err
