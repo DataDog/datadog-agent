@@ -1,8 +1,7 @@
 load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier", "buildifier_test")
 
 exclude_patterns = [
-    "./.bazelbsp/**",
-    "./.cache/**",
+    "./.*",  # all "hidden" directories at the root of the workspace: ./.bazelbsp, ./.cache, ./.git, etc.
 ]
 
 buildifier(

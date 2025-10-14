@@ -7,9 +7,20 @@
 
 bazel:build-deps:linux-amd64:
   extends: [ .bazel:build-deps, .linux_x64 ]
-  tags: [ "arch:amd64", "specific:true" ]
+  tags: ["linux-persistent:amd64", "specific:true"]
+  cache: []
   script:
+    - mkdir -p $BAZELISK_HOME
+    - mkdir -p $BAZEL_DISK_CACHE
+    - mkdir -p $BAZEL_OUTPUT_USER_ROOT
+    - mkdir -p $BAZEL_REPO_CONTENTS_CACHE
     - bazel build //deps/...
+  variables:
+      BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk"
+      BAZEL_DISK_CACHE: "$XDG_CACHE_HOME/disk_cache"
+      BAZEL_OUTPUT_USER_ROOT: "$XDG_CACHE_HOME/output_user_root"
+      BAZEL_REPO_CONTENTS_CACHE: "$XDG_CACHE_HOME/repo_contents"
+      XDG_CACHE_HOME: "/data/bzl"
 
 bazel:build-deps:linux-arm64:
   extends: [ .bazel:build-deps, .linux_arm64 ]

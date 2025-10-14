@@ -21,7 +21,6 @@ type AssertionResult struct {
 	Expected interface{}      `json:"expected"`
 	Actual   interface{}      `json:"actual"`
 	Valid    bool             `json:"valid"`
-	Failure  APIFailure       `json:"failure"`
 }
 
 // Compare evaluates the assertion result by comparing the actual and expected values.
