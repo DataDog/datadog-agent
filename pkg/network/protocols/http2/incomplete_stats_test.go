@@ -48,12 +48,12 @@ func TestIncompleteBuffer(t *testing.T) {
 			},
 		}
 		buffer.Add(request)
-		transactions := buffer.Flush(now)
+		transactions := buffer.Flush()
 		require.Empty(t, transactions)
 		assert.True(t, len(buffer.data) == 1)
 
 		buffer.data[0].Stream.Response_last_seen = uint64(now.Add(time.Second).UnixNano())
-		transactions = buffer.Flush(now)
+		transactions = buffer.Flush()
 		require.Len(t, transactions, 1)
 		assert.True(t, len(buffer.data) == 0)
 	})
@@ -78,11 +78,11 @@ func TestIncompleteBuffer(t *testing.T) {
 			},
 		}
 		buffer.Add(request)
-		_ = buffer.Flush(time.Time{})
+		_ = buffer.Flush()
 		require.NotEmpty(t, buffer.data)
 
 		buffer.data[0].Stream.Request_started = uint64(startTime - buffer.minAgeNano)
-		_ = buffer.Flush(time.Time{})
+		_ = buffer.Flush()
 		require.Empty(t, buffer.data)
 	})
 }
