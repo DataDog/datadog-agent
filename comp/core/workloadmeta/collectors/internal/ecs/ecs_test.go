@@ -75,7 +75,7 @@ func (*fakev3or4EcsClient) GetContainer(_ context.Context) (*v3or4.Container, er
 func TestPull(t *testing.T) {
 	store := &fakeWorkloadmetaStore{}
 
-	mockParser := func(ctx context.Context) ([]workloadmeta.CollectorEvent, error) {
+	mockParser := func(_ context.Context) ([]workloadmeta.CollectorEvent, error) {
 		return []workloadmeta.CollectorEvent{
 			{
 				Type:   workloadmeta.EventTypeSet,
@@ -105,7 +105,7 @@ func TestPull(t *testing.T) {
 func TestPullError(t *testing.T) {
 	store := &fakeWorkloadmetaStore{}
 
-	mockParser := func(ctx context.Context) ([]workloadmeta.CollectorEvent, error) {
+	mockParser := func(_ context.Context) ([]workloadmeta.CollectorEvent, error) {
 		return nil, errors.New("parser error")
 	}
 

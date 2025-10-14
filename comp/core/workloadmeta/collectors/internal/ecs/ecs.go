@@ -181,7 +181,7 @@ func (c *collector) detectLaunchType(ctx context.Context) workloadmeta.ECSLaunch
 
 // initializeDaemonMode is defined in daemon_parser.go
 
-func (c *collector) initializeSidecarMode(ctx context.Context) error {
+func (c *collector) initializeSidecarMode(_ context.Context) error {
 	var err error
 
 	// Sidecar mode uses v2 or v4 API
