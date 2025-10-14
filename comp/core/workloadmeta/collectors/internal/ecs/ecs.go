@@ -179,28 +179,6 @@ func (c *collector) detectLaunchType(ctx context.Context) workloadmeta.ECSLaunch
 	return workloadmeta.ECSLaunchTypeEC2
 }
 
-// initializeDaemonMode is defined in daemon_parser.go
-
-func (c *collector) initializeSidecarMode(_ context.Context) error {
-	var err error
-
-	// Sidecar mode uses v2 or v4 API
-	if c.actualLaunchType == workloadmeta.ECSLaunchTypeFargate {
-		// Fargate uses v2 API
-		c.metaV2, err = ecsmeta.V2()
-		if err != nil {
-			return err
-		}
-	}
-
-	// Try to initialize v4 for detailed task collection
-	c.setTaskCollectionParserForSidecar()
-
-	return nil
-}
-
-// setTaskCollectionParserForDaemon is defined in daemon_parser.go
-
 func (c *collector) Pull(ctx context.Context) error {
 	// we always parse all the tasks coming from the API, as they are not
 	// immutable: the list of containers in the task changes as containers
@@ -221,5 +199,3 @@ func (c *collector) GetID() string {
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
-
-// setLastSeenEntitiesAndUnsetEvents is defined in daemon_parser.go

@@ -9,12 +9,41 @@
 package ecs
 
 import (
+	"context"
 	"strings"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// initializeSidecarMode sets up the collector for sidecar deployment mode.
+//
+// In sidecar mode, the agent runs alongside a single task and monitors only that task.
+// This mode uses V2 or V4 metadata API depending on the launch type:
+//
+//   - Fargate: Uses V2 metadata endpoint (basic task info)
+//     See: v2parser.go - parseTaskFromV2Endpoint()
+//
+//   - EC2 with detailed collection: Uses V4 metadata endpoint (detailed task info)
+//     See: v4parser.go - parseTaskFromV4EndpointSidecar()
+func (c *collector) initializeSidecarMode(_ context.Context) error {
+	var err error
+
+	// Sidecar mode uses v2 or v4 API
+	if c.actualLaunchType == workloadmeta.ECSLaunchTypeFargate {
+		// Fargate uses v2 API
+		c.metaV2, err = ecsmeta.V2()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Try to initialize v4 for detailed task collection
+	c.setTaskCollectionParserForSidecar()
+
+	return nil
+}
 
 // setTaskCollectionParserForSidecar sets up the appropriate task parser for sidecar deployment mode.
 //
