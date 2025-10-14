@@ -10,4 +10,4 @@ other:
   - |
     linux: Update libdbus to 1.16.2
   - |
-    libexpat is no longer bundled with the agent.
+    libexpat is no longer bundled with the Agent.
