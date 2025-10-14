@@ -1092,6 +1092,12 @@ func TestLogDefaults(t *testing.T) {
 	require.False(t, SystemProbe.GetBool("log_format_json"))
 }
 
+func TestClusterCheckDefaults(t *testing.T) {
+	conf := newTestConf(t)
+	require.True(t, conf.GetBool("cluster_checks.advanced_dispatching_enabled"))
+	require.True(t, conf.GetBool("cluster_checks.rebalance_with_utilization"))
+}
+
 func TestProxyNotLoaded(t *testing.T) {
 	conf := newTestConf(t)
 	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
