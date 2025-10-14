@@ -49,18 +49,9 @@ type ValidationRule struct {
 
 // RedactionRule represents rules for patterns that warrant removal to protect sensitive data or irrelevant information
 type RedactionRule struct {
-	Type  RedactionType `json:"type" yaml:"type"`
-	Regex string        `json:"regex" yaml:"regex"`
+	Regex       string `json:"regex" yaml:"regex"`
+	Replacement string `json:"replacement" yaml:"replacement"`
 }
-
-// RedactionType represents types of rules and how to deal with their removal/redaction
-type RedactionType string
-
-// TODO: do we need types? another would be to represent removing unnecessary lines (only difference is the replace)
-const (
-	// SensitiveData represents rules that need to be redacted due to the reason of sensitive data
-	SensitiveData RedactionType = "sensitive_data"
-)
 
 // ExtractedMetadata is a means to hold metadata to be emitted as metrics or sent as part of the payload
 type ExtractedMetadata struct {
@@ -153,14 +144,11 @@ func (p *NCMProfile) applyRedactions(ct CommandType, output []byte) ([]byte, err
 	}
 	redactionRules := commandInfo.ProcessingRules.RedactionRules
 	for _, rule := range redactionRules {
-		switch rule.Type {
-		case SensitiveData:
-			replacer := scrubber.Replacer{
-				Regex: regexp.MustCompile(rule.Regex),
-				Repl:  []byte(`$1 "********"`),
-			}
-			p.Scrubber.AddReplacer(scrubber.SingleLine, replacer)
+		replacer := scrubber.Replacer{
+			Regex: regexp.MustCompile(rule.Regex),
+			Repl:  []byte(fmt.Sprintf(`$1 %s`, rule.Replacement)),
 		}
+		p.Scrubber.AddReplacer(scrubber.SingleLine, replacer)
 	}
 	scrubbedOutput, err := p.Scrubber.ScrubBytes(output)
 	if err != nil {

@@ -171,6 +171,7 @@ func (c *SSHClient) retrieveConfiguration(commands []string) ([]byte, error) {
 		}
 
 		result = append(result, output...)
+		result = append(result, '\n')
 	}
 
 	return result, nil

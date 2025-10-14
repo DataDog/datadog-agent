@@ -372,7 +372,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 						},
 					},
 					RedactionRules: []profile.RedactionRule{
-						{Type: profile.SensitiveData, Regex: `(username .+ (password|secret) \d) .+`},
+						{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<redacted secret>"},
 					},
 				},
 			},

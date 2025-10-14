@@ -44,7 +44,7 @@ var testProfile = &NCMProfile{
 					},
 				},
 				RedactionRules: []RedactionRule{
-					{Type: SensitiveData, Regex: `(username .+ (password|secret) \d) .+`},
+					{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<BIG OL SECRET>"},
 				},
 			},
 		},
@@ -112,7 +112,7 @@ multilink bundle-name authenticated
 !         
 !         
 !         
-username cisco privilege 15 secret 9 "********"
+username cisco privilege 15 secret 9 <BIG OL SECRET>
 !         
 redundancy
 !`

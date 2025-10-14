@@ -85,7 +85,7 @@ func Test_GetProfileMap(t *testing.T) {
 									},
 								},
 								RedactionRules: []RedactionRule{
-									{Type: SensitiveData, Regex: `(username .+ (password|secret) \d) .+`},
+									{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<redacted secret>"},
 								},
 							},
 						},
@@ -194,7 +194,7 @@ func Test_ParseProfileFromFile(t *testing.T) {
 							},
 						},
 						RedactionRules: []RedactionRule{
-							{Type: SensitiveData, Regex: `(username .+ (password|secret) \d) .+`},
+							{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<redacted secret>"},
 						},
 					}},
 					{CommandType: Startup, Values: []string{"show startup-config"}},
@@ -274,7 +274,7 @@ func Test_ParseNCMProfileFromFile(t *testing.T) {
 								},
 							},
 							RedactionRules: []RedactionRule{
-								{Type: SensitiveData, Regex: `(username .+ (password|secret) \d) .+`},
+								{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<redacted secret>"},
 							},
 						},
 					},

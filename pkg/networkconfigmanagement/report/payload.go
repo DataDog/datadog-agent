@@ -9,10 +9,6 @@
 package report
 
 import (
-	"fmt"
-	"regexp"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 )
@@ -65,24 +61,4 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ConfigType, ext
 		Tags:       tags,
 		Content:    content,
 	}
-}
-
-// RetrieveTimestampFromConfig extracts the last change timestamp if available
-func RetrieveTimestampFromConfig(config []byte) (int64, error) {
-	// TODO: Should this be part of processing in the Datadog backend instead?
-	// TODO: To load the respective validation/parsing regex/logic per vendor (within config or another command response)
-	// Currently only Cisco IOS is supported as a first step.
-	timeRegex := regexp.MustCompile(`Last configuration change at (.+)`)
-	match := timeRegex.FindStringSubmatch(string(config))
-	if len(match) < 2 {
-		return -1, fmt.Errorf("unable to find last change timestamp in config")
-	}
-	timestampString := match[1]
-	// Cisco IOS timestamp format example: "20:53:27 UTC Thu Aug 14 2025"
-	layout := "15:04:05 MST Mon Jan 2 2006"
-	ts, err := time.Parse(layout, timestampString)
-	if err != nil {
-		return -1, fmt.Errorf("parse error: %s", err)
-	}
-	return ts.Unix(), nil
 }
