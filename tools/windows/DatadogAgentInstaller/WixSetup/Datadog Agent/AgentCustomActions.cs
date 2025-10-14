@@ -517,13 +517,15 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.Before,
                     Step.RemoveFiles,
-                    Conditions.Uninstalling | new Condition("DD_OCI_REMOVE &lt;&gt; \"\"")
+                    // Only run during uninstall and when DD_OCI_REMOVE is defined
+                    Conditions.Uninstalling & new Condition("DD_OCI_REMOVE")
                 )
             {
                 Execute = Execute.deferred,
                 Impersonate = false
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]," +
+                               "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
                                "APIKEY=[APIKEY]," +
                                "SITE=[SITE]," +
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
