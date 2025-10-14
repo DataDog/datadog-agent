@@ -277,10 +277,10 @@ func TestForwarderRetry(t *testing.T) {
 	requireLenForwarderRetryQueue(t, forwarder, 2)
 
 	ready.On("Process", forwarder.workers[0].Client.GetClient()).Return(nil).Times(1)
-	ready.On("GetTarget").Return("") //.Times(4)
+	ready.On("GetTarget").Return("").Times(4)
 	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)
-	notReady.On("GetTarget").Return("blocked") //.Times(3)
+	notReady.On("GetTarget").Return("blocked").Times(3)
 
 	forwarder.retryTransactions(time.Now())
 	<-ready.processed
