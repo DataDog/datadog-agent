@@ -13,7 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
-	github.com/DataDog/viper v1.14.1-0.20251007072727-5a2ac1ff821e // indirect
+	github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
@@ -24,9 +24,9 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/time v0.12.0 // indirect
+	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -35,6 +35,9 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../comp/core/agenttelemetry/def
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx
+	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
@@ -170,9 +173,11 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../../pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../pkg/util/grpc
+	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../pkg/util/json
+	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../pkg/util/jsonquery
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option
