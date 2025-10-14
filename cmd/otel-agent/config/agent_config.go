@@ -208,9 +208,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 	}
 
-	// Disable preaggregation feature for otel-agent since it needs encrypted API keys and that's non-trivial
-	pkgconfig.Set("preaggregation.enabled", false, pkgconfigmodel.SourceAgentRuntime)
-
 	return pkgconfig, nil
 }
 

@@ -39,8 +39,10 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
 	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache := ddnvml.NewDeviceCache()
-	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
+	devices, err := deviceCache.AllPhysicalDevices()
+	require.NoError(t, err)
+	deps := &CollectorDependencies{NsPidCache: &NsPidCache{}}
+	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 }
@@ -143,8 +145,10 @@ func TestAllCollectorsWork(t *testing.T) {
 	eventsGatherer := NewDeviceEventsGatherer()
 	require.NoError(t, eventsGatherer.Start())
 	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
-	deps := &CollectorDependencies{DeviceCache: deviceCache, DeviceEventsGatherer: eventsGatherer}
-	collectors, err := BuildCollectors(deps)
+	devices, err := deviceCache.AllPhysicalDevices()
+	require.NoError(t, err)
+	deps := &CollectorDependencies{DeviceEventsGatherer: eventsGatherer, NsPidCache: &NsPidCache{}}
+	collectors, err := BuildCollectors(devices, deps)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
 
