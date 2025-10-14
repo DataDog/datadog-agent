@@ -497,18 +497,23 @@ func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reade
 	return ctx, destination
 }
 
-func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Destination) error {
+func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Destination, payload *message.Payload) error {
 	ctx.Start()
 	defer ctx.Stop()
-	return destination.unconditionalSend(&emptyJSONPayload)
+	return destination.unconditionalSend(payload)
 }
 
 // CheckConnectivity check if sending logs through HTTP works
 func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) config.HTTPConnectivity {
+	return CheckConnectivityWithPayload(endpoint, cfg, &emptyJSONPayload)
+}
+
+// CheckConnectivityWithPayload check if sending logs through HTTP works, with the provided payload
+func CheckConnectivityWithPayload(endpoint config.Endpoint, cfg pkgconfigmodel.Reader, payload *message.Payload) config.HTTPConnectivity {
 	log.Info("Checking HTTP connectivity...")
 	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
-	err := completeCheckConnectivity(ctx, destination)
+	err := completeCheckConnectivity(ctx, destination, payload)
 	if err != nil {
 		log.Warnf("HTTP connectivity failure: %v", err)
 	} else {
@@ -520,7 +525,7 @@ func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) conf
 // CheckConnectivityDiagnose checks HTTP connectivity to an endpoint and returns the URL and any errors for diagnostic purposes
 func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (url string, err error) {
 	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
-	return destination.url, completeCheckConnectivity(ctx, destination)
+	return destination.url, completeCheckConnectivity(ctx, destination, &emptyJSONPayload)
 }
 
 func (d *Destination) waitForBackoff(blockedUntil time.Time) {
