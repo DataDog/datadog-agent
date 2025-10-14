@@ -309,12 +309,12 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				c.collector.knownInjectionStatusPids.Add(pid)
 			}
 
-			err := c.collector.Start(ctx, c.mockStore)
-			assert.NoError(t, err)
-
 			// Mock processProbe.ProcessesByPID to be called directly by collectServicesDefault
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Maybe()
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
+
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
 
 			// Trigger service collection
 			c.mockClock.Add(collectionInterval)
@@ -530,22 +530,16 @@ func TestServiceStoreLifetime(t *testing.T) {
 				c.collector.knownInjectionStatusPids.Add(pid)
 			}
 
-			err := c.collector.Start(ctx, c.mockStore)
-			assert.NoError(t, err)
-
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Maybe()
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
 
-			// Trigger process collection first to populate lastCollectedProcesses
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
+
+			// Trigger service collection (service collection waits for first tick)
 			c.mockClock.Add(collectionInterval)
 
-			// Wait for processes to be stored (confirms process collection completed)
-			assertProcessData(t, c.mockStore, tc.expectStored)
-
-			// Trigger service collection
-			c.mockClock.Add(collectionInterval)
-
-			// reconfirm data still exists
+			// Wait for processes and service data to be stored
 			assertProcessData(t, c.mockStore, tc.expectStored)
 
 			// For HTTP error cases, verify processes exist but have no service data
@@ -601,10 +595,11 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 
 	c.collector.store = c.mockStore
 
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(nil, nil).Times(2)
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(2)
+
 	err := c.collector.Start(ctx, c.mockStore)
 	assert.NoError(t, err)
-	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(nil, nil).Times(1)
-	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
 
 	c.mockClock.Add(collectionInterval)
 
