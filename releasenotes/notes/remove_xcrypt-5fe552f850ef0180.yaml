@@ -8,4 +8,4 @@
 ---
 other:
   - |
-    libxcrypt isn't bundled with the agent anymore
+    libxcrypt is no longer bundled with the Agent.
