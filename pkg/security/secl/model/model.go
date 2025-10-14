@@ -295,6 +295,14 @@ func (e *Event) ResolveService() string {
 	return e.FieldHandlers.ResolveService(e, &e.BaseEvent)
 }
 
+// GetProcessTracerTags returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessTracerTags() []string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	return ev.BaseEvent.ProcessContext.Process.TracerTags
+}
+
 // UserSessionContext describes the user session context
 // Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
 type UserSessionContext struct {

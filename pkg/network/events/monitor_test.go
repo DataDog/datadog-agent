@@ -9,16 +9,13 @@
 package events
 
 import (
-	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go4.org/intern"
-	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -151,19 +148,18 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 		}
 		evHandler := &eventConsumerWrapper{}
 		_m := evHandler.Copy(ev)
-		require.IsType(t, &TracerMemfdSeal{}, _m, "Copy should return a *events.TracerMemfdSeal")
-		m := _m.(*TracerMemfdSeal)
-		assert.Equal(t, uint32(5), m.Fd)
-		require.NotNil(t, m.Process, "Process should not be nil")
-		assert.Equal(t, uint32(1234), m.Process.Pid)
-		assert.Equal(t, now.UnixNano(), m.Process.StartTime)
+		require.IsType(t, &Process{}, _m, "Copy should return a *events.Process")
+		m := _m.(*Process)
+		require.NotNil(t, m, "Process should not be nil")
+		assert.Equal(t, uint32(1234), m.Pid)
+		assert.Equal(t, now.UnixNano(), m.StartTime)
 		assert.EqualValues(t, []*intern.Value{
 			intern.GetByString("env:env"),
 			intern.GetByString("service:service"),
 			intern.GetByString("version:version"),
-		}, m.Process.Tags)
-		assert.NotNil(t, m.Process.ContainerID, "container ID should not be nil")
-		assert.Equal(t, "cid_tracer_memfd", m.Process.ContainerID.Get().(string), "container id mismatch")
+		}, m.Tags)
+		assert.NotNil(t, m.ContainerID, "container ID should not be nil")
+		assert.Equal(t, "cid_tracer_memfd", m.ContainerID.Get().(string), "container id mismatch")
 	})
 
 	t.Run("test tracer_memfd_sealed uses ExecTime when newer", func(t *testing.T) {
@@ -189,9 +185,9 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 		}
 		evHandler := &eventConsumerWrapper{}
 		_m := evHandler.Copy(ev)
-		require.IsType(t, &TracerMemfdSeal{}, _m, "Copy should return a *events.TracerMemfdSeal")
-		m := _m.(*TracerMemfdSeal)
-		assert.Equal(t, execTime.UnixNano(), m.Process.StartTime, "StartTime should be ExecTime when ExecTime is after ForkTime")
+		require.IsType(t, &Process{}, _m, "Copy should return a *events.Process")
+		m := _m.(*Process)
+		assert.Equal(t, execTime.UnixNano(), m.StartTime, "StartTime should be ExecTime when ExecTime is after ForkTime")
 	})
 
 	t.Run("test tracer_memfd_sealed uses ForkTime when newer", func(t *testing.T) {
@@ -217,9 +213,9 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 		}
 		evHandler := &eventConsumerWrapper{}
 		_m := evHandler.Copy(ev)
-		require.IsType(t, &TracerMemfdSeal{}, _m, "Copy should return a *events.TracerMemfdSeal")
-		m := _m.(*TracerMemfdSeal)
-		assert.Equal(t, forkTime.UnixNano(), m.Process.StartTime, "StartTime should be ForkTime when ForkTime is after ExecTime")
+		require.IsType(t, &Process{}, _m, "Copy should return a *events.Process")
+		m := _m.(*Process)
+		assert.Equal(t, forkTime.UnixNano(), m.StartTime, "StartTime should be ForkTime when ForkTime is after ExecTime")
 	})
 
 }
@@ -233,7 +229,7 @@ func (m *mockProcessEventHandler) HandleProcessEvent(p *Process) {
 	m.events = append(m.events, p)
 }
 
-func TestEventHandleTracerMemfdSeal(t *testing.T) {
+func TestEventHandleTracerTags(t *testing.T) {
 	require.NoError(t, Init())
 
 	handler := &mockProcessEventHandler{}
@@ -241,72 +237,77 @@ func TestEventHandleTracerMemfdSeal(t *testing.T) {
 	defer UnregisterHandler(handler)
 
 	evHandler := &eventConsumerWrapper{}
-	pid := uint32(os.Getpid())
 
-	t.Run("tracer memfd with valid metadata creates process event", func(t *testing.T) {
+	t.Run("process event with tracer tags", func(t *testing.T) {
 		handler.events = nil // reset
 
-		metadata := &tracermetadata.TracerMetadata{
-			ServiceName:    "my-service",
-			ServiceEnv:     "my-env",
-			ServiceVersion: "my-version",
-			ProcessTags:    "entrypoint.name:my-entrypoint",
-		}
-		data, err := metadata.MarshalMsg(nil)
-		require.NoError(t, err)
-		fd := createTestMemfd(t, data)
-
-		memfdEvent := &TracerMemfdSeal{
-			Fd: uint32(fd),
-			Process: &Process{
-				Pid: pid,
-				Tags: []*intern.Value{
-					intern.GetByString("service:from-ust"),
+		now := time.Now()
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type: uint32(model.ExecEventType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{
+							Pid: 1234,
+						},
+						ExecTime: now,
+						Envp: []string{
+							"DD_ENV=env-from-envp",
+						},
+						TracerTags: []string{
+							"service:my-service",
+							"env:my-env",
+							"version:my-version",
+							"entrypoint.name:my-entrypoint",
+						},
+					},
 				},
+				ContainerContext: &model.ContainerContext{
+					ContainerID: "test-container",
+				},
+				FieldHandlers: &model.FakeFieldHandlers{},
 			},
 		}
 
-		evHandler.HandleEvent(memfdEvent)
+		p := evHandler.Copy(ev).(*Process)
+		evHandler.HandleEvent(p)
 
 		require.Len(t, handler.events, 1, "should have received 1 process event")
-		p := handler.events[0]
-		assert.Equal(t, pid, p.Pid)
-		assert.Contains(t, p.Tags, intern.GetByString("service:from-ust"))
-		assert.Contains(t, p.Tags, intern.GetByString("service:my-service"))
-		assert.Contains(t, p.Tags, intern.GetByString("env:my-env"))
-		assert.Contains(t, p.Tags, intern.GetByString("version:my-version"))
-		assert.Contains(t, p.Tags, intern.GetByString("entrypoint.name:my-entrypoint"))
+		receivedProc := handler.events[0]
+		assert.Equal(t, uint32(1234), receivedProc.Pid)
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("env:env-from-envp"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("service:my-service"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("env:my-env"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("version:my-version"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("entrypoint.name:my-entrypoint"))
 	})
 
-	t.Run("tracer memfd with invalid fd does not create process event", func(t *testing.T) {
+	t.Run("process event without tracer tags", func(t *testing.T) {
 		handler.events = nil // reset
 
-		memfdEvent := &TracerMemfdSeal{
-			Fd: 9999, // invalid fd
-			Process: &Process{
-				Pid: pid,
+		now := time.Now()
+		ev := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type: uint32(model.ExecEventType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{
+							Pid: 5678,
+						},
+						ExecTime: now,
+					},
+				},
+				ProcessCacheEntry: &model.ProcessCacheEntry{},
+				FieldHandlers:     &model.FakeFieldHandlers{},
 			},
 		}
 
-		evHandler.HandleEvent(memfdEvent)
+		p := evHandler.Copy(ev).(*Process)
+		evHandler.HandleEvent(p)
 
-		assert.Empty(t, handler.events, "should not have received any process events with invalid fd")
+		require.Len(t, handler.events, 1, "should have received 1 process event")
+		receivedProc := handler.events[0]
+		assert.Equal(t, uint32(5678), receivedProc.Pid)
+		assert.Empty(t, receivedProc.Tags, "should have no tags")
 	})
-}
-
-func createTestMemfd(t *testing.T, data []byte) int {
-	t.Helper()
-	fd, err := unix.MemfdCreate("datadog-tracer-info-01234567", unix.MFD_CLOEXEC|unix.MFD_ALLOW_SEALING)
-	require.NoError(t, err)
-	t.Cleanup(func() { unix.Close(fd) })
-
-	if len(data) > 0 {
-		_, err = unix.Write(fd, data)
-		require.NoError(t, err)
-		// Seal the memfd
-		_, err = unix.FcntlInt(uintptr(fd), unix.F_ADD_SEALS, unix.F_SEAL_WRITE|unix.F_SEAL_SHRINK|unix.F_SEAL_GROW)
-		require.NoError(t, err)
-	}
-
-	return fd
 }

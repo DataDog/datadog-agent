@@ -351,6 +351,8 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
+	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
+
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
 

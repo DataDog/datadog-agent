@@ -7,14 +7,11 @@
 package events
 
 import (
-	"fmt"
 	"time"
 
 	"go4.org/intern"
 
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func getProcessStartTime(ev *model.Event) time.Time {
@@ -37,31 +34,4 @@ func getProcessStartTime(ev *model.Event) time.Time {
 
 func getAPMTags(_ map[string]struct{}, _ string) []*intern.Value {
 	return nil
-}
-
-// getTracerTags reads tracer metadata from a memfd file and extracts tags
-func getTracerTags(pid uint32, fd uint32) []*intern.Value {
-	fdPath := fmt.Sprintf("/proc/%d/fd/%d", pid, fd)
-
-	metadata, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
-	if err != nil {
-		log.Debugf("[memfd] Failed to read tracer metadata from %s: %v", fdPath, err)
-		return nil
-	}
-
-	var tags []*intern.Value
-	for tag := range metadata.GetTags() {
-		tags = append(tags, intern.GetByString(tag))
-	}
-
-	log.Tracef("[memfd] Extracted %d tags from tracer metadata", len(tags))
-
-	return tags
-}
-
-func handleTracerMemfdSeal(ev *model.Event, p *Process) *TracerMemfdSeal {
-	return &TracerMemfdSeal{
-		Fd:      ev.TracerMemfdSeal.Fd,
-		Process: p,
-	}
 }

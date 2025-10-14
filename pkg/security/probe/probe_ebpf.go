@@ -1577,6 +1577,9 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.TracerMemfdSeal, eventType, offset, dataLen, data) {
 			return false
 		}
+		if err := p.Resolvers.ProcessResolver.AddTracerMetadata(event.PIDContext.Pid, event); err != nil {
+			seclog.Debugf("failed to add tracer metadata: %s (pid %d, fd %d)", err, event.PIDContext.Pid, event.TracerMemfdSeal.Fd)
+		}
 	}
 	return true
 }

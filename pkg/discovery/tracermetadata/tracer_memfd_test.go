@@ -10,7 +10,6 @@ package tracermetadata
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,7 +47,7 @@ func TestGetTracerMetadata(t *testing.T) {
 		require.Equal(t, "my-version", trm.ServiceVersion)
 		require.Equal(t, uint8(1), trm.SchemaVersion)
 
-		tags := slices.Collect(trm.GetTags())
+		tags := trm.GetTags()
 		assert.Equal(t, []string{
 			"service:my-service",
 			"env:my-env",
@@ -73,7 +72,7 @@ func TestGetTracerMetadata(t *testing.T) {
 		require.Equal(t, uint8(2), trm.SchemaVersion)
 		require.NoError(t, err)
 
-		tags := slices.Collect(trm.GetTags())
+		tags := trm.GetTags()
 		assert.Equal(t, []string{
 			"service:test-go",
 			"env:prod",
@@ -90,7 +89,7 @@ func TestGetTracerMetadata(t *testing.T) {
 		trm, err := GetTracerMetadata(pid, procfs)
 		require.Error(t, err)
 
-		tags := slices.Collect(trm.GetTags())
+		tags := trm.GetTags()
 		assert.Empty(t, tags)
 	})
 }

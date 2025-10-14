@@ -9,7 +9,6 @@ package tracermetadata
 
 import (
 	"fmt"
-	"iter"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -58,31 +57,23 @@ func GetTracerMetadata(pid int, procRoot string) (TracerMetadata, error) {
 	return parseData(data)
 }
 
-// GetTags returns a sequence of tags from the tracer metadata
-func (t TracerMetadata) GetTags() iter.Seq[string] {
-	return func(yield func(string) bool) {
-		if t.ServiceName != "" {
-			if !yield("service:" + t.ServiceName) {
-				return
-			}
-		}
-		if t.ServiceEnv != "" {
-			if !yield("env:" + t.ServiceEnv) {
-				return
-			}
-		}
-		if t.ServiceVersion != "" {
-			if !yield("version:" + t.ServiceVersion) {
-				return
-			}
-		}
-		for tag := range strings.SplitSeq(t.ProcessTags, ",") {
-			if tag == "" {
-				continue
-			}
-			if !yield(tag) {
-				return
-			}
-		}
+// GetTags returns a list of tags from the tracer metadata
+func (t TracerMetadata) GetTags() []string {
+	var tags []string
+	if t.ServiceName != "" {
+		tags = append(tags, "service:"+t.ServiceName)
 	}
+	if t.ServiceEnv != "" {
+		tags = append(tags, "env:"+t.ServiceEnv)
+	}
+	if t.ServiceVersion != "" {
+		tags = append(tags, "version:"+t.ServiceVersion)
+	}
+	for tag := range strings.SplitSeq(t.ProcessTags, ",") {
+		if tag == "" {
+			continue
+		}
+		tags = append(tags, tag)
+	}
+	return tags
 }

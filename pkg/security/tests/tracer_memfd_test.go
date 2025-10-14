@@ -11,6 +11,7 @@ package tests
 import (
 	"errors"
 	"os/exec"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,6 +26,8 @@ import (
 type tracerMemfdConsumer struct {
 	capturedPid   atomic.Uint32
 	capturedFd    atomic.Uint32
+	capturedTags  []string
+	capturedMutex sync.Mutex
 	eventReceived atomic.Bool
 }
 
@@ -63,13 +66,17 @@ func (c *tracerMemfdConsumer) HandleEvent(event any) {
 
 	c.capturedPid.Store(ev.pid)
 	c.capturedFd.Store(ev.fd)
+	c.capturedMutex.Lock()
+	c.capturedTags = ev.tracerTags
+	c.capturedMutex.Unlock()
 	c.eventReceived.Store(true)
 }
 
 // tracerMemfdEvent is a minimal copy of the event fields we care about
 type tracerMemfdEvent struct {
-	pid uint32
-	fd  uint32
+	pid        uint32
+	fd         uint32
+	tracerTags []string
 }
 
 // Copy returns a copy of the event for this consumer
@@ -77,10 +84,20 @@ func (c *tracerMemfdConsumer) Copy(ev *model.Event) any {
 	if ev.GetEventType() != model.TracerMemfdSealEventType {
 		return nil
 	}
-	return &tracerMemfdEvent{
+
+	event := &tracerMemfdEvent{
 		pid: ev.GetProcessPid(),
 		fd:  ev.TracerMemfdSeal.Fd,
 	}
+
+	// Copy the TracerTags using the getter
+	tracerTags := ev.GetProcessTracerTags()
+	if len(tracerTags) > 0 {
+		event.tracerTags = make([]string, len(tracerTags))
+		copy(event.tracerTags, tracerTags)
+	}
+
+	return event
 }
 
 func TestTracerMemfd(t *testing.T) {
@@ -102,7 +119,7 @@ func TestTracerMemfd(t *testing.T) {
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	require.NoError(t, err)
 
-	t.Run("validate-event", func(t *testing.T) {
+	t.Run("validate-event-and-tracer-tags", func(t *testing.T) {
 		consumer.eventReceived.Store(false)
 		consumer.capturedPid.Store(0)
 		consumer.capturedFd.Store(0)
@@ -124,5 +141,24 @@ func TestTracerMemfd(t *testing.T) {
 		require.NotZero(t, capturedPid, "pid should be set in event")
 		require.NotZero(t, capturedFd, "fd should be non-zero")
 		require.Greater(t, capturedFd, uint32(2), "fd should be > 2 (stdin/stdout/stderr)")
+
+		// Verify tracer tags from ProcessCacheEntry
+		consumer.capturedMutex.Lock()
+		tracerTags := consumer.capturedTags
+		consumer.capturedMutex.Unlock()
+
+		require.NotEmpty(t, tracerTags, "TracerTags should not be empty")
+
+		// Verify expected tags from the msgp-encoded metadata
+		expectedTags := []string{
+			"service:test-service",
+			"env:test-env",
+			"version:1.0.0",
+			"custom.tag:value",
+		}
+
+		for _, expectedTag := range expectedTags {
+			require.Contains(t, tracerTags, expectedTag, "TracerTags should contain %s", expectedTag)
+		}
 	})
 }
