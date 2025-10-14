@@ -85,6 +85,7 @@ def setup(ctx, vscode=False):
 
 
 def check_git_repo(ctx) -> SetupResult:
+    """Check if the git repository is up to date."""
     print(color_message("Fetching git repository...", Color.BLUE))
     ctx.run("git fetch", hide=True)
 
@@ -103,6 +104,7 @@ def check_git_repo(ctx) -> SetupResult:
 
 
 def check_go_version(ctx) -> SetupResult:
+    """Check if the Go version is up to date."""
     print(color_message("Checking Go version...", Color.BLUE))
 
     with open(".go-version") as f:
@@ -129,6 +131,7 @@ def check_go_version(ctx) -> SetupResult:
 
 
 def check_python_version(_ctx) -> SetupResult:
+    """Check if the Python version is up to date."""
     print(color_message("Checking Python version...", Color.BLUE))
 
     with open(".python-version") as f:
@@ -220,12 +223,14 @@ def pre_commit(ctx, interactive=True):
 
 
 def enable_pre_commit(ctx) -> SetupResult:
+    """Enable pre-commit hooks."""
     status, message = pre_commit(ctx, interactive=False)
 
     return SetupResult("Enable pre-commit", status, message)
 
 
 def setup_vscode(ctx) -> SetupResult:
+    """Set up VS Code."""
     print(color_message("Setting up VS Code...", Color.BLUE))
 
     try:
@@ -241,6 +246,7 @@ def setup_vscode(ctx) -> SetupResult:
 
 
 def install_go_tools(ctx) -> SetupResult:
+    """Install go tools."""
     print(color_message("Installing go tools...", Color.BLUE))
     status = Status.OK
     message = ""
@@ -257,6 +263,7 @@ def install_go_tools(ctx) -> SetupResult:
 
 
 def install_protoc(ctx) -> SetupResult:
+    """Install protoc."""
     print(color_message("Installing protoc...", Color.BLUE))
     status = Status.OK
     message = ""
