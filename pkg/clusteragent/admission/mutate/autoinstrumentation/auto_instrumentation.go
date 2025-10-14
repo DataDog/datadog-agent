@@ -50,7 +50,7 @@ type Webhook struct {
 	mutator mutatecommon.Mutator
 
 	// use to store all the config option from the config component to avoid costly lookups in the admission webhook hot path.
-	config *WebhookConfig
+	config *Config
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
@@ -62,7 +62,7 @@ func NewWebhook(config *Config, wmeta workloadmeta.Component, mutator mutatecomm
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		mutator:         mutator,
 		wmeta:           wmeta,
-		config:          config.Webhook,
+		config:          config,
 	}
 
 	log.Debug("Successfully created SSI webhook")
@@ -81,12 +81,12 @@ func (w *Webhook) WebhookType() common.WebhookType {
 
 // IsEnabled returns whether the webhook is enabled
 func (w *Webhook) IsEnabled() bool {
-	return w.config.IsEnabled
+	return w.config.Webhook.IsEnabled
 }
 
 // Endpoint returns the endpoint of the webhook
 func (w *Webhook) Endpoint() string {
-	return w.config.Endpoint
+	return w.config.Webhook.Endpoint
 }
 
 // Resources returns the kubernetes resources for which the webhook should
@@ -108,8 +108,30 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
-func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector)
+func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (*metav1.LabelSelector, *metav1.LabelSelector) {
+	nsSelector, objSelector := common.DefaultLabelSelectors(useNamespaceSelector)
+
+	if useNamespaceSelector {
+		nsSelector.MatchExpressions = append(nsSelector.MatchExpressions,
+			metav1.LabelSelectorRequirement{
+				Key:      common.KubeSystemNamespaceLabelKey,
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   mutatecommon.DefaultDisabledNamespaces(),
+			},
+		)
+
+	} else {
+		nsSelector = &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      common.KubeSystemNamespaceLabelKey,
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   mutatecommon.DefaultDisabledNamespaces(),
+				},
+			},
+		}
+	}
+	return nsSelector, objSelector
 }
 
 // MatchConditions returns the Match Conditions used for fine-grained
