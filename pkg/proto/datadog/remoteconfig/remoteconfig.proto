@@ -178,6 +178,41 @@ message TargetFileMeta {
   repeated TargetFileHash hashes = 3;
 }
 
+message ConfigSubscriptionRequest {
+
+  enum Action {
+    INVALID = 0;
+    TRACK = 1;
+    UNTRACK = 2;
+  }
+
+  // RuntimeID of the client to track or untrack.
+  string runtime_id = 1;
+
+  // Action indicates the action to take for the client with the given
+  // runtime_id.
+  Action action = 2;
+
+  // If action is TRACK, products indicates the products for which the client is
+  // interested in receiving updates.
+  repeated string products = 3;
+}
+
+message ConfigSubscriptionResponse {
+  // Client is the client that was tracked or untracked.
+  Client client = 1;
+
+  // Matched configs are all configs that were matched for the client given
+  // the subscription request.
+  //
+  // If a previously reported config is no longer matched, it will not be
+  // included in the response.
+  repeated string matched_configs = 2;
+
+  // Target files are the target files that needs to be sent to the client.
+  repeated File target_files = 3;
+}
+
 message ClientGetConfigsRequest {
   Client client = 1;
   repeated TargetFileMeta cached_target_files = 2;
