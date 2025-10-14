@@ -26,8 +26,8 @@ import (
 )
 
 var (
-	configCompiledPath          = filepath.Join(config.DefaultConfPath, "wls-policy.bin")
-	configJSONPath              = filepath.Join(config.DefaultConfPath, "wls-policy.json")
+	configCompiledPath          = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.bin")
+	configJSONPath              = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.json")
 	ddPolicyCompileRelativePath = filepath.Join("embedded", "bin", "dd-compile-policy")
 	// Pattern to extract policy ID from config path: datadog/\d+/<product>/<config_id>/<hash>
 	policyIDPattern = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
@@ -83,6 +83,9 @@ func isCompilePolicyBinaryAvailable() bool {
 }
 
 func compilePolicyBinary(rawConfig []byte) error {
+	if err := os.MkdirAll(filepath.Dir(configJSONPath), 0755); err != nil {
+		return err
+	}
 	if err := os.WriteFile(configJSONPath, rawConfig, 0644); err != nil {
 		return err
 	}
