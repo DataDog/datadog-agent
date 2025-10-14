@@ -27,7 +27,7 @@ var TimeNow = time.Now
 // by the error count.
 //
 // `blocked`:
-// No transactions are sent until the timeout expires. Any errors/successes recieved from the
+// No transactions are sent until the timeout expires. Any errors/successes received from the
 // endpoint are ignored (these are likely transactions sent before we moved to `blocked`).
 //
 // Once the timeout expires, we send a single transaction to the endpoint, and move into a
@@ -35,7 +35,7 @@ var TimeNow = time.Now
 //
 // `halfBlocked`:
 // We have sent a single test transaction. We don't want to send anymore transactions until we
-// recieve a result from the endpoint to indicate if it is healthy.
+// receive a result from the endpoint to indicate if it is healthy.
 //
 // If the endpoint still returns an error, we increase the error count and move back to `blocked`.
 // The increased error count will likely mean the timeout is for an even longer time.
@@ -112,7 +112,7 @@ func (e *blockedEndpoints) getState(endpoint string) (bool, circuitBreakerState)
 	return false, 0
 }
 
-// close is called when we have recieved an error from this endpoint.
+// close is called when we have received an error from this endpoint.
 func (e *blockedEndpoints) close(endpoint string) {
 	e.m.Lock()
 	defer e.m.Unlock()
@@ -155,7 +155,7 @@ func (e *blockedEndpoints) close(endpoint string) {
 	e.errorPerEndpoint[endpoint] = b
 }
 
-// recover is called when we have recieved an success from this endpoint.
+// recover is called when we have received an success from this endpoint.
 func (e *blockedEndpoints) recover(endpoint string) {
 	e.m.Lock()
 	defer e.m.Unlock()
