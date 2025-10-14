@@ -111,27 +111,35 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (*metav1.LabelSelector, *metav1.LabelSelector) {
 	nsSelector, objSelector := common.DefaultLabelSelectors(useNamespaceSelector)
 
-	if useNamespaceSelector {
-		nsSelector.MatchExpressions = append(nsSelector.MatchExpressions,
-			metav1.LabelSelectorRequirement{
-				Key:      common.KubeSystemNamespaceLabelKey,
-				Operator: metav1.LabelSelectorOpNotIn,
-				Values:   mutatecommon.DefaultDisabledNamespaces(),
-			},
-		)
-
+	enabledNs, excludedNs := enabledAndDisabledNamespaces(w.config.Instrumentation.EnabledNamespaces, w.config.Instrumentation.DisabledNamespaces)
+	var matchExpression metav1.LabelSelectorRequirement
+	if len(enabledNs) > 0 {
+		matchExpression = metav1.LabelSelectorRequirement{
+			Key:      common.KubeSystemNamespaceLabelKey,
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   enabledNs,
+		}
 	} else {
-		nsSelector = &metav1.LabelSelector{
-			MatchExpressions: []metav1.LabelSelectorRequirement{
-				{
-					Key:      common.KubeSystemNamespaceLabelKey,
-					Operator: metav1.LabelSelectorOpNotIn,
-					Values:   mutatecommon.DefaultDisabledNamespaces(),
-				},
-			},
+		matchExpression = metav1.LabelSelectorRequirement{
+			Key:      common.KubeSystemNamespaceLabelKey,
+			Operator: metav1.LabelSelectorOpNotIn,
+			Values:   excludedNs,
 		}
 	}
+	nsSelector.MatchExpressions = append(nsSelector.MatchExpressions, matchExpression)
 	return nsSelector, objSelector
+}
+
+func enabledAndDisabledNamespaces(enabledNamespaces []string, disabledNamespaces []string) ([]string, []string) {
+	defaultDisabled := mutatecommon.DefaultDisabledNamespaces()
+	disabledByDefault := make([]string, len(defaultDisabled))
+	copy(disabledByDefault, defaultDisabled)
+
+	var filterExcludeList []string
+	if len(enabledNamespaces) == 0 {
+		filterExcludeList = append(disabledNamespaces, disabledByDefault...)
+	}
+	return enabledNamespaces, filterExcludeList
 }
 
 // MatchConditions returns the Match Conditions used for fine-grained

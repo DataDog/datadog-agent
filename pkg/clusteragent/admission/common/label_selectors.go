@@ -14,14 +14,14 @@ import (
 )
 
 // DefaultLabelSelectors returns the mutating webhooks object selector based on the configuration
-func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
-	var labelSelector metav1.LabelSelector
+func DefaultLabelSelectors(useNamespaceSelector bool, nsLabelOpt ...func(*metav1.LabelSelector)) (namespaceSelector, objectSelector *metav1.LabelSelector) {
+	var nsLabelSelector, objLabelSelector *metav1.LabelSelector
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled") ||
 		pkgconfigsetup.Datadog().GetBool("apm_config.instrumentation.enabled") ||
 		len(pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
 		// Accept all, ignore pods if they're explicitly filtered-out
-		labelSelector = metav1.LabelSelector{
+		nsLabelSelector = &metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
 					Key:      EnabledLabelKey,
@@ -32,22 +32,43 @@ func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, object
 		}
 	} else {
 		// Ignore all, accept pods if they're explicitly allowed
-		labelSelector = metav1.LabelSelector{
+		objLabelSelector = &metav1.LabelSelector{
 			MatchLabels: map[string]string{
 				EnabledLabelKey: "true",
 			},
 		}
 	}
 
+	if len(nsLabelOpt) > 0 {
+		if nsLabelSelector == nil {
+			nsLabelSelector = &metav1.LabelSelector{}
+		}
+
+		for _, opt := range nsLabelOpt {
+			opt(nsLabelSelector)
+		}
+	}
+
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.add_aks_selectors") {
-		return aksSelectors(useNamespaceSelector, labelSelector)
+		nsLabelSelector, objLabelSelector = aksSelectors(useNamespaceSelector, nsLabelSelector, objLabelSelector)
 	}
 
 	if useNamespaceSelector {
-		return &labelSelector, nil
+		return nsLabelSelector, nil
 	}
 
-	return nil, &labelSelector
+	return nsLabelSelector, objLabelSelector
+}
+
+// ExcludeNamespaces returns a function that excludes the given namespaces from the provided label selector
+func ExcludeNamespaces(excludedNs []string) func(*metav1.LabelSelector) {
+	return func(nsLabel *metav1.LabelSelector) {
+		nsLabel.MatchExpressions = append(nsLabel.MatchExpressions, metav1.LabelSelectorRequirement{
+			Key:      KubeSystemNamespaceLabelKey,
+			Operator: metav1.LabelSelectorOpNotIn,
+			Values:   excludedNs,
+		})
+	}
 }
 
 // aksSelectors takes a label selector and builds a namespace and object
@@ -57,20 +78,28 @@ func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, object
 //
 // Ref: https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
 // Ref: https://github.com/Azure/AKS/issues/1771
-func aksSelectors(useNamespaceSelector bool, labelSelector metav1.LabelSelector) (namespaceSelector, objectSelector *metav1.LabelSelector) {
+func aksSelectors(useNamespaceSelector bool, nsLabelSelector, objSelector *metav1.LabelSelector) (*metav1.LabelSelector, *metav1.LabelSelector) {
 	if useNamespaceSelector {
-		labelSelector.MatchExpressions = append(
-			labelSelector.MatchExpressions,
+		if nsLabelSelector == nil {
+			nsLabelSelector = &metav1.LabelSelector{}
+		}
+		nsLabelSelector.MatchExpressions = append(
+			nsLabelSelector.MatchExpressions,
 			azureAKSLabelSelectorRequirement()...,
 		)
-		return &labelSelector, nil
+		return nsLabelSelector, nil
 	}
 
 	// Azure AKS adds the namespace selector even in Kubernetes versions that
 	// support object selectors, so we need to add it to avoid conflicts.
-	return &metav1.LabelSelector{
-		MatchExpressions: azureAKSLabelSelectorRequirement(),
-	}, &labelSelector
+	if objSelector == nil {
+		objSelector = &metav1.LabelSelector{}
+	}
+	objSelector.MatchExpressions = append(
+		objSelector.MatchExpressions,
+		azureAKSLabelSelectorRequirement()...,
+	)
+	return nsLabelSelector, objSelector
 }
 
 func azureAKSLabelSelectorRequirement() []metav1.LabelSelectorRequirement {
