@@ -43,6 +43,7 @@ func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWri
 //nolint:revive // TODO(PROC) Fix revive linter
 func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 	r.HandleFunc("/config", deps.Settings.GetFullConfig("process_config")).Methods("GET")
+	r.HandleFunc("/config/without-defaults", deps.Settings.GetFullConfigWithoutDefaults("process_config")).Methods("GET")
 	r.HandleFunc("/config/all", deps.Settings.GetFullConfig("")).Methods("GET") // Get all fields from process-agent Config object
 	r.HandleFunc("/config/list-runtime", deps.Settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", deps.Settings.GetValue).Methods("GET")

@@ -86,7 +86,7 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 }
 
 // processUtilizationSample handles process utilization sampling logic
-func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidCache *NsPidCache) ([]Metric, uint64, error) {
 	currentTime := uint64(time.Now().Unix())
 	processSamples, err := device.GetProcessUtilization(lastTimestamp)
 
@@ -102,19 +102,24 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 		}
 	} else {
 		for _, sample := range processSamples {
-			pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
+			// Create PID tag for this process
+			pidTags := []string{
+				fmt.Sprintf("pid:%d", sample.Pid),
+				fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(sample.Pid, true)),
+			}
+			allPidTags = append(allPidTags, pidTags...)
+
 			allMetrics = append(allMetrics,
-				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
-				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
-				Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
-				Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, Tags: pidTag},
+				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+				Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+				Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
 			)
 
 			if sample.SmUtil > maxSmUtil {
 				maxSmUtil = sample.SmUtil
 			}
 			sumSmUtil += sample.SmUtil
-			allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
 		}
 	}
 
@@ -133,13 +138,13 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 }
 
 // createSampleAPIs creates API call definitions for all sampling metrics on demand
-func createSampleAPIs() []apiCallInfo {
+func createSampleAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 	return []apiCallInfo{
 		// Process utilization APIs (sample - requires timestamp tracking)
 		{
 			Name: "process_utilization",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processUtilizationSample(device, lastTimestamp)
+				return processUtilizationSample(device, lastTimestamp, nsPidCache)
 			},
 		},
 		// Samples collector APIs - each sample type is separate for independent failure handling
@@ -190,6 +195,6 @@ func newStatefulCollector(name CollectorName, device ddnvml.Device, apiCalls []a
 var sampleAPIFactory = createSampleAPIs
 
 // newSamplingCollector creates a collector that consolidates all sampling collector types
-func newSamplingCollector(device ddnvml.Device) (Collector, error) {
-	return newStatefulCollector(sampling, device, sampleAPIFactory())
+func newSamplingCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
+	return newStatefulCollector(sampling, device, sampleAPIFactory(deps.NsPidCache))
 }

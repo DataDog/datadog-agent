@@ -932,3 +932,120 @@ func TestIsTimestampStale(t *testing.T) {
 	receivedTime = currentTime.Add(-1 * time.Minute * 3)
 	assert.True(t, isTimestampStale(currentTime, receivedTime, staleTimestampThreshold))
 }
+
+func TestValidateAutoscalerObjectives(t *testing.T) {
+	tests := map[string]struct {
+		spec    datadoghq.DatadogPodAutoscalerSpec
+		wantErr string
+	}{
+		"fallback objective custom query not allowed": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Fallback: &datadoghq.DatadogFallbackPolicy{
+					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType},
+						},
+					},
+				},
+			},
+			wantErr: "Autoscaler fallback cannot be based on custom query objective",
+		},
+		"fallback objective cpu allowed": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Fallback: &datadoghq.DatadogFallbackPolicy{
+					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+							{Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType}},
+					},
+				},
+			},
+			wantErr: "",
+		},
+		"custom query objective missing payload": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+					{
+						Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
+					},
+				},
+			},
+			wantErr: "Autoscaler objective type is custom query but customQueryObjective is nil",
+		},
+		"custom query objective with pod resource also set": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+					{
+						Type:                 datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
+						CustomQueryObjective: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{},
+						PodResource:          &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{},
+						ContainerResource:    nil,
+					},
+				},
+			},
+		},
+		"pod resource type without resource": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+					{
+						Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+					},
+				},
+			},
+			wantErr: "autoscaler objective type is PodResource but podResource is nil",
+		},
+		"container resource type without resource": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+					{
+						Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+					},
+				},
+			},
+			wantErr: "autoscaler objective type is ContainerResource but containerResource is nil",
+		},
+		"pod resource type with custom query also set": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+					{
+						Type:                 datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+						PodResource:          &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{},
+						CustomQueryObjective: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{},
+					},
+				},
+			},
+		},
+		"container resource type with custom query also set": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+					{
+						Type:                 datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+						ContainerResource:    &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{},
+						CustomQueryObjective: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{},
+					},
+				},
+			},
+		},
+		"valid pod resource objective": {
+			spec: datadoghq.DatadogPodAutoscalerSpec{
+				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+					{
+						Type:        datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+						PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{},
+					},
+				},
+			},
+			wantErr: "",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateAutoscalerObjectives(&tt.spec)
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tt.wantErr)
+		})
+	}
+}
