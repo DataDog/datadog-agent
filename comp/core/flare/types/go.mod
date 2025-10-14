@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/core/flare/types
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.71.2-rc.1
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.71.2
 	go.uber.org/fx v1.24.0
 )
 
