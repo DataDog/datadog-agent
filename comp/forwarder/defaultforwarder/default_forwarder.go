@@ -266,8 +266,8 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
 		},
-		agentName:         agentName,
-		localForwarder:    nil,
+		agentName:      agentName,
+		localForwarder: nil,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.GetInt64("forwarder_storage_max_size_in_bytes")
