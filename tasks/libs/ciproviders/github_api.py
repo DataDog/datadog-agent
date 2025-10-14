@@ -517,20 +517,25 @@ class GithubAPI:
     def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
-            - Personal access token through GITHUB_TOKEN environment variable
-            - Short lived token generated locally
-            - A fake login user/password to reach public repositories
-            - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
-              variables (can also use GITHUB_INSTALLATION_ID to save a request).
-              This is required for Gitlab CI.
+            - Locally:
+              - Short lived token generated locally
+            - On CI:
+              - GITHUB_TOKEN environment variable
+              - A fake login user/password to reach public repositories
+              - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
+                variables (can also use GITHUB_INSTALLATION_ID to save a request).
+                This is required for Gitlab CI.
         """
         from tasks.libs.common.utils import running_in_ci
 
+        if not running_in_ci():
+            if "GITHUB_TOKEN" in os.environ:
+                msg = "GITHUB_TOKEN is deprecated locally, please remove it from your environment."
+                print(color_message(msg, Color.ORANGE))
+            return Auth.Token(generate_local_github_token(Context()))
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
-        elif not running_in_ci():
-            return Auth.Token(generate_local_github_token(Context()))
-        elif public_repo:
+        if public_repo:
             return Auth.Login("user", "password")
 
         if "GITHUB_APP_ID" not in os.environ or "GITHUB_KEY_B64" not in os.environ:
@@ -792,9 +797,11 @@ def generate_local_github_token(ctx):
     try:
         token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
 
-        assert (
-            token.startswith('gh') and ' ' not in token
-        ), "`ddtool auth github token` returned an invalid token, it might be due to ddtool outdated. Please run `brew update && brew upgrade ddtool`."
+        assert token.startswith('gh') and ' ' not in token, (
+            "`ddtool auth github token` returned an invalid token, "
+            "it might be due to ddtool outdated. "
+            "Please run `brew update && brew upgrade ddtool`."
+        )
 
         return token
     except AssertionError:
