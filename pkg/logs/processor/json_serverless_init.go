@@ -6,9 +6,10 @@
 package processor
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -19,6 +20,7 @@ var JSONServerlessInitEncoder Encoder = &jsonServerlessInitEncoder{}
 
 // jsonServerlessInitEncoder transforms a message into a JSON byte array.
 // It caches the tags string since tags are constant in serverless-init environments.
+// Uses jsoniter for improved JSON marshaling performance.
 type jsonServerlessInitEncoder struct {
 	cachedTags string
 }
@@ -50,7 +52,9 @@ func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string
 		j.cachedTags = msg.TagsToString()
 	}
 
-	encoded, err := json.Marshal(jsonServerlessInitPayload{
+	// Use jsoniter.ConfigFastest for maximum performance
+	// No HTML escaping needed since logs aren't embedded in HTML
+	encoded, err := jsoniter.ConfigFastest.Marshal(jsonServerlessInitPayload{
 		Message:   toValidUtf8(msg.GetContent()),
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano() / nanoToMillis,
