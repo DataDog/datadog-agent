@@ -137,18 +137,22 @@ func (e *blockedEndpoints) close(endpoint string) {
 		b.m.Lock()
 		defer b.m.Unlock()
 
-		b.nbError = e.backoffPolicy.IncError(b.nbError)
-		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
-		b.setState(blocked)
+		if b.state == unblocked {
+			b.nbError = e.backoffPolicy.IncError(b.nbError)
+			b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
+			b.setState(blocked)
+		}
 	case halfBlocked:
 		// The test transaction failed, so we need to mave back to blocked.
 		b.m.RUnlock()
 		b.m.Lock()
 		defer b.m.Unlock()
 
-		b.nbError = e.backoffPolicy.IncError(b.nbError)
-		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
-		b.setState(blocked)
+		if b.state == halfBlocked {
+			b.nbError = e.backoffPolicy.IncError(b.nbError)
+			b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
+			b.setState(blocked)
+		}
 	case blocked:
 		// We ignore all failures coming in when blocked. These are transactions sent
 		// before the first one returned with an error.
@@ -185,12 +189,14 @@ func (e *blockedEndpoints) recover(endpoint string) {
 		b.m.Lock()
 		defer b.m.Unlock()
 
-		b.nbError = e.backoffPolicy.DecError(b.nbError)
-		if b.nbError == 0 {
-			b.setState(unblocked)
-		} else {
-			b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
-			b.setState(blocked)
+		if b.state == halfBlocked {
+			b.nbError = e.backoffPolicy.DecError(b.nbError)
+			if b.nbError == 0 {
+				b.setState(unblocked)
+			} else {
+				b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
+				b.setState(blocked)
+			}
 		}
 	case blocked:
 		// If we are blocked and a successful transaction came through, we
