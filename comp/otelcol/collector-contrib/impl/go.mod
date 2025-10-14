@@ -7,7 +7,7 @@ go 1.24.0
 toolchain go1.24.6
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.71.2-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.71.2
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.133.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.133.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.133.0
