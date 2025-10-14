@@ -36,6 +36,7 @@ def setup(ctx, vscode=False):
         check_git_repo,
         check_python_version,
         check_go_version,
+        update_ddtool,
         install_go_tools,
         install_protoc,
         enable_pre_commit,
@@ -237,6 +238,17 @@ def setup_vscode(ctx) -> SetupResult:
         status = Status.FAIL
 
     return SetupResult("Setup vscode", status, message)
+
+
+def update_ddtool(ctx) -> SetupResult:
+    """Update ddtool."""
+    print(color_message("Updating ddtool...", Color.BLUE))
+    status = Status.OK
+    message = ""
+
+    ctx.run('brew update && brew upgrade ddtool', hide=True)
+
+    return SetupResult("Update ddtool", status, message)
 
 
 def install_go_tools(ctx) -> SetupResult:
