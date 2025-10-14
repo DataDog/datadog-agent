@@ -203,7 +203,7 @@ func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.Raw
 		policyID := extractPolicyID(cfg.path)
 		orderInfo = append(orderInfo, fmt.Sprintf("%s (order=%d)", policyID, cfg.order))
 	}
-	c.log.Debugf("Merging %d workload selection configs in order: %s", len(configs), strings.Join(orderInfo, ", "))
+	c.log.Infof("Merging %d workload selection configs in order: %s", len(configs), strings.Join(orderInfo, ", "))
 
 	// Merge all configs into one
 	mergedConfig, err := mergeConfigs(configs)
