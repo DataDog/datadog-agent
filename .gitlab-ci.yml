@@ -226,6 +226,7 @@ variables:
   DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
   E2E_AZURE: e2e-azure # agent-devx
   E2E_GCP: e2e-gcp # agent-devx
+  GITLAB_TOKEN: gitlab-token # agent-delivery (this was added specifically for 7.71.x)
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
   MACOS_GITHUB_APP_1: macos-github-app-one # agent-devx
   MACOS_GITHUB_APP_2: macos-github-app-two # agent-devx
