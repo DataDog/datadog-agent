@@ -407,6 +407,7 @@ func TestSubscriptionReceivesCachedFilesWhenClientUpToDate(t *testing.T) {
 	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
+	counters := service.telemetryReporter.(*telemetryReporter)
 
 	const configPath = "datadog/2/LIVE_DEBUGGING/config-123/debugging.json"
 	targetFileData := map[string][]byte{
@@ -438,8 +439,14 @@ func TestSubscriptionReceivesCachedFilesWhenClientUpToDate(t *testing.T) {
 		RuntimeId: "runtime-123",
 		Products:  pbgo.ConfigSubscriptionProducts_LIVE_DEBUGGING,
 	}))
+
+	_, err = stream.Header()
+	require.NoError(t, err)
+	require.Equal(t, counters.subscriptionsActiveGauge.Load(), int64(1))
+	require.Equal(t, counters.subscriptionsConnected.Load(), int64(1))
+	require.Equal(t, counters.subscriptionsDisconnected.Load(), int64(0))
 	require.Eventually(t, func() bool {
-		return subscriptionIsRegistered(service, "runtime-123")
+		return counters.subscriptionClientsTrackedGauge.Load() == 1
 	}, 1*time.Second, 10*time.Millisecond)
 
 	tracerClient := &pbgo.Client{
@@ -475,6 +482,12 @@ func TestSubscriptionReceivesCachedFilesWhenClientUpToDate(t *testing.T) {
 	require.NotNil(t, streamResp)
 	require.ElementsMatch(t, fileNames(streamResp.TargetFiles), []string{configPath})
 	require.ElementsMatch(t, streamResp.MatchedConfigs, []string{configPath})
+	cancel()
+
+	require.Eventually(t, func() bool {
+		return counters.subscriptionsActiveGauge.Load() == 0 &&
+			counters.subscriptionsDisconnected.Load() == 1
+	}, 1*time.Second, 10*time.Millisecond)
 }
 
 // Ensures that once a subscription has already seen a client, a subsequent poll

@@ -233,12 +233,26 @@ type cdnUptaneClient interface {
 	Update(ctx context.Context) error
 }
 
-// RcTelemetryReporter should be implemented by the agent to publish metrics on exceptional cache bypass request events
+// RcTelemetryReporter should be implemented by the agent to publish metrics
+// on RC-specific events.
 type RcTelemetryReporter interface {
 	// IncRateLimit is invoked when a cache bypass request is prevented due to rate limiting
 	IncRateLimit()
 	// IncTimeout is invoked when a cache bypass request is cancelled due to timeout or a previous cache bypass request is still pending
 	IncTimeout()
+
+	// IncConfigSubscriptionsConnectedCounter increments the
+	// DdRcTelemetryReporter ConfigSubscriptionsConnectedCounter counter.
+	IncConfigSubscriptionsConnectedCounter()
+	// IncConfigSubscriptionsDisconnectedCounter increments the
+	// DdRcTelemetryReporter ConfigSubscriptionsDisconnectedCounter counter.
+	IncConfigSubscriptionsDisconnectedCounter()
+	// SetConfigSubscriptionsActive sets the DdRcTelemetryReporter
+	// ConfigSubscriptionsActive gauge to the given value.
+	SetConfigSubscriptionsActive(value int)
+	// SetConfigSubscriptionClientsTracked sets the DdRcTelemetryReporter
+	// ConfigSubscriptionClientsTracked gauge to the given value.
+	SetConfigSubscriptionClientsTracked(value int)
 }
 
 // orgStatusPoller handles periodic polling of the organization status from the remote config backend
@@ -1284,6 +1298,7 @@ func (s *CoreAgentService) CreateConfigSubscription(
 			)
 		}
 		subID, updateSignal := s.mu.subscriptions.newSubscription()
+		s.telemetryReporter.SetConfigSubscriptionsActive(len(s.mu.subscriptions.subs))
 		return subID, updateSignal, nil
 	}()
 	if err != nil {
@@ -1291,10 +1306,13 @@ func (s *CoreAgentService) CreateConfigSubscription(
 		return err
 	}
 	defer func() {
+		s.telemetryReporter.IncConfigSubscriptionsDisconnectedCounter()
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		s.mu.subscriptions.remove(subID)
+		s.telemetryReporter.SetConfigSubscriptionsActive(len(s.mu.subscriptions.subs))
 	}()
+	s.telemetryReporter.IncConfigSubscriptionsConnectedCounter()
 	// Send a header to synchronize with the client and prevent client-side
 	// retries.
 	if err := stream.SendHeader(metadata.MD{}); err != nil {
@@ -1304,6 +1322,13 @@ func (s *CoreAgentService) CreateConfigSubscription(
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		return s.mu.subscriptions.popUpdate(subID)
+	}
+	setTrackedClientsLocked := func() {
+		n := 0
+		for _, s := range s.mu.subscriptions.subs {
+			n += len(s.trackedClients)
+		}
+		s.telemetryReporter.SetConfigSubscriptionClientsTracked(n)
 	}
 	track := func(runtimeID string, products pbgo.ConfigSubscriptionProducts) error {
 		s.mu.Lock()
@@ -1317,12 +1342,14 @@ func (s *CoreAgentService) CreateConfigSubscription(
 			)
 		}
 		sub.track(runtimeID, products)
+		setTrackedClientsLocked()
 		return nil
 	}
 	untrack := func(runtimeID string) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		s.mu.subscriptions.subs[subID].untrack(runtimeID)
+		setTrackedClientsLocked()
 	}
 	ctx, cancel := context.WithCancel(stream.Context())
 	var wg sync.WaitGroup

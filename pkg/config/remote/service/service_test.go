@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -161,24 +162,36 @@ func (m *mockUptane) GetTransactionalStoreMetadata() (*uptane.Metadata, error) {
 	return args.Get(0).(*uptane.Metadata), args.Error(1)
 }
 
-type mockRcTelemetryReporter struct {
-	mock.Mock
+type telemetryReporter struct {
+	timeouts   atomic.Int64
+	rateLimits atomic.Int64
+
+	subscriptionsActiveGauge        atomic.Int64
+	subscriptionClientsTrackedGauge atomic.Int64
+	subscriptionsConnected          atomic.Int64
+	subscriptionsDisconnected       atomic.Int64
 }
 
-func (m *mockRcTelemetryReporter) IncRateLimit() {
-	m.Called()
+func (t *telemetryReporter) IncConfigSubscriptionsConnectedCounter() {
+	t.subscriptionsConnected.Add(1)
+}
+func (t *telemetryReporter) IncConfigSubscriptionsDisconnectedCounter() {
+	t.subscriptionsDisconnected.Add(1)
+}
+func (t *telemetryReporter) IncRateLimit() {
+	t.rateLimits.Add(1)
+}
+func (t *telemetryReporter) IncTimeout() {
+	t.timeouts.Add(1)
+}
+func (t *telemetryReporter) SetConfigSubscriptionClientsTracked(value int) {
+	t.subscriptionClientsTrackedGauge.Store(int64(value))
+}
+func (t *telemetryReporter) SetConfigSubscriptionsActive(value int) {
+	t.subscriptionsActiveGauge.Store(int64(value))
 }
 
-func (m *mockRcTelemetryReporter) IncTimeout() {
-	m.Called()
-}
-
-func newMockRcTelemetryReporter() *mockRcTelemetryReporter {
-	m := &mockRcTelemetryReporter{}
-	m.On("IncRateLimit").Return()
-	m.On("IncBypassTimeout").Return()
-	return m
-}
+var _ RcTelemetryReporter = (*telemetryReporter)(nil)
 
 var testRCKey = msgpgo.RemoteConfigKey{
 	AppKey:     "fake_key",
@@ -202,7 +215,7 @@ func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUp
 	cfg.SetWithoutSource("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
 	baseRawURL := "https://localhost"
 	traceAgentEnv := testEnv
-	mockTelemetryReporter := newMockRcTelemetryReporter()
+	mockTelemetryReporter := &telemetryReporter{}
 
 	options := []Option{
 		uptaneFactoryOption(coreAgentUptane),
@@ -978,7 +991,7 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	cfg.SetWithoutSource("run_path", dir)
 
 	baseRawURL := "https://localhost"
-	mockTelemetryReporter := newMockRcTelemetryReporter()
+	mockTelemetryReporter := (&telemetryReporter{})
 	options := []Option{
 		WithAPIKey("initialKey"),
 		uptaneFactoryOption(uptaneClient),
@@ -1251,7 +1264,7 @@ func TestWithTraceAgentEnv(t *testing.T) {
 
 	baseRawURL := "https://localhost"
 	traceAgentEnv := "dog"
-	mockTelemetryReporter := newMockRcTelemetryReporter()
+	mockTelemetryReporter := &telemetryReporter{}
 	uptaneClient := &mockCoreAgentUptane{}
 
 	options := []Option{
@@ -1272,7 +1285,7 @@ func TestWithDatabaseFileName(t *testing.T) {
 	cfg.SetWithoutSource("run_path", "/tmp")
 
 	baseRawURL := "https://localhost"
-	mockTelemetryReporter := newMockRcTelemetryReporter()
+	mockTelemetryReporter := &telemetryReporter{}
 
 	var uptaneClientMetadata *uptane.Metadata
 	options := []Option{
@@ -1322,7 +1335,7 @@ func TestWithRefreshInterval(t *testing.T) {
 			cfg.SetWithoutSource("run_path", "/tmp")
 
 			baseRawURL := "https://localhost"
-			mockTelemetryReporter := newMockRcTelemetryReporter()
+			mockTelemetryReporter := &telemetryReporter{}
 
 			uptaneClient := &mockCoreAgentUptane{}
 			options := []Option{
@@ -1574,7 +1587,7 @@ func TestWithOrgStatusPollingIntervalNoConfigPassed(t *testing.T) {
 	cfg.SetWithoutSource("run_path", "/tmp")
 
 	baseRawURL := "https://localhost"
-	mockTelemetryReporter := newMockRcTelemetryReporter()
+	mockTelemetryReporter := &telemetryReporter{}
 	uptaneClient := &mockCoreAgentUptane{}
 	options := []Option{
 		WithAPIKey("abc"),
@@ -1592,7 +1605,7 @@ func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
 	cfg.SetWithoutSource("run_path", "/tmp")
 
 	baseRawURL := "https://localhost"
-	mockTelemetryReporter := newMockRcTelemetryReporter()
+	mockTelemetryReporter := &telemetryReporter{}
 	uptaneClient := &mockCoreAgentUptane{}
 	options := []Option{
 		WithAPIKey("abc"),
