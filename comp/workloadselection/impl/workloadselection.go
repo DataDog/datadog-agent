@@ -8,11 +8,15 @@ package workloadselectionimpl
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -25,6 +29,10 @@ var (
 	configCompiledPath          = filepath.Join(config.DefaultConfPath, "wls-policy.bin")
 	configJSONPath              = filepath.Join(config.DefaultConfPath, "wls-policy.json")
 	ddPolicyCompileRelativePath = filepath.Join("embedded", "bin", "dd-compile-policy")
+	// Pattern to extract policy ID from config path: datadog/\d+/<product>/<config_id>/<hash>
+	policyIDPattern = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
+	// Pattern to extract numeric prefix from policy ID: N.<name>
+	policyPrefixPattern = regexp.MustCompile(`^(\d+)\.`)
 )
 
 // Requires defines the dependencies for the workloadselection component
@@ -89,6 +97,55 @@ func compilePolicyBinary(rawConfig []byte) error {
 	return nil
 }
 
+// policyConfig represents a config with its ordering information
+type policyConfig struct {
+	path   string
+	order  int
+	config []byte
+}
+
+// extractPolicyID extracts the policy ID from a config path
+// Path format: configs/\d+/<ID>/<gibberish>
+func extractPolicyID(path string) string {
+	matches := policyIDPattern.FindStringSubmatch(path)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+	return ""
+}
+
+// extractOrderFromPolicyID extracts the numeric order from a policy ID
+// If policy ID is in format N.<name>, returns N. Otherwise returns 0.
+func extractOrderFromPolicyID(policyID string) int {
+	matches := policyPrefixPattern.FindStringSubmatch(policyID)
+	if len(matches) > 1 {
+		if order, err := strconv.Atoi(matches[1]); err == nil {
+			return order
+		}
+	}
+	return 0
+}
+
+// mergeConfigs merges multiple configs by concatenating their policies in order
+func mergeConfigs(configs []policyConfig) ([]byte, error) {
+	type policyJSON struct {
+		Policies []json.RawMessage `json:"policies"`
+	}
+
+	var allPolicies []json.RawMessage
+
+	for _, cfg := range configs {
+		var parsed policyJSON
+		if err := json.Unmarshal(cfg.config, &parsed); err != nil {
+			return nil, fmt.Errorf("failed to parse config from %s: %w", cfg.path, err)
+		}
+		allPolicies = append(allPolicies, parsed.Policies...)
+	}
+
+	merged := policyJSON{Policies: allPolicies}
+	return json.Marshal(merged)
+}
+
 func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	c.log.Debugf("workload selection config update received: %d", len(updates))
 	if len(updates) == 0 {
@@ -99,35 +156,70 @@ func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.Raw
 		return
 	}
 
-	if len(updates) > 1 {
-		c.log.Warnf("workload selection received %d configs, expected only 1. Taking the first one alphabetically", len(updates))
-	}
+	// Build a list of configs with their ordering information
+	var configs []policyConfig
+	for path, rawConfig := range updates {
+		policyID := extractPolicyID(path)
+		order := extractOrderFromPolicyID(policyID)
 
-	// Sort paths alphabetically for consistent behavior
-	var sortedPaths []string
-	for path := range updates {
-		sortedPaths = append(sortedPaths, path)
-	}
-	sort.Strings(sortedPaths)
+		c.log.Debugf("Processing config path=%s policyID=%s order=%d", path, policyID, order)
 
-	// Emit error for configs that are not treated (we only accept 1)
-	for i := 1; i < len(sortedPaths); i++ {
-		rejectedPath := sortedPaths[i]
-		applyStateCallback(rejectedPath, state.ApplyStatus{
-			State: state.ApplyStateError,
-			Error: "workload selection only accepts one configuration, rejecting additional configs",
+		configs = append(configs, policyConfig{
+			path:   path,
+			order:  order,
+			config: rawConfig.Config,
 		})
 	}
 
-	// Process only the first config alphabetically
-	path := sortedPaths[0]
-	err := c.compileAndWriteConfig(updates[path].Config)
+	// Sort configs by order, then alphabetically by path for deterministic ordering
+	sort.SliceStable(configs, func(i, j int) bool {
+		if configs[i].order != configs[j].order {
+			return configs[i].order < configs[j].order
+		}
+		// Secondary sort by path for deterministic ordering when order values are equal
+		return configs[i].path < configs[j].path
+	})
+
+	// Track error state and apply callbacks on function exit
+	var processingErr error
+	defer func() {
+		for _, cfg := range configs {
+			if processingErr != nil {
+				applyStateCallback(cfg.path, state.ApplyStatus{
+					State: state.ApplyStateError,
+					Error: processingErr.Error(),
+				})
+			} else {
+				applyStateCallback(cfg.path, state.ApplyStatus{
+					State: state.ApplyStateAcknowledged,
+				})
+			}
+		}
+	}()
+
+	// Log the ordering for debugging
+	var orderInfo []string
+	for _, cfg := range configs {
+		policyID := extractPolicyID(cfg.path)
+		orderInfo = append(orderInfo, fmt.Sprintf("%s (order=%d)", policyID, cfg.order))
+	}
+	c.log.Infof("Merging %d workload selection configs in order: %s", len(configs), strings.Join(orderInfo, ", "))
+
+	// Merge all configs into one
+	mergedConfig, err := mergeConfigs(configs)
 	if err != nil {
-		c.log.Errorf("failed to compile workload selection config: %v", err)
-		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+		c.log.Errorf("failed to merge workload selection configs: %v", err)
+		processingErr = err
 		return
 	}
-	applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+
+	// Compile and write the merged config
+	err = c.compileAndWriteConfig(mergedConfig)
+	if err != nil {
+		c.log.Errorf("failed to compile workload selection config: %v", err)
+		processingErr = err
+		return
+	}
 }
 
 func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) error {
