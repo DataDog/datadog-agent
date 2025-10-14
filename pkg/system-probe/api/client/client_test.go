@@ -76,7 +76,7 @@ func TestGetCheck(t *testing.T) {
 		}
 	}))
 
-	client := getCheckClient(socketPath)
+	client := GetCheckClient(WithSocketPath(socketPath))
 
 	//test happy flow
 	resp, err := GetCheck[testData](client, "test")
@@ -119,14 +119,14 @@ func TestGetCheckStartup(t *testing.T) {
 		}
 	}))
 
-	client := getCheckClient(socketPath)
+	client := GetCheckClient(WithSocketPath(socketPath))
 
 	_, err := GetCheck[testData](client, "test")
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrNotStartedYet)
 
 	// Test after grace period
-	client.startTime = time.Now().Add(-6 * time.Minute)
+	client.startupChecker.startTime = time.Now().Add(-6 * time.Minute)
 
 	// The error should not be ErrNotStartedYet since we're past the grace period
 	_, err = GetCheck[testData](client, "test")

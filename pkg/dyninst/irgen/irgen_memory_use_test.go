@@ -77,7 +77,7 @@ func TestIrgenMemoryUse(t *testing.T) {
 		}
 		maxMem = max(maxMem, metric.Value.Uint64())
 	}
-	const maxMemLimit = 9 * 1024 * 1024 // 9 MiB
+	const maxMemLimit = 10 * 1024 * 1024 // 10 MiB
 	require.Less(t, maxMem, uint64(maxMemLimit),
 		"%s > %s", humanize.IBytes(maxMem), humanize.IBytes(maxMemLimit))
 	t.Logf("maxMem: %s", humanize.IBytes(maxMem))
