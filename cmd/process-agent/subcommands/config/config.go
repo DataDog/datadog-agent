@@ -20,6 +20,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/process"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -56,6 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				secretsnoopfx.Module(),
 				process.Bundle(),
+				logscompressionfx.Module(),
 				fx.Supply(params),
 				ipcfx.ModuleReadOnly(),
 			)

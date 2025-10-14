@@ -95,7 +95,7 @@ import (
 //     this channel, then stops the agent when the context is cancelled.
 //
 // Returns an error channel that can be used to wait for the agent to stop and get the result.
-func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error) {
+func StartAgentWithDefaults(ctxChan <-chan context.Context, extraOptions fx.Option) (<-chan error, error) {
 	errChan := make(chan error)
 
 	// run startAgent in an app, so that the log and config components get initialized
@@ -195,7 +195,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
 			secretsfx.Module(),
-			getSharedFxOption(),
+			getCoreFxOption(),
+			extraOptions,
 			getPlatformModules(),
 		)
 		// notify caller that fx.OneShot is done

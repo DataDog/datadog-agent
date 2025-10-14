@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package run
+package agent
 
 import (
 	"os"
@@ -15,24 +15,28 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		IoTCommands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"run"},
-		StartCore,
-		func(_ pidimpl.Params, _ core.BundleParams) {})
+		run,
+		func(_ pidimpl.Params, _ core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, true, secretParams.Enabled)
+		})
 }
 
 func TestCommandPidfile(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		IoTCommands(newGlobalParamsTest(t)),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"run", "--pidfile", "/pid/file"},
-		StartCore,
-		func(pidParams pidimpl.Params, _ core.BundleParams) {
+		run,
+		func(pidParams pidimpl.Params, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, "/pid/file", pidParams.PIDfilePath)
+			require.Equal(t, true, secretParams.Enabled)
 		})
 }
 
