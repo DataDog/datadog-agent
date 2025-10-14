@@ -314,7 +314,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 }
 
 func (s *syntheticsTestScheduler) setResultStatus(w *workerResult, result *common.Result) {
-	if result.Netstats.PacketLossPercentage == 100 {
+	if result.Netstats.PacketLossPercentage == 1 {
 		if !hasAssertionOn100PacketLoss(w.assertionResult) {
 			result.Status = "failed"
 			result.Failure = common.APIError{
