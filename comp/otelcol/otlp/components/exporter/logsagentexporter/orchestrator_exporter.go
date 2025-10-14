@@ -40,7 +40,6 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 				logRecord := scopeLogs.LogRecords().At(k)
 
 				// Convert Kubernetes resource manifest to orchestrator payload format
-				fmt.Println("manifest: ", logRecord.Body().AsString(), "att:", logRecord.Attributes().AsRaw())
 				manifest, err := toManifest(ctx, logRecord, resource)
 				if err != nil {
 					logger.Error("Failed to convert to manifest", zap.Error(err))
@@ -173,6 +172,7 @@ func sendManifestPayload(ctx context.Context, config OrchestratorConfig, payload
 		if err != nil {
 			logger.Error("Failed to close response body", zap.String("endpoint", endpoint), zap.Error(err))
 		}
+		fmt.Println("sneding manifest oayload", clusterID)
 	}
 	return nil
 }
