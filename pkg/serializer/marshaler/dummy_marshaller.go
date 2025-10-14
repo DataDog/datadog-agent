@@ -63,8 +63,3 @@ func (d *DummyMarshaller) MarshalJSON() ([]byte, error) {
 func (d *DummyMarshaller) Marshal() ([]byte, error) {
 	return nil, fmt.Errorf("not implemented")
 }
-
-// SplitPayload not implemented
-func (d *DummyMarshaller) SplitPayload(int) ([]AbstractMarshaler, error) {
-	return nil, fmt.Errorf("not implemented")
-}

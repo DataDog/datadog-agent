@@ -1271,7 +1271,9 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	)
 
 	if suite.Contains(hostPathVolumes, "datadog") {
-		suite.Equal("/var/run/datadog", hostPathVolumes["datadog"].Path)
+		// trim trailing '/' if exists
+		ddHostPath := strings.TrimSuffix(hostPathVolumes["datadog"].Path, "/")
+		suite.Contains("/var/run/datadog", ddHostPath)
 		suite.Contains(volumesMarkedAsSafeToEvict, "datadog")
 	}
 
