@@ -184,7 +184,7 @@ cc_shared_library(
     deps = [":liblzma"],
     user_link_flags = select({
         "@platforms//os:windows": [],
-        "@platforms//os:macos": ["-Wl,-install_name", "-Wl,'@rpath/liblzma.5.dylib'"],
+        "@platforms//os:macos": [],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
