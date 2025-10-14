@@ -2,4 +2,4 @@
 features:
   - |
     Add a new option, `force_tls_12`, to the agent configuration to force the
-    TLS version to 1.2 when contactin Datadog.
+    TLS version to 1.2 when contacting Datadog.
