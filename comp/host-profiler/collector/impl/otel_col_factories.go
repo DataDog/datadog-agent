@@ -12,7 +12,7 @@ import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converternoagent"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -98,7 +98,7 @@ func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
 // GetConverters returns the converters for the collector.
 func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFactory {
 	return []confmap.ConverterFactory{
-		converternoagent.NewFactory(),
+		converters.NewFactoryWithoutAgent(),
 	}
 }
 

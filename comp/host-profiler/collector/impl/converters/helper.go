@@ -5,41 +5,13 @@
 
 //go:build linux
 
-// Package converternoagent implements the converterNoAgent component interface when the Agent Core is not available.
-package converternoagent
+// Package converters implements the converters for the host profiler collector.
+package converters
 
 import (
-	"context"
 	"fmt"
 	"slices"
-
-	"go.opentelemetry.io/collector/confmap"
 )
-
-// NewFactory returns a new converterNoAgent factory.
-func NewFactory() confmap.ConverterFactory {
-	return confmap.NewConverterFactory(newConverter)
-}
-
-type converterNoAgent struct{}
-
-func newConverter(_ confmap.ConverterSettings) confmap.Converter {
-	return &converterNoAgent{}
-}
-
-func (c *converterNoAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	confStringMap := conf.ToStringMap()
-	if err := removeInfraAttributesProcessor(confStringMap); err != nil {
-		return err
-	}
-	if err := removeDDProfilingExtension(confStringMap); err != nil {
-		return err
-	}
-
-	*conf = *confmap.NewFromStringMap(confStringMap)
-	return nil
-
-}
 
 func removeInfraAttributesProcessor(confStringMap map[string]any) error {
 	if err := removeFromMap(confStringMap, []string{"processors"}, infraAttributesName()); err != nil {

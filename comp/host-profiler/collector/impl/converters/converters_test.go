@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package converternoagent
+package converters
 
 import (
 	"context"
