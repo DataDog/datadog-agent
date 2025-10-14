@@ -50,6 +50,7 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	if ncfg.NPMEnabled {
 		log.Info("enabling network performance monitoring (NPM)")
+		log.Info("JMW enabling network performance monitoring (NPM)")
 	}
 	if ncfg.ServiceMonitoringEnabled {
 		log.Info("enabling universal service monitoring (USM)")
