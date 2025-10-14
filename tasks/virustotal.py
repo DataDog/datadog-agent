@@ -199,6 +199,8 @@ def _write_junit_xml(
     )
     add_tag("vt.malicious", str(malicious))
     add_tag("vt.suspicious", str(suspicious))
+    add_tag("vt.malicious_matches", json.dumps(malicious_matches))
+    add_tag("vt.suspicious_matches", json.dumps(suspicious_matches))
     add_tag("vt.api_call_count", str(_vt_api_call_count))
     add_tag("vt.url", f"https://www.virustotal.com/gui/file/{file_sha256}")
     # Include GitLab CI metadata as tags
