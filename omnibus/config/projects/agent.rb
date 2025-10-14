@@ -236,7 +236,7 @@ if do_build
     dependency 'datadog-security-agent-policies'
   end
 
-  if linux_target?
+  if linux_target? && !heroku_target?
     dependency 'datadog-agent-data-plane'
   end
 
