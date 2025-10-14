@@ -112,12 +112,12 @@ func TestCollectProcessUtilization(t *testing.T) {
 			originalFactory := sampleAPIFactory
 			defer func() { sampleAPIFactory = originalFactory }()
 
-			sampleAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+			sampleAPIFactory = func(deps *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
 						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-							return processUtilizationSample(device, lastTimestamp, nsPidCache)
+							return processUtilizationSample(device, lastTimestamp, deps.NsPidCache)
 						},
 					},
 				}
@@ -168,12 +168,12 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 			originalFactory := sampleAPIFactory
 			defer func() { sampleAPIFactory = originalFactory }()
 
-			sampleAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+			sampleAPIFactory = func(deps *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
 						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-							return processUtilizationSample(device, lastTimestamp, nsPidCache)
+							return processUtilizationSample(device, lastTimestamp, deps.NsPidCache)
 						},
 					},
 				}
@@ -242,12 +242,12 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 			originalFactory := sampleAPIFactory
 			defer func() { sampleAPIFactory = originalFactory }()
 
-			sampleAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+			sampleAPIFactory = func(deps *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
 						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-							return processUtilizationSample(device, lastTimestamp, nsPidCache)
+							return processUtilizationSample(device, lastTimestamp, deps.NsPidCache)
 						},
 					},
 				}
@@ -356,12 +356,12 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 			originalFactory := sampleAPIFactory
 			defer func() { sampleAPIFactory = originalFactory }()
 
-			sampleAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+			sampleAPIFactory = func(deps *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
 						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-							return processUtilizationSample(device, lastTimestamp, nsPidCache)
+							return processUtilizationSample(device, lastTimestamp, deps.NsPidCache)
 						},
 					},
 				}
