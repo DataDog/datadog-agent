@@ -296,6 +296,8 @@ func TestActionSetVariable(t *testing.T) {
 		t.Error(err)
 	}
 
+	vStore := rs.evalOpts.VariableStore
+
 	rule := rs.GetRules()["test_rule"]
 	if rule == nil {
 		t.Fatal("failed to find test_rule in ruleset")
@@ -324,7 +326,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	var4Definition, ok := rs.evalOpts.NewStore.GetDefinition(eval.GetVariableName("process", "var4"))
+	var4Definition, ok := vStore.GetDefinition(eval.GetVariableName("process", "var4"))
 	require.True(t, ok)
 	require.NotNil(t, var4Definition)
 
@@ -426,7 +428,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	vStore := rs.evalOpts.NewStore
+	vStore := rs.evalOpts.VariableStore
 
 	definition, ok := vStore.GetDefinition("var1")
 	assert.True(t, ok)
@@ -571,7 +573,7 @@ func TestActionSetVariableSize(t *testing.T) {
 
 	ctx := eval.NewContext(event)
 
-	vStore := rs.evalOpts.NewStore
+	vStore := rs.evalOpts.VariableStore
 
 	var1Definition, ok := vStore.GetDefinition("var1")
 	assert.True(t, ok)
@@ -681,7 +683,7 @@ func TestActionSetEmptyScope(t *testing.T) {
 		t.Error(err)
 	}
 
-	vStore := rs.evalOpts.NewStore
+	vStore := rs.evalOpts.VariableStore
 
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
@@ -793,7 +795,7 @@ func TestActionSetVariableInitialValue(t *testing.T) {
 		t.Error(err)
 	}
 
-	vStore := rs.evalOpts.NewStore
+	vStore := rs.evalOpts.VariableStore
 
 	evaluator, err := vStore.GetEvaluator("var1")
 	assert.NoError(t, err)
@@ -894,7 +896,7 @@ func TestActionSetVariableInherited(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vStore := rs.evalOpts.NewStore
+	vStore := rs.evalOpts.VariableStore
 
 	processVar1Definition, ok := vStore.GetDefinition("process.var1")
 	assert.True(t, ok)
@@ -1070,7 +1072,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vStore := rs.evalOpts.NewStore
+	vStore := rs.evalOpts.VariableStore
 
 	correlationKeySECLVariableDef, ok := vStore.GetDefinition("process.correlation_key")
 	assert.True(t, ok)
@@ -1331,7 +1333,7 @@ func TestActionSetVariableScopeField(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	vStore := rs.evalOpts.NewStore
+	vStore := rs.evalOpts.VariableStore
 
 	// Fetch process.correlation_key variable
 	correlationKeySECLVariableDef, ok := vStore.GetDefinition("process.correlation_key")
@@ -1515,7 +1517,7 @@ func TestActionSetVariableExpression(t *testing.T) {
 		t.Error(err)
 	}
 
-	vStore := rs.evalOpts.NewStore
+	vStore := rs.evalOpts.VariableStore
 	ctx := eval.NewContext(model.NewFakeEvent())
 
 	var1Def, ok := vStore.GetDefinition("var1")
@@ -2206,7 +2208,7 @@ func TestActionSetVariableLength(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	vStore := rs.evalOpts.NewStore
+	vStore := rs.evalOpts.VariableStore
 	ctx := eval.NewContext(model.NewFakeEvent())
 
 	var2Def, ok := vStore.GetDefinition("var2")

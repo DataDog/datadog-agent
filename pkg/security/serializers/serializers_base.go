@@ -505,25 +505,25 @@ func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
 }
 
 func newVariablesContext(e *model.Event, rule *rules.Rule, scope eval.InternalScoperType) (variables Variables) {
-	if rule != nil && rule.Opts.NewStore != nil {
-		store := rule.Opts.NewStore
-		for definition := range store.GetDefinitions(&eval.GetOpts{ScoperType: scope}) {
-			if slices.Contains(bundled.InternalVariables[:], definition.GetName(true)) {
-				continue
+	if rule != nil && rule.Opts.VariableStore != nil {
+		rule.Opts.VariableStore.IterVariableDefinitions(func(definition eval.VariableDefinition) {
+			if definition.Scoper().Type() != scope {
+				return
 			}
-
+			if slices.Contains(bundled.InternalVariables[:], definition.VariableName(true)) {
+				return
+			}
 			if definition.IsPrivate() {
-				continue
+				return
 			}
-
 			instance, err := definition.GetInstance(eval.NewContext(e))
-			if err != nil || instance == nil {
-				continue
+			if instance == nil || err != nil {
+				return
 			}
 			if variables == nil {
 				variables = Variables{}
 			}
-			name := definition.GetName(false)
+			name := definition.VariableName(false)
 			value := instance.GetValue()
 			switch value := value.(type) {
 			case []string:
@@ -541,7 +541,7 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, scope eval.InternalSc
 			default:
 				variables[name] = value
 			}
-		}
+		})
 	}
 	return variables
 }
