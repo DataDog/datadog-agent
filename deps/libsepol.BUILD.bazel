@@ -1,13 +1,20 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_flex//flex:flex.bzl", "flex_cc_library", "flex")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 VERSION = "3.5"
 
+flex_cc_library(
+    name = "cil_lexer",
+    src = "cil/src/cil_lexer.l",
+)
+
 cc_library(
     name = "libsepol",
     srcs = glob(['src/*.c', 'src/*.h', 'cil/src/*.c', 'cil/src/*.h',]),
+    deps = [":cil_lexer"],
     hdrs = glob(['include/sepol/**/*.h', 'cil/include/cil/*.h']),
     local_defines = [
         "_GNU_SOURCE",
