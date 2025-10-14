@@ -1178,9 +1178,12 @@ api_key:
 
 #   # @param max_message_size_bytes - integer - optional - default: 900000
 #   # @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 900000
-#   # The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds
-#   # the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
-#   # https://docs.datadoghq.com/api/latest/logs/
+#   # The maximum size of single log message in bytes. Lines that are longer than this limit
+#   # are split into multiple lines -- each lower than the limit -- with split lines having
+#   # `...TRUNCATED...` added as a suffix.
+#   #
+#   # Note: Datadog's ingest API will truncate any logs greater than 1 MB by discarding the
+#   # remainder. See https://docs.datadoghq.com/api/latest/logs/ for details.
 #
 #   max_message_size_bytes: 900000
 
