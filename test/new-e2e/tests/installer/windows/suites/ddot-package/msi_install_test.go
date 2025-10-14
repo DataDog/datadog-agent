@@ -52,6 +52,7 @@ func (s *testAgentMSIInstallsDDOT) TestInstallDDOTFromMSI() {
 		installerwindows.WithMSILogFile("install-ddot.log"),
 		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
 		// Generic OCI install path: semicolon-separated URLs (single here)
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_OCI_INSTALL=%s", ddotURL)),
 	))
@@ -79,6 +80,7 @@ func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 		installerwindows.WithMSILogFile("install-ddot.log"),
 		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_OCI_INSTALL=%s", ddotURL)),
 	))
 
