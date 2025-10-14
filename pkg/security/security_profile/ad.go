@@ -167,6 +167,11 @@ func (m *Manager) insertActivityDump(newDump *dump.ActivityDump) error {
 		}
 	}
 
+	// check if we're at capacity
+	if len(m.activeDumps) >= m.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount {
+		return fmt.Errorf("activity dump capacity reached (%d/%d)", len(m.activeDumps), m.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount)
+	}
+
 	// loop through the process cache entry tree and push traced pids if necessary
 	pces := m.newProcessCacheEntrySearcher(newDump)
 	m.resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
