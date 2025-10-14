@@ -228,16 +228,18 @@ func (i *InstallerExec) UninstrumentAPMInjector(ctx context.Context, method stri
 	return cmd.Run()
 }
 
-// InstallExtension installs a plugin.
-func (i *InstallerExec) InstallExtension(ctx context.Context, url string, extension string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "extension install", url, extension)
+// InstallExtensions installs multiple extensions.
+func (i *InstallerExec) InstallExtensions(ctx context.Context, url string, extensions []string) (err error) {
+	cmdLineArgs := append([]string{url}, extensions...)
+	cmd := i.newInstallerCmd(ctx, "extension install", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
-// RemoveExtension removes a plugin.
-func (i *InstallerExec) RemoveExtension(ctx context.Context, pkg string, extension string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "extension remove", pkg, extension)
+// RemoveExtensions removes multiple extensions.
+func (i *InstallerExec) RemoveExtensions(ctx context.Context, pkg string, extensions []string) (err error) {
+	cmdLineArgs := append([]string{pkg}, extensions...)
+	cmd := i.newInstallerCmd(ctx, "extension remove", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

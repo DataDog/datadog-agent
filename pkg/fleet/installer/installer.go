@@ -62,8 +62,8 @@ type Installer interface {
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
-	InstallExtension(ctx context.Context, url string, extension string) error
-	RemoveExtension(ctx context.Context, pkg string, extension string) error
+	InstallExtensions(ctx context.Context, url string, extensions []string) error
+	RemoveExtensions(ctx context.Context, pkg string, extensions []string) error
 
 	GarbageCollect(ctx context.Context) error
 
@@ -717,10 +717,15 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 	return nil
 }
 
-// InstallExtension installs a plugin.
-func (i *installerImpl) InstallExtension(ctx context.Context, url string, extension string) error {
+// InstallExtensions installs multiple extensions.
+func (i *installerImpl) InstallExtensions(ctx context.Context, url string, extensions []string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+
+	if len(extensions) == 0 {
+		return nil
+	}
+
 	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
 	if err != nil {
 		return installerErrors.Wrap(
@@ -730,10 +735,10 @@ func (i *installerImpl) InstallExtension(ctx context.Context, url string, extens
 	}
 	span, ok := telemetry.SpanFromContext(ctx)
 	if ok {
-		span.SetResourceName(fmt.Sprintf("%s_%s", pkg.Name, extension))
+		span.SetResourceName(fmt.Sprintf("%s_extensions", pkg.Name))
 		span.SetTag("package_name", pkg.Name)
 		span.SetTag("package_version", pkg.Version)
-		span.SetTag("extension", extension)
+		span.SetTag("extensions", strings.Join(extensions, ","))
 		span.SetTag("url", url)
 	}
 	dbPkg, err := i.db.GetPackage(pkg.Name)
@@ -745,55 +750,101 @@ func (i *installerImpl) InstallExtension(ctx context.Context, url string, extens
 		return fmt.Errorf("cannot install extension version %s, version mismatch with package %s version %s", pkg.Name, pkg.Version, dbPkg.Version)
 	}
 
-	// Check if extension is already installed
-	if _, exists := dbPkg.Extensions[extension]; exists {
-		return nil
+	// Initialize extensions map if needed
+	if dbPkg.Extensions == nil {
+		dbPkg.Extensions = make(map[string]struct{})
 	}
 
+	// Track which extensions were successfully installed for rollback
+	var installedExtensions []string
+	var installErrors []error
+
+	// Process each extension
+	for _, extension := range extensions {
+		// Check if extension is already installed
+		if _, exists := dbPkg.Extensions[extension]; exists {
+			log.Infof("Extension %s already installed, skipping", extension)
+			continue
+		}
+
+		err := i.installExtension(pkg, extension)
+		if err != nil {
+			installErrors = append(installErrors, err)
+			continue
+		}
+
+		// Mark as installed
+		dbPkg.Extensions[extension] = struct{}{}
+		installedExtensions = append(installedExtensions, extension)
+	}
+
+	// Update package in DB if any extensions were installed
+	if len(installedExtensions) > 0 {
+		err = i.db.SetPackage(dbPkg)
+		if err != nil {
+			// Clean up on failure
+			for _, extension := range installedExtensions {
+				extractDir := filepath.Join(i.packagesDir, pkg.Name, pkg.Version, "ext", extension)
+				os.RemoveAll(extractDir)
+			}
+			return fmt.Errorf("could not update package in db: %w", err)
+		}
+	}
+
+	// If all extensions failed, return error
+	if len(installErrors) == len(extensions) {
+		return errors.Join(installErrors...)
+	}
+
+	// If some extensions failed, log warnings but don't fail
+	if len(installErrors) > 0 {
+		for _, err := range installErrors {
+			log.Warnf("Extension installation error: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// installExtension installs a single extension for a package.
+func (i *installerImpl) installExtension(pkg *oci.DownloadedPackage, extension string) error {
 	// TODO: pre install hooks?
 
 	// Extract to a temporary directory first
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
-		return fmt.Errorf("could not create temp directory: %w", err)
+		return fmt.Errorf("could not create temp directory for %s: %w", extension, err)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	err = pkg.ExtractLayers(oci.DatadogPackageExtensionLayerMediaType, tmpDir, oci.LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: extension})
 	if err != nil {
-		return fmt.Errorf("could not extract package layers: %w", err)
+		return fmt.Errorf("could not extract layers for %s: %w", extension, err)
 	}
 
 	extractDir := filepath.Join(i.packagesDir, pkg.Name, pkg.Version, "ext", extension)
 	if err := os.MkdirAll(filepath.Dir(extractDir), 0755); err != nil {
-		return fmt.Errorf("could not create extensions directory: %w", err)
+		return fmt.Errorf("could not create directory for %s: %w", extension, err)
 	}
+
 	err = os.Rename(tmpDir, extractDir)
 	if err != nil {
-		return fmt.Errorf("could not move extension to final location: %w", err)
+		return fmt.Errorf("could not move %s to final location: %w", extension, err)
 	}
 
 	// TODO: post install hooks?
 
-	// Update package in DB with new extension
-	if dbPkg.Extensions == nil {
-		dbPkg.Extensions = make(map[string]struct{})
-	}
-	dbPkg.Extensions[extension] = struct{}{}
-
-	err = i.db.SetPackage(dbPkg)
-	if err != nil {
-		// Clean up on failure
-		os.RemoveAll(extractDir)
-		return fmt.Errorf("could not update package in db: %w", err)
-	}
 	return nil
 }
 
-// RemoveExtension removes a plugin.
-func (i *installerImpl) RemoveExtension(_ context.Context, pkg string, extension string) error {
+// RemoveExtensions removes multiple extensions.
+func (i *installerImpl) RemoveExtensions(_ context.Context, pkg string, extensions []string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+
+	if len(extensions) == 0 {
+		return nil
+	}
 
 	dbPkg, err := i.db.GetPackage(pkg)
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
@@ -802,28 +853,64 @@ func (i *installerImpl) RemoveExtension(_ context.Context, pkg string, extension
 		return fmt.Errorf("package %s not found, cannot remove extension", pkg)
 	}
 
-	// Check if extension is installed
-	if _, exists := dbPkg.Extensions[extension]; !exists {
-		return nil // extension not installed
+	// Track which extensions were successfully removed
+	var removedExtensions []string
+	var removeErrors []error
+
+	// Process each extension
+	for _, extension := range extensions {
+		// Check if extension is installed
+		if _, exists := dbPkg.Extensions[extension]; !exists {
+			log.Infof("Extension %s not installed, skipping", extension)
+			continue
+		}
+
+		err := i.removeExtension(pkg, dbPkg.Version, extension)
+		if err != nil {
+			removeErrors = append(removeErrors, err)
+			continue
+		}
+
+		// Mark as removed
+		delete(dbPkg.Extensions, extension)
+		removedExtensions = append(removedExtensions, extension)
 	}
 
+	// Update package in DB if any extensions were removed
+	if len(removedExtensions) > 0 {
+		err = i.db.SetPackage(dbPkg)
+		if err != nil {
+			return fmt.Errorf("could not update package in db: %w", err)
+		}
+	}
+
+	// If all extensions failed, return error
+	if len(removeErrors) == len(extensions) {
+		return errors.Join(removeErrors...)
+	}
+
+	// If some extensions failed, log warnings but don't fail
+	if len(removeErrors) > 0 {
+		for _, err := range removeErrors {
+			log.Warnf("Extension removal error: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// removeExtension removes a single extension for a package.
+func (i *installerImpl) removeExtension(pkg, version, extension string) error {
 	// TODO: pre remove hooks?
 
-	// Remove the extension directory
-	extensionDir := filepath.Join(i.packagesDir, pkg, dbPkg.Version, "ext", extension)
-	err = os.RemoveAll(extensionDir)
+	extensionDir := filepath.Join(i.packagesDir, pkg, version, "ext", extension)
+	err := os.RemoveAll(extensionDir)
 	if err != nil {
-		return fmt.Errorf("could not remove extension directory: %w", err)
+		return fmt.Errorf("could not remove directory for %s: %w", extension, err)
 	}
 
 	// TODO: post remove hooks?
 
-	// Update package in DB by removing the extension from the set
-	delete(dbPkg.Extensions, extension)
-	err = i.db.SetPackage(dbPkg)
-	if err != nil {
-		return fmt.Errorf("could not update package in db: %w", err)
-	}
 	return nil
 }
 

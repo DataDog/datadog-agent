@@ -139,13 +139,13 @@ func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method
 	return args.Error(0)
 }
 
-func (m *testPackageManager) InstallExtension(ctx context.Context, url string, extension string) error {
-	args := m.Called(ctx, url, extension)
+func (m *testPackageManager) InstallExtensions(ctx context.Context, url string, extensions []string) error {
+	args := m.Called(ctx, url, extensions)
 	return args.Error(0)
 }
 
-func (m *testPackageManager) RemoveExtension(ctx context.Context, pkg string, extension string) error {
-	args := m.Called(ctx, pkg, extension)
+func (m *testPackageManager) RemoveExtensions(ctx context.Context, pkg string, extensions []string) error {
+	args := m.Called(ctx, pkg, extensions)
 	return args.Error(0)
 }
 

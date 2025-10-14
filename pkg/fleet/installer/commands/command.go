@@ -567,9 +567,9 @@ func extensionsCommands() *cobra.Command {
 
 func extensionInstallCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "install [url] [extension]",
-		Short: "Install an extension",
-		Args:  cobra.ExactArgs(2),
+		Use:   "install [url] [extensions...]",
+		Short: "Install one or more extensions",
+		Args:  cobra.MinimumNArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("extension_install")
 			if err != nil {
@@ -577,8 +577,8 @@ func extensionInstallCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.url", args[0])
-			i.span.SetTag("params.extension", args[1])
-			return i.InstallExtension(i.ctx, args[0], args[1])
+			i.span.SetTag("params.extensions", strings.Join(args[1:], ","))
+			return i.InstallExtensions(i.ctx, args[0], args[1:])
 		},
 	}
 	return cmd
@@ -586,9 +586,9 @@ func extensionInstallCommand() *cobra.Command {
 
 func extensionRemoveCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "remove [package] [extension]",
-		Short: "Remove an extension",
-		Args:  cobra.ExactArgs(2),
+		Use:   "remove [package] [extensions...]",
+		Short: "Remove one or more extensions",
+		Args:  cobra.MinimumNArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("extension_remove")
 			if err != nil {
@@ -596,8 +596,8 @@ func extensionRemoveCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
-			i.span.SetTag("params.extension", args[1])
-			return i.RemoveExtension(i.ctx, args[0], args[1])
+			i.span.SetTag("params.extensions", strings.Join(args[1:], ","))
+			return i.RemoveExtensions(i.ctx, args[0], args[1:])
 		},
 	}
 	return cmd
