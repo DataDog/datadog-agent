@@ -4,7 +4,6 @@ Helpers for setting up your environment
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 import traceback
@@ -185,11 +184,6 @@ def pre_commit(ctx, interactive=True):
 
     if running_in_pyapp():
         import shutil
-
-        # TODO Remove in a couple of weeks
-        # Remove the old devagent file if it exists
-        if os.path.isfile(".pre-commit-config-devagent.yaml"):
-            os.remove(".pre-commit-config-devagent.yaml")
 
         # We use a custom version that use deva instead of dda inv directly, that requires the venv to be loaded
         from pre_commit import update_pyapp_file
