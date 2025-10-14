@@ -127,9 +127,13 @@ func (e *blockedEndpoints) close(endpoint string) {
 		}
 	}
 
+	b.m.RLock()
+
 	switch b.state {
 	case unblocked:
-		// The circuit breaker is closed, we need to open it for a given time
+		// The circuit breaker is unblocked, we need to block for a time determined by the
+		// backoff policy.
+		b.m.RUnlock()
 		b.m.Lock()
 		defer b.m.Unlock()
 
@@ -137,10 +141,8 @@ func (e *blockedEndpoints) close(endpoint string) {
 		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
 		b.setState(blocked)
 	case halfBlocked:
-		// There is a risk that this transaction was sent before the circuit breaker was
-		// moved to half open. Currently this assumes that it wasn't and we need to work
-		// out a way to solve this....
-		// The test transaction failed, so we need to mave back to closed.
+		// The test transaction failed, so we need to mave back to blocked.
+		b.m.RUnlock()
 		b.m.Lock()
 		defer b.m.Unlock()
 
@@ -148,8 +150,9 @@ func (e *blockedEndpoints) close(endpoint string) {
 		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
 		b.setState(blocked)
 	case blocked:
-		// We ignore all failures coming in when open. These are transactions sent
+		// We ignore all failures coming in when blocked. These are transactions sent
 		// before the first one returned with an error.
+		b.m.RUnlock()
 	}
 
 	e.errorPerEndpoint[endpoint] = b
@@ -170,11 +173,15 @@ func (e *blockedEndpoints) recover(endpoint string) {
 		}
 	}
 
+	b.m.RLock()
+
 	switch b.state {
 	case unblocked:
 		// Nothing to do, we are already unblocked and running smoothly.
+		b.m.RUnlock()
 	case halfBlocked:
-		// The test worked, we can ease off
+		// The test worked, we can ease off.
+		b.m.RUnlock()
 		b.m.Lock()
 		defer b.m.Unlock()
 
@@ -189,6 +196,7 @@ func (e *blockedEndpoints) recover(endpoint string) {
 		// If we are blocked and a successful transaction came through, we
 		// can't be sure if it was sent before the errored transaction or
 		// after, so we will ignore this.
+		b.m.RUnlock()
 	}
 
 	e.errorPerEndpoint[endpoint] = b
@@ -250,24 +258,30 @@ func (e *blockedEndpoints) isBlockForSend(endpoint string) bool {
 	defer e.m.RUnlock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
-		b.m.Lock()
-		defer b.m.Unlock()
+		b.m.RLock()
 
 		switch b.state {
 		case halfBlocked:
 			// We have already sent the single transactions to test if the endpoint is now up.
+			b.m.RUnlock()
 			return true
 		case blocked:
 			if TimeNow().Before(b.until) {
+				b.m.RUnlock()
 				return true
 			} else {
 				// The timeout has expired, move to `halfBlocked` and send this transaction.
+				b.m.RUnlock()
+				b.m.Lock()
+				defer b.m.Unlock()
 				if b.state == blocked {
 					b.setState(halfBlocked)
 				}
 
 				return false
 			}
+		case unblocked:
+			b.m.RUnlock()
 		}
 	}
 
