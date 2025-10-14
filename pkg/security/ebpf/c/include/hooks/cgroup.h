@@ -161,7 +161,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) dr_cgroup_write_callback(void *ctx) {
+static int __attribute__((always_inline)) dr_cgroup_write_callback(void *ctx) {
     struct dentry_resolver_input_t *inputs = peek_resolver_inputs(EVENT_ANY);
     if (!inputs)
         return 0;

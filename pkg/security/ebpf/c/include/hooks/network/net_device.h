@@ -8,7 +8,7 @@
 #include "maps.h"
 #include "perf_ring.h"
 
-int __attribute__((always_inline)) start_veth_state_machine() {
+static int __attribute__((always_inline)) start_veth_state_machine() {
     u64 id = bpf_get_current_pid_tgid();
     struct veth_state_t state = {
         .state = STATE_NEWLINK,
@@ -212,7 +212,7 @@ int rethook_register_netdevice(ctx_t *ctx) {
     return 0;
 };
 
-__attribute__((always_inline)) int trace_dev_change_net_namespace(ctx_t *ctx) {
+static __attribute__((always_inline)) int trace_dev_change_net_namespace(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
     struct net *net = (struct net *)CTX_PARM2(ctx);
 

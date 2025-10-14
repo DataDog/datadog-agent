@@ -45,7 +45,7 @@ int hook_get_unmapped_area(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr) {
+static int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MMAP);
     if (!syscall) {
         return 0;

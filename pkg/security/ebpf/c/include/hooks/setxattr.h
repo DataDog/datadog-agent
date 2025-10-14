@@ -6,7 +6,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name, u8 async, u64 pid_tgid) {
+static int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name, u8 async, u64 pid_tgid) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -42,7 +42,7 @@ HOOK_SYSCALL_ENTRY2(fsetxattr, int, fd, const char *, name) {
     return trace__sys_setxattr(name, 0, 0);
 }
 
-int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name) {
+static int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name) {
     struct policy_t policy = fetch_policy(EVENT_REMOVEXATTR);
     struct syscall_cache_t syscall = {
         .type = EVENT_REMOVEXATTR,
@@ -69,7 +69,7 @@ HOOK_SYSCALL_ENTRY2(fremovexattr, int, fd, const char *, name) {
     return trace__sys_removexattr(name);
 }
 
-int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_type) {
+static int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_type) {
     struct syscall_cache_t *syscall = peek_syscall(event_type);
     if (!syscall) {
         return 0;
@@ -133,13 +133,13 @@ int hook_vfs_removexattr(ctx_t *ctx) {
     return trace__vfs_setxattr(ctx, EVENT_REMOVEXATTR);
 }
 
-int __attribute__((always_inline)) trace_io_fsetxattr(ctx_t *ctx) {
+static int __attribute__((always_inline)) trace_io_fsetxattr(ctx_t *ctx) {
     void *raw_req = (void *)CTX_PARM1(ctx);
     u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
     return trace__sys_setxattr(NULL, 1, pid_tgid);
 }
 
-int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 event_type) {
+static int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 event_type) {
     struct syscall_cache_t *syscall = pop_syscall(event_type);
     if (!syscall) {
         return 0;

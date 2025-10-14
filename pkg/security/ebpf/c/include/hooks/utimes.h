@@ -5,7 +5,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_utimes(const char *filename) {
+static int __attribute__((always_inline)) trace__sys_utimes(const char *filename) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -44,7 +44,7 @@ HOOK_SYSCALL_COMPAT_TIME_ENTRY2(futimesat, int, dirfd, const char *, filename) {
     return trace__sys_utimes(filename);
 }
 
-int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UTIME);
     if (!syscall) {
         return 0;

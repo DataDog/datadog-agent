@@ -6,7 +6,7 @@
 #include "helpers/process.h"
 #include <linux/prctl.h>
 
-long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void * arg2) {
+static long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void * arg2) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -34,7 +34,7 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
     return 0;
 }
 
-int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_PRCTL);
     if (!syscall) {
         return 0;

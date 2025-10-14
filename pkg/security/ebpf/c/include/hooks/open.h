@@ -10,7 +10,7 @@
 #include "helpers/iouring.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async, int flags, umode_t mode, u64 pid_tgid) {
+static int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async, int flags, umode_t mode, u64 pid_tgid) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -36,7 +36,7 @@ int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_openat(const char *path, u8 async, int flags, umode_t mode) {
+static int __attribute__((always_inline)) trace__sys_openat(const char *path, u8 async, int flags, umode_t mode) {
     return trace__sys_openat2(path, async, flags, mode, 0);
 }
 
@@ -77,7 +77,7 @@ HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char *, filename, struct openat2_
     return trace__sys_openat(filename, SYNC_SYSCALL, how.flags, how.mode);
 }
 
-int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
+static int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall || syscall->open.dentry) {
         return 0;
@@ -111,13 +111,6 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
     resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     return 0;
-}
-
-int __attribute__((always_inline)) handle_truncate_path(ctx_t *ctx, struct path *path) {
-    if (path == NULL) {
-        return 0;
-    }
-    return handle_open(ctx, path);
 }
 
 HOOK_ENTRY("do_truncate")
@@ -182,7 +175,7 @@ int hook_do_dentry_open(ctx_t *ctx) {
     return handle_exec_event(ctx, syscall, file, inode);
 }
 
-int __attribute__((always_inline)) trace_io_openat(ctx_t *ctx) {
+static int __attribute__((always_inline)) trace_io_openat(ctx_t *ctx) {
     void *raw_req = (void *)CTX_PARM1(ctx);
 
     struct io_open req;
@@ -214,7 +207,7 @@ int hook_io_openat2(ctx_t *ctx) {
 }
 
 // used by both tail call callback and directly for tracepoints
-int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
+static int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
     if (IS_UNHANDLED_ERROR(syscall->retval)) {
         return 0;
     }
@@ -272,7 +265,7 @@ TAIL_CALL_FNC(sys_open_ret_cb, void *ctx) {
 }
 
 // get and set the retval then tail call so that only one program is used for all the syscall ret
-int __attribute__((always_inline)) sys_open_ret(void *ctx) {
+static int __attribute__((always_inline)) sys_open_ret(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;

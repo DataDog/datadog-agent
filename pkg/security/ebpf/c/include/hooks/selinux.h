@@ -6,7 +6,7 @@
 #include "helpers/selinux.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count, enum selinux_source_event_t source_event) {
+static int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count, enum selinux_source_event_t source_event) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -75,7 +75,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
     return 0;
 }
 
-int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
+static int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SELINUX);
     if (!syscall) {
         return 0;

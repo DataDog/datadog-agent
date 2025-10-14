@@ -69,7 +69,7 @@ int hook_mnt_want_write(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__mnt_want_write_file(ctx_t *ctx) {
+static int __attribute__((always_inline)) trace__mnt_want_write_file(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(mnt_want_write_file_predicate);
     if (!syscall) {
         return 0;
@@ -144,7 +144,7 @@ HOOK_SYSCALL_EXIT(unshare) {
     return 0;
 }
 
-void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *syscall, struct mount_fields_t *mfields) {
+static void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *syscall, struct mount_fields_t *mfields) {
     mfields->root_key = syscall->mount.root_key;
     mfields->mountpoint_key = syscall->mount.mountpoint_key;
     mfields->device = syscall->mount.device;
@@ -152,7 +152,7 @@ void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *sy
     bpf_probe_read_str(&mfields->fstype, sizeof(mfields->fstype), (void *)syscall->mount.fstype);
 }
 
-int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall_cache_t *syscall) {
+static int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall_cache_t *syscall) {
     struct mount_event_t event = {
         .syscall.retval = 0,
         .syscall_ctx.id = syscall->ctx_id,
@@ -175,7 +175,7 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
     return 0;
 }
 
-void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type, bool detached) {
+static void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type, bool detached) {
     // populate the root dentry key
     struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.newmnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.newmnt);
@@ -219,7 +219,7 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
     }
 }
 
-int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall_with(mountpoint_predicate);
     if (!syscall) {
         return 0;
@@ -247,7 +247,7 @@ TAIL_CALL_TRACEPOINT_FNC(dr_mount_stage_one_callback, struct tracepoint_syscalls
     return dr_mount_stage_one_callback(args, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
+static int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(mountpoint_predicate);
     if (!syscall) {
         return 0;
@@ -479,7 +479,7 @@ int hook_propagate_mnt(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (retval) {
         pop_syscall(EVENT_MOUNT);
         return 0;

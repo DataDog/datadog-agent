@@ -3,18 +3,18 @@
 
 #include "maps.h"
 
-__attribute__((always_inline)) u8 is_syscall(struct syscall_table_key_t *key) {
+static __attribute__((always_inline)) u8 is_syscall(struct syscall_table_key_t *key) {
     u8 *ok = bpf_map_lookup_elem(&syscall_table, key);
     return (u8)(ok != NULL);
 }
 
-__attribute__((always_inline)) u8 syscall_mask_contains(char syscalls[SYSCALL_ENCODING_TABLE_SIZE], long syscall_id) {
+static __attribute__((always_inline)) u8 syscall_mask_contains(char syscalls[SYSCALL_ENCODING_TABLE_SIZE], long syscall_id) {
     u16 index = ((unsigned long)syscall_id) / 8;
     u8 bit = 1 << (((unsigned long)syscall_id) % 8);
     return (syscalls[index & (SYSCALL_ENCODING_TABLE_SIZE - 1)] & bit) > 0;
 }
 
-__attribute__((always_inline)) void syscall_monitor_entry_insert(struct syscall_monitor_entry_t *entry, long syscall_id) {
+static __attribute__((always_inline)) void syscall_monitor_entry_insert(struct syscall_monitor_entry_t *entry, long syscall_id) {
     u16 index = ((unsigned long)syscall_id) / 8;
     u8 bit = 1 << (((unsigned long)syscall_id) % 8);
     if ((entry->syscalls[index & (SYSCALL_ENCODING_TABLE_SIZE - 1)] & bit) == 0) {
@@ -24,7 +24,7 @@ __attribute__((always_inline)) void syscall_monitor_entry_insert(struct syscall_
     }
 }
 
-__attribute__((always_inline)) struct syscall_monitor_entry_t *fetch_sycall_monitor_entry(struct syscall_monitor_entry_t *zero, u32 pid, u64 now, u8 syscall_monitor_type) {
+static __attribute__((always_inline)) struct syscall_monitor_entry_t *fetch_sycall_monitor_entry(struct syscall_monitor_entry_t *zero, u32 pid, u64 now, u8 syscall_monitor_type) {
     struct syscall_monitor_key_t key = {
         .type = syscall_monitor_type,
         .pid = pid,
@@ -43,7 +43,7 @@ __attribute__((always_inline)) struct syscall_monitor_entry_t *fetch_sycall_moni
     return entry;
 }
 
-__attribute__((always_inline)) void delete_syscall_monitor_entry(u32 pid, u8 syscall_monitor_type) {
+static __attribute__((always_inline)) void delete_syscall_monitor_entry(u32 pid, u8 syscall_monitor_type) {
     struct syscall_monitor_key_t key = {
         .type = syscall_monitor_type,
         .pid = pid,
@@ -51,7 +51,7 @@ __attribute__((always_inline)) void delete_syscall_monitor_entry(u32 pid, u8 sys
     bpf_map_delete_elem(&syscall_monitor, &key);
 }
 
-__attribute__((always_inline)) void send_or_skip_syscall_monitor_event(struct _tracepoint_raw_syscalls_sys_enter *args, struct syscall_monitor_event_t *event, struct syscall_monitor_entry_t *entry, struct syscall_monitor_entry_t *zero, u8 syscall_monitor_type) {
+static __attribute__((always_inline)) void send_or_skip_syscall_monitor_event(struct _tracepoint_raw_syscalls_sys_enter *args, struct syscall_monitor_event_t *event, struct syscall_monitor_entry_t *entry, struct syscall_monitor_entry_t *zero, u8 syscall_monitor_type) {
     u8 should_send = 0;
     u64 now = bpf_ktime_get_ns();
     u64 pid_tgid = bpf_get_current_pid_tgid();

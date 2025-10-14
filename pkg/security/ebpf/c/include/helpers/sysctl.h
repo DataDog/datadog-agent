@@ -7,12 +7,12 @@
 
 #include "maps.h"
 
-__attribute__((always_inline)) struct sysctl_event_t *get_sysctl_event() {
+static __attribute__((always_inline)) struct sysctl_event_t *get_sysctl_event() {
     u32 key = SYSCTL_EVENT_GEN_KEY;
     return bpf_map_lookup_elem(&sysctl_event_gen, &key);
 }
 
-__attribute__((always_inline)) struct sysctl_event_t *reset_sysctl_event() {
+static __attribute__((always_inline)) struct sysctl_event_t *reset_sysctl_event() {
     u32 key = SYSCTL_EVENT_GEN_KEY;
     struct sysctl_event_t *evt = bpf_map_lookup_elem(&sysctl_event_gen, &key);
     if (evt == NULL) {
@@ -37,7 +37,7 @@ __attribute__((always_inline)) struct sysctl_event_t *reset_sysctl_event() {
     return evt;
 }
 
-__attribute__((always_inline)) void handle_cgroup_sysctl(struct bpf_sysctl *ctx) {
+static __attribute__((always_inline)) void handle_cgroup_sysctl(struct bpf_sysctl *ctx) {
     struct sysctl_event_t *evt = NULL;
     if (has_tracing_helpers_in_cgroup_sysctl()) {
         evt = reset_sysctl_event();

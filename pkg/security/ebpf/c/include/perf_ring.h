@@ -18,7 +18,7 @@ struct ring_buffer_stats_t {
 
 #if USE_RING_BUFFER == 1
 
-void __attribute__((always_inline)) store_ring_buffer_stats() {
+static void __attribute__((always_inline)) store_ring_buffer_stats() {
     // check needed for code elimination
     u64 use_ring_buffer;
     LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);
@@ -31,7 +31,7 @@ void __attribute__((always_inline)) store_ring_buffer_stats() {
 }
 #endif
 
-void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 event_type, void *kernel_event, u64 kernel_event_size) {
+static void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 event_type, void *kernel_event, u64 kernel_event_size) {
     struct kevent_t *header = kernel_event;
     header->type = event_type;
     header->timestamp = bpf_ktime_get_ns();
