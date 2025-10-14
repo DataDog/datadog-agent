@@ -4,6 +4,8 @@
 # Copyright 2016-present Datadog, Inc.
 
 name "datadog-agent-data-plane"
+
+# We manually pull in SBOM/license files from the ADP tarball and place them in the appropriate location.
 skip_transitive_dependency_licensing true
 
 adp_version = ENV['AGENT_DATA_PLANE_VERSION']
@@ -13,11 +15,9 @@ adp_hashes["linux-arm64"] = ENV['AGENT_DATA_PLANE_HASH_LINUX_ARM64']
 adp_hashes["fips-linux-amd64"] = ENV['AGENT_DATA_PLANE_HASH_FIPS_LINUX_AMD64']
 adp_hashes["fips-linux-arm64"] = ENV['AGENT_DATA_PLANE_HASH_FIPS_LINUX_ARM64']
 
-if adp_version.nil? || adp_version.empty? || adp_hashes.empty?
+if adp_version.nil? || adp_version.empty? || adp_hashes.empty? || adp_hashes.any? { |k, v| v.nil? || v.empty? }
   raise "Please specify AGENT_DATA_PLANE_VERSION, AGENT_DATA_PLANE_HASH_LINUX_AMD64, AGENT_DATA_PLANE_HASH_LINUX_ARM64, AGENT_DATA_PLANE_HASH_FIPS_LINUX_AMD64, and AGENT_DATA_PLANE_HASH_FIPS_LINUX_ARM64 env vars to build."
 end
-
-default_version adp_version
 
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
 # need to go under this guard.
