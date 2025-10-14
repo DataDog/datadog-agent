@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converternoagent"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
@@ -67,7 +69,7 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 
 // GetProcessors returns the processors for the collector.
 func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
-	return nil
+	return []processor.Factory{k8sattributesprocessor.NewFactory()}
 }
 
 // GetConverters returns the converters for the collector.
@@ -93,7 +95,9 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 			return otelcol.Factories{}, err
 		}
 
-		processors, err := otelcol.MakeFactoryMap(extraFactories.GetProcessors()...)
+		processorFactories := []processor.Factory{attributesprocessor.NewFactory()}
+		processorFactories = append(processorFactories, extraFactories.GetProcessors()...)
+		processors, err := otelcol.MakeFactoryMap(processorFactories...)
 		if err != nil {
 			return otelcol.Factories{}, err
 		}

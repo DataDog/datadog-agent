@@ -16,41 +16,6 @@ import (
 )
 
 const (
-	// Java config
-	javaToolOptionsKey   = "JAVA_TOOL_OPTIONS"
-	javaToolOptionsValue = " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log"
-
-	// Node config
-	nodeOptionsKey   = "NODE_OPTIONS"
-	nodeOptionsValue = " --require=/datadog-lib/node_modules/dd-trace/init"
-
-	// Python config
-	pythonPathKey   = "PYTHONPATH"
-	pythonPathValue = "/datadog-lib/"
-
-	// Dotnet config
-	dotnetClrEnableProfilingKey   = "CORECLR_ENABLE_PROFILING"
-	dotnetClrEnableProfilingValue = "1"
-
-	dotnetClrProfilerIDKey   = "CORECLR_PROFILER"
-	dotnetClrProfilerIDValue = "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
-
-	dotnetClrProfilerPathKey   = "CORECLR_PROFILER_PATH"
-	dotnetClrProfilerPathValue = "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so"
-
-	dotnetTracerHomeKey   = "DD_DOTNET_TRACER_HOME"
-	dotnetTracerHomeValue = "/datadog-lib"
-
-	dotnetTracerLogDirectoryKey   = "DD_TRACE_LOG_DIRECTORY"
-	dotnetTracerLogDirectoryValue = "/datadog-lib/logs"
-
-	dotnetProfilingLdPreloadKey   = "LD_PRELOAD"
-	dotnetProfilingLdPreloadValue = "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so"
-
-	// Ruby config
-	rubyOptKey   = "RUBYOPT"
-	rubyOptValue = " -r/datadog-lib/auto_inject"
-
 	// EnvNames
 	instrumentationInstallTypeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TYPE"
 	instrumentationInstallTimeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TIME"
@@ -169,32 +134,6 @@ func joinValFunc(value string, separator string) envValFunc {
 		}
 		return predefinedVal + separator + value
 	}
-}
-
-func javaEnvValFunc(predefinedVal string) string {
-	return predefinedVal + javaToolOptionsValue
-}
-
-func jsEnvValFunc(predefinedVal string) string {
-	return predefinedVal + nodeOptionsValue
-}
-
-func pythonEnvValFunc(predefinedVal string) string {
-	if predefinedVal == "" {
-		return pythonPathValue
-	}
-	return fmt.Sprintf("%s:%s", pythonPathValue, predefinedVal)
-}
-
-func dotnetProfilingLdPreloadEnvValFunc(predefinedVal string) string {
-	if predefinedVal == "" {
-		return dotnetProfilingLdPreloadValue
-	}
-	return fmt.Sprintf("%s:%s", dotnetProfilingLdPreloadValue, predefinedVal)
-}
-
-func rubyEnvValFunc(predefinedVal string) string {
-	return predefinedVal + rubyOptValue
 }
 
 func valueOrZero[T any](pointer *T) T {

@@ -7,6 +7,7 @@
 package file
 
 import (
+	"context"
 	"regexp"
 	"slices"
 	"time"
@@ -52,10 +53,12 @@ type Launcher struct {
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
-	validatePodContainerID bool
-	scanPeriod             time.Duration
-	flarecontroller        *flareController.FlareController
-	tagger                 tagger.Component
+	validatePodContainerID  bool
+	scanPeriod              time.Duration
+	flarecontroller         *flareController.FlareController
+	tagger                  tagger.Component
+	filesChan               chan []*tailer.File
+	filesTailedBetweenScans []*tailer.File
 	// Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
 	oldInfoMap    map[string]*oldTailerInfo
 	fingerprinter *tailer.Fingerprinter
@@ -92,6 +95,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		scanPeriod:             scanPeriod,
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
+		filesChan:              make(chan []*tailer.File, 1),
 		oldInfoMap:             make(map[string]*oldTailerInfo),
 		fingerprinter:          tailer.NewFingerprinter(fingerprintConfig),
 	}
@@ -121,6 +125,7 @@ func (s *Launcher) run() {
 		close(s.done)
 	}()
 
+	ctx, cancel := context.WithCancel(context.Background())
 	for {
 		select {
 		case source := <-s.addedSources:
@@ -128,10 +133,25 @@ func (s *Launcher) run() {
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
+
+			activeSourcesCopy := make([]*sources.LogSource, len(s.activeSources))
+			copy(activeSourcesCopy, s.activeSources)
+
+			// Clear files tailed between scans before starting new FilesToTail
+			s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
+
+			scanTicker.Stop()
+			go func() {
+				s.filesChan <- s.fileProvider.FilesToTail(ctx, s.validatePodContainerID, activeSourcesCopy, s.registry)
+			}()
+		case files := <-s.filesChan:
 			s.cleanUpRotatedTailers()
-			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
-			s.scan()
+
+			s.resolveActiveTailers(files)
+			scanTicker.Reset(s.scanPeriod)
 		case <-s.stop:
+			// Cancel the context passed to fileProvider.FilesToTail
+			cancel()
 			// no more file should be tailed
 			s.cleanup()
 			return
@@ -158,12 +178,23 @@ func (s *Launcher) cleanup() {
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
 }
 
-// scan checks all the files we're expected to tail, compares them to the currently tailed files,
-// and triggers the required updates.
-// For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
-// The Scanner needs to stop that previous tailer, and start a new one for the new file.
-func (s *Launcher) scan() {
-	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources, s.registry)
+// resolveActiveTailers checks all the files we're expected to tail, compares them to the
+// currently tailed files, and triggers the required updates.  For instance,
+// when a file is logrotated, its tailer will keep tailing the rotated file.
+// The Scanner needs to stop that previous tailer, and start a new one for the
+// new file.
+func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
+	// resolveActiveTailers() receives the files parameter from FilesToTail(),
+	// which is called in the main run loop of launcher. FilesToTail() is always
+	// executed concurrently.  It is therefore possible that addSource() can be
+	// called while FilesToTail() is still running. Since FilesToTail() is only
+	// passed a copy of activeSources it is possible that it would miss new
+	// sources added by addsource() therefore scan() would unschedule a tailer
+	// added during a concurrent scan.  In order to mitigate that possibility, any
+	// tailers started while FilesToTail() is running need to be merged with the
+	// result of FilesToTail() to prevent scan() from unscheudling them.
+	files = append(files, s.filesTailedBetweenScans...)
+	s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
 	filesTailed := make(map[string]bool)
 	var allFiles []string
 
@@ -344,6 +375,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		log.Warnf("Could not collect files: %v", err)
 		return
 	}
+
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
@@ -376,7 +408,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			source.Config.TailingMode = mode.String()
 		}
 
-		s.startNewTailer(file, mode, fingerprint)
+		newTailerStarted := s.startNewTailer(file, mode, fingerprint)
+		if newTailerStarted {
+			s.filesTailedBetweenScans = append(s.filesTailedBetweenScans, file)
+		}
 	}
 }
 
