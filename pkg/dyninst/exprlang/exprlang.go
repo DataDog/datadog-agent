@@ -12,6 +12,7 @@ package exprlang
 import (
 	"bytes"
 	"fmt"
+	"sync"
 
 	"github.com/go-json-experiment/json/jsontext"
 )
@@ -36,14 +37,42 @@ type UnsupportedExpr struct {
 
 func (ue *UnsupportedExpr) expr() {}
 
+var decoderPool = sync.Pool{
+	New: func() any {
+		r := &bytes.Reader{}
+		d := jsontext.NewDecoder(r)
+		return &pooledDecoder{decoder: d, reader: r}
+	},
+}
+
+type pooledDecoder struct {
+	decoder *jsontext.Decoder
+	reader  *bytes.Reader
+}
+
+func getPooledDecoder(data []byte) *pooledDecoder {
+	d := decoderPool.Get().(*pooledDecoder)
+	d.reader.Reset(data)
+	return d
+}
+
+func (d *pooledDecoder) put() {
+	d.reader.Reset(nil)
+	d.decoder.Reset(d.reader)
+	decoderPool.Put(d)
+}
+
 // Parse parses a DSL JSON expression into a strongly-typed AST node.
 func Parse(dslJSON []byte) (Expr, error) {
 	if len(dslJSON) == 0 {
 		return nil, fmt.Errorf("parse error: empty DSL expression")
 	}
-	dec := jsontext.NewDecoder(bytes.NewReader(dslJSON))
+	pooled := getPooledDecoder(dslJSON)
+	defer pooled.put()
+	decoder := pooled.decoder
+
 	// Ensure we have a JSON object
-	objStart, err := dec.ReadToken()
+	objStart, err := decoder.ReadToken()
 	if err != nil {
 		return nil, fmt.Errorf("parse error: failed to read token: %w", err)
 	}
@@ -52,7 +81,7 @@ func Parse(dslJSON []byte) (Expr, error) {
 	}
 
 	// Read the operation key
-	key, err := dec.ReadToken()
+	key, err := decoder.ReadToken()
 	if err != nil {
 		return nil, fmt.Errorf("parse error: failed to read operation key: %w", err)
 	}
@@ -63,10 +92,10 @@ func Parse(dslJSON []byte) (Expr, error) {
 	operation := key.String()
 	switch operation {
 	case "ref":
-		return parseRefExpr(dec)
+		return parseRefExpr(decoder)
 	default:
 		// Read the argument for unsupported operations
-		arg, err := dec.ReadToken()
+		arg, err := decoder.ReadToken()
 		if err != nil {
 			return nil, fmt.Errorf("parse error: failed to read argument: %w", err)
 		}
@@ -88,7 +117,7 @@ func Parse(dslJSON []byte) (Expr, error) {
 		}
 
 		// Read the closing brace
-		endObj, err := dec.ReadToken()
+		endObj, err := decoder.ReadToken()
 		if err != nil {
 			return nil, fmt.Errorf("parse error: failed to read closing brace: %w", err)
 		}
