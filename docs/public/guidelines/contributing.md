@@ -49,7 +49,7 @@ Adding GitHub labels is only possible for contributors with write access.
 We have safety measures to protect our repository. As an external contributor, you are required to:
 
 1. Sign our [Contributor License Agreement](https://cla.datadoghq.com/DataDog/datadog-agent) (CLA). You will receive a message once your PR is opened to sign the agreement.
-2. Provide signed commits before merging. To learn how to sign your commits, follow [this procedure from Github](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
+1. Provide signed commits before merging. To learn how to sign your commits, follow [this procedure from Github](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
 
 ### Keep it small, focused
 
@@ -94,15 +94,15 @@ You must open the PR when the code is reviewable or you must set the PR as draft
 
 #### Write a good PR description
 
-Reviewers and future maintainers only see the PR description, not your individual commit history, so the description should incorporate everything that they will need. The merge commit may include PR descriptions from multiple PRs, so the description should tie back to the changed code in some way. For example `run mdformat on iot-agent team docs` rather than just `mdformat the docs`.```
+Reviewers and future maintainers only see the PR description, not your individual commit history, so the description should incorporate everything that they will need. The merge commit may include PR descriptions from multiple PRs, so the description should tie back to the changed code in some way. For example `run mdformat on iot-agent team docs` rather than just `mdformat the docs`.
 
 - A description of what is changed.
 - A reason why the change is made. Pointing to an issue is usually a good reason.
 - When testing had to include work not covered by test suites, a description of how you validated your change.
 - Any relevant benchmarks.
 - Additional notes that make code understanding easier.
-  - If this is part of a chain of PRs, point to the predecessors.
-  - If there are drawbacks or tradeoffs to consider, raise them here.
+- If this is part of a chain of PRs, point to the predecessors.
+- If there are drawbacks or tradeoffs to consider, raise them here.
 
 #### Before the first PR review
 
@@ -182,7 +182,9 @@ The main thing to keep in mind is that the CHANGELOG is written for the agent's 
         collection, `kube_service` tagging) is not implemented
     ```
 
-- `upgrade`: List actions to take or limitations that could arise upon upgrading the Agent. Notes here must include steps that users can follow to 1. know if they're affected and 2. handle the change gracefully on their end.
+- `upgrade`: List actions to take or limitations that could arise upon upgrading the Agent. Notes here must include steps that users can follow to
+    1. know if they're affected and
+    1. handle the change gracefully on their end.
 
     example:
     ```yaml
