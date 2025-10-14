@@ -64,11 +64,7 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RollbackOciPackages { get; }
 
-        public ManagedAction InstallDdotPackage { get; }
-
-        public ManagedAction RollbackDdotPackage { get; }
-
-        public ManagedAction UninstallDdotPackage { get; }
+        public ManagedAction UninstallOciPackages { get; }
 
         public ManagedAction WriteInstallInfo { get; }
 
@@ -515,46 +511,13 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY]");
 
-            InstallDdotPackage = new CustomAction<CustomActions>(
-                    new Id(nameof(InstallDdotPackage)),
-                    CustomActions.InstallDdotPackage,
-                    Return.check,
-                    When.Before,
-                    Step.StartServices,
-                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
-            )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]," +
-                           "APIKEY=[APIKEY]," +
-                           "SITE=[SITE]," +
-                           "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
-                           "DD_DDOT_ENABLED=[DD_DDOT_ENABLED]," +
-                           "DD_DDOT_VERSION=[DD_DDOT_VERSION]");
-
-            RollbackDdotPackage = new CustomAction<CustomActions>(
-                    new Id(nameof(RollbackDdotPackage)),
-                    CustomActions.RollbackDdotPackage,
-                    Return.ignore,
-                    When.Before,
-                    new Step(InstallDdotPackage.Id),
-                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY]");
-
-            UninstallDdotPackage = new CustomAction<CustomActions>(
-                    new Id(nameof(UninstallDdotPackage)),
-                    CustomActions.UninstallDdotPackage,
+            UninstallOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(UninstallOciPackages)),
+                    CustomActions.UninstallOciPackages,
                     Return.ignore,
                     When.Before,
                     Step.RemoveFiles,
-                    Conditions.Uninstalling | new Condition("DD_DDOT_UNINSTALL=\"1\"")
+                    Conditions.Uninstalling | new Condition("DD_OCI_REMOVE &lt;&gt; \"\"")
                 )
             {
                 Execute = Execute.deferred,
@@ -563,7 +526,8 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]," +
                                "APIKEY=[APIKEY]," +
                                "SITE=[SITE]," +
-                               "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]");
+                               "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
+                               "DD_OCI_REMOVE=[DD_OCI_REMOVE]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),

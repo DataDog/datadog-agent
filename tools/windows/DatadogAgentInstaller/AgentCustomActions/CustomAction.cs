@@ -222,21 +222,10 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult InstallDdotPackage(Session session)
+        public static ActionResult UninstallOciPackages(Session session)
         {
-            return Datadog.CustomActions.InstallDdotPackage.Install(session);
+            return Datadog.CustomActions.InstallOciPackages.UninstallOciPackages(session);
         }
 
-        [CustomAction]
-        public static ActionResult RollbackDdotPackage(Session session)
-        {
-            return Datadog.CustomActions.InstallDdotPackage.Rollback(session);
-        }
-
-        [CustomAction]
-        public static ActionResult UninstallDdotPackage(Session session)
-        {
-            return Datadog.CustomActions.InstallDdotPackage.Uninstall(session);
-        }
     }
 }

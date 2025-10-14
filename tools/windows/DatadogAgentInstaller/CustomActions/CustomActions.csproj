@@ -62,7 +62,6 @@
     <Compile Include="Constants.cs" />
     <Compile Include="Flare.cs" />
     <Compile Include="InstallOciPackages.cs" />
-    <Compile Include="InstallDdotPackage.cs" />
     <Compile Include="Interfaces\IFeatureInfo.cs" />
     <Compile Include="Interfaces\IFileSystemServices.cs" />
     <Compile Include="Interfaces\IInstallerHttpClient.cs" />

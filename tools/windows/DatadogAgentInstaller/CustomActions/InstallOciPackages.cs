@@ -80,6 +80,17 @@ namespace Datadog.CustomActions
             {
                 env["DD_INSTALLER_REGISTRY_URL"] = _overrideRegistryUrl;
             }
+            // propagate MSI path properties so subprocesses resolve paths consistently
+            var projectLocation = _session.Property("PROJECTLOCATION");
+            if (!string.IsNullOrEmpty(projectLocation))
+            {
+                env["DD_PROJECTLOCATION"] = projectLocation;
+            }
+            var applicationDataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
+            if (!string.IsNullOrEmpty(applicationDataDirectory))
+            {
+                env["DD_APPLICATIONDATADIRECTORY"] = applicationDataDirectory;
+            }
             return env;
         }
 
@@ -87,13 +98,35 @@ namespace Datadog.CustomActions
         {
             try
             {
-                _session.Log("Installing Oci Packages");
+                _session.Log("Installing OCI packages");
+                var env = InstallerEnvironmentVariables();
+
+                // Generic path: DD_OCI_INSTALL=oci://...;oci://...
+                var genericList = _session.Property("DD_OCI_INSTALL");
+                if (!string.IsNullOrEmpty(genericList))
+                {
+                    var urls = genericList.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var raw in urls)
+                    {
+                        var url = raw.Trim();
+                        using (var proc = _session.RunCommand(_installerExecutable, $"install {url}", env))
+                        {
+                            if (proc.ExitCode != 0)
+                            {
+                                throw new Exception($"'datadog-installer install {url}' failed with exit code: {proc.ExitCode}");
+                            }
+                        }
+                    }
+                    return ActionResult.Success;
+                }
+
+                // Legacy APM mode (backward compatibility)
                 var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
                 var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
                 _session.Log($"instrumentationEnabled: {instrumentationEnabled}");
                 if (string.IsNullOrEmpty(instrumentationEnabled) || string.IsNullOrEmpty(librariesRaw))
                 {
-                    _session.Log($"instrumentation is disabled or no library is provided skipping");
+                    _session.Log("No DD_OCI_INSTALL and APM instrumentation not requested; skipping");
                     return ActionResult.Success;
                 }
                 if (instrumentationEnabled != "iis")
@@ -172,6 +205,43 @@ namespace Datadog.CustomActions
         public static ActionResult RollbackActions(Session session)
         {
             return new InstallOciPackages(new SessionWrapper(session)).RollbackState();
+        }
+
+        private ActionResult UninstallGeneric()
+        {
+            try
+            {
+                var removeList = _session.Property("DD_OCI_REMOVE");
+                if (string.IsNullOrEmpty(removeList))
+                {
+                    _session.Log("No DD_OCI_REMOVE specified; skipping generic OCI uninstall");
+                    return ActionResult.Success;
+                }
+                var env = InstallerEnvironmentVariables();
+                var names = removeList.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var raw in names)
+                {
+                    var name = raw.Trim();
+                    using (var proc = _session.RunCommand(_installerExecutable, $"remove {name}", env))
+                    {
+                        if (proc.ExitCode != 0)
+                        {
+                            throw new Exception($"'datadog-installer remove {name}' failed with exit code: {proc.ExitCode}");
+                        }
+                    }
+                }
+                return ActionResult.Success;
+            }
+            catch (Exception ex)
+            {
+                _session.Log("Error while uninstalling oci packages: " + ex.Message);
+                return ActionResult.Failure;
+            }
+        }
+
+        public static ActionResult UninstallOciPackages(Session session)
+        {
+            return new InstallOciPackages(new SessionWrapper(session)).UninstallGeneric();
         }
 
         private class NameVersionPair
