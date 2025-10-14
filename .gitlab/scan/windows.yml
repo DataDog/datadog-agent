@@ -6,6 +6,7 @@
     - !reference [.on_deploy]
     - !reference [.on_main]
     - !reference [.except_mergequeue]
+    - when: manual  # Manual on all other branches
   variables:
     SCAN_ARTIFACT_PATTERN: "datadog-agent-7*.msi"
     OMNIBUS_PIPELINE_DIR: $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
