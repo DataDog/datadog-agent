@@ -227,7 +227,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	unhealthyDevices := map[string]struct{}{}
 	if err := c.fillUnhealthyDevices(ctx, unhealthyDevices); err != nil {
 		if logLimiter.ShouldLog() {
-			log.Warnf("failed getting unhealthy devices: %w", err)
+			log.Warnf("failed getting unhealthy devices: %v", err)
 		}
 	}
 

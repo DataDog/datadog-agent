@@ -422,10 +422,19 @@ func fillAllMockFunctions[T any](obj T) {
 
 // GetWorkloadMetaMock returns a mock of the workloadmeta.Component.
 func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
-	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
+	for _, uuid := range GPUUUIDs {
+		wmeta.Set(&workloadmeta.GPU{
+			EntityID: workloadmeta.EntityID{
+				ID:   uuid,
+				Kind: workloadmeta.KindGPU,
+			},
+		})
+	}
+	return wmeta
 }
 
 // GetTelemetryMock returns a mock of the telemetry.Component.

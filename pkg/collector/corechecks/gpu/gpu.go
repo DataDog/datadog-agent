@@ -155,6 +155,7 @@ func (c *Check) ensureInitCollectors() error {
 				SystemProbeCache:     c.spCache,
 				NsPidCache:           c.nsPidCache,
 				Telemetry:            c.telemetry.collectorTelemetry,
+				Workloadmeta:         c.wmeta,
 			})
 		if err != nil {
 			return fmt.Errorf("failed to build NVML collectors: %w", err)
