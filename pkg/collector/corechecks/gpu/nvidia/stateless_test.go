@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -24,7 +25,8 @@ func TestNewStatelessCollector(t *testing.T) {
 	device := setupMockDevice(t, nil)
 
 	// Test that the stateless collector creates the expected dynamic API set
-	collector, err := newStatelessCollector(device, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+	deps := &CollectorDependencies{NsPidCache: &NsPidCache{}, Workloadmeta: testutil.GetWorkloadMetaMock(t)}
+	collector, err := newStatelessCollector(device, deps)
 	require.NoError(t, err)
 	require.NotNil(t, collector)
 
@@ -75,12 +77,12 @@ func TestCollectProcessMemory(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+			statelessAPIFactory = func(deps *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_memory_usage",
 						Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
-							return processMemorySample(device, nsPidCache)
+							return processMemorySample(device, deps.NsPidCache)
 						},
 					},
 				}
@@ -109,12 +111,12 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 	originalFactory := statelessAPIFactory
 	defer func() { statelessAPIFactory = originalFactory }()
 
-	statelessAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+	statelessAPIFactory = func(deps *CollectorDependencies) []apiCallInfo {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
 				Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
-					return processMemorySample(device, nsPidCache)
+					return processMemorySample(device, deps.NsPidCache)
 				},
 			},
 		}
@@ -143,12 +145,12 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 	originalFactory := statelessAPIFactory
 	defer func() { statelessAPIFactory = originalFactory }()
 
-	statelessAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+	statelessAPIFactory = func(deps *CollectorDependencies) []apiCallInfo {
 		return []apiCallInfo{
 			{
 				Name: "process_memory_usage",
 				Handler: func(device safenvml.Device, _ uint64) ([]Metric, uint64, error) {
-					return processMemorySample(device, nsPidCache)
+					return processMemorySample(device, deps.NsPidCache)
 				},
 			},
 		}
@@ -254,7 +256,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func(_ *NsPidCache) []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
@@ -277,7 +279,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 			}
 
 			mockDevice := setupMockDevice(t, tt.customSetup)
-			c, err := newStatelessCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+			c, err := newStatelessCollector(mockDevice, nil)
 
 			if tt.wantError {
 				require.Error(t, err)
@@ -344,7 +346,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 			originalFactory := statelessAPIFactory
 			defer func() { statelessAPIFactory = originalFactory }()
 
-			statelessAPIFactory = func(_ *NsPidCache) []apiCallInfo {
+			statelessAPIFactory = func(_ *CollectorDependencies) []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "nvlink_metrics",
@@ -377,7 +379,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 				return device
 			})
 
-			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+			collector, err := newStatelessCollector(mockDevice, nil)
 			require.NoError(t, err)
 
 			// Collect metrics
