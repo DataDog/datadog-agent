@@ -686,7 +686,7 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 	defer i.m.Unlock()
 
 	var err error
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" && method == env.APMInstrumentationEnabledIIS {
 		var isDotnetInstalled bool
 		isDotnetInstalled, err = i.IsInstalled(ctx, packageAPMLibraryDotnet)
 		if err != nil {
@@ -719,7 +719,7 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 	defer i.m.Unlock()
 
 	var err error
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" && method == env.APMInstrumentationEnabledIIS {
 		var isDotnetInstalled bool
 		isDotnetInstalled, err = i.IsInstalled(ctx, packageAPMLibraryDotnet)
 		if err != nil {

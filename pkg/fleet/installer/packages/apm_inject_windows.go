@@ -69,14 +69,6 @@ func getAPMInstrumentationMethod() (string, error) {
 	return method, nil
 }
 
-// ValidateAPMInstrumentationMethod validates that the provided method is supported
-func ValidateAPMInstrumentationMethod(method string) error {
-	if method != env.APMInstrumentationEnabledIIS && method != env.APMInstrumentationEnabledDotnet {
-		return fmt.Errorf("Unsupported instrumentation method: %s", method)
-	}
-	return nil
-}
-
 // InstrumentAPMInjector instruments the APM injector for IIS on Windows
 func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_injector")
@@ -100,13 +92,22 @@ func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 		return fmt.Errorf("No instrumentation method to uninstrument")
 	}
 
+	// if no method is passed, default to the current one
 	if currentMethod != env.APMInstrumentationNotSet && method == env.APMInstrumentationNotSet {
 		method = currentMethod
 	}
 
-	err = uninstrumentDotnetLibrary(ctx, method, "stable")
-	if err != nil {
-		return err
+	switch method {
+	case env.APMInstrumentationEnabledIIS:
+		err = uninstrumentDotnetLibrary(ctx, method, "stable")
+		if err != nil {
+			return err
+		}
+	case env.APMInstrumentationEnabledHost:
+	// TODO
+	default:
+		return fmt.Errorf("Unsupported method: %s", method)
+
 	}
 
 	// If we un-instrumented another method than the one currently set, we do not want to change the configuration
