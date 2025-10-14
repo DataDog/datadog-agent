@@ -235,7 +235,6 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) erro
 	}
 
 	s.log.Debugf("synthetics network path test event: %s", string(payloadBytes))
-	s.log.Infof("sending result public_id:<%s> result_id:<%s>", res.Test.ID, res.Result.ID)
 
 	m := message.NewMessage(payloadBytes, nil, "", 0)
 	return s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeSynthetics)
