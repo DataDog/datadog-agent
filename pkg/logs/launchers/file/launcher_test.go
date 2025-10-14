@@ -1278,7 +1278,6 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedU
 	// Get initial tailer and verify rotation detection works
 	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "tailer should be found")
-	initialTailerCount := s.tailers.Count()
 
 	// Simulate rotation: truncate file to empty (fingerprint becomes 0)
 	suite.Nil(suite.testFile.Truncate(0))
@@ -1294,10 +1293,12 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedU
 	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
 	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
-	// Verify no new tailer was created for the undersized file
-	// The old tailer should be removed but no new one should be created
-	afterScanCount := s.tailers.Count()
-	suite.Equal(initialTailerCount-1, afterScanCount, "No new tailer should be created for undersized file after rotation")
+	// Verify the behavior when file is truncated to undersized:
+	// - Old tailer should be removed from active tailers
+	// - Old tailer should be added to rotatedTailers to finish draining
+	// - No new tailer should be created for the undersized file
+	suite.Equal(0, s.tailers.Count(), "No active tailers should remain when file truncates to undersized")
+	suite.Equal(1, len(s.rotatedTailers), "Rotated tailer should remain tracked while draining")
 }
 
 func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersizedFile() {
@@ -1337,7 +1338,6 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 	// Get initial tailer and verify rotation detection works
 	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "tailer should be found")
-	initialTailerCount := s.tailers.Count()
 
 	// Simulate file rotation: move current file to .1 and create a new empty file
 	rotatedPath := suite.testPath + ".1"
@@ -1357,10 +1357,12 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
 	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
-	// Verify no new tailer was created for the undersized file
-	// The old tailer should be removed but no new one should be created
-	afterScanCount := s.tailers.Count() + len(s.rotatedTailers)
-	suite.Equal(initialTailerCount, afterScanCount, "No new tailer should be created for undersized file after rotation")
+	// Verify the behavior when file rotates to undersized:
+	// - Old tailer should be removed from active tailers (because new file is undersized and won't be tailed)
+	// - Old tailer should be added to rotatedTailers to finish draining
+	// - No new tailer should be created for the undersized file
+	suite.Equal(0, s.tailers.Count(), "No active tailers should remain when file rotates to undersized")
+	suite.Equal(1, len(s.rotatedTailers), "Rotated tailer should remain tracked while draining")
 
 	// Clean up the rotated file
 	os.Remove(rotatedPath)
@@ -1372,9 +1374,35 @@ func getScanKey(path string, source *sources.LogSource) string {
 
 // TestRotatedTailersNotStoppedDuringScan tests that rotated tailers are not stopped during scan
 func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
+	suite.s.cleanup()
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.close_timeout", 1) // seconds
+
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+
+	// Create fingerprint config for this test
+	fingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               5,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "byte_checksum", fc, suite.tagger, fingerprintConfig)
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+	s.activeSources = append(s.activeSources, suite.source)
+	status.Clear()
+	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	defer status.Clear()
+
 	// Create initial file with content
 	_, err := suite.testFile.WriteString("initial content\n")
 	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+
+	s.scan()
 
 	// Read the message
 	msg := <-suite.outputChan
@@ -1392,43 +1420,68 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 	newFile.Close()
 
 	// Scan detects rotation
-	suite.s.scan()
+	s.scan()
 
 	// After rotation, we should have:
 	// - 1 active tailer (for the new file)
 	// - 1 rotated tailer (still draining the old file)
-	suite.Equal(1, suite.s.tailers.Count(), "Should have 1 active tailer")
-	suite.Equal(1, len(suite.s.rotatedTailers), "Should have 1 rotated tailer")
+	suite.Equal(1, s.tailers.Count(), "Should have 1 active tailer")
+	suite.Equal(1, len(s.rotatedTailers), "Should have 1 rotated tailer")
 
 	// Get the rotated tailer
-	rotatedTailer := suite.s.rotatedTailers[0]
+	rotatedTailer := s.rotatedTailers[0]
 
 	// Change the source path to simulate the file no longer matching
 	// This should normally cause the tailer to be stopped, but rotated tailers should be skipped
-	suite.s.activeSources = []*sources.LogSource{}
+	s.activeSources = []*sources.LogSource{}
 
 	// Scan again - the rotated tailer should NOT be stopped
-	suite.s.scan()
+	s.scan()
 
 	// The rotated tailer should still be in the rotatedTailers list
-	suite.True(suite.s.isRotatedTailer(rotatedTailer), "Rotated tailer should still be in rotatedTailers list")
-
+	suite.True(s.isRotatedTailer(rotatedTailer), "Rotated tailer should still be in rotatedTailers list")
 	// Clean up
 	os.Remove(rotatedPath)
 }
 
 // TestRestartTailerAfterFileRotationRemovesTailer tests that restartTailerAfterFileRotation removes the old tailer
 func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTailer() {
+	suite.s.cleanup()
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.close_timeout", 1) // seconds
+
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+
+	// Create fingerprint config for this test
+	fingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               5,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "byte_checksum", fc, suite.tagger, fingerprintConfig)
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+	s.activeSources = append(s.activeSources, suite.source)
+	status.Clear()
+	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	defer status.Clear()
+
 	// Create initial file
 	_, err := suite.testFile.WriteString("line1\n")
 	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+
+	s.scan()
 
 	// Read the message
 	msg := <-suite.outputChan
 	suite.Equal("line1", string(msg.GetContent()))
 
 	// Get initial tailer
-	initialTailer, _ := suite.s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	initialTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.NotNil(initialTailer)
 
 	// Simulate rotation
@@ -1444,21 +1497,21 @@ func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTai
 	newFile.Close()
 
 	// Scan to detect rotation
-	suite.s.scan()
+	s.scan()
 
 	// After rotation:
 	// - The old tailer should be removed from the active container
 	// - The old tailer should be in rotatedTailers list
 	// - A new tailer should be in the active container
-	suite.Equal(1, suite.s.tailers.Count(), "Should have 1 active tailer")
-	suite.Equal(1, len(suite.s.rotatedTailers), "Should have 1 rotated tailer")
+	suite.Equal(1, s.tailers.Count(), "Should have 1 active tailer")
+	suite.Equal(1, len(s.rotatedTailers), "Should have 1 rotated tailer")
 
-	newTailer, found := suite.s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	newTailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "New tailer should be in active container")
 	suite.NotEqual(initialTailer, newTailer, "New tailer should be different from initial tailer")
 
 	// The old tailer should be in rotatedTailers
-	suite.Equal(initialTailer, suite.s.rotatedTailers[0], "Old tailer should be in rotatedTailers list")
+	suite.Equal(initialTailer, s.rotatedTailers[0], "Old tailer should be in rotatedTailers list")
 
 	// Read the new message
 	msg = <-suite.outputChan
