@@ -701,12 +701,13 @@ func TestProcessEvents(t *testing.T) {
 				SBOMsSent.Inc()
 			})
 
+			fakeLog := logmock.New(t)
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p, err := newProcessor(workloadmetaStore, mockFilterStore, sender, fakeTagger, cfg, 1, 50*time.Millisecond, time.Second)
+			p, err := newProcessor(fakeLog, workloadmetaStore, mockFilterStore, sender, fakeTagger, cfg, 1, 50*time.Millisecond, time.Second)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -244,6 +244,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func run(
+	log log.Component,
 	config config.Component,
 	cliParams *cliParams,
 	demultiplexer demultiplexer.Component,
@@ -289,7 +290,7 @@ func run(
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil)
+	commonchecks.RegisterChecks(log, wmeta, filterStore, tagger, config, telemetry, nil, nil)
 
 	common.LoadComponents(secretResolver, wmeta, tagger, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
