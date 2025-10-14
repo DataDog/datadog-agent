@@ -18,6 +18,33 @@ import (
 // TimeNow useful for mocking
 var TimeNow = time.Now
 
+// A given endpoint can be in one of three states.
+//
+// `unblocked`:
+// All is working well. All transactions are sent to the endpoint.
+// If when sending a transaction we receive an error, we increase the error count and
+// move into a `blocked` state. A timeout is set according to the backoff policy determined
+// by the error count.
+//
+// `blocked`:
+// No transactions are sent until the timeout expires. Any errors/successes recieved from the
+// endpoint are ignored (these are likely transactions sent before we moved to `blocked`).
+//
+// Once the timeout expires, we send a single transaction to the endpoint, and move into a
+// `halfBlocked` state.
+//
+// `halfBlocked`:
+// We have sent a single test transaction. We don't want to send anymore transactions until we
+// recieve a result from the endpoint to indicate if it is healthy.
+//
+// If the endpoint still returns an error, we increase the error count and move back to `blocked`.
+// The increased error count will likely mean the timeout is for an even longer time.
+//
+// If the endpoint returns a success, we decrease the error count. If the error count is > 0,
+// we move back to `blocked`. The reduced error count will mean the timeout is for a shorter time,
+// but it prevents the agent from flooding an endpoint as it starts up following an error.
+//
+// When the error count is back to 0 we return to `unblocked`.
 const (
 	unblocked = iota
 	halfBlocked
@@ -85,6 +112,7 @@ func (e *blockedEndpoints) getState(endpoint string) (bool, circuitBreakerState)
 	return false, 0
 }
 
+// close is called when we have recieved an error from this endpoint.
 func (e *blockedEndpoints) close(endpoint string) {
 	e.m.Lock()
 	defer e.m.Unlock()
@@ -102,6 +130,9 @@ func (e *blockedEndpoints) close(endpoint string) {
 	switch b.state {
 	case unblocked:
 		// The circuit breaker is closed, we need to open it for a given time
+		b.m.Lock()
+		defer b.m.Unlock()
+
 		b.nbError = e.backoffPolicy.IncError(b.nbError)
 		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
 		b.setState(blocked)
@@ -110,6 +141,9 @@ func (e *blockedEndpoints) close(endpoint string) {
 		// moved to half open. Currently this assumes that it wasn't and we need to work
 		// out a way to solve this....
 		// The test transaction failed, so we need to mave back to closed.
+		b.m.Lock()
+		defer b.m.Unlock()
+
 		b.nbError = e.backoffPolicy.IncError(b.nbError)
 		b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
 		b.setState(blocked)
@@ -121,6 +155,7 @@ func (e *blockedEndpoints) close(endpoint string) {
 	e.errorPerEndpoint[endpoint] = b
 }
 
+// recover is called when we have recieved an success from this endpoint.
 func (e *blockedEndpoints) recover(endpoint string) {
 	e.m.Lock()
 	defer e.m.Unlock()
@@ -137,9 +172,12 @@ func (e *blockedEndpoints) recover(endpoint string) {
 
 	switch b.state {
 	case unblocked:
-		// Nothing to do, we are already closed and running smoothly.
+		// Nothing to do, we are already unblocked and running smoothly.
 	case halfBlocked:
 		// The test worked, we can ease off
+		b.m.Lock()
+		defer b.m.Unlock()
+
 		b.nbError = e.backoffPolicy.DecError(b.nbError)
 		if b.nbError == 0 {
 			b.setState(unblocked)
@@ -148,7 +186,7 @@ func (e *blockedEndpoints) recover(endpoint string) {
 			b.setState(blocked)
 		}
 	case blocked:
-		// If we are open and a successful transaction came through, we
+		// If we are blocked and a successful transaction came through, we
 		// can't be sure if it was sent before the errored transaction or
 		// after, so we will ignore this.
 	}
@@ -169,8 +207,8 @@ type shouldBlock = int
 //
 // We check if an endpoint is blocked in two places:
 //
-// 1. When deciding if we want to requeue a transaction
-// 2. When deciding whether to send the transaction.
+// 1. When deciding if we want to requeue a transaction for the worked.
+// 2. When the worker is deciding whether to send the transaction.
 //
 // When adding to the retry queue, we have a list of transactions that are to
 // be retried. They are sorted in priority order. If we are `blocked` and the timeout
@@ -183,8 +221,8 @@ func (e *blockedEndpoints) isBlockForRetry(endpoint string) shouldBlock {
 	defer e.m.RUnlock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
-		b.m.Lock()
-		defer b.m.Unlock()
+		b.m.RLock()
+		defer b.m.RUnlock()
 
 		if b.state == blocked {
 			if TimeNow().Before(b.until) {
@@ -217,12 +255,13 @@ func (e *blockedEndpoints) isBlockForSend(endpoint string) bool {
 
 		switch b.state {
 		case halfBlocked:
-			// We have already sent the single transactions to test if the endpoint is now up
+			// We have already sent the single transactions to test if the endpoint is now up.
 			return true
 		case blocked:
 			if TimeNow().Before(b.until) {
 				return true
 			} else {
+				// The timeout has expired, move to `halfBlocked` and send this transaction.
 				if b.state == blocked {
 					b.setState(halfBlocked)
 				}
