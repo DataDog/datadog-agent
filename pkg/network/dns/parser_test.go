@@ -28,8 +28,7 @@ func TestGetDefaultRecordedQueryTypes(t *testing.T) {
 		})
 	} else {
 		assert.Equal(t, result, map[layers.DNSType]struct{}{
-			layers.DNSTypeA:    {},
-			layers.DNSTypeAAAA: {},
+			layers.DNSTypeA: {},
 		})
 	}
 }
