@@ -537,6 +537,7 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
 
+<<<<<<< HEAD
 	// Event sampling metrics (kernel-side)
 
 	// MetricEventSampleTotal is the name of the metric used to report total events that hit the sampling logic in kernel
@@ -546,6 +547,21 @@ var (
 	// MetricEventSampleSampled is the name of the metric used to report events that were sampled in kernel
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
+=======
+	// Event processing time metrics
+
+	// MetricNameEventProcessingTimeMean is the name of the metric used to report the mean time an event took to be processed
+	// Tags: event_type
+	MetricNameEventProcessingTimeMean = newRuntimeMetric(".event_processing_time_microsec.mean")
+
+	// MetricNameEventProcessingTimeStddev is the name of the metric used to report the standard deviation of the time an event took to be processed
+	// Tags: event_type
+	MetricNameEventProcessingTimeStddev = newRuntimeMetric(".event_processing_time_microsec.stddev")
+
+	// MetricNameEventProcessingTimeMaximum is the name of the metric used to report the maximum time an event took to be processed
+	// Tags: event_type
+	MetricNameEventProcessingTimeMaximum = newRuntimeMetric(".event_processing_time_microsec.max")
+>>>>>>> c2f9f75ec7d (add event processing metrics)
 )
 
 var (
