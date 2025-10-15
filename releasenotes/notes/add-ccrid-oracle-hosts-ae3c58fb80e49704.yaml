@@ -8,6 +8,4 @@
 ---
 enhancements:
   - |
-    enhancements:
-  - |
     Added CCRID (Canonical Cloud Resource ID) support for Oracle Cloud Infrastructure hosts.
