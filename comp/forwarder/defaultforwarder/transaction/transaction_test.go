@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -54,7 +55,8 @@ func TestProcess(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 }
 
@@ -69,7 +71,8 @@ func TestProcessInvalidDomain(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 }
 
@@ -84,7 +87,8 @@ func TestProcessNetworkError(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NotNil(t, err)
 }
 
@@ -106,21 +110,22 @@ func TestProcessHTTPError(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
 
 	errorCode = http.StatusBadRequest
-	err = transaction.Process(context.Background(), mockConfig, log, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 
 	errorCode = http.StatusRequestEntityTooLarge
-	err = transaction.Process(context.Background(), mockConfig, log, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusForbidden
-	err = transaction.Process(context.Background(), mockConfig, log, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 }
@@ -138,7 +143,8 @@ func TestProcessCancel(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(ctx, mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(ctx, mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 }
 
@@ -178,89 +184,6 @@ func Test_truncateBodyForLog(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := truncateBodyForLog(tt.body); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("truncateBodyForLog() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestHTTPTransactionSecretRefreshCallback(t *testing.T) {
-	testCases := []struct {
-		name           string
-		statusCode     int
-		hasCallback    bool
-		shouldTrigger  bool
-		expectedReason string
-	}{
-		{
-			name:           "403 triggers callback",
-			statusCode:     http.StatusForbidden,
-			hasCallback:    true,
-			shouldTrigger:  true,
-			expectedReason: "403 response from backend",
-		},
-		{
-			name:          "200 does not trigger callback",
-			statusCode:    http.StatusOK,
-			hasCallback:   true,
-			shouldTrigger: false,
-		},
-		{
-			name:          "400 does not trigger callback",
-			statusCode:    http.StatusBadRequest,
-			hasCallback:   true,
-			shouldTrigger: false,
-		},
-		{
-			name:          "500 does not trigger callback",
-			statusCode:    http.StatusInternalServerError,
-			hasCallback:   true,
-			shouldTrigger: false,
-		},
-		{
-			name:          "403 with nil callback does not panic",
-			statusCode:    http.StatusForbidden,
-			hasCallback:   false,
-			shouldTrigger: false,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(tc.statusCode)
-			}))
-			defer ts.Close()
-
-			// track callback invocation
-			callbackInvoked := false
-			var capturedReason string
-
-			transaction := NewHTTPTransaction()
-			transaction.Domain = ts.URL
-			transaction.Endpoint.Route = "/endpoint/test"
-			payload := []byte("payload")
-			transaction.Payload = NewBytesPayloadWithoutMetaData(payload)
-
-			if tc.hasCallback {
-				transaction.SecretRefreshCallback = func(reason string) {
-					callbackInvoked = true
-					capturedReason = reason
-				}
-			} else {
-				transaction.SecretRefreshCallback = nil
-			}
-
-			client := &http.Client{}
-			mockConfig := configmock.New(t)
-			log := logmock.New(t)
-
-			transaction.Process(context.Background(), mockConfig, log, client)
-
-			if tc.shouldTrigger {
-				assert.True(t, callbackInvoked, "Secret refresh callback should be invoked")
-				assert.Equal(t, tc.expectedReason, capturedReason, "Callback reason should match")
-			} else {
-				assert.False(t, callbackInvoked, "Secret refresh callback should NOT be invoked")
 			}
 		})
 	}

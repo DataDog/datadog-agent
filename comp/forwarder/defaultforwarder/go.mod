@@ -7,6 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/status v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/api v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.70.0
