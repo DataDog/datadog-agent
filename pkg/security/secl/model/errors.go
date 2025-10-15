@@ -77,6 +77,9 @@ func (e *ErrProcessIncompleteLineage) Error() string {
 // ErrNoProcessContext defines an error for event without process context
 var ErrNoProcessContext = errors.New("process context not resolved")
 
+// ErrFailedDNSPacketDecoding defines a dns packet that failed to be decoded
+var ErrFailedDNSPacketDecoding = errors.New("dns packet couldn't be decoded")
+
 // ErrProcessBrokenLineage returned when a process lineage is broken
 type ErrProcessBrokenLineage struct {
 	Err error

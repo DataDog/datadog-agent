@@ -72,7 +72,7 @@ func (d *Monitor) SendStats() error {
 
 	for eventType, stats := range statsByEventType {
 		eventTypeTag := fmt.Sprintf("event_type:%s", model.EventType(eventType).String())
-		categoryTag := fmt.Sprintf("category:%s", model.GetEventTypeCategoryUserFacing(model.EventType(eventType).String()))
+		categoryTag := fmt.Sprintf("category:%s", model.GetEventTypeCategory(model.EventType(eventType).String()))
 		if stats.EventRejected != 0 {
 			tagsForRejectedEvents := []string{
 				eventTypeTag,

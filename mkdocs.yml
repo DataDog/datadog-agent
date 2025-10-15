@@ -55,12 +55,17 @@ nav:
 - How-to:
   - Build:
     - Standalone agents: how-to/build/standalone.md
+    - Distribution packages: how-to/build/distributions.md
   - Test:
     - Unit tests: how-to/test/unit.md
     - Static analysis: how-to/test/static-analysis.md
     - End-to-end tests: how-to/test/e2e.md
   - Go:
-    - Add module: how-to/go/add-module.md
+    - Add nested modules: how-to/go/modules.md
+  - Debug agents:
+    - how-to/debug-agents/index.md
+    - Linux: how-to/debug-agents/linux.md
+    - Windows: how-to/debug-agents/windows.md
   - Memory profiling:
     - Overview: how-to/memory-profiling/overview.md
     - Go: how-to/memory-profiling/go.md
@@ -96,6 +101,7 @@ nav:
   #     - TODO workloadmeta: components/shared_features/workloadmeta.md
   #     - TODO more ?: TMP
   # - Fx overview: components/fx.md
+  # - JMXFetch overview: components/jmxfetch.md
   # - FAQ: components/faq.md
 - Architecture:
   - DogStatsD:
@@ -104,6 +110,8 @@ nav:
   - Images:
     - Developer environment: reference/images/dev.md
     - Builders: reference/images/builders.md
+  - Agent buildables:
+    - Agent components: reference/builds/components.md
 
 watch:
 - .go-version

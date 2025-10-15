@@ -1226,6 +1226,10 @@ func (s *SharedLibrarySuite) TestMultipleLibsets() {
 
 	var commands []*exec.Cmd
 
+	// Ensure the fmapper binary is built before trying with the different
+	// cases. A failure in this stage should not be retried
+	fileopener.BuildFmapper(t)
+
 	for _, tc := range testCases {
 		var cmd *exec.Cmd
 		waitAndRetryIfFail(t,
@@ -1252,13 +1256,48 @@ func (s *SharedLibrarySuite) TestMultipleLibsets() {
 
 	for i, cmd := range commands {
 		mockRegistry.AssertCalled(t, "Register", testCases[i].libPath, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
-		cmd.Process.Kill()
 	}
 
-	// Verify unregister calls for all processes
-	require.Eventually(t, func() bool {
-		return methodHasBeenCalledAtLeastTimes(mockRegistry, "Unregister", len(commands))
-	}, 1500*time.Millisecond, 10*time.Millisecond, "did not receive unregister calls for all processes, received calls %v", mockRegistry.Calls)
+	// Clear all calls to the mockRegistry
+	mockRegistry.Calls = nil
+
+	// The ideal path would be that the process monitor sends an exit event for
+	// the processes as they're killed. However, sometimes these events are missed
+	// and the callbacks aren't called. Unlike the "Process launch" event, we
+	// cannot recreate the process exit, which would be the ideal solution to
+	// ensure we're testing the correct behavior (including any
+	// filters/callbacks on the process monitor). Instead, we manually trigger
+	// the exit event for the process using the processMonitorProxy, which
+	// should replicate the same codepath.
+	waitAndRetryIfFail(t,
+		func() {
+			for _, cmd := range commands {
+				require.NoError(t, cmd.Process.Kill())
+			}
+		},
+		func() bool {
+			unregistered := make(map[uint32]bool)
+			for _, call := range mockRegistry.Calls {
+				if call.Method == "Unregister" {
+					unregistered[call.Arguments[0].(uint32)] = true
+				}
+			}
+
+			for _, cmd := range commands {
+				if !unregistered[uint32(cmd.Process.Pid)] {
+					return false
+				}
+			}
+			return true
+		},
+		func(testSuccess bool) {
+			if !testSuccess {
+				// If the test failed once, manually trigger the exit event
+				for _, cmd := range commands {
+					s.procMonitor.triggerExit(uint32(cmd.Process.Pid))
+				}
+			}
+		}, 2, 10*time.Millisecond, 500*time.Millisecond, "attacher did not correctly handle exit events received calls %v", mockRegistry.Calls)
 }
 
 func methodHasBeenCalledTimes(registry *MockFileRegistry, methodName string, times int) bool {

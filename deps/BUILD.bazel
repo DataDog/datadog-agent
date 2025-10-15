@@ -6,12 +6,13 @@ filegroup(
     srcs = [
         "@bzip2",
         "@bzip2//:bz2",
+        "@libffi",
         "@libyaml",
         "@lua//:liblua",
         "@sqlite3",
         "@xz",
         "@xz//:lzma",
-        "@zlib//:z",
+        "@zlib//:libz_so",
     ],
     visibility = ["//visibility:private"],
 )

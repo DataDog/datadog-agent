@@ -51,6 +51,7 @@ var GitCommit string
 
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
+	envSpecificClusterTags []string
 }
 
 func (suite *k8sSuite) SetupSuite() {
@@ -379,7 +380,7 @@ func (suite *k8sSuite) testAgentCLI() {
 }
 
 func (suite *k8sSuite) testClusterAgentCLI() {
-	leaderDcaPodName := suite.testDCALeaderElection(false) //check cluster agent leaderelection without restart
+	leaderDcaPodName := suite.testDCALeaderElection(false) // check cluster agent leaderelection without restart
 	suite.Require().NotEmpty(leaderDcaPodName, "Leader DCA pod name should not be empty")
 
 	suite.Run("cluster-agent status", func() {
@@ -451,6 +452,18 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Contains(stdout, "=== kubernetes_state_core check ===")
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("cluster-agent clusterchecks force rebalance", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks", "rebalance", "--force"})
+		suite.Require().NoError(err)
+		suite.NotContains(stdout+stderr, "advanced dispatching is not enabled", "Advanced dispatching must be enabled for force rebalance")
+		matched := regexp.MustCompile(`\d+\s+cluster checks rebalanced successfully`).MatchString(stdout)
+		suite.True(matched, "Expected 'X cluster checks rebalanced successfully' in output")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+			suite.T().Log(stderr)
 		}
 	})
 
@@ -611,7 +624,7 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^cluster_name:`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
@@ -619,7 +632,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_namespace:workload-nginx$`,
 				`^kube_service:nginx$`,
 				`^url:http://`,
-			},
+			}),
 		},
 	})
 
@@ -633,7 +646,7 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:`,
 				`^cluster_name:`,
 				`^orch_cluster_id:`,
@@ -645,7 +658,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^sub-team:contint$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
 				Min: 1,
@@ -739,7 +752,7 @@ func (suite *k8sSuite) TestRedis() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:`,
 				`^cluster_name:`,
 				`^orch_cluster_id:`,
@@ -747,7 +760,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
 				Min: 1,
@@ -955,7 +968,7 @@ func (suite *k8sSuite) TestKSM() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
@@ -965,7 +978,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
@@ -982,14 +995,14 @@ func (suite *k8sSuite) TestKSM() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
@@ -1002,7 +1015,7 @@ func (suite *k8sSuite) TestKSM() {
 			Name: "kubernetes_state_customresource.ddm_value",
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
@@ -1014,7 +1027,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^ddm_name:(?:nginx|redis)$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			},
+			}),
 		},
 	})
 }
@@ -1270,7 +1283,9 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	)
 
 	if suite.Contains(hostPathVolumes, "datadog") {
-		suite.Equal("/var/run/datadog", hostPathVolumes["datadog"].Path)
+		// trim trailing '/' if exists
+		ddHostPath := strings.TrimSuffix(hostPathVolumes["datadog"].Path, "/")
+		suite.Contains("/var/run/datadog", ddHostPath)
 		suite.Contains(volumesMarkedAsSafeToEvict, "datadog")
 	}
 
@@ -1308,7 +1323,6 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			}, volumeMounts["datadog-auto-instrumentation"])
 		}
 	}
-
 }
 
 func (suite *k8sSuite) TestContainerImage() {
@@ -1736,4 +1750,9 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 		}
 		require.NoErrorf(c, err, "Failed finding trace with proper tags")
 	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
+}
+
+func (suite *k8sSuite) testClusterTags(tags []string) *[]string {
+	combined := append(tags, suite.envSpecificClusterTags...)
+	return &combined
 }

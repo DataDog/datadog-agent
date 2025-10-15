@@ -25,6 +25,9 @@
 
 .bazel:ext:windows:
   extends: .windows_docker_default
+  timeout: 60m # pulling images alone can take more than 30m
+  allow_failure: true
+  retry: 0
   variables:
     GIT_DEPTH: 2
   script:

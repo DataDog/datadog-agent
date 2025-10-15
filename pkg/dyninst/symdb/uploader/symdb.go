@@ -42,14 +42,16 @@ const (
 
 // Scope represents a lexical scope in the SymDB schema
 type Scope struct {
-	ScopeType         ScopeType          `json:"scope_type"`
-	Name              string             `json:"name"`
-	SourceFile        string             `json:"source_file,omitempty"`
-	StartLine         int                `json:"start_line"`
-	EndLine           int                `json:"end_line"`
-	LanguageSpecifics *LanguageSpecifics `json:"language_specifics,omitempty"`
-	Symbols           []Symbol           `json:"symbols,omitempty"`
-	Scopes            []Scope            `json:"scopes,omitempty"`
+	ScopeType          ScopeType          `json:"scope_type"`
+	Name               string             `json:"name"`
+	SourceFile         string             `json:"source_file,omitempty"`
+	StartLine          int                `json:"start_line"`
+	EndLine            int                `json:"end_line"`
+	HasInjectibleLines bool               `json:"has_injectible_lines"`
+	InjectibleLines    []LineRange        `json:"injectible_lines,omitempty"`
+	LanguageSpecifics  *LanguageSpecifics `json:"language_specifics,omitempty"`
+	Symbols            []Symbol           `json:"symbols,omitempty"`
+	Scopes             []Scope            `json:"scopes,omitempty"`
 }
 
 // SymbolType represents the type of symbol in the SymDB schema
@@ -91,6 +93,7 @@ type SymDBUploader struct {
 	service   string
 	version   string
 	runtimeID string
+	headers   [][2]string
 }
 
 // NewSymDBUploader returns a new SymDBUploader.
@@ -99,12 +102,14 @@ func NewSymDBUploader(
 	service string,
 	version string,
 	runtimeID string,
+	headers ...[2]string,
 ) *SymDBUploader {
 	return &SymDBUploader{
 		url:       urlStr,
 		service:   service,
 		version:   version,
 		runtimeID: runtimeID,
+		headers:   headers,
 	}
 }
 
@@ -184,6 +189,9 @@ func (s *SymDBUploader) uploadInner(ctx context.Context, symdbData []byte) error
 		return fmt.Errorf("failed to build request: %w", err)
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	for _, keyVal := range s.headers {
+		req.Header.Set(keyVal[0], keyVal[1])
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -235,7 +243,7 @@ func ConvertPackageToScope(pkg symdb.Package) Scope {
 
 	// Add types as struct scopes
 	for _, typ := range pkg.Types {
-		typeScope := convertTypeToScope(typ)
+		typeScope := convertTypeToScope(*typ)
 		scope.Scopes = append(scope.Scopes, typeScope)
 	}
 
@@ -249,14 +257,23 @@ func convertFunctionToScope(fn symdb.Function, isMethod bool) Scope {
 		scopeType = ScopeTypeFunction
 	}
 
+	injectibleLines := make([]LineRange, len(fn.InjectibleLines))
+	for i, r := range fn.InjectibleLines {
+		injectibleLines[i] = LineRange{
+			Start: r[0],
+			End:   r[1],
+		}
+	}
 	scope := Scope{
-		ScopeType:  scopeType,
-		Name:       fn.Name,
-		SourceFile: fn.File,
-		StartLine:  fn.StartLine,
-		EndLine:    fn.EndLine,
-		Symbols:    make([]Symbol, 0, len(fn.Variables)),
-		Scopes:     make([]Scope, 0, len(fn.Scopes)),
+		ScopeType:          scopeType,
+		Name:               fn.Name,
+		SourceFile:         fn.File,
+		StartLine:          fn.StartLine,
+		EndLine:            fn.EndLine,
+		Symbols:            make([]Symbol, 0, len(fn.Variables)),
+		Scopes:             make([]Scope, 0, len(fn.Scopes)),
+		HasInjectibleLines: true,
+		InjectibleLines:    injectibleLines,
 		LanguageSpecifics: &LanguageSpecifics{
 			GoQualifiedName: fn.QualifiedName,
 		},

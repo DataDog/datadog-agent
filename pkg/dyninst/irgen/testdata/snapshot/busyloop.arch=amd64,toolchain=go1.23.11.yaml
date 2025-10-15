@@ -10,6 +10,7 @@ Probes:
       subprogram: {subprogram: 1}
       events:
         - ID: 1
+          Kind: Entry
           Type: 105 EventRootType Probe[main.noop]
           InjectionPoints: [{PC: "0x4a5f60", Frameless: true}]
           Condition: null
