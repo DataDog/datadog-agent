@@ -1115,7 +1115,7 @@ func (p *EBPFProbe) handleEventWrapper(CPU int, data []byte) {
 	ev := p.handleEvent(CPU, data)
 	end := time.Since(start)
 	p.eventProcessingTimeMutex.Lock()
-	acc, _ := (*p.eventProcessingTimes)[ev]
+	acc := (*p.eventProcessingTimes)[ev]
 	if acc == nil {
 		acc = &StatsAccumulator{}
 		(*p.eventProcessingTimes)[ev] = acc
