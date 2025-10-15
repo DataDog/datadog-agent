@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Network Path now performs traceroutes using domain names instead of IP addresses.
+    Network Path Collector now performs traceroutes using domain names instead of IP addresses.
