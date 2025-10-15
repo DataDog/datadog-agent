@@ -75,6 +75,7 @@ func (h *Host) setSystemdVersion() {
 	h.systemdVersion = version
 }
 
+// RemovePackage removes a package from the host.
 func (h *Host) RemovePackage(pkg string) {
 	switch h.pkgManager {
 	case "apt":
