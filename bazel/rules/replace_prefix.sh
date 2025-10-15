@@ -8,6 +8,10 @@ while [ "$#" -gt 0 ]; do
             shift
             PREFIX="$1"
             ;;
+        --patchelf)
+            shift
+            PATCHELF="$1"
+            ;;
         *)
             break
     esac
@@ -26,7 +30,7 @@ for f in "$@"; do
     fi
     case $f in
         *.so)
-            patchelf --set-rpath "$PREFIX" "$f"
+            ${PATCHELF} --set-rpath "$PREFIX" "$f"
             ;;
         *.dylib)
             install_name_tool -add_rpath "$PREFIX/embedded/lib" "$f"

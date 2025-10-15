@@ -3,4 +3,12 @@ load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 sh_binary(
     name = "replace_prefix",
     srcs = ["replace_prefix.sh"],
+    data = select({
+        "@platforms//os:linux": ["@patchelf"],
+        "//conditions:default": [],
+    }),
+    args = select({
+        "@platforms//os:linux": ["--patchelf", "$(location @patchelf)"],
+        "//conditions:default": [],
+    }),
 )
