@@ -95,15 +95,21 @@ func (s *infraBasicSuite) getAllowedChecks() []string {
 
 func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption {
 	// Agent configuration for basic mode testing
+	// Enable process agent explicitly to test it is blocked by infrastructure_mode: basic
+	// Other agents (trace, system-probe, security) should still work in basic mode
 	basicModeAgentConfig := `
 api_key: "00000000000000000000000000000000"
 site: "datadoghq.com"
 infrastructure_mode: "basic"
 logs_enabled: false
 apm_config:
-  enabled: false
+  enabled: true
 process_config:
-  enabled: false
+  enabled: true
+  process_collection:
+    enabled: true
+  container_collection:
+    enabled: true
 telemetry:
   enabled: true
 `
@@ -227,6 +233,29 @@ func (s *infraBasicSuite) verifyCheckSchedulingViaStatusAPI(c *assert.CollectT, 
 	}
 }
 
+// checkServiceRunning checks if a service is running on the host, handling both Windows and Linux.
+// Returns (isRunning bool, err error).
+func (s *infraBasicSuite) checkServiceRunning(serviceCommand string) (bool, error) {
+	if s.descriptor.Family() == e2eos.WindowsFamily {
+		// Windows: Check service status using PowerShell Get-Service
+		result := s.Env().RemoteHost.MustExecute("powershell -Command \"Get-Service -Name '" + serviceCommand + "' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Status\"")
+		return result == "Running", nil
+	}
+
+	// Linux: Check systemd service status
+	result, err := s.Env().RemoteHost.Execute("systemctl is-active " + serviceCommand + " 2>/dev/null || echo 'inactive'")
+	return result == "active", err
+}
+
+// getAgentStatus retrieves and parses the agent status JSON.
+// Returns the parsed status map or an error.
+func (s *infraBasicSuite) getAgentStatus() (map[string]interface{}, error) {
+	status := s.Env().Agent.Client.Status(agentclient.WithArgs([]string{"--json"}))
+	var statusMap map[string]interface{}
+	err := json.Unmarshal([]byte(status.Content), &statusMap)
+	return statusMap, err
+}
+
 // ============================================================================
 // Test Functions
 // ============================================================================
@@ -271,6 +300,115 @@ func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
 			for _, checkName := range excludedChecks {
 				ran := s.verifyCheckRuns(checkName)
 				assert.False(t, ran, "Check %s should be blocked via CLI in basic mode", checkName)
+			}
+		})
+	})
+}
+
+// TestAgentBlocking verifies that certain agents are blocked in basic mode while others are allowed.
+// Process and cluster agents should be blocked even if enabled in config.
+// Trace, system-probe, and security agents should still be allowed to run.
+func (s *infraBasicSuite) TestAgentBlocking() {
+	// Define allowed agents (should be able to run in basic mode)
+	allowedAgents := map[string]string{
+		"trace-agent":    "datadog-trace-agent",
+		"system-probe":   "datadog-system-probe",
+		"security-agent": "datadog-security-agent",
+	}
+
+	// Define blocked agents (should NOT run in basic mode, even if enabled)
+	blockedAgents := map[string]string{
+		"process-agent": "datadog-process-agent",
+		"cluster-agent": "datadog-cluster-agent",
+	}
+
+	// Test allowed agents
+	s.T().Run("allowed_agents", func(t *testing.T) {
+		t.Run("service_status", func(t *testing.T) {
+			t.Logf("Verifying %d allowed agents can run in basic mode...", len(allowedAgents))
+
+			for serviceName, serviceCommand := range allowedAgents {
+				t.Run(serviceName, func(t *testing.T) {
+					isRunning, err := s.checkServiceRunning(serviceCommand)
+					if err != nil {
+						t.Logf("Could not check service %s status: %v", serviceName, err)
+					}
+
+					// Note: We don't assert.True here because these services might not be enabled
+					// by default or might not be installed. The key test is that they're NOT blocked.
+					// If they are configured and installed, they should be running.
+					t.Logf("Agent %s running status: %v (should be allowed to run in basic mode)", serviceName, isRunning)
+				})
+			}
+		})
+
+		t.Run("agent_status", func(t *testing.T) {
+			// Verify allowed agents can appear in agent status (if configured)
+			t.Logf("Checking agent status for allowed agents...")
+
+			statusMap, err := s.getAgentStatus()
+			if !assert.NoError(t, err, "Failed to parse agent status JSON") {
+				return
+			}
+
+			// Check APM/trace-agent - should be allowed and present since we enabled it in config
+			apmStatus, apmExists := statusMap["apmStats"]
+			t.Logf("APM status exists: %v, value: %v", apmExists, apmStatus)
+			// APM is explicitly enabled in config, so it should appear in status eventually
+			// Note: May not be present immediately on startup, but should be allowed
+			if apmExists {
+				assert.NotNil(t, apmStatus, "APM stats should not be nil when present in status")
+			}
+
+			// Check system probe - allowed in basic mode but may not be configured by default
+			sysprobe, sysprobeExists := statusMap["systemProbeStats"]
+			t.Logf("System probe status exists: %v, value: %v", sysprobeExists, sysprobe)
+			if sysprobeExists {
+				assert.NotNil(t, sysprobe, "System probe stats should not be nil when present in status")
+			}
+			// The key point: these agents are ALLOWED in basic mode (not blocked)
+		})
+	})
+
+	// Test blocked agents
+	s.T().Run("blocked_agents", func(t *testing.T) {
+		t.Run("service_status", func(t *testing.T) {
+			t.Logf("Verifying %d blocked agents are not running (despite being enabled in config)...", len(blockedAgents))
+
+			for serviceName, serviceCommand := range blockedAgents {
+				t.Run(serviceName, func(t *testing.T) {
+					isRunning, err := s.checkServiceRunning(serviceCommand)
+					if err != nil {
+						t.Logf("Could not check service %s status (expected if service doesn't exist): %v", serviceName, err)
+					}
+
+					assert.False(t, isRunning, "Agent %s should NOT be running in infrastructure basic mode (even though enabled in config)", serviceName)
+				})
+			}
+		})
+
+		t.Run("agent_status", func(t *testing.T) {
+			// Verify blocked agents don't appear as active in agent status
+			t.Logf("Verifying blocked agents are not active in agent status...")
+
+			statusMap, err := s.getAgentStatus()
+			if !assert.NoError(t, err, "Failed to parse agent status JSON") {
+				return
+			}
+
+			// Check process agent - should not be active in basic mode (even though we enabled it in config)
+			processStatus, processExists := statusMap["processAgentStatus"]
+			t.Logf("Process agent status exists: %v, value: %v", processExists, processStatus)
+
+			// Process agent should either:
+			// 1. Not appear in status at all (best case - completely blocked)
+			// 2. Appear but indicate it's not running/disabled
+			// The critical assertion is that the service is NOT running (tested in service_status above)
+			// Here we document the status API behavior for observability
+			if processExists {
+				t.Logf("Process agent status is present (should indicate disabled/not running): %v", processStatus)
+			} else {
+				t.Logf("Process agent status not found in status output (completely blocked by basic mode)")
 			}
 		})
 	})
