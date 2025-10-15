@@ -761,7 +761,7 @@ Make sure that milestone is open before trying again.""",
     return updated_pr.html_url
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None, labels=None):
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None, labels=()):
     if milestone:
         milestone_name = milestone
     else:
@@ -769,8 +769,9 @@ def create_release_pr(title, base_branch, target_branch, version, changelog_pr=F
 
         milestone_name = get_current_milestone()
 
-    labels = (labels or []) + [
+    labels = [
         "team/agent-delivery",
+        *labels,
     ]
     if changelog_pr:
         labels.append(f"backport/{get_default_branch()}")
