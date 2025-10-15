@@ -56,7 +56,10 @@ git_override(
     module_name = "gcc_toolchain",
     commit = "0e2242b07961107d2b05a6552d70b2ef4ef485fb",
     patch_args = ["-p1"],
-    patches = ["//bazel/patches:datadog_agent_toolchain.patch"],
+    patches = [
+        "//bazel/patches:datadog_agent_toolchain.patch",
+        "//bazel/patches:0001-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch"
+    ],
     remote = "https://github.com/f0rmiga/gcc-toolchain.git",
 )
 
