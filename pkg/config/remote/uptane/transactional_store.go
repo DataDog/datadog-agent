@@ -80,6 +80,7 @@ func (ts *transactionalStore) getTSMetadata() (*Metadata, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not read metadata from the database: %w", err)
 	}
+	path := ts.db.Path()
 
 	err = ts.db.Close()
 	if err != nil {
@@ -87,7 +88,7 @@ func (ts *transactionalStore) getTSMetadata() (*Metadata, error) {
 	}
 
 	return &Metadata{
-		Path:         ts.db.Path(),
+		Path:         path,
 		AgentVersion: metadata.Version,
 		APIKey:       metadata.APIKeyHash,
 		URL:          metadata.URL,
