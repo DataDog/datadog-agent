@@ -529,9 +529,6 @@ class GithubAPI:
         from tasks.libs.common.utils import running_in_ci
 
         if not running_in_ci():
-            if "GITHUB_TOKEN" in os.environ:
-                msg = "GITHUB_TOKEN is deprecated locally, please remove it from your environment."
-                print(color_message(msg, Color.ORANGE))
             return Auth.Token(generate_local_github_token(Context()))
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
