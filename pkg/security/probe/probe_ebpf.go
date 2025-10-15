@@ -190,6 +190,9 @@ type EBPFProbe struct {
 
 	// PrCtl and name truncation
 	MetricNameTruncated *atomic.Uint64
+
+	// Event timing information
+	EventProcessingTime map[model.EventType][]int64
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -929,6 +932,39 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
+	// Calculate and send metrics for average and standard deviation for each event type
+	for eventType, eventStat := range p.EventProcessingTime {
+		sum := int64(0)
+		stdDev := float64(0)
+
+		for _, eventTime := range eventStat {
+			sum += eventTime
+		}
+
+		avg := sum / int64(len(eventStat))
+		avgFloat := float64(avg)
+
+		for _, eventTime := range eventStat {
+			stdDev += math.Pow(float64(eventTime)-avgFloat, 2)
+		}
+
+		stdDev /= float64(len(eventStat))
+		stdDev = math.Sqrt(stdDev)
+
+		model.GetAllCategories()
+		tag := []string{"event_type:" + eventType.String()}
+
+		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeAvg, avgFloat, tag, 1.0); err != nil {
+			return err
+		}
+
+		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeStddev, stdDev, tag, 1.0); err != nil {
+			return err
+		}
+	}
+
+	p.EventProcessingTime = make(map[model.EventType][]int64)
+
 	return p.monitors.SendStats()
 }
 
@@ -1073,8 +1109,16 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 	return true
 }
 
+// handleEvent wraps the handleEvent function in order to
+func (p *EBPFProbe) handleEventWrapper(CPU int, data []byte) {
+	start := time.Now()
+	ev := p.handleEvent(CPU, data)
+	end := time.Since(start)
+	p.EventProcessingTime[ev] = append(p.EventProcessingTime[ev], end.Microseconds())
+}
+
 // handleEvent processes raw eBPF events received from the kernel, unmarshaling and dispatching them appropriately.
-func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
+func (p *EBPFProbe) handleEvent(CPU int, data []byte) model.EventType {
 	// handle play snapshot
 	if p.replayEventsState.Swap(false) {
 		// do not notify consumers as we are replaying the snapshot after a ruleset reload
@@ -1110,7 +1154,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	read, err := event.UnmarshalBinary(data)
 	if err != nil {
 		seclog.Errorf("failed to decode event: %s", err)
-		return
+		return model.UnknownEventType
 	}
 	offset += read
 
@@ -1118,20 +1162,20 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	if eventType > model.MaxKernelEventType {
 		p.monitors.eventStreamMonitor.CountInvalidEvent(dataLen)
 		seclog.Errorf("unsupported event type %d", eventType)
-		return
+		return eventType
 	}
 
 	p.monitors.eventStreamMonitor.CountEvent(eventType, event, dataLen, CPU, !p.useRingBuffers)
 
 	// some events don't need to be dispatched and return early after unmarshaling
 	if !p.handleEarlyReturnEvents(event, offset, dataLen, data, newEntryCb) {
-		return
+		return eventType
 	}
 	// unmarshall contexts
 	read, err = p.unmarshalContexts(data[offset:], event)
 	if err != nil {
 		seclog.Errorf("failed to decode event `%s`: %s", eventType, err)
-		return
+		return eventType
 	}
 	offset += read
 
@@ -1142,11 +1186,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	if !p.handleBeforeProcessContext(event, data, offset, dataLen, newEntryCb) {
-		return
+		return eventType
 	}
 	// resolve process context
 	if !p.setProcessContext(eventType, event, newEntryCb) {
-		return
+		return eventType
 	}
 
 	// resolve the container context
@@ -1154,7 +1198,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	// handle regular events
 	if !p.handleRegularEvent(event, offset, dataLen, data, newEntryCb) {
-		return
+		return eventType
 	}
 
 	// send related events
@@ -1173,6 +1217,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// flush pending actions
 	p.processKiller.FlushPendingReports()
 	p.fileHasher.FlushPendingReports()
+
+	return eventType
 }
 
 // handleRegularEvent performs the standard unmarshaling process common to all events.
@@ -2998,9 +3044,9 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 	})
 
 	if p.useRingBuffers {
-		p.eventStream = ringbuffer.New(p.handleEvent)
+		p.eventStream = ringbuffer.New(p.handleEventWrapper)
 	} else {
-		p.eventStream, err = reorderer.NewOrderedPerfMap(p.ctx, p.handleEvent, probe.StatsdClient)
+		p.eventStream, err = reorderer.NewOrderedPerfMap(p.ctx, p.handleEventWrapper, probe.StatsdClient)
 		if err != nil {
 			return nil, err
 		}

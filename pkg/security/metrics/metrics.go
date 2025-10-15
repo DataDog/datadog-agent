@@ -475,6 +475,16 @@ var (
 	// MetricNameTruncated is the name of the metric used to report truncated name used in prctl
 	// Tags: -
 	MetricNameTruncated = newRuntimeMetric(".prctl.name_truncated")
+
+	// Event processing time metrics
+
+	// MetricNameEventProcessingTimeAvg is the name of the metric used to report the average time an event took to be processed
+	// Tags: event_type
+	MetricNameEventProcessingTimeAvg = newRuntimeMetric(".event_processing_time.avg")
+
+	// MetricNameEventProcessingTimeStddev is the name of the metric used to report the standard deviation of the time an event took to be processed
+	// Tags: event_type
+	MetricNameEventProcessingTimeStddev = newRuntimeMetric(".event_processing_time.stddev")
 )
 
 var (
