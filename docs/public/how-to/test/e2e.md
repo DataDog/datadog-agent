@@ -1,6 +1,6 @@
 # Running E2E tests
 
-End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) framework to provision and manage test environments.
+End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) framework to provision and manage test environments. Tests are stored in the [test/new-e2e](../../../../test/new-e2e/) folder.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ E2E tests require access to the `agent-sandbox` AWS account:
 
 1. **Role Access**: Ensure you have the `account-admin` role on the `agent-sandbox` account
 2. **AWS Keypair**: Set up an existing AWS keypair for your account
-3. **Authentication**: Login using aws-vault:
+3. **Authentication**: Validate your connection with login using aws-vault:
    ```bash
    aws-vault login sso-agent-sandbox-account-admin
    ```
@@ -38,7 +38,7 @@ If you plan to run tests on Google Kubernetes Engine:
 
 1. **Install GKE Plugin**: Install the GKE authentication plugin
 2. **PATH Configuration**: Add the plugin to your system PATH
-3. **Authentication**: Authenticate with GCP:
+3. **Authentication**: Validate your connection with GCP authentication:
    ```bash
    gcloud auth application-default login
    ```
@@ -53,6 +53,7 @@ Set up the required environment variables:
    ```
    /// tip
    Generate a secure random password using 1Password or your preferred password manager.
+   You can use `security` on macOS to safely get this password.
    ///
 
 ## Setting Up the Development Environment
@@ -96,7 +97,7 @@ dda inv new-e2e-tests.run --targets=./examples --run=^TestVMSuite$
 ```
 
 Replace ./examples with your subfolder.
-This also supports the golang testing flag  --run and --skip to target specific tests using go test syntax. See go help testflag for details.
+This also supports the golang testing flag --run and --skip to target specific tests using go test syntax. See go help testflag for details.
 
 ```bash
 inv new-e2e-tests.run --targets=./examples --run=TestMyLocalKindSuite/TestClusterAgentInstalled
@@ -105,6 +106,17 @@ inv new-e2e-tests.run --targets=./examples --run=TestMyLocalKindSuite/TestCluste
 You can also run it with go test, from test/new-e2e
 ```bash
 cd test/new-e2e && go test ./examples -timeout 0 -run=^TestVMSuite$
+```
+
+While developing a test you might want to keep the remote instance alive to iterate faster. You can skip the resources deletion using dev mode with the environment variable `E2E_DEV_MODE`. You can force this in the terminal
+```bash
+E2E_DEV_MODE=true inv -e new-e2e-tests.run --targets ./examples --run=^TestVMSuite$
+```
+or for instance add it in the `go.testEnvVars` if you are using a VSCode-based IDE
+```
+"go.testEnvVars": {
+  "E2E_DEV_MODE": "true",
+}, 
 ```
 
 ### Test with Local Agent Packages
