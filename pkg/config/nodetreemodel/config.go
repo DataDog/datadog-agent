@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 
@@ -71,6 +72,9 @@ type ntmConfig struct {
 	// - it's okay to modify the config schema after it gets built
 	// - unknown keys can be assigned and retrieved
 	allowDynamicSchema *atomic.Bool
+	// state of env vars, only used by tests to decide when to rebuild the env var layer. Necessary because
+	// viper would lookup env vars at runtime, instead of storing them, and many many tests rely on this behavior
+	lastEnvVarState string
 
 	// tree debugger is used by the Stringify method, useful for debugging and test assertions
 	td *treeDebugger
@@ -439,13 +443,24 @@ func (c *ntmConfig) isKnownKey(key string) bool {
 
 func (c *ntmConfig) maybeRebuild() {
 	if c.allowDynamicSchema.Load() {
+		// Write-lock because the root will be written to in order to rebuild the state
+		c.Lock()
+		defer c.Unlock()
+
+		// Only need to rebuild if env vars have different state than last rebuild
+		envs := os.Environ()
+		sort.Strings(envs)
+		envVarState := strings.Join(envs, "$")
+		if c.lastEnvVarState == envVarState {
+			return
+		}
+		c.lastEnvVarState = envVarState
+
 		// building the schema may access data from the config, disable the dynamic schema
 		// flag to prevent recursive rebuilds
 		c.allowDynamicSchema.Store(false)
 		defer func() { c.allowDynamicSchema.Store(true) }()
 
-		c.Lock()
-		defer c.Unlock()
 		c.buildSchema()
 	}
 }
