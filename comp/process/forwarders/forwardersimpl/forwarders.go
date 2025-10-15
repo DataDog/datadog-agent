@@ -34,7 +34,7 @@ type dependencies struct {
 	Config  config.Component
 	Logger  log.Component
 	Lc      fx.Lifecycle
-	Secrets secrets.Component `optional:"true"`
+	Secrets secrets.Component
 }
 
 type forwardersComp struct {
@@ -81,7 +81,7 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 }
 
 func createForwarder(deps dependencies, options *defaultforwarder.Options) defaultforwarder.Component {
-	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
+	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Secrets, deps.Lc, false, options).Comp
 }
 
 func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint, secrets secrets.Component) (*defaultforwarder.Options, error) {
@@ -90,12 +90,6 @@ func createParams(config config.Component, log log.Component, queueBytes int, en
 		return nil, err
 	}
 	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver)
-
-	// Set up secret refresh callback
-	if secrets != nil {
-		forwarderOpts.SecretRefreshCallback = secrets.TriggerRefreshOnAPIKeyFailure
-	}
-
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	return forwarderOpts, nil

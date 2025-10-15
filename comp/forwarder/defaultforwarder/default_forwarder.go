@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -49,9 +50,6 @@ const (
 // The amount of time the forwarder will wait to receive process-like response payloads before giving up
 // This is a var so that it can be changed for testing
 var defaultResponseTimeout = 30 * time.Second
-
-// SecretRefreshFunc is a callback function type for triggering secret refresh
-type SecretRefreshFunc func(reason string)
 
 // Response contains the response details of a successfully posted transaction
 type Response struct {
@@ -109,7 +107,6 @@ type Options struct {
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
 	CompletionHandler              transaction.HTTPCompletionHandler
-	SecretRefreshCallback          SecretRefreshFunc
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -253,15 +250,17 @@ type DefaultForwarder struct {
 	agentName                       string
 	queueDurationCapacity           *retry.QueueDurationCapacity
 	retryQueueDurationCapacityMutex sync.Mutex
+	secrets                         secrets.Component
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
 // TODO: (components) Remove this method and other exported methods in comp/forwarder.
-func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
+func NewDefaultForwarder(config config.Component, log log.Component, secrets secrets.Component, options *Options) *DefaultForwarder {
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		config:           config,
 		log:              log,
+		secrets:          secrets,
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]pkgresolver.DomainResolver{},
@@ -269,10 +268,10 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		healthChecker: &forwarderHealth{
 			log:                   log,
 			config:                config,
+			secrets:               secrets,
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
-			secretRefreshCallback: options.SecretRefreshCallback,
 		},
 		completionHandler: options.CompletionHandler,
 		agentName:         agentName,
@@ -364,6 +363,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			fwd := newDomainForwarder(
 				config,
 				log,
+				secrets,
 				domain,
 				isMRF,
 				isLocal,
@@ -538,11 +538,6 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					t.Destination = payload.Destination
 					t.Headers.Set("Authorization", fmt.Sprintf("Bearer %s", dr.GetBearerAuthToken()))
 
-					// Set secret refresh callback from health checker
-					if f.healthChecker != nil {
-						t.SecretRefreshCallback = f.healthChecker.secretRefreshCallback
-					}
-
 					for key := range extra {
 						t.Headers.Set(key, extra.Get(key))
 					}
@@ -567,11 +562,6 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
 					if allowArbitraryTags {
 						t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
-					}
-
-					// Set secret refresh callback from health checker
-					if f.healthChecker != nil {
-						t.SecretRefreshCallback = f.healthChecker.secretRefreshCallback
 					}
 
 					if f.completionHandler != nil {
