@@ -119,27 +119,26 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 
-	seen := map[string]int{}
+	seen := map[string]bool
 	for _, newTestConfig := range newConfig {
 		pubID := newTestConfig.PublicID
-		seen[pubID] = newTestConfig.OrgID
+		seen[pubID] = true
 		current, exists := s.state.tests[pubID]
+		s.statsdClient.Incr(syntheticsMetricPrefix+"checks_received", []string{fmt.Sprintf("org_id:%d", newTestConfig.OrgID)}, 1) //nolint:errcheck
 		if !exists {
 			s.state.tests[pubID] = &runningTestState{
 				cfg:     newTestConfig,
 				lastRun: time.Time{},
 				nextRun: s.timeNowFn().UTC(),
 			}
-			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_received", []string{fmt.Sprintf("org_id:%d", newTestConfig.OrgID)}, 1) //nolint:errcheck
 		} else {
 			current.cfg = newTestConfig
 		}
 	}
 
 	for pubID := range s.state.tests {
-		if orgID, exists := seen[pubID]; !exists {
+		if _, exists := seen[pubID]; !exists {
 			delete(s.state.tests, pubID)
-			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_received", []string{fmt.Sprintf("org_id:%d", orgID)}, -1) //nolint:errcheck
 		}
 	}
 }
