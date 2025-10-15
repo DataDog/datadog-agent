@@ -392,10 +392,8 @@ func TestOnConfigUpdate_NoConfigs(t *testing.T) {
 	}
 
 	// Create config files to be removed
-	configCompiledPath = filepath.Join(tempDir, "test-compiled.bin")
-	configJSONPath = filepath.Join(tempDir, "test-config.json")
-	require.NoError(t, os.WriteFile(configCompiledPath, []byte("test"), 0644))
-	require.NoError(t, os.WriteFile(configJSONPath, []byte("test"), 0644))
+	configPath = filepath.Join(tempDir, "test-compiled.bin")
+	require.NoError(t, os.WriteFile(configPath, []byte("test"), 0644))
 
 	// Call with empty updates
 	callbackCalled := false
@@ -403,10 +401,8 @@ func TestOnConfigUpdate_NoConfigs(t *testing.T) {
 		callbackCalled = true
 	})
 
-	// Verify files are removed
-	_, err := os.Stat(configCompiledPath)
-	assert.True(t, os.IsNotExist(err))
-	_, err = os.Stat(configJSONPath)
+	// Verify file is removed
+	_, err := os.Stat(configPath)
 	assert.True(t, os.IsNotExist(err))
 
 	// Callback should not be called for empty updates
@@ -433,8 +429,7 @@ func TestOnConfigUpdate_SingleConfig(t *testing.T) {
 		config: mockConfig,
 	}
 
-	configCompiledPath = filepath.Join(tempDir, "test-compiled.bin")
-	configJSONPath = filepath.Join(tempDir, "test-config.json")
+	configPath = filepath.Join(tempDir, "test-compiled.bin")
 
 	updates := map[string]state.RawConfig{
 		"datadog/123/apm-policies/policy1/hash": {
@@ -474,8 +469,7 @@ func TestOnConfigUpdate_MultipleConfigs(t *testing.T) {
 		config: mockConfig,
 	}
 
-	configCompiledPath = filepath.Join(tempDir, "test-compiled.bin")
-	configJSONPath = filepath.Join(tempDir, "test-config.json")
+	configPath = filepath.Join(tempDir, "test-compiled.bin")
 
 	tests := []struct {
 		name          string
@@ -575,8 +569,7 @@ func TestOnConfigUpdate_ErrorHandling(t *testing.T) {
 		config: mockConfig,
 	}
 
-	configCompiledPath = filepath.Join(tempDir, "test-compiled.bin")
-	configJSONPath = filepath.Join(tempDir, "test-config.json")
+	configPath = filepath.Join(tempDir, "test-compiled.bin")
 
 	tests := []struct {
 		name        string
@@ -634,38 +627,17 @@ func TestRemoveConfig(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "both files exist",
+			name: "config file exists",
 			setupFiles: func(t *testing.T, tempDir string) {
-				configCompiledPath = filepath.Join(tempDir, "compiled.bin")
-				configJSONPath = filepath.Join(tempDir, "config.json")
-				require.NoError(t, os.WriteFile(configCompiledPath, []byte("test"), 0644))
-				require.NoError(t, os.WriteFile(configJSONPath, []byte("test"), 0644))
+				configPath = filepath.Join(tempDir, "compiled.bin")
+				require.NoError(t, os.WriteFile(configPath, []byte("test"), 0644))
 			},
 			expectError: false,
 		},
 		{
-			name: "only binary exists",
-			setupFiles: func(t *testing.T, tempDir string) {
-				configCompiledPath = filepath.Join(tempDir, "compiled.bin")
-				configJSONPath = filepath.Join(tempDir, "config.json")
-				require.NoError(t, os.WriteFile(configCompiledPath, []byte("test"), 0644))
-			},
-			expectError: false,
-		},
-		{
-			name: "only JSON exists",
-			setupFiles: func(t *testing.T, tempDir string) {
-				configCompiledPath = filepath.Join(tempDir, "compiled.bin")
-				configJSONPath = filepath.Join(tempDir, "config.json")
-				require.NoError(t, os.WriteFile(configJSONPath, []byte("test"), 0644))
-			},
-			expectError: false,
-		},
-		{
-			name: "neither file exists",
+			name: "config file doesn't exist",
 			setupFiles: func(_ *testing.T, tempDir string) {
-				configCompiledPath = filepath.Join(tempDir, "compiled.bin")
-				configJSONPath = filepath.Join(tempDir, "config.json")
+				configPath = filepath.Join(tempDir, "compiled.bin")
 			},
 			expectError: false,
 		},
@@ -689,10 +661,8 @@ func TestRemoveConfig(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				// Verify files are removed
-				_, err := os.Stat(configCompiledPath)
-				assert.True(t, os.IsNotExist(err))
-				_, err = os.Stat(configJSONPath)
+				// Verify file is removed
+				_, err := os.Stat(configPath)
 				assert.True(t, os.IsNotExist(err))
 			}
 		})

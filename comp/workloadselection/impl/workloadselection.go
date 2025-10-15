@@ -26,8 +26,7 @@ import (
 )
 
 var (
-	configCompiledPath          = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.bin")
-	configJSONPath              = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.json")
+	configPath                  = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.bin")
 	ddPolicyCompileRelativePath = filepath.Join("embedded", "bin", "dd-compile-policy")
 	// Pattern to extract policy ID from config path: datadog/\d+/<product>/<config_id>/<hash>
 	policyIDPattern = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
@@ -96,14 +95,10 @@ func (c *workloadselectionComponent) isCompilePolicyBinaryAvailable() bool {
 // compilePolicyBinary compiles the policy binary into a binary file
 // readable by the injector
 func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) error {
-	if err := os.MkdirAll(filepath.Dir(configJSONPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(configJSONPath, rawConfig, 0644); err != nil {
-		return err
-	}
-	defer os.RemoveAll(configJSONPath)
-	cmd := exec.Command(filepath.Join(getInstallPath(), ddPolicyCompileRelativePath), "--input-json", configJSONPath, "--output", configCompiledPath)
+	cmd := exec.Command(filepath.Join(getInstallPath(), ddPolicyCompileRelativePath), "--input-string", string(rawConfig), "--output-file", configPath)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
@@ -242,11 +237,8 @@ func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.Raw
 func (c *workloadselectionComponent) removeConfig() error {
 	// os.RemoveAll does not fail if the path doesn't exist, it returns nil
 	c.log.Debugf("Removing workload selection config")
-	if err := os.RemoveAll(configCompiledPath); err != nil {
+	if err := os.RemoveAll(configPath); err != nil {
 		return fmt.Errorf("failed to remove workload selection binary policy: %w", err)
-	}
-	if err := os.RemoveAll(configJSONPath); err != nil {
-		return fmt.Errorf("failed to remove workload selection JSON policy: %w", err)
 	}
 	return nil
 }

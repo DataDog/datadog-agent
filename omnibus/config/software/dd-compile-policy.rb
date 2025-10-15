@@ -16,7 +16,7 @@
 require './lib/ostools.rb'
 
 name "dd-compile-policy"
-default_version "0.0.1-release-test" # TODO: update to a stable release
+default_version "0.1.0"
 
 # Define URLs for each platform
 dd_compile_policy_urls = {
@@ -31,8 +31,8 @@ dd_compile_policy_urls = {
 # Note: These should be updated for each version
 dd_compile_policy_sha256 = {
   "linux" => {
-    "amd64" => "49cfee9d700e040bd99bb7a6239c667a59ac20cafcf747f261637246b0c39870",
-    "arm64" => "eb87b70f55b4e3bd8a2cbd3323d1de687e03d2df3bd4ecb5456aa532e4ad8a3e"
+    "amd64" => "ce7ada4e91d3b57849cc602fbb541f6b48988735a6d95ac4044dfab28272dd56",
+    "arm64" => "fe3c4470ca33030c4aa002dfb283aef672a8eff37b1660f9bcff67917e2fc64f"
   },
 }
 
