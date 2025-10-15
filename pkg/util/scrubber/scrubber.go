@@ -210,9 +210,9 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 }
 
 // scrub applies the given replacers to the given data.
-// If allowENC is true, replacers will skip matches that contain valid ENC[] patterns.
-// This should be true for single-line replacers and false for multiline replacers.
-func (c *Scrubber) scrub(data []byte, replacers []Replacer, allowENC bool) []byte {
+// If isSingleLineReplacer is true, replacers will skip matches that contain valid ENC[] patterns.
+// This should be true for single-line replacers and false for multiline replacers when preserving ENC.
+func (c *Scrubber) scrub(data []byte, replacers []Replacer, isSingleLineReplacer bool) []byte {
 	for _, repl := range replacers {
 		if repl.Regex == nil {
 			// ignoring YAML only replacers
@@ -232,7 +232,7 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer, allowENC bool) []byt
 		}
 		if len(repl.Hints) == 0 || containsHint {
 			data = repl.Regex.ReplaceAllFunc(data, func(match []byte) []byte {
-				if allowENC && c.preserveENC && containsValidENC(match) {
+				if isSingleLineReplacer && c.preserveENC && containsValidENC(match) {
 					return match
 				}
 				if repl.ReplFunc != nil {
