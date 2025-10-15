@@ -105,7 +105,6 @@ type Options struct {
 	APIKeyValidationInterval       time.Duration
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
-	CompletionHandler              transaction.HTTPCompletionHandler
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -244,8 +243,6 @@ type DefaultForwarder struct {
 	internalState    *atomic.Uint32
 	m                sync.Mutex // To control Start/Stop races
 
-	completionHandler transaction.HTTPCompletionHandler
-
 	agentName                       string
 	queueDurationCapacity           *retry.QueueDurationCapacity
 	retryQueueDurationCapacityMutex sync.Mutex
@@ -269,9 +266,8 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
 		},
-		completionHandler: options.CompletionHandler,
-		agentName:         agentName,
-		localForwarder:    nil,
+		agentName:      agentName,
+		localForwarder: nil,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.GetInt64("forwarder_storage_max_size_in_bytes")
@@ -498,27 +494,10 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint,
 func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, extra http.Header, priority transaction.Priority, kind transaction.Kind, storableOnDisk bool) []*transaction.HTTPTransaction {
 	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.domainForwarders))
 	allowArbitraryTags := f.config.GetBool("allow_arbitrary_tags")
-	preaggURL := f.config.GetString("preaggregation.dd_url")
 
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
 			drDomain, destinationType := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
-
-			if payload.Destination == transaction.PreaggrOnly {
-				if domain != preaggURL {
-					continue
-				}
-			} else {
-				// Do not send non-preaggr payloads to the preaggr domain. We
-				// have to ensure that the preaggr domain is not also a normal
-				// domain, otherwise we would prevent normal payloads from
-				// going to a normal endpoint. We make sure this is safe by
-				// disallowing the preaggr domain to match any existing
-				// endpoint at config load time.
-				if domain == preaggURL {
-					continue
-				}
-			}
 
 			if payload.Destination == transaction.LocalOnly {
 				// if it is local payload, we should not send it to the remote endpoint
@@ -556,10 +535,6 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
 					if allowArbitraryTags {
 						t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
-					}
-
-					if f.completionHandler != nil {
-						t.CompletionHandler = f.completionHandler
 					}
 
 					tlmTxInputCount.Inc(domain, endpoint.Name)

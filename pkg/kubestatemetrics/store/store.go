@@ -20,6 +20,12 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 )
 
+// EventNotifier interface for callback notification
+// avoid builder import
+type EventNotifier interface {
+	NotifyStoreEvent(eventType StoreEventType, resourceType string, obj interface{})
+}
+
 // MetricsStore implements the k8s.io/client-go/tools/cache.Store
 // interface. Instead of storing entire Kubernetes objects, it stores metrics
 // generated based on those objects.
@@ -32,7 +38,9 @@ type MetricsStore struct {
 	// and returns them grouped by metric family.
 	generateMetricsFunc func(interface{}) []metric.FamilyInterface
 
-	MetricsType string
+	MetricsType     string
+	enableCallbacks bool          // flag to enable event callback functionality
+	eventNotifier   EventNotifier // callback notifier (builder reference)
 }
 
 // DDMetric represents the data we care about for a context.
@@ -54,7 +62,14 @@ func NewMetricsStore(generateFunc func(interface{}) []metric.FamilyInterface, mt
 		MetricsType:         mt,
 		generateMetricsFunc: generateFunc,
 		metrics:             map[types.UID][]DDMetricsFam{},
+		enableCallbacks:     false,
 	}
+}
+
+// EnableCallbacks enables event callback functionality for this store with a notifier
+func (s *MetricsStore) EnableCallbacks(notifier EventNotifier) {
+	s.enableCallbacks = true
+	s.eventNotifier = notifier
 }
 
 func (d *DDMetricsFam) extract(f metric.Family) {
@@ -81,6 +96,11 @@ func (s *MetricsStore) Add(obj interface{}) error {
 	o, err := meta.Accessor(obj)
 	if err != nil {
 		return err
+	}
+
+	// Notify callbacks if enabled
+	if s.enableCallbacks && s.eventNotifier != nil {
+		s.eventNotifier.NotifyStoreEvent(EventAdd, s.MetricsType, obj)
 	}
 
 	metricsForUID := s.generateMetricsFunc(obj)
@@ -114,6 +134,11 @@ func buildTags(metrics *metric.Metric) (map[string]string, error) {
 
 // Update updates the existing entry in the MetricsStore by overriding it.
 func (s *MetricsStore) Update(obj interface{}) error {
+	// Notify callbacks if enabled
+	if s.enableCallbacks && s.eventNotifier != nil {
+		s.eventNotifier.NotifyStoreEvent(EventUpdate, s.MetricsType, obj)
+	}
+
 	// TODO: For now, just call Add, in the future one could check if the resource version changed?
 	return s.Add(obj)
 }
@@ -123,6 +148,11 @@ func (s *MetricsStore) Delete(obj interface{}) error {
 	o, err := meta.Accessor(obj)
 	if err != nil {
 		return err
+	}
+
+	// Notify callbacks if enabled
+	if s.enableCallbacks && s.eventNotifier != nil {
+		s.eventNotifier.NotifyStoreEvent(EventDelete, s.MetricsType, obj)
 	}
 
 	s.mutex.Lock()

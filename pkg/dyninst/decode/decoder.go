@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"strconv"
 	"time"
 
 	"github.com/go-json-experiment/json"
@@ -79,6 +80,8 @@ type Decoder struct {
 	// These fields are initialized and reset for each message.
 	snapshotMessage snapshotMessage
 	entry           captureEvent
+	_return         captureEvent
+	line            lineCaptureData
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -124,6 +127,13 @@ func NewDecoder(
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
 	}
+	decoder._return.encodingContext = encodingContext{
+		typesByID:            decoder.decoderTypes,
+		typesByGoRuntimeType: decoder.typesByGoRuntimeType,
+		typeResolver:         typeNameResolver,
+		dataItems:            make(map[typeAndAddr]output.DataItem),
+		currentlyEncoding:    make(map[typeAndAddr]struct{}),
+	}
 	return decoder, nil
 }
 
@@ -159,7 +169,15 @@ func (d *Decoder) Decode(
 	}
 	b := bytes.NewBuffer(buf)
 	enc := jsontext.NewEncoder(b)
-	numExpressions := len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.rootType.Expressions)
+	var numExpressions int
+	if d.snapshotMessage.Debugger.Snapshot.Captures.Entry != nil {
+		numExpressions = len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.rootType.Expressions)
+		if d.snapshotMessage.Debugger.Snapshot.Captures.Return != nil {
+			numExpressions += len(d.snapshotMessage.Debugger.Snapshot.Captures.Return.rootType.Expressions)
+		}
+	} else if d.snapshotMessage.Debugger.Snapshot.Captures.Lines != nil {
+		numExpressions = len(d.snapshotMessage.Debugger.Snapshot.Captures.Lines.capture.rootType.Expressions)
+	}
 	// We loop here because when evaluation errors occur, we reduce the amount of data we attempt
 	// to encode and then try again after resetting the buffer.
 	for range numExpressions + 1 { // +1 for the initial attempt
@@ -179,13 +197,17 @@ func (d *Decoder) Decode(
 func (d *Decoder) resetForNextMessage() {
 	clear(d.entry.dataItems)
 	d.entry.clear()
+	d.line.clear()
+	d._return.clear()
 	d.snapshotMessage = snapshotMessage{}
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
 // that are not present in the BPF program.
 type Event struct {
-	output.Event
+	Probe       *ir.Probe
+	EntryOrLine output.Event
+	Return      output.Event
 	ServiceName string
 }
 
@@ -195,6 +217,7 @@ type snapshotMessage struct {
 	Logger    logger           `json:"logger"`
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
+	Duration  uint64           `json:"duration,omitzero"`
 }
 
 func (s *snapshotMessage) init(
@@ -208,63 +231,63 @@ func (s *snapshotMessage) init(
 			ID:       uuid.New(),
 			Language: "go",
 		},
-		EvaluationErrors: []string{},
+		EvaluationErrors: []evaluationError{},
 	}
-	var rootType *ir.EventRootType
-	var probe ir.ProbeDefinition
-	var rootData []byte
-	for item, err := range event.Event.DataItems() {
-		if err != nil {
-			return probe, fmt.Errorf("error getting data items: %w", err)
-		}
-		if rootType == nil {
-			var ok bool
-			rootData, ok = item.Data()
-			if !ok {
-				// This should never happen.
-				return probe, errors.New("root data item marked as a failed read")
-			}
-			rootTypeID := ir.TypeID(item.Type())
-			rootType, ok = decoder.program.Types[rootTypeID].(*ir.EventRootType)
-			if !ok {
-				return nil, errors.New("expected event of type root first")
-			}
-			irProbe, ok := decoder.probeEvents[rootTypeID]
-			if !ok {
-				return probe, fmt.Errorf("no probe found for root type %v", rootTypeID)
-			}
-			probe = irProbe.probe
-			continue
-		}
-		// We need to keep track of the address reference count for each data item.
-		// This is used to avoid infinite recursion when encoding pointers.
-		// We use a map to store the address reference count for each data item.
-		// The key is a type and address pair.
-		// The value is a data item with a counter of how many times it has been referenced.
-		// If the counter is greater than 1, we know that the data item is a pointer to another data item.
-		// We can then encode the pointer as a string and not as an object.
-		decoder.entry.dataItems[typeAndAddr{
-			irType: uint32(item.Type()),
-			addr:   item.Header().Address,
-		}] = item
+	if event.EntryOrLine == nil {
+		return nil, fmt.Errorf("entry event is nil")
 	}
-	if rootType == nil {
-		return probe, errors.New("no root type found")
+	if err := decoder.entry.init(
+		event.EntryOrLine, decoder.program.Types, &s.Debugger.EvaluationErrors,
+	); err != nil {
+		return nil, err
 	}
-	decoder.entry.rootType = rootType
-	decoder.entry.rootData = rootData
-	decoder.entry.skippedIndices.reset(len(rootType.Expressions))
-	decoder.entry.evaluationErrors = &s.Debugger.EvaluationErrors
-	header, err := event.Event.Header()
+	probeEvent := decoder.probeEvents[decoder.entry.rootType.ID]
+	probe := probeEvent.probe
+	header, err := event.EntryOrLine.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
 	}
-	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(time.Duration(header.Ktime_ns)).UnixMilli())
+	switch probeEvent.event.Kind {
+	case ir.EventKindEntry:
+		s.Debugger.Snapshot.Captures.Entry = &decoder.entry
+	case ir.EventKindLine:
+		decoder.line.sourceLine = probeEvent.event.SourceLine
+		decoder.line.capture = &decoder.entry
+		s.Debugger.Snapshot.Captures.Lines = &decoder.line
+	}
+	var returnHeader *output.EventHeader
+	if event.Return != nil {
+		if err := decoder._return.init(
+			event.Return, decoder.program.Types, &s.Debugger.EvaluationErrors,
+		); err != nil {
+			return nil, fmt.Errorf("error initializing return event: %w", err)
+		}
+		returnProbeEvent := decoder.probeEvents[decoder._return.rootType.ID]
+		if returnProbeEvent.probe != probe {
+			return nil, fmt.Errorf("return probe event has different probe than entry probe")
+		}
+		returnHeader, err = event.Return.Header()
+		if err != nil {
+			return nil, fmt.Errorf("error getting return header %w", err)
+		}
+		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
+		s.Debugger.Snapshot.Captures.Return = &decoder._return
+	}
+
+	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(
+		time.Duration(header.Ktime_ns),
+	).UnixMilli())
 	s.Timestamp = s.Debugger.Snapshot.Timestamp
 
-	stackFrames, ok := decoder.stackFrames[header.Stack_hash]
+	stackHeader, stackEvent := header, event.EntryOrLine
+	if returnHeader != nil {
+		stackHeader, stackEvent = returnHeader, event.Return
+	}
+	stackFrames, ok := decoder.stackFrames[stackHeader.Stack_hash]
 	if !ok {
-		stackFrames, err = symbolicate(event, header.Stack_hash, symbolicator)
+		stackFrames, err = symbolicate(
+			stackEvent, stackHeader.Stack_hash, symbolicator,
+		)
 		if err != nil {
 			if symbolicateErrorLogLimiter.Allow() {
 				log.Errorf("error symbolicating stack: %v", err)
@@ -272,16 +295,29 @@ func (s *snapshotMessage) init(
 				log.Tracef("error symbolicating stack: %v", err)
 			}
 			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
-				fmt.Sprintf("error symbolicating stack: %v", err),
+				evaluationError{
+					Expression: "Stacktrace",
+					Message:    err.Error(),
+				},
 			)
 		} else {
-			decoder.stackFrames[header.Stack_hash] = stackFrames
+			decoder.stackFrames[stackHeader.Stack_hash] = stackFrames
 		}
 	}
 	switch where := probe.GetWhere().(type) {
 	case ir.FunctionWhere:
 		s.Debugger.Snapshot.Probe.Location.Method = where.Location()
 		s.Logger.Method = where.Location()
+	case ir.LineWhere:
+		function, file, lineStr := where.Line()
+		line, err := strconv.Atoi(lineStr)
+		if err != nil {
+			return probe, fmt.Errorf("invalid line number: %v", lineStr)
+		}
+		s.Debugger.Snapshot.Probe.Location.Method = function
+		s.Debugger.Snapshot.Probe.Location.File = file
+		s.Debugger.Snapshot.Probe.Location.Line = line
+		s.Logger.Method = function
 	default:
 		return probe, fmt.Errorf(
 			"probe %s is not on a supported location: %T",
@@ -293,11 +329,14 @@ func (s *snapshotMessage) init(
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
-	s.Debugger.Snapshot.Captures.Entry = &decoder.entry
 	return probe, nil
 }
 
-func symbolicate(event Event, stackHash uint64, symbolicator symbol.Symbolicator) ([]symbol.StackFrame, error) {
+func symbolicate(
+	event output.Event,
+	stackHash uint64,
+	symbolicator symbol.Symbolicator,
+) ([]symbol.StackFrame, error) {
 	pcs, err := event.StackPCs()
 	if err != nil {
 		return nil, fmt.Errorf("error getting stack pcs: %w", err)

@@ -72,7 +72,7 @@ func TestK8SUserSession(t *testing.T) {
 			test.validateUserSessionSchema(t, event)
 
 			assert.NotEqual(t, 0, event.ProcessContext.UserSession.ID)
-			assert.Equal(t, usersession.UserSessionTypes["k8s"], event.ProcessContext.UserSession.SessionType)
+			assert.Equal(t, int(usersession.UserSessionTypes["k8s"]), event.ProcessContext.UserSession.SessionType)
 			assert.Equal(t, "qwerty.azerty@datadoghq.com", event.ProcessContext.UserSession.K8SUsername)
 			assert.Equal(t, "azerty.qwerty@datadoghq.com", event.ProcessContext.UserSession.K8SUID)
 			assert.Equal(t, []string{

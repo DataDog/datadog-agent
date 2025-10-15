@@ -18,17 +18,17 @@
           {
             "function": "main.testReturnsInterface",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 55
+            "lineNumber": 80
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 100
+            "lineNumber": 389
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 50
           },
           {
             "function": "runtime.main",
@@ -60,11 +60,24 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "main.behavior",
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -85,17 +98,17 @@
           {
             "function": "main.testReturnsInterface",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 55
+            "lineNumber": 84
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 101
+            "lineNumber": 390
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 50
           },
           {
             "function": "runtime.main",
@@ -132,11 +145,30 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "main.behavior",
+                "fields": {
+                  "data": {
+                    "type": "main.firstBehavior",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "{foo}\n_modified"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   },
   {
     "service": "sample",
@@ -157,17 +189,17 @@
           {
             "function": "main.testReturnsInterface",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 55
+            "lineNumber": 84
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 102
+            "lineNumber": 391
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 50
           },
           {
             "function": "runtime.main",
@@ -205,10 +237,29 @@
                 }
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "main.behavior",
+                "fields": {
+                  "data": {
+                    "type": "main.firstBehavior",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "{foo}\n_modified"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]
