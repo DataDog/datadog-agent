@@ -1243,6 +1243,8 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 			out.Version = string(in.String())
 		case "source":
 			out.Source = string(in.String())
+		case "replace_policy_id":
+			out.ReplacePolicyID = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1271,6 +1273,11 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 		const prefix string = ",\"source\":"
 		out.RawString(prefix)
 		out.String(string(in.Source))
+	}
+	if in.ReplacePolicyID != "" {
+		const prefix string = ",\"replace_policy_id\":"
+		out.RawString(prefix)
+		out.String(string(in.ReplacePolicyID))
 	}
 	out.RawByte('}')
 }
@@ -1777,6 +1784,8 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 			out.Version = string(in.String())
 		case "source":
 			out.Source = string(in.String())
+		case "replace_policy_id":
+			out.ReplacePolicyID = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1833,6 +1842,11 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 		const prefix string = ",\"source\":"
 		out.RawString(prefix)
 		out.String(string(in.Source))
+	}
+	if in.ReplacePolicyID != "" {
+		const prefix string = ",\"replace_policy_id\":"
+		out.RawString(prefix)
+		out.String(string(in.ReplacePolicyID))
 	}
 	out.RawByte('}')
 }

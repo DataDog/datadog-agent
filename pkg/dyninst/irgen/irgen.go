@@ -721,9 +721,8 @@ func materializePending(
 			if parseLocs {
 				ranges = p.outOfLinePCRanges
 			}
-			isParameter := die.Tag == dwarf.TagFormalParameter
 			v, err := processVariable(
-				p.unit, die, isParameter,
+				p.unit, die,
 				parseLocs, ranges,
 				loclistReader, pointerSize, tc,
 			)
@@ -752,7 +751,6 @@ func materializePending(
 				ranges = inl.inlinedPCRanges.Ranges
 			}
 			for _, inlVar := range inl.variables {
-				isParameter := inlVar.Tag == dwarf.TagFormalParameter
 				abstractOrigin, ok, err := maybeGetAttr[dwarf.Offset](
 					inlVar, dwarf.AttrAbstractOrigin,
 				)
@@ -774,7 +772,7 @@ func materializePending(
 				} else {
 					// Fully defined var in the inlined instance.
 					v, err := processVariable(
-						p.unit, inlVar, isParameter,
+						p.unit, inlVar,
 						true /* parseLocations */, ranges,
 						loclistReader, pointerSize, tc,
 					)
@@ -1764,12 +1762,12 @@ func populateEventExpressions(
 		var variableKind ir.RootExpressionKind
 		switch event.Kind {
 		case ir.EventKindEntry:
-			if !variable.IsParameter || variable.IsReturn {
+			if variable.Role != ir.VariableRoleParameter {
 				continue
 			}
 			variableKind = ir.RootExpressionKindArgument
 		case ir.EventKindReturn:
-			if !variable.IsReturn {
+			if variable.Role != ir.VariableRoleReturn {
 				continue
 			}
 			variableKind = ir.RootExpressionKindLocal
@@ -2833,7 +2831,7 @@ func (v *subprogramChildVisitor) pop(_ *dwarf.Entry, _ visitor) error { return n
 
 func processVariable(
 	unit, entry *dwarf.Entry,
-	isParameter, parseLocations bool,
+	parseLocations bool,
 	subprogramPCRanges []ir.PCRange,
 	loclistReader *loclist.Reader,
 	pointerSize uint8,
@@ -2870,16 +2868,25 @@ func processVariable(
 			return cmp.Compare(a.Range[0], b.Range[0])
 		})
 	}
+	isParameter := entry.Tag == dwarf.TagFormalParameter
+	isVariable := entry.Tag == dwarf.TagVariable
 	isReturn, _, err := maybeGetAttr[bool](entry, dwarf.AttrVarParam)
 	if err != nil {
 		return nil, err
 	}
+	var role ir.VariableRole
+	if isVariable {
+		role = ir.VariableRoleLocal
+	} else if isReturn {
+		role = ir.VariableRoleReturn
+	} else if isParameter {
+		role = ir.VariableRoleParameter
+	}
 	return &ir.Variable{
-		Name:        name,
-		Type:        typ,
-		Locations:   locations,
-		IsParameter: isParameter,
-		IsReturn:    isReturn,
+		Name:      name,
+		Type:      typ,
+		Locations: locations,
+		Role:      role,
 	}, nil
 }
 

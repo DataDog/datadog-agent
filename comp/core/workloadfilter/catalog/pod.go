@@ -7,29 +7,29 @@
 package catalog
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
 // LegacyPodProgram creates a program for filtering legacy pods.
-func LegacyPodProgram(config config.Component, loggger log.Component) program.FilterProgram {
+func LegacyPodProgram(filterConfig *FilterConfig, loggger log.Component) program.FilterProgram {
 	programName := "LegacyPodProgram"
-
-	includeList := config.GetStringSlice("container_include")
-	excludeList := config.GetStringSlice("container_exclude")
-	includeList = append(includeList, config.GetStringSlice("container_include_metrics")...)
-	excludeList = append(excludeList, config.GetStringSlice("container_exclude_metrics")...)
-
-	if len(includeList) == 0 {
-		// support legacy "ac_include" config
-		includeList = config.GetStringSlice("ac_include")
-	}
-	if len(excludeList) == 0 {
-		// support legacy "ac_exclude" config
-		excludeList = config.GetStringSlice("ac_exclude")
-	}
-
+	includeList := append(filterConfig.ContainerInclude, filterConfig.ContainerIncludeMetrics...)
+	excludeList := append(filterConfig.ContainerExclude, filterConfig.ContainerExcludeMetrics...)
 	return createFromOldFilters(programName, includeList, excludeList, workloadfilter.PodType, loggger)
+}
+
+// PodCELMetricsProgram creates a program for filtering pods metrics via CEL rules
+func PodCELMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	programName := "PodCELMetricsProgram"
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.PodType)
+	return createCELExcludeProgram(programName, rule, workloadfilter.PodType, logger)
+}
+
+// PodCELGlobalProgram creates a program for filtering pods globally via CEL rules
+func PodCELGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	programName := "PodCELGlobalProgram"
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.PodType)
+	return createCELExcludeProgram(programName, rule, workloadfilter.PodType, logger)
 }
