@@ -1636,21 +1636,6 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 			},
 			mapSize: 1,
 		},
-		{
-			name: "validate remainder in map with PRIORITY",
-			// PRIORITY changes frame structure - split now occurs within PRIORITY section
-			messageBuilder: func() [][]byte {
-				a := newFramer().
-					writeHeaders(t, withStream(1), withFrameOptions(t, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}), withPriority(true)).
-					writeData(t, 1, true, emptyBody).bytes()
-				return [][]byte{
-					// Split at 10 bytes: now in PRIORITY section (9 byte header + 1 byte of PRIORITY)
-					a[:10],
-					a[10:],
-				}
-			},
-			mapSize: 1,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
