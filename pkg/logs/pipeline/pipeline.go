@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender/grpc"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -65,20 +66,21 @@ func NewPipeline(
 	}
 	// Get the input channel for this pipeline (this determines which StreamWorker we connect to)
 	senderInputChan := senderImpl.In()
-	strategy := getStrategy(strategyInput, senderInputChan, flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID)
-
-	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
 	// Get the stream rotation signal channel for the same worker that owns senderInputChan
-	var streamRotateSignal chan any
+	var streamRotateSignal chan grpc.StreamRotateSignal
 	if endpoints.UseGRPC {
 		// Only gRPC senders have stream rotation signaling
 		if grpcSender, ok := senderImpl.(interface {
-			GetSignalChannelForInputChannel(chan *message.Payload) chan any
+			GetSignalChannelForInputChannel(chan *message.Payload) chan grpc.StreamRotateSignal
 		}); ok {
 			streamRotateSignal = grpcSender.GetSignalChannelForInputChannel(senderInputChan)
 		}
 	}
+
+	strategy := getStrategy(strategyInput, senderInputChan, flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID)
+
+	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
 		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID, streamRotateSignal)
@@ -127,7 +129,7 @@ func getStrategy(
 		if endpoints.Main.UseCompression {
 			compressionEncoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
-		return sender.NewGRPCStreamStrategy(inputChan, outputChan, flushChan, serverlessMeta, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", compressionEncoder, pipelineMonitor, instanceID)
+		return sender.NewGRPCBatchStrategy(inputChan, outputChan, flushChan, serverlessMeta, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", compressionEncoder, pipelineMonitor, instanceID)
 	} else if endpoints.UseHTTP || serverlessMeta.IsEnabled() {
 		var encoder compressioncommon.Compressor
 		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
