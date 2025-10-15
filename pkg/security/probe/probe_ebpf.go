@@ -933,29 +933,31 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
-	// Calculate and send metrics for average and standard deviation for each event type
-	p.eventProcessingTimeMutex.Lock()
-	curEventProcessingTimes := p.eventProcessingTimes
-	ept := make(map[model.EventType]*StatsAccumulator)
-	p.eventProcessingTimes = &ept
-	p.eventProcessingTimeMutex.Unlock()
+	if p.opts.GenerateEventProcessingTimeMetrics {
+		// Calculate and send metrics for average and standard deviation for each event type
+		p.eventProcessingTimeMutex.Lock()
+		curEventProcessingTimes := p.eventProcessingTimes
+		ept := make(map[model.EventType]*StatsAccumulator)
+		p.eventProcessingTimes = &ept
+		p.eventProcessingTimeMutex.Unlock()
 
-	for eventType, statsAccumulator := range *curEventProcessingTimes {
-		mean, variance, maximum := statsAccumulator.Finalize()
+		for eventType, statsAccumulator := range *curEventProcessingTimes {
+			mean, variance, maximum := statsAccumulator.Finalize()
 
-		model.GetAllCategories()
-		tag := []string{"event_type:" + eventType.String()}
+			model.GetAllCategories()
+			tag := []string{"event_type:" + eventType.String()}
 
-		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeMean, mean, tag, 1.0); err != nil {
-			return err
-		}
+			if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeMean, mean, tag, 1.0); err != nil {
+				return err
+			}
 
-		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeStddev, math.Sqrt(variance), tag, 1.0); err != nil {
-			return err
-		}
+			if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeStddev, math.Sqrt(variance), tag, 1.0); err != nil {
+				return err
+			}
 
-		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeMaximum, maximum, tag, 1.0); err != nil {
-			return err
+			if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeMaximum, maximum, tag, 1.0); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1105,17 +1107,22 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 
 // handleEvent wraps the handleEvent function in order to get statistics on it
 func (p *EBPFProbe) handleEventWrapper(CPU int, data []byte) {
-	start := time.Now()
-	ev := p.handleEvent(CPU, data)
-	end := time.Since(start)
-	p.eventProcessingTimeMutex.Lock()
-	acc := (*p.eventProcessingTimes)[ev]
-	if acc == nil {
-		acc = &StatsAccumulator{}
-		(*p.eventProcessingTimes)[ev] = acc
+	var start time.Time
+	if p.opts.GenerateEventProcessingTimeMetrics {
+		start = time.Now()
 	}
-	acc.Update(float64(end.Microseconds()))
-	p.eventProcessingTimeMutex.Unlock()
+	ev := p.handleEvent(CPU, data)
+	if p.opts.GenerateEventProcessingTimeMetrics {
+		end := time.Since(start)
+		p.eventProcessingTimeMutex.Lock()
+		acc := (*p.eventProcessingTimes)[ev]
+		if acc == nil {
+			acc = &StatsAccumulator{}
+			(*p.eventProcessingTimes)[ev] = acc
+		}
+		acc.Update(float64(end.Microseconds()))
+		p.eventProcessingTimeMutex.Unlock()
+	}
 }
 
 // handleEvent processes raw eBPF events received from the kernel, unmarshaling and dispatching them appropriately.
