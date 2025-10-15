@@ -39,6 +39,8 @@ type Opts struct {
 	WorkloadMeta workloadmeta.Component
 	// FilterStore is the workload filter component
 	FilterStore workloadfilter.Component
+	// EventProcessingTimeMetricsEnabled enables metrics for the time that kernel events take to get processed
+	GenerateEventProcessingTimeMetrics bool
 }
 
 func (o *Opts) normalize() {
