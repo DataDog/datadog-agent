@@ -320,6 +320,21 @@ filters:
 			expectedErr:               "invalid filter type: invalid",
 			expectedCustomFilterCount: 0,
 		},
+		{
+			name: "valid and invalid filter type",
+			config: `
+filters:
+  - match_domain: 'google.com'
+    type: exclude
+  - match_domain: 'zoom.us'
+    type: invalid
+`,
+			expectedMatches: []expectedMatch{
+				{domain: "google.com", shouldMatch: false},
+			},
+			expectedErr:               "invalid filter type: invalid",
+			expectedCustomFilterCount: 1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
