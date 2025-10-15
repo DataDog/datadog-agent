@@ -1092,6 +1092,12 @@ func TestLogDefaults(t *testing.T) {
 	require.False(t, SystemProbe.GetBool("log_format_json"))
 }
 
+func TestClusterCheckDefaults(t *testing.T) {
+	conf := newTestConf(t)
+	require.True(t, conf.GetBool("cluster_checks.advanced_dispatching_enabled"))
+	require.True(t, conf.GetBool("cluster_checks.rebalance_with_utilization"))
+}
+
 func TestProxyNotLoaded(t *testing.T) {
 	conf := newTestConf(t)
 	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
@@ -1455,7 +1461,7 @@ use_proxy_for_cloud_metadata: true
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 25)
+	require.Len(t, serverlessConfigComponents, 24)
 }
 
 func TestServerlessConfigInit(t *testing.T) {

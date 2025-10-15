@@ -33,7 +33,7 @@ func TestOrphanEntries(t *testing.T) {
 
 		buffer.Add(request)
 		now = now.Add(5 * time.Second)
-		complete := buffer.Flush(now)
+		complete := buffer.Flush()
 		assert.Len(t, complete, 0)
 
 		response := &EbpfEvent{
@@ -44,7 +44,7 @@ func TestOrphanEntries(t *testing.T) {
 		}
 		response.Tuple.Sport = 60000
 		buffer.Add(response)
-		complete = buffer.Flush(now)
+		complete = buffer.Flush()
 		require.Len(t, complete, 1)
 
 		completeTX := complete[0]
@@ -67,14 +67,14 @@ func TestOrphanEntries(t *testing.T) {
 			},
 		}
 		buffer.Add(request)
-		_ = buffer.Flush(time.Time{})
+		_ = buffer.Flush()
 
 		require.NotEmpty(t, buffer.data)
 		for key := range buffer.data {
 			buffer.data[key].requests[0].(*EbpfEvent).Http.Request_started = uint64(startTime - buffer.minAgeNano)
 		}
 
-		_ = buffer.Flush(time.Time{})
+		_ = buffer.Flush()
 		require.Empty(t, buffer.data)
 	})
 }

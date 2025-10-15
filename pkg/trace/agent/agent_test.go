@@ -31,6 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
@@ -57,14 +58,17 @@ func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollec
 	a.TraceWriter = &mockTraceWriter{
 		apiKey: conf.Endpoints[0].APIKey,
 	}
+	a.TraceWriterV1 = &mockTraceWriter{
+		apiKey: conf.Endpoints[0].APIKey,
+	}
 	return a
 }
 
 type mockTraceWriter struct {
-	mu       sync.Mutex
-	payloads []*writer.SampledChunks
-
-	apiKey string
+	mu         sync.Mutex
+	payloads   []*writer.SampledChunks
+	payloadsV1 []*writer.SampledChunksV1
+	apiKey     string
 }
 
 func (m *mockTraceWriter) Stop() {}
@@ -73,6 +77,12 @@ func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.payloads = append(m.payloads, pkg)
+}
+
+func (m *mockTraceWriter) WriteChunksV1(pkg *writer.SampledChunksV1) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.payloadsV1 = append(m.payloadsV1, pkg)
 }
 
 func (m *mockTraceWriter) FlushSync() error {
@@ -84,8 +94,9 @@ func (m *mockTraceWriter) UpdateAPIKey(_, newKey string) {
 }
 
 type mockConcentrator struct {
-	stats []stats.Input
-	mu    sync.Mutex
+	stats   []stats.Input
+	statsV1 []stats.InputV1
+	mu      sync.Mutex
 }
 
 func (c *mockConcentrator) Start() {}
@@ -94,6 +105,11 @@ func (c *mockConcentrator) Add(t stats.Input) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.stats = append(c.stats, t)
+}
+func (c *mockConcentrator) AddV1(t stats.InputV1) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.statsV1 = append(c.statsV1, t)
 }
 func (c *mockConcentrator) Reset() []stats.Input {
 	c.mu.Lock()
@@ -527,6 +543,60 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "something_that_should_be_a_metric", span.Service)
 	})
 
+	t.Run("normalizingV1", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		strings := idx.NewStringTable()
+		span := idx.NewInternalSpan(strings, &idx.Span{
+			ServiceRef:  strings.Add("something &&<@# that should be a metric!"),
+			SpanID:      1,
+			ResourceRef: strings.Add("SELECT name FROM people WHERE age = 42 AND extra = 55"),
+			TypeRef:     strings.Add("sql"),
+			Start:       uint64(time.Now().Add(-time.Second).UnixNano()),
+			Duration:    uint64((500 * time.Millisecond).Nanoseconds()),
+		})
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(span, 2)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		resultSpan := payloads[0].TracerPayload.Chunks[0].Spans[0]
+		assert.Equal(t, "unnamed_operation", resultSpan.Name())
+		assert.Equal(t, "something_that_should_be_a_metric", resultSpan.Service())
+	})
+
+	t.Run("normalizingV1-NamesAreKept", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		p := testutil.GeneratePayloadV1(3, &testutil.TraceConfig{
+			MinSpans: 2,
+			Keep:     true,
+		}, nil)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: p,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		assert.Len(t, payloads, 1)
+		for _, chunk := range payloads[0].TracerPayload.Chunks {
+			for _, span := range chunk.Spans {
+				assert.NotEqual(t, "unnamed_operation", span.Name())
+				assert.NotEqual(t, "unnamed-service", span.Service())
+			}
+		}
+	})
+
 	t.Run("_dd.hostname", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
@@ -647,10 +717,83 @@ func TestProcess(t *testing.T) {
 		// and expecting it to result in 3 payloads
 		assert.Len(t, payloads, 3)
 	})
+
+	t.Run("chunkingV1", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		strings := idx.NewStringTable() // strings shared across whole payload
+		chunk1 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		chunk2 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		chunk3 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		// we are sending 3 traces
+		tp := testutil.TracerPayloadV1WithChunks([]*idx.InternalTraceChunk{
+			chunk1,
+			chunk2,
+			chunk3,
+		})
+		// setting writer.MaxPayloadSize to the size of 1 trace (+1 byte)
+		defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
+		//minChunkSize := int(math.Min(math.Min(float64(tp.Chunks[0].Msgsize()), float64(tp.Chunks[1].Msgsize())), float64(tp.Chunks[2].Msgsize())))
+		writer.MaxPayloadSize = 1
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		// and expecting it to result in 3 payloads
+		assert.Len(t, payloads, 3)
+	})
+
+	t.Run("someV1ChunksKept-NoRaceWritingAndStats", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		strings := idx.NewStringTable() // strings shared across whole payload
+		chunk1 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		chunk2 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), -1)
+		chunk3 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+		// we are sending 3 traces
+		tp := testutil.TracerPayloadV1WithChunks([]*idx.InternalTraceChunk{
+			chunk1,
+			chunk2,
+			chunk3,
+		})
+		// We expect the middle chunk to go to the concentrator and no race conditions
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.Len(t, payloads, 1)
+		statsPayloads := agnt.Concentrator.(*mockConcentrator).statsV1
+		assert.Len(t, statsPayloads, 1)
+	})
 }
 
 func spansToChunk(spans ...*pb.Span) *pb.TraceChunk {
 	return &pb.TraceChunk{Spans: spans, Tags: make(map[string]string)}
+}
+
+func spansToChunkV1(spans ...*idx.InternalSpan) *idx.InternalTraceChunk {
+	return idx.NewInternalTraceChunk(
+		spans[0].Strings,
+		int32(sampler.PriorityAutoDrop),
+		"",
+		nil,
+		spans,
+		false,
+		[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		0,
+	)
 }
 
 func dropped(c *pb.TraceChunk) *pb.TraceChunk {
@@ -830,6 +973,223 @@ func TestConcentratorInput(t *testing.T) {
 				assert.Equal(t, tc.expectedSampled, payloads[0].TracerPayload)
 			}
 		})
+	}
+}
+
+func TestConcentratorInputV1(t *testing.T) {
+	rootSpan := func(strs *idx.StringTable) *idx.InternalSpan {
+		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")})
+	}
+	tts := []struct {
+		name            string
+		in              *api.PayloadV1
+		expected        stats.InputV1
+		expectedSampled *idx.InternalTracerPayload
+		withFargate     bool
+		features        string
+	}{
+		{
+			name: "tracer payload tags in payload",
+			in: func() *api.PayloadV1 {
+				strings := idx.NewStringTable()
+				payload := &api.PayloadV1{
+					TracerPayload: &idx.InternalTracerPayload{
+						Strings: strings,
+						Chunks:  []*idx.InternalTraceChunk{spansToChunkV1(rootSpan(strings))},
+					},
+				}
+				payload.TracerPayload.SetHostname("banana")
+				payload.TracerPayload.SetAppVersion("camembert")
+				payload.TracerPayload.SetEnv("apple")
+				return payload
+			}(),
+			expected: func() stats.InputV1 {
+				strings := idx.NewStringTable()
+				return stats.InputV1{
+					Traces: []traceutil.ProcessedTraceV1{
+						{
+							Root:           rootSpan(strings),
+							TracerHostname: "banana",
+							AppVersion:     "camembert",
+							TracerEnv:      "apple",
+							TraceChunk:     spansToChunkV1(rootSpan(strings)),
+						},
+					},
+				}
+			}(),
+		},
+		{
+			name: "no tracer tags",
+			in: func() *api.PayloadV1 {
+				strings := idx.NewStringTable()
+				payload := &api.PayloadV1{
+					TracerPayload: &idx.InternalTracerPayload{
+						Strings: strings,
+						Chunks:  []*idx.InternalTraceChunk{spansToChunkV1(rootSpan(strings))},
+					},
+				}
+				return payload
+			}(),
+			expected: func() stats.InputV1 {
+				strings := idx.NewStringTable()
+				return stats.InputV1{
+					Traces: []traceutil.ProcessedTraceV1{
+						{
+							Root:       rootSpan(strings),
+							TraceChunk: spansToChunkV1(rootSpan(strings)),
+						},
+					},
+				}
+			}(),
+		},
+		{
+			name: "containerID with fargate orchestrator",
+			in: func() *api.PayloadV1 {
+				strings := idx.NewStringTable()
+				payload := &api.PayloadV1{
+					TracerPayload: &idx.InternalTracerPayload{
+						Strings: strings,
+						Chunks:  []*idx.InternalTraceChunk{spansToChunkV1(rootSpan(strings))},
+					},
+				}
+				payload.TracerPayload.SetContainerID("aaah")
+				return payload
+			}(),
+			withFargate: true,
+			expected: func() stats.InputV1 {
+				strings := idx.NewStringTable()
+				return stats.InputV1{
+					Traces: []traceutil.ProcessedTraceV1{
+						{
+							Root:       rootSpan(strings),
+							TraceChunk: spansToChunkV1(rootSpan(strings)),
+						},
+					},
+					ContainerID: "aaah",
+				}
+			}(),
+		},
+		{
+			name: "client computed stats",
+			in: func() *api.PayloadV1 {
+				strings := idx.NewStringTable()
+				payload := &api.PayloadV1{
+					ClientComputedStats: true,
+					TracerPayload: &idx.InternalTracerPayload{
+						Strings: strings,
+						Chunks:  []*idx.InternalTraceChunk{spansToChunkV1(rootSpan(strings))},
+					},
+				}
+				payload.TracerPayload.SetContainerID("feature_disabled")
+				return payload
+			}(),
+			expected: stats.InputV1{},
+		},
+	}
+
+	for _, tc := range tts {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.New()
+			cfg.Features[tc.features] = struct{}{}
+			cfg.Endpoints[0].APIKey = "test"
+			if tc.withFargate {
+				cfg.FargateOrchestrator = config.OrchestratorECS
+			}
+			cfg.RareSamplerEnabled = true
+			agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
+			agent.ProcessV1(tc.in)
+			mco := agent.Concentrator.(*mockConcentrator)
+
+			if len(tc.expected.Traces) == 0 {
+				assert.Len(t, mco.statsV1, 0)
+				return
+			}
+			require.Len(t, mco.statsV1, 1)
+			assertStatsInputsV1Equal(t, tc.expected, mco.statsV1[0])
+			if tc.expectedSampled != nil && len(tc.expectedSampled.Chunks) > 0 {
+				payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+				assert.NotEmpty(t, payloads, "no payloads were written")
+				for i, expectedSampledChunk := range tc.expectedSampled.Chunks {
+					assertInternalTraceChunkEqual(t, expectedSampledChunk, payloads[0].TracerPayload.Chunks[i])
+				}
+			}
+		})
+	}
+}
+
+func assertStatsInputsV1Equal(t *testing.T, expected stats.InputV1, actual stats.InputV1) {
+	assert.Equal(t, expected.ContainerID, actual.ContainerID)
+	assert.Equal(t, expected.ContainerTags, actual.ContainerTags)
+	assert.Equal(t, expected.ProcessTags, actual.ProcessTags)
+	assert.Equal(t, len(expected.Traces), len(actual.Traces))
+	for i, expectedTrace := range expected.Traces {
+		actualTrace := actual.Traces[i]
+		assert.Equal(t, expectedTrace.TracerHostname, actualTrace.TracerHostname)
+		assert.Equal(t, expectedTrace.AppVersion, actualTrace.AppVersion)
+		assert.Equal(t, expectedTrace.TracerEnv, actualTrace.TracerEnv)
+		assert.Equal(t, expectedTrace.ClientDroppedP0sWeight, actualTrace.ClientDroppedP0sWeight)
+		assert.Equal(t, expectedTrace.GitCommitSha, actualTrace.GitCommitSha)
+		assert.Equal(t, expectedTrace.ImageTag, actualTrace.ImageTag)
+		assertInternalSpanEqual(t, expectedTrace.Root, actualTrace.Root)
+		assertInternalTraceChunkEqual(t, expectedTrace.TraceChunk, actualTrace.TraceChunk)
+	}
+}
+
+func assertInternalTraceChunkEqual(t *testing.T, expected *idx.InternalTraceChunk, actual *idx.InternalTraceChunk) {
+	assert.Equal(t, expected.Priority, actual.Priority)
+	assert.Equal(t, expected.Origin(), actual.Origin())
+	assert.Equal(t, expected.SamplingMechanism(), actual.SamplingMechanism())
+	assert.Equal(t, expected.TraceID, actual.TraceID)
+	assert.Equal(t, expected.DroppedTrace, actual.DroppedTrace)
+	assertAttributesEqual(t, expected.Strings, expected.Attributes, actual.Strings, actual.Attributes)
+	require.Equal(t, len(expected.Spans), len(actual.Spans))
+	for i, span := range expected.Spans {
+		assertInternalSpanEqual(t, span, actual.Spans[i])
+	}
+}
+
+func assertInternalSpanEqual(t *testing.T, expected *idx.InternalSpan, actual *idx.InternalSpan) {
+	assert.Equal(t, expected.SpanID(), actual.SpanID())
+	assert.Equal(t, expected.ParentID(), actual.ParentID())
+	assert.Equal(t, expected.Name(), actual.Name())
+	assert.Equal(t, expected.Resource(), actual.Resource())
+	assert.Equal(t, expected.Type(), actual.Type())
+	assert.Equal(t, expected.Env(), actual.Env())
+	assert.Equal(t, expected.Version(), actual.Version())
+	assert.Equal(t, expected.Component(), actual.Component())
+	assert.Equal(t, expected.Duration(), actual.Duration())
+	assert.Equal(t, expected.Error(), actual.Error())
+	assert.Equal(t, expected.Kind(), actual.Kind())
+	require.Equal(t, len(expected.Attributes()), len(actual.Attributes()))
+	assertAttributesEqual(t, expected.Strings, expected.Attributes(), actual.Strings, actual.Attributes())
+	require.Equal(t, len(expected.Events()), len(actual.Events()))
+	for i, expectedEvent := range expected.Events() {
+		assert.Equal(t, expectedEvent.Name(), actual.Events()[i].Name())
+		assertAttributesEqual(t, expected.Strings, expectedEvent.Attributes(), actual.Strings, actual.Events()[i].Attributes())
+	}
+	require.Equal(t, len(expected.Links()), len(actual.Links()))
+	for i, expectedLink := range expected.Links() {
+		assert.Equal(t, expectedLink.SpanID(), actual.Links()[i].SpanID())
+		assert.Equal(t, expectedLink.TraceID(), actual.Links()[i].TraceID())
+		assert.Equal(t, expectedLink.Flags(), actual.Links()[i].Flags())
+		assertAttributesEqual(t, expected.Strings, expectedLink.Attributes(), actual.Strings, actual.Links()[i].Attributes())
+		assert.Equal(t, expectedLink.Tracestate(), actual.Links()[i].Tracestate())
+	}
+}
+
+func assertAttributesEqual(t *testing.T, expetedStrings *idx.StringTable, expected map[uint32]*idx.AnyValue, actualStrings *idx.StringTable, actual map[uint32]*idx.AnyValue) {
+	assert.Equal(t, len(expected), len(actual))
+	expectedAttributes := make(map[string]string)
+	for key, value := range expected {
+		expectedAttributes[expetedStrings.Get(key)] = value.AsString(expetedStrings)
+	}
+	for actualKeyIdx, actualValue := range actual {
+		key := actualStrings.Get(actualKeyIdx)
+		value := actualValue.AsString(actualStrings)
+		expectedValue, ok := expectedAttributes[key]
+		assert.True(t, ok, "key %s not found in expected attributes", key)
+		assert.Equal(t, expectedValue, value)
 	}
 }
 
@@ -1040,6 +1400,62 @@ func TestFilteredByTags(t *testing.T) {
 			if filteredByTags(&tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex) != tt.drop {
 				t.Fatal()
 			}
+		})
+	}
+}
+
+func TestFilteredByTagsV1(t *testing.T) {
+	newSpanWithTags := func(tags map[string]string) *idx.InternalSpan {
+		s := idx.NewInternalSpan(idx.NewStringTable(), &idx.Span{
+			Attributes: make(map[uint32]*idx.AnyValue),
+		})
+		for k, v := range tags {
+			s.SetStringAttribute(k, v)
+		}
+		return s
+	}
+
+	for name, tt := range map[string]*struct {
+		require      []*config.Tag
+		reject       []*config.Tag
+		requireRegex []*config.TagRegex
+		rejectRegex  []*config.TagRegex
+		span         *idx.InternalSpan
+		drop         bool
+	}{
+		"keep-span-with-tag-from-required-list": {
+			require: []*config.Tag{{K: "key", V: "val"}},
+			span:    newSpanWithTags(map[string]string{"key": "val"}),
+			drop:    false,
+		},
+		"drop-span-without-tag-from-required-list": {
+			require: []*config.Tag{{K: "key", V: "val"}},
+			span:    newSpanWithTags(map[string]string{"otherKey": "otherVal"}),
+			drop:    true,
+		},
+		"keep-span-with-tag-value-diff-rejected-list": {
+			reject: []*config.Tag{{K: "key", V: "val"}},
+			span:   newSpanWithTags(map[string]string{"key": "val4"}),
+			drop:   false,
+		},
+		"drop-span-with-wrong-env": {
+			reject: []*config.Tag{{K: "env", V: "dev"}},
+			span:   newSpanWithTags(map[string]string{"env": "dev"}),
+			drop:   true,
+		},
+		"drop-span-with-wrong-version": {
+			reject: []*config.Tag{{K: "version", V: "1.0"}},
+			span:   newSpanWithTags(map[string]string{"version": "1.0"}),
+			drop:   true,
+		},
+		"drop-span-with-wrong-component": {
+			reject: []*config.Tag{{K: "component", V: "cool-component"}},
+			span:   newSpanWithTags(map[string]string{"component": "cool-component"}),
+			drop:   true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.drop, filteredByTagsV1(tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex))
 		})
 	}
 }
@@ -2150,7 +2566,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		conf:              cfg,
 		Timing:            &timing.NoopReporter{},
 	}
-	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, agnt, telemetry.NewNoopCollector(), statsd, &timing.NoopReporter{})
+	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, nil, agnt, telemetry.NewNoopCollector(), statsd, &timing.NoopReporter{})
 	now := time.Now()
 	smallKeptSpan := &pb.Span{
 		TraceID:  1,
@@ -2454,6 +2870,10 @@ func (n *noopTraceWriter) Run() {}
 func (n *noopTraceWriter) Stop() {}
 
 func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {
+	n.count++
+}
+
+func (n *noopTraceWriter) WriteChunksV1(_ *writer.SampledChunksV1) {
 	n.count++
 }
 

@@ -315,6 +315,7 @@ func TestAllSettingsBySource(t *testing.T) {
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b.c", 0)
 	cfg.SetDefault("b.d", 0)
+	cfg.SetDefault("x", 123)
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader("a: 987"))
@@ -327,6 +328,7 @@ func TestAllSettingsBySource(t *testing.T) {
 				"c": 0,
 				"d": 0,
 			},
+			"x": 123,
 		},
 		model.SourceUnknown: map[string]interface{}{},
 		model.SourceFile: map[string]interface{}{
@@ -342,6 +344,12 @@ func TestAllSettingsBySource(t *testing.T) {
 		model.SourceLocalConfigProcess: map[string]interface{}{},
 		model.SourceRC:                 map[string]interface{}{},
 		model.SourceCLI:                map[string]interface{}{},
+		model.SourceProvided: map[string]interface{}{
+			"a": 987,
+			"b": map[string]interface{}{
+				"c": 123,
+			},
+		},
 	}
 	assert.Equal(t, expected, cfg.AllSettingsBySource())
 }

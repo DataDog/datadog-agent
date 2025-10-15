@@ -12,6 +12,7 @@ PIDFile=/opt/datadog-agent/run/agent.pid
 User=dd-agent
 EnvironmentFile=-/etc/datadog-agent-exp/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/experiment"
+Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5

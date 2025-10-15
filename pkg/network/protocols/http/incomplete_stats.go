@@ -114,7 +114,7 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 	}
 }
 
-func (b *incompleteBuffer) Flush(time.Time) []Transaction {
+func (b *incompleteBuffer) Flush() []Transaction {
 	var (
 		joined   []Transaction
 		previous = b.data
