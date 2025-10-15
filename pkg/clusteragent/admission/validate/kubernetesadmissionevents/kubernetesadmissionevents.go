@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -113,7 +112,7 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector, common.ExcludeNamespaces(mutatecommon.DefaultDisabledNamespaces()))
+	return common.DefaultLabelSelectors(useNamespaceSelector, common.LabelSelectorsConfig{})
 }
 
 // MatchConditions returns the Match Conditions used for fine-grained

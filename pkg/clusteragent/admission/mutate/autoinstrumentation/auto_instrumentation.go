@@ -109,37 +109,10 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (*metav1.LabelSelector, *metav1.LabelSelector) {
-	nsSelector, objSelector := common.DefaultLabelSelectors(useNamespaceSelector)
-
-	enabledNs, excludedNs := enabledAndDisabledNamespaces(w.config.Instrumentation.EnabledNamespaces, w.config.Instrumentation.DisabledNamespaces)
-	var matchExpression metav1.LabelSelectorRequirement
-	if len(enabledNs) > 0 {
-		matchExpression = metav1.LabelSelectorRequirement{
-			Key:      common.KubeSystemNamespaceLabelKey,
-			Operator: metav1.LabelSelectorOpIn,
-			Values:   enabledNs,
-		}
-	} else {
-		matchExpression = metav1.LabelSelectorRequirement{
-			Key:      common.KubeSystemNamespaceLabelKey,
-			Operator: metav1.LabelSelectorOpNotIn,
-			Values:   excludedNs,
-		}
-	}
-	nsSelector.MatchExpressions = append(nsSelector.MatchExpressions, matchExpression)
-	return nsSelector, objSelector
-}
-
-func enabledAndDisabledNamespaces(enabledNamespaces []string, disabledNamespaces []string) ([]string, []string) {
-	defaultDisabled := mutatecommon.DefaultDisabledNamespaces()
-	disabledByDefault := make([]string, len(defaultDisabled))
-	copy(disabledByDefault, defaultDisabled)
-
-	var filterExcludeList []string
-	if len(enabledNamespaces) == 0 {
-		filterExcludeList = append(disabledNamespaces, disabledByDefault...)
-	}
-	return enabledNamespaces, filterExcludeList
+	// TODO: Investigate if apm instrumentation enabled/disabled namespaces should be included in the label selector or left to the mutation filter
+	return common.DefaultLabelSelectors(useNamespaceSelector, common.LabelSelectorsConfig{
+		ExcludeNamespaces: mutatecommon.DefaultDisabledNamespaces(),
+	})
 }
 
 // MatchConditions returns the Match Conditions used for fine-grained
