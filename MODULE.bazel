@@ -48,13 +48,7 @@ use_repo(multitool, "multitool")
 bazel_dep(name = "rules_cc", version = "0.2.8")
 bazel_dep(name = "rules_python", version = "1.6.1")
 bazel_dep(name = "rules_flex", version = "0.4")
-git_override(
-    module_name = "rules_flex",
-    commit = "c58ff426f39fd4ca328363fa3148b470d59ae3f4",
-    patch_args = ["-p1"],
-    patches = ["//bazel/patches:rules_flex_header.patch"],
-    remote = "https://github.com/jmillikin/rules_flex",
-)
+bazel_dep(name = "rules_m4", version = "0.3")
 
 #########################
 ## Native dependencies ##
