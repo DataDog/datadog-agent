@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -277,8 +276,6 @@ func TestServicesServiceName(t *testing.T) {
 		svc = findService(pid, resp.Services)
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 
-		// Non-ASCII character removed due to normalization.
-		assert.Equal(collect, "foo_bar", svc.DDService)
 		assert.Equal(collect, "foo😀bar", svc.UST.Service)
 		assert.Equal(collect, "my😀dd-env", svc.UST.Env)
 		assert.Equal(collect, "my😀dd-version", svc.UST.Version)
@@ -411,7 +408,7 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 
 				assert.Equal(collect, startEvent.PID, pid)
 				assert.Equal(collect, string(test.language), startEvent.Language)
-				assert.Equal(collect, string(apm.Provided), startEvent.APMInstrumentation)
+				assert.Equal(collect, true, startEvent.APMInstrumentation)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
@@ -464,7 +461,7 @@ func TestServicesNodeDocker(t *testing.T) {
 		assert.Equal(collect, svc.PID, pid)
 		assert.Equal(collect, "test_nodejs-https-server", svc.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), svc.GeneratedNameSource)
-		assert.Equal(collect, "provided", svc.APMInstrumentation)
+		assert.Equal(collect, true, svc.APMInstrumentation)
 		assert.Equal(collect, "web_service", svc.Type)
 	}, 30*time.Second, 100*time.Millisecond)
 }
@@ -522,7 +519,7 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 				require.NotNilf(collect, svc, "could not find start event for pid %v", pid)
 				assert.Equal(collect, svc.PID, pid)
 				assert.Equal(collect, string(test.language), svc.Language)
-				assert.Equal(collect, string(apm.Provided), svc.APMInstrumentation)
+				assert.Equal(collect, true, svc.APMInstrumentation)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}

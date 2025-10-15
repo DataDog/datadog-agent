@@ -395,21 +395,23 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	).Return(nil).Times(1)
 
 	// WHEN
-	conns := []*model.Connection{
-		{
-			Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
-			Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
-			Direction: model.ConnectionDirection_outgoing,
-			Type:      model.ConnectionType_tcp,
-		},
-		{
-			Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
-			Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-			Direction: model.ConnectionDirection_outgoing,
-			Type:      model.ConnectionType_udp,
+	conns := &model.Connections{
+		Conns: []*model.Connection{
+			{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_tcp,
+			},
+			{
+				Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
+				Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_udp,
+			},
 		},
 	}
-	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
+	npCollector.ScheduleConns(conns)
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
 
@@ -464,18 +466,18 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 	}
 
 	// WHEN
-	var conns []*model.Connection
+	conns := &model.Connections{}
 	currentIP, _ := netip.ParseAddr("10.0.0.0")
 	for i := 0; i < 1000; i++ {
 		currentIP = netipx.AddrNext(currentIP)
-		conns = append(conns, &model.Connection{
+		conns.Conns = append(conns.Conns, &model.Connection{
 			Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
 			Raddr:     &model.Addr{Ip: currentIP.String(), Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
 			Type:      model.ConnectionType_tcp,
 		})
 	}
-	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
+	npCollector.ScheduleConns(conns)
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 10)
 
@@ -494,18 +496,20 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	stats := &teststatsd.Client{}
 	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
-	conns := []*model.Connection{
-		{
-			Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
-			Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
-			Direction: model.ConnectionDirection_outgoing,
-			Type:      model.ConnectionType_tcp,
-		},
-		{
-			Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
-			Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-			Direction: model.ConnectionDirection_outgoing,
-			Type:      model.ConnectionType_udp,
+	conns := &model.Connections{
+		Conns: []*model.Connection{
+			{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_tcp,
+			},
+			{
+				Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
+				Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Type:      model.ConnectionType_udp,
+			},
 		},
 	}
 	timeNowCounter := 0
@@ -516,7 +520,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	}
 
 	// WHEN
-	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
+	npCollector.ScheduleConns(conns)
 
 	// THEN
 	calls := stats.GaugeCalls
@@ -579,8 +583,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		conns             []*model.Connection
-		dns               map[string]*model.DNSEntry
+		conns             *model.Connections
 		noInputChan       bool
 		agentConfigs      map[string]any
 		expectedPathtests []*common.Pathtest
@@ -589,18 +592,20 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		{
 			name:              "zero conn",
 			agentConfigs:      defaultagentConfigs,
-			conns:             []*model.Connection{},
+			conns:             &model.Connections{},
 			expectedPathtests: []*common.Pathtest{},
 		},
 		{
 			name:         "one outgoing TCP conn",
 			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
@@ -610,12 +615,14 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		{
 			name:         "one outgoing UDP conn",
 			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.6", Port: int32(161)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_udp,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.6", Port: int32(161)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_udp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
@@ -625,18 +632,20 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		{
 			name:         "only non-outgoing conns",
 			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
-					Direction: model.ConnectionDirection_incoming,
-					Type:      model.ConnectionType_tcp,
-				},
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_incoming,
-					Type:      model.ConnectionType_tcp,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+						Direction: model.ConnectionDirection_incoming,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_incoming,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{},
@@ -644,18 +653,20 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		{
 			name:         "ignore non-outgoing conn",
 			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
-					Direction: model.ConnectionDirection_incoming,
-					Type:      model.ConnectionType_tcp,
-				},
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+						Direction: model.ConnectionDirection_incoming,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
@@ -666,12 +677,14 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			name:         "no input chan",
 			agentConfigs: defaultagentConfigs,
 			noInputChan:  true,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{},
@@ -694,26 +707,28 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		{
 			name:         "only ipv4 supported",
 			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Family:    model.ConnectionFamily_v6,
-					Type:      model.ConnectionType_tcp,
-				},
-				{
-					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId2"},
-					Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Family:    model.ConnectionFamily_v6,
-					Type:      model.ConnectionType_tcp,
-				},
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId3"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Family:    model.ConnectionFamily_v6,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId2"},
+						Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Family:    model.ConnectionFamily_v6,
+						Type:      model.ConnectionType_tcp,
+					},
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId3"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
@@ -724,31 +739,35 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 		{
 			name:         "one outgoing TCP conn with known hostname (DNS)",
 			agentConfigs: defaultagentConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
+				},
+				Dns: map[string]*model.DNSEntry{
+					"10.0.0.4": {Names: []string{"known-hostname"}},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
 				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
 					Metadata: common.PathtestMetadata{ReverseDNSHostname: "known-hostname"}},
 			},
-			dns: map[string]*model.DNSEntry{
-				"10.0.0.4": {Names: []string{"known-hostname"}},
-			},
 		},
 		{
 			name:         "tcp connection in ICMP mode",
 			agentConfigs: icmpModeConfigs,
-			conns: []*model.Connection{
-				{
-					Laddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(30000), ContainerId: "testId1"},
-					Raddr:     &model.Addr{Ip: "10.0.0.6", Port: int32(80)},
-					Direction: model.ConnectionDirection_outgoing,
-					Type:      model.ConnectionType_tcp,
+			conns: &model.Connections{
+				Conns: []*model.Connection{
+					{
+						Laddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(30000), ContainerId: "testId1"},
+						Raddr:     &model.Addr{Ip: "10.0.0.6", Port: int32(80)},
+						Direction: model.ConnectionDirection_outgoing,
+						Type:      model.ConnectionType_tcp,
+					},
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
@@ -770,7 +789,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 
-			npCollector.ScheduleConns(tt.conns, tt.dns)
+			npCollector.ScheduleConns(tt.conns)
 
 			actualPathtests := []*common.Pathtest{}
 			for i := 0; i < len(tt.expectedPathtests); i++ {
@@ -992,7 +1011,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// add line to avoid linter error
 		_ = i
-		npCollector.ScheduleConns(connections, make(map[string]*model.DNSEntry))
+		npCollector.ScheduleConns(connections)
 
 		waitForProcessedPathtests(npCollector, 60*time.Second, 50)
 	}

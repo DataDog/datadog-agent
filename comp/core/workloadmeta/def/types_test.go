@@ -154,6 +154,7 @@ Cmdline: /usr/bin/test-process --flag
 Namespace PID: 12345
 Container ID: container-123
 Creation time: 2023-01-01 12:00:00 +0000 UTC
+APM Injection Status: unknown
 `,
 		},
 		{
@@ -185,6 +186,7 @@ Cmdline: /usr/bin/test-process --flag
 Namespace PID: 12345
 Container ID: container-123
 Creation time: 2023-01-01 12:00:00 +0000 UTC
+APM Injection Status: unknown
 Comm: test-process
 Cwd: /tmp
 Uids: [1000 1001]
@@ -219,10 +221,9 @@ Gids: [1002 1003]
 					GeneratedNameSource:      "binary_name",
 					AdditionalGeneratedNames: []string{"java", "app"},
 					TracerMetadata:           []tracermetadata.TracerMetadata{},
-					DDService:                "java-app",
 					TCPPorts:                 []uint16{8080, 8081},
 					UDPPorts:                 []uint16{8082, 8083},
-					APMInstrumentation:       "enabled",
+					APMInstrumentation:       true,
 					Type:                     "web_service",
 					LogFiles: []string{
 						"/var/log/app_access.log",
@@ -240,6 +241,7 @@ Namespace PID: 12345
 Container ID: container-999
 Creation time: 2023-01-01 12:00:00 +0000 UTC
 Language: java
+APM Injection Status: unknown
 ----------- Service Discovery -----------
 Service Generated Name: java-app
 `,
@@ -272,7 +274,6 @@ Service Generated Name: java-app
 					GeneratedNameSource:      "binary_name",
 					AdditionalGeneratedNames: []string{"java", "app"},
 					TracerMetadata:           []tracermetadata.TracerMetadata{},
-					DDService:                "java-app",
 					UST: UST{
 						Service: "java-app",
 						Env:     "production",
@@ -280,7 +281,7 @@ Service Generated Name: java-app
 					},
 					TCPPorts:           []uint16{8080, 8081},
 					UDPPorts:           []uint16{8082, 8083},
-					APMInstrumentation: "enabled",
+					APMInstrumentation: true,
 					Type:               "web_service",
 					LogFiles: []string{
 						"/var/log/app_access.log",
@@ -298,6 +299,7 @@ Namespace PID: 12345
 Container ID: container-999
 Creation time: 2023-01-01 12:00:00 +0000 UTC
 Language: java
+APM Injection Status: unknown
 Comm: java
 Cwd: /app
 Uids: [1000 2 3]
@@ -307,10 +309,9 @@ Service Generated Name: java-app
 Service Generated Name Source: binary_name
 Service Additional Generated Names: [java app]
 Service Tracer Metadata: []
-Service DD Service: java-app
 Service TCP Ports: [8080 8081]
 Service UDP Ports: [8082 8083]
-Service APM Instrumentation: enabled
+Service APM Instrumentation: true
 Service Type: web_service
 ---- Unified Service Tagging ----
 Service: java-app

@@ -184,7 +184,6 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			next := new(consumertest.TracesSink)
 			cfg := &Config{
-				Traces:      TraceInfraAttributes{},
 				Cardinality: types.LowCardinality,
 			}
 			tc := testutil.NewTestTaggerClient()

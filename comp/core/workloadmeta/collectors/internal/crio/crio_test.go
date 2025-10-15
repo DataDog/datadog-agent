@@ -70,6 +70,7 @@ func TestPull(t *testing.T) {
 						FinishedAt: finishTime,
 						Image:      &v1.ImageSpec{Image: "myrepo/myimage:latest"},
 						ImageRef:   "myrepo/myimage@sha256:123abc",
+						ImageId:    "my_image_id",
 						Resources: &v1.ContainerResources{
 							Linux: &v1.LinuxContainerResources{
 								CpuQuota:           50000,
@@ -103,9 +104,9 @@ func TestPull(t *testing.T) {
 							Name:       "myrepo/myimage",
 							ShortName:  "myimage",
 							RawName:    "myrepo/myimage:latest",
-							ID:         "sha256:123abc",
+							ID:         "my_image_id",
 							Tag:        "latest",
-							RepoDigest: "myrepo/myimage@sha256:123abc",
+							RepoDigest: "sha256:123abc",
 						},
 						Resources: workloadmeta.ContainerResources{
 							CPULimit:    pointer.Ptr(0.5),
@@ -291,6 +292,7 @@ func TestPull(t *testing.T) {
 						FinishedAt: finishTime,
 						Image:      &v1.ImageSpec{Image: "myrepo/myimage:latest"},
 						ImageRef:   "myrepo/myimage@sha256:123abc",
+						ImageId:    "my_image_id",
 						Resources: &v1.ContainerResources{
 							Linux: &v1.LinuxContainerResources{
 								CpuQuota:           0,
@@ -315,9 +317,9 @@ func TestPull(t *testing.T) {
 							Name:       "myrepo/myimage",
 							ShortName:  "myimage",
 							RawName:    "myrepo/myimage:latest",
-							ID:         "sha256:123abc",
+							ID:         "my_image_id",
 							Tag:        "latest",
-							RepoDigest: "myrepo/myimage@sha256:123abc",
+							RepoDigest: "sha256:123abc",
 						},
 						Resources: workloadmeta.ContainerResources{
 							CPULimit:    nil, // No CPU limit

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build cel
+
 package catalog
 
 import (
@@ -73,19 +75,13 @@ func TestConvertOldToNewFilter_Success(t *testing.T) {
 			"exclude omitted image key in service",
 			workloadfilter.ServiceType,
 			[]string{"name:foo-.*", "image:nginx.*"},
-			`service.name.matches("foo-.*")`,
+			`kube_service.name.matches("foo-.*")`,
 		},
 		{
 			"exclude omitted image key in endpoint",
 			workloadfilter.EndpointType,
 			[]string{"name:foo-.*", "image:nginx.*"},
-			`endpoint.name.matches("foo-.*")`,
-		},
-		{
-			"image filter on image type",
-			workloadfilter.ImageType,
-			[]string{"image:nginx.*", "kube_namespace:foo", "name:bar"},
-			`image.name.matches("nginx.*")`,
+			`kube_endpoint.name.matches("foo-.*")`,
 		},
 	}
 	for _, tt := range tests {

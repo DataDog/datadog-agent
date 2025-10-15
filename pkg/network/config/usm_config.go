@@ -49,6 +49,18 @@ type USMConfig struct {
 	// USMDataChannelSize specifies the size of the data channel for USM
 	USMDataChannelSize int
 
+	// DirectConsumerBufferWakeupCountPerCPU specifies the number of events per CPU that will buffer in a perf buffer before userspace is woken up for USM direct consumer.
+	// For ring buffers (which are shared across all CPUs), this value is multiplied by the CPU count.
+	DirectConsumerBufferWakeupCountPerCPU int
+
+	// DirectConsumerChannelSize specifies the channel buffer size multiplier for USM direct consumer.
+	DirectConsumerChannelSize int
+
+	// DirectConsumerKernelBufferSizePerCPU specifies the base buffer size for USM direct consumer kernel buffer.
+	// For perf buffers, this value is rounded up to the nearest page size multiple (per-CPU).
+	// For ring buffers, this value is multiplied by CPU count and rounded to the nearest power of 2 (total size).
+	DirectConsumerKernelBufferSizePerCPU int
+
 	// DisableMapPreallocation controls whether eBPF maps should disable preallocation (BPF_F_NO_PREALLOC flag).
 	// When true, maps allocate entries on-demand instead of preallocating the full map size, improving memory efficiency.
 	DisableMapPreallocation bool
@@ -71,6 +83,11 @@ type USMConfig struct {
 
 	// HTTPReplaceRules are rules for replacing HTTP path patterns
 	HTTPReplaceRules []*ReplaceRule
+
+	// HTTPUseDirectConsumer forces the use of direct consumer for HTTP monitoring instead of batch consumer
+	// When true, direct consumer is used if kernel supports it (>=5.8.0), otherwise falls back to batch consumer
+	// When false (default), batch consumer is always used regardless of kernel version
+	HTTPUseDirectConsumer bool
 
 	// HTTP Windows-specific Configuration
 	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked (Windows only)
@@ -168,28 +185,32 @@ type USMConfig struct {
 func NewUSMConfig(cfg model.Config) *USMConfig {
 	usmConfig := &USMConfig{
 		// Global USM Configuration
-		ServiceMonitoringEnabled:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "enabled")),
-		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_concurrent_requests"))),
-		EnableUSMQuantization:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
-		EnableUSMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
-		EnableUSMRingBuffers:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
-		EnableUSMEventStream:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
-		USMKernelBufferPages:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
-		USMDataChannelSize:        cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
-		DisableMapPreallocation:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
+		ServiceMonitoringEnabled:              cfg.GetBool(sysconfig.FullKeyPath(smNS, "enabled")),
+		MaxUSMConcurrentRequests:              uint32(cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_concurrent_requests"))),
+		EnableUSMQuantization:                 cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup:             cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:                  cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
+		EnableUSMEventStream:                  cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
+		USMKernelBufferPages:                  cfg.GetInt(sysconfig.FullKeyPath(smNS, "kernel_buffer_pages")),
+		USMDataChannelSize:                    cfg.GetInt(sysconfig.FullKeyPath(smNS, "data_channel_size")),
+		DisableMapPreallocation:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "disable_map_preallocation")),
+		DirectConsumerBufferWakeupCountPerCPU: cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer", "buffer_wakeup_count_per_cpu")),
+		DirectConsumerChannelSize:             cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer", "channel_size")),
+		DirectConsumerKernelBufferSizePerCPU:  cfg.GetInt(sysconfig.FullKeyPath(smNS, "direct_consumer", "kernel_buffer_size_per_cpu")),
 
 		// HTTP Protocol Configuration
-		EnableHTTPMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http_monitoring")),
-		MaxHTTPStatsBuffered:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_http_stats_buffered")),
-		HTTPMapCleanerInterval:    time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
-		HTTPIdleConnectionTTL:     time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
-		MaxTrackedHTTPConnections: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "max_tracked_http_connections")),
-		HTTPNotificationThreshold: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http_notification_threshold")),
-		HTTPMaxRequestFragment:    cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http_max_request_fragment")),
+		EnableHTTPMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "http", "enabled")),
+		MaxHTTPStatsBuffered:      cfg.GetInt(sysconfig.FullKeyPath(smNS, "http", "max_stats_buffered")),
+		HTTPMapCleanerInterval:    time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http", "map_cleaner_interval_seconds"))) * time.Second,
+		HTTPIdleConnectionTTL:     time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http", "idle_connection_ttl_seconds"))) * time.Second,
+		HTTPUseDirectConsumer:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "http", "use_direct_consumer")),
+		MaxTrackedHTTPConnections: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "max_tracked_connections")),
+		HTTPNotificationThreshold: cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "notification_threshold")),
+		HTTPMaxRequestFragment:    cfg.GetInt64(sysconfig.FullKeyPath(smNS, "http", "max_request_fragment")),
 
 		// HTTP2 Protocol Configuration
-		EnableHTTP2Monitoring:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_http2_monitoring")),
-		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
+		EnableHTTP2Monitoring:               cfg.GetBool(sysconfig.FullKeyPath(smNS, "http2", "enabled")),
+		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http2", "dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
 
 		// Kafka Protocol Configuration
 		EnableKafkaMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "kafka", "enabled")),
@@ -215,7 +236,7 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 	}
 
 	// Parse HTTP Replace Rules
-	httpRRKey := sysconfig.FullKeyPath(smNS, "http_replace_rules")
+	httpRRKey := sysconfig.FullKeyPath(smNS, "http", "replace_rules")
 	rr, err := parseReplaceRules(cfg, httpRRKey)
 	if err != nil {
 		log.Errorf("error parsing %q: %v", httpRRKey, err)
@@ -239,7 +260,7 @@ type ReplaceRule struct {
 }
 
 func parseReplaceRules(cfg model.Config, key string) ([]*ReplaceRule, error) {
-	if !pkgconfigsetup.SystemProbe().IsSet(key) {
+	if !pkgconfigsetup.SystemProbe().IsConfigured(key) {
 		return nil, nil
 	}
 

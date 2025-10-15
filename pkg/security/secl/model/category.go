@@ -15,6 +15,21 @@ import (
 // EventCategory category type
 type EventCategory int
 
+func (t EventCategory) String() string {
+	switch t {
+	case FIMCategory:
+		return "File Activity"
+	case ProcessCategory:
+		return "Process Activity"
+	case KernelCategory:
+		return "Kernel Activity"
+	case NetworkCategory:
+		return "Network Activity"
+	default:
+		return "Unknown Category"
+	}
+}
+
 // Event categories
 const (
 	// FIMCategory FIM events
@@ -27,19 +42,8 @@ const (
 	NetworkCategory
 )
 
-// EventCategoryUserFacing user facing category type
-type EventCategoryUserFacing string
-
-const (
-	// FIMCategoryUserFacing FIM events
-	FIMCategoryUserFacing EventCategoryUserFacing = "File Activity"
-	// ProcessCategoryUserFacing process events
-	ProcessCategoryUserFacing EventCategoryUserFacing = "Process Activity"
-	// KernelCategoryUserFacing Kernel events
-	KernelCategoryUserFacing EventCategoryUserFacing = "Kernel Activity"
-	// NetworkCategoryUserFacing network events
-	NetworkCategoryUserFacing EventCategoryUserFacing = "Network Activity"
-)
+// UnknownCategory for everything without a clear category
+var UnknownCategory = EventCategory(-1)
 
 // GetAllCategories returns all categories
 func GetAllCategories() []EventCategory {
@@ -51,69 +55,105 @@ func GetAllCategories() []EventCategory {
 	}
 }
 
+// EventTypeDependsOnInterfaceTracking returns all event types that have a dependency on our internal interface tracking mechanism
+func EventTypeDependsOnInterfaceTracking(eventType eval.EventType) bool {
+	switch eventType {
+	case
+		DNSEventType.String(),
+		FullDNSResponseEventType.String(),
+		ShortDNSResponseEventType.String(),
+		IMDSEventType.String(),
+		RawPacketFilterEventType.String(),
+		RawPacketActionEventType.String(),
+		NetworkFlowMonitorEventType.String():
+		return true
+	default:
+		return false
+	}
+}
+
 // GetEventTypeCategory returns the category for the given event type
 func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 	switch eventType {
 	// Process
 	case
 		ExecEventType.String(),
+		ForkEventType.String(),
+		SetuidEventType.String(),
+		SetgidEventType.String(),
+		CapsetEventType.String(),
 		SignalEventType.String(),
 		ExitEventType.String(),
-		ForkEventType.String(),
-		SyscallsEventType.String(),
 		SetrlimitEventType.String(),
-		CapabilitiesEventType.String():
+		CapabilitiesEventType.String(),
+		SyscallsEventType.String(),
+		LoginUIDWriteEventType.String(),
+		PrCtlEventType.String(),
+		ArgsEnvsEventType.String():
 		return ProcessCategory
 
 	// Kernel
 	case
-		BPFEventType.String(),
 		SELinuxEventType.String(),
+		BPFEventType.String(),
+		PTraceEventType.String(),
 		MMapEventType.String(),
 		MProtectEventType.String(),
-		PTraceEventType.String(),
+		LoadModuleEventType.String(),
 		UnloadModuleEventType.String(),
-		AcceptEventType.String(),
-		BindEventType.String(),
-		ConnectEventType.String(),
-		SysCtlEventType.String():
+		SysCtlEventType.String(),
+		CgroupWriteEventType.String(),
+		CgroupTracingEventType.String(),
+		UnshareMountNsEventType.String(),
+		OnDemandEventType.String():
 		return KernelCategory
 
 	// Network
 	case
+		BindEventType.String(),
+		ConnectEventType.String(),
+		AcceptEventType.String(),
+		SetSockOptEventType.String(),
+		DNSEventType.String(),
+		FullDNSResponseEventType.String(),
+		ShortDNSResponseEventType.String(),
+		FailedDNSEventType.String(),
 		IMDSEventType.String(),
 		RawPacketFilterEventType.String(),
 		RawPacketActionEventType.String(),
-		DNSEventType.String(),
-		FullDNSResponseEventType.String(),
-		NetworkFlowMonitorEventType.String():
+		NetworkFlowMonitorEventType.String(),
+		NetDeviceEventType.String(),
+		VethPairEventType.String(),
+		VethPairNsEventType.String():
 		return NetworkCategory
-	}
 
-	return FIMCategory
-}
-
-// GetEventTypeCategoryUserFacing returns the category for the given event type
-func GetEventTypeCategoryUserFacing(eventType eval.EventType) EventCategoryUserFacing {
-	switch eventType {
+	// FIM
 	case
-		BindEventType.String(),
-		ConnectEventType.String():
-		return NetworkCategoryUserFacing
+		FileChmodEventType.String(),
+		FileChownEventType.String(),
+		FileOpenEventType.String(),
+		FileMkdirEventType.String(),
+		FileRmdirEventType.String(),
+		FileRenameEventType.String(),
+		FileUnlinkEventType.String(),
+		FileUtimesEventType.String(),
+		FileLinkEventType.String(),
+		FileSetXAttrEventType.String(),
+		FileRemoveXAttrEventType.String(),
+		SpliceEventType.String(),
+		FileMountEventType.String(),
+		FileChdirEventType.String(),
+		FileUmountEventType.String(),
+		InvalidateDentryEventType.String(),
+		MountReleasedEventType.String(),
+		StatEventType.String(),
+		FileFsmountEventType.String(),
+		FileMoveMountEventType.String(),
+		FileOpenTreeEventType.String():
+		return FIMCategory
 	}
 
-	switch GetEventTypeCategory(eventType) {
-	case FIMCategory:
-		return FIMCategoryUserFacing
-	case ProcessCategory:
-		return ProcessCategoryUserFacing
-	case KernelCategory:
-		return KernelCategoryUserFacing
-	case NetworkCategory:
-		return NetworkCategoryUserFacing
-	}
-
-	panic("unknown category for given event type")
+	return UnknownCategory
 }
 
 // GetEventTypePerCategory returns the event types per category
