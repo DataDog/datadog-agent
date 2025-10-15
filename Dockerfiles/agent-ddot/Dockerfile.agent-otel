@@ -1,6 +1,6 @@
-ARG AGENT_REPO=datadog/agent-dev
-ARG AGENT_VERSION=nightly-full-main-jmx
-ARG AGENT_BRANCH=main
+ARG AGENT_REPO=datadog/agent
+ARG AGENT_VERSION=7.70.2
+ARG AGENT_BRANCH=7.70.2
 # Use the Ubuntu Slim AMD64 base image
 FROM ubuntu:24.04 AS builder
 
