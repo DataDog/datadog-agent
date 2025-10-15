@@ -119,7 +119,7 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 
-	seen := map[string]bool
+	seen := map[string]bool{}
 	for _, newTestConfig := range newConfig {
 		pubID := newTestConfig.PublicID
 		seen[pubID] = true
