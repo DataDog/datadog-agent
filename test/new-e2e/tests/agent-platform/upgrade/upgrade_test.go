@@ -43,6 +43,7 @@ type upgradeSuite struct {
 	srcVersion          string
 	destVersion         string
 	fromCurrentToStable bool
+	testingKeysURL      string
 }
 
 func TestUpgradeScript(t *testing.T) {
@@ -73,8 +74,11 @@ func TestUpgradeScript(t *testing.T) {
 			osDesc := platforms.BuildOSDescriptor(*platform, *architecture, osVers)
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 
+			suite := &upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion, fromCurrentToStable: *fromCurrentToStable}
+			suite.testingKeysURL = "apttesting.datad0g.com/test-keys"
+
 			e2e.Run(tt,
-				&upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion, fromCurrentToStable: *fromCurrentToStable},
+				suite,
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
@@ -104,11 +108,19 @@ func (is *upgradeSuite) TestUpgrade() {
 }
 
 func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient, fromStable bool) {
-	if fromStable {
-		install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""))
-	} else {
-		install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")))
+	installOptions := []installparams.Option{
+		installparams.WithArch(*architecture),
+		installparams.WithFlavor(*flavorName),
+		installparams.WithMajorVersion(is.srcVersion),
+		installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")),
 	}
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	if fromStable {
+		installOptions = append(installOptions, installparams.WithPipelineID(""))
+	}
+	install.Unix(is.T(), VMclient, installOptions...)
 	var err error
 	if is.srcVersion == "5" {
 		_, err = VMclient.Host.Execute("sudo /etc/init.d/datadog-agent stop")
@@ -119,11 +131,19 @@ func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient, from
 }
 
 func (is *upgradeSuite) UpgradeAgentVersion(VMclient *common.TestClient, toCurrent bool) {
-	if toCurrent {
-		install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.destVersion), installparams.WithUpgrade(true))
-	} else {
-		install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.destVersion), installparams.WithUpgrade(true), installparams.WithPipelineID(""))
+	installOptions := []installparams.Option{
+		installparams.WithArch(*architecture),
+		installparams.WithFlavor(*flavorName),
+		installparams.WithMajorVersion(is.destVersion),
+		installparams.WithUpgrade(true),
 	}
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	if !toCurrent {
+		installOptions = append(installOptions, installparams.WithPipelineID(""))
+	}
+	install.Unix(is.T(), VMclient, installOptions...)
 	_, err := VMclient.SvcManager.Restart("datadog-agent")
 	require.NoError(is.T(), err)
 }
