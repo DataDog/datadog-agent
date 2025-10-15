@@ -7,13 +7,9 @@
 
 package http
 
-import (
-	"time"
-)
-
 // IncompleteBuffer is responsible for buffering incomplete transactions
 // (eg. httpTX objects that have either only the request or response information)
 type IncompleteBuffer interface {
 	Add(tx Transaction)
-	Flush(now time.Time) []Transaction
+	Flush() []Transaction
 }

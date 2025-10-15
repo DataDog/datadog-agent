@@ -56,8 +56,19 @@ git_override(
     module_name = "gcc_toolchain",
     commit = "0e2242b07961107d2b05a6552d70b2ef4ef485fb",
     patch_args = ["-p1"],
-    patches = ["//bazel/patches:datadog_agent_toolchain.patch"],
+    patches = [
+        "//bazel/patches:datadog_agent_toolchain.patch",
+        "//bazel/patches:0001-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch"
+    ],
     remote = "https://github.com/f0rmiga/gcc-toolchain.git",
+)
+
+http_archive(
+    name = "patchelf",
+    build_file = "//deps:patchelf.BUILD.bazel",
+    sha256 = "64de10e4c6b8b8379db7e87f58030f336ea747c0515f381132e810dbf84a86e7",
+    strip_prefix = "patchelf-0.18.0",
+    url = "https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0.tar.gz",
 )
 
 gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)

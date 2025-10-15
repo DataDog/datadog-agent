@@ -25,6 +25,9 @@ PIDFile={{.InstallDir}}/run/system-probe.pid
 Restart=on-failure
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+{{- if not .Stable}}
+Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
+{{- end}}
 ExecStart={{.InstallDir}}/embedded/bin/system-probe run --config={{.EtcDir}}/system-probe.yaml --pid={{.InstallDir}}/run/system-probe.pid
 StartLimitInterval=10
 StartLimitBurst=5

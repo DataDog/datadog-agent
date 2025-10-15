@@ -129,7 +129,7 @@ type Provides struct {
 func New(reqs Requires) (Provides, error) {
 	return newWithClient(reqs, &sysProbeClientWrapper{
 		clientFn: func() *sysprobeclient.CheckClient {
-			return sysprobeclient.GetCheckClient(reqs.SysprobeConfig.GetString("system_probe_config.sysprobe_socket"))
+			return sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(reqs.SysprobeConfig.GetString("system_probe_config.sysprobe_socket")))
 		},
 	})
 }

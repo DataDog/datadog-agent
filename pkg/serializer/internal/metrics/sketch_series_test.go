@@ -274,11 +274,11 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 			pipelines := []Pipeline{
 				{
 					FilterFunc:  func(_ Filterable) bool { return true },
-					Destination: transaction.AllRegions,
+					Destination: transaction.PrimaryOnly,
 				},
 				{
 					FilterFunc:  func(metric Filterable) bool { return metric.GetName() == "name.0" },
-					Destination: transaction.PreaggrOnly,
+					Destination: transaction.SecondaryOnly,
 				},
 			}
 
@@ -287,9 +287,9 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 
 			var payloads, filteredPayloads transaction.BytesPayloads
 			for _, payload := range allPayloads {
-				if payload.Destination == transaction.AllRegions {
+				if payload.Destination == transaction.PrimaryOnly {
 					payloads = append(payloads, payload)
-				} else if payload.Destination == transaction.PreaggrOnly {
+				} else if payload.Destination == transaction.SecondaryOnly {
 					filteredPayloads = append(filteredPayloads, payload)
 				}
 			}

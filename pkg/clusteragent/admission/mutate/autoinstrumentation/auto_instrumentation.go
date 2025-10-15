@@ -139,9 +139,9 @@ type libInfoLanguageDetection struct {
 	injectionEnabled bool
 }
 
-func (l *libInfoLanguageDetection) containerMutator(v version) containerMutator {
+func (l *libInfoLanguageDetection) containerMutator() containerMutator {
 	return containerMutatorFunc(func(c *corev1.Container) error {
-		if !v.usesInjector() || l == nil {
+		if l == nil {
 			return nil
 		}
 
