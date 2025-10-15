@@ -152,8 +152,8 @@ github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f h1:O+
 github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f/go.mod h1:E+dFku5SVIXDUj6apiBdDAzrUOR3xLz1bMgUOGjRAVQ=
 github.com/DataDog/datadog-traceroute v0.1.28 h1:aakZepsIXOy0kcDNHkiHMnbIVn0cY8it6gzx/8+rmmU=
 github.com/DataDog/datadog-traceroute v0.1.28/go.mod h1:PU0w0AsVMEapWPgaqXEtBuDUlPQGlnHsaADsXVMKMts=
-github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251001104144-35a0daaf10ff h1:ebg53sL4WZzIqazsg7P39quwG7bc9tEr9tXOU5Y5ZzI=
-github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251001104144-35a0daaf10ff/go.mod h1:inkKXnNcJR5TNK8CvXcxybKj9J878mj4+4Ri9cziHbE=
+github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0 h1:OEDWHLCabNtLF+OkbI1DlVLkxxK9QUVQUSIt8uZ3VY8=
+github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0/go.mod h1:KsvZuiis+8Ix3r+FEIew7LvryZeeIDrYyiTPMR14GOY=
 github.com/DataDog/dd-trace-go/v2 v2.2.2 h1:t7RCS6et5z+xrvM9dqUPtCGoNOWTj0pcApzbktMZi2k=
 github.com/DataDog/dd-trace-go/v2 v2.2.2/go.mod h1:xvdSukALA8/NnVfTAnxqkZfLLO/6Vi4y5ooxfVy6dfk=
 github.com/DataDog/ebpf-manager v0.7.14 h1:k08TW46xdUEHggumRmbs9y+ymcZIJ1LKrRcXEq7EgIM=
@@ -1759,6 +1759,8 @@ github.com/uptrace/bun/driver/pgdriver v1.2.15 h1:eZZ60ZtUUE6jjv6VAI1pCMaTgtx3sx
 github.com/uptrace/bun/driver/pgdriver v1.2.15/go.mod h1:s2zz/BAeScal4KLFDI8PURwATN8s9RDBsElEbnPAjv4=
 github.com/urfave/cli v1.21.0/go.mod h1:lxDj6qX9Q6lWQxIrbrT0nwecwUtRnhVZAJjJZrVUZZQ=
 github.com/urfave/cli/v2 v2.3.0/go.mod h1:LJmUH05zAU44vOAcrfzZQKsZbVcdbOG8rtL3/XcUArI=
+github.com/urfave/cli/v3 v3.1.1 h1:bNnl8pFI5dxPOjeONvFCDFoECLQsceDG4ejahs4Jtxk=
+github.com/urfave/cli/v3 v3.1.1/go.mod h1:FJSKtM/9AiiTOJL4fJ6TbMUkxBXn7GO9guZqoZtpYpo=
 github.com/urfave/negroni v1.0.0 h1:kIimOitoypq34K7TG7DUaJ9kq/N4Ofuwi1sjz0KipXc=
 github.com/urfave/negroni v1.0.0/go.mod h1:Meg73S6kFm/4PpbYdq35yYWoCZ9mS/YSx+lKnmiohz4=
 github.com/valyala/fastjson v1.6.4 h1:uAUNq9Z6ymTgGhcm0UynUAB6tlbakBrz6CQFax3BXVQ=
