@@ -9,11 +9,15 @@ filegroup(
         "@libffi",
         "@libyaml",
         "@lua//:liblua",
-        "@nghttp2",
         "@sqlite3",
         "@xz",
         "@xz//:lzma",
         "@zlib//:libz_so",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "@nghttp2",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:private"],
 )
