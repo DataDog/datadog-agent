@@ -464,9 +464,9 @@ var (
 
 	// Event processing time metrics
 
-	// MetricNameEventProcessingTimeAvg is the name of the metric used to report the average time an event took to be processed
+	// MetricNameEventProcessingTimeMean is the name of the metric used to report the mean time an event took to be processed
 	// Tags: event_type
-	MetricNameEventProcessingTimeAvg = newRuntimeMetric(".event_processing_time_microsec.avg")
+	MetricNameEventProcessingTimeMean = newRuntimeMetric(".event_processing_time_microsec.mean")
 
 	// MetricNameEventProcessingTimeStddev is the name of the metric used to report the standard deviation of the time an event took to be processed
 	// Tags: event_type
