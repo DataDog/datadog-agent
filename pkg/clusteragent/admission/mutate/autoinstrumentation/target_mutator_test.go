@@ -22,6 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -410,6 +411,9 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
 					Annotations: map[string]string{
 						"admission.datadoghq.com/python-lib.version": "v3",
 					},
@@ -420,6 +424,21 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
+		},
+		"a pod with an annotation but disabled label gets no value": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "false",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/python-lib.version": "v3",
+					},
+				},
+			},
+			expected: nil,
 		},
 	}
 
@@ -638,6 +657,43 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: nil,
 		},
+		"enabled namespace gets converted to target": {
+			configPath: "testdata/enabled_namespaces.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "application",
+				},
+			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(python, "v3"),
+				},
+			},
+		},
+		"no targets with instrumentation enabled injects all SDKs": {
+			configPath: "testdata/instrumentation_enabled.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "application",
+				},
+			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(java, "v1"),
+					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(python, "v3"),
+					defaultLibInfoWithVersion(dotnet, "v3"),
+					defaultLibInfoWithVersion(ruby, "v2"),
+					defaultLibInfoWithVersion(php, "v1"),
+				},
+			},
+		},
 	}
 
 	for name, test := range tests {
@@ -675,6 +731,125 @@ func TestGetTargetLibraries(t *testing.T) {
 				require.NotNil(t, actual)
 				require.Equal(t, test.expected.libVersions, actual.libVersions)
 			}
+		})
+	}
+}
+
+func TestLanguageDetection(t *testing.T) {
+	tests := map[string]struct {
+		config                     map[string]interface{}
+		pod                        *corev1.Pod
+		deployments                []mutatecommon.MockDeployment
+		expectedInitContainerNames []string
+	}{
+		"default target uses language detection when enabled": {
+			config: map[string]interface{}{
+				"apm_config.instrumentation.enabled":                                       true,
+				"language_detection.enabled":                                               true,
+				"language_detection.reporting.enabled":                                     true,
+				"admission_controller.auto_instrumentation.inject_auto_detected_libraries": true,
+			},
+			pod: mutatecommon.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []mutatecommon.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			expectedInitContainerNames: []string{
+				"datadog-init-apm-inject",
+				"datadog-lib-python-init",
+			},
+		},
+		"user set default libraries uses language detection when enabled": {
+			config: map[string]interface{}{
+				"apm_config.instrumentation.enabled":                                       true,
+				"language_detection.enabled":                                               true,
+				"language_detection.reporting.enabled":                                     true,
+				"admission_controller.auto_instrumentation.inject_auto_detected_libraries": true,
+				"apm_config.instrumentation.lib_versions":                                  defaultLibraries,
+			},
+			pod: mutatecommon.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []mutatecommon.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			expectedInitContainerNames: []string{
+				"datadog-init-apm-inject",
+				"datadog-lib-python-init",
+			},
+		},
+		"default target does not use language detection when disabled": {
+			config: map[string]interface{}{
+				"apm_config.instrumentation.enabled":                                       true,
+				"language_detection.enabled":                                               false,
+				"language_detection.reporting.enabled":                                     false,
+				"admission_controller.auto_instrumentation.inject_auto_detected_libraries": false,
+			},
+			pod: mutatecommon.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []mutatecommon.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			expectedInitContainerNames: []string{
+				"datadog-init-apm-inject",
+				"datadog-lib-python-init",
+				"datadog-lib-java-init",
+				"datadog-lib-js-init",
+				"datadog-lib-dotnet-init",
+				"datadog-lib-ruby-init",
+				"datadog-lib-php-init",
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Load the config.
+			mockConfig := configmock.New(t)
+			for k, v := range test.config {
+				mockConfig.SetWithoutSource(k, v)
+			}
+			config, err := NewConfig(mockConfig)
+			require.NoError(t, err)
+
+			// Create a mock meta.
+			wmeta := mutatecommon.FakeStoreWithDeployment(t, test.deployments)
+
+			// Create the mutator.
+			m, err := NewTargetMutator(config, wmeta, imageResolver)
+			require.NoError(t, err)
+
+			// Mutate the pod.
+			mutated, err := m.MutatePod(test.pod, test.pod.Namespace, nil)
+			require.NoError(t, err)
+			require.True(t, mutated)
+
+			// Ensure the init containers match.
+			actualInitContainerNames := []string{}
+			for _, container := range test.pod.Spec.InitContainers {
+				actualInitContainerNames = append(actualInitContainerNames, container.Name)
+			}
+			require.ElementsMatch(t, test.expectedInitContainerNames, actualInitContainerNames)
 		})
 	}
 }
