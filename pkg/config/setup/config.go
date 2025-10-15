@@ -334,20 +334,24 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
-	// If false, the core check will be skipped.
-	config.BindEnvAndSetDefault("disk_check.use_core_loader", false)
-	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
-
 	// If true, then the go loader will be prioritized over the python loader.
 	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
 
 	// If true, then new version of disk v2 check will be used.
-	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
-	config.BindEnvAndSetDefault("use_diskv2_check", false)
+	// Otherwise, the python version of disk check will be used.
+	config.BindEnvAndSetDefault("use_diskv2_check", true)
+	config.BindEnvAndSetDefault("disk_check.use_core_loader", true)
 
-	// If true, then new version of network v2 check will be used.
-	// Otherwise, the old version of network check will be used (maintaining backward compatibility).
-	config.BindEnvAndSetDefault("use_networkv2_check", false)
+	// the darwin network and check has not been ported from python
+	if runtime.GOOS == "darwin" {
+		config.BindEnvAndSetDefault("use_networkv2_check", false)
+		config.BindEnvAndSetDefault("network_check.use_core_loader", false)
+	} else {
+		// If true, then new version of network v2 check will be used.
+		// Otherwise, the python version of network check will be used.
+		config.BindEnvAndSetDefault("use_networkv2_check", true)
+		config.BindEnvAndSetDefault("network_check.use_core_loader", true)
+	}
 
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
