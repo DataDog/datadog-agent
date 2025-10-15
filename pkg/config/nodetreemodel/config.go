@@ -900,6 +900,7 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 		model.SourceLocalConfigProcess: c.localConfigProcess.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceRC:                 c.remoteConfig.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceCLI:                c.cli.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceProvided:           c.root.DumpSettings(func(src model.Source) bool { return src != model.SourceDefault }),
 	}
 }
 

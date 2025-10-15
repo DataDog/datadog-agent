@@ -59,15 +59,25 @@ func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 
 // flush enqueues tests whose nextRun is due.
 func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	var testsToRun []*runningTestState
 	for id, rt := range s.state.tests {
 		if flushTime.After(rt.nextRun) || flushTime.Equal(rt.nextRun) {
-			s.log.Debugf("enqueuing test %s", id)
-			s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
-				nextRun: flushTime,
-				cfg:     rt.cfg,
-			}
-			s.updateTestState(rt)
+			s.log.Debugf("test %s is due for execution", id)
+			testsToRun = append(testsToRun, rt)
 		}
+	}
+
+	for _, rt := range testsToRun {
+		s.log.Debugf("enqueuing test %s", rt.cfg.PublicID)
+		s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
+			nextRun: flushTime,
+			cfg:     rt.cfg,
+		}
+
+		rt.lastRun = rt.nextRun
+		rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
 	}
 }
 
@@ -212,14 +222,6 @@ type SyntheticsTestCtx struct {
 	cfg     common.SyntheticsTestConfig
 }
 
-// updateTestState updates lastRun and nextRun for a running test.
-func (s *syntheticsTestScheduler) updateTestState(rt *runningTestState) {
-	s.state.mu.Lock()
-	defer s.state.mu.Unlock()
-	rt.lastRun = rt.nextRun
-	rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
-}
-
 // sendSyntheticsTestResult marshals the workerResult and forwards it via the epForwarder.
 func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) error {
 	res, err := s.networkPathToTestResult(w)
@@ -300,23 +302,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		RunType: w.testCfg.cfg.RunType,
 	}
 
-	if w.tracerouteError != nil {
-		result.Status = "failed"
-		result.Failure = common.APIError{
-			Code:    "UNKNOWN",
-			Message: w.tracerouteError.Error(),
-		}
-	} else {
-		for _, res := range w.assertionResult {
-			if !res.Valid || res.Failure.Code != "" {
-				result.Status = "failed"
-				result.Failure = common.APIError{
-					Code:    incorrectAssertion,
-					Message: w.tracerouteError.Error(),
-				}
-			}
-		}
-	}
+	s.setResultStatus(w, &result)
 
 	return &common.TestResult{
 		Location: struct {
@@ -327,6 +313,51 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		Test:   t,
 		V:      1,
 	}, nil
+}
+
+func (s *syntheticsTestScheduler) setResultStatus(w *workerResult, result *common.Result) {
+	if result.Netstats.PacketLossPercentage == 1 {
+		if !hasAssertionOn100PacketLoss(w.assertionResult) {
+			result.Status = "failed"
+			result.Failure = common.APIError{
+				Code:    "NETUNREACH",
+				Message: "The remote server network is unreachable.",
+			}
+		}
+	}
+	if w.tracerouteError != nil {
+		result.Status = "failed"
+		result.Failure = common.APIError{
+			Code:    "UNKNOWN",
+			Message: w.tracerouteError.Error(),
+		}
+	}
+	if result.Status != "failed" {
+		for _, res := range w.assertionResult {
+			if !res.Valid {
+				result.Status = "failed"
+				assertionResultJSON, err := json.Marshal(w.assertionResult)
+				message := "Assertions failed"
+				if err == nil {
+					message = string(assertionResultJSON)
+				}
+
+				result.Failure = common.APIError{
+					Code:    incorrectAssertion,
+					Message: message,
+				}
+			}
+		}
+	}
+}
+
+func hasAssertionOn100PacketLoss(assertionResults []common.AssertionResult) bool {
+	for _, assertion := range assertionResults {
+		if assertion.Type == common.AssertionTypePacketLoss && assertion.Operator == common.OperatorIs && assertion.Expected == "100" {
+			return true
+		}
+	}
+	return false
 }
 
 // generateRandomStringUInt63 returns a cryptographically random uint63 as decimal string.
