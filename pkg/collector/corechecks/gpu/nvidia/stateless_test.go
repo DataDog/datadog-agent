@@ -25,7 +25,7 @@ func TestNewStatelessCollector(t *testing.T) {
 	device := setupMockDevice(t, nil)
 
 	// Test that the stateless collector creates the expected dynamic API set
-	deps := &CollectorDependencies{NsPidCache: &NsPidCache{}, Workloadmeta: testutil.GetWorkloadMetaMock(t)}
+	deps := &CollectorDependencies{NsPidCache: &NsPidCache{}, Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t)}
 	collector, err := newStatelessCollector(device, deps)
 	require.NoError(t, err)
 	require.NotNil(t, collector)
