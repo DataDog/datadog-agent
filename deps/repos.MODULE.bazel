@@ -1,6 +1,6 @@
 # 3rd party dependencies
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
 # Defines a "libyaml" target for the lib
 bazel_dep(name = "libyaml", version = "0.2.5")
@@ -92,4 +92,16 @@ register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
     "//bazel/toolchains/mingw:mingw_cc_toolchain",
+)
+
+http_archive(
+    name = "expat",
+    files = {
+        "BUILD.bazel": "//deps:expat/expat.BUILD.bazel",
+        "macos/expat_config.h": "//deps:expat/overlay/macos/expat_config.h",
+        "linux/expat_config.h": "//deps:expat/overlay/linux/expat_config.h",
+    },
+    sha256 = "6b902ab103843592be5e99504f846ec109c1abb692e85347587f237a4ffa1033",
+    strip_prefix = "expat-2.5.0",
+    url = "https://github.com/libexpat/libexpat/releases/download/R_2_5_0/expat-2.5.0.tar.gz",
 )

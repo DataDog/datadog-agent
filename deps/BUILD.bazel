@@ -16,3 +16,5 @@ filegroup(
     ],
     visibility = ["//visibility:private"],
 )
+
+exports_files(glob(["**/*.BUILD.bazel"]))
