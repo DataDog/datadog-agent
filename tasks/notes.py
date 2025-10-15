@@ -1,4 +1,5 @@
 import sys
+import re
 from datetime import date
 
 from invoke import Failure, task
@@ -134,20 +135,21 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
                 code=1,
             )
 
-        # formats git output and retrieves branches from later
-        # releases (i.e. if we are on 7.67.2, and releases
-        # are being cut for 7.68.x and 7.69.x, they would be retrieved)
-        awk_script = (
-            f"awk -v min={new_version_int[1]} " + "{"
-            "sub(\"refs/heads/\", \"\", $2); "
-            "if ($2 ~ /^7\\.[0-9]+\\.[xX]$/) {"
-            "split($2, parts, \".\"); "
-            "if (parts[2] > min) print $2;"
-            "}"
-            "}'"
-        )
-        res = ctx.run(f"git ls-remote --heads origin | {awk_script}")
-        backport_labels = [f"backport/{line.strip()}" for line in res.splitlines() if line.strip()]
+        res = ctx.run(f"git ls-remote --heads origin")
+        backport_labels = []
+        for line in res.splitlines():
+            sections = line.strip().split()
+            if len(sections) != 2:
+                continue
+
+            # Enforce branch release naming convention (i.e. 7.67.x)
+            branch = sections[1].removeprefix("refs/heads/")
+            if not re.match(r'^7\.[0-9]+\.x$', branch):
+                continue
+
+            minor_version = int(branch.split(".")[1])
+            if minor_version > new_version_int[1]:
+                backport_labels.append(f"backport/{branch}")
 
         create_release_pr(
             f"Changelog update for {new_version} release",
