@@ -239,7 +239,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/trace v0.67.0
-	github.com/DataDog/datadog-go/v5 v5.6.0
+	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/dd-trace-go/v2 v2.2.2
 	github.com/DataDog/orchestrion v1.4.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.88.3
