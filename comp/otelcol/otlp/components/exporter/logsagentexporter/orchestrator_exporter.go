@@ -114,12 +114,12 @@ func toManifest(ctx context.Context, logRecord plog.LogRecord, resource pcommon.
 
 func toManifestPayload(ctx context.Context, manifests []*agentmodel.Manifest, hostName, clusterName, clusterID string) *agentmodel.CollectorManifest {
 	return &agentmodel.CollectorManifest{
-		ClusterName: clusterName,
-		ClusterId:   clusterID,
-		HostName:    hostName,
-		Manifests:   manifests,
-		Tags:        buildCommonTags(),
-		Source:      "datadog-exporter",
+		ClusterName:     clusterName,
+		ClusterId:       clusterID,
+		HostName:        hostName,
+		Manifests:       manifests,
+		Tags:            buildCommonTags(),
+		OriginCollector: agentmodel.OriginCollector_datadogExporter,
 	}
 }
 
@@ -172,7 +172,6 @@ func sendManifestPayload(ctx context.Context, config OrchestratorConfig, payload
 		if err != nil {
 			logger.Error("Failed to close response body", zap.String("endpoint", endpoint), zap.Error(err))
 		}
-		fmt.Println("sneding manifest oayload", clusterID)
 	}
 	return nil
 }
