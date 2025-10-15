@@ -6,12 +6,12 @@
 package telemetry
 
 import (
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 // SimpleGauge tracks how many times something is happening.
 type SimpleGauge interface {
-	telemetryComponent.SimpleGauge
+	telemetrydef.SimpleGauge
 }
 
 // NewSimpleGauge creates a new SimpleGauge with default options.
@@ -21,5 +21,5 @@ func NewSimpleGauge(subsystem, name, help string) SimpleGauge {
 
 // NewSimpleGaugeWithOpts creates a new SimpleGauge.
 func NewSimpleGaugeWithOpts(subsystem, name, help string, opts Options) SimpleGauge {
-	return GetCompatComponent().NewSimpleGaugeWithOpts(subsystem, name, help, telemetryComponent.Options(opts))
+	return GetCompatComponent().NewSimpleGaugeWithOpts(subsystem, name, help, telemetrydef.Options(opts))
 }

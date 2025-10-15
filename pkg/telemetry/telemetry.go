@@ -8,11 +8,11 @@
 package telemetry
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 // GetCompatComponent returns a component wrapping telemetry global variables.
-func GetCompatComponent() telemetry.Component {
+func GetCompatComponent() telemetrydef.Component {
 	return impl.GetCompatComponent()
 }

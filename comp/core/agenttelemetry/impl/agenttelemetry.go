@@ -24,7 +24,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -37,7 +37,7 @@ import (
 type atel struct {
 	cfgComp config.Component
 	logComp log.Component
-	telComp telemetry.Component
+	telComp telemetryimpl.Component
 
 	enabled bool
 	sender  sender
@@ -62,7 +62,7 @@ type Requires struct {
 
 	Log       log.Component
 	Config    config.Component
-	Telemetry telemetry.Component
+	Telemetry telemetryimpl.Component
 
 	Lc compdef.Lifecycle
 }

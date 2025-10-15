@@ -20,7 +20,7 @@ import (
 	"go.uber.org/atomic"
 	"go4.org/intern"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -102,14 +102,14 @@ type Tracer struct {
 
 	timeResolver *ktime.Resolver
 
-	telemetryComp telemetryComponent.Component
+	telemetryComp telemetryimpl.Component
 
 	// Used for connection_protocol data expiration
 	connectionProtocolMapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
 }
 
 // NewTracer creates a Tracer
-func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Component, statsd statsd.ClientInterface) (*Tracer, error) {
+func NewTracer(config *config.Config, telemetryComponent telemetryimpl.Component, statsd statsd.ClientInterface) (*Tracer, error) {
 	tr, err := newTracer(config, telemetryComponent, statsd)
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Comp
 
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
-func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component, statsd statsd.ClientInterface) (_ *Tracer, reterr error) {
+func newTracer(cfg *config.Config, telemetryComponent telemetryimpl.Component, statsd statsd.ClientInterface) (_ *Tracer, reterr error) {
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
@@ -253,7 +253,7 @@ func (t *Tracer) start() error {
 	return nil
 }
 
-func loadEbpfConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Component) (netlink.Conntracker, error) {
+func loadEbpfConntracker(cfg *config.Config, telemetryComponent telemetryimpl.Component) (netlink.Conntracker, error) {
 	if !cfg.EnableEbpfConntracker {
 		log.Info("ebpf conntracker disabled")
 		return nil, nil
@@ -266,7 +266,7 @@ func loadEbpfConntracker(cfg *config.Config, telemetryComponent telemetryCompone
 	return NewEBPFConntracker(cfg, telemetryComponent)
 }
 
-func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Component) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, telemetryComponent telemetryimpl.Component) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -304,7 +304,7 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 	return c, nil
 }
 
-func newReverseDNS(c *config.Config, telemetrycomp telemetryComponent.Component) dns.ReverseDNS {
+func newReverseDNS(c *config.Config, telemetrycomp telemetryimpl.Component) dns.ReverseDNS {
 	if !c.DNSInspection {
 		return dns.NewNullReverseDNS()
 	}

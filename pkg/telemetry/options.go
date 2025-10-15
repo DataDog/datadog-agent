@@ -6,13 +6,13 @@
 package telemetry
 
 import (
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 // Options for telemetry metrics.
 // Creating an Options struct without specifying any of its fields should be the
 // equivalent of using the DefaultOptions var.
-type Options telemetryComponent.Options
+type Options telemetrydef.Options
 
 // DefaultOptions for telemetry metrics which don't need to specify any option.
-var DefaultOptions Options = Options(telemetryComponent.DefaultOptions)
+var DefaultOptions Options = Options(telemetrydef.DefaultOptions)

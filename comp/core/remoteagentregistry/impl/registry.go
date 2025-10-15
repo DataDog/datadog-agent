@@ -21,7 +21,7 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	remoteagentregistryStatus "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	telemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +32,7 @@ type Requires struct {
 	Config    config.Component
 	Ipc       ipc.Component
 	Lifecycle compdef.Lifecycle
-	Telemetry telemetry.Component
+	Telemetry telemetryimpl.Component
 }
 
 // Provides defines the output of the remoteagentregistry component
@@ -111,7 +111,7 @@ const (
 	sessionIDMismatch          = "SESSION_ID_MISMATCH"
 )
 
-func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
+func newTelemetryStore(telemetryComp telemetryimpl.Component) *telemetryStore {
 	return &telemetryStore{
 		remoteAgentRegistered: telemetryComp.NewGaugeWithOpts(
 			internalTelemetryNamespace,
@@ -175,7 +175,7 @@ type remoteAgentRegistry struct {
 	agentMap       map[string]*remoteAgentClient
 	agentMapMu     sync.Mutex
 	shutdownChan   chan struct{}
-	telemetry      telemetry.Component
+	telemetry      telemetryimpl.Component
 	telemetryStore *telemetryStore
 
 	// Define the services that the remote agent supports

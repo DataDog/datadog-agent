@@ -9,7 +9,7 @@ package sync
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 )
 
@@ -78,9 +78,9 @@ type typedPoolWithTelemetry[K any] struct {
 
 // poolTelemetry is a struct that contains the global telemetry counters for the pool
 type poolTelemetry struct {
-	get    telemetry.Counter
-	put    telemetry.Counter
-	active telemetry.Gauge
+	get    telemetrydef.Counter
+	put    telemetrydef.Counter
+	active telemetrydef.Gauge
 }
 
 // getSimpleCounters gets counters with pre-computed tags to reduce unnecessary repeated work
@@ -94,12 +94,12 @@ func (p *poolTelemetry) getSimpleCounters(module, name string) *poolTelemetrySim
 
 // poolTelemetrySimple is a struct that contains the simple telemetry counters for the pool
 type poolTelemetrySimple struct {
-	get    telemetry.SimpleCounter
-	put    telemetry.SimpleCounter
-	active telemetry.SimpleGauge
+	get    telemetrydef.SimpleCounter
+	put    telemetrydef.SimpleCounter
+	active telemetrydef.SimpleGauge
 }
 
-func newPoolTelemetry(tm telemetry.Component) *poolTelemetry {
+func newPoolTelemetry(tm telemetrydef.Component) *poolTelemetry {
 	return &poolTelemetry{
 		get:    tm.NewCounter("sync__pool", "get", []string{"module", "name"}, "Number of gets from the sync pool"),
 		put:    tm.NewCounter("sync__pool", "put", []string{"module", "name"}, "Number of puts to the sync pool"),
@@ -112,7 +112,7 @@ var globalPoolTelemetry = funcs.MemoizeArgNoError(newPoolTelemetry)
 
 // NewDefaultTypedPoolWithTelemetry creates a TypedPool with telemetry using the default `new` function to create instances of K
 // module and name are used to identify the pool in the telemetry
-func NewDefaultTypedPoolWithTelemetry[K any](tm telemetry.Component, module string, name string) Pool[K] {
+func NewDefaultTypedPoolWithTelemetry[K any](tm telemetrydef.Component, module string, name string) Pool[K] {
 	return &typedPoolWithTelemetry[K]{
 		TypedPool: NewDefaultTypedPool[K](),
 		tm:        globalPoolTelemetry(tm).getSimpleCounters(module, name),
