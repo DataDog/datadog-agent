@@ -113,6 +113,7 @@ type Aggregate struct {
 	count uint64
 	mean  float64
 	m2    float64
+	max   float64
 }
 
 func (a *Aggregate) Update(val float64) {
@@ -121,11 +122,14 @@ func (a *Aggregate) Update(val float64) {
 	a.mean += delta / float64(a.count)
 	delta2 := val - a.mean
 	a.m2 += delta * delta2
+	if val > a.max {
+		a.max = val
+	}
 }
 
 // Finalize returns the mean and variance
-func (a *Aggregate) Finalize() (float64, float64) {
-	return a.mean, a.m2 / float64(a.count)
+func (a *Aggregate) Finalize() (float64, float64, float64) {
+	return a.mean, a.m2 / float64(a.count), a.max
 }
 
 // EBPFProbe defines a platform probe
@@ -962,7 +966,7 @@ func (p *EBPFProbe) SendStats() error {
 	p.eventProcessingTimeMutex.Unlock()
 
 	for eventType, eventAggregate := range *curEventProcessingTimes {
-		mean, variance := eventAggregate.Finalize()
+		mean, variance, maximum := eventAggregate.Finalize()
 
 		model.GetAllCategories()
 		tag := []string{"event_type:" + eventType.String()}
@@ -972,6 +976,10 @@ func (p *EBPFProbe) SendStats() error {
 		}
 
 		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeStddev, math.Sqrt(variance), tag, 1.0); err != nil {
+			return err
+		}
+
+		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeMaximum, maximum, tag, 1.0); err != nil {
 			return err
 		}
 	}
