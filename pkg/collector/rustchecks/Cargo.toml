@@ -3,12 +3,5 @@
 members = ["core", "checks/*"]
 resolver = "2"
 
-# optimizations to reduce lib sizes by ~45% (from 3.8MB to 2.1MB for `httpcheck`)
-# more here: https://github.com/DoumanAsh/xxhash-rust/issues/10#issuecomment-1121860260
-# build time takes few seconds though
 [profile.release]
-opt-level = "z"     # Optimize for size.
-lto = true          # Enable Link Time Optimization
-codegen-units = 1   # Reduce number of codegen units to increase optimizations.
-panic = "abort"     # Abort on panic
-strip = true        # Automatically strip symbols from the binary.
+opt-level = "z"
