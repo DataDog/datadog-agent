@@ -1,0 +1,31 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+# This builds only the nghttp2 C library, not the C++ application code.
+# Following the omnibus build configuration which uses:
+# --disable-app --disable-examples --disable-hpack-tools
+cc_library(
+    name = "nghttp2",
+    srcs = glob(
+        [
+            "lib/*.c",
+            "lib/*.h",
+        ],
+    ),
+    hdrs = glob([
+        "lib/includes/**/*.h",
+    ]) + [
+        "config.h",
+    ],
+    includes = [
+        ".",  # For config.h
+        "lib/includes",
+    ],
+    visibility = ["//visibility:public"],
+    # The library is pure C, no need for C++ linking
+    copts = [
+        "-DHAVE_CONFIG_H",
+    ],
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+)

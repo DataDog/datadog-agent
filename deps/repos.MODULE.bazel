@@ -1,6 +1,6 @@
 # 3rd party dependencies
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
 # Defines a "libyaml" target for the lib
 bazel_dep(name = "libyaml", version = "0.2.5")
@@ -49,4 +49,15 @@ http_archive(
     sha256 = "bc9842a18898bfacb0ed1252c4febcc7e78fa139fd27fdc7a3e30d9d9356119b",
     strip_prefix = "libffi-3.4.8",
     url = "https://github.com/libffi/libffi/releases/download/v3.4.8/libffi-3.4.8.tar.gz",
+)
+
+http_archive(
+    name = "nghttp2",
+    build_file = "//deps:nghttp2.BUILD.bazel",
+    files = {
+        "config.h": "//deps/nghttp2:config.h",
+    },
+    sha256 = "9ebdfbfbca164ef72bdf5fd2a94a4e6dfb54ec39d2ef249aeb750a91ae361dfb",
+    strip_prefix = "nghttp2-1.58.0",
+    url = "https://github.com/nghttp2/nghttp2/releases/download/v1.58.0/nghttp2-1.58.0.tar.gz",
 )

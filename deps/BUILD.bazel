@@ -9,6 +9,7 @@ filegroup(
         "@libffi",
         "@libyaml",
         "@lua//:liblua",
+        "@nghttp2",
         "@sqlite3",
         "@xz",
         "@xz//:lzma",
