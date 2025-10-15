@@ -363,6 +363,9 @@ class FileUtilities:
         """
         Calculate total size of all files in a directory.
 
+        Handles hard links correctly by tracking inodes and counting each unique file only once,
+        matching the behavior of 'du --apparent-size' or 'du -sb'.
+
         Args:
             directory: Directory path to analyze
 
@@ -370,14 +373,27 @@ class FileUtilities:
             Total size in bytes
         """
         total_size = 0
+        seen_inodes = set()  # Track inodes to avoid counting hard links multiple times
+
         for dirpath, _, filenames in os.walk(directory, followlinks=False):
             for filename in filenames:
                 file_path = os.path.join(dirpath, filename)
                 try:
                     # Use lstat to not follow symlinks
                     stat_info = os.lstat(file_path)
-                    if not stat.S_ISLNK(stat_info.st_mode):  # Only count regular files, not symlinks
-                        total_size += stat_info.st_size
+
+                    # For regular files with multiple hard links, only count once per inode
+                    if stat.S_ISREG(stat_info.st_mode) and stat_info.st_nlink > 1:
+                        inode = stat_info.st_ino
+                        if inode in seen_inodes:
+                            # This is a hard link to a file we've already counted, skip it
+                            continue
+                        seen_inodes.add(inode)
+
+                    # Include both regular files and symlinks
+                    # For symlinks: on POSIX, st_size equals len(os.readlink(path)) (length of target path)
+                    #               on Windows, st_size equals 0
+                    total_size += stat_info.st_size
                 except (OSError, FileNotFoundError) as e:
                     print(f"⚠️  Skipping file {file_path}: {e}")
                     continue
@@ -701,7 +717,11 @@ class DockerProcessor:
         extract_dir: str,
         debug: bool = False,
     ) -> tuple[int, list[FileInfo]]:
-        """Analyze extracted crane pull tarball to get disk size and file inventory."""
+        """Analyze extracted crane pull tarball to get disk size and file inventory.
+
+        Handles hard links correctly by tracking inodes within each layer to avoid
+        counting the same file multiple times.
+        """
         import json
         import subprocess
 
@@ -770,6 +790,9 @@ class DockerProcessor:
                             print(f"⚠️  Skipping layer {layer_file} (extraction failed)")
                         continue
 
+                    # Track inodes within this layer to handle hard links
+                    layer_inodes = set()
+
                     # Walk through files in this layer, ensuring we don't follow symlinks
                     layer_files_processed = 0
                     for root, _, files in os.walk(layer_extract_dir, followlinks=False):
@@ -784,6 +807,17 @@ class DockerProcessor:
                             try:
                                 # Use lstat to not follow symlinks, get actual file/symlink size
                                 file_stat = os.lstat(file_path)
+
+                                # For regular files with multiple hard links in this layer, only count once
+                                if stat.S_ISREG(file_stat.st_mode) and file_stat.st_nlink > 1:
+                                    inode = file_stat.st_ino
+                                    if inode in layer_inodes:
+                                        # This is a hard link to a file we've already processed in this layer
+                                        # Don't add to inventory but still count as processed
+                                        layer_files_processed += 1
+                                        continue
+                                    layer_inodes.add(inode)
+
                                 size_bytes = file_stat.st_size
 
                                 # Always generate checksum for regular files, not symlinks
