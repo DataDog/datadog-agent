@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build kubelet
+//go:build test && kubelet && linux
 
 package kubelet
 
@@ -193,9 +193,13 @@ func runMockDevicePluginServerWithCleanup(t *testing.T, socketPath string, devic
 		socketPath = filepath.Join(tmpDir, "nvidia-gpu-mock.sock")
 	}
 
-	os.Remove(socketPath)
-	listener, err := net.Listen("unix", socketPath)
-	require.NoError(t, err)
+	var listener net.Listener
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var err error
+		os.Remove(socketPath)
+		listener, err = net.Listen("unix", socketPath)
+		assert.NoError(t, err)
+	}, 5*time.Second, 200*time.Millisecond)
 
 	server := grpc.NewServer()
 	mockServer := &mockDevicePluginServer{devices: devices}

@@ -422,10 +422,15 @@ func fillAllMockFunctions[T any](obj T) {
 
 // GetWorkloadMetaMock returns a mock of the workloadmeta.Component.
 func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
-	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
+}
+
+// GetWorkloadMetaMockWithDefaultGPUs is the same as GetWorkloadMetaMock, but adds the GPUs of testutil.GPUUUIDs
+func GetWorkloadMetaMockWithDefaultGPUs(t testing.TB) workloadmetamock.Mock {
+	wmeta := GetWorkloadMetaMock(t)
 	for _, uuid := range GPUUUIDs {
 		wmeta.Set(&workloadmeta.GPU{
 			EntityID: workloadmeta.EntityID{
