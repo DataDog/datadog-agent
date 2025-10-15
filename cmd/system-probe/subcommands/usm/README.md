@@ -39,7 +39,14 @@ Shows system information relevant to USM debugging.
 **Usage:**
 ```bash
 sudo ./system-probe usm sysinfo
+sudo ./system-probe usm sysinfo --max-cmdline-length 100  # Extended command line display
+sudo ./system-probe usm sysinfo --max-name-length 50      # Extended process name display
+sudo ./system-probe usm sysinfo --max-cmdline-length 0 --max-name-length 0  # Unlimited
 ```
+
+**Options:**
+- `--max-cmdline-length` - Maximum command line length to display (default: 50, 0 for unlimited)
+- `--max-name-length` - Maximum process name length to display (default: 25, 0 for unlimited)
 
 **Output:**
 - Kernel version
@@ -104,4 +111,6 @@ Use `usm sysinfo` to see what processes are running that USM might be monitoring
 - Collects process information using `procutil.NewProcessProbe()` (same as process-agent)
 - Uses `kernel.Release()` for kernel version detection
 - Processes are sorted by PID
-- Output truncates long names/cmdlines for readability
+- Output truncates long process names (default 25 chars) and command lines (default 50 chars) for readability
+- Both truncation limits are configurable via flags
+- Use `--max-cmdline-length 0` and `--max-name-length 0` for unlimited display

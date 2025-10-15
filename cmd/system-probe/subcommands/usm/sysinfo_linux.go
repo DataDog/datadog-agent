@@ -22,14 +22,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+const (
+	defaultMaxCmdlineLength = 50
+	defaultMaxNameLength    = 25
+)
+
 // makeSysinfoCommand returns the "usm sysinfo" cobra command.
 func makeSysinfoCommand(globalParams *command.GlobalParams) *cobra.Command {
-	return makeOneShotCommand(
+	var maxCmdlineLength int
+	var maxNameLength int
+
+	cmd := makeOneShotCommand(
 		globalParams,
 		"sysinfo",
 		"Show system information relevant to USM",
-		runSysinfo,
+		func(sysprobeconfig sysconfigcomponent.Component, params *command.GlobalParams) error {
+			return runSysinfoWithConfig(sysprobeconfig, params, maxCmdlineLength, maxNameLength)
+		},
 	)
+
+	cmd.Flags().IntVar(&maxCmdlineLength, "max-cmdline-length", defaultMaxCmdlineLength,
+		"Maximum command line length to display (0 for unlimited)")
+	cmd.Flags().IntVar(&maxNameLength, "max-name-length", defaultMaxNameLength,
+		"Maximum process name length to display (0 for unlimited)")
+
+	return cmd
 }
 
 // SystemInfo holds system information relevant to USM
@@ -41,8 +58,8 @@ type SystemInfo struct {
 	Processes     []*procutil.Process
 }
 
-// runSysinfo is the main implementation of the sysinfo command.
-func runSysinfo(_ sysconfigcomponent.Component, _ *command.GlobalParams) error {
+// runSysinfoWithConfig is the main implementation of the sysinfo command with configuration.
+func runSysinfoWithConfig(_ sysconfigcomponent.Component, _ *command.GlobalParams, maxCmdlineLength, maxNameLength int) error {
 	sysInfo := &SystemInfo{}
 
 	// Get kernel version using existing utility
@@ -83,11 +100,11 @@ func runSysinfo(_ sysconfigcomponent.Component, _ *command.GlobalParams) error {
 		})
 	}
 
-	return outputSysinfoHumanReadable(sysInfo)
+	return outputSysinfoHumanReadable(sysInfo, maxCmdlineLength, maxNameLength)
 }
 
 // outputSysinfoHumanReadable prints system info in a text-based format.
-func outputSysinfoHumanReadable(info *SystemInfo) error {
+func outputSysinfoHumanReadable(info *SystemInfo, maxCmdlineLength, maxNameLength int) error {
 	fmt.Println("=== USM System Information ===")
 	fmt.Println()
 	fmt.Printf("Kernel Version: %s\n", info.KernelVersion)
@@ -102,14 +119,14 @@ func outputSysinfoHumanReadable(info *SystemInfo) error {
 	fmt.Println("--------|---------|---------------------------|--------------------------------------------------")
 
 	for _, p := range info.Processes {
-		// Truncate fields if too long
+		// Truncate fields based on configuration (0 means unlimited)
 		name := p.Name
-		if len(name) > 25 {
-			name = name[:22] + "..."
+		if maxNameLength > 0 && len(name) > maxNameLength {
+			name = name[:maxNameLength-3] + "..."
 		}
 		cmdline := formatCmdline(p.Cmdline)
-		if len(cmdline) > 50 {
-			cmdline = cmdline[:47] + "..."
+		if maxCmdlineLength > 0 && len(cmdline) > maxCmdlineLength {
+			cmdline = cmdline[:maxCmdlineLength-3] + "..."
 		}
 		fmt.Printf("%-7d | %-7d | %-25s | %s\n", p.Pid, p.Ppid, name, cmdline)
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestSysinfoCommand(t *testing.T) {
@@ -24,10 +23,13 @@ func TestSysinfoCommand(t *testing.T) {
 	require.Equal(t, "sysinfo", cmd.Use)
 	require.Equal(t, "Show system information relevant to USM", cmd.Short)
 
-	// Test the OneShot command
-	fxutil.TestOneShotSubcommand(t,
-		Commands(globalParams),
-		[]string{"usm", "sysinfo"},
-		runSysinfo,
-		func() {})
+	// Verify --max-cmdline-length flag exists
+	maxCmdlineFlag := cmd.Flags().Lookup("max-cmdline-length")
+	require.NotNil(t, maxCmdlineFlag, "--max-cmdline-length flag should exist")
+	require.Equal(t, "50", maxCmdlineFlag.DefValue, "--max-cmdline-length should default to 50")
+
+	// Verify --max-name-length flag exists
+	maxNameFlag := cmd.Flags().Lookup("max-name-length")
+	require.NotNil(t, maxNameFlag, "--max-name-length flag should exist")
+	require.Equal(t, "25", maxNameFlag.DefValue, "--max-name-length should default to 25")
 }
