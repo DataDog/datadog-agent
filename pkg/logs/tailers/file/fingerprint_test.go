@@ -861,6 +861,13 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	tailer := suite.createTailer()
 	fingerprinter := NewFingerprinter(*config)
 
+	// Initialize osFile and fullpath for DidRotate() filesystem checks
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+	tailer.osFile = osFile
+	tailer.fullpath = suite.testPath
+
 	// Compute initial fingerprint
 	initialFingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.NotNil(initialFingerprint)
@@ -879,7 +886,9 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(err)
 	suite.False(rotated, "Should not detect rotation on an unchanged file")
 
-	// 3. Truncate the file, which simulates a rotation. This should be detected.
+	// 3. Truncate the file, which simulates a rotation.
+	// valid -> invalid triggers filesystem check.
+	// filesystem check returns false (no rotation detected).
 	suite.T().Log("Truncating file to simulate rotation")
 	suite.Nil(suite.testFile.Truncate(0))
 	_, err = suite.testFile.Seek(0, 0)
@@ -887,7 +896,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(suite.testFile.Sync())
 	rotated, err = tailer.DidRotateViaFingerprint(fingerprinter)
 	suite.Nil(err)
-	suite.True(rotated, "Should detect rotation after truncation")
+	suite.False(rotated, "Truncation not detected via filesystem check when lastReadOffset=0")
 
 	// 4. Simulate a full file replacement (e.g. logrotate with 'create' directive).
 	suite.T().Log("Simulating file replacement with different content")
@@ -898,6 +907,14 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	// We 're-arm' the tailer, as if the launcher had picked up the new file.
 	// This tailer now considers the current content ("a completely new file") as its baseline.
 	tailer = suite.createTailer()
+
+	// Re-open the file and set up the tailer for filesystem checks
+	osFile, err = os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+	tailer.osFile = osFile
+	tailer.fullpath = suite.testPath
+
 	fingerprinter = NewFingerprinter(*config)
 	newFingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.NotNil(newFingerprint)
@@ -935,26 +952,78 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	receivedChecksum, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(expectedChecksum, receivedChecksum.Value)
 
-	// 5. Test case with an an empty file.
-	// The initial fingerprint will be nil.
-	suite.T().Log("Testing rotation detection with an initially empty file")
+	// 5. Test case with an empty file where both fingerprints are invalid.
+	// When both old and new fingerprints are invalid, we fall back to filesystem checks.
+	suite.T().Log("Testing rotation detection with both fingerprints invalid")
 	suite.Nil(suite.testFile.Truncate(0))
 	_, err = suite.testFile.Seek(0, 0)
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 	tailer = suite.createTailer()
+
+	// Open the file so the tailer has a valid osFile handle for DidRotate() filesystem checks
+	osFile3, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile3.Close()
+	tailer.osFile = osFile3
+	tailer.fullpath = suite.testPath
+
 	fingerprinter = NewFingerprinter(*config)
 	emptyFingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
 	suite.Equal(uint64(0), emptyFingerprint.Value, "Fingerprint of an empty file should have Value=0")
 
-	// Set the fingerprint on the tailer (even though it's nil)
+	// Set the fingerprint on the tailer (invalid)
 	tailer.fingerprint = emptyFingerprint
 
-	// `DidRotateViaFingerprint` is designed to return `false` if the original
-	// fingerprint was nil, to avoid false positives.
+	// With both fingerprints invalid (Value=0), DidRotateViaFingerprint falls back to filesystem checks.
+	// Since we just opened the same file and nothing has changed, filesystem checks should return false.
 	rotated, err = tailer.DidRotateViaFingerprint(fingerprinter)
 	suite.Nil(err)
-	suite.False(rotated, "Should not detect rotation if the initial fingerprint was nil")
+	suite.False(rotated, "Should not detect rotation when both fingerprints are invalid and filesystem shows no change")
+
+	// 6. Test case with nil baseline fingerprint (t.fingerprint == nil)
+	suite.T().Log("Testing rotation detection with nil baseline fingerprint")
+	_, err = suite.testFile.WriteString("some content\n")
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+	tailer = suite.createTailer()
+
+	// Set up osFile and fullpath for filesystem checks
+	osFile4, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile4.Close()
+	tailer.osFile = osFile4
+	tailer.fullpath = suite.testPath
+
+	// Don't set tailer.fingerprint - it remains nil
+	suite.Nil(tailer.fingerprint)
+
+	// With nil baseline, should fall back to filesystem checks
+	rotated, err = tailer.DidRotateViaFingerprint(fingerprinter)
+	suite.Nil(err)
+	suite.False(rotated, "Should not detect rotation with nil baseline and no filesystem change")
+
+	// 7. Test case with invalid -> valid transition (empty file gets content)
+	// old invalid + new valid => rotation detected
+	suite.T().Log("Testing rotation detection from invalid to valid fingerprint")
+	suite.Nil(suite.testFile.Truncate(0))
+	suite.Nil(suite.testFile.Sync())
+	tailer = suite.createTailer()
+
+	// Set baseline as invalid (empty file)
+	invalidFingerprint, _ := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(uint64(0), invalidFingerprint.Value)
+	tailer.fingerprint = invalidFingerprint
+
+	// Now add content to the file
+	_, err = suite.testFile.WriteString("new content after empty\n")
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+
+	// Should detect rotation: invalid -> valid (non-zero) without needing filesystem checks
+	rotated, err = tailer.DidRotateViaFingerprint(fingerprinter)
+	suite.Nil(err)
+	suite.True(rotated, "Should detect rotation when transitioning from invalid to valid fingerprint")
 }
 
 func (suite *FingerprintTestSuite) TestLineBased_FallbackToByteBased() {
