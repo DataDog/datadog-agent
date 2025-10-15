@@ -20,7 +20,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/mitchellh/mapstructure"
+	mapstructure "github.com/go-viper/mapstructure/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -198,7 +198,6 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	c.Lock()
-	defer c.Unlock()
 
 	c.maybeRebuild()
 
@@ -207,9 +206,17 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 			log.Errorf("set value for unknown key '%s'", key)
 		} else {
 			log.Errorf("could not set '%s' unknown key", key)
+			c.Unlock()
 			return
 		}
 	}
+	schemaNode := c.nodeAtPathFromNode(key, c.schema)
+	if _, ok := schemaNode.(LeafNode); schemaNode != missingLeaf && !ok {
+		panicInTest("Key '%s' is not a setting but part of the config tree: 'Set' method only works on settings", key)
+		c.Unlock()
+		return
+	}
+
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
@@ -218,6 +225,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
 		log.Errorf("could not insert value: %s", err)
+		c.Unlock()
 		return
 	} else if newTree != nil {
 		// a new node was allocated, merge it into root
@@ -228,10 +236,12 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	// if no value has changed we don't notify
 	if reflect.DeepEqual(previousValue, newValue) {
+		c.Unlock()
 		return
 	}
 
 	c.sequenceID++
+	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
@@ -900,6 +910,7 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 		model.SourceLocalConfigProcess: c.localConfigProcess.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceRC:                 c.remoteConfig.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceCLI:                c.cli.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceProvided:           c.root.DumpSettings(func(src model.Source) bool { return src != model.SourceDefault }),
 	}
 }
 
