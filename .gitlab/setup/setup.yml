@@ -15,10 +15,14 @@ setup_agent_version:
         echo "Failed to upload agent version cache"
         exit 1
       fi
+    - echo "Agent version:"
+    - cat agent-version.cache
   needs: []
   artifacts:
     reports:
       dotenv: build.env
+  variables:
+    DISABLE_GIT_CACHE: true
 
 github_rate_limit_info:
   stage: .pre
