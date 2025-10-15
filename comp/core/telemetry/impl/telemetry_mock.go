@@ -5,7 +5,7 @@
 
 //go:build test || functionaltests || stresstests
 
-package telemetryimpl
+package impl
 
 import (
 	"context"
@@ -17,25 +17,41 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type testDependencies struct {
-	fx.In
+// Metric interface defines the retrieval functions to extract information from a metric
+type Metric interface {
+	// Tags returns the tags associated with the metric
+	Tags() map[string]string
+	// Value returns the metric value
+	Value() float64
+}
 
-	Lyfecycle fx.Lifecycle
+// Mock implements mock-specific methods for testing.
+type Mock interface {
+	Component
+
+	GetRegistry() *prometheus.Registry
+	GetCountMetric(subsystem, name string) ([]Metric, error)
+	GetGaugeMetric(subsystem, name string) ([]Metric, error)
+	GetHistogramMetric(subsystem, name string) ([]Metric, error)
+}
+
+type testDependencies struct {
+	Lyfecycle compdef.Lifecycle
 }
 
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMock),
-		fx.Provide(func(m telemetry.Mock) telemetry.Component { return m }))
+		fxutil.ProvideComponentConstructor(newMock))
 }
 
 // NewMock returns a new mock for telemetry
-func NewMock(t testing.TB) telemetry.Mock {
+func NewMock(t testing.TB) Mock {
 	reg := prometheus.NewRegistry()
 
 	telemetry := &telemetryImplMock{
@@ -54,7 +70,11 @@ type telemetryImplMock struct {
 	telemetryImpl
 }
 
-func newMock(deps testDependencies) telemetry.Mock {
+type mockProvides struct {
+	Comp Mock
+}
+
+func newMock(deps testDependencies) mockProvides {
 	reg := prometheus.NewRegistry()
 
 	telemetry := &telemetryImplMock{
@@ -65,7 +85,7 @@ func newMock(deps testDependencies) telemetry.Mock {
 		},
 	}
 
-	deps.Lyfecycle.Append(fx.Hook{
+	deps.Lyfecycle.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
 			telemetry.Reset()
 
@@ -73,7 +93,7 @@ func newMock(deps testDependencies) telemetry.Mock {
 		},
 	})
 
-	return telemetry
+	return mockProvides{Comp: telemetry}
 }
 
 type internalMetric struct {
@@ -110,19 +130,19 @@ func (t *telemetryImplMock) GetRegistry() *prometheus.Registry {
 	return t.registry
 }
 
-func (t *telemetryImplMock) GetCountMetric(subsystem, name string) ([]telemetry.Metric, error) {
+func (t *telemetryImplMock) GetCountMetric(subsystem, name string) ([]Metric, error) {
 	return t.getMetric(dto.MetricType_COUNTER, subsystem, name)
 }
 
-func (t *telemetryImplMock) GetGaugeMetric(subsystem, name string) ([]telemetry.Metric, error) {
+func (t *telemetryImplMock) GetGaugeMetric(subsystem, name string) ([]Metric, error) {
 	return t.getMetric(dto.MetricType_GAUGE, subsystem, name)
 }
 
-func (t *telemetryImplMock) GetHistogramMetric(subsystem, name string) ([]telemetry.Metric, error) {
+func (t *telemetryImplMock) GetHistogramMetric(subsystem, name string) ([]Metric, error) {
 	return t.getMetric(dto.MetricType_HISTOGRAM, subsystem, name)
 }
 
-func (t *telemetryImplMock) getMetric(metricType dto.MetricType, subsystem, name string) ([]telemetry.Metric, error) {
+func (t *telemetryImplMock) getMetric(metricType dto.MetricType, subsystem, name string) ([]Metric, error) {
 	metricFamily, err := t.GetRegistry().Gather()
 	if err != nil {
 		return nil, err
@@ -146,7 +166,7 @@ func (t *telemetryImplMock) getMetric(metricType dto.MetricType, subsystem, name
 		return nil, fmt.Errorf("metric: %s is not %s, but %s", metricName, metricType.String(), dtoMetricType.String())
 	}
 
-	internalMetrics := make([]telemetry.Metric, len(metrics))
+	internalMetrics := make([]Metric, len(metrics))
 
 	for i, metric := range metrics {
 		internalMetrics[i] = &internalMetric{

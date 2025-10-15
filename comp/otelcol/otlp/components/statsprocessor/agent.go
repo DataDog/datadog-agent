@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	comptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
@@ -85,7 +87,14 @@ func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out c
 	// Ingest). This gives a better user experience.
 	cfg.Hostname = "__unset__"
 	pchan := make(chan *api.Payload, 1000)
-	a := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), metricsClient, gzip.NewComponent())
+
+	// Create noop telemetry components for stats processor
+	noopTelem := comptelemetry.NewComponent()
+	receiverTelem := info.NewReceiverTelemetry(noopTelem)
+	statsWriterTelem := writer.NewStatsWriterTelemetry(noopTelem)
+	traceWriterTelem := writer.NewTraceWriterTelemetry(noopTelem)
+
+	a := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), metricsClient, gzip.NewComponent(), receiverTelem, statsWriterTelem, traceWriterTelem)
 	// replace the Concentrator (the component which computes and flushes APM Stats from incoming
 	// traces) with our own, which uses the 'out' channel.
 	statsWriter := NewOtelStatsWriter(out)

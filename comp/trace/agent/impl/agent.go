@@ -27,6 +27,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	comptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
@@ -39,8 +40,10 @@ import (
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -65,6 +68,7 @@ type dependencies struct {
 	Context               context.Context
 	Params                *Params
 	TelemetryCollector    telemetry.TelemetryCollector
+	Telemetry             comptelemetry.Component
 	Statsd                statsd.Component
 	Tagger                tagger.Component
 	Compressor            compression.Component
@@ -137,12 +141,20 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 
 	prepGoRuntime(tracecfg)
 
+	// Create telemetry components for the trace agent
+	receiverTelem := info.NewReceiverTelemetry(deps.Telemetry)
+	statsWriterTelem := writer.NewStatsWriterTelemetry(deps.Telemetry)
+	traceWriterTelem := writer.NewTraceWriterTelemetry(deps.Telemetry)
+
 	c.Agent = pkgagent.NewAgent(
 		ctx,
 		c.config.Object(),
 		c.telemetryCollector,
 		statsdCl,
 		deps.Compressor,
+		receiverTelem,
+		statsWriterTelem,
+		traceWriterTelem,
 	)
 	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
 

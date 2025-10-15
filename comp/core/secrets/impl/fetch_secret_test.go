@@ -22,9 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 func build(t *testing.T, outTarget string) {
@@ -195,7 +195,7 @@ func TestFetchSecretExecError(t *testing.T) {
 }
 
 func TestFetchSecretUnmarshalError(t *testing.T) {
-	tel := telemetryimpl.NewMock(t)
+	tel := impl.NewMock(t)
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{"), nil }
 	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
@@ -209,7 +209,7 @@ func TestFetchSecretUnmarshalError(t *testing.T) {
 }
 
 func TestFetchSecretMissingSecret(t *testing.T) {
-	tel := telemetryimpl.NewMock(t)
+	tel := impl.NewMock(t)
 	secrets := []string{"handle1", "handle2"}
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{}"), nil }
@@ -220,7 +220,7 @@ func TestFetchSecretMissingSecret(t *testing.T) {
 }
 
 func TestFetchSecretErrorForHandle(t *testing.T) {
-	tel := telemetryimpl.NewMock(t)
+	tel := impl.NewMock(t)
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null, \"error\": \"some error\"}}"), nil
@@ -232,7 +232,7 @@ func TestFetchSecretErrorForHandle(t *testing.T) {
 }
 
 func TestFetchSecretEmptyValue(t *testing.T) {
-	tel := telemetryimpl.NewMock(t)
+	tel := impl.NewMock(t)
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null}}"), nil

@@ -8,7 +8,7 @@ package writer
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 const statsTelemetrySubsystem = "trace_agent"
@@ -41,22 +41,22 @@ var (
 )
 
 // NewStatsWriterTelemetry creates a new StatsWriterTelemetry instance
-func NewStatsWriterTelemetry() *StatsWriterTelemetry {
+func NewStatsWriterTelemetry(telemetryComp telemetry.Component) *StatsWriterTelemetry {
 	statsWriterTelemetryOnce.Do(func() {
 		opts := telemetry.Options{NoDoubleUnderscoreSep: true}
 		statsWriterTelemetryInstance = &StatsWriterTelemetry{
-			clientPayloads: telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_client_payloads_total", []string{}, "Number of client payloads processed by the stats writer", opts),
-			payloads:       telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_payloads_total", []string{}, "Number of stats payloads flushed", opts),
-			statsBuckets:   telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_stats_buckets_total", []string{}, "Number of stats buckets processed", opts),
-			statsEntries:   telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_stats_entries_total", []string{}, "Number of stats entries processed", opts),
-			errors:         telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_errors_total", []string{}, "Number of stats writer flush errors", opts),
-			retries:        telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_retries_total", []string{}, "Number of stats writer retries", opts),
-			splits:         telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_splits_total", []string{}, "Number of stats payload splits", opts),
-			bytes:          telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_bytes_total", []string{}, "Number of bytes emitted by the stats writer", opts),
-			dropped:        telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_dropped_total", []string{}, "Number of stats payloads dropped", opts),
-			droppedBytes:   telemetry.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_dropped_bytes_total", []string{}, "Number of bytes dropped by the stats writer", opts),
-			connectionFill: telemetry.NewHistogramWithOpts(statsTelemetrySubsystem, "stats_writer_connection_fill", []string{}, "Number of in-flight connections used by the stats writer", []float64{1, 2, 3, 4, 5, 6, 8, 10}, opts),
-			queueFill:      telemetry.NewHistogramWithOpts(statsTelemetrySubsystem, "stats_writer_queue_fill_ratio", []string{}, "Queue fill ratio for the stats writer", []float64{0.25, 0.5, 0.75, 0.9, 1}, opts),
+			clientPayloads: telemetryComp.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_client_payloads_total", []string{}, "Number of client payloads processed by the stats writer", opts),
+			payloads:       telemetryComp.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_payloads_total", []string{}, "Number of stats payloads flushed", opts),
+			statsBuckets:   telemetryComp.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_stats_buckets_total", []string{}, "Number of stats buckets processed", opts),
+			statsEntries:   telemetryComp.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_stats_entries_total", []string{}, "Number of stats entries processed", opts),
+			errors:         telemetryComp.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_errors_total", []string{}, "Number of stats writer flush errors", opts),
+			retries:        telemetryComp.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_retries_total", []string{}, "Number of stats writer retries", opts),
+			splits:         telemetryComp.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_splits_total", []string{}, "Number of stats payload splits", opts),
+			bytes:          telemetryComp.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_bytes_total", []string{}, "Number of bytes emitted by the stats writer", opts),
+			dropped:        telemetryComp.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_dropped_total", []string{}, "Number of stats payloads dropped", opts),
+			droppedBytes:   telemetryComp.NewCounterWithOpts(statsTelemetrySubsystem, "stats_writer_dropped_bytes_total", []string{}, "Number of bytes dropped by the stats writer", opts),
+			connectionFill: telemetryComp.NewHistogramWithOpts(statsTelemetrySubsystem, "stats_writer_connection_fill", []string{}, "Number of in-flight connections used by the stats writer", []float64{1, 2, 3, 4, 5, 6, 8, 10}, opts),
+			queueFill:      telemetryComp.NewHistogramWithOpts(statsTelemetrySubsystem, "stats_writer_queue_fill_ratio", []string{}, "Queue fill ratio for the stats writer", []float64{0.25, 0.5, 0.75, 0.9, 1}, opts),
 		}
 	})
 	return statsWriterTelemetryInstance

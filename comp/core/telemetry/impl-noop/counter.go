@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package noopsimpl
+package implnoop
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 // Counter implementation using Prometheus.

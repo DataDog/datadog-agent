@@ -83,6 +83,18 @@ modules:
     used_by_otel: true
   comp/core/telemetry:
     used_by_otel: true
+  comp/core/telemetry/def:
+    used_by_otel: true
+  comp/core/telemetry/fx:
+    used_by_otel: true
+  comp/core/telemetry/fx-full:
+    used_by_otel: true
+  comp/core/telemetry/fx-noop:
+    used_by_otel: true
+  comp/core/telemetry/impl:
+    used_by_otel: true
+  comp/core/telemetry/impl-noop:
+    used_by_otel: true
   comp/def:
     used_by_otel: true
   comp/forwarder/defaultforwarder:

@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package noopsimpl creates the noop telemetry component
-package noopsimpl
+// Package implnoop creates the noop telemetry component
+package implnoop
 
 import (
 	"net/http"
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

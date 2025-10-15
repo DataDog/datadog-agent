@@ -7,4 +7,5 @@
 
 package telemetry
 
+// Collector is a noop type for serverless environments
 type Collector interface{}

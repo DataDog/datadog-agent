@@ -22,7 +22,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -70,7 +70,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		telemetryimpl.MockModule(),
+		impl.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Invoke(func(_ config.Component) {}),

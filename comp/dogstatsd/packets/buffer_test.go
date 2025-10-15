@@ -13,13 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestBufferTelemetry(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, impl.MockModule())
 	telemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	// We need a high enough duration to avoid the buffer to flush
 	// And cause the program to deadlock on the packetChannel
@@ -61,7 +61,7 @@ func TestBufferTelemetry(t *testing.T) {
 }
 
 func TestBufferTelemetryFull(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, impl.MockModule())
 	telemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	duration := 10 * time.Second
 	packetChannel := make(chan Packets, 1)
@@ -130,7 +130,7 @@ func TestBufferTelemetryFull(t *testing.T) {
 }
 
 func TestBufferFlush(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, impl.MockModule())
 	telemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	duration := 10 * time.Hour
 	packetChannel := make(chan Packets, 1)

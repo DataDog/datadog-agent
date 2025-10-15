@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -418,7 +418,7 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 
 // GetTelemetryMock returns a mock of the telemetry.Component.
 func GetTelemetryMock(t testing.TB) telemetry.Mock {
-	return fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	return fxutil.Test[telemetry.Mock](t, impl.MockModule())
 }
 
 // GetTotalExpectedDevices calculates the total number of devices (physical + MIG)

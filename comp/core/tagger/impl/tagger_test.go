@@ -18,9 +18,9 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -251,7 +251,7 @@ func TestGenerateContainerIDFromExternalData(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, impl.MockModule())
 	logComponent := logmock.New(t)
 	cfg := configmock.New(t)
 	tagger, taggerErr := newLocalTagger(cfg, store, logComponent, telemetryComponent, nil)
@@ -332,7 +332,7 @@ func TestGenerateContainerIDFromInode(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComponent := fxutil.Test[telemetry.Component](t, impl.MockModule())
 	logComponent := logmock.New(t)
 	cfg := configmock.New(t)
 	tagger, taggerErr := newLocalTagger(cfg, store, logComponent, telemetryComponent, nil)
@@ -772,7 +772,7 @@ func TestEnrichTagsContainerIDMismatch(t *testing.T) {
 	mockReq := MockRequires{
 		Config:    configmock.New(t),
 		Log:       logmock.New(t),
-		Telemetry: fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule()),
+		Telemetry: fxutil.Test[telemetry.Component](t, impl.MockModule()),
 	}
 	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
 		fx.Provide(func() config.Component { return mockReq.Config }),

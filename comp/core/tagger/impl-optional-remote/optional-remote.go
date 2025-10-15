@@ -18,7 +18,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	noop "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	remote "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 

@@ -8,7 +8,7 @@ go 1.24.0
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.166
-	github.com/DataDog/datadog-agent/pkg/util/option v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.71.1
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
@@ -391,6 +391,12 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../comp/core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/core/telemetry/def => ../../comp/core/telemetry/def
+	github.com/DataDog/datadog-agent/comp/core/telemetry/fx => ../../comp/core/telemetry/fx
+	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-full => ../../comp/core/telemetry/fx-full
+	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop => ../../comp/core/telemetry/fx-noop
+	github.com/DataDog/datadog-agent/comp/core/telemetry/impl => ../../comp/core/telemetry/impl
+	github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop => ../../comp/core/telemetry/impl-noop
 	github.com/DataDog/datadog-agent/comp/def => ../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../comp/forwarder/orchestrator/orchestratorinterface

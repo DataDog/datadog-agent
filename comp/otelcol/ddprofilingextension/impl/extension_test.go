@@ -30,7 +30,11 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+
+	comptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 )
 
 type testComponent struct {
@@ -104,7 +108,14 @@ func TestAgentExtension(t *testing.T) {
 	tcfg.DecoderTimeout = 10000
 	tcfg.ProfilingProxy = config.ProfilingProxyConfig{DDURL: server.URL}
 	ctx := context.Background()
-	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
+
+	// Create noop telemetry components for testing
+	noopTelem := comptelemetry.NewComponent()
+	receiverTelem := info.NewReceiverTelemetry(noopTelem)
+	statsWriterTelem := writer.NewStatsWriterTelemetry(noopTelem)
+	traceWriterTelem := writer.NewTraceWriterTelemetry(noopTelem)
+
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent(), receiverTelem, statsWriterTelem, traceWriterTelem)
 
 	// create extension
 	ext, err := NewExtension(&Config{

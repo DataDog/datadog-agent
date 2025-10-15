@@ -8,7 +8,7 @@ package info
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 const (
@@ -54,24 +54,24 @@ var (
 )
 
 // NewReceiverTelemetry creates a new ReceiverTelemetry instance
-func NewReceiverTelemetry() *ReceiverTelemetry {
+func NewReceiverTelemetry(telemetryComp telemetry.Component) *ReceiverTelemetry {
 	receiverTelemetryOnce.Do(func() {
 		receiverTelemetryInstance = &ReceiverTelemetry{
-			tracesReceived:        telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_received", receiverTelemetryLabelKeys, "Number of traces received by the trace-agent receiver", receiverTelemetryOpts),
-			tracesFiltered:        telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_filtered", receiverTelemetryLabelKeys, "Number of traces filtered by the trace-agent receiver", receiverTelemetryOpts),
-			tracesBytes:           telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_bytes", receiverTelemetryLabelKeys, "Volume of trace bytes received", receiverTelemetryOpts),
-			spansReceived:         telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_spans_received", receiverTelemetryLabelKeys, "Number of spans received", receiverTelemetryOpts),
-			spansDropped:          telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_spans_dropped", receiverTelemetryLabelKeys, "Number of spans dropped", receiverTelemetryOpts),
-			spansFiltered:         telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_spans_filtered", receiverTelemetryLabelKeys, "Number of spans filtered", receiverTelemetryOpts),
-			eventsExtracted:       telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_events_extracted", receiverTelemetryLabelKeys, "Number of events extracted", receiverTelemetryOpts),
-			eventsSampled:         telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_events_sampled", receiverTelemetryLabelKeys, "Number of events sampled", receiverTelemetryOpts),
-			payloadAccepted:       telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_payload_accepted", receiverTelemetryLabelKeys, "Number of payloads accepted", receiverTelemetryOpts),
-			payloadRefused:        telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_payload_refused", receiverTelemetryLabelKeys, "Number of payloads refused", receiverTelemetryOpts),
-			clientDroppedP0Spans:  telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_client_dropped_p0_spans", receiverTelemetryLabelKeys, "Number of client-reported priority 0 spans dropped", receiverTelemetryOpts),
-			clientDroppedP0Traces: telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_client_dropped_p0_traces", receiverTelemetryLabelKeys, "Number of client-reported priority 0 traces dropped", receiverTelemetryOpts),
-			tracesPriority:        telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_priority", receiverTelemetryPriorityKeys, "Number of traces grouped by sampling priority", receiverTelemetryOpts),
-			tracesDropped:         telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "normalizer_traces_dropped", receiverTelemetryReasonKeys, "Number of traces dropped by the normalizer grouped by reason", receiverTelemetryOpts),
-			spansMalformed:        telemetry.NewCounterWithOpts(traceTelemetrySubsystem, "normalizer_spans_malformed", receiverTelemetryReasonKeys, "Number of malformed spans grouped by reason", receiverTelemetryOpts),
+			tracesReceived:        telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_received", receiverTelemetryLabelKeys, "Number of traces received by the trace-agent receiver", receiverTelemetryOpts),
+			tracesFiltered:        telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_filtered", receiverTelemetryLabelKeys, "Number of traces filtered by the trace-agent receiver", receiverTelemetryOpts),
+			tracesBytes:           telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_bytes", receiverTelemetryLabelKeys, "Volume of trace bytes received", receiverTelemetryOpts),
+			spansReceived:         telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_spans_received", receiverTelemetryLabelKeys, "Number of spans received", receiverTelemetryOpts),
+			spansDropped:          telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_spans_dropped", receiverTelemetryLabelKeys, "Number of spans dropped", receiverTelemetryOpts),
+			spansFiltered:         telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_spans_filtered", receiverTelemetryLabelKeys, "Number of spans filtered", receiverTelemetryOpts),
+			eventsExtracted:       telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_events_extracted", receiverTelemetryLabelKeys, "Number of events extracted", receiverTelemetryOpts),
+			eventsSampled:         telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_events_sampled", receiverTelemetryLabelKeys, "Number of events sampled", receiverTelemetryOpts),
+			payloadAccepted:       telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_payload_accepted", receiverTelemetryLabelKeys, "Number of payloads accepted", receiverTelemetryOpts),
+			payloadRefused:        telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_payload_refused", receiverTelemetryLabelKeys, "Number of payloads refused", receiverTelemetryOpts),
+			clientDroppedP0Spans:  telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_client_dropped_p0_spans", receiverTelemetryLabelKeys, "Number of client-reported priority 0 spans dropped", receiverTelemetryOpts),
+			clientDroppedP0Traces: telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_client_dropped_p0_traces", receiverTelemetryLabelKeys, "Number of client-reported priority 0 traces dropped", receiverTelemetryOpts),
+			tracesPriority:        telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "receiver_traces_priority", receiverTelemetryPriorityKeys, "Number of traces grouped by sampling priority", receiverTelemetryOpts),
+			tracesDropped:         telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "normalizer_traces_dropped", receiverTelemetryReasonKeys, "Number of traces dropped by the normalizer grouped by reason", receiverTelemetryOpts),
+			spansMalformed:        telemetryComp.NewCounterWithOpts(traceTelemetrySubsystem, "normalizer_spans_malformed", receiverTelemetryReasonKeys, "Number of malformed spans grouped by reason", receiverTelemetryOpts),
 		}
 	})
 	return receiverTelemetryInstance

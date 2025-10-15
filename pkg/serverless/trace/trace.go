@@ -20,6 +20,7 @@ import (
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
 	authtokennoneimpl "github.com/DataDog/datadog-agent/comp/core/ipc/impl-none"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	comptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -31,9 +32,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -136,7 +139,14 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			tc.AzureServerlessTags = args.AzureServerlessTags
-			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
+
+			// Create noop telemetry components for serverless
+			noopTelem := comptelemetry.NewComponent()
+			receiverTelem := info.NewReceiverTelemetry(noopTelem)
+			statsWriterTelem := writer.NewStatsWriterTelemetry(noopTelem)
+			traceWriterTelem := writer.NewTraceWriterTelemetry(noopTelem)
+
+			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent(), receiverTelem, statsWriterTelem, traceWriterTelem)
 
 			// Check if trace stats should be disabled for serverless
 			if disabled, _ := strconv.ParseBool(os.Getenv(disableTraceStatsEnvVar)); disabled {

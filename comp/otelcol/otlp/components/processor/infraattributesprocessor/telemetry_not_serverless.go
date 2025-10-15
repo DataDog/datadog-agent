@@ -8,10 +8,10 @@
 package infraattributesprocessor
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func telemetryModule() fxutil.Module {
-	return telemetryimpl.Module()
+	return impl.Module()
 }

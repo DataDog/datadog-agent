@@ -5,14 +5,7 @@
 
 package telemetry
 
-// Histogram tracks the value of one health metric of the Agent.
-type Histogram interface {
-	// Observe the value to the Histogram value.
-	Observe(value float64, tagsValue ...string)
-	// Delete deletes the value for the Histogram with the given tags.
-	Delete(tagsValue ...string)
-	// WithValues returns SimpleHistogram for this metric with the given tag values.
-	WithValues(tagsValue ...string) SimpleHistogram
-	// WithTags returns SimpleHistogram for this metric with the given tag values.
-	WithTags(tags map[string]string) SimpleHistogram
-}
+import deftelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+
+// Histogram is an alias to the def telemetry Histogram for backwards compatibility
+type Histogram = deftelemetry.Histogram

@@ -48,7 +48,7 @@ import (
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"

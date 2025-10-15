@@ -24,7 +24,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
@@ -278,7 +278,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 	_, err := newProcessAgent(deps)
 	assert.NoError(t, err)
 
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Mock](t, impl.MockModule())
 	tel.Reset()
 	// Setup expvar server
 	telemetryHandler := tel.Handler()

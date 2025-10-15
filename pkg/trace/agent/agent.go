@@ -150,7 +150,7 @@ type TracerPayloadModifier = payload.TracerPayloadModifier
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface, comp compression.Component) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface, comp compression.Component, receiverTelem *info.ReceiverTelemetry, statsWriterTelem *writer.StatsWriterTelemetry, traceWriterTelem *writer.TraceWriterTelemetry) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
@@ -159,7 +159,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		oconf.Statsd = statsd
 	}
 	timing := timing.New(statsd)
-	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing, writer.NewStatsWriterTelemetry())
+	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing, statsWriterTelem)
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsWriter, time.Now(), statsd),
 		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsWriter, statsd),
@@ -183,10 +183,10 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		processWg:             &sync.WaitGroup{},
 	}
 	agnt.SamplerMetrics.Add(agnt.PrioritySampler, agnt.ErrorsSampler, agnt.NoPrioritySampler, agnt.RareSampler)
-	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing, info.NewReceiverTelemetry())
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing, receiverTelem)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
-	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing, comp, writer.NewTraceWriterTelemetry())
+	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing, comp, traceWriterTelem)
 	return agnt
 }
 

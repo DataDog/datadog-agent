@@ -6,6 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.72.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.72.0-devel
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.72.0-devel
+	github.com/DataDog/datadog-agent/comp/core/telemetry/impl v0.72.0-devel
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.72.0-devel
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.72.0-devel
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.72.0-devel
@@ -49,7 +50,11 @@ require (
 	golang.org/x/net v0.46.0
 )
 
-require go.yaml.in/yaml/v2 v2.4.2 // indirect
+require (
+	github.com/DataDog/datadog-agent/comp/core/telemetry/def v0.72.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop v0.0.0-00010101000000-000000000000 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
+)
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.166 // indirect
@@ -260,6 +265,12 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../../../../comp/core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../../../../comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/core/telemetry/def => ../../../../../../comp/core/telemetry/def
+	github.com/DataDog/datadog-agent/comp/core/telemetry/fx => ../../../../../../comp/core/telemetry/fx
+	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-full => ../../../../../../comp/core/telemetry/fx-full
+	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop => ../../../../../../comp/core/telemetry/fx-noop
+	github.com/DataDog/datadog-agent/comp/core/telemetry/impl => ../../../../../../comp/core/telemetry/impl
+	github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop => ../../../../../../comp/core/telemetry/impl-noop
 	github.com/DataDog/datadog-agent/comp/def => ../../../../../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../../../comp/forwarder/orchestrator/orchestratorinterface

@@ -26,8 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
+
+	comptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
@@ -152,7 +156,14 @@ func createTestFactory(t *testing.T, serverAddr string) exporter.Factory {
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	tcfg.Endpoints[0].Host = serverAddr
 	ctx := context.Background()
-	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, implgzip.NewComponent())
+
+	// Create noop telemetry components for testing
+	noopTelem := comptelemetry.NewComponent()
+	receiverTelem := info.NewReceiverTelemetry(noopTelem)
+	statsWriterTelem := writer.NewStatsWriterTelemetry(noopTelem)
+	traceWriterTelem := writer.NewTraceWriterTelemetry(noopTelem)
+
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, implgzip.NewComponent(), receiverTelem, statsWriterTelem, traceWriterTelem)
 	go traceagent.Run()
 
 	return NewFactory(testComponent{traceagent}, srlz, &mockLogsAgentPipeline{}, sourceProvider, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{})

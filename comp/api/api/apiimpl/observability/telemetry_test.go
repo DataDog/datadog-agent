@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -55,7 +55,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 		testName := fmt.Sprintf("%s %s %d %s", tc.method, tc.path, tc.code, tc.duration)
 		t.Run(testName, func(t *testing.T) {
 			clock := clock.NewMock()
-			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+			telemetry := fxutil.Test[telemetry.Mock](t, impl.MockModule())
 			tm := newTelemetryMiddlewareFactory(telemetry, clock, NoopAuthTagGetter)
 			telemetryHandler := tm.Middleware(serverName)
 
@@ -102,7 +102,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 }
 
 func TestTelemetryMiddlewareDuration(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetry := fxutil.Test[telemetry.Mock](t, impl.MockModule())
 	telemetryHandler := NewTelemetryMiddlewareFactory(telemetry, NoopAuthTagGetter).Middleware("test")
 
 	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
@@ -122,7 +122,7 @@ func TestTelemetryMiddlewareDuration(t *testing.T) {
 }
 
 func TestTelemetryMiddlewareTwice(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetry := fxutil.Test[telemetry.Mock](t, impl.MockModule())
 	tm := NewTelemetryMiddlewareFactory(telemetry, NoopAuthTagGetter)
 
 	// test that we can create multiple middleware instances

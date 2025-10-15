@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"

@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -89,7 +89,7 @@ func newLeaderEngine(ctx context.Context) *LeaderEngine {
 // It is ONLY to be used for tests
 func ResetGlobalLeaderEngine() {
 	globalLeaderEngine = nil
-	telemetryimpl.GetCompatComponent().Reset()
+	impl.GetCompatComponent().Reset()
 }
 
 // Initialize initializes the leader engine

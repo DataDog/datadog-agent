@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	implnoop "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -52,7 +53,13 @@ import (
 )
 
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
-	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent())
+	// Create noop telemetry components for testing
+	noopTelem := implnoop.NewComponent()
+	receiverTelem := info.NewReceiverTelemetry(noopTelem)
+	statsWriterTelem := writer.NewStatsWriterTelemetry(noopTelem)
+	traceWriterTelem := writer.NewTraceWriterTelemetry(noopTelem)
+
+	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent(), receiverTelem, statsWriterTelem, traceWriterTelem)
 	a.Concentrator = &mockConcentrator{}
 	a.TraceWriter = &mockTraceWriter{
 		apiKey: conf.Endpoints[0].APIKey,

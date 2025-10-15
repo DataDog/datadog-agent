@@ -11,9 +11,11 @@ import (
 	"context"
 	"testing"
 
+	comptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
@@ -41,6 +43,12 @@ func (c *noopConcentrator) Add(_ stats.Input) {}
 // NewMock creates a new mock agent component.
 func NewMock(deps dependencies, _ testing.TB) traceagent.Component {
 	telemetryCollector := telemetry.NewCollector(deps.Config.Object())
+	noopTelem := comptelemetry.NewComponent()
+
+	// Create telemetry components for the trace agent
+	receiverTelem := info.NewReceiverTelemetry(noopTelem)
+	statsWriterTelem := writer.NewStatsWriterTelemetry(noopTelem)
+	traceWriterTelem := writer.NewTraceWriterTelemetry(noopTelem)
 
 	// Several related non-components require a shared context to gracefully stop.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -51,6 +59,9 @@ func NewMock(deps dependencies, _ testing.TB) traceagent.Component {
 			telemetryCollector,
 			&statsd.NoOpClient{},
 			zstd.NewComponent(),
+			receiverTelem,
+			statsWriterTelem,
+			traceWriterTelem,
 		),
 		cancel:             cancel,
 		config:             deps.Config,

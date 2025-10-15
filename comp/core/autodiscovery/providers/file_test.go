@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -26,7 +26,7 @@ func TestCollect(t *testing.T) {
 	cfg.SetWithoutSource("ignore_autoconf", []string{"ignored"})
 	paths := []string{"tests", "foo/bar"}
 
-	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetry := fxutil.Test[telemetry.Component](t, impl.MockModule())
 	telemetryStore := acTelemetry.NewStore(telemetry)
 
 	ResetReader(paths)
@@ -95,7 +95,7 @@ func TestEnvVarReplacement(t *testing.T) {
 
 	paths := []string{"tests"}
 	ResetReader(paths)
-	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetry := fxutil.Test[telemetry.Component](t, impl.MockModule())
 	telemetryStore := acTelemetry.NewStore(telemetry)
 
 	provider := NewFileConfigProvider(telemetryStore)

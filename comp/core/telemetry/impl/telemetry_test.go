@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package telemetryimpl
+package impl
 
 import (
 	"testing"
@@ -11,19 +11,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCounterInitializer(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Mock](t, MockModule())
+	telemetryComp := fxutil.Test[Mock](t, MockModule())
 
-	counter := telemetry.NewCounter("subsystem", "test", []string{"check_name", "state"}, "help docs")
+	counter := telemetryComp.NewCounter("subsystem", "test", []string{"check_name", "state"}, "help docs")
 
 	// Set some values and ensure that we have those counters
 	counter.InitializeToZero("mycheck", "mystate")
 
-	startMetrics, err := telemetry.GetRegistry().Gather()
+	startMetrics, err := telemetryComp.GetRegistry().Gather()
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -32,7 +31,7 @@ func TestCounterInitializer(t *testing.T) {
 		return
 	}
 
-	metrics, err := telemetry.GetCountMetric("subsystem", "test")
+	metrics, err := telemetryComp.GetCountMetric("subsystem", "test")
 	assert.NoError(t, err)
 	require.Len(t, metrics, 1)
 
@@ -44,9 +43,9 @@ func TestCounterInitializer(t *testing.T) {
 }
 
 func TestGetCounterValue(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Mock](t, MockModule())
+	telemetryComp := fxutil.Test[Mock](t, MockModule())
 
-	counter := telemetry.NewCounter("subsystem", "test", []string{"state"}, "help docs")
+	counter := telemetryComp.NewCounter("subsystem", "test", []string{"state"}, "help docs")
 	assert.Equal(t, counter.WithValues("ok").Get(), 0.0)
 	assert.Equal(t, counter.WithValues("error").Get(), 0.0)
 
@@ -59,9 +58,9 @@ func TestGetCounterValue(t *testing.T) {
 }
 
 func TestGetGaugeValue(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Mock](t, MockModule())
+	telemetryComp := fxutil.Test[Mock](t, MockModule())
 
-	gauge := telemetry.NewGauge("subsystem", "test", []string{"state"}, "help docs")
+	gauge := telemetryComp.NewGauge("subsystem", "test", []string{"state"}, "help docs")
 	assert.Equal(t, gauge.WithValues("ok").Get(), 0.0)
 	assert.Equal(t, gauge.WithValues("error").Get(), 0.0)
 
@@ -74,9 +73,9 @@ func TestGetGaugeValue(t *testing.T) {
 }
 
 func TestGetSimpleHistogramValue(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Mock](t, MockModule())
+	telemetryComp := fxutil.Test[Mock](t, MockModule())
 
-	hist := telemetry.NewSimpleHistogram("subsystem", "test", "help docs", []float64{1, 2, 3, 4})
+	hist := telemetryComp.NewSimpleHistogram("subsystem", "test", "help docs", []float64{1, 2, 3, 4})
 
 	assert.Equal(t, 4, len(hist.Get().Buckets))
 
@@ -97,9 +96,9 @@ func TestGetSimpleHistogramValue(t *testing.T) {
 }
 
 func TestGetHistogramValue(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Mock](t, MockModule())
+	telemetryComp := fxutil.Test[Mock](t, MockModule())
 
-	hist := telemetry.NewHistogram("subsystem", "test", []string{"state"}, "help docs", []float64{1, 2, 3, 4})
+	hist := telemetryComp.NewHistogram("subsystem", "test", []string{"state"}, "help docs", []float64{1, 2, 3, 4})
 
 	assert.Equal(t, uint64(0), hist.WithValues("ok").Get().Buckets[0].Count)
 	assert.Equal(t, uint64(0), hist.WithValues("ok").Get().Buckets[1].Count)

@@ -33,7 +33,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 

@@ -5,18 +5,7 @@
 
 package telemetry
 
-// SimpleGauge tracks how many times something is happening.
-type SimpleGauge interface {
-	// Inc increments the gaguge.
-	Inc()
-	// Dec decrements the gauge.
-	Dec()
-	// Add increments the gauge by given amount.
-	Add(float64)
-	// Sub decrements the gauge by given amount.
-	Sub(float64)
-	// Set sets the value of the gauge.
-	Set(float64)
-	// Get gets the value of the gauge.
-	Get() float64
-}
+import deftelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+
+// SimpleGauge is an alias to the def telemetry SimpleGauge for backwards compatibility
+type SimpleGauge = deftelemetry.SimpleGauge

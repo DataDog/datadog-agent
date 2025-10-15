@@ -5,12 +5,7 @@
 
 package telemetry
 
-// SimpleCounter tracks how many times something is happening.
-type SimpleCounter interface {
-	// Inc increments the counter.
-	Inc()
-	// Add increments the counter by given amount.
-	Add(float64)
-	// Get gets the current counter value
-	Get() float64
-}
+import deftelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+
+// SimpleCounter is an alias to the def telemetry SimpleCounter for backwards compatibility
+type SimpleCounter = deftelemetry.SimpleCounter

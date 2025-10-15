@@ -7,6 +7,12 @@ godebug tlsmlkem=0
 
 use (
 	.
+	./comp/core/telemetry/def
+	./comp/core/telemetry/fx
+	./comp/core/telemetry/fx-full
+	./comp/core/telemetry/fx-noop
+	./comp/core/telemetry/impl
+	./comp/core/telemetry/impl-noop
 	./pkg/util/hostinfo
 	./pkg/util/jsonquery
 	comp/api/api/def

@@ -17,7 +17,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -638,7 +638,7 @@ func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.H
 
 	histogram, ok := telemetryMap[key]
 	if !ok {
-		histogram = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+		histogram = impl.GetCompatComponent().NewHistogramWithOpts(
 			checkName,
 			metricName,
 			nil,
@@ -665,7 +665,7 @@ func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Cou
 
 	counter, ok := telemetryMap[key]
 	if !ok {
-		counter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		counter = impl.GetCompatComponent().NewCounterWithOpts(
 			checkName,
 			metricName,
 			nil,
@@ -691,7 +691,7 @@ func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge
 
 	gauge, ok := telemetryMap[key]
 	if !ok {
-		gauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+		gauge = impl.GetCompatComponent().NewGaugeWithOpts(
 			checkName,
 			metricName,
 			nil,

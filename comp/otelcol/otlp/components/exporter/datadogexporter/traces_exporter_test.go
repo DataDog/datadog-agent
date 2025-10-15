@@ -13,7 +13,8 @@ import (
 	"time"
 
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	comptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
@@ -23,7 +24,9 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
@@ -108,9 +111,16 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	ctx := context.Background()
-	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
-	telemetryComp := fxutil.Test[coretelemetry.Mock](t, telemetryimpl.MockModule())
+	// Create noop telemetry components for testing
+	noopTelem := comptelemetry.NewComponent()
+	receiverTelem := info.NewReceiverTelemetry(noopTelem)
+	statsWriterTelem := writer.NewStatsWriterTelemetry(noopTelem)
+	traceWriterTelem := writer.NewTraceWriterTelemetry(noopTelem)
+
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent(), receiverTelem, statsWriterTelem, traceWriterTelem)
+
+	telemetryComp := fxutil.Test[coretelemetry.Mock](t, impl.MockModule())
 	store := serializerexporter.TelemetryStore{
 		DDOTTraces: telemetryComp.NewGauge(
 			"runtime",
@@ -164,10 +174,17 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	if !enableReceiveResourceSpansV2 {
 		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
-	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
+
+	// Create noop telemetry components for testing
+	noopTelem2 := comptelemetry.NewComponent()
+	receiverTelem2 := info.NewReceiverTelemetry(noopTelem2)
+	statsWriterTelem2 := writer.NewStatsWriterTelemetry(noopTelem2)
+	traceWriterTelem2 := writer.NewTraceWriterTelemetry(noopTelem2)
+
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent(), receiverTelem2, statsWriterTelem2, traceWriterTelem2)
 
 	// The client should have been created correctly
-	telemetryComp := fxutil.Test[coretelemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[coretelemetry.Mock](t, impl.MockModule())
 	store := serializerexporter.TelemetryStore{
 		DDOTTraces: telemetryComp.NewGauge(
 			"runtime",

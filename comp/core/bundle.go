@@ -21,7 +21,7 @@ import (
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -37,7 +37,7 @@ func Bundle() fxutil.BundleOptions {
 		logfx.Module(),
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
 		sysprobeconfigimpl.Module(),
-		telemetryimpl.Module(),
+		impl.Module(),
 		hostnameimpl.Module(),
 		pidimpl.Module(), // You must supply pidimpl.NewParams in order to use it
 	)

@@ -7,4 +7,5 @@
 
 package telemetry
 
+// MetricFamily is a noop type for serverless environments
 type MetricFamily struct{}

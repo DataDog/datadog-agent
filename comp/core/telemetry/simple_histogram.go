@@ -5,24 +5,13 @@
 
 package telemetry
 
-// HistogramValue is a struct representing the internal histogram state
-type HistogramValue struct {
-	Count   uint64
-	Sum     float64
-	Buckets []Bucket
-}
+import deftelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
-// Bucket is a struct representing the internal bucket state
-type Bucket struct {
-	UpperBound float64
-	Count      uint64
-}
+// HistogramValue is an alias to the def telemetry HistogramValue for backwards compatibility
+type HistogramValue = deftelemetry.HistogramValue
 
-// SimpleHistogram tracks how many times something is happening.
-type SimpleHistogram interface {
-	// Observe the value to the Histogram value.
-	Observe(value float64)
+// Bucket is an alias to the def telemetry Bucket for backwards compatibility
+type Bucket = deftelemetry.Bucket
 
-	// Get gets the current histogram values
-	Get() HistogramValue
-}
+// SimpleHistogram is an alias to the def telemetry SimpleHistogram for backwards compatibility
+type SimpleHistogram = deftelemetry.SimpleHistogram

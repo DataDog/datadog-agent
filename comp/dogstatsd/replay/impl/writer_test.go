@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"

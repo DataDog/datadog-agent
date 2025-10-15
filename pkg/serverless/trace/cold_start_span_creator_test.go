@@ -22,7 +22,11 @@ import (
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+
+	comptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 )
 
 func TestColdStartSpanCreatorCreateValid(t *testing.T) {
@@ -33,7 +37,14 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	// Create noop telemetry components for testing
+	noopTelem1 := comptelemetry.NewComponent()
+	receiverTelem1 := info.NewReceiverTelemetry(noopTelem1)
+	statsWriterTelem1 := writer.NewStatsWriterTelemetry(noopTelem1)
+	traceWriterTelem1 := writer.NewTraceWriterTelemetry(noopTelem1)
+
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), receiverTelem1, statsWriterTelem1, traceWriterTelem1)
 	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
@@ -94,7 +105,14 @@ func TestColdStartSpanCreatorCreateValidNoOverlap(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	// Create noop telemetry components for testing
+	noopTelem2 := comptelemetry.NewComponent()
+	receiverTelem2 := info.NewReceiverTelemetry(noopTelem2)
+	statsWriterTelem2 := writer.NewStatsWriterTelemetry(noopTelem2)
+	traceWriterTelem2 := writer.NewTraceWriterTelemetry(noopTelem2)
+
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), receiverTelem2, statsWriterTelem2, traceWriterTelem2)
 	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
@@ -153,7 +171,14 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	// Create noop telemetry components for testing
+	noopTelem3 := comptelemetry.NewComponent()
+	receiverTelem3 := info.NewReceiverTelemetry(noopTelem3)
+	statsWriterTelem3 := writer.NewStatsWriterTelemetry(noopTelem3)
+	traceWriterTelem3 := writer.NewTraceWriterTelemetry(noopTelem3)
+
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), receiverTelem3, statsWriterTelem3, traceWriterTelem3)
 	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
@@ -207,7 +232,14 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	// Create noop telemetry components for testing
+	noopTelem4 := comptelemetry.NewComponent()
+	receiverTelem4 := info.NewReceiverTelemetry(noopTelem4)
+	statsWriterTelem4 := writer.NewStatsWriterTelemetry(noopTelem4)
+	traceWriterTelem4 := writer.NewTraceWriterTelemetry(noopTelem4)
+
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), receiverTelem4, statsWriterTelem4, traceWriterTelem4)
 	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
@@ -252,7 +284,14 @@ func TestColdStartSpanCreatorColdStartExists(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	// Create noop telemetry components for testing
+	noopTelem5 := comptelemetry.NewComponent()
+	receiverTelem5 := info.NewReceiverTelemetry(noopTelem5)
+	statsWriterTelem5 := writer.NewStatsWriterTelemetry(noopTelem5)
+	traceWriterTelem5 := writer.NewTraceWriterTelemetry(noopTelem5)
+
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), receiverTelem5, statsWriterTelem5, traceWriterTelem5)
 	agnt.TraceWriter = &mockTraceWriter{}
 
 	traceAgent := &serverlessTraceAgent{
@@ -307,7 +346,14 @@ func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	// Create noop telemetry components for testing
+	noopTelem6 := comptelemetry.NewComponent()
+	receiverTelem6 := info.NewReceiverTelemetry(noopTelem6)
+	statsWriterTelem6 := writer.NewStatsWriterTelemetry(noopTelem6)
+	traceWriterTelem6 := writer.NewTraceWriterTelemetry(noopTelem6)
+
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), receiverTelem6, statsWriterTelem6, traceWriterTelem6)
 	agnt.TraceWriter = &mockTraceWriter{}
 
 	traceAgent := &serverlessTraceAgent{

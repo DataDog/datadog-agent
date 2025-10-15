@@ -24,8 +24,8 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -118,7 +118,7 @@ func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Comp
 
 func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle, telemetry.Component, ipc.Component) {
 	lc := compdef.NewTestLifecycle(t)
-	telemetry := telemetryimpl.NewMock(t)
+	telemetry := impl.NewMock(t)
 	ipc := ipcmock.New(t)
 	reqs := Requires{
 		Config:    config,
