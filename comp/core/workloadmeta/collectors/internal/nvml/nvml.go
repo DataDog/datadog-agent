@@ -125,7 +125,10 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
 		}
 	} else {
-		log.Infof("vGPU device %d does not support queries for max clock info", gpuDeviceInfo.Index)
+		if _, ok := c.seenUUIDs[gpuDeviceInfo.EntityID.ID]; !ok {
+			// only report the warning once for each device
+			log.Infof("vGPU device %s does not support queries for max clock info", gpuDeviceInfo.EntityID.ID)
+		}
 	}
 }
 
