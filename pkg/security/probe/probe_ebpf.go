@@ -940,8 +940,8 @@ func (p *EBPFProbe) SendStats() error {
 	p.eventProcessingTimes = &ept
 	p.eventProcessingTimeMutex.Unlock()
 
-	for eventType, eventAggregate := range *curEventProcessingTimes {
-		mean, variance, maximum := eventAggregate.Finalize()
+	for eventType, statsAccumulator := range *curEventProcessingTimes {
+		mean, variance, maximum := statsAccumulator.Finalize()
 
 		model.GetAllCategories()
 		tag := []string{"event_type:" + eventType.String()}
@@ -1109,12 +1109,12 @@ func (p *EBPFProbe) handleEventWrapper(CPU int, data []byte) {
 	ev := p.handleEvent(CPU, data)
 	end := time.Since(start)
 	p.eventProcessingTimeMutex.Lock()
-	agg, _ := (*p.eventProcessingTimes)[ev]
-	if agg == nil {
-		agg = &StatsAccumulator{}
-		(*p.eventProcessingTimes)[ev] = agg
+	acc, _ := (*p.eventProcessingTimes)[ev]
+	if acc == nil {
+		acc = &StatsAccumulator{}
+		(*p.eventProcessingTimes)[ev] = acc
 	}
-	agg.Update(float64(end.Microseconds()))
+	acc.Update(float64(end.Microseconds()))
 	p.eventProcessingTimeMutex.Unlock()
 }
 
@@ -2930,7 +2930,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 	}
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
-	ept := make(map[model.EventType]*Aggregate)
+	ept := make(map[model.EventType]*StatsAccumulator)
 	p := &EBPFProbe{
 		probe:                probe,
 		config:               config,
