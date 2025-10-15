@@ -23,13 +23,15 @@ func TestGetDefaultRecordedQueryTypes(t *testing.T) {
 	// Check platform-specific behavior
 	if runtime.GOOS == "linux" {
 		assert.Equal(t, result, map[layers.DNSType]struct{}{
-			layers.DNSTypeA:    {},
-			layers.DNSTypeAAAA: {},
+			layers.DNSTypeA:     {},
+			layers.DNSTypeAAAA:  {},
+			layers.DNSTypeCNAME: {},
 		})
 	} else {
 		assert.Equal(t, result, map[layers.DNSType]struct{}{
-			layers.DNSTypeA:    {},
-			layers.DNSTypeAAAA: {},
+			layers.DNSTypeA:     {},
+			layers.DNSTypeAAAA:  {},
+			layers.DNSTypeCNAME: {},
 		})
 	}
 }
