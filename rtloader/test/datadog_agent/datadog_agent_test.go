@@ -467,38 +467,30 @@ func TestObfuscateSql(t *testing.T) {
 	}{
 		{
 			name: "Test query obfuscation",
-			code: fmt.Sprintf(`
-	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
-	with open(r'%s', 'w') as f:
-		f.write(str(result['query']))
-	`, tmpfile.Name()),
+			code: "result = json.loads(datadog_agent.obfuscate_sql(\"select * from table where id = 1\"))" +
+				"\n\twith open(r'" + tmpfile.Name() + "', 'w') as f:" +
+				"\n\t\tf.write(str(result['query']))",
 			expected: "select * from table where id = ?",
 		},
 		{
 			name: "Test metadata tables_csv",
-			code: fmt.Sprintf(`
-	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
-	with open(r'%s', 'w') as f:
-		f.write(str(result['metadata']['tables_csv']))
-	`, tmpfile.Name()),
+			code: "result = json.loads(datadog_agent.obfuscate_sql(\"select * from table where id = 1\"))" +
+				"\n\twith open(r'" + tmpfile.Name() + "', 'w') as f:" +
+				"\n\t\tf.write(str(result['metadata']['tables_csv']))",
 			expected: "table",
 		},
 		{
 			name: "Test metadata commands",
-			code: fmt.Sprintf(`
-	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
-	with open(r'%s', 'w') as f:
-		f.write(str(result['metadata']['commands'][0]))
-	`, tmpfile.Name()),
+			code: "result = json.loads(datadog_agent.obfuscate_sql(\"select * from table where id = 1\"))" +
+				"\n\twith open(r'" + tmpfile.Name() + "', 'w') as f:" +
+				"\n\t\tf.write(str(result['metadata']['commands'][0]))",
 			expected: "SELECT",
 		},
 		{
 			name: "Test metadata comments",
-			code: fmt.Sprintf(`
-	result = json.loads(datadog_agent.obfuscate_sql("select * from table where id = 1"))
-	with open(r'%s', 'w') as f:
-		f.write(str(result['metadata']['comments'][0]))
-	`, tmpfile.Name()),
+			code: "result = json.loads(datadog_agent.obfuscate_sql(\"select * from table where id = 1\"))" +
+				"\n\twith open(r'" + tmpfile.Name() + "', 'w') as f:" +
+				"\n\t\tf.write(str(result['metadata']['comments'][0]))",
 			expected: "-- SQL test comment",
 		},
 	}
