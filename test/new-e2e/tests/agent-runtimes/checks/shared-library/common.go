@@ -45,17 +45,19 @@ func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 	return suiteOptions
 }
 
-// Test the shared library code to see if it returns the correct metrics
-func (v *sharedLibrarySuite) testCheckExecutionAndMetrics() {
+// Test the shared library code and check it returns the right metrics
+func (v *sharedLibrarySuite) testCheckExecutionAndVerifyMetrics() {
 	v.T().Log("Running Shared Library Check Example test")
 
-	// Fetch the check status and metrics in JSON format
+	// execute the check and retrieve the metrics
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"example", "--json"}))
 	data := checkutils.ParseJSONOutput(v.T(), []byte(check))
 	metrics := data[0].Aggregator.Metrics
+
+	// only one metric should have been emitted
 	assert.Equal(v.T(), len(metrics), 1)
 
-	// Check the metric fields
+	// check metric info
 	metric := metrics[0]
 	assert.Equal(v.T(), "hello.gauge", metric.Metric)
 	assert.Equal(v.T(), metric.Points[0][1], 1.0)

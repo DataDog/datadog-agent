@@ -21,7 +21,7 @@ type linuxSharedLibrarySuite struct {
 }
 
 func TestLinuxCheckImplementationSuite(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 	suite := &linuxSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:   e2eos.UbuntuDefault,
@@ -60,7 +60,7 @@ func (v *linuxSharedLibrarySuite) TestLinuxCheckExampleRun() {
 	require.True(v.T(), res)
 
 	// execute the check and verify the metrics
-	v.testCheckExecutionAndMetrics()
+	v.testCheckExecutionAndVerifyMetrics()
 
 	// clean the lib after the test
 	v.removeLibrary()

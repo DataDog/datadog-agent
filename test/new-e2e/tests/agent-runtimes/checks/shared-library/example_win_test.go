@@ -21,7 +21,7 @@ type windowsSharedLibrarySuite struct {
 }
 
 func TestWindowsCheckImplementationSuite(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 	suite := &windowsSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:   e2eos.WindowsServerDefault,
@@ -55,7 +55,7 @@ func (v *windowsSharedLibrarySuite) TestWindowsCheckExample() {
 	require.True(v.T(), res)
 
 	// execute the check and verify the metrics
-	v.testCheckExecutionAndMetrics()
+	v.testCheckExecutionAndVerifyMetrics()
 
 	// remove the lib after the test
 	v.removeLibrary()
