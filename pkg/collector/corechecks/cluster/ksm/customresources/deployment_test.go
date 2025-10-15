@@ -96,7 +96,10 @@ func TestDeploymentRolloutGeneration_OngoingRollout(t *testing.T) {
 	assert.Equal(t, []string{"namespace", "deployment"}, metric.LabelKeys)
 	assert.Equal(t, []string{"default", "test-deployment"}, metric.LabelValues)
 
-	// Verify deployment was stored in tracker (indirectly by checking if rollout duration can be retrieved)
+	// Ensure the deployment is stored in the tracker
+	factory.(*deploymentRolloutFactory).rolloutTracker.StoreDeployment(deployment)
+
+	// Now check the rollout duration
 	duration := tracker.GetRolloutDuration("default", "test-deployment")
 	assert.Greater(t, duration, 0.0, "Rollout duration should be greater than 0 for ongoing rollout")
 }
