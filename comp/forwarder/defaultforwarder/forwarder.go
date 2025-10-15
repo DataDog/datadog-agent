@@ -27,7 +27,7 @@ type dependencies struct {
 	Log     log.Component
 	Lc      fx.Lifecycle
 	Params  Params
-	Secrets secrets.Component `optional:"true"`
+	Secrets secrets.Component
 }
 
 type provides struct {
@@ -49,7 +49,7 @@ func newForwarder(dep dependencies) (provides, error) {
 		return provides{}, err
 	}
 
-	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options), nil
+	return NewForwarder(dep.Config, dep.Log, dep.Secrets, dep.Lc, true, options), nil
 }
 
 func createOptions(params Params, config config.Component, log log.Component, secrets secrets.Component) (*Options, error) {
@@ -75,11 +75,6 @@ func createOptions(params Params, config config.Component, log log.Component, se
 		options = NewOptionsWithResolvers(config, log, r)
 	}
 
-	// Set up secret refresh callback
-	if secrets != nil {
-		options.SecretRefreshCallback = secrets.TriggerRefreshOnAPIKeyFailure
-	}
-
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking
@@ -100,8 +95,8 @@ func createOptions(params Params, config config.Component, log log.Component, se
 // NewForwarder returns a new forwarder component.
 //
 //nolint:revive
-func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
-	forwarder := NewDefaultForwarder(config, log, options)
+func NewForwarder(config config.Component, log log.Component, secrets secrets.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
+	forwarder := NewDefaultForwarder(config, log, secrets, options)
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
@@ -119,9 +114,9 @@ func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, i
 	}
 }
 
-func newMockForwarder(config config.Component, log log.Component) provides {
+func newMockForwarder(config config.Component, log log.Component, secrets secrets.Component) provides {
 	options, _ := NewOptions(config, log, nil)
 	return provides{
-		Comp: NewDefaultForwarder(config, log, options),
+		Comp: NewDefaultForwarder(config, log, secrets, options),
 	}
 }
