@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-devel.0.20250129182827-bab631c10d61
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.72.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect; v2.6
 	github.com/stretchr/testify v1.11.1
@@ -15,7 +15,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.61.0
+	github.com/DataDog/datadog-agent/comp/def v0.71.1
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
 )
@@ -40,7 +40,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.71.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0 // indirect
@@ -126,6 +126,12 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../../comp/core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../../comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/core/telemetry/def => ../../../../comp/core/telemetry/def
+	github.com/DataDog/datadog-agent/comp/core/telemetry/fx => ../../../../comp/core/telemetry/fx
+	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-full => ../../../../comp/core/telemetry/fx-full
+	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop => ../../../../comp/core/telemetry/fx-noop
+	github.com/DataDog/datadog-agent/comp/core/telemetry/impl => ../../../../comp/core/telemetry/impl
+	github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop => ../../../../comp/core/telemetry/impl-noop
 	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../comp/forwarder/orchestrator/orchestratorinterface

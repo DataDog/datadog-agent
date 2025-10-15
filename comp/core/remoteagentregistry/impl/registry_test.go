@@ -24,8 +24,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -109,14 +108,14 @@ func TestDisabled(t *testing.T) {
 	require.Nil(t, provides.Status.Provider)
 }
 
-func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component, telemetry.Component, ipc.Component) {
+func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component, telemetryimpl.Component, ipc.Component) {
 	config := configmock.New(t)
 
 	provides, lc, telemetry, ipc := buildComponentWithConfig(t, config)
 	return provides, lc, config, telemetry, ipc
 }
 
-func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle, telemetry.Component, ipc.Component) {
+func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle, telemetryimpl.Component, ipc.Component) {
 	lc := compdef.NewTestLifecycle(t)
 	telemetry := telemetryimpl.NewMock(t)
 	ipc := ipcmock.New(t)

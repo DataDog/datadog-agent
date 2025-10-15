@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(go:*)",
+      "Bash(dda inv test:*)",
+      "Bash(dda inv:*)",
+      "Bash(lsof:*)",
+      "Bash(curl -s http://127.0.0.1:5012/telemetry)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "Read(//Users/scott.opell/go/pkg/mod/github.com/prometheus/**)",
+      "Bash(cat:*)",
+      "Bash(git log:*)",
+      "Bash(git stash:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(uv run:*)",
+      "Bash(gh pr view:*)",
+      "Bash(git rebase:*)",
+      "Bash(find:*)",
+      "Bash(xargs basename:*)",
+      "Bash(test:*)",
+      "Bash(for file in ./comp/trace/config/config_test.go ./comp/trace/bundle_test.go)",
+      "Bash(do)",
+      "Bash(done)",
+      "Bash(for file in ./comp/core/secrets/impl/info_nix_test.go ./comp/core/secrets/impl/info_windows_test.go ./comp/core/secrets/impl/status_test.go ./comp/core/secrets/impl/secrets_test.go ./comp/core/secrets/impl/fetch_secret_test.go)",
+      "Bash(for:*)",
+      "Bash(echo:*)",
+      "Bash(/Users/scott.opell/go/src/github.com/DataDog/datadog-agent/bin/trace-agent/trace-agent run -c /tmp/test-trace-agent.yaml)",
+      "Read(//private/tmp/**)",
+      "Bash(./bin/trace-agent/trace-agent run:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
