@@ -384,7 +384,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
-	config.BindEnvAndSetDefault("secret_refresh_on_api_key_failure", false)
+	config.BindEnvAndSetDefault("secret_refresh_min_interval", 0)
 	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
 	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
 	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
@@ -2452,7 +2452,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		ScopeIntegrationToNamespace: config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
 		AllowedNamespace:            config.GetStringSlice("secret_allowed_k8s_namespace"),
 		ImageToHandle:               config.GetStringMapStringSlice("secret_image_to_handle"),
-		RefreshOnAPIKeyFailure:      config.GetBool("secret_refresh_on_api_key_failure"),
+		RefreshMinInterval:          config.GetInt("secret_refresh_min_interval"),
 	})
 
 	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
