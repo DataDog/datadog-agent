@@ -19,11 +19,12 @@ func TestNewConnFilter(t *testing.T) {
 		shouldMatch bool
 	}
 	tests := []struct {
-		name            string
-		config          string
-		ddSite          string
-		expectedMatches []expectedMatch
-		expectedErr     string
+		name                      string
+		config                    string
+		ddSite                    string
+		expectedMatches           []expectedMatch
+		expectedErr               string
+		expectedCustomFilterCount int
 	}{
 		{
 			name: "type exclude",
@@ -37,6 +38,7 @@ filters:
 				{domain: "dns.google.com", shouldMatch: false},
 				{domain: "abc.google.com", shouldMatch: false},
 			},
+			expectedCustomFilterCount: 1,
 		},
 		{
 			name: "type include",
@@ -53,6 +55,7 @@ filters:
 				{domain: "123.google.com", shouldMatch: false},
 				{domain: "abc.google.com", shouldMatch: true},
 			},
+			expectedCustomFilterCount: 2,
 		},
 		{
 			name: "domain strategy wildcard",
@@ -68,6 +71,7 @@ filters:
 				{domain: "dns.google.com", shouldMatch: false},
 				{domain: "abc.google.com", shouldMatch: false},
 			},
+			expectedCustomFilterCount: 1,
 		},
 		{
 			name: "domain strategy regex",
@@ -82,6 +86,7 @@ filters:
 				{domain: "dns.google.com", shouldMatch: false},
 				{domain: "abc.google.com", shouldMatch: false},
 			},
+			expectedCustomFilterCount: 1,
 		},
 		{
 			name: "invalid strategy",
@@ -91,7 +96,8 @@ filters:
     match_domain_strategy: 'invalid'
     type: exclude
 `,
-			expectedErr: "invalid match domain strategy: invalid",
+			expectedErr:               "invalid match domain strategy: invalid",
+			expectedCustomFilterCount: 0,
 		},
 		{
 			name: "single ip exclude IPv4",
@@ -105,6 +111,7 @@ filters:
 				{ip: "10.10.10.9", shouldMatch: true},
 				{ip: "10.10.10.11", shouldMatch: true},
 			},
+			expectedCustomFilterCount: 1,
 		},
 		{
 			name: "single ip exclude IPv6",
@@ -117,6 +124,7 @@ filters:
 				{ip: "2001:4860:4860::8888", shouldMatch: false},
 				{ip: "2001:4860:4860::8844", shouldMatch: true},
 			},
+			expectedCustomFilterCount: 1,
 		},
 		{
 			name: "single ip exclude, then include",
@@ -132,6 +140,7 @@ filters:
 				{ip: "10.10.10.9", shouldMatch: true},
 				{ip: "10.10.10.11", shouldMatch: true},
 			},
+			expectedCustomFilterCount: 2,
 		},
 		{
 			name: "cidr exclude, then include ip and cidr for IPv4",
@@ -156,6 +165,7 @@ filters:
 				{ip: "10.10.10.255", shouldMatch: false},
 				{ip: "10.10.10.256", shouldMatch: true},
 			},
+			expectedCustomFilterCount: 3,
 		},
 		{
 			name: "cidr exclude, then include ip and cidr for IPv6",
@@ -171,6 +181,7 @@ filters:
 				{ip: "2001:4860:ffff:ffff:ffff:ffff:ffff:ffff", shouldMatch: false},
 				{ip: "2001:4860:0000:0000:0000:0000:0000:0010", shouldMatch: true},
 			},
+			expectedCustomFilterCount: 2,
 		},
 		{
 			name: "cidr parsing error",
@@ -179,7 +190,8 @@ filters:
   - match_ip: 2001:4860:0000:0000:0000:0000:0000:0000/999
     type: exclude
 `,
-			expectedErr: "failed to parsing match_ip",
+			expectedErr:               "failed to parsing match_ip",
+			expectedCustomFilterCount: 0,
 		},
 		{
 			name: "exclude all domain, then include",
@@ -200,6 +212,7 @@ filters:
 				{domain: "abc.datadoghq.com", shouldMatch: true},
 				{domain: "123.datadoghq.com", shouldMatch: true},
 			},
+			expectedCustomFilterCount: 3,
 		},
 		{
 			name: "exclude all ip, then include",
@@ -221,6 +234,7 @@ filters:
 				{ip: "10.10.10.4", shouldMatch: false},
 				{ip: "10.10.10.100", shouldMatch: true},
 			},
+			expectedCustomFilterCount: 3,
 		},
 		{
 			name: "invalid domain",
@@ -230,7 +244,8 @@ filters:
     match_domain_strategy: 'regex'
     type: exclude
 `,
-			expectedErr: "error building regex",
+			expectedErr:               "error building regex",
+			expectedCustomFilterCount: 0,
 		},
 		{
 			name: "invalid domain and valid domain",
@@ -247,7 +262,8 @@ filters:
 				{domain: "dns.google.com", shouldMatch: true},
 				{domain: "abc.google.com", shouldMatch: true},
 			},
-			expectedErr: "error building regex",
+			expectedErr:               "error building regex",
+			expectedCustomFilterCount: 1,
 		},
 		{
 			name:   "default datadog domain excluded with site",
@@ -260,7 +276,8 @@ filters:
 				{domain: "abc.datad0g.com", shouldMatch: false},
 				{domain: "1.datadog.pool.ntp.org", shouldMatch: false},
 			},
-			expectedErr: "",
+			expectedErr:               "",
+			expectedCustomFilterCount: 0,
 		},
 		{
 			name:   "default datadog domain excluded without site",
@@ -290,7 +307,8 @@ filters:
 				{domain: "abc.datad0g.com", shouldMatch: true},
 				{domain: "1.datadog.pool.ntp.org", shouldMatch: true},
 			},
-			expectedErr: "",
+			expectedErr:               "",
+			expectedCustomFilterCount: 1,
 		},
 		{
 			name: "invalid filter type",
@@ -299,7 +317,8 @@ filters:
   - match_domain: 'zoom.us'
     type: invalid
 `,
-			expectedErr: "invalid filter type: invalid",
+			expectedErr:               "invalid filter type: invalid",
+			expectedCustomFilterCount: 0,
 		},
 	}
 	for _, tt := range tests {
@@ -310,6 +329,7 @@ filters:
 			} else {
 				require.NoError(t, err)
 			}
+			assert.Len(t, connFilter.filters, tt.expectedCustomFilterCount+len(getDefaultConnFilters(tt.ddSite)))
 			for _, expMatch := range tt.expectedMatches {
 				require.NotNil(t, connFilter)
 				assert.Equal(t, connFilter.IsIncluded(expMatch.domain, expMatch.ip), expMatch.shouldMatch, expMatch)

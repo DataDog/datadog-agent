@@ -34,6 +34,7 @@ func NewConnFilter(config []Config, site string) (*ConnFilter, []error) {
 	for _, cfg := range newConfigs {
 		if cfg.Type != FilterTypeInclude && cfg.Type != FilterTypeExclude {
 			errs = append(errs, fmt.Errorf("invalid filter type: %s", cfg.Type))
+			continue
 		}
 		var matchDomainRe *regexp.Regexp
 		var matchIPCidr *net.IPNet
@@ -68,6 +69,7 @@ func NewConnFilter(config []Config, site string) (*ConnFilter, []error) {
 			_, cidr, err := net.ParseCIDR(cidrStr)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to parsing match_ip `%s`: %s", cfg.MatchIP, err))
+				continue
 			}
 			matchIPCidr = cidr
 		}
