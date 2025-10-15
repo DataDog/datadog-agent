@@ -106,6 +106,27 @@ var (
 
 var _ PlatformProbe = (*EBPFProbe)(nil)
 
+// Aggregate calculates the online statistics based on Welford's online algorithm:
+// https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+type Aggregate struct {
+	count uint64
+	mean  float64
+	m2    float64
+}
+
+func (a *Aggregate) Update(val float64) {
+	a.count++
+	delta := val - a.mean
+	a.mean += delta / float64(a.count)
+	delta2 := val - a.mean
+	a.m2 += delta * delta2
+}
+
+// Finalize returns the mean and variance
+func (a *Aggregate) Finalize() (float64, float64) {
+	return a.mean, a.m2 / float64(a.count)
+}
+
 // EBPFProbe defines a platform probe
 type EBPFProbe struct {
 	Resolvers *resolvers.EBPFResolvers
@@ -191,7 +212,8 @@ type EBPFProbe struct {
 	MetricNameTruncated *atomic.Uint64
 
 	// Event timing information
-	EventProcessingTime map[model.EventType][]int64
+	eventProcessingTimes     *map[model.EventType]*Aggregate
+	eventProcessingTimeMutex sync.Mutex
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -935,37 +957,26 @@ func (p *EBPFProbe) SendStats() error {
 	}
 
 	// Calculate and send metrics for average and standard deviation for each event type
-	for eventType, eventStat := range p.EventProcessingTime {
-		sum := int64(0)
-		stdDev := float64(0)
+	p.eventProcessingTimeMutex.Lock()
+	curEventProcessingTimes := p.eventProcessingTimes
+	ept := make(map[model.EventType]*Aggregate)
+	p.eventProcessingTimes = &ept
+	p.eventProcessingTimeMutex.Unlock()
 
-		for _, eventTime := range eventStat {
-			sum += eventTime
-		}
-
-		avg := sum / int64(len(eventStat))
-		avgFloat := float64(avg)
-
-		for _, eventTime := range eventStat {
-			stdDev += math.Pow(float64(eventTime)-avgFloat, 2)
-		}
-
-		stdDev /= float64(len(eventStat))
-		stdDev = math.Sqrt(stdDev)
+	for eventType, eventAggregate := range *curEventProcessingTimes {
+		mean, variance := eventAggregate.Finalize()
 
 		model.GetAllCategories()
 		tag := []string{"event_type:" + eventType.String()}
 
-		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeAvg, avgFloat, tag, 1.0); err != nil {
+		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeAvg, mean, tag, 1.0); err != nil {
 			return err
 		}
 
-		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeStddev, stdDev, tag, 1.0); err != nil {
+		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeStddev, math.Sqrt(variance), tag, 1.0); err != nil {
 			return err
 		}
 	}
-
-	p.EventProcessingTime = make(map[model.EventType][]int64)
 
 	return p.monitors.SendStats()
 }
@@ -1115,12 +1126,19 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 	return true
 }
 
-// handleEvent wraps the handleEvent function in order to
+// handleEvent wraps the handleEvent function in order to get statistics on it
 func (p *EBPFProbe) handleEventWrapper(CPU int, data []byte) {
 	start := time.Now()
 	ev := p.handleEvent(CPU, data)
 	end := time.Since(start)
-	p.EventProcessingTime[ev] = append(p.EventProcessingTime[ev], end.Microseconds())
+	p.eventProcessingTimeMutex.Lock()
+	agg, _ := (*p.eventProcessingTimes)[ev]
+	if agg == nil {
+		agg = &Aggregate{}
+		(*p.eventProcessingTimes)[ev] = agg
+	}
+	(*p.eventProcessingTimes)[ev].Update(float64(end.Microseconds()))
+	p.eventProcessingTimeMutex.Unlock()
 }
 
 // handleEvent processes raw eBPF events received from the kernel, unmarshaling and dispatching them appropriately.
@@ -2866,7 +2884,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 	}
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
-
+	ept := make(map[model.EventType]*Aggregate)
 	p := &EBPFProbe{
 		probe:                probe,
 		config:               config,
@@ -2886,6 +2904,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		ipc:                  ipc,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
+		eventProcessingTimes: &ept,
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
