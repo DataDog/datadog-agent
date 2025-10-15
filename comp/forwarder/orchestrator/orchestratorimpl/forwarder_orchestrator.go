@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -35,7 +36,7 @@ func Module(params Params) fxutil.Module {
 
 // newOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func newOrchestratorForwarder(log log.Component, config config.Component, tagger tagger.Component, lc fx.Lifecycle, params Params) orchestrator.Component {
+func newOrchestratorForwarder(log log.Component, config config.Component, secrets secrets.Component, tagger tagger.Component, lc fx.Lifecycle, params Params) orchestrator.Component {
 	if params.useNoopOrchestratorForwarder {
 		return createComponent(defaultforwarder.NoopForwarder{})
 	}

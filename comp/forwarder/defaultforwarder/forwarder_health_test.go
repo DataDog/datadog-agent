@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -49,7 +50,8 @@ func TestCheckValidAPIKey(t *testing.T) {
 	cfg := configmock.New(t)
 	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: r}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets, domainResolvers: r}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
 
@@ -91,7 +93,8 @@ func TestComputeDomainsURL(t *testing.T) {
 	log := logmock.New(t)
 	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, domainResolvers: r}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, secrets: secrets, domainResolvers: r}
 	fh.init()
 
 	// lexicographical sort for assert
@@ -132,7 +135,8 @@ func TestCheckValidAPIKeyErrors(t *testing.T) {
 	}
 	log := logmock.New(t)
 	cfg := configmock.New(t)
-	fh := forwarderHealth{log: log, config: cfg}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets}
 	fh.init()
 	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
 	assert.True(t, fh.checkValidAPIKey())
@@ -182,7 +186,8 @@ func TestUpdateAPIKey(t *testing.T) {
 
 	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: r}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets, domainResolvers: r}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
 
@@ -260,7 +265,8 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	}
 
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets, domainResolvers: resolvers}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey(), description)
 
@@ -405,7 +411,8 @@ func TestOneEndpointNoAPIKeys(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets, domainResolvers: resolvers}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey(), "Endpoint should be valid")
 }
@@ -439,7 +446,8 @@ func TestOneEndpointInvalid(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets, domainResolvers: resolvers}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey(), "Endpoint should be valid")
 }
