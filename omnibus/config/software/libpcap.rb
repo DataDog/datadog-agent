@@ -30,6 +30,12 @@ build do
     "--disable-bluetooth",
     "--disable-dbus",
     "--disable-rdma",
+    "--without-dag",
+    "--without-dpdk",
+    "--without-libnl",
+    "--without-septel",
+    "--without-snf",
+    "--without-turbocap",
   ]
   configure(*configure_options, env: env)
 

@@ -21,6 +21,7 @@ import (
 const Traces DataType = "traces"
 
 func setupAPM(config pkgconfigmodel.Setup) {
+	config.BindEnvAndSetDefault("apm_config.socket_activation.enabled", false, "DD_APM_SOCKET_ACTIVATION_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.enabled", true, "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.keep_values", []string{}, "DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.obfuscate_sql_values", []string{}, "DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES")
@@ -108,12 +109,6 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		}
 		return mappings
 	})
-	// Note(stanistan): The flag "DD_APM_INSTRUMENTATION_VERSION"
-	//                  will remain undocumented for the duration of the beta.
-	//                  We intend to only switch back to v1 if beta customers have issues
-	//                  to troubleshoot. v1 will be dropped (and possibly the flag)
-	//                  in 7.58 or 7.59 (this is going out in 7.57).
-	config.BindEnvAndSetDefault("apm_config.instrumentation.version", "v2", "DD_APM_INSTRUMENTATION_VERSION")
 	// Default Image Tag for the APM Inject package (https://hub.docker.com/r/datadog/apm-inject/tags).
 	// We pin to a major version by default.
 	config.BindEnvAndSetDefault("apm_config.instrumentation.injector_image_tag", "0", "DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG")

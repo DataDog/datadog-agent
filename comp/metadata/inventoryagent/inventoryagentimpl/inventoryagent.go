@@ -9,7 +9,6 @@ package inventoryagentimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"maps"
 	"net/http"
 	"reflect"
@@ -83,13 +82,6 @@ type Payload struct {
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
 }
 
 type inventoryagent struct {
@@ -257,6 +249,9 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
 
 	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("fleet_layers")
+
+	// Synthetics
+	ia.data["feature_synthetics_collector_enabled"] = ia.conf.GetBool("synthetics.collector.enabled")
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()

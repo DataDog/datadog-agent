@@ -35,6 +35,8 @@ const (
 	KubeClusterName = "kube_cluster_name"
 	// OrchClusterID is the tag for the orchestrator cluster ID
 	OrchClusterID = "orch_cluster_id"
+	// KubeDistribution is the tag for the managed Kubernetes cloud provider: eks, gke, aks
+	KubeDistribution = "kube_distribution"
 
 	// ImageName is the tag for the image name
 	ImageName = "image_name"
@@ -128,6 +130,8 @@ const (
 	KubeGPUUUID = "gpu_uuid"
 	// GPUDriverVersion is the tag for the GPU driver version
 	GPUDriverVersion = "gpu_driver_version"
+	// GPUVirtualizationMode is the tag for the GPU virtualization mode
+	GPUVirtualizationMode = "gpu_virtualization_mode"
 
 	// KubeArgoRollout is the tag for the Argo Rollout name
 	KubeArgoRollout = "kube_argo_rollout"

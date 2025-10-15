@@ -80,6 +80,9 @@
         "rule_id": {
           "type": "string"
         },
+        "original_rule_id": {
+          "type": "string"
+        },
         "rule_version": {
           "type": "string"
         },
@@ -115,7 +118,8 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "rule_id"
+        "rule_id",
+        "original_rule_id"
       ]
     },
     "BPFEvent": {

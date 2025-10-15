@@ -18,17 +18,17 @@
           {
             "function": "main.testReturnsIntPointer",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 20
+            "lineNumber": 24
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 87
+            "lineNumber": 376
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 50
           },
           {
             "function": "runtime.main",
@@ -55,10 +55,20 @@
                 "value": "42"
               }
             }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "*int",
+                "address": "[addr]",
+                "value": "142"
+              }
+            }
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "duration": "[duration]"
   }
 ]

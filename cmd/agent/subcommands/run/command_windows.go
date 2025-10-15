@@ -51,6 +51,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -75,6 +76,7 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
+	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -103,7 +105,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			config config.Component,
 			flare flare.Component,
 			telemetry telemetry.Component,
-			sysprobeconfig sysprobeconfig.Component,
+			_ sysprobeconfig.Component,
 			server dogstatsdServer.Component,
 			_ replay.Component,
 			wmeta workloadmeta.Component,
@@ -111,12 +113,12 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			taggerComp tagger.Component,
 			ac autodiscovery.Component,
 			rcclient rcclient.Component,
-			forwarder defaultforwarder.Component,
-			logsAgent option.Option[logsAgent.Component],
-			processAgent processAgent.Component,
+			_ defaultforwarder.Component,
+			_ option.Option[logsAgent.Component],
+			_ processAgent.Component,
 			_ runner.Component,
-			sharedSerializer serializer.MetricSerializer,
-			otelcollector otelcollector.Component,
+			_ serializer.MetricSerializer,
+			_ otelcollector.Component,
 			demultiplexer demultiplexer.Component,
 			_ host.Component,
 			_ inventoryagent.Component,
@@ -128,11 +130,11 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			logsReceiver option.Option[integrations.Component],
 			_ netflowServer.Component,
 			_ trapserver.Component,
-			agentAPI internalAPI.Component,
+			_ internalAPI.Component,
 			_ packagesigning.Component,
-			statusComponent status.Component,
+			_ status.Component,
 			collector collector.Component,
-			cloudfoundrycontainer cloudfoundrycontainer.Component,
+			_ cloudfoundrycontainer.Component,
 			_ autoexit.Component,
 			_ expvarserver.Component,
 			jmxlogger jmxlogger.Component,
@@ -148,26 +150,17 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				log,
 				flare,
 				telemetry,
-				sysprobeconfig,
 				server,
 				wmeta,
 				filterStore,
 				taggerComp,
 				ac,
 				rcclient,
-				logsAgent,
-				processAgent,
-				forwarder,
-				sharedSerializer,
-				otelcollector,
 				demultiplexer,
-				agentAPI,
 				invChecks,
 				logsReceiver,
-				statusComponent,
 				collector,
 				config,
-				cloudfoundrycontainer,
 				jmxlogger,
 				settings,
 				agenttelemetryComponent,
@@ -198,10 +191,10 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			// no config file path specification in this situation
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(""),
-				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
+			secretsfx.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)
@@ -251,6 +244,7 @@ func getPlatformModules() fx.Option {
 		etwimpl.Module,
 		comptraceconfig.Module(),
 		softwareinventoryfx.Module(),
+		publishermetadatacachefx.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),

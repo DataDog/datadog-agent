@@ -78,7 +78,7 @@ func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]sbomtypes.Package, err
 	defer statusDDir.Close()
 
 	for {
-		statusFiles, err := statusDDir.Readdir(readDirBatchSize)
+		statusFiles, err := statusDDir.ReadDir(readDirBatchSize)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
@@ -138,7 +138,7 @@ func (s *dpkgScanner) listInstalledFilesFromDir(root *os.Root, baseDir string) (
 	res := make(map[string][]string)
 
 	for {
-		infoFiles, err := infoDir.Readdir(readDirBatchSize)
+		infoFiles, err := infoDir.ReadDir(readDirBatchSize)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
