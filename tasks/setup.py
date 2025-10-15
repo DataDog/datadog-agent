@@ -249,8 +249,8 @@ def install_go_tools(ctx) -> SetupResult:
         from tasks import install_tools
 
         install_tools(ctx)
-    except Exception:
-        message = "Go tools setup failed: {e}"
+    except Exception as e:
+        message = f'Go tools setup failed: {e}'
         status = Status.FAIL
 
     return SetupResult("Install Go tools", status, message)
