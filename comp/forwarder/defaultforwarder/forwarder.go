@@ -52,7 +52,7 @@ func newForwarder(dep dependencies) (provides, error) {
 	return NewForwarder(dep.Config, dep.Log, dep.Secrets, dep.Lc, true, options), nil
 }
 
-func createOptions(params Params, config config.Component, log log.Component, secrets secrets.Component) (*Options, error) {
+func createOptions(params Params, config config.Component, log log.Component, _ secrets.Component) (*Options, error) {
 	var options *Options
 	keysPerDomain, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
