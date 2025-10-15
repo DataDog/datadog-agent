@@ -41,8 +41,8 @@ type Payload struct {
 	UnencodedSize int
 	// Indicates if this payload is a snapshot for stream rotation
 	IsSnapshot bool
-	// For gRPC sender: array of Datum protobuf objects
-	GRPCData []*statefulpb.Datum
+	// For gRPC sender: the encoded payload to be sent
+	GRPCEncoded *statefulpb.StatefulBatch
 }
 
 // NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size

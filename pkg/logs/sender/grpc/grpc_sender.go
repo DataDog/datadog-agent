@@ -11,7 +11,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"time"
-	"unsafe"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -234,7 +233,7 @@ func (s *Sender) PipelineMonitor() metrics.PipelineMonitor {
 // that owns the given input channel. This enables 1:1 mapping between processors and workers.
 // This is ugly and temporary, until we have a proper way to link worker's signal channel to
 // the processor.
-func (s *Sender) GetSignalChannelForInputChannel(inputChan chan *message.Payload) chan any {
+func (s *Sender) GetSignalChannelForInputChannel(inputChan chan *message.Payload) chan StreamRotateSignal {
 	// Find the worker that owns this input channel
 	worker := s.channelToWorkerMap[inputChan]
 	if worker == nil {
@@ -243,7 +242,7 @@ func (s *Sender) GetSignalChannelForInputChannel(inputChan chan *message.Payload
 
 	// Convert the typed channel to chan any using unsafe conversion
 	// This is safe because both channels have the same underlying type
-	return *(*chan any)(unsafe.Pointer(&worker.signalStreamRotate))
+	return worker.signalStreamRotate
 }
 
 // Start starts all StreamWorker instances (same pattern as Sender.Start())

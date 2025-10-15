@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,12 +37,6 @@ type failoverConfig struct {
 	failoverServiceAllowlist map[string]struct{}
 }
 
-// StreamRotateSignal represents a signal to rotate gRPC streams
-// This is a local type alias to avoid import cycles with the grpc package
-type StreamRotateSignal struct {
-	Type int // RotationType from grpc package
-}
-
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
@@ -58,8 +53,8 @@ type Processor struct {
 	failoverConfig            failoverConfig
 
 	// Stream rotation signaling for gRPC
-	streamRotateSignal chan any // Uses any to avoid import cycles with grpc package
-	pendingSnapshot    bool     // Flag to mark next message as snapshot
+	streamRotateSignal chan grpc.StreamRotateSignal
+	pendingSnapshot    bool // Flag to mark next message as snapshot
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -70,7 +65,7 @@ type Processor struct {
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineMonitor metrics.PipelineMonitor, instanceID string, streamRotateSignal chan any) *Processor {
+	pipelineMonitor metrics.PipelineMonitor, instanceID string, streamRotateSignal chan grpc.StreamRotateSignal) *Processor {
 
 	p := &Processor{
 		config:                    config,
