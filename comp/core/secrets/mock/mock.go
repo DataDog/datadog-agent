@@ -86,9 +86,4 @@ func (m *Mock) SubscribeToChanges(callback secrets.SecretChangeCallback) {
 }
 
 // Refresh will resolve secret handles again, notifying any subscribers of changed values
-func (m *Mock) Refresh() (string, error) { return "", nil }
-
-// TriggerRefreshOnAPIKeyFailure mock
-func (m *Mock) TriggerRefreshOnAPIKeyFailure(_ string) {
-	// mock implementation
-}
+func (m *Mock) Refresh(_ bool) (string, error) { return "", nil }
