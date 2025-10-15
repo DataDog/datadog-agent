@@ -135,7 +135,7 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
                 code=1,
             )
 
-        res = ctx.run(f"git ls-remote --heads origin")
+        res = ctx.run("git ls-remote --heads origin")
         backport_labels = []
         for line in res.splitlines():
             sections = line.strip().split()
