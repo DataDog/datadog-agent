@@ -24,11 +24,6 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, er
 		return false, err
 	}
 
-	if t.fingerprint == nil {
-		log.Debugf("No baseline fingerprint for %s; falling back to filesystem rotation check", t.file.Path)
-		return t.DidRotate()
-	}
-
 	// New fingerprint is invalid: recreated/truncated file, so fall back to filesystem check
 	if !newFingerprint.ValidFingerprint() {
 		log.Debugf("Falling back to filesystem rotation check for %s: new fingerprint invalid", t.file.Path)
