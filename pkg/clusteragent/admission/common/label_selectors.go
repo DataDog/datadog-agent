@@ -38,6 +38,8 @@ func DefaultLabelSelectors(useNamespaceSelector bool, config LabelSelectorsConfi
 	applySelectorConfig(nsSelector, config)
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.add_aks_selectors") {
+		// Azure AKS adds the namespace selector even in Kubernetes versions that
+		// support object selectors, so we need to add it to avoid conflicts.
 		nsSelector.MatchExpressions = append(
 			nsSelector.MatchExpressions,
 			azureAKSLabelSelectorRequirement()...,
@@ -46,15 +48,15 @@ func DefaultLabelSelectors(useNamespaceSelector bool, config LabelSelectorsConfi
 	return nsSelector, objSelector
 }
 
-func applySelectorConfig(selector *metav1.LabelSelector, config LabelSelectorsConfig) {
+func applySelectorConfig(nsSelector *metav1.LabelSelector, config LabelSelectorsConfig) {
 	if len(config.IncludeNamespaces) > 0 {
-		selector.MatchExpressions = append(selector.MatchExpressions, metav1.LabelSelectorRequirement{
+		nsSelector.MatchExpressions = append(nsSelector.MatchExpressions, metav1.LabelSelectorRequirement{
 			Key:      KubeSystemNamespaceLabelKey,
 			Operator: metav1.LabelSelectorOpIn,
 			Values:   config.IncludeNamespaces,
 		})
 	} else if len(config.ExcludeNamespaces) > 0 {
-		selector.MatchExpressions = append(selector.MatchExpressions, metav1.LabelSelectorRequirement{
+		nsSelector.MatchExpressions = append(nsSelector.MatchExpressions, metav1.LabelSelectorRequirement{
 			Key:      KubeSystemNamespaceLabelKey,
 			Operator: metav1.LabelSelectorOpNotIn,
 			Values:   config.ExcludeNamespaces,
