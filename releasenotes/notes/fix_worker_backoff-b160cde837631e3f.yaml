@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    The backoff behaviour for the default forwarder was fixed to work properly
+    The backoff behavior for the default forwarder was fixed to work properly
     given a worker now sends multiple transactions concurrently.
