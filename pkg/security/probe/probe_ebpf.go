@@ -106,31 +106,6 @@ var (
 
 var _ PlatformProbe = (*EBPFProbe)(nil)
 
-// Aggregate calculates the online statistics based on Welford's online algorithm:
-// https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
-type Aggregate struct {
-	count uint64
-	mean  float64
-	m2    float64
-	max   float64
-}
-
-func (a *Aggregate) Update(val float64) {
-	a.count++
-	delta := val - a.mean
-	a.mean += delta / float64(a.count)
-	delta2 := val - a.mean
-	a.m2 += delta * delta2
-	if val > a.max {
-		a.max = val
-	}
-}
-
-// Finalize returns the mean and variance
-func (a *Aggregate) Finalize() (float64, float64, float64) {
-	return a.mean, a.m2 / float64(a.count), a.max
-}
-
 // EBPFProbe defines a platform probe
 type EBPFProbe struct {
 	Resolvers *resolvers.EBPFResolvers
@@ -216,7 +191,7 @@ type EBPFProbe struct {
 	MetricNameTruncated *atomic.Uint64
 
 	// Event timing information
-	eventProcessingTimes     *map[model.EventType]*Aggregate
+	eventProcessingTimes     *map[model.EventType]*StatsAccumulator
 	eventProcessingTimeMutex sync.Mutex
 }
 
@@ -963,7 +938,7 @@ func (p *EBPFProbe) SendStats() error {
 	// Calculate and send metrics for average and standard deviation for each event type
 	p.eventProcessingTimeMutex.Lock()
 	curEventProcessingTimes := p.eventProcessingTimes
-	ept := make(map[model.EventType]*Aggregate)
+	ept := make(map[model.EventType]*StatsAccumulator)
 	p.eventProcessingTimes = &ept
 	p.eventProcessingTimeMutex.Unlock()
 
@@ -1142,10 +1117,10 @@ func (p *EBPFProbe) handleEventWrapper(CPU int, data []byte) {
 	p.eventProcessingTimeMutex.Lock()
 	agg, _ := (*p.eventProcessingTimes)[ev]
 	if agg == nil {
-		agg = &Aggregate{}
+		agg = &StatsAccumulator{}
 		(*p.eventProcessingTimes)[ev] = agg
 	}
-	(*p.eventProcessingTimes)[ev].Update(float64(end.Microseconds()))
+	agg.Update(float64(end.Microseconds()))
 	p.eventProcessingTimeMutex.Unlock()
 }
 
