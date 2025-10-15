@@ -20,13 +20,13 @@ import (
 // TestRaceFlushVersusParsePacket in pkg/serverless/metrics/metric_test.go
 //
 // The race occurs when:
-// 1. SetTestOnlyDynamicSchema(true) is enabled (used by configmock.New in tests)
-// 2. Multiple goroutines concurrently call GetBool/GetString/GetInt
-// 3. One goroutine triggers: GetBool() → checkKnownKey() → maybeRebuild() →
-//    buildSchema() → mergeAllLayers() which WRITES to c.root at line 483
-// 4. Another goroutine is reading: GetBool() → getNodeValue() which READS
-//    from c.root at line 141
-// 5. Both hold READ locks (RLock), but one performs a WRITE = DATA RACE
+//  1. SetTestOnlyDynamicSchema(true) is enabled (used by configmock.New in tests)
+//  2. Multiple goroutines concurrently call GetBool/GetString/GetInt
+//  3. One goroutine triggers: GetBool() → checkKnownKey() → maybeRebuild() →
+//     buildSchema() → mergeAllLayers() which WRITES to c.root at line 483
+//  4. Another goroutine is reading: GetBool() → getNodeValue() which READS
+//     from c.root at line 141
+//  5. Both hold READ locks (RLock), but one performs a WRITE = DATA RACE
 //
 // Root cause: Commit 05e00bf3dd1 (March 28, 2025) added maybeRebuild() which
 // is called from checkKnownKey() while the caller holds only a read lock.
@@ -50,7 +50,9 @@ func TestConcurrentGetBoolDataRace(t *testing.T) {
 	// Now simulate concurrent config access as happens in production tests
 	var wg sync.WaitGroup
 	duration := 2 * time.Second
-	stop := time.After(duration)
+	stopA := time.After(duration)
+	stopB := time.After(duration)
+	stopC := time.After(duration)
 
 	// Goroutine 1: Simulates pkg/serializer.SendIterableSeries() reading config
 	wg.Add(1)
@@ -58,7 +60,7 @@ func TestConcurrentGetBoolDataRace(t *testing.T) {
 		defer wg.Done()
 		for {
 			select {
-			case <-stop:
+			case <-stopA:
 				return
 			default:
 				// This can trigger maybeRebuild() which WRITES to c.root
@@ -73,7 +75,7 @@ func TestConcurrentGetBoolDataRace(t *testing.T) {
 		defer wg.Done()
 		for {
 			select {
-			case <-stop:
+			case <-stopB:
 				return
 			default:
 				// This calls getNodeValue() which READS from c.root
@@ -88,7 +90,7 @@ func TestConcurrentGetBoolDataRace(t *testing.T) {
 		defer wg.Done()
 		for {
 			select {
-			case <-stop:
+			case <-stopC:
 				return
 			default:
 				_ = cfg.GetBool("use_v2_api.series")
