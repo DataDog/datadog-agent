@@ -971,7 +971,7 @@ func (p *EBPFProbe) SendStats() error {
 		model.GetAllCategories()
 		tag := []string{"event_type:" + eventType.String()}
 
-		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeAvg, mean, tag, 1.0); err != nil {
+		if err := p.statsdClient.Gauge(metrics.MetricNameEventProcessingTimeMean, mean, tag, 1.0); err != nil {
 			return err
 		}
 
