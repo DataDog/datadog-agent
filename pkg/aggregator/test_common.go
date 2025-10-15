@@ -11,6 +11,7 @@ import (
 	"errors"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -35,5 +36,6 @@ func (d *AgentDemultiplexer) PeekSender(cid checkid.ID) (sender.Sender, error) {
 //nolint:revive // TODO(AML) Fix revive linter
 func NewForwarderTest(log log.Component) defaultforwarder.Forwarder {
 	options, _ := defaultforwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil)
-	return defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, options)
+	secrets := secretsnoop.NewComponent().Comp
+	return defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, secrets, options)
 }
