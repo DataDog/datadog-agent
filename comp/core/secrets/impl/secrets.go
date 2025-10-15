@@ -125,10 +125,10 @@ type secretResolver struct {
 	tlmSecretUnmarshalError telemetry.Counter
 	tlmSecretResolveError   telemetry.Counter
 
-	// Secret Api Key Expiry Refresh
-	secretRefreshOnAPIKeyFailure bool
-	lastAPIKeyFailureRefresh     time.Time
-	apiKeyFailureRefreshMutex    sync.Mutex
+	// Secret refresh throttling
+	refreshMinInterval    time.Duration
+	lastThrottledRefresh  time.Time
+	throttledRefreshMutex sync.Mutex
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -209,7 +209,8 @@ func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) 
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
-	result, err := r.Refresh()
+	// HTTP endpoint always bypasses rate limit
+	result, err := r.Refresh(true)
 	if err != nil {
 		log.Infof("could not refresh secrets: %s", err)
 		setJSONError(w, err, 500)
@@ -311,7 +312,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.allowedNamespace = params.AllowedNamespace
 	r.imageToHandle = params.ImageToHandle
 
-	r.secretRefreshOnAPIKeyFailure = params.RefreshOnAPIKeyFailure
+	r.refreshMinInterval = time.Duration(params.RefreshMinInterval) * time.Minute
 }
 
 func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
@@ -336,7 +337,8 @@ func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 
 	go func() {
 		<-r.ticker.C
-		if _, err := r.Refresh(); err != nil {
+		// Scheduled refreshes always bypass rate limit
+		if _, err := r.Refresh(true); err != nil {
 			log.Infof("Error with refreshing secrets: %s", err)
 		}
 		// we want to reset the refresh interval to the refreshInterval after the first refresh in case a scattered first refresh interval was configured
@@ -344,7 +346,8 @@ func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 
 		for {
 			<-r.ticker.C
-			if _, err := r.Refresh(); err != nil {
+			// Scheduled refreshes always bypass rate limit
+			if _, err := r.Refresh(true); err != nil {
 				log.Infof("Error with refreshing secrets: %s", err)
 			}
 		}
@@ -620,8 +623,30 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 	return secretRefreshInfo{Handles: handleInfoList}
 }
 
-// Refresh the secrets after they have been Resolved by fetching them from the backend again
-func (r *secretResolver) Refresh() (string, error) {
+// Refresh the secrets after they have been Resolved by fetching them from the backend again.
+// If bypassRateLimit is false, the refresh will be throttled based on RefreshMinInterval config.
+// If bypassRateLimit is true, the refresh will always execute.
+func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
+	// Handle rate limiting if not bypassed
+	if !bypassRateLimit {
+		// Check if feature is enabled (refreshMinInterval > 0)
+		if r.refreshMinInterval == 0 {
+			log.Debug("Throttled secret refresh disabled (secret_refresh_min_interval is 0), skipping refresh")
+			return "", nil
+		}
+
+		r.throttledRefreshMutex.Lock()
+		timeSinceLastRefresh := time.Since(r.lastThrottledRefresh)
+		if timeSinceLastRefresh < r.refreshMinInterval {
+			remaining := r.refreshMinInterval - timeSinceLastRefresh
+			log.Debugf("Secret refresh throttled, %v remaining until next allowed refresh", remaining)
+			r.throttledRefreshMutex.Unlock()
+			return "", nil
+		}
+		r.lastThrottledRefresh = time.Now()
+		r.throttledRefreshMutex.Unlock()
+	}
+
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -833,39 +858,4 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 	stats["unresolvedSecrets"] = r.unresolvedSecrets
 
 	return stats
-}
-
-func (r *secretResolver) TriggerRefreshOnAPIKeyFailure(reason string) {
-	if !r.secretRefreshOnAPIKeyFailure {
-		log.Debug("secret_refresh_on_api_key_failure disabled, skipping refresh")
-		return
-	}
-
-	r.apiKeyFailureRefreshMutex.Lock()
-	defer r.apiKeyFailureRefreshMutex.Unlock()
-
-	// throttle
-	const throttleSeconds = 300
-	timeSinceLastRefresh := time.Since(r.lastAPIKeyFailureRefresh)
-	throttleDuration := time.Duration(throttleSeconds) * time.Second
-
-	if timeSinceLastRefresh < throttleDuration {
-		log.Debugf("Secret refresh throttled, %v remaining", throttleDuration-timeSinceLastRefresh)
-		return
-	}
-
-	r.lastAPIKeyFailureRefresh = time.Now()
-	log.Infof("Triggering secret refresh due to: %s", reason)
-
-	// avoid blocking
-	go func() {
-		result, err := r.Refresh()
-		if err != nil {
-			log.Errorf("Error-triggered secret refresh failed: %v", err)
-		} else if result != "" {
-			log.Infof("Secret refresh completed: %s", result)
-		} else {
-			log.Info("Secret refresh completed with no changes")
-		}
-	}()
 }
