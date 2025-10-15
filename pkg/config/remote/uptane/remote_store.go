@@ -217,6 +217,9 @@ func getCDNHostnameFromSite(site string) string {
 		return "remote-config.datadoghq.com"
 	case "app.datadoghq.com":
 		return "remote-config.datadoghq.com"
+	// gov:
+	case "app.ddog-gov.com":
+		return "remote-config.ddog-gov.com"
 	}
 	return "remote-config.datadoghq.com"
 }

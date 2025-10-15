@@ -117,6 +117,7 @@ func (s *testAgentUpgradeOnDCSuite) TestUpgradeAgentPackage() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService("datadogagent").
 		WithIdentity(identity)
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 type testUpgradeWithMissingPasswordSuite struct {

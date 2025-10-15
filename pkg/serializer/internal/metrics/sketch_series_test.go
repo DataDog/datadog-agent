@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -269,10 +270,29 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 			sl.Reset()
 			serializer2 := SketchSeriesList{SketchesSource: sl}
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, filteredPayloads, err := serializer2.MarshalSplitCompressMultiple(mockConfig, compressor, func(ss *metrics.SketchSeries) bool {
-				return ss.Name == "name.0"
-			}, logmock.New(t))
+
+			pipelines := []Pipeline{
+				{
+					FilterFunc:  func(_ Filterable) bool { return true },
+					Destination: transaction.PrimaryOnly,
+				},
+				{
+					FilterFunc:  func(metric Filterable) bool { return metric.GetName() == "name.0" },
+					Destination: transaction.SecondaryOnly,
+				},
+			}
+
+			allPayloads, err := serializer2.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logmock.New(t))
 			require.NoError(t, err)
+
+			var payloads, filteredPayloads transaction.BytesPayloads
+			for _, payload := range allPayloads {
+				if payload.Destination == transaction.PrimaryOnly {
+					payloads = append(payloads, payload)
+				} else if payload.Destination == transaction.SecondaryOnly {
+					filteredPayloads = append(filteredPayloads, payload)
+				}
+			}
 
 			assert.Equal(t, 1, len(payloads))
 			assert.Equal(t, 1, len(filteredPayloads))

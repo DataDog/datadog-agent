@@ -17,8 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -70,6 +69,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestUpgradeAgentPackageWithAltDir tests that an Agent installed with the MSI
@@ -133,6 +133,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestRunAgentMSIAfterExperiment tests that the Agent can be upgraded after
@@ -197,6 +198,7 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
+	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
 // TestExperimentForNonExistingPackageFails tests that starting an experiment
@@ -205,6 +207,7 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	// Act
 	_, err := s.Installer().StartExperiment(consts.AgentPackage, "unknown-version")
@@ -229,6 +232,7 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	// Act
 	_, err := s.StartExperimentCurrentVersion()
@@ -653,15 +657,7 @@ func (s *testAgentUpgradeSuite) setAgentConfigWithAltDir(path string) {
 	s.Env().RemoteHost.MkdirAll(path)
 	configPath := path + `\datadog.yaml`
 	// Ensure the API key is set for telemetry
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		var err error
-		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		if apiKey == "" || err != nil {
-			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-		}
-	}
-
+	apiKey := installer.GetAPIKey()
 	s.Env().RemoteHost.WriteFile(configPath, []byte(`
 api_key: `+apiKey+`
 site: datadoghq.com

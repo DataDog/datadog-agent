@@ -132,11 +132,12 @@ type packageBaseSuite struct {
 	e2e.BaseSuite[environments.Host]
 	host *host.Host
 
-	opts          []awshost.ProvisionerOption
-	pkg           string
-	arch          e2eos.Architecture
-	os            e2eos.Descriptor
-	installMethod InstallMethodOption
+	opts                 []awshost.ProvisionerOption
+	pkg                  string
+	arch                 e2eos.Architecture
+	os                   e2eos.Descriptor
+	installMethod        InstallMethodOption
+	pipelineAgentVersion string
 }
 
 func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption, opts ...awshost.ProvisionerOption) packageBaseSuite {
@@ -162,6 +163,7 @@ func (s *packageBaseSuite) SetupSuite() {
 	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
+	s.pipelineAgentVersion = PipelineAgentVersion(s.T())
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()
