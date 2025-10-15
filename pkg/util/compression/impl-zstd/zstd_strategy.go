@@ -40,17 +40,31 @@ type ZstdStrategy struct {
 	numworkers int
 }
 
+func clamp(param zstd.CParameter, value int) int {
+	low, high := zstd.GetBounds(param)
+
+	if value < low {
+		return low
+	}
+
+	if value > high {
+		return high
+	}
+
+	return value
+}
+
 // New returns a new ZstdStrategy
 func New(reqs Requires) compression.Compressor {
 	if reqs.Strategy > 0 {
 		return &ZstdStrategy{
-			strategy:   reqs.Strategy,
-			chain:      reqs.Chain,
-			window:     reqs.Window,
-			hash:       reqs.Hash,
-			searchlog:  reqs.Searchlog,
-			minmatch:   reqs.Minmatch,
-			numworkers: reqs.NumWorkers,
+			strategy:   clamp(zstd.CParamStrategy, reqs.Strategy),
+			chain:      clamp(zstd.CParamChainLog, reqs.Chain),
+			window:     clamp(zstd.CParamWindowLog, reqs.Window),
+			hash:       clamp(zstd.CParamHashLog, reqs.Hash),
+			searchlog:  clamp(zstd.CParamSearchLog, reqs.Searchlog),
+			minmatch:   clamp(zstd.CParamMinMatch, reqs.Minmatch),
+			numworkers: clamp(zstd.CParamNbWorkers, reqs.NumWorkers),
 		}
 	}
 
