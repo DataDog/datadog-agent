@@ -47,7 +47,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -110,7 +110,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				secretsnoopfx.Module(),
 				statsd.Module(),
 				config.Module(),
-				impl.Module(),
+				telemetryfx.Module(),
 				sysprobeconfigimpl.Module(),
 				rcclientimpl.Module(),
 				fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
@@ -294,7 +294,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		secretsnoopfx.Module(),
 		rcclientimpl.Module(),
 		config.Module(),
-		impl.Module(),
+		telemetryfx.Module(),
 		statsd.Module(),
 		sysprobeconfigimpl.Module(),
 		fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {

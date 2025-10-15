@@ -9,16 +9,24 @@ package implnoop
 import (
 	"net/http"
 
+	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/fx"
 
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type noopImpl struct{}
 
 func newTelemetry() telemetry.Component {
 	return &noopImpl{}
+}
+
+// NewComponent creates a new noop telemetry component
+func NewComponent() telemetry.Component {
+	return newTelemetry()
 }
 
 type dummy struct{}
@@ -37,65 +45,65 @@ func (t *noopImpl) Handler() http.Handler {
 func (t *noopImpl) Reset() {
 }
 
-func (t *noopImpl) NewCounter(subsystem, name string, tags []string, help string) telemetry.Counter {
-	return t.NewCounterWithOpts(subsystem, name, tags, help, telemetry.DefaultOptions)
+func (t *noopImpl) NewCounter(subsystem, name string, tags []string, help string) telemetrydef.Counter {
+	return t.NewCounterWithOpts(subsystem, name, tags, help, telemetrydef.DefaultOptions)
 }
 
-func (t *noopImpl) NewCounterWithOpts(_, _ string, _ []string, _ string, _ telemetry.Options) telemetry.Counter {
+func (t *noopImpl) NewCounterWithOpts(_, _ string, _ []string, _ string, _ telemetrydef.Options) telemetrydef.Counter {
 	return &slsCounter{}
 
 }
 
-func (t *noopImpl) NewSimpleCounter(subsystem, name, help string) telemetry.SimpleCounter {
-	return t.NewSimpleCounterWithOpts(subsystem, name, help, telemetry.DefaultOptions)
+func (t *noopImpl) NewSimpleCounter(subsystem, name, help string) telemetrydef.SimpleCounter {
+	return t.NewSimpleCounterWithOpts(subsystem, name, help, telemetrydef.DefaultOptions)
 }
 
-func (t *noopImpl) NewSimpleCounterWithOpts(_, _, _ string, _ telemetry.Options) telemetry.SimpleCounter {
+func (t *noopImpl) NewSimpleCounterWithOpts(_, _, _ string, _ telemetrydef.Options) telemetrydef.SimpleCounter {
 	return &simpleNoOpCounter{}
 
 }
 
-func (t *noopImpl) NewGauge(subsystem, name string, tags []string, help string) telemetry.Gauge {
-	return t.NewGaugeWithOpts(subsystem, name, tags, help, telemetry.DefaultOptions)
+func (t *noopImpl) NewGauge(subsystem, name string, tags []string, help string) telemetrydef.Gauge {
+	return t.NewGaugeWithOpts(subsystem, name, tags, help, telemetrydef.DefaultOptions)
 }
 
-func (t *noopImpl) NewGaugeWithOpts(_, _ string, _ []string, _ string, _ telemetry.Options) telemetry.Gauge {
+func (t *noopImpl) NewGaugeWithOpts(_, _ string, _ []string, _ string, _ telemetrydef.Options) telemetrydef.Gauge {
 	return &slsGauge{}
 
 }
 
-func (t *noopImpl) NewSimpleGauge(subsystem, name, help string) telemetry.SimpleGauge {
-	return t.NewSimpleGaugeWithOpts(subsystem, name, help, telemetry.DefaultOptions)
+func (t *noopImpl) NewSimpleGauge(subsystem, name, help string) telemetrydef.SimpleGauge {
+	return t.NewSimpleGaugeWithOpts(subsystem, name, help, telemetrydef.DefaultOptions)
 }
 
-func (t *noopImpl) NewSimpleGaugeWithOpts(_, _, _ string, _ telemetry.Options) telemetry.SimpleGauge {
+func (t *noopImpl) NewSimpleGaugeWithOpts(_, _, _ string, _ telemetrydef.Options) telemetrydef.SimpleGauge {
 	return &simpleNoOpGauge{}
 
 }
 
-func (t *noopImpl) NewHistogram(subsystem, name string, tags []string, help string, buckets []float64) telemetry.Histogram {
-	return t.NewHistogramWithOpts(subsystem, name, tags, help, buckets, telemetry.DefaultOptions)
+func (t *noopImpl) NewHistogram(subsystem, name string, tags []string, help string, buckets []float64) telemetrydef.Histogram {
+	return t.NewHistogramWithOpts(subsystem, name, tags, help, buckets, telemetrydef.DefaultOptions)
 }
 
-func (t *noopImpl) NewHistogramWithOpts(_, _ string, _ []string, _ string, _ []float64, _ telemetry.Options) telemetry.Histogram {
+func (t *noopImpl) NewHistogramWithOpts(_, _ string, _ []string, _ string, _ []float64, _ telemetrydef.Options) telemetrydef.Histogram {
 	return &slsHistogram{}
 }
 
-func (t *noopImpl) NewSimpleHistogram(subsystem, name, help string, buckets []float64) telemetry.SimpleHistogram {
-	return t.NewSimpleHistogramWithOpts(subsystem, name, help, buckets, telemetry.DefaultOptions)
+func (t *noopImpl) NewSimpleHistogram(subsystem, name, help string, buckets []float64) telemetrydef.SimpleHistogram {
+	return t.NewSimpleHistogramWithOpts(subsystem, name, help, buckets, telemetrydef.DefaultOptions)
 }
 
-func (t *noopImpl) NewSimpleHistogramWithOpts(_, _, _ string, _ []float64, _ telemetry.Options) telemetry.SimpleHistogram {
+func (t *noopImpl) NewSimpleHistogramWithOpts(_, _, _ string, _ []float64, _ telemetrydef.Options) telemetrydef.SimpleHistogram {
 	return &simpleNoOpHistogram{}
 }
 
-func (t *noopImpl) RegisterCollector(telemetry.Collector) {}
+func (t *noopImpl) RegisterCollector(prometheus.Collector) {}
 
-func (t *noopImpl) UnregisterCollector(telemetry.Collector) bool {
+func (t *noopImpl) UnregisterCollector(prometheus.Collector) bool {
 	return true
 }
 
-func (t *noopImpl) Gather(bool) ([]*telemetry.MetricFamily, error) {
+func (t *noopImpl) Gather(bool) ([]*dto.MetricFamily, error) {
 	return nil, nil
 }
 

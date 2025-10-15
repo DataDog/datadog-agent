@@ -21,7 +21,8 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	remoteagentregistryStatus "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -90,19 +91,19 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 
 type telemetryStore struct {
 	// remoteAgentRegistered tracks how many remote agents are registered.
-	remoteAgentRegistered telemetry.Gauge
+	remoteAgentRegistered telemetrydef.Gauge
 	// remoteAgentRegisteredError tracks how many remote agents failed to register.
-	remoteAgentRegisteredError telemetry.Counter
+	remoteAgentRegisteredError telemetrydef.Counter
 	// remoteAgentUpdated tracks how many remote agents are updated.
-	remoteAgentUpdated telemetry.Counter
+	remoteAgentUpdated telemetrydef.Counter
 	// remoteAgentUpdatedError tracks how many remote agents failed to update.
-	remoteAgentUpdatedError telemetry.Counter
+	remoteAgentUpdatedError telemetrydef.Counter
 	// remoteAgentActionError tracks the number of errors encountered while performing actions on the remote agent registry.
-	remoteAgentActionError telemetry.Counter
+	remoteAgentActionError telemetrydef.Counter
 	// remoteAgentActionDuration tracks the duration of actions performed on the remote agent registry.
-	remoteAgentActionDuration telemetry.Histogram
+	remoteAgentActionDuration telemetrydef.Histogram
 	// remoteAgentActionTimeout tracks the number of times an action on the remote agent registry timed out.
-	remoteAgentActionTimeout telemetry.Counter
+	remoteAgentActionTimeout telemetrydef.Counter
 }
 
 const (
@@ -117,28 +118,28 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 			"registered",
 			[]string{"name"},
 			"Number of remote agents registered in the remote agent registry.",
-			telemetry.Options{NoDoubleUnderscoreSep: true},
+			telemetrydef.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentRegisteredError: telemetryComp.NewCounterWithOpts(
 			internalTelemetryNamespace,
 			"registered_error",
 			[]string{"name"},
 			"Number of remote agents that failed to register in the remote agent registry.",
-			telemetry.Options{NoDoubleUnderscoreSep: true},
+			telemetrydef.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentUpdated: telemetryComp.NewCounterWithOpts(
 			internalTelemetryNamespace,
 			"updated",
 			[]string{"name"},
 			"Number of remote agents updated in the remote agent registry.",
-			telemetry.Options{NoDoubleUnderscoreSep: true},
+			telemetrydef.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentUpdatedError: telemetryComp.NewCounterWithOpts(
 			internalTelemetryNamespace,
 			"updated_error",
 			[]string{"name"},
 			"Number of remote agents that failed to update in the remote agent registry.",
-			telemetry.Options{NoDoubleUnderscoreSep: true},
+			telemetrydef.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentActionDuration: telemetryComp.NewHistogramWithOpts(
 			internalTelemetryNamespace,
@@ -147,21 +148,21 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 			"Duration of actions performed on the remote agent registry.",
 			// The default prometheus buckets are adapted to measure response time of network services
 			prometheus.DefBuckets,
-			telemetry.Options{NoDoubleUnderscoreSep: true},
+			telemetrydef.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentActionError: telemetryComp.NewCounterWithOpts(
 			internalTelemetryNamespace,
 			"action_error",
 			[]string{"name", "action", "error"},
 			"Number of errors encountered while performing actions on the remote agent registry.",
-			telemetry.Options{NoDoubleUnderscoreSep: true},
+			telemetrydef.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentActionTimeout: telemetryComp.NewCounterWithOpts(
 			internalTelemetryNamespace,
 			"action_timeout",
 			[]string{"action"},
 			"Number of times an action on the remote agent registry timed out.",
-			telemetry.Options{NoDoubleUnderscoreSep: true},
+			telemetrydef.Options{NoDoubleUnderscoreSep: true},
 		),
 	}
 }

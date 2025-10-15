@@ -33,7 +33,7 @@ import (
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
@@ -130,7 +130,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 				return h.Get, nil
 			}),
-			impl.Module(),
+			telemetryfx.Module(),
 			remotehostnameimpl.Module(),
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
@@ -212,7 +212,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 
 		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
-		impl.Module(),
+		telemetryfx.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
