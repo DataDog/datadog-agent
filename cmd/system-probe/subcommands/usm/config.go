@@ -9,6 +9,7 @@ package usm
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -49,12 +50,10 @@ func runConfig(sysprobeconfig sysconfigcomponent.Component, _ *command.GlobalPar
 	}
 
 	// Output as YAML
-	output, err := yaml.Marshal(map[string]interface{}{
+	if err := yaml.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 		"service_monitoring_config": usmConfig,
-	})
-	if err != nil {
+	}); err != nil {
 		return fmt.Errorf("failed to format config: %w", err)
 	}
-	fmt.Print(string(output))
 	return nil
 }
