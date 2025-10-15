@@ -55,7 +55,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	var rcListener rctypes.ListenerProvider
-	if reqs.Config.GetBool("apm_config.workload_selection") && isCompilePolicyBinaryAvailable() {
+	if reqs.Config.GetBool("apm_config.workload_selection") && wls.isCompilePolicyBinaryAvailable() {
 		reqs.Log.Debug("Enabling APM SSI Workload Selection listener")
 		rcListener.ListenerProvider = rctypes.RCListener{
 			state.ProductApmPolicies: wls.onConfigUpdate,
@@ -76,19 +76,30 @@ type workloadselectionComponent struct {
 	config config.Component
 }
 
-func isCompilePolicyBinaryAvailable() bool {
+// isCompilePolicyBinaryAvailable checks if the compile policy binary is available
+// and executable
+func (c *workloadselectionComponent) isCompilePolicyBinaryAvailable() bool {
 	compilePath := filepath.Join(config.GetInstallPath(), ddPolicyCompileRelativePath)
-	_, err := os.Stat(compilePath)
-	return err == nil
+	info, err := os.Stat(compilePath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			c.log.Warnf("failed to stat APM workload selection compile policy binary: %v", err)
+		}
+		return false
+	}
+	return info.Mode().IsRegular() && info.Mode()&0111 != 0
 }
 
-func compilePolicyBinary(rawConfig []byte) error {
+// compilePolicyBinary compiles the policy binary into a binary file
+// readable by the injector
+func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) error {
 	if err := os.MkdirAll(filepath.Dir(configJSONPath), 0755); err != nil {
 		return err
 	}
 	if err := os.WriteFile(configJSONPath, rawConfig, 0644); err != nil {
 		return err
 	}
+	defer os.RemoveAll(configJSONPath)
 	cmd := exec.Command(filepath.Join(config.GetInstallPath(), ddPolicyCompileRelativePath), "--input-json", configJSONPath, "--output", configCompiledPath)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -96,7 +107,6 @@ func compilePolicyBinary(rawConfig []byte) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error executing dd-policy-compile (%w); out: '%s'; err: '%s'", err, stdoutBuf.String(), stderrBuf.String())
 	}
-	// TODO: shall we remove the JSON file?
 	return nil
 }
 
@@ -149,6 +159,7 @@ func mergeConfigs(configs []policyConfig) ([]byte, error) {
 	return json.Marshal(merged)
 }
 
+// onConfigUpdate is the callback function called by Remote Config when the workload selection config is updated
 func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	c.log.Debugf("workload selection config update received: %d", len(updates))
 	if len(updates) == 0 {
@@ -223,11 +234,6 @@ func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.Raw
 		processingErr = err
 		return
 	}
-}
-
-func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) error {
-	c.log.Debugf("Writing workload selection config")
-	return compilePolicyBinary(rawConfig)
 }
 
 func (c *workloadselectionComponent) removeConfig() error {
