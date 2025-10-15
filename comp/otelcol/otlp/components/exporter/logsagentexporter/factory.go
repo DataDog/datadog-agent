@@ -105,7 +105,7 @@ func (f *factory) createLogsExporter(
 		exporter.ConsumeLogs,
 		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0 * time.Second}),
 		exporterhelper.WithRetry(configretry.NewDefaultBackOffConfig()),
-		exporterhelper.WithQueue(cfg.QueueSettings),
+		exporterhelper.WithQueue(cfg.QueueSettings), //test to see if 10 consumers is what is stopping memory spread.
 		exporterhelper.WithShutdown(func(context.Context) error {
 			cancel()
 			return nil
