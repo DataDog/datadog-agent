@@ -9,6 +9,7 @@ package decode
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 )
 
@@ -28,8 +30,13 @@ type logger struct {
 }
 
 type debuggerData struct {
-	Snapshot         snapshotData `json:"snapshot"`
-	EvaluationErrors []string     `json:"evaluationErrors,omitempty"`
+	Snapshot         snapshotData      `json:"snapshot"`
+	EvaluationErrors []evaluationError `json:"evaluationErrors,omitempty"`
+}
+
+type evaluationError struct {
+	Expression string `json:"expr"`
+	Message    string `json:"message"`
 }
 
 type snapshotData struct {
@@ -57,7 +64,35 @@ type locationData struct {
 }
 
 type captureData struct {
-	Entry *captureEvent `json:"entry,omitempty"`
+	Entry  *captureEvent    `json:"entry,omitempty"`
+	Return *captureEvent    `json:"return,omitempty"`
+	Lines  *lineCaptureData `json:"lines,omitempty"`
+}
+
+type lineCaptureData struct {
+	sourceLine string
+	capture    *captureEvent
+}
+
+func (l *lineCaptureData) clear() {
+	l.sourceLine = ""
+	l.capture = nil
+}
+
+func (l *lineCaptureData) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if err := writeTokens(enc,
+		jsontext.BeginObject,
+		jsontext.String(l.sourceLine)); err != nil {
+		return err
+	}
+	if err := json.MarshalEncode(enc, l.capture); err != nil {
+		return err
+	}
+	if err := writeTokens(enc, jsontext.EndObject); err != nil {
+		return err
+	}
+	return nil
+
 }
 
 type captureEvent struct {
@@ -65,7 +100,7 @@ type captureEvent struct {
 
 	rootData         []byte
 	rootType         *ir.EventRootType
-	evaluationErrors *[]string
+	evaluationErrors *[]evaluationError
 	skippedIndices   bitset
 }
 
@@ -77,6 +112,42 @@ func (ce *captureEvent) clear() {
 	clear(ce.dataItems)
 	clear(ce.currentlyEncoding)
 	ce.skippedIndices.reset(0)
+}
+
+func (ce *captureEvent) init(
+	ev output.Event, types map[ir.TypeID]ir.Type, evalErrors *[]evaluationError,
+) error {
+	var rootType *ir.EventRootType
+	var rootData []byte
+	for item, err := range ev.DataItems() {
+		if err != nil {
+			return fmt.Errorf("error getting data items: %w", err)
+		}
+		if rootType == nil {
+			var ok bool
+			rootData, ok = item.Data()
+			if !ok {
+				// This should never happen.
+				return errors.New("root data item marked as a failed read")
+			}
+			rootTypeID := ir.TypeID(item.Type())
+			rootType, ok = types[rootTypeID].(*ir.EventRootType)
+			if !ok {
+				return errors.New("expected event of type root first")
+			}
+			continue
+		}
+		key := typeAndAddr{irType: item.Type(), addr: item.Header().Address}
+		ce.dataItems[key] = item
+	}
+	if rootType == nil {
+		return errors.New("no root type found")
+	}
+	ce.rootType = rootType
+	ce.rootData = rootData
+	ce.skippedIndices.reset(len(rootType.Expressions))
+	ce.evaluationErrors = evalErrors
+	return nil
 }
 
 var ddDebuggerString = jsontext.String("dd_debugger")
@@ -102,7 +173,10 @@ func (ce *captureEvent) processExpression(
 	if int(ub) > len(ce.rootData) {
 		*ce.evaluationErrors = append(
 			*ce.evaluationErrors,
-			"could not read parameter data from root data, length mismatch",
+			evaluationError{
+				Expression: ce.rootType.Name,
+				Message:    "could not read parameter data from root data, length mismatch",
+			},
 		)
 		return errEvaluation
 	}
@@ -128,7 +202,10 @@ func (ce *captureEvent) processExpression(
 		&ce.encodingContext, enc, parameterType.GetID(), data, parameterType.GetName(),
 	)
 	if err != nil {
-		*ce.evaluationErrors = append(*ce.evaluationErrors, ce.rootType.Name+err.Error())
+		*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{
+			Expression: ce.rootType.Name,
+			Message:    err.Error(),
+		})
 		return errEvaluation
 	}
 	return nil
