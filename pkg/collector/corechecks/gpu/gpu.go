@@ -56,11 +56,10 @@ type Check struct {
 type checkTelemetry struct {
 	metricsSent                  telemetry.Counter
 	duplicateMetrics             telemetry.Counter
-	collectorErrors              telemetry.Counter
 	activeMetrics                telemetry.Gauge
 	missingContainerGpuMapping   telemetry.Counter
 	multipleContainersGpuMapping telemetry.Counter
-	collectorTime                telemetry.Gauge
+	collectorTelemetry           *nvidia.CollectorTelemetry // collectorTelemetry holds specific telemetry for the collectors, it will also be passed to the collector dependencies
 }
 
 // Factory creates a new check factory
@@ -85,12 +84,11 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 	return &checkTelemetry{
 		metricsSent:                  tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
-		collectorErrors:              tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
 		activeMetrics:                tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
 		duplicateMetrics:             tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
 		missingContainerGpuMapping:   tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
 		multipleContainersGpuMapping: tm.NewCounter(CheckName, "multiple_containers_gpu_mapping", []string{"device"}, "Number of devices assigned to multiple containers"),
-		collectorTime:                tm.NewGauge(CheckName, "collector_time_ms", []string{"collector", "gpu_uuid"}, "Time taken to collect metrics from NVML collectors, in milliseconds"),
+		collectorTelemetry:           nvidia.NewCollectorTelemetry(tm),
 	}
 }
 
@@ -155,6 +153,7 @@ func (c *Check) ensureInitCollectors() error {
 				DeviceEventsGatherer: c.deviceEvtGatherer,
 				SystemProbeCache:     c.spCache,
 				NsPidCache:           c.nsPidCache,
+				Telemetry:            c.telemetry.collectorTelemetry,
 			})
 		if err != nil {
 			return fmt.Errorf("failed to build NVML collectors: %w", err)
@@ -290,10 +289,10 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 		startTime := time.Now()
 		metrics, collectErr := collector.Collect()
 		collectTime := time.Since(startTime)
-		c.telemetry.collectorTime.Set(float64(collectTime.Milliseconds()), string(collector.Name()), collector.DeviceUUID())
+		c.telemetry.collectorTelemetry.Time.Observe(float64(collectTime.Milliseconds()), string(collector.Name()))
 
 		if collectErr != nil {
-			c.telemetry.collectorErrors.Add(1, string(collector.Name()))
+			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, string(collector.Name()))
 			multiErr = multierror.Append(multiErr, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
 		}
 

@@ -30,6 +30,12 @@ func startTestServer(t *testing.T, handler http.Handler) (string, *httptest.Serv
 	return socketPath, server
 }
 
+func resetStartupChecker() {
+	checker := getStartChecker()
+	checker.startTime = time.Now()
+	checker.started = false
+}
+
 func TestConstructURL(t *testing.T) {
 	u := constructURL("", "/asdf?a=b")
 	assert.Equal(t, "http://sysprobe/asdf?a=b", u)
@@ -63,6 +69,8 @@ func validateTelemetry(t *testing.T, module string, expected expectedTelemetryVa
 }
 
 func TestGetCheck(t *testing.T) {
+	t.Cleanup(resetStartupChecker)
+
 	socketPath, server := startTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/test/check" {
 			_, _ = w.Write([]byte(`{"Str": "asdf", "Num": 42}`))
@@ -103,6 +111,8 @@ func TestGetCheck(t *testing.T) {
 }
 
 func TestGetCheckStartup(t *testing.T) {
+	t.Cleanup(resetStartupChecker)
+
 	failRequest := true
 	socketPath, _ := startTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if failRequest {
