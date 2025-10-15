@@ -1387,7 +1387,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	if managers == nil {
 		return nil, nil, errors.New("No manager")
 	}
-	managers.SnapshotTracedCgroups()
+	managers.SyncTracedCgroups()
 
 	dockerInstance, err := tm.StartADocker()
 	if err != nil {
@@ -1724,9 +1724,6 @@ func (tm *testModule) StopAllActivityDumps() error {
 	if err != nil {
 		return err
 	}
-	if len(dumps) == 0 {
-		return nil
-	}
 	for _, dump := range dumps {
 		_ = tm.StopActivityDump(dump.Name)
 	}
@@ -1737,6 +1734,19 @@ func (tm *testModule) StopAllActivityDumps() error {
 	if len(dumps) != 0 {
 		return errors.New("Didn't manage to stop all activity dumps")
 	}
+
+	// CRITICAL: Blacklist all currently traced cgroups BEFORE clearing
+	// This prevents them from being re-traced by kernel events
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if ok {
+		if managers := p.GetProfileManager(); managers != nil {
+			// First call evictTracedCgroup for all active dumps to blacklist them
+			managers.EvictAllTracedCgroups()
+			// Then clear everything
+			managers.ClearTracedCgroups()
+		}
+	}
+
 	return nil
 }
 
