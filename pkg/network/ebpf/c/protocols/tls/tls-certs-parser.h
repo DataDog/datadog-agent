@@ -79,39 +79,54 @@ static __always_inline bool data_read_impl(void *target, data_t *data, __u32 siz
 
 
 static __always_inline __s32 read_elem_size(data_t *data) {
-    __u8 meta_size = 0;
-    if (data_read(&meta_size, data, 1)) {
+    // no need to consider sizes larger than 3 bytes, plus 1 byte for meta size
+    __u8 size_buf[4] = {0};
+
+    __u32 size_cap = data_size(*data);
+    if (size_cap > sizeof(size_buf)) {
+        size_cap = sizeof(size_buf);
+    }
+    if (data_peek(&size_buf, data, size_cap)) {
         log_bail();
         return -1;
     }
+    data->buf++;
 
+    __u8 meta_size = size_buf[0];
     if (meta_size < 128) {
         return meta_size;
     }
 
     // size >= 128 means we use "long form" length encoding
     meta_size -= 128;
-    // no need to consider anything larger than 3 bytes
-    const int MAX_BYTES = 3;
-    if (meta_size > MAX_BYTES) {
+    __u8 actual_size = meta_size + 1;
+    if (actual_size > size_cap) {
         log_bail();
         return -1;
     }
 
+    // this is a hand unrolled big endian decoding because the compiler couldn't figure out how
     __s32 retval = 0;
-    for (int i = 0; i < MAX_BYTES; i++) {
-        if (i >= meta_size) {
+    __u8 *cursor = &size_buf[1];
+    switch (meta_size) {
+        case 3:
+            retval <<= 8;
+            retval += *cursor++;
+            // passthrough
+        case 2:
+            retval <<= 8;
+            retval += *cursor++;
+            // passthrough
+        case 1:
+            retval <<= 8;
+            retval += *cursor++;
             break;
-        }
-        retval <<= 8;
-
-        __u8 digit = 0;
-        if (data_read(&digit, data, 1)) {
+        default:
             log_bail();
             return -1;
-        }
-        retval += digit;
     }
+    data->buf += meta_size;
+
     return retval;
 }
 
@@ -398,8 +413,6 @@ static __always_inline bool parse_single_extension(data_t *data, data_t *key_usa
 
     return false;
 }
-
-    
 
 
 static __always_inline bool parse_cert_extensions(data_t *data, cert_t *cert) {

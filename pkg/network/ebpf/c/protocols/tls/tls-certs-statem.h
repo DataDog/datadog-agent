@@ -1,6 +1,7 @@
 #ifndef __TLS_CERTS_STATEM_H
 #define __TLS_CERTS_STATEM_H
 
+#ifndef COMPILE_PREBUILT
 
 #include "ktypes.h"
 #include "defs.h"
@@ -87,6 +88,8 @@ int BPF_BYPASSABLE_URETPROBE(uretprobe__SSL_write_ex) {
     exit_state_machine("uretprobe/SSL_write_ex");
     return 0;
 }
+
+#endif //COMPILE_PREBUILT
 
 
 #endif //__TLS_CERTS_STATEM_H

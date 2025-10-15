@@ -1,6 +1,8 @@
 #ifndef __TLS_CERTS_H
 #define __TLS_CERTS_H
 
+#ifndef COMPILE_PREBUILT
+
 #include "ktypes.h"
 #include "bpf_builtins.h"
 #include "bpf_tracing.h"
@@ -163,5 +165,13 @@ int raw_tracepoint__sched_process_exit_ssl_cert(void *ctx) {
     return 0;
 }
 
+
+#else //COMPILE_PREBUILT
+
+static __always_inline void SSL_report_cert(conn_stats_ts_t *stats) {
+    // not supported on prebuilt
+}
+
+#endif //COMPILE_PREBUILT
 
 #endif //__TLS_CERTS_H
