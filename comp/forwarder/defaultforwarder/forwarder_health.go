@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -67,6 +68,7 @@ func initForwarderHealthExpvars() {
 type forwarderHealth struct {
 	log                   log.Component
 	config                config.Component
+	secrets               secrets.Component
 	health                *health.Handle
 	stop                  chan bool
 	stopped               chan struct{}
@@ -76,7 +78,6 @@ type forwarderHealth struct {
 	disableAPIKeyChecking bool
 	validationInterval    time.Duration
 	keyMapMutex           sync.Mutex
-	secretRefreshCallback SecretRefreshFunc
 }
 
 func (fh *forwarderHealth) init() {
@@ -171,32 +172,30 @@ func (fh *forwarderHealth) healthCheckLoop() {
 func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []string) {
 	fh.keyMapMutex.Lock()
 
-	// rebuild keysPerAPIEndpoint map so all domains get the updated keys.
-	fh.keysPerAPIEndpoint = make(map[string][]string)
+	apiDomain := getAPIDomain(domain)
+	newList := []string{}
 
+	// We need to go through all the resolvers to build up the api keys for a given
+	// api domain incase multiple resolvers have the same api endpoint.
 	for domainURL, resolver := range fh.domainResolvers {
-		apiDomain := getAPIDomain(domainURL)
-		fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], resolver.GetAPIKeys()...)
+		if getAPIDomain(domainURL) == apiDomain {
+			newList = append(newList, resolver.GetAPIKeys()...)
+		}
 	}
+	fh.keysPerAPIEndpoint[apiDomain] = newList
 
 	// remove old key messages, then check apiKey validity and update the messages
 	for _, oldKey := range old {
-		// Check if this old key is still present in any domain
-		stillExists := false
-		for _, keys := range fh.keysPerAPIEndpoint {
-			if slices.Contains(keys, oldKey) {
-				stillExists = true
-				break
-			}
-		}
-		if !stillExists {
+		// Need to check the old key doesn't exist in the list
+		// Even if it has been replaced here, it may still belong to another
+		// resolver sharing the same api endpoint and so shouldn't be removed.
+		if !slices.Contains(newList, oldKey) {
 			fh.setAPIKeyStatus(oldKey, "", &apiKeyRemove)
 		}
 	}
 	fh.keyMapMutex.Unlock()
 
-	// Check the new API keys for the domain that triggered this update
-	apiDomain := getAPIDomain(domain)
+	// Check our new API keys
 	fh.checkValidAPIKeys(apiDomain, new)
 }
 
@@ -327,10 +326,15 @@ func (fh *forwarderHealth) checkValidAPIKeys(domain string, keys []string) (apiE
 		} else {
 			fh.log.Warnf("api_key '%s' for domain %s is invalid", scrubbedAPIKey, domain)
 
-			// Trigger secret refresh on invalid API key
-			if fh.secretRefreshCallback != nil {
-				fh.secretRefreshCallback("API key validation failure")
-			}
+			// Trigger throttled secret refresh on invalid API key
+			go func() {
+				result, err := fh.secrets.Refresh(false)
+				if err != nil {
+					fh.log.Debugf("Secret refresh after invalid API key failed: %v", err)
+				} else if result != "" {
+					fh.log.Infof("Secret refresh after invalid API key completed: %s", result)
+				}
+			}()
 		}
 	}
 

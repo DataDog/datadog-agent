@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -259,9 +260,6 @@ type HTTPTransaction struct {
 	Kind Kind
 
 	Destination Destination
-
-	// SecretRefreshCallback is called when API key errors occur (403s)
-	SecretRefreshCallback func(reason string)
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -271,7 +269,7 @@ type TransactionsSerializer interface {
 
 // Transaction represents the task to process for a Worker.
 type Transaction interface {
-	Process(ctx context.Context, config config.Component, log log.Component, client *http.Client) error
+	Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) error
 	GetCreatedAt() time.Time
 	GetTarget() string
 	GetPriority() Priority
@@ -356,10 +354,10 @@ func (t *HTTPTransaction) GetDestination() Destination {
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
-func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, client *http.Client) error {
+func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) error {
 	t.AttemptHandler(t)
 
-	statusCode, body, err := t.internalProcess(ctx, config, log, client)
+	statusCode, body, err := t.internalProcess(ctx, config, log, secrets, client)
 
 	if err == nil || !t.Retryable {
 		t.CompletionHandler(t, statusCode, body, err)
@@ -376,7 +374,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
-func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, client *http.Client) (int, []byte, error) {
+func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) (int, []byte, error) {
 	payload := t.Payload.GetContent()
 	reader := bytes.NewReader(payload)
 	url := t.Domain + t.Endpoint.Route
@@ -437,12 +435,18 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
-		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
+		log.Warnf("API Key invalid (403 response), dropping transaction for %s", logURL)
 
-		// Trigger secret refresh on API key error
-		if t.SecretRefreshCallback != nil {
-			t.SecretRefreshCallback("403 response from backend")
-		}
+		// Trigger throttled secret refresh on API key error
+		// The refresh won't block - it will check rate limiting and return immediately if throttled
+		go func() {
+			result, err := secrets.Refresh(false)
+			if err != nil {
+				log.Debugf("Secret refresh after 403 failed: %v", err)
+			} else if result != "" {
+				log.Infof("Secret refresh after 403 completed: %s", result)
+			}
+		}()
 
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
