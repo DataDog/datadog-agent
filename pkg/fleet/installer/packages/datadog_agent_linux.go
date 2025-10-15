@@ -106,7 +106,7 @@ var (
 		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security"},
 
 		SysvinitMainService: "datadog-agent",
-		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security"},
+		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-sysprobe"},
 	}
 )
 
@@ -418,8 +418,8 @@ func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 			return fmt.Errorf("upstart is only supported in DEB and RPM packages")
 		}
 	case service.SysvinitType:
-		if ctx.PackageType != PackageTypeDEB {
-			return fmt.Errorf("sysvinit is only supported in DEB packages")
+		if ctx.PackageType != PackageTypeDEB && ctx.PackageType != PackageTypeRPM {
+			return fmt.Errorf("sysvinit is only supported in DEB and RPM packages")
 		}
 	default:
 		return fmt.Errorf("could not determine service manager type, platform is not supported")
@@ -513,7 +513,7 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	case service.UpstartType:
 		return nil // Nothing to do, files are embedded in the package
 	case service.SysvinitType:
-		return nil // Nothing to do, files are embedded in the package
+		return writeEmbeddedSysvinit(ctx, s.SysvinitServices...)
 	}
 	return fmt.Errorf("unsupported service manager")
 }
@@ -529,7 +529,7 @@ func (s *datadogAgentService) RemoveStable(ctx HookContext) error {
 	case service.UpstartType:
 		return nil // Nothing to do, files are embedded in the package
 	case service.SysvinitType:
-		return nil // Nothing to do, files are embedded in the package
+		return removeUnits(ctx, s.SysvinitServices...)
 	}
 	return fmt.Errorf("unsupported service manager")
 }
@@ -608,20 +608,24 @@ func isAgentConfigFilePresent() (bool, error) {
 }
 
 const (
-	ociUnitsPath = "/etc/systemd/system"
-	debUnitsPath = "/lib/systemd/system"
-	rpmUnitsPath = "/usr/lib/systemd/system"
+	// Systemd unit paths for different package types
+	systemdOCIPath = "/etc/systemd/system"
+	systemdDebPath = "/lib/systemd/system"
+	systemdRPMPath = "/usr/lib/systemd/system"
+
+	// SysVinit scripts are always in /etc/init.d regardless of package type
+	sysvinitPath = "/etc/init.d"
 )
 
-func removeUnits(ctx HookContext, units ...string) error {
+func removeSystemdUnits(ctx HookContext, units ...string) error {
 	var unitsPath string
 	switch ctx.PackageType {
 	case PackageTypeDEB:
-		unitsPath = debUnitsPath
+		unitsPath = systemdDebPath
 	case PackageTypeRPM:
-		unitsPath = rpmUnitsPath
+		unitsPath = systemdRPMPath
 	case PackageTypeOCI:
-		unitsPath = ociUnitsPath
+		unitsPath = systemdOCIPath
 	}
 	for _, unit := range units {
 		err := os.Remove(filepath.Join(unitsPath, unit))
@@ -632,19 +636,55 @@ func removeUnits(ctx HookContext, units ...string) error {
 	return nil
 }
 
+func removeSysvinitUnits(ctx HookContext, units ...string) error {
+	for _, unit := range units {
+		// Remove init script
+		err := os.Remove(filepath.Join(sysvinitPath, unit))
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove init script: %v", err)
+		}
+
+		// Clean up runlevel symlinks
+		switch ctx.PackageType {
+		case PackageTypeDEB:
+			if err := sysvinit.Remove(ctx, unit); err != nil {
+				return fmt.Errorf("failed to remove rc.d links: %v", err)
+			}
+		case PackageTypeRPM:
+			if err := sysvinit.ChkConfigDel(ctx, unit); err != nil {
+				return fmt.Errorf("failed to remove chkconfig links: %v", err)
+			}
+		}
+	}
+	return nil
+}
+
+func removeUnits(ctx HookContext, units ...string) error {
+	switch service.GetServiceManagerType() {
+	case service.SystemdType:
+		return removeSystemdUnits(ctx, units...)
+	case service.SysvinitType:
+		return removeSysvinitUnits(ctx, units...)
+	case service.UpstartType:
+		return nil // Nothing to do, files are embedded in the package
+	default:
+		return fmt.Errorf("unsupported service manager")
+	}
+}
+
 func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
 	var unitType embedded.SystemdUnitType
 	var unitsPath string
 	switch ctx.PackageType {
 	case PackageTypeDEB:
 		unitType = embedded.SystemdUnitTypeDebRpm
-		unitsPath = debUnitsPath
+		unitsPath = systemdDebPath
 	case PackageTypeRPM:
 		unitType = embedded.SystemdUnitTypeDebRpm
-		unitsPath = rpmUnitsPath
+		unitsPath = systemdRPMPath
 	case PackageTypeOCI:
 		unitType = embedded.SystemdUnitTypeOCI
-		unitsPath = ociUnitsPath
+		unitsPath = systemdOCIPath
 	}
 	for _, unit := range units {
 		content, err := embedded.GetSystemdUnit(unit, unitType)
@@ -657,6 +697,37 @@ func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
 		}
 	}
 	return systemd.Reload(ctx)
+}
+
+func writeEmbeddedSysvinit(ctx HookContext, units ...string) error {
+	switch ctx.PackageType {
+	case PackageTypeDEB, PackageTypeRPM:
+		// These are the only supported package types
+	default:
+		return fmt.Errorf("unsupported package type for sysvinit: %s", ctx.PackageType)
+	}
+	unitsPath := sysvinitPath
+
+	for _, unit := range units {
+		prefix := "sysvinit_debian"
+		if ctx.PackageType == PackageTypeRPM {
+			prefix = "sysvinit_redhat"
+		}
+
+		scriptName := fmt.Sprintf("%s.%s.erb", prefix, unit)
+		if unit == "datadog-agent" {
+			scriptName = prefix + ".erb"
+		}
+		content, err := embedded.GetSysvinitUnit(scriptName)
+		if err != nil {
+			return err
+		}
+		err = writeEmbeddedUnit(unitsPath, unit, content)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func writeEmbeddedUnit(dir string, unit string, content []byte) error {

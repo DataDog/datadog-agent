@@ -1,0 +1,163 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides: datadog-agent-trace
+# Short-Description: Start and stop datadog trace agent
+# Description: Datadog Trace Agent
+# Required-Start: $local_fs $network datadog-agent
+# Required-Stop: $local_fs $network datadog-agent
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# chkconfig: 2345 86 14
+### END INIT INFO
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+INSTALL_DIR="<%= install_dir %>"
+AGENTPATH="$INSTALL_DIR/embedded/bin/trace-agent"
+PIDFILE="$INSTALL_DIR/run/trace-agent.pid"
+AGENT_ARGS="-config $INSTALL_DIR/etc/datadog-agent/datadog.yaml -pid $PIDFILE"
+AGENT_USER="dd-agent"
+NAME="datadog-agent-trace"
+DESC="Datadog Trace Agent"
+RETVAL=0
+
+if [ ! -x $AGENTPATH ]; then
+    echo "$AGENTPATH not found. Exiting $NAME"
+    exit 0
+fi
+
+if [ -r "/etc/sysconfig/${NAME}" ]; then
+    . "/etc/sysconfig/${NAME}"
+fi
+
+#
+# Function that starts the daemon/service
+#
+do_start()
+{
+    # Return
+    #   0 if daemon has been started
+    #   1 if daemon was already running
+    #   2 if daemon could not be started
+    if [ -f $PIDFILE ] && checkpid $(cat $PIDFILE); then
+        return 1
+    fi
+    
+    daemon --user $AGENT_USER --pidfile $PIDFILE "$AGENTPATH $AGENT_ARGS"
+    RETVAL=$?
+    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$NAME
+    return $RETVAL
+}
+
+#
+# Start the agent and wait for it to be up
+#
+start_and_wait()
+{
+    echo -n "Starting $DESC ($NAME): "
+    do_start
+    case "$?" in
+        0)
+            # check if the agent is running once per second for 5 seconds
+            retries=5
+            while [ $retries -gt 1 ]; do
+                if [ -f $PIDFILE ] && checkpid $(cat $PIDFILE); then
+                    # We've started up successfully
+                    echo_success
+                    echo
+                    return 0
+                else
+                    retries=$(($retries - 1))
+                    sleep 1
+                fi
+            done
+            # After 5 tries the agent didn't start. Report an error
+            echo_failure
+            echo
+            return 1
+            ;;
+        1)
+            echo_success
+            echo
+            ;;
+        *)
+            echo_failure
+            echo
+            ;;
+    esac
+}
+
+#
+# Function that stops the daemon/service
+#
+do_stop()
+{
+    # Return
+    #   0 if daemon has been stopped
+    #   1 if daemon was already stopped
+    #   2 if daemon could not be stopped
+    #   other if a failure occurred
+    killproc -p $PIDFILE $AGENTPATH
+    RETVAL=$?
+    [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$NAME $PIDFILE
+    return $RETVAL
+}
+
+#
+# Stop the agent and wait for it to be down
+#
+stop_and_wait()
+{
+    echo -n "Stopping $DESC ($NAME): "
+    do_stop
+    case "$?" in
+        0|1)
+            echo_success
+            echo
+            return 0
+            ;;
+        *)
+            echo_failure
+            echo
+            ;;
+    esac
+}
+
+# Action to take
+case "$1" in
+    start)
+        if [ "$DATADOG_ENABLED" = "no" ]; then
+            echo "Disabled via /etc/sysconfig/$NAME. Exiting."
+            exit 0
+        fi
+
+        start_and_wait
+        RETVAL=$?
+        ;;
+
+    stop)
+        stop_and_wait
+        RETVAL=$?
+        ;;
+
+    status)
+        status -p $PIDFILE $NAME
+        RETVAL=$?
+        ;;
+
+    restart|force-reload)
+        echo "Restarting $DESC"
+        stop_and_wait
+        start_and_wait
+        RETVAL=$?
+        ;;
+
+    *)
+        echo "Usage: $0 {start|stop|status|restart|force-reload}"
+        exit 1
+        ;;
+esac
+
+exit $RETVAL

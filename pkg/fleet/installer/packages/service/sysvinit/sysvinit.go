@@ -15,6 +15,36 @@ import (
 	"go.uber.org/multierr"
 )
 
+// ChkConfigAdd adds a service to chkconfig
+func ChkConfigAdd(ctx context.Context, name string) error {
+	return telemetry.CommandContext(ctx, "chkconfig", "--add", name).Run()
+}
+
+// ChkConfigAddAll adds all services to chkconfig
+func ChkConfigAddAll(ctx context.Context, names ...string) error {
+	var errs error
+	for _, name := range names {
+		err := ChkConfigAdd(ctx, name)
+		errs = multierr.Append(errs, err)
+	}
+	return errs
+}
+
+// ChkConfigDel removes a service from chkconfig
+func ChkConfigDel(ctx context.Context, name string) error {
+	return telemetry.CommandContext(ctx, "chkconfig", "--del", name).Run()
+}
+
+// ChkConfigDelAll removes all services from chkconfig
+func ChkConfigDelAll(ctx context.Context, names ...string) error {
+	var errs error
+	for _, name := range names {
+		err := ChkConfigDel(ctx, name)
+		errs = multierr.Append(errs, err)
+	}
+	return errs
+}
+
 // Install installs a sys-v init script using update-rc.d
 func Install(ctx context.Context, name string) error {
 	return telemetry.CommandContext(ctx, "update-rc.d", name, "defaults").Run()
