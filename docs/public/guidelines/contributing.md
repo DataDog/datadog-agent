@@ -49,7 +49,7 @@ Adding GitHub labels is only possible for contributors with write access.
 We have safety measures to protect our repository. As an external contributor, you are required to:
 
 1. Sign our [Contributor License Agreement](https://cla.datadoghq.com/DataDog/datadog-agent) (CLA). You will receive a message once your PR is opened to sign the agreement.
-1. Provide signed commits before merging. To learn how to sign your commits, follow [this procedure from Github](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
+1. Provide signed commits before merging. To learn how to sign your commits, follow [this procedure from GitHub](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
 
 ### Keep it small, focused
 
@@ -182,8 +182,8 @@ The main thing to keep in mind is that the CHANGELOG is written for the agent's 
         collection, `kube_service` tagging) is not implemented
     ```
 
-- `upgrade`: List actions to take or limitations that could arise upon upgrading the Agent. Notes here must include steps that users can follow to
-    1. know if they're affected and
+- `upgrade`: List actions to take or limitations that could arise upon upgrading the Agent. Notes here must include steps that users can follow to:
+    1. know if they're affected, and
     1. handle the change gracefully on their end.
 
     example:
