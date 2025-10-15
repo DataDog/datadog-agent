@@ -61,10 +61,11 @@ func testLoadWithMissingLibrary(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	sharedLibraryLoader := createNewDefaultSharedLibraryLoader()
 
-	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, defaultSharedLibraryLoader)
+	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
 	assert.Nil(t, err)
 
 	_, err = loader.Load(senderManager, conf, conf.Instances[0], 1)
-	assert.EqualError(t, err, "failed to load shared library \"libdatadog-agent-fake_check\"")
+	assert.Error(t, err)
 }

@@ -29,6 +29,7 @@ type SharedLibraryCheck struct {
 	version        string
 	interval       time.Duration
 	name           string
+	libraryLoader  libraryLoader
 	libHandles     libraryHandles // handles to the shared library and its symbols
 	source         string
 	initConfig     string // json string of check common config
@@ -37,11 +38,12 @@ type SharedLibraryCheck struct {
 }
 
 // NewSharedLibraryCheck conveniently creates a SharedLibraryCheck instance
-func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libHandles libraryHandles) (*SharedLibraryCheck, error) {
+func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libraryLoader libraryLoader, libHandles libraryHandles) (*SharedLibraryCheck, error) {
 	check := &SharedLibraryCheck{
 		senderManager: senderManager,
 		interval:      defaults.DefaultCheckInterval,
 		name:          name,
+		libraryLoader: libraryLoader,
 		libHandles:    libHandles,
 	}
 
@@ -61,7 +63,7 @@ func (c *SharedLibraryCheck) runCheckImpl(commitMetrics bool) error {
 	}
 
 	// run the check through the library loader
-	err := defaultSharedLibraryLoader.Run(c.libHandles.run, string(c.id), c.initConfig, c.instanceConfig)
+	err := c.libraryLoader.Run(c.libHandles.run, string(c.id), c.initConfig, c.instanceConfig)
 
 	if err != nil {
 		return fmt.Errorf("Run failed: %s", err)
@@ -83,7 +85,7 @@ func (c *SharedLibraryCheck) Stop() {}
 
 // Cancel closes the associated shared library and unschedules the check
 func (c *SharedLibraryCheck) Cancel() {
-	err := defaultSharedLibraryLoader.Close(c.libHandles.lib)
+	err := c.libraryLoader.Close(c.libHandles.lib)
 
 	if err != nil {
 		log.Errorf("Cancel of check %q failed: %s", c.name, err)

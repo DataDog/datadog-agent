@@ -53,7 +53,7 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	}
 
 	// Create the check
-	c, err := NewSharedLibraryCheck(senderManager, config.Name, libHandles)
+	c, err := NewSharedLibraryCheck(senderManager, config.Name, sl.loader, libHandles)
 	if err != nil {
 		return c, err
 	}

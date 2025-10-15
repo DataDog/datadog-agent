@@ -5,20 +5,11 @@
 #include <string.h>
 
 #ifdef _WIN32
-handles_t load_shared_library(const char *lib_name, const char **error) {
+handles_t load_shared_library(const char *lib_path, const char **error) {
 	handles_t lib_handles;
 
-    // resolve the library full name
-    size_t lib_full_name_length = strlen(lib_name) + strlen(LIB_EXTENSION) + 2;
-    char *lib_full_name = (char *)malloc(lib_full_name_length);
-	if (!lib_full_name) {
-		*error = strdup("memory allocation for library name failed");
-		goto done;
-	}
-	snprintf(lib_full_name, lib_full_name_length, "%s.%s", lib_name, LIB_EXTENSION);
-
     // load the library
-    lib_handles.lib = LoadLibraryA(lib_full_name);
+    lib_handles.lib = LoadLibraryA(lib_path);
     if (!lib_handles.lib) {
         char error_msg[256];
         int error_code = GetLastError();
@@ -38,7 +29,6 @@ handles_t load_shared_library(const char *lib_name, const char **error) {
     }
 
 done:
-	free(lib_full_name);
 	return lib_handles;
 }
 
@@ -53,22 +43,13 @@ void close_shared_library(void *lib_handle, const char **error) {
 
 #else
 
-handles_t load_shared_library(const char *lib_name, const char **error) {
+handles_t load_shared_library(const char *lib_path, const char **error) {
 	handles_t lib_handles;
-
-    // resolve the library full name
-    size_t lib_full_name_length = strlen(lib_name) + strlen(LIB_EXTENSION) + 2;
-    char *lib_full_name = (char *)malloc(lib_full_name_length);
-	if (!lib_full_name) {
-		*error = strdup("memory allocation for library name failed");
-		goto done;
-	}
-	snprintf(lib_full_name, lib_full_name_length, "%s.%s", lib_name, LIB_EXTENSION);
 
     // load the library
     char *dlsym_error = NULL;
 
-    lib_handles.lib = dlopen(lib_full_name, RTLD_LAZY | RTLD_GLOBAL);
+    lib_handles.lib = dlopen(lib_path, RTLD_LAZY | RTLD_GLOBAL);
     dlsym_error = dlerror();
     if (dlsym_error) {
 		*error = strdup(dlsym_error);
@@ -85,7 +66,6 @@ handles_t load_shared_library(const char *lib_name, const char **error) {
     }
 
 done:
-	free(lib_full_name);
 	return lib_handles;
 }
 

@@ -7,7 +7,11 @@ package sharedlibrary
 
 import (
 	"fmt"
+	"path"
+	"runtime"
 	"unsafe"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 /*
@@ -36,6 +40,19 @@ const aggregator_t *get_aggregator() {
 */
 import "C"
 
+func getLibExtension() string {
+	switch runtime.GOOS {
+	case "linux", "freebsd":
+		return ".so"
+	case "darwin":
+		return ".dylib"
+	case "windows":
+		return ".dll"
+	default:
+		return ".so"
+	}
+}
+
 // store handles for loading, running checks
 type libraryHandles struct {
 	lib unsafe.Pointer
@@ -51,7 +68,8 @@ type libraryLoader interface {
 
 // SharedLibraryLoader is an interface to load/close shared libraries and run their `Run` symbol
 type sharedLibraryLoader struct {
-	aggregator *C.aggregator_t
+	libraryFolder string
+	aggregator    *C.aggregator_t
 }
 
 // Load looks for a shared library with the corresponding name and check if it has a `Run` symbol.
@@ -60,16 +78,16 @@ func (l *sharedLibraryLoader) Load(name string) (libraryHandles, error) {
 	var cErr *C.char
 
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	fullName := "libdatadog-agent-" + name
+	libPath := path.Join(l.libraryFolder, "libdatadog-agent-"+name+getLibExtension())
 
-	cFullName := C.CString(fullName)
-	defer C.free(unsafe.Pointer(cFullName))
+	cLibPath := C.CString(libPath)
+	defer C.free(unsafe.Pointer(cLibPath))
 
-	cLibHandles := C.load_shared_library(cFullName, &cErr)
+	cLibHandles := C.load_shared_library(cLibPath, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 
-		return libraryHandles{}, fmt.Errorf("failed to load shared library %q", fullName)
+		return libraryHandles{}, fmt.Errorf("failed to load shared library %q", libPath)
 	}
 
 	return (libraryHandles)(cLibHandles), nil
@@ -108,8 +126,11 @@ func (l *sharedLibraryLoader) Close(libHandle unsafe.Pointer) error {
 	return nil
 }
 
-var defaultSharedLibraryLoader libraryLoader = &sharedLibraryLoader{
-	aggregator: C.get_aggregator(),
+func createNewDefaultSharedLibraryLoader() *sharedLibraryLoader {
+	return &sharedLibraryLoader{
+		libraryFolder: pkgconfigsetup.Datadog().GetString("additional_checksd"),
+		aggregator:    C.get_aggregator(),
+	}
 }
 
 // mock of the sharedLibraryLoader

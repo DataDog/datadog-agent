@@ -23,19 +23,6 @@
 #    include <dlfcn.h>
 #endif
 
-// shared libraries extension
-#if __linux__
-#    define LIB_EXTENSION "so"
-#elif __APPLE__
-#    define LIB_EXTENSION "dylib"
-#elif __FreeBSD__
-#    define LIB_EXTENSION "so"
-#elif _WIN32
-#    define LIB_EXTENSION "dll"
-#else
-#    error Platform not supported
-#endif
-
 // metric types
 typedef enum {
     GAUGE = 0,
@@ -91,7 +78,7 @@ typedef struct handles_s {
 } handles_t;
 
 // shared library interface functions
-handles_t load_shared_library(const char *lib_name, const char **error);
+handles_t load_shared_library(const char *lib_path, const char **error);
 void close_shared_library(void *lib_handle, const char **error);
 void run_shared_library(run_function_t *run_handle, char *check_id, char *init_config, char *instance_config, aggregator_t *aggregator, const char **error);
 
