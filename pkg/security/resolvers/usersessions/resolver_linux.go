@@ -325,16 +325,21 @@ func (r *Resolver) StartSSHUserSessionResolver() {
 			break
 		}
 	}
-	// Now we can open the file
+
+	r.sshLogReader = newIncrementalFileReader(path)
+
+	if path == "" {
+		// Don't want to continue in case there is no log file
+		return
+	}
+
+	// Now we can open the file if there is one
 	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
 	if err != nil {
 		seclog.Errorf("failed to open ssh log file: %v", err)
 		return
 	}
-	r.sshLogReader = newIncrementalFileReader(path)
-	if path == "" {
-		return
-	}
+
 	if err := r.sshLogReader.Init(f); err != nil {
 		seclog.Errorf("failed to init ssh log reader: %v", err)
 		// If Init fails, we close the file
