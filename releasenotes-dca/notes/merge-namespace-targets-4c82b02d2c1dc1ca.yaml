@@ -1,0 +1,16 @@
+---
+features:
+  - |
+    Customers using Single Step Instrumentation with target based workload selection can now use language detection.
+    Language detection greatly reduces startup time when all default libraries are configured for a target. To enable
+    this feature, set `language_detection.enabled` to `true`.
+
+    A target is eligible for language detection if a target has no defined `ddTraceVersions` or if `ddTraceVersions`
+    matches the default set of SDKs. Once a language has been determined for a deployment, a subsequent deploy will
+    only use the SDKs necessary for the detected language.
+fixes:
+  - |
+    There were several bugs for customers using Single Step Instrumentation with target based workload selection and
+    also utilized Local SDK Injection. This change resolves an issue where if targets were defined, the cluster agent
+    didn't respect the `admission.datadoghq.com/enabled` annotation or the `admission_controller.mutate_unlabelled`
+    configuration option and only respected the language annotations.
