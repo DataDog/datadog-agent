@@ -62,7 +62,7 @@ var (
 // Type Definitions
 // ============================================================================
 
-type infraBasicSuite struct { //nolint:unused
+type infraBasicSuite struct {
 	e2e.BaseSuite[environments.Host]
 	descriptor e2eos.Descriptor
 }
@@ -81,7 +81,7 @@ type AgentStatusJSON struct {
 // ============================================================================
 
 // getAllowedChecks returns the list of checks that should work on the current OS
-func (s *infraBasicSuite) getAllowedChecks() []string { //nolint:unused
+func (s *infraBasicSuite) getAllowedChecks() []string {
 	checks := make([]string, 0, len(allowedChecks))
 	for _, checkName := range allowedChecks {
 		// Skip "load" check on Windows as it's Linux-only
@@ -93,7 +93,7 @@ func (s *infraBasicSuite) getAllowedChecks() []string { //nolint:unused
 	return checks
 }
 
-func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption { //nolint:unused
+func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption {
 	// Agent configuration for basic mode testing
 	basicModeAgentConfig := `
 api_key: "00000000000000000000000000000000"
@@ -142,7 +142,7 @@ instances:
 }
 
 // getScheduledChecks retrieves the map of scheduled checks from the agent status
-func (s *infraBasicSuite) getScheduledChecks() (map[string]map[string]check.Runner, error) { //nolint:unused
+func (s *infraBasicSuite) getScheduledChecks() (map[string]map[string]check.Runner, error) {
 	status := s.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
 
 	var statusMap AgentStatusJSON
@@ -155,7 +155,7 @@ func (s *infraBasicSuite) getScheduledChecks() (map[string]map[string]check.Runn
 }
 
 // isCheckScheduled returns true if the check is scheduled and has run at least once
-func (s *infraBasicSuite) isCheckScheduled(checkName string, checks map[string]map[string]check.Runner) bool { //nolint:unused
+func (s *infraBasicSuite) isCheckScheduled(checkName string, checks map[string]map[string]check.Runner) bool {
 	// The checks map is nested: checkName -> instanceID -> stats
 	if instances, exists := checks[checkName]; exists {
 		// Check if any instance of this check has run
@@ -170,7 +170,7 @@ func (s *infraBasicSuite) isCheckScheduled(checkName string, checks map[string]m
 
 // verifyCheckRuns runs a check and verifies it executed successfully
 // All check configs are already provisioned during suite setup
-func (s *infraBasicSuite) verifyCheckRuns(checkName string) bool { //nolint:unused
+func (s *infraBasicSuite) verifyCheckRuns(checkName string) bool {
 	// Run the check using the cross-platform Agent client helper
 	// This works on both Linux (sudo datadog-agent) and Windows (& "path\bin\agent.exe")
 	output, err := s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{checkName, "--json"}))
@@ -202,7 +202,7 @@ func (s *infraBasicSuite) verifyCheckRuns(checkName string) bool { //nolint:unus
 
 // verifyCheckSchedulingViaStatusAPI verifies that checks are in the expected scheduling state
 // by querying the agent status API. This is a helper function meant to be called within EventuallyWithT.
-func (s *infraBasicSuite) verifyCheckSchedulingViaStatusAPI(c *assert.CollectT, checks []string, shouldBeScheduled bool) { //nolint:unused
+func (s *infraBasicSuite) verifyCheckSchedulingViaStatusAPI(c *assert.CollectT, checks []string, shouldBeScheduled bool) {
 	scheduledChecks, err := s.getScheduledChecks()
 	if !assert.NoError(c, err, "Failed to get scheduled checks") {
 		s.T().Logf("Failed to retrieve scheduled checks, will retry...")
@@ -231,10 +231,10 @@ func (s *infraBasicSuite) verifyCheckSchedulingViaStatusAPI(c *assert.CollectT, 
 // Test Functions
 // ============================================================================
 
-// assertCheckSchedulingBehavior verifies that checks are correctly scheduled or blocked in basic mode.
+// TestCheckSchedulingBehavior verifies that checks are correctly scheduled or blocked in basic mode.
 // Tests both scheduler behavior (via status API) and CLI behavior for allowed and excluded checks.
 // Note: Check configurations are provisioned during suite setup via agentparams.WithIntegration()
-func (s *infraBasicSuite) assertCheckSchedulingBehavior() { //nolint:unused
+func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
 	// First test: Verify scheduler behavior via status API
 	s.T().Run("via_status_api", func(t *testing.T) {
 		t.Run("allowed_checks_scheduled", func(t *testing.T) {
@@ -276,9 +276,9 @@ func (s *infraBasicSuite) assertCheckSchedulingBehavior() { //nolint:unused
 	})
 }
 
-// assertAdditionalCheckWorks verifies that a check can be added via infra_basic_additional_checks.
+// TestAdditionalCheckWorks verifies that a check can be added via infra_basic_additional_checks.
 // This test dynamically updates the environment to add a check not in the default allow list.
-func (s *infraBasicSuite) assertAdditionalCheckWorks() { //nolint:unused
+func (s *infraBasicSuite) TestAdditionalCheckWorks() {
 	// Use http_check as an example of a check not in the default allow list
 	additionalCheckName := "http_check"
 

@@ -6,7 +6,6 @@
 package collector
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,7 +36,7 @@ func (m MockCheck) Loader() string {
 }
 
 func (m MockCheck) String() string {
-	return fmt.Sprintf("Loader: %s, Check: %s", m.LoaderName, m.Name)
+	return m.Name
 }
 
 type MockCoreLoader struct{}
@@ -119,11 +118,11 @@ func TestGetChecksFromConfigs(t *testing.T) {
 		actualChecks = append(actualChecks, c.String())
 	}
 	assert.Equal(t, []string{
-		"Loader: python, Check: check_a",
-		"Loader: core, Check: check_a",
-		"Loader: core, Check: check_a",
-		"Loader: python, Check: check_b",
-		"Loader: core, Check: check_c",
+		"check_a",
+		"check_a",
+		"check_a",
+		"check_b",
+		"check_c",
 	}, actualChecks)
 }
 
@@ -197,8 +196,8 @@ func TestSchedule_InfraBasicMode_Filtering(t *testing.T) {
 	s := &CheckScheduler{
 		collector: option.New[collector.Component](mockCollector),
 		allowedChecks: map[string]struct{}{
-			"Loader: core, Check: cpu":    {},
-			"Loader: core, Check: memory": {},
+			"cpu":    {},
+			"memory": {},
 		},
 		configToChecks: make(map[string][]checkid.ID),
 	}

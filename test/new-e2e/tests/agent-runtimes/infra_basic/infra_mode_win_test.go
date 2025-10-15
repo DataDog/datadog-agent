@@ -28,11 +28,3 @@ func TestInfraBasicWindowsSuite(t *testing.T) {
 
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
-
-func (s *infraBasicWindowsSuite) TestCheckSchedulingBehavior() {
-	s.assertCheckSchedulingBehavior()
-}
-
-func (s *infraBasicWindowsSuite) TestAdditionalCheckWorks() {
-	s.assertAdditionalCheckWorks()
-}

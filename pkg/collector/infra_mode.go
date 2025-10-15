@@ -6,6 +6,8 @@
 package collector
 
 import (
+	"slices"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -37,6 +39,7 @@ var infraBasicAllowedChecks = map[string]struct{}{
 
 // GetAllowedChecks returns the map of allowed checks for infra basic mode,
 // including any additional checks specified in the configuration via 'infra_basic_additional_checks'
+// when running in full mode, all checks are allowed (returns an empty map)
 func GetAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
 	if cfg.GetString("infrastructure_mode") != "basic" {
 		return make(map[string]struct{})
@@ -61,10 +64,17 @@ func GetAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
 // When not in basic mode, all checks are allowed (returns true).
 // When in basic mode, only checks in the allowed list are permitted.
 func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
-	allowedChecks := GetAllowedChecks(cfg)
-	if len(allowedChecks) == 0 {
+	// When not in basic mode, all checks are allowed
+	if cfg.GetString("infrastructure_mode") != "basic" {
 		return true
 	}
-	_, exists := allowedChecks[checkName]
-	return exists
+
+	// Check if it's in the default allowed checks
+	if _, exists := infraBasicAllowedChecks[checkName]; exists {
+		return true
+	}
+
+	// Check if it's in the additional checks from config
+	additionalChecks := cfg.GetStringSlice("infra_basic_additional_checks")
+	return slices.Contains(additionalChecks, checkName)
 }
