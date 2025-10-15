@@ -767,7 +767,7 @@ func (i *installerImpl) InstallExtensions(ctx context.Context, url string, exten
 			continue
 		}
 
-		err := i.installExtension(pkg, extension)
+		err := i.installExtension(ctx, pkg, extension)
 		if err != nil {
 			installErrors = append(installErrors, err)
 			continue
@@ -807,8 +807,11 @@ func (i *installerImpl) InstallExtensions(ctx context.Context, url string, exten
 }
 
 // installExtension installs a single extension for a package.
-func (i *installerImpl) installExtension(pkg *oci.DownloadedPackage, extension string) error {
-	// TODO: pre install hooks?
+func (i *installerImpl) installExtension(ctx context.Context, pkg *oci.DownloadedPackage, extension string) error {
+	err := i.hooks.PreInstallExtension(ctx, pkg.Name, extension)
+	if err != nil {
+		return fmt.Errorf("could not prepare extension: %w", err)
+	}
 
 	// Extract to a temporary directory first
 	tmpDir, err := i.packages.MkdirTemp()
@@ -832,13 +835,16 @@ func (i *installerImpl) installExtension(pkg *oci.DownloadedPackage, extension s
 		return fmt.Errorf("could not move %s to final location: %w", extension, err)
 	}
 
-	// TODO: post install hooks?
+	err = i.hooks.PostInstallExtension(ctx, pkg.Name, extension)
+	if err != nil {
+		return fmt.Errorf("could not install extension: %w", err)
+	}
 
 	return nil
 }
 
 // RemoveExtensions removes multiple extensions.
-func (i *installerImpl) RemoveExtensions(_ context.Context, pkg string, extensions []string) error {
+func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extensions []string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -865,7 +871,7 @@ func (i *installerImpl) RemoveExtensions(_ context.Context, pkg string, extensio
 			continue
 		}
 
-		err := i.removeExtension(pkg, dbPkg.Version, extension)
+		err := i.removeExtension(ctx, pkg, dbPkg.Version, extension)
 		if err != nil {
 			removeErrors = append(removeErrors, err)
 			continue
@@ -900,17 +906,17 @@ func (i *installerImpl) RemoveExtensions(_ context.Context, pkg string, extensio
 }
 
 // removeExtension removes a single extension for a package.
-func (i *installerImpl) removeExtension(pkg, version, extension string) error {
-	// TODO: pre remove hooks?
+func (i *installerImpl) removeExtension(ctx context.Context, pkg, version, extension string) error {
+	err := i.hooks.PreRemoveExtension(ctx, pkg, extension)
+	if err != nil {
+		return fmt.Errorf("could not prepare extension: %w", err)
+	}
 
 	extensionDir := filepath.Join(i.packagesDir, pkg, version, "ext", extension)
-	err := os.RemoveAll(extensionDir)
+	err = os.RemoveAll(extensionDir)
 	if err != nil {
 		return fmt.Errorf("could not remove directory for %s: %w", extension, err)
 	}
-
-	// TODO: post remove hooks?
-
 	return nil
 }
 
