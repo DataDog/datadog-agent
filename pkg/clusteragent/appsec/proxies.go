@@ -1,0 +1,37 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build kubeapiserver
+
+package appsec
+
+import (
+	"context"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/envoygateway"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/record"
+)
+
+// ProxyConstructor is the type of function that creates a new InjectionPattern for a given proxy
+type ProxyConstructor func(
+	k8sClient dynamic.Interface,
+	logger log.Component,
+	config appsecconfig.Config,
+	eventRecorder record.EventRecorder) appsecconfig.InjectionPattern
+
+var proxyConstructorMap = map[appsecconfig.ProxyType]ProxyConstructor{
+	appsecconfig.ProxyTypeEnvoyGateway: envoygateway.New,
+}
+
+type ProxyDetector func(
+	ctx context.Context,
+	k8sClient dynamic.Interface) (bool, error)
+
+var proxyDetectionMap = map[appsecconfig.ProxyType]ProxyDetector{
+	appsecconfig.ProxyTypeEnvoyGateway: envoygateway.Detect,
+}
