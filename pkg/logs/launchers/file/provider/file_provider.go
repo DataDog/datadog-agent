@@ -7,6 +7,7 @@
 package fileprovider
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -167,7 +168,7 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFile
 // FilesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
 // Files are collected according to the fileProvider's wildcardOrder and selectionMode
-func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*sources.LogSource, registry auditor.Registry) []*tailer.File {
+func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID bool, inputSources []*sources.LogSource, registry auditor.Registry) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
@@ -177,33 +178,45 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 		wildcardSources := make([]*sources.LogSource, 0, len(inputSources))
 
 		// First pass - collect all wildcard sources and add files for non-wildcard sources
-		for i := 0; i < len(inputSources); i++ {
-			source := inputSources[i]
-			isWildcardSource := config.ContainsWildcard(source.Config.Path)
-			if isWildcardSource {
-				wildcardSources = append(wildcardSources, source)
-				continue
-			}
-			files, err := p.CollectFiles(source)
-			if err != nil {
-				source.Status.Error(err)
-				if shouldLogErrors {
-					log.Warnf("Could not collect files: %v", err)
+		for _, inputSource := range inputSources {
+			select {
+			case <-ctx.Done():
+				log.Debugf("FileProvider context cancelled, not collecting files.")
+				return nil
+			default:
+				source := inputSource
+				isWildcardSource := config.ContainsWildcard(source.Config.Path)
+				if isWildcardSource {
+					wildcardSources = append(wildcardSources, source)
+					continue
 				}
-				continue
+				files, err := p.CollectFiles(source)
+				if err != nil {
+					source.Status.Error(err)
+					if shouldLogErrors {
+						log.Warnf("Could not collect files: %v", err)
+					}
+					continue
+				}
+				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 			}
-			filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 		}
 
 		// Second pass, resolve all wildcards and add them to one big list
 		wildcardFiles := make([]*tailer.File, 0, p.filesLimit)
 		for _, source := range wildcardSources {
-			files, err := p.filesMatchingSource(source)
-			wildcardFileCounter.setTotal(source, len(files))
-			if err != nil {
-				continue
+			select {
+			case <-ctx.Done():
+				log.Debugf("FileProvider context cancelled, not collecting files.")
+				return nil
+			default:
+				files, err := p.filesMatchingSource(source)
+				wildcardFileCounter.setTotal(source, len(files))
+				if err != nil {
+					continue
+				}
+				wildcardFiles = append(wildcardFiles, files...)
 			}
-			wildcardFiles = append(wildcardFiles, files...)
 		}
 
 		p.applyOrdering(wildcardFiles)
@@ -211,20 +224,25 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 	} else if p.selectionMode == greedySelection {
 		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
 		for _, source := range inputSources {
-			isWildcardSource := config.ContainsWildcard(source.Config.Path)
-			files, err := p.CollectFiles(source)
-			if isWildcardSource {
-				wildcardFileCounter.setTotal(source, len(files))
-			}
-			if err != nil {
-				source.Status.Error(err)
-				if shouldLogErrors {
-					log.Warnf("Could not collect files: %v", err)
+			select {
+			case <-ctx.Done():
+				log.Debugf("FileProvider context cancelled, not collecting files.")
+				return nil
+			default:
+				isWildcardSource := config.ContainsWildcard(source.Config.Path)
+				files, err := p.CollectFiles(source)
+				if isWildcardSource {
+					wildcardFileCounter.setTotal(source, len(files))
 				}
-				continue
+				if err != nil {
+					source.Status.Error(err)
+					if shouldLogErrors {
+						log.Warnf("Could not collect files: %v", err)
+					}
+					continue
+				}
+				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 			}
-
-			filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 		}
 	} else {
 		log.Errorf("Invalid file selection mode '%v', no files selected.", p.selectionMode)
