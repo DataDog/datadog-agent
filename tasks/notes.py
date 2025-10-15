@@ -1,5 +1,5 @@
-import sys
 import re
+import sys
 from datetime import date
 
 from invoke import Failure, task
