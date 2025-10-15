@@ -29,7 +29,7 @@ func makeConfigCommand(globalParams *command.GlobalParams) *cobra.Command {
 }
 
 // runConfig is the main implementation of the config command.
-func runConfig(sysprobeconfig sysconfigcomponent.Component, params *cmdParams) error {
+func runConfig(sysprobeconfig sysconfigcomponent.Component, _ *command.GlobalParams) error {
 	// Fetch config from running system-probe
 	runtimeConfig, err := fetcher.SystemProbeConfig(sysprobeconfig, nil)
 	if err != nil {
@@ -48,11 +48,7 @@ func runConfig(sysprobeconfig sysconfigcomponent.Component, params *cmdParams) e
 		return errors.New("service_monitoring_config not found in runtime config")
 	}
 
-	if params.outputJSON {
-		return outputJSON(usmConfig)
-	}
-
-	// For text output, re-serialize as YAML
+	// Output as YAML
 	output, err := yaml.Marshal(map[string]interface{}{
 		"service_monitoring_config": usmConfig,
 	})

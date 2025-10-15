@@ -11,11 +11,10 @@ Shows the current USM configuration from the running system-probe instance.
 **Usage:**
 ```bash
 sudo ./system-probe usm config
-sudo ./system-probe usm config --json  # JSON output
 ```
 
 **Output:**
-- Displays all `service_monitoring_config` settings
+- Displays all `service_monitoring_config` settings in YAML format
 - Shows enabled protocols (HTTP, HTTP/2, Kafka, Postgres, Redis)
 - Shows TLS monitoring settings (Native, Go, NodeJS, Istio)
 - Queries the running system-probe via API to get actual runtime configuration
@@ -40,7 +39,6 @@ Shows system information relevant to USM debugging.
 **Usage:**
 ```bash
 sudo ./system-probe usm sysinfo
-sudo ./system-probe usm sysinfo --json  # JSON output
 ```
 
 **Output:**
@@ -49,7 +47,7 @@ sudo ./system-probe usm sysinfo --json  # JSON output
 - Hostname
 - List of all running processes with PIDs, PPIDs, names, and command lines
 
-**Text Output Example:**
+**Output Example:**
 ```
 === USM System Information ===
 
@@ -67,32 +65,6 @@ PID     | PPID    | Name                      | Command
 ...
 ```
 
-**JSON Output Format:**
-```json
-{
-  "kernel_version": "5.15.0-73-generic",
-  "os_type": "linux",
-  "architecture": "amd64",
-  "hostname": "agent-dev-ubuntu-22",
-  "processes": [
-    {
-      "pid": 1,
-      "ppid": 0,
-      "name": "systemd",
-      "cmdline": ["/sbin/init"]
-    },
-    {
-      "pid": 156,
-      "ppid": 1,
-      "name": "sshd",
-      "cmdline": ["/usr/sbin/sshd", "-D"]
-    }
-  ]
-}
-```
-
-**Note**: JSON output includes only essential process fields (pid, ppid, name, cmdline) for cleaner output.
-
 ## Use Cases
 
 ### Debugging USM Configuration Issues
@@ -106,8 +78,8 @@ When USM is not working as expected, use `usm config` to verify:
 
 When reporting USM issues, include output from both commands:
 ```bash
-sudo ./system-probe usm config --json > usm-config.json
-sudo ./system-probe usm sysinfo --json > usm-sysinfo.json
+sudo ./system-probe usm config > usm-config.yaml
+sudo ./system-probe usm sysinfo > usm-sysinfo.txt
 ```
 
 This provides complete context about the USM configuration and system environment.
@@ -125,12 +97,11 @@ Use `usm sysinfo` to see what processes are running that USM might be monitoring
 - Queries the running system-probe instance via its API
 - Uses the same configuration fetcher as `system-probe config`
 - Extracts only the `service_monitoring_config` section
-- Uses `yaml.v3` for parsing to ensure JSON-compatible types
-- Supports both YAML (default) and JSON output formats
+- Uses `yaml.v3` for parsing
+- Outputs in YAML format
 
 ### Sysinfo Command
 - Collects process information using `procutil.NewProcessProbe()` (same as process-agent)
 - Uses `kernel.Release()` for kernel version detection
-- JSON output filters to only essential process fields (pid, ppid, name, cmdline)
 - Processes are sorted by PID
-- Text output truncates long names/cmdlines for readability
+- Output truncates long names/cmdlines for readability

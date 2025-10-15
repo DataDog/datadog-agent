@@ -42,7 +42,7 @@ type SystemInfo struct {
 }
 
 // runSysinfo is the main implementation of the sysinfo command.
-func runSysinfo(_ sysconfigcomponent.Component, params *cmdParams) error {
+func runSysinfo(_ sysconfigcomponent.Component, _ *command.GlobalParams) error {
 	sysInfo := &SystemInfo{}
 
 	// Get kernel version using existing utility
@@ -81,10 +81,6 @@ func runSysinfo(_ sysconfigcomponent.Component, params *cmdParams) error {
 		sort.Slice(sysInfo.Processes, func(i, j int) bool {
 			return sysInfo.Processes[i].Pid < sysInfo.Processes[j].Pid
 		})
-	}
-
-	if params.outputJSON {
-		return outputSysinfoJSON(sysInfo)
 	}
 
 	return outputSysinfoHumanReadable(sysInfo)
@@ -134,27 +130,4 @@ func formatCmdline(args []string) string {
 		result += arg
 	}
 	return result
-}
-
-// outputSysinfoJSON outputs system info as JSON with simplified process data
-func outputSysinfoJSON(info *SystemInfo) error {
-	// Build simplified output with only essential process fields
-	processes := make([]map[string]interface{}, len(info.Processes))
-	for i, p := range info.Processes {
-		processes[i] = map[string]interface{}{
-			"pid":     p.Pid,
-			"ppid":    p.Ppid,
-			"name":    p.Name,
-			"cmdline": p.Cmdline,
-		}
-	}
-
-	output := map[string]interface{}{
-		"kernel_version": info.KernelVersion,
-		"os_type":        info.OSType,
-		"architecture":   info.Architecture,
-		"hostname":       info.Hostname,
-		"processes":      processes,
-	}
-	return outputJSON(output)
 }
