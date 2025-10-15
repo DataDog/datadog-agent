@@ -33,6 +33,9 @@ var (
 	policyIDPattern = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
 	// Pattern to extract numeric prefix from policy ID: N.<name>
 	policyPrefixPattern = regexp.MustCompile(`^(\d+)\.`)
+
+	// getInstallPath is a variable that can be overridden in tests
+	getInstallPath = config.GetInstallPath
 )
 
 // Requires defines the dependencies for the workloadselection component
@@ -79,7 +82,7 @@ type workloadselectionComponent struct {
 // isCompilePolicyBinaryAvailable checks if the compile policy binary is available
 // and executable
 func (c *workloadselectionComponent) isCompilePolicyBinaryAvailable() bool {
-	compilePath := filepath.Join(config.GetInstallPath(), ddPolicyCompileRelativePath)
+	compilePath := filepath.Join(getInstallPath(), ddPolicyCompileRelativePath)
 	info, err := os.Stat(compilePath)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -100,7 +103,7 @@ func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) err
 		return err
 	}
 	defer os.RemoveAll(configJSONPath)
-	cmd := exec.Command(filepath.Join(config.GetInstallPath(), ddPolicyCompileRelativePath), "--input-json", configJSONPath, "--output", configCompiledPath)
+	cmd := exec.Command(filepath.Join(getInstallPath(), ddPolicyCompileRelativePath), "--input-json", configJSONPath, "--output", configCompiledPath)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
@@ -145,7 +148,7 @@ func mergeConfigs(configs []policyConfig) ([]byte, error) {
 		Policies []json.RawMessage `json:"policies"`
 	}
 
-	var allPolicies []json.RawMessage
+	allPolicies := make([]json.RawMessage, 0)
 
 	for _, cfg := range configs {
 		var parsed policyJSON
