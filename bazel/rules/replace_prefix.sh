@@ -26,7 +26,7 @@ for f in "$@"; do
     fi
     case $f in
         *.so)
-            patchelf --set-rpath "$PREFIX" "$f"
+            bazelisk run -- @patchelf --set-rpath "$PREFIX" "$f"
             ;;
         *.dylib)
             install_name_tool -add_rpath "$PREFIX/embedded/lib" "$f"
