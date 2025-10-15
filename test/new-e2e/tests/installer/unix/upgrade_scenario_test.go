@@ -152,6 +152,10 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
 	s.assertSuccessfulAgentPromoteExperiment(timestamp, s.pipelineAgentVersion)
 	state = s.host.State()
 	state.AssertPathDoesNotExist("/opt/datadog-agent")
+
+	s.host.RemovePackage("datadog-agent")
+	state = s.host.State()
+	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-agent")
 }
 
 func (s *upgradeScenarioSuite) TestBackendFailure() {

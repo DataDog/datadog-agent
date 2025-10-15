@@ -75,6 +75,15 @@ func (h *Host) setSystemdVersion() {
 	h.systemdVersion = version
 }
 
+func (h *Host) RemovePackage(pkg string) {
+	switch h.pkgManager {
+	case "apt":
+		h.remote.MustExecute("sudo dpkg -r " + pkg)
+	case "yum", "zypper":
+		h.remote.MustExecute("sudo rpm -e " + pkg)
+	}
+}
+
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
 	defer func() {

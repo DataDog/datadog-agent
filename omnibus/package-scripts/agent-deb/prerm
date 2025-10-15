@@ -8,7 +8,7 @@
 ##########################################################################
 
 INSTALLER_DEB=/opt/datadog-agent/embedded/bin/installer
-INSTALLER_OCI=/opt/datadog-package/datadog-agent/stable/embedded/bin/installer
+INSTALLER_OCI=/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer
 
 # Run the postinst. See pkg/fleet/installer/packages/datadog_agent_linux.go
 if [ -f ${INSTALLER_DEB} ] && [ "$1" = "remove" ]; then
