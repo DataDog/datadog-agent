@@ -106,7 +106,7 @@
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx
 /.gitlab/binary_build/linux.yml                      @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/functional_test/include.yml                 @DataDog/agent-devx
-/.gitlab/functional_test/static_quality_gate.yml     @DataDog/agent-build
+/.gitlab/functional_test/static_quality_gate.yml     @DataDog/agent-build @cmourot @dd-ddamien 
 /.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-build @DataDog/agent-onboarding
 /.gitlab/integration_test/dogstatsd.yml              @DataDog/agent-devx @DataDog/agent-metric-pipelines
 /.gitlab/integration_test/include.yml                @DataDog/agent-devx
@@ -208,6 +208,7 @@
 /cmd/agent/subcommands/integrations     @DataDog/agent-integrations @DataDog/agent-runtimes
 /cmd/agent/subcommands/hostname         @DataDog/agent-runtimes
 /cmd/agent/subcommands/version          @DataDog/agent-runtimes
+/cmd/agent/subcommands/processchecks    @DataDog/container-experiences
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
 /cmd/agent/subcommands/snmp             @DataDog/ndm-core
 /cmd/agent/subcommands/streamlogs       @DataDog/agent-log-pipelines
@@ -396,6 +397,7 @@
 /pkg/cli/subcommands/version            @DataDog/agent-runtimes
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
 /pkg/cli/subcommands/autoscalerlist     @DataDog/container-autoscaling @DataDog/container-integrations
+/pkg/cli/subcommands/processchecks      @DataDog/container-experiences
 /pkg/discovery/                         @DataDog/agent-discovery
 /pkg/errors/                            @DataDog/agent-runtimes
 /pkg/privileged-logs/                        @DataDog/agent-discovery @DataDog/agent-log-pipelines

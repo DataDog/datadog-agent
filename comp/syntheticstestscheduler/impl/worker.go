@@ -59,15 +59,25 @@ func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 
 // flush enqueues tests whose nextRun is due.
 func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	var testsToRun []*runningTestState
 	for id, rt := range s.state.tests {
 		if flushTime.After(rt.nextRun) || flushTime.Equal(rt.nextRun) {
-			s.log.Debugf("enqueuing test %s", id)
-			s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
-				nextRun: flushTime,
-				cfg:     rt.cfg,
-			}
-			s.updateTestState(rt)
+			s.log.Debugf("test %s is due for execution", id)
+			testsToRun = append(testsToRun, rt)
 		}
+	}
+
+	for _, rt := range testsToRun {
+		s.log.Debugf("enqueuing test %s", rt.cfg.PublicID)
+		s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
+			nextRun: flushTime,
+			cfg:     rt.cfg,
+		}
+
+		rt.lastRun = rt.nextRun
+		rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
 	}
 }
 
@@ -212,14 +222,6 @@ type SyntheticsTestCtx struct {
 	cfg     common.SyntheticsTestConfig
 }
 
-// updateTestState updates lastRun and nextRun for a running test.
-func (s *syntheticsTestScheduler) updateTestState(rt *runningTestState) {
-	s.state.mu.Lock()
-	defer s.state.mu.Unlock()
-	rt.lastRun = rt.nextRun
-	rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
-}
-
 // sendSyntheticsTestResult marshals the workerResult and forwards it via the epForwarder.
 func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) error {
 	res, err := s.networkPathToTestResult(w)
@@ -314,7 +316,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 }
 
 func (s *syntheticsTestScheduler) setResultStatus(w *workerResult, result *common.Result) {
-	if result.Netstats.PacketLossPercentage == 100 {
+	if result.Netstats.PacketLossPercentage == 1 {
 		if !hasAssertionOn100PacketLoss(w.assertionResult) {
 			result.Status = "failed"
 			result.Failure = common.APIError{
