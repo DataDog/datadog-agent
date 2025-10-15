@@ -75,8 +75,6 @@ func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command s
 
 func (i *InstallerExec) setupInstallerCmd(ctx context.Context, span *telemetry.Span, cmd *exec.Cmd) *installerCmd {
 	env := i.env.ToEnv()
-	// Enforce the use of the installer when it is bundled with the agent.
-	env = append(env, "DD_BUNDLED_AGENT=installer")
 	env = append(os.Environ(), env...)
 	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
