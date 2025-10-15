@@ -327,12 +327,6 @@ func (ku *KubeUtil) GetLocalPodListWithMetadata(ctx context.Context) (*PodList, 
 	return ku.getLocalPodList(ctx)
 }
 
-// ForceGetLocalPodList reset podList cache and call GetLocalPodList
-func (ku *KubeUtil) ForceGetLocalPodList(ctx context.Context) (*PodList, error) {
-	ResetCache()
-	return ku.GetLocalPodListWithMetadata(ctx)
-}
-
 // GetLocalStatsSummary returns node and pod stats from kubelet
 func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)

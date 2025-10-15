@@ -10,9 +10,7 @@ package receiver
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/DataDog/dd-otel-host-profiler/reporter"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/xconsumer"
 	"go.opentelemetry.io/collector/receiver"
@@ -33,14 +31,17 @@ func createProfilesReceiver(
 	rs receiver.Settings,
 	baseCfg component.Config,
 	nextConsumer xconsumer.Profiles) (xreceiver.Profiles, error) {
+	logger := rs.Logger
 	config, ok := baseCfg.(Config)
 	if !ok {
 		return nil, fmt.Errorf("invalid config type. Expected %T, got %T", Config{}, baseCfg)
 	}
 
+	logger.Info("Enabled tracers: " + config.Ebpfcollector.Tracers)
+
 	var createProfiles xreceiver.CreateProfilesFunc
 	if config.SymbolUploader.Enabled {
-		executableReporter, err := newExecutableReporter(&config.SymbolUploader)
+		executableReporter, err := newExecutableReporter(&config.SymbolUploader, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -55,34 +56,6 @@ func createProfilesReceiver(
 	return createProfiles(
 		ctx,
 		rs,
-		config.Config,
+		config.Ebpfcollector,
 		nextConsumer)
-}
-
-// Config is the configuration for the profiles receiver.
-type Config struct {
-	*ebpfcollector.Config `mapstructure:",squash"`
-	SymbolUploader        reporter.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
-}
-
-func defaultConfig() component.Config {
-	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfcollector.Config)
-
-	return Config{
-		Config: cfg,
-
-		// TODO: This is a temporary config, it will be updated to use the same config values
-		// as dd-otel-host-profiler in a later PR.
-		SymbolUploader: reporter.SymbolUploaderConfig{
-			Enabled:                        true,
-			UploadDynamicSymbols:           false,
-			UploadGoPCLnTab:                true,
-			UseHTTP2:                       false,
-			SymbolQueryInterval:            time.Second * 5,
-			DisableDebugSectionCompression: false,
-			DryRun:                         false,
-			SymbolEndpoints:                nil,
-			Version:                        "0.0.0",
-		},
-	}
 }

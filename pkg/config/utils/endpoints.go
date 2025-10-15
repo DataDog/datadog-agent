@@ -166,29 +166,6 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 		}}
 	}
 
-	// Populate preaggregation endpoint
-	if c.GetBool("preaggregation.enabled") {
-		preaggURL := c.GetString("preaggregation.dd_url")
-		if preaggURL == "" {
-			return nil, fmt.Errorf("preaggregation.dd_url is required when preaggregation.enabled is true")
-		}
-		if preaggURL == ddURL {
-			return nil, fmt.Errorf("preaggregation.dd_url must not match primary URL")
-		}
-		if _, exists := additionalEndpoints[preaggURL]; exists {
-			return nil, fmt.Errorf("preaggregation.dd_url must not match any additional endpoints")
-		}
-
-		apiKey := c.GetString("preaggregation.api_key")
-		if apiKey == "" {
-			return nil, fmt.Errorf("preaggregation.api_key is required when preaggregation.enabled is true")
-		}
-		additionalEndpoints[preaggURL] = []APIKeys{{
-			ConfigSettingPath: "preaggregation.api_key",
-			Keys:              []string{apiKey},
-		}}
-	}
-
 	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
 }
 

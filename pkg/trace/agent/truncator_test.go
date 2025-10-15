@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
@@ -145,4 +146,72 @@ func TestTruncateResource(t *testing.T) {
 		assert.False(t, ok)
 		assert.Equal(t, s, r)
 	})
+}
+
+func TestTruncateResourcePassThruV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	s := newTestSpanV1(idx.NewStringTable())
+	before := s.Resource()
+	a.TruncateV1(s)
+	assert.Equal(t, before, s.Resource())
+}
+
+func TestTruncateLongResourceV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	s := newTestSpanV1(idx.NewStringTable())
+	s.SetResource(strings.Repeat("TOOLONG", 5000))
+	a.TruncateV1(s)
+	assert.Equal(t, 5000, len(s.Resource()))
+}
+
+func TestTruncateAttributesPassThruV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	s := newTestSpanV1(idx.NewStringTable())
+	before := make(map[string]string)
+	for k, v := range s.Attributes() {
+		if strVal, ok := v.Value.(*idx.AnyValue_StringValueRef); ok {
+			before[s.Strings.Get(k)] = s.Strings.Get(strVal.StringValueRef)
+		}
+	}
+	a.TruncateV1(s)
+	after := make(map[string]string)
+	for k, v := range s.Attributes() {
+		if strVal, ok := v.Value.(*idx.AnyValue_StringValueRef); ok {
+			after[s.Strings.Get(k)] = s.Strings.Get(strVal.StringValueRef)
+		}
+	}
+	assert.Equal(t, before, after)
+}
+
+func TestTruncateAttributeKeyTooLongV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	s := newTestSpanV1(idx.NewStringTable())
+	key := strings.Repeat("TOOLONG", 1000)
+	s.SetStringAttribute(key, "foo")
+	a.TruncateV1(s)
+	for k := range s.Attributes() {
+		assert.True(t, len(s.Strings.Get(k)) < MaxMetaKeyLen+4, "key %s is too long, len is %d", s.Strings.Get(k), len(s.Strings.Get(k)))
+	}
+}
+
+func TestTruncateAttributeValueTooLongV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	s := newTestSpanV1(idx.NewStringTable())
+	val := strings.Repeat("TOOLONG", 25000)
+	s.SetStringAttribute("foo", val)
+	a.TruncateV1(s)
+	actualVal, ok := s.GetAttributeAsString("foo")
+	assert.True(t, ok)
+	assert.Len(t, actualVal, MaxMetaValLen+3)
+}
+
+func TestTruncateAttributeValueStructuredKeyTooLongV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	s := newTestSpanV1(idx.NewStringTable())
+	val := strings.Repeat("TOOLONG", 25000)
+	s.SetStringAttribute("_dd.protected_key.json", val)
+	a.TruncateV1(s)
+	actualVal, ok := s.GetAttributeAsString("_dd.protected_key.json")
+	assert.True(t, ok)
+	assert.Equal(t, actualVal, val)
 }

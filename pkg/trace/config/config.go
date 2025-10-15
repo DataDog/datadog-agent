@@ -549,6 +549,12 @@ type AgentConfig struct {
 
 	MRFFailoverAPMDefault bool
 	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
+
+	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
+	DebugV1Payloads bool
+
+	// EnableV1TraceEndpoint enables the V1 trace endpoint, it is hidden by default
+	EnableV1TraceEndpoint bool
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
