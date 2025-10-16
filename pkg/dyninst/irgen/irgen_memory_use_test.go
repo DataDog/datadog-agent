@@ -8,19 +8,19 @@
 package irgen_test
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"runtime/debug"
-	"runtime/trace"
 	"strconv"
 	"testing"
 
-	xtrace "golang.org/x/exp/trace"
-
-	"github.com/dustin/go-humanize"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
@@ -30,58 +30,66 @@ import (
 )
 
 const internalEnv = "IRGEN_MEMORY_USE_INTERNAL_TEST"
-const traceOutputEnv = "IRGEN_MEMORY_USE_TRACE_OUTPUT"
 
-// TestIrgenMemoryUse asserts an upper bound on the memory usage of the
+// TestIrgenMemoryUse asserts an upper bound on the retained heap size of the
 // irgen package to generate an IR program for our sample binary.
 //
-// The way it works is to exec a subprocess that runs with go tracing enabled
+// The way it works is to exec a subprocess that runs with go gctrace enabled
 // and has garbage collection set to be extremely aggressive. Then, from this,
-// we can analyze the peak memory usage and assert that it doesn't exceed a
-// certain threshold (determined empirically).
+// we can analyze the peak retained heap size and assert that it doesn't exceed
+// a certain threshold (determined empirically).
 func TestIrgenMemoryUse(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 	tmpDir := t.TempDir()
-	traceOutputPath := filepath.Join(tmpDir, "irgen-memory-use-test.trace")
+	stderrPath := filepath.Join(tmpDir, "irgen-memory-use-test.stderr")
 	env := append(
 		os.Environ(),
 		fmt.Sprintf("%s=true", internalEnv),
-		fmt.Sprintf("%s=%s", traceOutputEnv, traceOutputPath),
+		"GOMAXPROCS=1",
+		"GODEBUG=gctrace=1",
 		"--test.run=TestIrgenMemoryUseInternal",
 	)
+	stderrFile, err := os.Create(stderrPath)
+	require.NoError(t, err)
 	cmd := exec.Command(os.Args[0], "--test.run=TestIrgenMemoryUseInternal", "--test.count=1")
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = stderrFile
 	require.NoError(t, cmd.Run())
-	require.FileExists(t, traceOutputPath)
-	f, err := os.Open(traceOutputPath)
+	_, err = stderrFile.Seek(0, io.SeekStart)
 	require.NoError(t, err)
-	defer func() { _ = f.Close() }()
-	reader, err := xtrace.NewReader(f)
-	require.NoError(t, err)
-	var maxMem uint64
-	const memoryMetricName = "/memory/classes/heap/objects:bytes"
-	for {
-		event, err := reader.ReadEvent()
-		if err != nil {
-			require.ErrorIs(t, err, io.EOF)
-			break
-		}
-		if event.Kind() != xtrace.EventMetric {
-			continue
-		}
-		metric := event.Metric()
-		if metric.Name != memoryMetricName {
-			continue
-		}
-		maxMem = max(maxMem, metric.Value.Uint64())
+
+	scanner := bufio.NewScanner(stderrFile)
+	const maxMemLimitMB = uint64(5)
+	for scanner.Scan() {
+		line := scanner.Text()
+		match := gcTraceRegexp.FindStringSubmatch(line)
+		require.NotNil(t, match, "failed to parse gctrace output: %s", scanner.Text())
+		liveHeap, err := strconv.ParseUint(match[liveIdx], 10, 64)
+		require.NoError(t, err)
+		assert.LessOrEqualf(
+			t, liveHeap, maxMemLimitMB, "live heap %d MB exceeds %d MB\n%s",
+			liveHeap, maxMemLimitMB, line,
+		)
 	}
-	const maxMemLimit = 10 * 1024 * 1024 // 10 MiB
-	require.Less(t, maxMem, uint64(maxMemLimit),
-		"%s > %s", humanize.IBytes(maxMem), humanize.IBytes(maxMemLimit))
-	t.Logf("maxMem: %s", humanize.IBytes(maxMem))
+	require.NoError(t, scanner.Err())
 }
+
+// See https://github.com/golang/go/blob/7056c71d/src/runtime/extern.go#L118-L129
+//
+//	gc # @#s #%: #+#+# ms clock, #+#/#/#+# ms cpu, #->#-># MB, # MB goal, # MB stacks, #MB globals, # P
+var (
+	gcTraceRegexp = regexp.MustCompile(
+		`^gc (?P<gcNum>\d+) @(?P<time>\S+) (?P<percent>\d+)%: ` +
+			`(?P<clock>\S+) ms clock, ` +
+			`(?P<cpu>\S+) ms cpu, ` +
+			`(?P<start>\d+)->(?P<end>\d+)->(?P<live>\d+) MB, ` +
+			`(?P<goal>\d+) MB goal, ` +
+			`(?P<stacks>\d+) MB stacks, ` +
+			`(?P<globals>\d+) MB globals, ` +
+			`(?P<processors>\d+) P`)
+	liveIdx = gcTraceRegexp.SubexpIndex("live")
+)
 
 func TestIrgenMemoryUseInternal(t *testing.T) {
 	if ok, _ := strconv.ParseBool(os.Getenv(internalEnv)); !ok {
@@ -93,15 +101,6 @@ func TestIrgenMemoryUseInternal(t *testing.T) {
 	binPath := testprogs.MustGetBinary(t, prog, cfg)
 	probes := testprogs.MustGetProbeDefinitions(t, prog)
 
-	traceOutputPath := os.Getenv(traceOutputEnv)
-	require.NotEmpty(t, traceOutputPath)
-	traceOutputDir := filepath.Dir(traceOutputPath)
-	require.DirExists(t, traceOutputDir)
-	traceOutput, err := os.CreateTemp(traceOutputDir, "irgen-memory-use-test-*.trace")
-	traceOutputTmpPath := traceOutput.Name()
-	require.NoError(t, err)
-	defer func() { _ = os.Remove(traceOutputTmpPath) }()
-	trace.Start(traceOutput)
 	diskCache, err := object.NewDiskCache(object.DiskCacheConfig{
 		DirPath:                  t.TempDir(),
 		RequiredDiskSpaceBytes:   10 * 1024 * 1024,  // require 10 MiB free
@@ -115,9 +114,8 @@ func TestIrgenMemoryUseInternal(t *testing.T) {
 	}
 	generator := irgen.NewGenerator(irgenOptions...)
 
-	_, err = generator.GenerateIR(1, binPath, probes)
+	generated, err := generator.GenerateIR(1, binPath, probes)
 	require.NoError(t, err)
-	trace.Stop()
-	require.NoError(t, traceOutput.Close())
-	require.NoError(t, os.Rename(traceOutputTmpPath, traceOutputPath))
+	runtime.GC()
+	runtime.KeepAlive(generated)
 }

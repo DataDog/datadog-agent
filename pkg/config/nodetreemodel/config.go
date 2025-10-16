@@ -197,19 +197,26 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
-	c.Lock()
-	defer c.Unlock()
-
 	c.maybeRebuild()
+
+	c.Lock()
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
 			log.Errorf("set value for unknown key '%s'", key)
 		} else {
 			log.Errorf("could not set '%s' unknown key", key)
+			c.Unlock()
 			return
 		}
 	}
+	schemaNode := c.nodeAtPathFromNode(key, c.schema)
+	if _, ok := schemaNode.(LeafNode); schemaNode != missingLeaf && !ok {
+		panicInTest("Key '%s' is not a setting but part of the config tree: 'Set' method only works on settings", key)
+		c.Unlock()
+		return
+	}
+
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
@@ -218,6 +225,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
 		log.Errorf("could not insert value: %s", err)
+		c.Unlock()
 		return
 	} else if newTree != nil {
 		// a new node was allocated, merge it into root
@@ -228,10 +236,12 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	// if no value has changed we don't notify
 	if reflect.DeepEqual(previousValue, newValue) {
+		c.Unlock()
 		return
 	}
 
 	c.sequenceID++
+	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
@@ -433,6 +443,9 @@ func (c *ntmConfig) maybeRebuild() {
 		// flag to prevent recursive rebuilds
 		c.allowDynamicSchema.Store(false)
 		defer func() { c.allowDynamicSchema.Store(true) }()
+
+		c.Lock()
+		defer c.Unlock()
 		c.buildSchema()
 	}
 }
@@ -442,8 +455,6 @@ func (c *ntmConfig) maybeRebuild() {
 //
 // Must be called with the lock read-locked.
 func (c *ntmConfig) checkKnownKey(key string) {
-	c.maybeRebuild()
-
 	if c.isKnownKey(key) {
 		return
 	}
@@ -487,8 +498,6 @@ func (c *ntmConfig) mergeAllLayers() error {
 }
 
 func (c *ntmConfig) computeAllSettings(path string) []string {
-	c.maybeRebuild()
-
 	keySet := make(map[string]struct{})
 
 	// 1. Collect all known keys from schema
@@ -628,10 +637,10 @@ func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 
 // IsSet checks if a key is set in the config
 func (c *ntmConfig) IsSet(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
-
-	c.maybeRebuild()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
@@ -792,6 +801,8 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 // UnmarshalKey unmarshals the data for the given key
 // DEPRECATED: use pkg/config/structure.UnmarshalKey instead
 func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(*mapstructure.DecoderConfig)) error {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -867,18 +878,20 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 
 // AllSettings returns all settings from the config
 func (c *ntmConfig) AllSettings() map[string]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
-	c.maybeRebuild()
 
 	return c.root.DumpSettings(func(model.Source) bool { return true })
 }
 
 // AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
-	c.maybeRebuild()
 
 	// We only want to include leaf with a source higher than SourceDefault
 	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterThan(model.SourceDefault) })
@@ -900,14 +913,16 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 		model.SourceLocalConfigProcess: c.localConfigProcess.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceRC:                 c.remoteConfig.DumpSettings(func(model.Source) bool { return true }),
 		model.SourceCLI:                c.cli.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceProvided:           c.root.DumpSettings(func(src model.Source) bool { return src != model.SourceDefault }),
 	}
 }
 
 // AllSettingsWithSequenceID returns the settings and the sequence ID.
 func (c *ntmConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
-	c.maybeRebuild()
 	return c.root.DumpSettings(func(model.Source) bool { return true }), c.sequenceID
 }
 
