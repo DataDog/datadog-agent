@@ -8,8 +8,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -20,26 +24,15 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/metadata"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
-// StatusServiceName is the service name for remote agent status provider
-const StatusServiceName = "datadog.remoteagent.status.v1.StatusProvider"
-
-// FlareServiceName is the service name for remote agent flare provider
-const FlareServiceName = "datadog.remoteagent.flare.v1.FlareProvider"
-
-// TelemetryServiceName is the service name for remote agent telemetry provider
-const TelemetryServiceName = "datadog.remoteagent.telemetry.v1.TelemetryProvider"
-
 type remoteAgentServer struct {
 	started time.Time
-	pbcore.UnimplementedStatusProviderServer
-	pbcore.UnimplementedFlareProviderServer
-	pbcore.UnimplementedTelemetryProviderServer
+	pbcore.UnimplementedRemoteAgentServer
 }
 
 func (s *remoteAgentServer) GetStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
@@ -55,6 +48,7 @@ func (s *remoteAgentServer) GetStatusDetails(_ context.Context, req *pbcore.GetS
 		},
 		NamedSections: make(map[string]*pbcore.StatusSection),
 	}, nil
+
 }
 
 func (s *remoteAgentServer) GetFlareFiles(_ context.Context, req *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {
@@ -90,21 +84,52 @@ func newRemoteAgentServer() *remoteAgentServer {
 	}
 }
 
-// registerWithAgent handles the registration logic with the Core Agent
-func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr string, refreshTicker *time.Ticker) (string, pbcore.AgentSecureClient, error) {
-	log.Println("Session ID is empty, entering registration loop")
+func main() {
+	// Read in all of the necessary configuration for this remote agent.
+	var agentID string
+	var displayName string
+	var listenAddr string
+	var agentIpcAddress string
+	var agentAuthTokenFilePath string
 
+	flag.StringVar(&agentID, "agent-id", "", "Agent ID to register with")
+	flag.StringVar(&displayName, "display-name", "", "Display name to register with")
+	flag.StringVar(&listenAddr, "listen-addr", "", "Address to listen on")
+	flag.StringVar(&agentIpcAddress, "agent-ipc-address", "", "Agent IPC server address")
+	flag.StringVar(&agentAuthTokenFilePath, "agent-auth-token-file", "", "Path to Agent authentication token file")
+
+	flag.Parse()
+
+	if flag.NFlag() != 5 {
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	// Build and spawn our gRPC server.
+	selfAuthToken, err := buildAndSpawnGrpcServer(listenAddr, newRemoteAgentServer())
+	if err != nil {
+		log.Fatalf("failed to build/spawn gRPC server: %v", err)
+	}
+
+	log.Printf("Spawned remote agent gRPC server on %s.", listenAddr)
+
+	// Now we'll register with the Core Agent, pointing it to our gRPC server.
+	rawAgentAuthToken, err := os.ReadFile(agentAuthTokenFilePath)
+	if err != nil {
+		log.Fatalf("failed to read agent auth token file: %v", err)
+	}
+
+	agentAuthToken := string(rawAgentAuthToken)
 	agentClient, err := newAgentSecureClient(agentIpcAddress, agentAuthToken)
 	if err != nil {
-		log.Printf("failed to create agent client: %v", err)
-		return "", nil, err
+		log.Fatalf("failed to create agent client: %v", err)
 	}
 
 	registerReq := &pbcore.RegisterRemoteAgentRequest{
-		Flavor:         agentFlavor,
-		DisplayName:    displayName,
-		ApiEndpointUri: listenAddr,
-		Services:       []string{StatusServiceName, FlareServiceName, TelemetryServiceName},
+		Id:          agentID,
+		DisplayName: displayName,
+		ApiEndpoint: listenAddr,
+		AuthToken:   selfAuthToken,
 	}
 
 	log.Printf("Registering with Core Agent at %s...", agentIpcAddress)
@@ -114,152 +139,57 @@ func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName
 
 	resp, err := agentClient.RegisterRemoteAgent(ctx, registerReq)
 	if err != nil {
-		log.Printf("failed to register remote agent: %v", err)
-		return "", nil, err
+		log.Fatalf("failed to register remote agent: %v", err)
 	}
 
-	// Store the session ID for use in the session ID interceptor
-	sessionID := resp.SessionId
-	refreshTicker.Reset(time.Duration(resp.RecommendedRefreshIntervalSecs) * time.Second)
 	log.Printf("Registered with Core Agent. Recommended refresh interval of %d seconds.", resp.RecommendedRefreshIntervalSecs)
 
-	return sessionID, agentClient, nil
-}
-
-// refreshRegistration handles the refresh logic with the Core Agent
-func refreshRegistration(agentClient pbcore.AgentSecureClient, sessionID string) error {
-	_, err := agentClient.RefreshRemoteAgent(context.Background(), &pbcore.RefreshRemoteAgentRequest{SessionId: sessionID})
-	if err != nil {
-		return err
-	}
-
-	log.Println("Refreshed registration with Core Agent.")
-	return nil
-}
-
-func main() {
-	// Read in all of the necessary configuration for this remote agent.
-	var agentFlavor string
-	var displayName string
-	var listenAddr string
-	var agentIpcAddress string
-	var agentAuthTokenFilePath string
-	var agentIPCCertFilePath string
-	var sessionID string
-	var agentClient pbcore.AgentSecureClient
-
-	flag.StringVar(&agentFlavor, "agent-flavor", "", "Agent Flavor")
-	flag.StringVar(&displayName, "display-name", "", "Display name to register with")
-	flag.StringVar(&listenAddr, "listen-addr", "", "Address to listen on")
-	flag.StringVar(&agentIpcAddress, "agent-ipc-address", "", "Agent IPC server address")
-	flag.StringVar(&agentAuthTokenFilePath, "agent-auth-token-file", "", "Path to Agent authentication token file")
-	flag.StringVar(&agentIPCCertFilePath, "agent-cert-file", "", "Path to Agent IPC certificate file")
-	flag.Parse()
-
-	if flag.NFlag() != 6 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	// Now we'll register with the Core Agent, pointing it to our gRPC server.
-	rawAgentAuthToken, err := os.ReadFile(agentAuthTokenFilePath)
-	if err != nil {
-		log.Fatalf("failed to read agent auth token file: %v", err)
-	}
-
-	agentAuthToken := string(rawAgentAuthToken)
-
-	// Read the IPC certificate from the agent
-	tlsCert, err := getAgentCert(agentIPCCertFilePath)
-	if err != nil {
-		log.Fatalf("failed to get agent IPC cert: %v", err)
-	}
-
-	// Build and spawn our gRPC server.
-	err = buildAndSpawnGrpcServer(listenAddr, newRemoteAgentServer(), agentAuthToken, &tlsCert, &sessionID)
-	if err != nil {
-		log.Fatalf("failed to build/spawn gRPC server: %v", err)
-	}
-
-	log.Printf("Spawned remote agent gRPC server on %s.", listenAddr)
-
 	// Wait forever, periodically refreshing our registration.
-	refreshTicker := time.NewTicker(500 * time.Millisecond)
+	refreshTicker := time.NewTicker(time.Duration(resp.RecommendedRefreshIntervalSecs) * time.Second)
 	for range refreshTicker.C {
-		if sessionID == "" {
-			var err error
-			sessionID, agentClient, err = registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr, refreshTicker)
-			if err != nil {
-				continue
-			}
-		} else {
-			err := refreshRegistration(agentClient, sessionID)
-			if err != nil {
-				log.Printf("failed to refresh registration with Core Agent: %v, entering registration loop", err)
-				sessionID = ""
-				continue
-			}
+		_, err := agentClient.RegisterRemoteAgent(context.Background(), registerReq)
+		if err != nil {
+			log.Fatalf("failed to refresh remote agent registration: %v", err)
 		}
+
+		log.Println("Refreshed registration with Core Agent.")
 	}
 }
 
-func getAgentCert(path string) (tls.Certificate, error) {
-	cert := tls.Certificate{}
-
-	// Getting the IPC certificate from the agent
-	rawFile, err := os.ReadFile(path)
+func buildAndSpawnGrpcServer(listenAddr string, server pbcore.RemoteAgentServer) (string, error) {
+	// Generate a self-signed certificate for our server.
+	host, _, err := net.SplitHostPort(listenAddr)
 	if err != nil {
-		return cert, fmt.Errorf("error while creating or fetching IPC cert: %w", err)
+		return "", fmt.Errorf("unable to extract hostname from listen address: %v", err)
 	}
 
-	// Decode the certificate
-	block, rest := pem.Decode(rawFile)
-
-	if block == nil || block.Type != "CERTIFICATE" {
-		return cert, fmt.Errorf("failed to decode PEM block containing certificate")
-	}
-	rawCert := pem.EncodeToMemory(block)
-
-	block, _ = pem.Decode(rest)
-
-	if block == nil || block.Type != "EC PRIVATE KEY" {
-		return cert, fmt.Errorf("failed to decode PEM block containing key")
-	}
-
-	rawKey := pem.EncodeToMemory(block)
-
-	tlsCert, err := tls.X509KeyPair(rawCert, rawKey)
+	tlsKeyPair, err := buildSelfSignedTLSCertificate(host)
 	if err != nil {
-		return cert, fmt.Errorf("Unable to generate x509 cert from PERM IPC cert and key")
+		return "", fmt.Errorf("unable to generate TLS certificate: %v", err)
 	}
-	return tlsCert, nil
-}
 
-func buildAndSpawnGrpcServer(listenAddr string, server *remoteAgentServer, authToken string, cert *tls.Certificate, sessionID *string) error {
 	// Make sure we can listen on the intended address.
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	chainedInterceptor := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		// first apply auth interceptor
-		authHandler := grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(authToken))
-		return authHandler(ctx, req, info, func(ctx context.Context, req any) (any, error) {
-			// then apply session ID interceptor
-			return sessionIDInterceptor(sessionID)(ctx, req, info, handler)
-		})
+	// Generate an authentication token and set up our gRPC server to both serve over TLS and authenticate each RPC
+	// using the authentication token.
+	authToken, err := generateAuthenticationToken()
+	if err != nil {
+		return "", fmt.Errorf("unable to generate authentication token: %v", err)
 	}
 
+	// For testing purposes, we only need auth interceptors, not metrics interceptors
+	// since this remote agent doesn't send metrics to COAT
 	serverOpts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewServerTLSFromCert(cert)),
-		grpc.UnaryInterceptor(chainedInterceptor),
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(authToken))),
+		grpc.Creds(credentials.NewServerTLSFromCert(tlsKeyPair)),
 	}
 
 	grpcServer := grpc.NewServer(serverOpts...)
-	pbcore.RegisterStatusProviderServer(grpcServer, server)
-	pbcore.RegisterFlareProviderServer(grpcServer, server)
-	pbcore.RegisterTelemetryProviderServer(grpcServer, server)
+	pbcore.RegisterRemoteAgentServer(grpcServer, server)
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
@@ -267,7 +197,37 @@ func buildAndSpawnGrpcServer(listenAddr string, server *remoteAgentServer, authT
 		}
 	}()
 
-	return nil
+	return authToken, nil
+}
+
+func buildSelfSignedTLSCertificate(host string) (*tls.Certificate, error) {
+	hosts := []string{host}
+	_, certPEM, key, err := security.GenerateRootCert(hosts, 2048)
+	if err != nil {
+		return nil, errors.New("unable to generate certificate")
+	}
+
+	// PEM encode the private key
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key),
+	})
+
+	pair, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate TLS key pair: %v", err)
+	}
+
+	return &pair, nil
+}
+
+func generateAuthenticationToken() (string, error) {
+	rawToken := make([]byte, 32)
+	_, err := rand.Read(rawToken)
+	if err != nil {
+		return "", fmt.Errorf("can't create authentication token value: %s", err)
+	}
+
+	return hex.EncodeToString(rawToken), nil
 }
 
 func newAgentSecureClient(ipcAddress string, agentAuthToken string) (pbcore.AgentSecureClient, error) {
@@ -284,12 +244,4 @@ func newAgentSecureClient(ipcAddress string, agentAuthToken string) (pbcore.Agen
 	}
 
 	return pbcore.NewAgentSecureClient(conn), nil
-}
-
-// Create session ID interceptor that adds session_id to response metadata
-func sessionIDInterceptor(sessionID *string) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		_ = grpc.SetHeader(ctx, metadata.New(map[string]string{"session_id": *sessionID}))
-		return handler(ctx, req)
-	}
 }
