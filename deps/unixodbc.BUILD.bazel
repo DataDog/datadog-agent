@@ -2,6 +2,15 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 copy_file(
+    name = "libltdl_config_h",
+    src = select({
+        "@platforms//cpu:x86_64": "x86_64/libltdl/config.h",
+        "//conditions:default": "@platforms//:incompatible",
+    }),
+    out = "libltdl/config.h",
+)
+
+copy_file(
     name = "config_h",
     src = select({
         "@platforms//cpu:x86_64": "x86_64/config.h",
@@ -10,8 +19,12 @@ copy_file(
     out = "config.h",
 )
 
+# Built-in libltdl library to address "--with-included-ltdl" configure option.
 cc_library(
     name = "libltdl",
+    # This header has to be exposed along with the library to address
+    # "--enable-ltdl-install" configure option.
+    hdrs = ["libltdl/ltdl.h"],
     srcs = glob(
         ["libltdl/**/*.c", "libltdl/**/*.h"],
         exclude = [
@@ -23,8 +36,20 @@ cc_library(
             # Non-glibc implementation that is not needed
             "libltdl/lt__argz.c",
         ],
-    ) + [":config_h"],
+    ) + [":libltdl_config_h"],
     visibility = ["//visibility:public"],
     copts = ["-O3", "-DLTDL"],
-    includes = ["libltdl/libltdl", "libltdl/.", "."],
+    # "." is needed to make sure config.h is found.
+    includes = ["libltdl/libltdl", "libltdl/."],
+)
+
+cc_library(
+    name = "log",
+    # :config_h cannot be inside of the glob() because
+    # actions are executed during execution phase, not during analysis phase
+    # and glob is evaluated during analysis phase.
+    srcs = glob(["log/**/*.c", "include/*.h"]) + [":config_h"],
+    visibility = ["//visibility:public"],
+    copts = ["-O3"],
+    includes = [".", "include"],
 )
