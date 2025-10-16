@@ -5,11 +5,13 @@
       "images": [
         {
           "tag": "latest",
-          "digest": "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+          "digest": "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          "canonical_version": "3.1.0"
         },
         {
           "tag": "3",
-          "digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+          "digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          "canonical_version": "3.0.0"
         }
       ]
     },
@@ -19,11 +21,13 @@
       "images": [
         {
           "tag": "latest",
-          "digest": "sha256:fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321"
+          "digest": "sha256:fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321",
+          "canonical_version": "1.5.2"
         },
         {
           "tag": "1",
-          "digest": "sha256:0987654321fedcba0987654321fedcba0987654321fedcba0987654321fedcba"
+          "digest": "sha256:0987654321fedcba0987654321fedcba0987654321fedcba0987654321fedcba",
+          "canonical_version": "1.0.0"
         }
       ]
     },
@@ -33,11 +37,13 @@
       "images": [
         {
           "tag": "latest",
-          "digest": "sha256:123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          "digest": "sha256:123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          "canonical_version": "5.2.1"
         },
         {
           "tag": "5",
-          "digest": "sha256:456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+          "digest": "sha256:456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01",
+          "canonical_version": "5.0.0"
         }
       ]
     },
@@ -47,11 +53,13 @@
       "images": [
         {
           "tag": "latest",
-          "digest": "sha256:1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890"
+          "digest": "sha256:1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890",
+          "canonical_version": "0.2.1"
         },
         {
           "tag": "0",
-          "digest": "sha256:9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba"
+          "digest": "sha256:9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+          "canonical_version": "0.2.1"
         }
       ]
     }

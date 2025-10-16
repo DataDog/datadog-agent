@@ -264,6 +264,7 @@ func (r *remoteConfigImageResolver) processUpdate(update map[string]state.RawCon
 type ImageInfo struct {
 	Tag              string `json:"tag"`
 	Digest           string `json:"digest"`
+	CanonicalVersion string `json:"canonical_version"`
 }
 
 // RepositoryConfig represents a repository configuration from remote config.
