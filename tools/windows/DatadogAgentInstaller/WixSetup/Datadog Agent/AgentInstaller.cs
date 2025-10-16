@@ -129,6 +129,16 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                // DDOT flags replaced by generic DD_OCI_* path
+                // Generic OCI install list (semicolon-separated URLs)
+                new Property("DD_OCI_INSTALL")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_OCI_REMOVE")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
                     _agentBinaries.TrayId,

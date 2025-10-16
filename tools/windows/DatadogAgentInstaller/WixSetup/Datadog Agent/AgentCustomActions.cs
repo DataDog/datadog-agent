@@ -66,6 +66,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RollbackOciPackages { get; }
 
+        public ManagedAction UninstallOciPackages { get; }
+
         public ManagedAction WriteInstallInfo { get; }
 
         public ManagedAction ReportInstallFailure { get; }
@@ -508,9 +510,11 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
             .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]," +
+                           "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
                            "APIKEY=[APIKEY]," +
                            "SITE=[SITE]," +
                            "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
+                           "DD_OCI_INSTALL=[DD_OCI_INSTALL]," +
                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                            "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
 
@@ -527,6 +531,26 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY]");
+
+            UninstallOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(UninstallOciPackages)),
+                    CustomActions.UninstallOciPackages,
+                    Return.ignore,
+                    When.Before,
+                    Step.RemoveFiles,
+                    // Only run during uninstall and when DD_OCI_REMOVE is defined
+                    Conditions.Uninstalling & new Condition("DD_OCI_REMOVE")
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]," +
+                               "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
+                               "APIKEY=[APIKEY]," +
+                               "SITE=[SITE]," +
+                               "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
+                               "DD_OCI_REMOVE=[DD_OCI_REMOVE]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),
