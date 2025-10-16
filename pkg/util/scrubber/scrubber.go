@@ -17,6 +17,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -89,6 +90,11 @@ type Scrubber struct {
 	// shouldApply is a function that can be used to conditionally apply a replacer.
 	// If the function returns false, the replacer will not be applied.
 	shouldApply func(repl Replacer) bool
+
+	// preserveENC controls whether ENC[] patterns should be preserved during scrubbing.
+	// When true, matches containing ENC[] patterns will not be scrubbed.
+	// This is primarily used by the flare to preserve ENC value in yaml files.
+	preserveENC bool
 }
 
 // New creates a new scrubber with no replacers installed.
@@ -121,6 +127,14 @@ func (c *Scrubber) SetShouldApply(shouldApply func(repl Replacer) bool) {
 	c.shouldApply = shouldApply
 }
 
+// SetPreserveENC enables or disables ENC[] preservation during scrubbing.
+// When enabled, regex matches containing ENC[] patterns will not be scrubbed in single-line replacers.
+// This is primarily used by flare to preserve ENC[] values as they also implement YAML scrubbing.
+// Multiline replacers always scrub regardless of this setting to prevent security leaks.
+func (c *Scrubber) SetPreserveENC(preserve bool) {
+	c.preserveENC = preserve
+}
+
 // ScrubFile scrubs credentials from file given by pathname
 func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
@@ -148,7 +162,7 @@ func (c *Scrubber) ScrubBytes(data []byte) ([]byte, error) {
 // applied to URLs or to strings containing URLs. It does not run multi-line
 // replacers, and should not be used on multi-line inputs.
 func (c *Scrubber) ScrubLine(message string) string {
-	return string(c.scrub([]byte(message), c.singleLineReplacers))
+	return string(c.scrub([]byte(message), c.singleLineReplacers, true))
 }
 
 // scrubReader applies the cleaning algorithm to a Reader
@@ -172,7 +186,7 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 		if blankRegex.Match(b) {
 			cleanedBuffer.WriteRune('\n')
 		} else if !commentRegex.Match(b) {
-			b = c.scrub(b, c.singleLineReplacers)
+			b = c.scrub(b, c.singleLineReplacers, true)
 			if !first {
 				cleanedBuffer.WriteRune('\n')
 			}
@@ -187,13 +201,18 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 	}
 
 	// Then we apply multiline replacers on the cleaned file
-	cleanedFile := c.scrub(cleanedBuffer.Bytes(), c.multiLineReplacers)
+	// Note: ENC[] checking is disabled for multiline replacers to prevent
+	// security leaks where a large multiline match containing ENC[] would
+	// preserve secrets on other lines within the same match.
+	cleanedFile := c.scrub(cleanedBuffer.Bytes(), c.multiLineReplacers, false)
 
 	return cleanedFile, nil
 }
 
 // scrub applies the given replacers to the given data.
-func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
+// If isSingleLineReplacer is true, replacers will skip matches that contain valid ENC[] patterns.
+// This should be true for single-line replacers and false for multiline replacers when preserving ENC.
+func (c *Scrubber) scrub(data []byte, replacers []Replacer, isSingleLineReplacer bool) []byte {
 	for _, repl := range replacers {
 		if repl.Regex == nil {
 			// ignoring YAML only replacers
@@ -212,12 +231,33 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 			}
 		}
 		if len(repl.Hints) == 0 || containsHint {
-			if repl.ReplFunc != nil {
-				data = repl.Regex.ReplaceAllFunc(data, repl.ReplFunc)
-			} else {
-				data = repl.Regex.ReplaceAll(data, repl.Repl)
-			}
+			data = repl.Regex.ReplaceAllFunc(data, func(match []byte) []byte {
+				if isSingleLineReplacer && c.preserveENC && containsValidENC(match) {
+					return match
+				}
+				if repl.ReplFunc != nil {
+					return repl.ReplFunc(match)
+				}
+				return repl.Regex.ReplaceAll(match, repl.Repl)
+			})
 		}
 	}
 	return data
+}
+
+// IsEnc returns true is the string match the 'ENC[...]' format
+// Borrowed from comp/core/secrets/utils
+func IsEnc(str string) bool {
+	// trimming space and tabs
+	str = strings.Trim(str, " \t")
+	if strings.HasPrefix(str, "ENC[") && strings.HasSuffix(str, "]") {
+		return true
+	}
+	return false
+}
+
+var encPattern = regexp.MustCompile(`ENC\[[^\]]*\]`)
+
+func containsValidENC(data []byte) bool {
+	return encPattern.Match(data)
 }

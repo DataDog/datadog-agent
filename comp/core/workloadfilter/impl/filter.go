@@ -7,10 +7,11 @@
 package workloadfilterimpl
 
 import (
+	"os"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -22,16 +23,18 @@ import (
 type filterProgramFactory struct {
 	once    sync.Once
 	program program.FilterProgram
-	factory func(cfg config.Component, logger log.Component) program.FilterProgram
+	factory func(filterConfig *catalog.FilterConfig, logger logcomp.Component) program.FilterProgram
 }
 
 // workloadfilterStore is the implementation of the workloadfilterStore component.
 type workloadfilterStore struct {
 	config              config.Component
-	log                 log.Component
+	log                 logcomp.Component
 	telemetry           coretelemetry.Component
 	programFactoryStore map[workloadfilter.ResourceType]map[int]*filterProgramFactory
 	selection           *filterSelection
+	// Pre-built filter configuration with all parsed values
+	filterConfig *catalog.FilterConfig
 }
 
 // Requires defines the dependencies of the filter component.
@@ -39,7 +42,7 @@ type Requires struct {
 	compdef.In
 
 	Config    config.Component
-	Log       log.Component
+	Log       logcomp.Component
 	Telemetry coretelemetry.Component
 }
 
@@ -64,7 +67,7 @@ func NewComponent(req Requires) (Provides, error) {
 
 var _ workloadfilter.Component = (*workloadfilterStore)(nil)
 
-func (f *workloadfilterStore) registerFactory(resourceType workloadfilter.ResourceType, programType int, factory func(cfg config.Component, logger log.Component) program.FilterProgram) {
+func (f *workloadfilterStore) registerFactory(resourceType workloadfilter.ResourceType, programType int, factory func(filterConfig *catalog.FilterConfig, logger logcomp.Component) program.FilterProgram) {
 	if f.programFactoryStore[resourceType] == nil {
 		f.programFactoryStore[resourceType] = make(map[int]*filterProgramFactory)
 	}
@@ -89,27 +92,37 @@ func (f *workloadfilterStore) getProgram(resourceType workloadfilter.ResourceTyp
 	}
 
 	factory.once.Do(func() {
-		factory.program = factory.factory(f.config, f.log)
+		factory.program = factory.factory(f.filterConfig, f.log)
 	})
 
 	return factory.program
 }
 
-func newFilter(cfg config.Component, logger log.Component, telemetry coretelemetry.Component) (workloadfilter.Component, error) {
+func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretelemetry.Component) (workloadfilter.Component, error) {
+	filterConfig, configErr := catalog.NewFilterConfig(cfg)
+	if configErr != nil {
+		logger.Criticalf("failed to parse 'cel_workload_exclude' filters. Provided value: \n%s\nError: %v", cfg.Get("cel_workload_exclude"), configErr)
+		logger.Flush()
+		os.Exit(1)
+	}
+
 	filter := &workloadfilterStore{
 		config:              cfg,
 		log:                 logger,
 		telemetry:           telemetry,
 		programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterProgramFactory),
 		selection:           newFilterSelection(cfg),
+		filterConfig:        filterConfig,
 	}
 
 	genericADProgram := catalog.AutodiscoveryAnnotations()
 	genericADMetricsProgram := catalog.AutodiscoveryMetricsAnnotations()
 	genericADLogsProgram := catalog.AutodiscoveryLogsAnnotations()
-	genericADProgramFactory := func(_ config.Component, _ log.Component) program.FilterProgram { return genericADProgram }
-	genericADMetricsProgramFactory := func(_ config.Component, _ log.Component) program.FilterProgram { return genericADMetricsProgram }
-	genericADLogsProgramFactory := func(_ config.Component, _ log.Component) program.FilterProgram { return genericADLogsProgram }
+	genericADProgramFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return genericADProgram }
+	genericADMetricsProgramFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram {
+		return genericADMetricsProgram
+	}
+	genericADLogsProgramFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return genericADLogsProgram }
 
 	// Container Filters
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics), catalog.LegacyContainerMetricsProgram)
@@ -124,11 +137,19 @@ func newFilter(cfg config.Component, logger log.Component, telemetry coretelemet
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsLogs), genericADLogsProgramFactory)
 	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerPaused), catalog.ContainerPausedProgram)
 
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerCELMetrics), catalog.ContainerCELMetricsProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerCELLogs), catalog.ContainerCELLogsProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerCELSBOM), catalog.ContainerCELSBOMProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerCELGlobal), catalog.ContainerCELGlobalProgram)
+
 	// Service Filters
 	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceGlobal), catalog.LegacyServiceGlobalProgram)
 	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceMetrics), catalog.LegacyServiceMetricsProgram)
 	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotationsMetrics), genericADMetricsProgramFactory)
+
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceCELMetrics), catalog.ServiceCELMetricsProgram)
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceCELGlobal), catalog.ServiceCELGlobalProgram)
 
 	// Endpoints Filters
 	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointGlobal), catalog.LegacyEndpointsGlobalProgram)
@@ -136,10 +157,16 @@ func newFilter(cfg config.Component, logger log.Component, telemetry coretelemet
 	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotationsMetrics), genericADMetricsProgramFactory)
 
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointCELMetrics), catalog.EndpointCELMetricsProgram)
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointCELGlobal), catalog.EndpointCELGlobalProgram)
+
 	// Pod Filters
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.LegacyPod), catalog.LegacyPodProgram)
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotations), genericADProgramFactory)
 	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotationsMetrics), genericADMetricsProgramFactory)
+
+	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodCELMetrics), catalog.PodCELMetricsProgram)
+	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodCELGlobal), catalog.PodCELGlobalProgram)
 
 	// Process Filters
 	filter.registerFactory(workloadfilter.ProcessType, int(workloadfilter.LegacyProcessExcludeList), catalog.LegacyProcessExcludeProgram)

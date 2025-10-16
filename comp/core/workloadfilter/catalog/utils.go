@@ -10,6 +10,7 @@ package catalog
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -123,20 +124,16 @@ func convertOldToNewFilter(oldFilters []string, objectType workloadfilter.Resour
 	return strings.Join(newFilters, " || "), nil
 }
 
-// convertTypeToProtoType converts a filter.ResourceType to its corresponding proto type string.
-func convertTypeToProtoType(key workloadfilter.ResourceType) string {
-	switch key {
-	case workloadfilter.ContainerType:
-		return "datadog.filter.FilterContainer"
-	case workloadfilter.PodType:
-		return "datadog.filter.FilterPod"
-	case workloadfilter.ServiceType:
-		return "datadog.filter.FilterKubeService"
-	case workloadfilter.EndpointType:
-		return "datadog.filter.FilterKubeEndpoint"
-	case workloadfilter.ProcessType:
-		return "datadog.filter.FilterProcess"
-	default:
-		return ""
+func createCELExcludeProgram(name string, rules string, objectType workloadfilter.ResourceType, logger log.Component) program.FilterProgram {
+	excludeProgram, excludeErr := celprogram.CreateCELProgram(rules, objectType)
+	if excludeErr != nil {
+		logger.Criticalf(`failed to compile '%s' from 'cel_workload_exclude' filters: %v`, name, excludeErr)
+		logger.Flush()
+		os.Exit(1)
+	}
+	return program.CELProgram{
+		Name:                 name,
+		Exclude:              excludeProgram,
+		InitializationErrors: nil,
 	}
 }
