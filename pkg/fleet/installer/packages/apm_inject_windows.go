@@ -11,70 +11,25 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"golang.org/x/sys/windows/registry"
 )
-
-const (
-	// APMRegistryKey is the registry key path for APM configuration
-	APMRegistryKey = `SOFTWARE\Datadog\Datadog Installer\APM`
-	// APMInstrumentationMethodKey is the registry value name for APM instrumentation method
-	APMInstrumentationMethodKey = "InstrumentationMethod"
-)
-
-func setAPMInstrumentationMethod(method string) error {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, APMRegistryKey, registry.ALL_ACCESS)
-	if err != nil {
-		// If the key doesn't exist, create it
-		k, _, err = registry.CreateKey(registry.LOCAL_MACHINE, APMRegistryKey, registry.ALL_ACCESS)
-		if err != nil {
-			return err
-		}
-	}
-	defer k.Close()
-
-	fmt.Printf("setting APM instrumentation method to: %s\n", method)
-	return k.SetStringValue(APMInstrumentationMethodKey, method)
-}
-
-func unsetAPMInstrumentationMethod() error {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, APMRegistryKey, registry.ALL_ACCESS)
-	if err != nil {
-		if err == registry.ErrNotExist {
-			return nil
-		}
-		return err
-	}
-	defer k.Close()
-
-	return k.DeleteValue(APMInstrumentationMethodKey)
-}
-
-func getAPMInstrumentationMethod() (string, error) {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, APMRegistryKey, registry.QUERY_VALUE)
-	if err != nil {
-		if err == registry.ErrNotExist {
-			return env.APMInstrumentationNotSet, nil
-		}
-		return "", err
-	}
-	defer k.Close()
-
-	method, _, err := k.GetStringValue(APMInstrumentationMethodKey)
-	if err != nil {
-		if err == registry.ErrNotExist {
-			return env.APMInstrumentationNotSet, nil
-		}
-		return "", err
-	}
-	return method, nil
-}
 
 // InstrumentAPMInjector instruments the APM injector for IIS on Windows
 func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_injector")
 	defer func() { span.Finish(err) }()
 
-	return updateInstrumentation(ctx, method, "stable", false)
+	switch method {
+	case env.APMInstrumentationEnabledIIS:
+		err = instrumentDotnetLibrary(ctx, "stable")
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("Unsupported method: %s", method)
+
+	}
+
+	return nil
 }
 
 // UninstrumentAPMInjector un-instruments the APM injector for IIS on Windows
@@ -82,37 +37,16 @@ func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_injector")
 	defer func() { span.Finish(err) }()
 
-	var currentMethod string
-	currentMethod, err = getAPMInstrumentationMethod()
-	if err != nil {
-		return err
-	}
-
-	if currentMethod == env.APMInstrumentationNotSet && method == env.APMInstrumentationNotSet {
-		return fmt.Errorf("No instrumentation method to uninstrument")
-	}
-
-	// if no method is passed, default to the current one
-	if currentMethod != env.APMInstrumentationNotSet && method == env.APMInstrumentationNotSet {
-		method = currentMethod
-	}
-
 	switch method {
 	case env.APMInstrumentationEnabledIIS:
-		err = uninstrumentDotnetLibrary(ctx, method, "stable")
+		err = uninstrumentDotnetLibrary(ctx, "stable")
 		if err != nil {
 			return err
 		}
-	case env.APMInstrumentationEnabledHost:
-	// TODO
 	default:
 		return fmt.Errorf("Unsupported method: %s", method)
 
 	}
 
-	// If we un-instrumented another method than the one currently set, we do not want to change the configuration
-	if currentMethod != method {
-		return nil
-	}
-	return unsetAPMInstrumentationMethod()
+	return nil
 }
