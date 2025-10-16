@@ -19,9 +19,9 @@ import (
 	agentConfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"
 	evtreporter "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/reporter"
 	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 
