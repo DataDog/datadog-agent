@@ -9,7 +9,7 @@ package nvml
 
 import "context"
 
-func (c *collector) fillUnhealthyDevices(ctx context.Context, out map[string]struct{}) error {
+func (c *collector) getUnhealthyDevices(ctx context.Context) (map[string]struct{}, error) {
 	// gpu health info not available without kubelet access
-	return nil
+	return nil, nil
 }
