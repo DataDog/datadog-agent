@@ -43,6 +43,7 @@ const (
 	kubeDeploymentDogstatsdUDPExternalData  = "dogstatsd-udp-external-data-only"
 	kubeDeploymentDogstatsdUDSWithCSI       = "dogstatsd-uds-with-csi"
 	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
+	kubeDeploymentDogstatsdCSI              = "dogstatsd-uds-with-csi"
 	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
 	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
 )
@@ -1035,6 +1036,8 @@ func (suite *k8sSuite) TestKSM() {
 func (suite *k8sSuite) TestDogstatsdInAgent() {
 	// Test with UDS
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
+	// Test with UDS over CSI
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdCSI)
 	// Test with UDP + Origin detection
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
 	// Test with UDP + DD_ENTITY_ID
