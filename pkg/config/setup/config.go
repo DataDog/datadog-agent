@@ -47,15 +47,15 @@ const (
 	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
 	DefaultLinesOrBytesToSkip = 0
 
-	// DefaultFingerprintingMaxLines is the default maximum number of lines to read before computing the fingerprint.
-	DefaultFingerprintingMaxLines = 1
+	// DefaultFingerprintingLinesOrBytes is the default maximum number of lines to read before computing the fingerprint.
+	DefaultFingerprintingLinesOrBytes = 1024
 
 	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
 	// Options are:
 	// - "line_checksum": compute the fingerprint by lines
 	// - "byte_checksum": compute the fingerprint by bytes
 	// - "disabled": disable fingerprinting
-	DefaultFingerprintStrategy = "line_checksum"
+	DefaultFingerprintStrategy = "byte_checksum"
 
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
@@ -1660,7 +1660,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
 	// default fingerprint configuration
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingMaxLines)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingLinesOrBytes)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count_to_skip", DefaultLinesOrBytesToSkip)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
