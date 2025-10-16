@@ -6,7 +6,7 @@ filegroup(
     srcs = [
         "@bzip2",
         "@bzip2//:bz2",
-        "@libffi",
+        "@libffi//:ffi",
         "@libyaml",
         "@lua//:liblua",
         "@sqlite3",
