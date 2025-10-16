@@ -32,9 +32,10 @@ const (
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 type collector struct {
-	id      string
-	catalog workloadmeta.AgentType
-	store   workloadmeta.Component
+	id       string
+	catalog  workloadmeta.AgentType
+	store    workloadmeta.Component
+	firstRun bool
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -124,7 +125,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
 		}
 	} else {
-		if logLimiter.ShouldLog() {
+		if c.firstRun && logLimiter.ShouldLog() {
 			log.Infof("vGPU device %s does not support queries for max clock info", gpuDeviceInfo.EntityID.ID)
 		}
 	}
@@ -148,8 +149,9 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent,
+			id:       collectorID,
+			catalog:  workloadmeta.NodeAgent,
+			firstRun: true,
 		},
 	}, nil
 }
@@ -213,6 +215,7 @@ func (c *collector) Pull(_ context.Context) error {
 	}
 
 	c.store.Notify(events)
+	c.firstRun = false
 
 	return nil
 }
