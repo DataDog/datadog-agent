@@ -182,7 +182,7 @@ const (
 	SocketDNSFilter ProbeFuncName = "socket__dns_filter"
 
 	// ConntrackHashInsert is the probe for new conntrack entries
-	ConntrackHashInsert ProbeFuncName = "kprobe___nf_conntrack_hash_insert"
+	ConntrackHashInsert ProbeFuncName = "kprobe___nf_conntrack_hash_insert" // JMWCONNTRACK
 
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"

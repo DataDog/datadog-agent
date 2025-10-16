@@ -14,9 +14,10 @@
 #include "ipv6.h"
 #include "pid_tgid.h"
 
-SEC("kprobe/__nf_conntrack_hash_insert")
+SEC("kprobe/__nf_conntrack_hash_insert") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
-    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
+    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct)); //JMWNEXT get this working
+    log_debug("JMWTEST prebuilt kprobe/__nf_conntrack_hash_insert");
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {

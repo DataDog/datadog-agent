@@ -27,7 +27,7 @@
 #include "ipv6.h"
 #endif
 
-SEC("kprobe/__nf_conntrack_hash_insert")
+SEC("kprobe/__nf_conntrack_hash_insert") // JMWCONNTRACK
 int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
     u32 status = 0;
     BPF_CORE_READ_INTO(&status, ct, status);
@@ -36,6 +36,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct)
     }
 
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x", get_netns(ct), status);
+    log_debug("JMWTEST runtime kprobe/__nf_conntrack_hash_insert");
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {

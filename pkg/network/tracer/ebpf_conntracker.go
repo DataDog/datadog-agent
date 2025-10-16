@@ -420,7 +420,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackHashInsert,
+					EBPFFuncName: probes.ConntrackHashInsert, // JMWCONNTRACK
 					UID:          "conntracker",
 				},
 			},
