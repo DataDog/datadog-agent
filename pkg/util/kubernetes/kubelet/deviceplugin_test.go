@@ -28,7 +28,7 @@ func TestSingleDevicePluginClient_NewSingleDevicePluginClientWithSocket(t *testi
 	client, err := NewSingleDevicePluginClientWithSocket(socketPath)
 	require.NoError(t, err)
 	require.NotNil(t, client)
-	defer require.NotPanics(t, client.Close)
+	t.Cleanup(func() { require.NotPanics(t, client.Close) })
 
 	assert.NotNil(t, client.conn)
 	assert.NotNil(t, client.client)
@@ -53,7 +53,7 @@ func TestSingleDevicePluginClient_ListDevices(t *testing.T) {
 	socketPath := runMockDevicePluginServer(t, "", mockDevices)
 	client, err := NewSingleDevicePluginClientWithSocket(socketPath)
 	require.NoError(t, err)
-	defer client.Close()
+	t.Cleanup(client.Close)
 
 	devices, err := client.ListDevices(t.Context())
 	require.NoError(t, err)
@@ -73,7 +73,8 @@ func TestMultiDevicePluginClient(t *testing.T) {
 	client, err := NewMultiDevicePluginClientWithSocketDir(tmpDir, false)
 	require.NoError(t, err)
 	require.NotNil(t, client)
-	defer client.Close()
+	t.Cleanup(client.Close)
+
 	assert.Equal(t, tmpDir, client.socketDir)
 	assert.NotNil(t, client.socketToClients)
 	assert.Len(t, client.socketToClients, 0)
@@ -135,7 +136,7 @@ func TestCachedDevicePluginClient(t *testing.T) {
 	cacheTimeout := 1 * time.Second
 	cachedClient, err := NewCachedDevicePluginClient(mockClient, cacheTimeout)
 	require.NoError(t, err)
-	defer cachedClient.Close()
+	t.Cleanup(cachedClient.Close)
 
 	// First call should hit the underlying client
 	require.NoError(t, cachedClient.Refresh(t.Context()))

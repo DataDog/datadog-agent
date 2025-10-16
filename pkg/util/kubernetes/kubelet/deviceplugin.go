@@ -17,11 +17,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	devicepluginv1beta1 "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DevicePluginClient retrieves health/metadata about the available devices
@@ -178,11 +179,10 @@ func (c *MultiDevicePluginClient) Refresh(_ context.Context) error {
 	pluginSockets := map[string]struct{}{}
 	for _, entry := range entries {
 		name := entry.Name()
-		socketPath := filepath.Join(c.socketDir, name)
 
 		info, err := entry.Info()
 		if err != nil {
-			return fmt.Errorf("failed getting socket info %s: %w", socketPath, err)
+			return fmt.Errorf("failed getting socket info %s: %w", name, err)
 		}
 
 		if info.Mode()&os.ModeSocket == 0 ||
@@ -191,9 +191,9 @@ func (c *MultiDevicePluginClient) Refresh(_ context.Context) error {
 			continue
 		}
 
-		socketPath, err = filepath.Abs(socketPath)
+		socketPath, err := c.sanitizeRootFsPath(c.socketDir, name)
 		if err != nil {
-			return fmt.Errorf("failed getting absolute path for %s: %w", c.socketDir, err)
+			return fmt.Errorf("failed getting absolute path for %s/%s: %w", c.socketDir, name, err)
 		}
 
 		pluginSockets[socketPath] = struct{}{}
@@ -233,6 +233,18 @@ func (c *MultiDevicePluginClient) Refresh(_ context.Context) error {
 	}
 
 	return nil
+}
+
+func (c *MultiDevicePluginClient) sanitizeRootFsPath(basedir string, parts ...string) (string, error) {
+	path := filepath.Join(append([]string{basedir}, parts...)...)
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("invalid path %s, could not get absolute path: %w", path, err)
+	}
+	if !strings.HasPrefix(absPath, basedir) {
+		return "", fmt.Errorf("invalid path %s, should be a child of %s", absPath, basedir)
+	}
+	return absPath, nil
 }
 
 // ListDevices returns the most up to date list of devices from all the device plugin sockets available
