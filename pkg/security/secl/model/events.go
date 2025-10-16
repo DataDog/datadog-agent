@@ -177,8 +177,10 @@ const (
 	// ChangePermissionEventType event
 	ChangePermissionEventType
 
+	// FirstWindowsEventType is the first Windows event type
 	FirstWindowsEventType = CreateNewFileEventType
-	LastWindowsEventType  = ChangePermissionEventType
+	// LastWindowsEventType is the last Windows event type
+	LastWindowsEventType = ChangePermissionEventType
 
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
