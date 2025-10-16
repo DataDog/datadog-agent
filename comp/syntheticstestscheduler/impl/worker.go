@@ -24,6 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 )
 
+const (
+	syntheticsMetricPrefix = "dd.synthetics.agent."
+)
+
 // runWorkers starts the configured number of worker goroutines and waits for them.
 func (s *syntheticsTestScheduler) runWorkers(ctx context.Context) {
 	s.log.Debugf("starting workers (%d)", s.workers)
@@ -92,11 +96,12 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
 			if err != nil {
 				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
+				s.statsdClient.Incr(syntheticsMetricPrefix+"error_test_config", []string{"reason:error_test_config", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 			}
 
 			hname, err := s.hostNameService.Get(ctx)
 			if err != nil {
-				s.log.Debugf("[worker%d] Error running traceroute: %s", workerID, err)
+				s.log.Debugf("[worker%d] error getting hostname: %s", workerID, err)
 			}
 
 			wResult := &workerResult{
@@ -111,10 +116,13 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			wResult.finishedAt = s.timeNowFn()
 			wResult.duration = wResult.finishedAt.Sub(wResult.startedAt)
 			if tracerouteErr != nil {
-				s.log.Debugf("[worker%d] Error running traceroute: %s", workerID, err)
+				s.log.Debugf("[worker%d] error running traceroute: %s", workerID, tracerouteErr)
 				wResult.tracerouteError = tracerouteErr
-				if err = s.sendResult(wResult); err != nil {
+				s.statsdClient.Incr(syntheticsMetricPrefix+"traceroute.error", []string{"reason:error_running_datadog_traceroute", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+				_, err := s.sendResult(wResult)
+				if err != nil {
 					s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
+					s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 				}
 				continue
 			}
@@ -127,9 +135,12 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 				Latency:              result.E2eProbe.RTT,
 				Hops:                 result.Traceroute.HopCount,
 			})
-			if err = s.sendResult(wResult); err != nil {
+			status, err := s.sendResult(wResult)
+			if err != nil {
 				s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
+				s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 			}
+			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_processed", []string{fmt.Sprintf("status:%s", status), fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 		}
 	}
 }
@@ -223,21 +234,24 @@ type SyntheticsTestCtx struct {
 }
 
 // sendSyntheticsTestResult marshals the workerResult and forwards it via the epForwarder.
-func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) error {
+func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) (string, error) {
 	res, err := s.networkPathToTestResult(w)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	payloadBytes, err := json.Marshal(res)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	s.log.Debugf("synthetics network path test event: %s", string(payloadBytes))
 
 	m := message.NewMessage(payloadBytes, nil, "", 0)
-	return s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeSynthetics)
+	if err := s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeSynthetics); err != nil {
+		return "", err
+	}
+	return res.Result.Status, nil
 }
 
 // runTraceroute is the default traceroute execution using the traceroute package.
