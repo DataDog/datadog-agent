@@ -225,10 +225,8 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	// attempt getting list of unhealthy devices (if available)
 	unhealthyDevices, err := c.getUnhealthyDevices(ctx)
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("failed getting unhealthy devices: %v", err)
-		}
+	if err != nil && logLimiter.ShouldLog() {
+		log.Warnf("failed getting unhealthy devices: %v", err)
 	}
 
 	// note: the device list can change over time so we need to set/unset for reconciliation
