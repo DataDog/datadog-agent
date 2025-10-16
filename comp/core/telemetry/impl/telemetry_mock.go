@@ -15,9 +15,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"go.uber.org/fx"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -40,13 +40,16 @@ type Mock interface {
 }
 
 type testDependencies struct {
-	Lyfecycle compdef.Lifecycle
+	fx.In
+
+	Lyfecycle fx.Lifecycle
 }
 
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(newMock))
+		fx.Provide(newMock),
+		fx.Provide(func(m Mock) telemetry.Component { return m }))
 }
 
 // NewMock returns a new mock for telemetry
@@ -69,12 +72,7 @@ type telemetryImplMock struct {
 	telemetryImpl
 }
 
-type mockProvides struct {
-	Comp         telemetry.Component
-	CompExtended Mock
-}
-
-func newMock(deps testDependencies) mockProvides {
+func newMock(deps testDependencies) Mock {
 	reg := prometheus.NewRegistry()
 
 	telemetry := &telemetryImplMock{
@@ -85,7 +83,7 @@ func newMock(deps testDependencies) mockProvides {
 		},
 	}
 
-	deps.Lyfecycle.Append(compdef.Hook{
+	deps.Lyfecycle.Append(fx.Hook{
 		OnStop: func(_ context.Context) error {
 			telemetry.Reset()
 
@@ -93,7 +91,7 @@ func newMock(deps testDependencies) mockProvides {
 		},
 	})
 
-	return mockProvides{Comp: telemetry, CompExtended: telemetry}
+	return telemetry
 }
 
 type internalMetric struct {

@@ -6,9 +6,8 @@ go 1.24.9
 godebug tlsmlkem=0
 
 use (
+
 	.
-	./pkg/util/hostinfo
-	./pkg/util/jsonquery
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
@@ -161,9 +160,11 @@ use (
 	pkg/util/flavor
 	pkg/util/fxutil
 	pkg/util/grpc
+	pkg/util/hostinfo
 	pkg/util/hostname/validate
 	pkg/util/http
 	pkg/util/json
+	pkg/util/jsonquery
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option
