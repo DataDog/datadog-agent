@@ -99,7 +99,7 @@ func TestOOMKillProbe(t *testing.T) {
 			return false
 		}, 10*time.Second, 500*time.Millisecond, "failed to find an OOM killed process with pid %d", cmd.Process.Pid)
 
-		assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
+		assert.Regexp(t, regexp.MustCompile(`run-.+\.scope`), result.CgroupName, "cgroup name")
 		assert.Equal(t, result.TriggerPid, result.VictimPid, "tpid == pid")
 		assert.NotZero(t, result.Score, "score")
 		assert.Equal(t, int16(42), result.ScoreAdj, "score adj")
