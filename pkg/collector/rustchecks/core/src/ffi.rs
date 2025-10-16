@@ -1,4 +1,4 @@
-/// Macro used to generate all the check FFI
+/// Macro used to generate all the check FFI code
 #[macro_export]
 macro_rules! generate_ffi {
     ($check_impl:ident) => {

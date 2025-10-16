@@ -20,9 +20,9 @@ import (
 
 // init adds the shared library loader to the scheduler
 func init() {
-	if pkgconfigsetup.Datadog().GetBool("shared_libraries_check.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("shared_library_check.enabled") {
 		factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (check.Loader, int, error) {
-			sharedLibraryLoader := createNewDefaultSharedLibraryLoader()
+			sharedLibraryLoader := newSharedLibraryLoader(pkgconfigsetup.Datadog().GetString("shared_library_check.library_folder_path"))
 			loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filter, sharedLibraryLoader)
 			priority := 40
 			return loader, priority, err
@@ -30,6 +30,6 @@ func init() {
 
 		loaders.RegisterLoader(factory)
 	} else {
-		log.Info("Shared libraries checks are disabled.")
+		log.Info("Shared library checks are disabled.")
 	}
 }

@@ -61,7 +61,7 @@ func testLoadWithMissingLibrary(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	sharedLibraryLoader := createNewDefaultSharedLibraryLoader()
+	sharedLibraryLoader := newSharedLibraryLoader("folder/path/without/expected/library")
 
 	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
 	assert.Nil(t, err)

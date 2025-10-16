@@ -10,8 +10,6 @@ import (
 	"path"
 	"runtime"
 	"unsafe"
-
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 /*
@@ -68,8 +66,8 @@ type libraryLoader interface {
 
 // SharedLibraryLoader is an interface to load/close shared libraries and run their `Run` symbol
 type sharedLibraryLoader struct {
-	libraryFolder string
-	aggregator    *C.aggregator_t
+	folderPath string
+	aggregator *C.aggregator_t
 }
 
 // Load looks for a shared library with the corresponding name and check if it has a `Run` symbol.
@@ -78,7 +76,7 @@ func (l *sharedLibraryLoader) Load(name string) (libraryHandles, error) {
 	var cErr *C.char
 
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	libPath := path.Join(l.libraryFolder, "libdatadog-agent-"+name+getLibExtension())
+	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+getLibExtension())
 
 	cLibPath := C.CString(libPath)
 	defer C.free(unsafe.Pointer(cLibPath))
@@ -86,8 +84,7 @@ func (l *sharedLibraryLoader) Load(name string) (libraryHandles, error) {
 	cLibHandles := C.load_shared_library(cLibPath, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-
-		return libraryHandles{}, fmt.Errorf("failed to load shared library %q", libPath)
+		return libraryHandles{}, fmt.Errorf("failed to load shared library at %q", libPath)
 	}
 
 	return (libraryHandles)(cLibHandles), nil
@@ -126,14 +123,14 @@ func (l *sharedLibraryLoader) Close(libHandle unsafe.Pointer) error {
 	return nil
 }
 
-func createNewDefaultSharedLibraryLoader() *sharedLibraryLoader {
+func newSharedLibraryLoader(folderPath string) *sharedLibraryLoader {
 	return &sharedLibraryLoader{
-		libraryFolder: pkgconfigsetup.Datadog().GetString("additional_checksd"),
-		aggregator:    C.get_aggregator(),
+		folderPath: folderPath,
+		aggregator: C.get_aggregator(),
 	}
 }
 
-// mock of the sharedLibraryLoader
+// mock of sharedLibraryLoader
 type mockSharedLibraryLoader struct{}
 
 func (ml *mockSharedLibraryLoader) Load(_ string) (libraryHandles, error) {
