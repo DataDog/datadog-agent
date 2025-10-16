@@ -170,6 +170,7 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 		dictionary["Port"] = c.Port
 	case config.FileType:
 		dictionary["Path"] = c.Path
+		dictionary["Encoding"] = c.Encoding
 		dictionary["TailingMode"] = c.TailingMode
 		dictionary["Identifier"] = c.Identifier
 	case config.DockerType:

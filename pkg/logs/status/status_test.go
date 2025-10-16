@@ -49,6 +49,19 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 	}
 }
 
+func TestFileConfiguration(t *testing.T) {
+	defer Clear()
+	mockConfig := configmock.New(t)
+	InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{
+		sources.NewLogSource("foo", &config.LogsConfig{Type: "file", Path: "/foo/bar", Encoding: "utf-16-le"}),
+	}))
+
+	status := Get(false)
+	source := status.Integrations[0].Sources[0]
+	assert.Equal(t, source.Configuration["Path"], "/foo/bar")
+	assert.Equal(t, source.Configuration["Encoding"], "utf-16-le")
+}
+
 func TestStatusDeduplicateWarnings(t *testing.T) {
 	defer Clear()
 	initStatus(t)
