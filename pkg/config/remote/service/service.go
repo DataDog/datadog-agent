@@ -735,7 +735,11 @@ func (s *CoreAgentService) refresh() error {
 	timeSinceUpdate := time.Since(s.mu.lastUpdateTimestamp)
 	if timeSinceUpdate < time.Second {
 		log.Debugf("Requests too frequent, delaying by %v", time.Second-timeSinceUpdate)
-		time.Sleep(time.Second - timeSinceUpdate)
+		func() {
+			s.mu.Unlock()
+			defer s.mu.Lock()
+			time.Sleep(time.Second - timeSinceUpdate)
+		}()
 	}
 
 	activeClients := s.clients.activeClients()
