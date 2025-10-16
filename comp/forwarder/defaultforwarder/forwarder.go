@@ -96,7 +96,7 @@ func createOptions(params Params, config config.Component, log log.Component, _ 
 //
 //nolint:revive
 func NewForwarder(config config.Component, log log.Component, secrets secrets.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
-	forwarder := NewDefaultForwarder(config, log, secrets, options)
+	forwarder := NewDefaultForwarderWithSecrets(config, log, secrets, options)
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
@@ -117,6 +117,6 @@ func NewForwarder(config config.Component, log log.Component, secrets secrets.Co
 func newMockForwarder(config config.Component, log log.Component, secrets secrets.Component) provides {
 	options, _ := NewOptions(config, log, nil)
 	return provides{
-		Comp: NewDefaultForwarder(config, log, secrets, options),
+		Comp: NewDefaultForwarderWithSecrets(config, log, secrets, options),
 	}
 }

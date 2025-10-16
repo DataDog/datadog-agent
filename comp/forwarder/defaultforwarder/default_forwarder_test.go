@@ -46,7 +46,7 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
 	require.NoError(t, err)
 	secrets := secretsmock.New(t)
-	forwarder := NewDefaultForwarder(mockConfig, log, secrets, forwarderOptions)
+	forwarder := NewDefaultForwarderWithSecrets(mockConfig, log, secrets, forwarderOptions)
 
 	// API keys from the domain resolvers match
 	expectData := `{"example1.com":["api_key1","api_key2"],"example2.com":["api_key3"]}`
@@ -85,7 +85,7 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
 	require.NoError(t, err)
 	secrets := secretsmock.New(t)
-	forwarder := NewDefaultForwarder(mockConfig, log, secrets, forwarderOptions)
+	forwarder := NewDefaultForwarderWithSecrets(mockConfig, log, secrets, forwarderOptions)
 
 	// API keys from the domain resolvers match
 	expectData := `{"example1.com":["api_key1"],"example2.com":["api_key3"]}`

@@ -39,7 +39,7 @@ func NewSyncForwarder(config config.Component, log log.Component, secrets secret
 		config:           config,
 		log:              log,
 		secrets:          secrets,
-		defaultForwarder: NewDefaultForwarder(config, log, secrets, options),
+		defaultForwarder: NewDefaultForwarderWithSecrets(config, log, secrets, options),
 		client: &http.Client{
 			Timeout:   timeout,
 			Transport: utilhttp.CreateHTTPTransport(config),

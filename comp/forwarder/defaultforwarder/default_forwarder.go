@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -250,9 +251,8 @@ type DefaultForwarder struct {
 	secrets                         secrets.Component
 }
 
-// NewDefaultForwarder returns a new DefaultForwarder.
-// TODO: (components) Remove this method and other exported methods in comp/forwarder.
-func NewDefaultForwarder(config config.Component, log log.Component, secrets secrets.Component, options *Options) *DefaultForwarder {
+// NewDefaultForwarderWithSecrets returns a new DefaultForwarder with secrets support for API key refresh.
+func NewDefaultForwarderWithSecrets(config config.Component, log log.Component, secrets secrets.Component, options *Options) *DefaultForwarder {
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		config:           config,
@@ -394,6 +394,13 @@ func NewDefaultForwarder(config config.Component, log log.Component, secrets sec
 	}
 
 	return f
+}
+
+// NewDefaultForwarder returns a new DefaultForwarder.
+// TODO: (components) Remove this method and other exported methods in comp/forwarder.
+func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
+	// Use existing noop secrets implementation for backward compatibility with external packages like open-telemetry
+	return NewDefaultForwarderWithSecrets(config, log, secretsnoop.NewComponent().Comp, options)
 }
 
 func getAgentName(options *Options) string {
