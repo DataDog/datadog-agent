@@ -119,7 +119,7 @@ func getTargetFiles(uptaneClient uptaneClient, targetFilePaths []string) ([]*pbg
 // backend.  and maintains the local state of the configuration on behalf of its
 // clients.
 type CoreAgentService struct {
-	sync.Mutex
+	mu sync.Mutex
 
 	// rcType is used to differentiate multiple RC services running in a single
 	// agent.  Today, it is simply logged as a prefix in all log messages to
@@ -701,7 +701,7 @@ func (s *CoreAgentService) calculateRefreshInterval() time.Duration {
 }
 
 func (s *CoreAgentService) refresh() error {
-	s.Lock()
+	s.mu.Lock()
 
 	// We can't let the backend process an update twice in the same second due to the fact that we
 	// use the epoch with seconds resolution as the version for the TUF Director Targets. If this happens,
@@ -727,16 +727,16 @@ func (s *CoreAgentService) refresh() error {
 	}
 	orgUUID, err := s.uptane.StoredOrgUUID()
 	if err != nil {
-		s.Unlock()
+		s.mu.Unlock()
 		return err
 	}
 
 	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tagsGetter(), s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
-	s.Unlock()
+	s.mu.Unlock()
 	ctx := context.Background()
 	response, err := s.api.Fetch(ctx, request)
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.lastUpdateErr = nil
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
@@ -860,8 +860,8 @@ func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse,
 //
 //nolint:revive // TODO(RC) Fix revive linter
 func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	err := validateRequest(request)
 	if err != nil {
 		return nil, err
@@ -874,7 +874,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		// - The triggered request takes too long
 
 		s.clients.seen(request.Client)
-		s.Unlock()
+		s.mu.Unlock()
 
 		response := make(chan struct{})
 		bypassStart := time.Now()
@@ -900,7 +900,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 			s.telemetryReporter.IncTimeout()
 		}
 
-		s.Lock()
+		s.mu.Lock()
 	}
 	if s.disableConfigPollLoop && s.lastUpdateErr != nil {
 		return nil, s.lastUpdateErr
@@ -1012,8 +1012,8 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any
 			log.Errorf("Could not convert API key to string")
 			return
 		}
-		s.Lock()
-		defer s.Unlock()
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
 		s.api.UpdateAPIKey(newKey)
 
@@ -1064,8 +1064,8 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 
 // ConfigResetState resets the remote configuration state, clearing the local store and reinitializing the uptane client
 func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, error) {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	metadata, err := getMetadata(s.db)
 	if err != nil {
 		return nil, fmt.Errorf("could not read metadata from the database: %w", err)
@@ -1195,7 +1195,7 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 
 // HTTPClient fetches Remote Configurations from an HTTP(s)-based backend
 type HTTPClient struct {
-	sync.Mutex
+	mu         sync.Mutex
 	rcType     string
 	db         *bbolt.DB
 	lastUpdate time.Time
@@ -1254,21 +1254,15 @@ func (c *HTTPClient) GetCDNConfigUpdate(
 }
 
 func (c *HTTPClient) update(ctx context.Context) error {
-	var err error
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	err = c.uptane.Update(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return c.uptane.Update(ctx)
 }
 
 func (c *HTTPClient) shouldUpdate() bool {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if time.Since(c.lastUpdate) > maxCDNUpdateFrequency {
 		c.lastUpdate = time.Now()
 		return true
@@ -1280,8 +1274,8 @@ func (c *HTTPClient) getUpdate(
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
 ) (*state.Update, error) {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	tufVersions, err := c.uptane.TUFVersionState()
 	if err != nil {
