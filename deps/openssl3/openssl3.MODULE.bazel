@@ -9,6 +9,8 @@ http_archive(
         "apps/darwin64_x86_64/progs.c": "//deps/openssl3:overlay/apps/darwin64_x86_64/progs.c",
         "crypto/darwin64_arm64/params_idx.c": "//deps/openssl3:overlay/crypto/darwin64_arm64/params_idx.c",
         "crypto/darwin64_x86_64/params_idx.c": "//deps/openssl3:overlay/crypto/darwin64_x86_64/params_idx.c",
+        "crypto/sm4/vpsm4-armv8.S": "//deps/openssl3:overlay/crypto/sm4/vpsm4-armv8.S",
+        "crypto/sm4/vpsm4_ex-armv8.S": "//deps/openssl3:overlay/crypto/sm4/vpsm4_ex-armv8.S",
         "darwin64_arm64/crypto/buildinf.h": "//deps/openssl3:overlay/darwin64_arm64/crypto/buildinf.h",
         "darwin64_arm64/crypto/params_idx.c": "//deps/openssl3:overlay/darwin64_arm64/crypto/params_idx.c",
         "darwin64_arm64/include/crypto/bn_conf.h": "//deps/openssl3:overlay/darwin64_arm64/include/crypto/bn_conf.h",

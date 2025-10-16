@@ -1,4 +1,7 @@
+# Agent specific openssl3 build.
+
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
 load(
     "lib_contents.bzl",
     "HDRS",
@@ -7,6 +10,25 @@ load(
     "LIBCRYPTO_OBJS",
     "OBJ_TO_SRC",
 )
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:private"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE.txt",
+    visibility = ["//visibility:public"],
+)
+
+exports_files([
+    "LICENSE.txt",
+])
+
+VERSION = "3.5.2"
+SONAME = "libcrypto.so.%s" % VERSION
 
 LIB_CRYPTO_SRCS = [OBJ_TO_SRC.get(obj) for obj in LIBCRYPTO_OBJS if obj in OBJ_TO_SRC]
 
@@ -46,6 +68,13 @@ cc_library(
     srcs = [OBJ_TO_SRC.get(obj) for obj in LIBCRYPTO_OBJS if obj in OBJ_TO_SRC] + HDRS + select({
         "@platforms//os:macos": HDRS_DARWIN64_ARM64,
         "@platforms//os:linux": HDRS_LINUX_ARM64,
+    }) + select({
+        "@platforms//cpu:aarch64": [
+            "crypto/sm4/vpsm4-armv8.S",
+        ],
+        "//conditions:default": [
+            "crypto/sm4/vpsm4-armv8.S",
+        ],
     }) + select(ARCH_HDRS_COND),
     # Yeech.  Includes polutes the build. But we can not use -I because we don't know
     # the path to the folder when building via external/openssl3/...
@@ -87,14 +116,8 @@ cc_library(
         "crypto/des/ncbc_enc.c",
         "providers/implementations/macs/blake2_mac_impl.c",
     ] + glob(["**/*.inc"]),
+    visibility = ["//visibility:public"],
 )
-
-#cc_library(
-#    name = "libcommon",
-#    srcs = LIB_SRCS_CORE + select({
-#        "@platforms//os:macos": ["der/darwin64_x86_64/%s" % file for file in GENERATED],
-#    }),
-#)
 
 """Grabbed from live build.
 

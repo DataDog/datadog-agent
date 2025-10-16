@@ -1,6 +1,12 @@
 load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
 load("//bazel/tools:golden_file_test.bzl", "golden_file_test")
 
+# Forwarder to make this more accessible to the rest of the build.
+alias(
+    name = "libcrypto",
+    actual = "@openssl3//:libcrypto",
+)
+
 generate_module_bazel(
     name = "openssl3_module_bazel_new",
     out = "openssl3.MODULE.bazel.new",
