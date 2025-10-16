@@ -74,7 +74,7 @@ def containerized_integration_tests(
         "timeout_opt": f"-timeout {timeout}" if timeout else "",
     }
 
-    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}"'.format(**test_args)  # noqa: FS002
 
     for it in integration_tests_config.tests:
         if it.dir:
