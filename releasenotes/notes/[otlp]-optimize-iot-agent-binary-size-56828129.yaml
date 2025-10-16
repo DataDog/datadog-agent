@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    Optimize OTLP binary size for IoT Agent builds by conditionally excluding unnecessary components.
+    Optimizes OTLP binary size for IoT Agent builds by conditionally excluding unnecessary components.
     The IoT Agent now automatically skips debug exporters, infrastructure attributes processors,
     and detailed telemetry metrics that are typically not needed in IoT deployments.
     This reduces the binary size by approximately 50KB while maintaining full OTLP functionality
