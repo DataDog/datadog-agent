@@ -9,6 +9,7 @@ package awskubernetes
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -48,6 +49,29 @@ const (
 	defaultVMName     = "kind"
 )
 
+// parseKubernetesVersion extracts the semantic version from a Kubernetes version string.
+// It handles versions with image SHA suffixes (e.g., "v1.32.0@sha256:abc123") by returning
+// only the version part (e.g., "v1.32.0").
+func parseKubernetesVersion(version string) string {
+	// Split on @ to remove any SHA suffix
+	if idx := strings.Index(version, "@"); idx != -1 {
+		return version[:idx]
+	}
+	return version
+}
+
+// envWithParsedVersion wraps an aws.Environment to override KubernetesVersion()
+// with a parsed version that strips SHA suffixes
+type envWithParsedVersion struct {
+	aws.Environment
+	parsedVersion string
+}
+
+// KubernetesVersion returns the parsed version without SHA suffix
+func (e *envWithParsedVersion) KubernetesVersion() string {
+	return e.parsedVersion
+}
+
 // KindDiagnoseFunc is the diagnose function for the Kind provisioner
 func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	dumpResult, err := dumpKindClusterState(ctx, stackName)
@@ -85,6 +109,19 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
+	// Parse the Kubernetes version to handle SHA suffixes (e.g., "v1.32.0@sha256:...")
+	// The full version (with SHA) is used for Kind cluster creation
+	// The parsed version (without SHA) is used for app deployments that use semver parsing
+	kubernetesVersion := awsEnv.KubernetesVersion()
+	parsedKubernetesVersion := parseKubernetesVersion(kubernetesVersion)
+
+	// Create a wrapped environment that returns the parsed version
+	// This is used by nginx/redis which need to parse the version with semver
+	awsEnvParsed := &envWithParsedVersion{
+		Environment:   awsEnv,
+		parsedVersion: parsedKubernetesVersion,
+	}
+
 	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
 	if err != nil {
 		return err
@@ -97,9 +134,9 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 
 	var kindCluster *kubeComp.Cluster
 	if len(params.ciliumOptions) > 0 {
-		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.name, kubernetesVersion, params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	} else {
-		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.name, kubernetesVersion, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	}
 
 	if err != nil {
@@ -246,11 +283,11 @@ agents:
 
 		// These workloads can be deployed only if the agent is installed, they rely on CRDs installed by Agent helm chart
 		if params.agentOptions != nil {
-			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+			if _, err := nginx.K8sAppDefinition(awsEnvParsed, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
 
-			if _, err := redis.K8sAppDefinition(&awsEnv, kubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+			if _, err := redis.K8sAppDefinition(awsEnvParsed, kubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
 
