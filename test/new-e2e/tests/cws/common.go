@@ -132,7 +132,7 @@ func (a *agentSuite) Test03OpenSignal() {
 
 	// Check if system-probe has started
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/system-probe.log")
+		output, err := a.Env().RemoteHost.Execute("sudo cat /var/log/datadog/system-probe.log")
 		if !assert.NoError(c, err) {
 			return
 		}
@@ -141,7 +141,7 @@ func (a *agentSuite) Test03OpenSignal() {
 
 	// Check if security-agent has started
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/security-agent.log")
+		output, err := a.Env().RemoteHost.Execute("sudo cat /var/log/datadog/security-agent.log")
 		if !assert.NoError(c, err) {
 			return
 		}
