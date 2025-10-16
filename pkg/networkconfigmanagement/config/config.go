@@ -105,7 +105,7 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 		return nil, err
 	}
 	ncc.Namespace = initConfig.Namespace
-	ncc.MinCollectionInterval = time.Duration(initConfig.MinCollectionInterval)
+	ncc.MinCollectionInterval = time.Duration(initConfig.MinCollectionInterval) * time.Second
 
 	// Populate the profiles map (from defaults/OOTB)
 	profMap, err := profile.GetProfileMap("default_profiles")
@@ -212,10 +212,13 @@ func (ic *InitConfig) ValidateInitConfig() error {
 		return err
 	}
 	ic.Namespace = namespace
+
+	// if invalid interval, use default
 	if ic.MinCollectionInterval <= 0 {
 		log.Debugf("No or invalid min_collection_interval specified in init config, applying default: %d", defaultCheckInterval)
 		ic.MinCollectionInterval = int(defaultCheckInterval.Seconds()) // Default to 15 minutes
 	}
+
 	return nil
 }
 
