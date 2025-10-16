@@ -3,21 +3,21 @@ module github.com/DataDog/datadog-agent/comp/core/tagger/subscriber
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.72.0-rc.4
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.72.0-rc.4
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.72.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.72.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/log v0.72.0-rc.4
+	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.72.0-rc.6
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.72.0-rc.6
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.72.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.72.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/log v0.72.0-rc.6
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.72.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.72.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.72.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.72.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.72.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.72.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.72.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.72.0-rc.6 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
@@ -37,8 +37,8 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/time v0.12.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

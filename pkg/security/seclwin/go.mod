@@ -2,14 +2,14 @@ module github.com/DataDog/datadog-agent/pkg/security/seclwin
 
 go 1.24.0
 
-require github.com/DataDog/datadog-agent/pkg/security/secl v0.72.0-rc.4
+require github.com/DataDog/datadog-agent/pkg/security/secl v0.72.0-rc.6
 
 require (
 	github.com/alecthomas/participle v0.7.1 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/jellydator/ttlcache/v3 v3.4.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
