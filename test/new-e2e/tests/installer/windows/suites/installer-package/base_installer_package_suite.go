@@ -33,7 +33,7 @@ func (s *baseInstallerPackageSuite) freshInstall() {
 	// Assert
 	s.requireInstalled()
 	// the service cannot start because of the missing API key
-	s.requireNotRunning()
+	s.requireRunning()
 }
 
 func (s *baseInstallerPackageSuite) startServiceWithConfigFile() {
@@ -47,6 +47,14 @@ func (s *baseInstallerPackageSuite) startServiceWithConfigFile() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(consts.ServiceName).
 		WithStatus("Running")
+}
+
+func (s *baseInstallerPackageSuite) requireRunning() {
+	s.Require().Host(s.Env().RemoteHost).
+		HasAService(consts.ServiceName).
+		WithStatus("Running").
+		// no named pipe when service is not running
+		HasNamedPipe(consts.NamedPipe)
 }
 
 func (s *baseInstallerPackageSuite) requireNotRunning() {
