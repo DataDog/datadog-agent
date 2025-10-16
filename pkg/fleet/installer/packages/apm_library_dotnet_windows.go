@@ -31,6 +31,7 @@ const (
 	packageAPMLibraryDotnet        = "datadog-apm-library-dotnet"
 	apmRegistryKey                 = `SOFTWARE\Datadog\Datadog Installer\APM`
 	dotnetInstrumentationMethodKey = "DotnetInstrumentationMode"
+	dotnetInstrumenationDisabled   = "disabled"
 )
 
 var (
@@ -166,7 +167,7 @@ func uninstrumentDotnetLibrary(ctx context.Context, target string) (err error) {
 	if err != nil {
 		return err
 	}
-	err = setDotnetInstrumentationMethod(env.APMInstrumentationDisabled)
+	err = setDotnetInstrumentationMethod(dotnetInstrumenationDisabled)
 	return fmt.Errorf("Unable to set instrumentation method: %w", err)
 }
 
@@ -191,7 +192,7 @@ func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string, isUpgra
 			return fmt.Errorf("could not instrument dotnet library: %w", err)
 		}
 	} else {
-		return setDotnetInstrumentationMethod(env.APMInstrumentationDisabled)
+		return setDotnetInstrumentationMethod(dotnetInstrumenationDisabled)
 	}
 	return nil
 }
