@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -38,6 +39,7 @@ type dependencies struct {
 	fx.In
 	Log               log.Component
 	Config            config.Component
+	Secrets           secrets.Component
 	Hostname          hostname.Component
 	LogsCompressor    logscompression.Component
 	MetricsCompressor metricscompression.Component
@@ -78,7 +80,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	if err != nil {
 		return nil, err
 	}
-	forwarder := defaultforwarder.NewDefaultForwarder(config, log, options)
+	forwarder := defaultforwarder.NewDefaultForwarder(config, log, sender.deps.Secrets, options)
 	orchestratorForwarder := option.NewPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname, sender.deps.LogsCompressor))
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
