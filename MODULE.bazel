@@ -23,7 +23,11 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 http_archive(
     name = "com_github_bazelbuild_buildtools",
     patch_strip = 1,
-    patches = ["//bazel/patches:buildifier.patch"],
+    patches = [
+        "//bazel/patches:buildifier-build.patch",  # https://github.com/bazelbuild/buildtools/pull/1398
+        "//bazel/patches:buildifier-internal-factory.patch",  # https://github.com/bazelbuild/buildtools/pull/1399
+        "//bazel/patches:buildifier-runner-bat-template.patch",  # ^ https://github.com/bazelbuild/buildtools/pull/1400
+    ],
     sha256 = "53119397bbce1cd7e4c590e117dcda343c2086199de62932106c80733526c261",
     strip_prefix = "buildtools-8.2.1",
     urls = ["https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.2.1.tar.gz"],
