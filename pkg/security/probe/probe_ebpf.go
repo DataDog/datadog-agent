@@ -934,7 +934,6 @@ func (p *EBPFProbe) SendStats() error {
 	}
 
 	if p.opts.GenerateEventProcessingTimeMetrics {
-		// Calculate and send metrics for average and standard deviation for each event type
 		p.eventProcessingTimeMutex.Lock()
 		curEventProcessingTimes := p.eventProcessingTimes
 		ept := make(map[model.EventType]*StatsAccumulator)
