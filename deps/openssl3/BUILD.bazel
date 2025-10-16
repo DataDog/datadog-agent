@@ -13,11 +13,13 @@ generate_module_bazel(
     module = "openssl3",
     sha256 = "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99",
     strip_prefix = "openssl-3.5.4",
+    tags = ["manual"],
     url = "https://www.openssl.org/source/openssl-3.5.4.tar.gz",
 )
 
 golden_file_test(
     name = "openssl3_module_bazel_test",
     golden = "openssl3.MODULE.bazel",
+    tags = ["manual"],
     target = ":openssl3_module_bazel_new",
 )
