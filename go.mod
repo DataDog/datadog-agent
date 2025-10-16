@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent
 
 go 1.24.6
 
-toolchain go1.24.8
+toolchain go1.24.9
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -174,7 +174,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/version v0.72.0-devel
-	github.com/DataDog/datadog-go/v5 v5.6.0
+	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
 	github.com/DataDog/datadog-traceroute v0.1.28
 	github.com/DataDog/dd-trace-go/v2 v2.2.2

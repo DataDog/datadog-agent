@@ -25,9 +25,9 @@ http_archive(
     name = "com_github_bazelbuild_buildtools",
     patch_strip = 1,
     patches = [
-        "//bazel/patches:buildifier-build.patch",  # https://github.com/bazelbuild/buildtools/pull/1398
-        "//bazel/patches:buildifier-internal-factory.patch",  # https://github.com/bazelbuild/buildtools/pull/1399
-        "//bazel/patches:buildifier-runner-bat-template.patch",  # ^ https://github.com/bazelbuild/buildtools/pull/1400
+        "//bazel/patches:buildifier-build.patch",  # bazelbuild/buildtools#1398
+        "//bazel/patches:buildifier-internal-factory.patch",  # bazelbuild/buildtools#1399
+        "//bazel/patches:buildifier-runner-bat-template.patch",  # bazelbuild/buildtools#1400 bazelbuild/buildtools#1404
     ],
     sha256 = "53119397bbce1cd7e4c590e117dcda343c2086199de62932106c80733526c261",
     strip_prefix = "buildtools-8.2.1",
@@ -47,6 +47,8 @@ use_repo(multitool, "multitool")
 
 bazel_dep(name = "rules_cc", version = "0.2.8")
 bazel_dep(name = "rules_python", version = "1.6.1")
+bazel_dep(name = "rules_flex", version = "0.4")
+bazel_dep(name = "rules_m4", version = "0.3")
 
 #########################
 ## Native dependencies ##
