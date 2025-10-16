@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
@@ -249,4 +250,28 @@ func TestCompareNegativeNumber(t *testing.T) {
 
 	assert.Equal(t, uint64(0xfffffffffffffcf7), mf1.Large)
 	assert.Equal(t, uint64(0xfffffffffffffcf7), mf2.Large)
+}
+
+func TestUnmarshalKeyMapToBools(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("test", map[string]bool{})
+	})
+
+	type testBool struct {
+		A bool
+		B bool
+	}
+
+	objBool1 := testBool{}
+	objBool2 := testBool{}
+
+	viperConf.Set("test", map[string]bool{"a": false, "b": true}, model.SourceAgentRuntime)
+	err := unmarshalKeyReflection(viperConf, "test", &objBool1)
+	require.NoError(t, err)
+	assert.Equal(t, objBool1, testBool{A: false, B: true})
+
+	ntmConf.Set("test", map[string]bool{"a": false, "b": true}, model.SourceAgentRuntime)
+	err = unmarshalKeyReflection(ntmConf, "test", &objBool2)
+	require.NoError(t, err)
+	assert.Equal(t, objBool2, testBool{A: false, B: true})
 }

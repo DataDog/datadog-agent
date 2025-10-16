@@ -270,6 +270,18 @@ func fieldNameToKey(field reflect.StructField) (string, specifierSet) {
 }
 
 func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
+	if leafNode, ok := input.(nodetreemodel.LeafNode); ok {
+		m, err := nodetreemodel.ToMapStringInterface(leafNode.Get(), strings.Join(currPath, "."))
+		if err != nil {
+			return err
+		}
+		converted, err := nodetreemodel.NewNodeTree(m, model.SourceUnknown)
+		if err != nil {
+			return err
+		}
+		input = converted
+	}
+
 	targetType := target.Type()
 	usedFields := make(map[string]struct{})
 	for i := 0; i < targetType.NumField(); i++ {
