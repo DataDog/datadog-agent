@@ -49,7 +49,10 @@ require (
 	golang.org/x/net v0.46.0
 )
 
-require go.yaml.in/yaml/v2 v2.4.2 // indirect
+require (
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.0.0-00010101000000-000000000000 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
+)
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.166 // indirect
