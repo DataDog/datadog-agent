@@ -980,6 +980,8 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
+	// TODO: Do not hold the mutex while calling getTargetFiles -- it may go to
+	// disk or network.
 	targetFiles, err := getTargetFiles(s.mu.uptane, neededFiles)
 	if err != nil {
 		return nil, err
@@ -1053,6 +1055,8 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any
 			log.Warnf("Could not get org uuid: %s", err)
 			return
 		}
+
+		// TODO: Do not hold the mutex while calling FetchOrgData.
 		newOrgUUID, err := s.mu.api.FetchOrgData(context.Background())
 		if err != nil {
 			log.Warnf("Could not get org uuid: %s", err)
