@@ -210,8 +210,8 @@ func TestBlock(t *testing.T) {
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	e.close("test")
 	now := time.Now()
+	e.close("test", now)
 
 	assert.Contains(t, e.errorPerEndpoint, "test")
 	assert.True(t, now.Before(e.errorPerEndpoint["test"].until))
@@ -222,11 +222,11 @@ func TestMaxBlock(t *testing.T) {
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	e.close("test")
+	e.close("test", time.Now())
 	e.errorPerEndpoint["test"].nbError = 1000000
 	e.errorPerEndpoint["test"].state = halfBlocked
 
-	e.close("test")
+	e.close("test", time.Now())
 	now := time.Now()
 
 	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
@@ -248,29 +248,23 @@ func assertState(t *testing.T, e *blockedEndpoints, endpoint string, expected ci
 
 func TestIsblockEndpointStaysClosedAfterFailedTest(t *testing.T) {
 	mocktime := time.Now()
-	TimeNow = func() time.Time {
-		return mocktime
-	}
-	defer func() {
-		TimeNow = time.Now
-	}()
 
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_backoff_base", 1)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlockForSend("test"))
+	assert.False(t, e.isBlockForSend("test", mocktime))
 
-	e.close("test")
+	e.close("test", mocktime)
 
-	assert.True(t, e.isBlockForSend("test"))
+	assert.True(t, e.isBlockForSend("test", mocktime))
 
 	mocktime = mocktime.Add(2 * time.Second)
-	assert.False(t, e.isBlockForSend("test"))
-	assert.True(t, e.isBlockForSend("test"))
+	assert.False(t, e.isBlockForSend("test", mocktime))
+	assert.True(t, e.isBlockForSend("test", mocktime))
 
-	e.close("test")
+	e.close("test", mocktime)
 
 	assertState(t, e, "test", blocked)
 
@@ -281,64 +275,52 @@ func TestIsblockEndpointStaysClosedAfterFailedTest(t *testing.T) {
 
 	// Testing again after another 2 seconds
 	mocktime = mocktime.Add(2 * time.Second)
-	assert.False(t, e.isBlockForSend("test"))
-	assert.True(t, e.isBlockForSend("test"))
+	assert.False(t, e.isBlockForSend("test", mocktime))
+	assert.True(t, e.isBlockForSend("test", mocktime))
 	assertState(t, e, "test", halfBlocked)
 }
 
 func TestIsblockEndpointReopensAfterSuccessfulTest(t *testing.T) {
 	mocktime := time.Now()
-	TimeNow = func() time.Time {
-		return mocktime
-	}
-	defer func() {
-		TimeNow = time.Now
-	}()
 
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_backoff_base", 1)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlockForSend("test"))
+	assert.False(t, e.isBlockForSend("test", mocktime))
 
-	e.close("test")
+	e.close("test", mocktime)
 
-	assert.True(t, e.isBlockForSend("test"))
+	assert.True(t, e.isBlockForSend("test", mocktime))
 
 	mocktime = mocktime.Add(2 * time.Second)
-	assert.False(t, e.isBlockForSend("test"))
-	assert.True(t, e.isBlockForSend("test"))
+	assert.False(t, e.isBlockForSend("test", mocktime))
+	assert.True(t, e.isBlockForSend("test", mocktime))
 
-	e.recover("test")
+	e.recover("test", mocktime)
 
-	e.isBlockForSend("test")
+	e.isBlockForSend("test", mocktime)
 	assertState(t, e, "test", unblocked)
 }
 
 func TestIsblockEndpointReopensForTest(t *testing.T) {
 	mocktime := time.Now()
-	TimeNow = func() time.Time {
-		return mocktime
-	}
-	defer func() {
-		TimeNow = time.Now
-	}()
 
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_backoff_base", 1)
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlockForSend("test"))
+	assert.False(t, e.isBlockForSend("test", mocktime))
 
-	e.close("test")
+	e.close("test", mocktime)
 
-	assert.True(t, e.isBlockForSend("test"))
+	assert.True(t, e.isBlockForSend("test", mocktime))
 
 	mocktime = mocktime.Add(2 * time.Second)
-	assert.False(t, e.isBlockForSend("test"))
-	assert.True(t, e.isBlockForSend("test"))
+	assert.False(t, e.isBlockForSend("test", mocktime))
+	assert.True(t, e.isBlockForSend("test", mocktime))
 }
 
 func TestIsblockEndpointCloses(t *testing.T) {
@@ -346,11 +328,11 @@ func TestIsblockEndpointCloses(t *testing.T) {
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlockForSend("test"))
+	assert.False(t, e.isBlockForSend("test", time.Now()))
 
-	e.close("test")
+	e.close("test", time.Now())
 
-	assert.True(t, e.isBlockForSend("test"))
+	assert.True(t, e.isBlockForSend("test", time.Now()))
 }
 
 func TestIsblockOpen(t *testing.T) {
@@ -358,5 +340,5 @@ func TestIsblockOpen(t *testing.T) {
 	log := logmock.New(t)
 	e := newBlockedEndpoints(mockConfig, log)
 
-	assert.False(t, e.isBlockForSend("test"))
+	assert.False(t, e.isBlockForSend("test", time.Now()))
 }

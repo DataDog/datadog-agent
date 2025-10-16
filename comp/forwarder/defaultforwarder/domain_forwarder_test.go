@@ -242,8 +242,8 @@ func TestRetryTransactions(t *testing.T) {
 	t2.Payload = payload
 
 	// Create blocks
-	forwarder.blockedList.recover(t1.GetTarget())
-	forwarder.blockedList.recover(t2.GetTarget())
+	forwarder.blockedList.recover(t1.GetTarget(), time.Now())
+	forwarder.blockedList.recover(t2.GetTarget(), time.Now())
 
 	forwarder.blockedList.errorPerEndpoint[t1.GetTarget()].until = time.Now().Add(-1 * time.Hour)
 	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].until = time.Now().Add(1 * time.Hour)
@@ -265,7 +265,7 @@ func TestForwarderRetry(t *testing.T) {
 	forwarder.Start()
 	defer forwarder.Stop(false)
 
-	forwarder.blockedList.close("blocked")
+	forwarder.blockedList.close("blocked", time.Now())
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Hour)
 	forwarder.blockedList.errorPerEndpoint["blocked"].state = blocked
 
@@ -331,7 +331,7 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 	log := logmock.New(t)
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	forwarder.init()
-	forwarder.blockedList.close("blocked")
+	forwarder.blockedList.close("blocked", time.Now())
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
 	var transactions []*testTransaction
@@ -376,7 +376,7 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	forwarder := newDomainForwarder(mockConfig, log, "test", false, false, transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, retry.NewPointCountTelemetry("domain"))
-	forwarder.blockedList.close("blocked")
+	forwarder.blockedList.close("blocked", time.Now())
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
 	defer forwarder.Stop(true)

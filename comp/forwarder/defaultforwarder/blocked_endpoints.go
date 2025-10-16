@@ -15,9 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
 
-// TimeNow useful for mocking
-var TimeNow = time.Now
-
 // A given endpoint can be in one of three states.
 //
 // `unblocked`:
@@ -112,7 +109,7 @@ func (e *blockedEndpoints) getState(endpoint string) (bool, circuitBreakerState)
 }
 
 // close is called when we have received an error from this endpoint.
-func (e *blockedEndpoints) close(endpoint string) {
+func (e *blockedEndpoints) close(endpoint string, timeNow time.Time) {
 	e.m.Lock()
 	defer e.m.Unlock()
 
@@ -132,14 +129,14 @@ func (e *blockedEndpoints) close(endpoint string) {
 		// backoff policy.
 		if b.state == unblocked {
 			b.nbError = e.backoffPolicy.IncError(b.nbError)
-			b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
+			b.until = timeNow.Add(e.getBackoffDuration(b.nbError))
 			b.setState(blocked)
 		}
 	case halfBlocked:
 		// The test transaction failed, so we need to mave back to blocked.
 		if b.state == halfBlocked {
 			b.nbError = e.backoffPolicy.IncError(b.nbError)
-			b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
+			b.until = timeNow.Add(e.getBackoffDuration(b.nbError))
 			b.setState(blocked)
 		}
 	case blocked:
@@ -151,7 +148,7 @@ func (e *blockedEndpoints) close(endpoint string) {
 }
 
 // recover is called when we have received an success from this endpoint.
-func (e *blockedEndpoints) recover(endpoint string) {
+func (e *blockedEndpoints) recover(endpoint string, timeNow time.Time) {
 	e.m.Lock()
 	defer e.m.Unlock()
 
@@ -175,7 +172,7 @@ func (e *blockedEndpoints) recover(endpoint string) {
 			if b.nbError == 0 {
 				b.setState(unblocked)
 			} else {
-				b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
+				b.until = timeNow.Add(e.getBackoffDuration(b.nbError))
 				b.setState(blocked)
 			}
 		}
@@ -210,13 +207,13 @@ type shouldBlock int
 // worker to send a test transaction.
 // If we are `blocked` and the timeout has not expired, or we are `halfblocked`
 // (waiting for the results of the the test transaction) we block all transactions.
-func (e *blockedEndpoints) isBlockForRetry(endpoint string) shouldBlock {
+func (e *blockedEndpoints) isBlockForRetry(endpoint string, timeNow time.Time) shouldBlock {
 	e.m.RLock()
 	defer e.m.RUnlock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
 		if b.state == blocked {
-			if TimeNow().Before(b.until) {
+			if timeNow.Before(b.until) {
 				return allowNone
 			}
 
@@ -236,7 +233,7 @@ func (e *blockedEndpoints) isBlockForRetry(endpoint string) shouldBlock {
 // This function can modify the state. When in `Blocked` after the
 // timeout has expired we want to move to `HalfOpen` where we send a
 // single transaction to test if the endpoint now available.
-func (e *blockedEndpoints) isBlockForSend(endpoint string) bool {
+func (e *blockedEndpoints) isBlockForSend(endpoint string, timeNow time.Time) bool {
 	e.m.RLock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
@@ -246,7 +243,7 @@ func (e *blockedEndpoints) isBlockForSend(endpoint string) bool {
 			e.m.RUnlock()
 			return true
 		case blocked:
-			if TimeNow().Before(b.until) {
+			if timeNow.Before(b.until) {
 				e.m.RUnlock()
 				return true
 			} else {

@@ -113,7 +113,7 @@ func (f *domainForwarder) retryTransactions(_ time.Time) {
 		blocked, ok := blockedList[t.GetTarget()]
 		sendOne := false
 		if !ok {
-			shouldBlock := f.blockedList.isBlockForRetry(t.GetTarget())
+			shouldBlock := f.blockedList.isBlockForRetry(t.GetTarget(), time.Now())
 			blocked = shouldBlock == allowNone || shouldBlock == allowOne
 			blockedList[t.GetTarget()] = blocked
 			if shouldBlock == allowOne {
