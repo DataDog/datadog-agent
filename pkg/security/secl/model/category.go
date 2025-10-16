@@ -128,6 +128,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 
 	// FIM
 	case
+		// linux
 		FileChmodEventType.String(),
 		FileChownEventType.String(),
 		FileOpenEventType.String(),
@@ -148,7 +149,17 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		StatEventType.String(),
 		FileFsmountEventType.String(),
 		FileMoveMountEventType.String(),
-		FileOpenTreeEventType.String():
+		FileOpenTreeEventType.String(),
+		// windows
+		CreateNewFileEventType.String(),
+		DeleteFileEventType.String(),
+		WriteFileEventType.String(),
+		CreateRegistryKeyEventType.String(),
+		OpenRegistryKeyEventType.String(),
+		SetRegistryKeyValueEventType.String(),
+		DeleteRegistryKeyEventType.String(),
+		ChangePermissionEventType.String():
+
 		return FIMCategory
 	}
 
