@@ -71,8 +71,7 @@ Subprograms:
                   Op: {CfaOffset: 0}
                 - Size: 8
                   Op: {CfaOffset: 8}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: r
           Type: 103 PointerType *net/http.Request
           Locations:
@@ -80,8 +79,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
             - Range: 0xd28a56..0xd28c90
               Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: '&buf'
           Type: 105 PointerType *bytes.Buffer
           Locations:
@@ -89,8 +87,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd28bb1..0xd28c90
               Pieces: [{Size: 8, Op: {CfaOffset: -136}}]
-          IsParameter: false
-          IsReturn: false
+          Role: Local
         - Name: span
           Type: 107 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/ddtrace.Span
           Locations:
@@ -112,8 +109,7 @@ Subprograms:
                   Op: null
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
-          IsParameter: false
-          IsReturn: false
+          Role: Local
     - ID: 2
       Name: main.LookAtTheRequest
       OutOfLinePCRanges: [0xd28d60..0xd28e25]
@@ -128,8 +124,7 @@ Subprograms:
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
 Types:
     - __kind: PointerType
       ID: 39
