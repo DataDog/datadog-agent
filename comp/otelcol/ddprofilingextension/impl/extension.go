@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -103,8 +104,8 @@ func (e *ddExtension) startForOCB() error {
 		return errAPIKeyMissing
 	}
 	// agentless
+	os.Setenv("DD_PROFILING_AGENTLESS", "true")
 	profilerOptions = append(profilerOptions,
-		profiler.WithAgentlessUpload(),
 		profiler.WithAPIKey(string(e.cfg.API.Key)),
 	)
 
@@ -202,6 +203,7 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 }
 
 func (e *ddExtension) Shutdown(ctx context.Context) error {
+	os.Unsetenv("DD_PROFILING_AGENTLESS")
 	// stop profiler
 	profiler.Stop()
 
