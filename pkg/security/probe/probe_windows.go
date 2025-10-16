@@ -479,7 +479,7 @@ func (p *WindowsProbe) startAuditTracing(ecb etwCallback) error {
 			switch e.EventHeader.EventDescriptor.ID {
 			case idObjectPermsChange:
 				if pc, err := p.parseObjectPermsChange(e); err == nil {
-					log.Tracef("Received objectPermsChange event %d %s", e.EventHeader.EventDescriptor.ID, pc)
+					seclog.Tracef("Received objectPermsChange event %d %s", e.EventHeader.EventDescriptor.ID, pc)
 					ecb(pc, e.EventHeader.ProcessID)
 				}
 			}
@@ -502,7 +502,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 			switch e.EventHeader.EventDescriptor.ID {
 			case idNameCreate:
 				if ca, err := p.parseNameCreateArgs(e); err == nil {
-					log.Tracef("Received idNameCreate event %d %s", e.EventHeader.EventDescriptor.ID, ca)
+					seclog.Tracef("Received idNameCreate event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -514,7 +514,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idNameDelete:
 				if ca, err := p.parseNameDeleteArgs(e); err == nil {
-					log.Tracef("Received idNameDelete event %d %s", e.EventHeader.EventDescriptor.ID, ca)
+					seclog.Tracef("Received idNameDelete event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -539,7 +539,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idCreate: // https://learn.microsoft.com/en-us/previous-versions/windows/drivers/ifs/irp-mj-create
 				if ca, err := p.parseCreateArgs(e); err == nil {
-					log.Tracef("Received idCreate event %d %s", e.EventHeader.EventDescriptor.ID, ca)
+					seclog.Tracef("Received idCreate event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -553,7 +553,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idCreateNewFile:
 				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
-					log.Tracef("Received idCreateNewFile event %d %s", e.EventHeader.EventDescriptor.ID, ca)
+					seclog.Tracef("Received idCreateNewFile event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -567,7 +567,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idCleanup: // https://learn.microsoft.com/en-us/previous-versions/windows/drivers/ifs/irp-mj-cleanup
 				if ca, err := p.parseCleanupArgs(e); err == nil {
-					log.Tracef("Received idCleanup event %d %s", e.EventHeader.EventDescriptor.ID, ca)
+					seclog.Tracef("Received idCleanup event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -580,7 +580,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idClose: // https://learn.microsoft.com/en-us/previous-versions/windows/drivers/ifs/irp-mj-close
 				if ca, err := p.parseCloseArgs(e); err == nil {
-					log.Tracef("Received idClose event %d %s", e.EventHeader.EventDescriptor.ID, ca)
+					seclog.Tracef("Received idClose event %d %s", e.EventHeader.EventDescriptor.ID, ca)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -598,7 +598,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idFlush:
 				if fa, err := p.parseFlushArgs(e); err == nil {
-					log.Tracef("Received idFlush event %d %s", e.EventHeader.EventDescriptor.ID, fa)
+					seclog.Tracef("Received idFlush event %d %s", e.EventHeader.EventDescriptor.ID, fa)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -610,7 +610,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idWrite:
 				if wa, err := p.parseWriteArgs(e); err == nil {
-					log.Tracef("Received idWrite event %d %s", e.EventHeader.EventDescriptor.ID, wa)
+					seclog.Tracef("Received idWrite event %d %s", e.EventHeader.EventDescriptor.ID, wa)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -624,7 +624,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idSetInformation:
 				if si, err := p.parseInformationArgs(e); err == nil {
-					log.Tracef("Received idSetInformation event %d %s", e.EventHeader.EventDescriptor.ID, si)
+					seclog.Tracef("Received idSetInformation event %d %s", e.EventHeader.EventDescriptor.ID, si)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -636,7 +636,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idSetDelete:
 				if sd, err := p.parseSetDeleteArgs(e); err == nil {
-					log.Tracef("Received idSetDelete event %d %s", e.EventHeader.EventDescriptor.ID, sd)
+					seclog.Tracef("Received idSetDelete event %d %s", e.EventHeader.EventDescriptor.ID, sd)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -654,7 +654,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idDeletePath:
 				if dp, err := p.parseDeletePathArgs(e); err == nil {
-					log.Tracef("Received idDeletePath event %d %s", e.EventHeader.EventDescriptor.ID, dp)
+					seclog.Tracef("Received idDeletePath event %d %s", e.EventHeader.EventDescriptor.ID, dp)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -672,7 +672,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idRename:
 				if rn, err := p.parseRenameArgs(e); err == nil {
-					log.Tracef("Received idRename event %d %s", e.EventHeader.EventDescriptor.ID, rn)
+					seclog.Tracef("Received idRename event %d %s", e.EventHeader.EventDescriptor.ID, rn)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -686,7 +686,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idRenamePath:
 				if rn, err := p.parseRenamePathArgs(e); err == nil {
-					log.Tracef("Received idRenamePath event %d %s", e.EventHeader.EventDescriptor.ID, rn)
+					seclog.Tracef("Received idRenamePath event %d %s", e.EventHeader.EventDescriptor.ID, rn)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -704,7 +704,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idFSCTL:
 				if fs, err := p.parseFsctlArgs(e); err == nil {
-					log.Tracef("Received idFSCTL event %d %s", e.EventHeader.EventDescriptor.ID, fs)
+					seclog.Tracef("Received idFSCTL event %d %s", e.EventHeader.EventDescriptor.ID, fs)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
@@ -716,7 +716,7 @@ func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 				}
 			case idRename29:
 				if rn, err := p.parseRename29Args(e); err == nil {
-					log.Tracef("Received idRename29 event %d %s", e.EventHeader.EventDescriptor.ID, rn)
+					seclog.Tracef("Received idRename29 event %d %s", e.EventHeader.EventDescriptor.ID, rn)
 
 					p.stats.fpnLock.Lock()
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++

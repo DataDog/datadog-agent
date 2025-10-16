@@ -7,33 +7,37 @@
 package catalog
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
 // LegacyEndpointsMetricsProgram creates a program for filtering endpoints metrics
-func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
+func LegacyEndpointsMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
 	programName := "LegacyEndpointsMetricsProgram"
-	include := config.GetStringSlice("container_include_metrics")
-	exclude := config.GetStringSlice("container_exclude_metrics")
+	include := filterConfig.ContainerIncludeMetrics
+	exclude := filterConfig.ContainerExcludeMetrics
 	return createFromOldFilters(programName, include, exclude, workloadfilter.EndpointType, logger)
 }
 
 // LegacyEndpointsGlobalProgram creates a program for filtering endpoints globally
-func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
+func LegacyEndpointsGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
 	programName := "LegacyEndpointsGlobalProgram"
-
-	includeList := config.GetStringSlice("container_include")
-	excludeList := config.GetStringSlice("container_exclude")
-	if len(includeList) == 0 {
-		// fallback and support legacy "ac_include" config
-		includeList = config.GetStringSlice("ac_include")
-	}
-	if len(excludeList) == 0 {
-		// fallback and support legacy "ac_exclude" config
-		excludeList = config.GetStringSlice("ac_exclude")
-	}
+	includeList := filterConfig.GetLegacyContainerInclude()
+	excludeList := filterConfig.GetLegacyContainerExclude()
 	return createFromOldFilters(programName, includeList, excludeList, workloadfilter.EndpointType, logger)
+}
+
+// EndpointCELMetricsProgram creates a program for filtering endpoints metrics via CEL rules
+func EndpointCELMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	programName := "EndpointCELMetricsProgram"
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.EndpointType)
+	return createCELExcludeProgram(programName, rule, workloadfilter.EndpointType, logger)
+}
+
+// EndpointCELGlobalProgram creates a program for filtering endpoints globally via CEL rules
+func EndpointCELGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
+	programName := "EndpointCELGlobalProgram"
+	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.EndpointType)
+	return createCELExcludeProgram(programName, rule, workloadfilter.EndpointType, logger)
 }

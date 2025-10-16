@@ -31,3 +31,8 @@ func createFromOldFilters(name string, include, exclude []string, _ workloadfilt
 		InitializationErrors: initErrors,
 	}
 }
+
+// createCELExcludeProgram is a stub to allow compilation without CEL support.
+func createCELExcludeProgram(_ string, _ string, _ workloadfilter.ResourceType, _ log.Component) program.FilterProgram {
+	return nil
+}

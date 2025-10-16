@@ -122,7 +122,7 @@ func augmentReturnLocationsFromABI(
 	argRegs := &registerState{}
 	var argStackSize int32
 	for _, v := range subprogram.Variables {
-		if !v.IsParameter || v.IsReturn {
+		if v.Role != ir.VariableRoleParameter {
 			continue
 		}
 
@@ -153,7 +153,7 @@ func augmentReturnLocationsFromABI(
 	resultRegs := &registerState{} // reset per ABI step 4
 	var resultStackSize int32
 	for _, v := range subprogram.Variables {
-		if !v.IsReturn {
+		if v.Role != ir.VariableRoleReturn {
 			continue
 		}
 

@@ -446,6 +446,7 @@ def hacky_dev_image_build(
     process_agent=False,
     trace_agent=False,
     system_probe=False,
+    security_agent=False,
     push=False,
     race=False,
     signed_pull=False,
@@ -498,11 +499,18 @@ def hacky_dev_image_build(
         )
 
     copy_extra_agents = ""
+    if security_agent:
+        from tasks.security_agent import build as security_agent_build
+
+        security_agent_build(ctx, [""])
+        copy_extra_agents += "COPY bin/security-agent/security-agent /opt/datadog-agent/embedded/bin/security-agent\n"
+
     if process_agent:
         from tasks.process_agent import build as process_agent_build
 
         process_agent_build(ctx)
         copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
+
     if trace_agent:
         from tasks.trace_agent import build as trace_agent_build
 

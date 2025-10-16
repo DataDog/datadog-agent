@@ -13,6 +13,11 @@ filegroup(
         "@xz",
         "@xz//:lzma",
         "@zlib//:libz_so",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "@libsepol//:sepol",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:private"],
 )

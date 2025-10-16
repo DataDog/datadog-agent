@@ -512,6 +512,12 @@ api_key:
 #
 # collect_gpu_tags: false
 
+## @param azure_metadata_timeout - integer - optional - default: 300
+## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
+## Timeout in milliseconds on calls to the Azure metadata endpoints.
+#
+# azure_metadata_timeout: 300
+
 ## @param azure_hostname_style - string - optional - default: "os"
 ## @env DD_AZURE_HOSTNAME_STYLE - string - optional - default: "os"
 ## Changes how agent hostname is set on Azure virtual machines.

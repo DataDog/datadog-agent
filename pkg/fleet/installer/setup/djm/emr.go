@@ -22,7 +22,7 @@ import (
 const (
 	emrInjectorVersion   = "0.45.0-1"
 	emrJavaTracerVersion = "1.53.0-1"
-	emrAgentVersion      = "7.70.2-1"
+	emrAgentVersion      = "7.71.1-1"
 	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
 	hadoopDriverFolder   = "/mnt/var/log/hadoop/steps/"
 )
