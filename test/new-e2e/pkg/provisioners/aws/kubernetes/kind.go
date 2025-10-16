@@ -8,6 +8,7 @@ package awskubernetes
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
@@ -48,6 +49,9 @@ const (
 	provisionerBaseID = "aws-kind-"
 	defaultVMName     = "kind"
 )
+
+//go:embed agent_helm_values.yaml
+var agentHelmValues string
 
 // KindDiagnoseFunc is the diagnose function for the Kind provisioner
 func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
@@ -178,17 +182,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 
 	var dependsOnDDAgent pulumi.ResourceOption
 	if params.agentOptions != nil && !params.deployOperator {
-		helmValues := `
-datadog:
-  kubelet:
-    tlsVerify: false
-	csi:
-		enabled: true
-agents:
-  useHostNetwork: true
-`
-
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
+		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(agentHelmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)
 		if err != nil {
