@@ -1360,6 +1360,7 @@ func TestDiskCheckWithoutCoreLoader(t *testing.T) {
 
 	cfg := configmock.New(t)
 	cfg.Set("disk_check.use_core_loader", false, configmodel.SourceAgentRuntime)
+	cfg.Set("use_diskv2_check", false, configmodel.SourceAgentRuntime)
 
 	diskFactory := diskv2.Factory()
 	diskCheckFunc, ok := diskFactory.Get()
