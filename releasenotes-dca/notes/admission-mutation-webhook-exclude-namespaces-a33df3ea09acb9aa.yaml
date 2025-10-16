@@ -10,5 +10,5 @@ enhancements:
   - |
     Added namespace selectors excluding system namespace (``kube-system`` and the Datadog Agent's namespace)
     resources from Admission Controller mutation webhooks. This prevents mutation webhooks from unnecessarily
-    intercepting system namespace resources, reducing misleading warnings or logs and improving clarity
+    intercepting system namespace resources, reducing misleading warnings or logs, and improving clarity
     about which resources are actually mutated.
