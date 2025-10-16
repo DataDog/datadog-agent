@@ -1,6 +1,6 @@
 # 3rd party dependencies
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
 # Defines a "libyaml" target for the lib
 bazel_dep(name = "libyaml", version = "0.2.5")
@@ -57,6 +57,19 @@ http_archive(
     sha256 = "78fdaf69924db780bac78546e43d9c44074bad798c2c415d0b9bb96d065ee8a2",
     strip_prefix = "libsepol-3.5",
     url = "https://github.com/SELinuxProject/selinux/releases/download/3.5/libsepol-3.5.tar.gz",
+)
+
+# PCRE2 has native bazel support.
+# They expose a :pcre2 label for the main library
+http_archive(
+    name = "pcre2",
+    sha256 = "15fbc5aba6beee0b17aecb04602ae39432393aba1ebd8e39b7cabf7db883299f",
+    strip_prefix = "pcre2-10.46",
+    url = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.46/pcre2-10.46.tar.bz2",
+    files = {
+        # We still need to vendor the build file as long as we need .pc files & the :install rule
+        "BUILD.bazel": "//deps:pcre2.BUILD.bazel",
+    },
 )
 
 bazel_dep(name = "gcc_toolchain", version = "0.9.0")
