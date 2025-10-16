@@ -18,7 +18,9 @@ import (
 )
 
 const (
-	AppsecProcessorResourceAnnotation  = "appsec.datadoghq.com/processor"
+	// AppsecProcessorResourceAnnotation is the annotation key used to store the address of the AppSec processor service
+	AppsecProcessorResourceAnnotation = "appsec.datadoghq.com/processor"
+	// AppsecProcessorProxyTypeAnnotation is the annotation key used to store the type of proxy used for AppSec injection
 	AppsecProcessorProxyTypeAnnotation = "appsec.datadoghq.com/proxy-type"
 )
 
