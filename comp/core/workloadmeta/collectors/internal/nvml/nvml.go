@@ -86,15 +86,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.Architecture = gpuArchToString(arch)
 	}
 
-	virtMode, err := device.GetVirtualizationMode()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
-		}
-	} else {
-		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
-	}
-
 	memBusWidth, err := device.GetMemoryBusWidth()
 	if err != nil {
 		if logLimiter.ShouldLog() {
@@ -104,30 +95,31 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.MemoryBusWidth = memBusWidth
 	}
 
-	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
-	if virtMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
-		maxSMClock, err := device.GetMaxClockInfo(nvml.CLOCK_SM)
-		if err != nil {
-			if logLimiter.ShouldLog() {
-				log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
-			}
-		} else {
-			gpuDeviceInfo.MaxClockRates[workloadmeta.GPUSM] = maxSMClock
-		}
-
-		maxMemoryClock, err := device.GetMaxClockInfo(nvml.CLOCK_MEM)
-		if err != nil {
-			if logLimiter.ShouldLog() {
-				log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
-			}
-		} else {
-			gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
+	maxSMClock, err := device.GetMaxClockInfo(nvml.CLOCK_SM)
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
 		}
 	} else {
-		if _, ok := c.seenUUIDs[gpuDeviceInfo.EntityID.ID]; !ok && logLimiter.ShouldLog() {
-			// only report the warning once for each device
-			log.Infof("vGPU device %s does not support queries for max clock info", gpuDeviceInfo.EntityID.ID)
+		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUSM] = maxSMClock
+	}
+
+	maxMemoryClock, err := device.GetMaxClockInfo(nvml.CLOCK_MEM)
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
 		}
+	} else {
+		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
+	}
+
+	virtMode, err := device.GetVirtualizationMode()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
+		}
+	} else {
+		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
 	}
 }
 
