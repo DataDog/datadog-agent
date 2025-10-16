@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Generate MODULE.bazel files from overlay directory structure."""
 
 import argparse
