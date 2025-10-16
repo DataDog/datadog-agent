@@ -244,24 +244,75 @@ func getReadBufferLocation(result *bininspect.Result) (gotls.SliceLocation, erro
 		return gotls.SliceLocation{}, errors.New("expected at least two parameters for read function")
 	}
 	bufferParam := params[1]
-	if result.GoVersion.Major == 1 && result.GoVersion.Minor == 16 && len(bufferParam.Pieces) == 0 {
-		return gotls.SliceLocation{
-			Ptr: gotls.Location{
-				Exists:       boolToBinary(true),
-				In_register:  boolToBinary(false),
-				Stack_offset: 16,
-			},
-			Len: gotls.Location{
-				Exists:       boolToBinary(true),
-				In_register:  boolToBinary(false),
-				Stack_offset: 24,
-			},
-			Cap: gotls.Location{
-				Exists:       boolToBinary(true),
-				In_register:  boolToBinary(false),
-				Stack_offset: 32,
-			},
-		}, nil
+	// Deal with a couple of Go versions where we're missing debug info.
+	if len(bufferParam.Pieces) == 0 {
+		if result.GoVersion.Major == 1 && result.GoVersion.Minor >= 16 && result.GoVersion.Minor <= 16 {
+			// In Go 1.13->1.15, the debug info (location lists) for the
+			// function argument are incomplete, causing bufferParam.Pieces to
+			// be empty: the pieces only cover two words instead of 3, pasted
+			// below. For Go 1.16 there are no location lists for the parameter
+			// at all; we assume that it's the same as in the previous versions
+			// (the previous function argument does have location lists, and
+			// they're the same as in previous versions).
+			if result.Arch == bininspect.GoArchX86_64 {
+				// Debug info for the buffer slice function param, with
+				// incomplete location list.
+				// 0x000caeed:     DW_TAG_formal_parameter
+				// DW_AT_name    ("b")
+				// DW_AT_variable_parameter      (0x00)
+				// DW_AT_decl_line       (1241)
+				// DW_AT_type    (0x000000000003c0ef "[]uint8")
+				// DW_AT_location        (0x000ffad3:
+				// 			[0x000000000058cf40, 0x000000000058d30f): DW_OP_fbreg +8, DW_OP_piece 0x8, DW_OP_fbreg +16, DW_OP_piece 0x8)
+				//
+				// Note that DW_OP_fbreg+8 maps to Stack_offset=16 given the
+				// function prologue location of these probes.
+				return gotls.SliceLocation{
+					Ptr: gotls.Location{
+						Exists:       boolToBinary(true),
+						In_register:  boolToBinary(false),
+						Stack_offset: 16,
+					},
+					Len: gotls.Location{
+						Exists:       boolToBinary(true),
+						In_register:  boolToBinary(false),
+						Stack_offset: 24,
+					},
+					Cap: gotls.Location{
+						Exists: boolToBinary(false),
+					},
+				}, nil
+			}
+			if result.Arch == bininspect.GoArchARM64 {
+				// Debug info for the buffer slice function param, with
+				// incomplete location list.
+				// 0x000cbb39:     DW_TAG_formal_parameter
+				// DW_AT_name    ("b")
+				// DW_AT_variable_parameter      (0x00)
+				// DW_AT_decl_line       (1241)
+				// DW_AT_type    (0x000000000003c64c "[]uint8")
+				// DW_AT_location (0x00102fe9:
+				//			[0x000000000015f0a0, 0x000000000015f3c0): DW_OP_fbreg +16, DW_OP_piece 0x8, DW_OP_fbreg +24, DW_OP_piece 0x8)
+				//
+				// Note that DW_OP_fbreg+16 maps to Stack_offset=24 given the
+				// function prologue location of these probes.
+				return gotls.SliceLocation{
+					Ptr: gotls.Location{
+						Exists:       boolToBinary(true),
+						In_register:  boolToBinary(false),
+						Stack_offset: 24,
+					},
+					Len: gotls.Location{
+						Exists:       boolToBinary(true),
+						In_register:  boolToBinary(false),
+						Stack_offset: 32,
+					},
+					Cap: gotls.Location{
+						Exists: boolToBinary(false),
+					},
+				}, nil
+			}
+		}
 	}
 	return sliceLocation(bufferParam, result.Arch)
 }
@@ -440,8 +491,6 @@ func compositeLocation(
 	}
 
 	// Translate the parameter pieces to a list of single word locations
-	// TODO handle missing inner parts
-	//      like the length (seems to handle missing cap)
 	locations := make([]gotls.Location, expectedPieces)
 	currentLocation := 0
 	for i, paramPiece := range param.Pieces {
@@ -480,11 +529,7 @@ func compositeLocation(
 
 	// Handle any trailing locations that don't exist
 	if currentLocation != expectedPieces-1 {
-		for ; currentLocation < expectedPieces; currentLocation++ {
-			locations[expectedPieces] = gotls.Location{
-				Exists: boolToBinary(false),
-			}
-		}
+		return nil, fmt.Errorf("location for %s parameter didn't cover the whole size of the parameter", typeName)
 	}
 
 	return locations, nil
