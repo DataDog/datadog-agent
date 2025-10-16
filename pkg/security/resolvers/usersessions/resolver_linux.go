@@ -59,11 +59,12 @@ func (e *UserSessionData) UnmarshalBinary(data []byte) error {
 
 // incrementalFileReader is used to read a file incrementally
 type incrementalFileReader struct {
-	path   string
-	f      *os.File
-	offset int64
-	mu     sync.Mutex
-	ino    uint64
+	path     string
+	f        *os.File
+	offset   int64
+	mu       sync.Mutex
+	ino      uint64
+	lastRead time.Time
 }
 
 // Resolver is used to resolve the user sessions context
@@ -239,9 +240,9 @@ func (r *incrementalFileReader) reloadIfRotated() error {
 	return nil
 }
 
-// ReadNewLines read all the lines that have been added since the last call without reopening the file.
+// readNewLines read all the lines that have been added since the last call without reopening the file.
 // Return new lines and update the offset.
-func (r *incrementalFileReader) ReadNewLines() ([]string, error) {
+func (r *incrementalFileReader) readNewLines() ([]string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -330,6 +331,7 @@ func (r *Resolver) StartSSHUserSessionResolver() {
 
 	if path == "" {
 		// Don't want to continue in case there is no log file
+		r.sshLogReader.lastRead = time.Now()
 		return
 	}
 
@@ -371,6 +373,9 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 		// separate the line into words
 		words := strings.Split(line, " ")
 		sshLogLine := SSHLogLine{}
+		if len(words) < 5 {
+			continue
+		}
 		switch {
 		// We saw two different types of logs, so we try to parse both
 		case strings.HasPrefix(words[2], "sshd"):
@@ -433,20 +438,22 @@ func parseSSHLogLines(lines []string, ctx *model.UserSessionContext) {
 	}
 }
 
-func resolveFromJournalctl(ctx *model.UserSessionContext) {
-	// TODO : Find a Go librairy to avoid fork and exec here
-	cmd := exec.Command("journalctl", "-u", "sshd", "-u", "ssh", "--no-pager")
+func (r *Resolver) resolveFromJournalctl(ctx *model.UserSessionContext) ([]string, error) {
+	// format for journalctl
+	sinceStr := r.sshLogReader.lastRead.Format("2006-01-02 15:04:05")
+	r.sshLogReader.lastRead = time.Now()
+
+	cmd := exec.Command("journalctl", "--no-pager", "--since", sinceStr)
 
 	var out bytes.Buffer
 	cmd.Stdout = &out
 
 	if err := cmd.Run(); err != nil {
-		return
+		return []string{}, err
 	}
 
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-
-	parseSSHLogLines(lines, ctx)
+	return lines, nil
 
 }
 
@@ -460,20 +467,30 @@ func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.U
 
 	r.Lock()
 	defer r.Unlock()
-	if r.sshLogReader.path == "" {
-		resolveFromJournalctl(ctx)
-		return ctx
-	}
-	lines, err := r.sshLogReader.ReadNewLines()
-	if err != nil {
-		seclog.Errorf("failed to read ssh log lines: %v", err)
-		return nil
-	}
-	parseSSHLogLines(lines, ctx)
-	ctx.Resolved = true
 
+	var lines []string
+	var err error
+	// We resolve from journalctl
+	if r.sshLogReader.path == "" {
+		lines, err = r.resolveFromJournalctl(ctx)
+		if err != nil {
+			seclog.Errorf("failed to read journalctl: %v", err)
+			return ctx
+		}
+	} else {
+		// We resolve from log file
+		lines, err = r.sshLogReader.readNewLines()
+		if err != nil {
+			seclog.Errorf("failed to read ssh log lines: %v", err)
+			return ctx
+		}
+	}
+
+	parseSSHLogLines(lines, ctx)
+
+	ctx.Resolved = true
 	// cache resolved context
 	r.userSessions.Add(id, ctx)
-	return ctx
 
+	return ctx
 }
