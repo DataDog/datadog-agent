@@ -55,7 +55,7 @@ const (
 	// - "line_checksum": compute the fingerprint by lines
 	// - "byte_checksum": compute the fingerprint by bytes
 	// - "disabled": disable fingerprinting
-	DefaultFingerprintStrategy = "byte_checksum"
+	DefaultFingerprintStrategy = "line_checksum"
 
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
