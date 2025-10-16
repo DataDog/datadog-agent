@@ -23,12 +23,14 @@ import (
 // ReceiverStats is used to store all the stats per tags.
 type ReceiverStats struct {
 	sync.RWMutex
-	Stats map[Tags]*TagStats
+	Stats        map[Tags]*TagStats
+	SendAllStats bool // if true, all stats will be published even those stats that are zero, otherwise some less-frequently-used stats will be omitted when zero to save costs
 }
 
 // NewReceiverStats returns a new ReceiverStats
-func NewReceiverStats() *ReceiverStats {
-	return &ReceiverStats{sync.RWMutex{}, map[Tags]*TagStats{}}
+// sendAllStats is a boolean that controls whether all stats will be published even those stats that are zero, otherwise some less-frequently-used stats will be omitted when zero to save costs
+func NewReceiverStats(sendAllStats bool) *ReceiverStats {
+	return &ReceiverStats{sync.RWMutex{}, map[Tags]*TagStats{}, sendAllStats}
 }
 
 // GetTagStats returns the struct in which the stats will be stored depending of their tags.
@@ -58,7 +60,7 @@ func (rs *ReceiverStats) Acc(recent *ReceiverStats) {
 func (rs *ReceiverStats) PublishAndReset(statsd statsd.ClientInterface) {
 	rs.RLock()
 	for _, tagStats := range rs.Stats {
-		tagStats.publishAndReset(statsd)
+		tagStats.publishAndReset(statsd, rs.SendAllStats)
 	}
 	rs.RUnlock()
 }
@@ -120,7 +122,15 @@ func (ts *TagStats) AsTags() []string {
 	return (&ts.Tags).toArray()
 }
 
-func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface) {
+// publishNonZeroStats publishes a metric if the value is greater than 0 or if sendAllStats is true
+// This saves costs significantly for metrics that are frequently just zero
+func publishNonZeroStats(statsd statsd.ClientInterface, tags []string, value int64, metricName string, sendAllStats bool) {
+	if sendAllStats || value > 0 {
+		_ = statsd.Count(metricName, value, tags, 1)
+	}
+}
+
+func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface, sendAllStats bool) {
 	// Atomically load and reset any metrics used multiple times from ts
 	tracesReceived := ts.TracesReceived.Swap(0)
 
@@ -129,8 +139,7 @@ func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface) {
 
 	_ = statsd.Count("datadog.trace_agent.receiver.trace", tracesReceived, tags, 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.traces_filtered",
-		ts.TracesFiltered.Swap(0), tags, 1)
+	publishNonZeroStats(statsd, tags, ts.TracesFiltered.Swap(0), "datadog.trace_agent.receiver.traces_filtered", sendAllStats)
 	_ = statsd.Count("datadog.trace_agent.receiver.traces_priority",
 		ts.TracesPriorityNone.Swap(0), append(tags, "priority:none"), 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.traces_bytes",
@@ -139,20 +148,16 @@ func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface) {
 		ts.SpansReceived.Swap(0), tags, 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.spans_dropped",
 		ts.SpansDropped.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.spans_filtered",
-		ts.SpansFiltered.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.events_extracted",
-		ts.EventsExtracted.Swap(0), tags, 1)
+	publishNonZeroStats(statsd, tags, ts.SpansFiltered.Swap(0), "datadog.trace_agent.receiver.spans_filtered", sendAllStats)
+	publishNonZeroStats(statsd, tags, ts.EventsExtracted.Swap(0), "datadog.trace_agent.receiver.events_extracted", sendAllStats)
 	_ = statsd.Count("datadog.trace_agent.receiver.events_sampled",
 		ts.EventsSampled.Swap(0), tags, 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.payload_accepted",
 		ts.PayloadAccepted.Swap(0), tags, 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.payload_refused",
 		ts.PayloadRefused.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.client_dropped_p0_spans",
-		ts.ClientDroppedP0Spans.Swap(0), tags, 1)
-	_ = statsd.Count("datadog.trace_agent.receiver.client_dropped_p0_traces",
-		ts.ClientDroppedP0Traces.Swap(0), tags, 1)
+	publishNonZeroStats(statsd, tags, ts.ClientDroppedP0Spans.Swap(0), "datadog.trace_agent.receiver.client_dropped_p0_spans", sendAllStats)
+	publishNonZeroStats(statsd, tags, ts.ClientDroppedP0Traces.Swap(0), "datadog.trace_agent.receiver.client_dropped_p0_traces", sendAllStats)
 
 	for reason, counter := range ts.TracesDropped.tagCounters() {
 		count := counter.Swap(0)
