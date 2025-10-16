@@ -142,8 +142,9 @@ type CoreAgentService struct {
 	backoffErrorCount int
 
 	// Channels to stop the services main goroutines
-	stopOrgPoller    chan struct{}
-	stopConfigPoller chan struct{}
+	stopOrgPoller        chan struct{}
+	stopConfigPoller     chan struct{}
+	stopConfigPollerOnce sync.Once
 
 	clock         clock.Clock
 	hostname      string
@@ -639,9 +640,9 @@ func (s *CoreAgentService) Stop() error {
 
 	s.websocketTest.Stop()
 
-	if s.stopConfigPoller != nil {
+	s.stopConfigPollerOnce.Do(func() {
 		close(s.stopConfigPoller)
-	}
+	})
 
 	return s.db.Close()
 }
