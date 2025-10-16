@@ -69,3 +69,15 @@ http_archive(
     strip_prefix = "nghttp2-1.58.0",
     url = "https://github.com/nghttp2/nghttp2/releases/download/v1.58.0/nghttp2-1.58.0.tar.gz",
 )
+
+http_archive(
+    name = "unixodbc",
+    build_file = "//deps:unixodbc.BUILD.bazel",
+    files = {
+        "x86_64/unixodbc_conf.h": "//deps/unixodbc/x86_64:unixodbc_conf.h",
+        "x86_64/config.h": "//deps/unixodbc/x86_64:libltdl/config.h",
+    },
+    sha256 = "52833eac3d681c8b0c9a5a65f2ebd745b3a964f208fc748f977e44015a31b207",
+    strip_prefix = "unixODBC-2.3.9",
+    url = "https://www.unixodbc.org/unixODBC-2.3.9.tar.gz",
+)
