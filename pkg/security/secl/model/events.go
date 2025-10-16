@@ -161,7 +161,7 @@ const (
 	CustomEventType EventType = iota
 
 	// CreateNewFileEventType event
-	CreateNewFileEventType
+	CreateNewFileEventType EventType = iota
 	// DeleteFileEventType event
 	DeleteFileEventType
 	// WriteFileEventType event
@@ -176,6 +176,9 @@ const (
 	DeleteRegistryKeyEventType
 	// ChangePermissionEventType event
 	ChangePermissionEventType
+
+	FirstWindowsEventType = CreateNewFileEventType
+	LastWindowsEventType  = ChangePermissionEventType
 
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
