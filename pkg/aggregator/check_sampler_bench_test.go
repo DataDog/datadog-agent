@@ -56,7 +56,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
 	secrets := secretsmock.New(b)
-	sharedForwarder := forwarder.NewDefaultForwarder(mockConfig, deps.Log, secrets, forwarderOpts)
+	sharedForwarder := forwarder.NewDefaultForwarderWithSecrets(mockConfig, deps.Log, secrets, forwarderOpts)
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, logscompressionmock.NewMockCompressor()))
 	haAgent := haagentmock.NewMockHaAgent()

@@ -186,7 +186,7 @@ func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hos
 
 	secrets := secretsnoop.NewComponent().Comp
 	sharedForwarderOptions, _ := defaultforwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil)
-	sharedForwarder := defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, secrets, sharedForwarderOptions)
+	sharedForwarder := defaultforwarder.NewDefaultForwarderWithSecrets(pkgconfigsetup.Datadog(), log, secrets, sharedForwarderOptions)
 
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, logscompressor))
