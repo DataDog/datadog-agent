@@ -1438,9 +1438,7 @@ func getHostTags() []string {
 
 func setupCDNClient(uptaneClient *mockCDNUptane) *HTTPClient {
 	return &HTTPClient{
-		Service: Service{
-			rcType: "CDN",
-		},
+		rcType: "CDN",
 		uptane: uptaneClient,
 	}
 }
