@@ -373,30 +373,42 @@ class FileUtilities:
             Total size in bytes
         """
         total_size = 0
-        seen_inodes = set()  # Track inodes to avoid counting hard links multiple times
+        seen_inodes = set()  # Track (device, inode) pairs to avoid counting hard links multiple times
 
-        for dirpath, _, filenames in os.walk(directory, followlinks=False):
-            for filename in filenames:
-                file_path = os.path.join(dirpath, filename)
-                try:
-                    # Use lstat to not follow symlinks
-                    stat_info = os.lstat(file_path)
+        def walk_directory(path: str):
+            """Recursively walk directory using scandir for better performance."""
+            nonlocal total_size
+            try:
+                with os.scandir(path) as entries:
+                    for entry in entries:
+                        try:
+                            # Use stat(follow_symlinks=False) to not follow symlinks
+                            # This is equivalent to lstat but reuses cached information from scandir
+                            stat_info = entry.stat(follow_symlinks=False)
 
-                    # For regular files with multiple hard links, only count once per inode
-                    if stat.S_ISREG(stat_info.st_mode) and stat_info.st_nlink > 1:
-                        inode = stat_info.st_ino
-                        if inode in seen_inodes:
-                            # This is a hard link to a file we've already counted, skip it
+                            if entry.is_dir(follow_symlinks=False):
+                                # Recursively process subdirectory
+                                walk_directory(entry.path)
+                            else:
+                                # For regular files with multiple hard links, only count once per (device, inode) pair
+                                if stat.S_ISREG(stat_info.st_mode) and stat_info.st_nlink > 1:
+                                    file_id = (stat_info.st_dev, stat_info.st_ino)
+                                    if file_id in seen_inodes:
+                                        # This is a hard link to a file we've already counted, skip it
+                                        continue
+                                    seen_inodes.add(file_id)
+
+                                # Include both regular files and symlinks
+                                # For symlinks: on POSIX, st_size equals len(os.readlink(path)) (length of target path)
+                                #               on Windows, st_size equals 0
+                                total_size += stat_info.st_size
+                        except (OSError, FileNotFoundError) as e:
+                            print(f"⚠️  Skipping {entry.path}: {e}")
                             continue
-                        seen_inodes.add(inode)
+            except (OSError, PermissionError) as e:
+                print(f"⚠️  Cannot access directory {path}: {e}")
 
-                    # Include both regular files and symlinks
-                    # For symlinks: on POSIX, st_size equals len(os.readlink(path)) (length of target path)
-                    #               on Windows, st_size equals 0
-                    total_size += stat_info.st_size
-                except (OSError, FileNotFoundError) as e:
-                    print(f"⚠️  Skipping file {file_path}: {e}")
-                    continue
+        walk_directory(directory)
         return total_size
 
 
@@ -790,7 +802,7 @@ class DockerProcessor:
                             print(f"⚠️  Skipping layer {layer_file} (extraction failed)")
                         continue
 
-                    # Track inodes within this layer to handle hard links
+                    # Track (device, inode) pairs within this layer to handle hard links
                     layer_inodes = set()
 
                     # Walk through files in this layer, ensuring we don't follow symlinks
@@ -808,15 +820,15 @@ class DockerProcessor:
                                 # Use lstat to not follow symlinks, get actual file/symlink size
                                 file_stat = os.lstat(file_path)
 
-                                # For regular files with multiple hard links in this layer, only count once
+                                # For regular files with multiple hard links in this layer, only count once per (device, inode) pair
                                 if stat.S_ISREG(file_stat.st_mode) and file_stat.st_nlink > 1:
-                                    inode = file_stat.st_ino
-                                    if inode in layer_inodes:
+                                    file_id = (file_stat.st_dev, file_stat.st_ino)
+                                    if file_id in layer_inodes:
                                         # This is a hard link to a file we've already processed in this layer
                                         # Don't add to inventory but still count as processed
                                         layer_files_processed += 1
                                         continue
-                                    layer_inodes.add(inode)
+                                    layer_inodes.add(file_id)
 
                                 size_bytes = file_stat.st_size
 
