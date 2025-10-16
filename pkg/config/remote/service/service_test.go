@@ -974,7 +974,10 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
-	t.Cleanup(func() { service.Stop() })
+	t.Cleanup(func() {
+		assert.NoError(t, service.Stop())
+		assert.NoError(t, service.Stop()) // ensure idempotency
+	})
 	service.api = api
 	service.uptane = uptaneClient
 
@@ -1245,7 +1248,8 @@ func TestWithTraceAgentEnv(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "dog", service.traceAgentEnv)
 	assert.NotNil(t, service)
-	t.Cleanup(func() { service.Stop() })
+	assert.NoError(t, service.Stop())
+	assert.NoError(t, service.Stop()) // ensure idempotency
 }
 
 func TestWithDatabaseFileName(t *testing.T) {

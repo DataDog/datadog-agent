@@ -141,6 +141,7 @@ type CoreAgentService struct {
 	// Channels to stop the services main goroutines
 	stopOrgPoller    chan struct{}
 	stopConfigPoller chan struct{}
+	stopOnce         sync.Once
 
 	clock         clock.Clock
 	hostname      string
@@ -649,15 +650,14 @@ func logRefreshError(s *CoreAgentService, err error) {
 
 // Stop stops the refresh loop and closes the on-disk DB cache
 func (s *CoreAgentService) Stop() error {
-	// NOTE: Stop() MAY be called more than once - cleanup SHOULD be idempotent.
-
-	s.websocketTest.Stop()
-
-	if s.stopConfigPoller != nil {
+	var err error
+	s.stopOnce.Do(func() {
+		s.websocketTest.Stop()
 		close(s.stopConfigPoller)
-	}
-	// close boltDB via the transactional store
-	return s.uptane.Close()
+	        // close boltDB via the transactional store
+		err = s.uptane.Close()
+	})
+	return err
 }
 
 func (s *CoreAgentService) pollOrgStatus() {
