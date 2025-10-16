@@ -7,6 +7,7 @@ package structure
 
 import (
 	"bytes"
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -1577,4 +1578,25 @@ network_devices:
 	err = unmarshalKeyReflection(mockConfig, "network_devices.snmp_traps.community_strings", &actualStrings)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"a", "b", "c"}, actualStrings)
+}
+
+func TestUnmarshalKeyOnSliceOfMap(t *testing.T) {
+	t.Setenv("DD_TEST_VALUE", "[{\"a\": \"1\", \"b\": \"1\"}, {\"a\": \"2\", \"b\": \"2\"}]")
+	mockConfig := newEmptyMockConf(t)
+
+	mockConfig.BindEnvAndSetDefault("test_value", []map[string]int{})
+	mockConfig.ParseEnvAsSliceMapString("test_value", func(in string) []map[string]string {
+		var out []map[string]string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			require.FailNow(t, "can not parse JSON")
+		}
+		return out
+	})
+
+	mockConfig.BuildSchema()
+
+	data := []map[string]string{}
+	err := unmarshalKeyReflection(mockConfig, "test_value", &data)
+	assert.NoError(t, err)
+	assert.Equal(t, []map[string]string{{"a": "1", "b": "1"}, {"a": "2", "b": "2"}}, data)
 }
