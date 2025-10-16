@@ -46,19 +46,18 @@ var TimeNow = time.Now
 //
 // When the error count is back to 0 we return to `unblocked`.
 const (
-	unblocked = iota
+	unblocked circuitBreakerState = iota
 	halfBlocked
 	blocked
 )
 
-type circuitBreakerState = int
+type circuitBreakerState int
 
 type block struct {
 	endpoint string
 	nbError  int
 	until    time.Time
 	state    circuitBreakerState
-	m        sync.RWMutex
 }
 
 type blockedEndpoints struct {
@@ -127,16 +126,10 @@ func (e *blockedEndpoints) close(endpoint string) {
 		}
 	}
 
-	b.m.RLock()
-
 	switch b.state {
 	case unblocked:
 		// The circuit breaker is unblocked, we need to block for a time determined by the
 		// backoff policy.
-		b.m.RUnlock()
-		b.m.Lock()
-		defer b.m.Unlock()
-
 		if b.state == unblocked {
 			b.nbError = e.backoffPolicy.IncError(b.nbError)
 			b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
@@ -144,10 +137,6 @@ func (e *blockedEndpoints) close(endpoint string) {
 		}
 	case halfBlocked:
 		// The test transaction failed, so we need to mave back to blocked.
-		b.m.RUnlock()
-		b.m.Lock()
-		defer b.m.Unlock()
-
 		if b.state == halfBlocked {
 			b.nbError = e.backoffPolicy.IncError(b.nbError)
 			b.until = TimeNow().Add(e.getBackoffDuration(b.nbError))
@@ -156,7 +145,6 @@ func (e *blockedEndpoints) close(endpoint string) {
 	case blocked:
 		// We ignore all failures coming in when blocked. These are transactions sent
 		// before the first one returned with an error.
-		b.m.RUnlock()
 	}
 
 	e.errorPerEndpoint[endpoint] = b
@@ -177,18 +165,11 @@ func (e *blockedEndpoints) recover(endpoint string) {
 		}
 	}
 
-	b.m.RLock()
-
 	switch b.state {
 	case unblocked:
 		// Nothing to do, we are already unblocked and running smoothly.
-		b.m.RUnlock()
 	case halfBlocked:
 		// The test worked, we can ease off.
-		b.m.RUnlock()
-		b.m.Lock()
-		defer b.m.Unlock()
-
 		if b.state == halfBlocked {
 			b.nbError = e.backoffPolicy.DecError(b.nbError)
 			if b.nbError == 0 {
@@ -202,19 +183,18 @@ func (e *blockedEndpoints) recover(endpoint string) {
 		// If we are blocked and a successful transaction came through, we
 		// can't be sure if it was sent before the errored transaction or
 		// after, so we will ignore this.
-		b.m.RUnlock()
 	}
 
 	e.errorPerEndpoint[endpoint] = b
 }
 
 const (
-	blockNone = iota
+	blockNone shouldBlock = iota
 	allowOne
 	allowNone
 )
 
-type shouldBlock = int
+type shouldBlock int
 
 // isBlockForRetry checks if the endpoint is blocked when deciding if we want
 // to add the transaction to the retry queue.
@@ -235,9 +215,6 @@ func (e *blockedEndpoints) isBlockForRetry(endpoint string) shouldBlock {
 	defer e.m.RUnlock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
-		b.m.RLock()
-		defer b.m.RUnlock()
-
 		if b.state == blocked {
 			if TimeNow().Before(b.until) {
 				return allowNone
@@ -261,36 +238,32 @@ func (e *blockedEndpoints) isBlockForRetry(endpoint string) shouldBlock {
 // single transaction to test if the endpoint now available.
 func (e *blockedEndpoints) isBlockForSend(endpoint string) bool {
 	e.m.RLock()
-	defer e.m.RUnlock()
 
 	if b, ok := e.errorPerEndpoint[endpoint]; ok {
-		b.m.RLock()
-
 		switch b.state {
 		case halfBlocked:
 			// We have already sent the single transactions to test if the endpoint is now up.
-			b.m.RUnlock()
+			e.m.RUnlock()
 			return true
 		case blocked:
 			if TimeNow().Before(b.until) {
-				b.m.RUnlock()
+				e.m.RUnlock()
 				return true
 			} else {
 				// The timeout has expired, move to `halfBlocked` and send this transaction.
-				b.m.RUnlock()
-				b.m.Lock()
-				defer b.m.Unlock()
+				e.m.RUnlock()
+				e.m.Lock()
+				defer e.m.Unlock()
 				if b.state == blocked {
 					b.setState(halfBlocked)
 				}
 
 				return false
 			}
-		case unblocked:
-			b.m.RUnlock()
 		}
 	}
 
+	e.m.RUnlock()
 	return false
 }
 
