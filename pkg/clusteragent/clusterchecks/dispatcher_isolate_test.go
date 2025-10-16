@@ -55,7 +55,7 @@ func (d *isolateTestClcRunnerClient) GetRunnerWorkers(IP string) (types.Workers,
 
 func TestIsolateCheckSuccessful(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 	testDispatcher.clcRunnersClient = &isolateTestClcRunnerClient{}
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "A")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
@@ -137,7 +137,7 @@ func TestIsolateCheckSuccessful(t *testing.T) {
 
 func TestIsolateNonExistentCheckFails(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 	testDispatcher.clcRunnersClient = &isolateTestClcRunnerClient{}
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "A")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
@@ -217,7 +217,7 @@ func TestIsolateNonExistentCheckFails(t *testing.T) {
 
 func TestIsolateCheckOnlyOneRunnerFails(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 	testDispatcher.clcRunnersClient = &isolateTestClcRunnerClient{}
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "A")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers

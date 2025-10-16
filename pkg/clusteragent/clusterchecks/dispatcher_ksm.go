@@ -24,7 +24,7 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 	}
 
 	// KSM sharding requires advanced dispatching for deterministic runner assignment
-	if !d.advancedDispatching {
+	if !d.advancedDispatching.Load() {
 		log.Warnf("KSM sharding is enabled but advanced dispatching is not. Advanced dispatching is required for KSM sharding to work correctly. Falling back to normal scheduling.")
 		return false
 	}
@@ -77,8 +77,13 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 
 	// Schedule cluster-wide config if present
 	if clusterConfig.Name != "" {
-		log.Infof("Scheduling cluster-wide KSM config for cluster-scoped collectors")
-		d.add(clusterConfig)
+		patchedClusterConfig, err := d.patchConfiguration(clusterConfig)
+		if err != nil {
+			log.Warnf("Cannot patch cluster-wide KSM config %s: %s", clusterConfig.Digest(), err)
+		} else {
+			log.Infof("Scheduling cluster-wide KSM config for cluster-scoped collectors (digest: %s)", patchedClusterConfig.Digest())
+			d.add(patchedClusterConfig)
+		}
 	}
 
 	// Schedule namespace-sharded configs using dispatcher's logic
@@ -87,13 +92,18 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 	assignmentMap := make(map[string]int) // Track which runner gets how many configs
 
 	for i, cfg := range shardedConfigs {
+		patchedCfg, err := d.patchConfiguration(cfg)
+		if err != nil {
+			log.Warnf("Cannot patch sharded KSM config %s: %s", cfg.Digest(), err)
+			continue
+		}
 		// Get the target node before adding
 		targetNode := d.getNodeToScheduleCheck()
 		log.Infof("Assigning sharded KSM config %d/%d (digest: %s) to node: %s",
-			i+1, len(shardedConfigs), cfg.Digest(), targetNode)
+			i+1, len(shardedConfigs), patchedCfg.Digest(), targetNode)
 
 		// Use d.add() which respects advanced dispatching settings
-		if d.add(cfg) {
+		if d.add(patchedCfg) {
 			totalSharded++
 			if targetNode != "" {
 				assignmentMap[targetNode]++
@@ -110,7 +120,7 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 			log.Infof("  Runner %s: %d configs", runner, count)
 		}
 
-		if d.advancedDispatching {
+		if d.advancedDispatching.Load() {
 			log.Infof("Using advanced dispatching (will rebalance periodically)")
 		}
 	} else {

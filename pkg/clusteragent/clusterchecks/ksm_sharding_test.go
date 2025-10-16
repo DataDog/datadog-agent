@@ -285,10 +285,12 @@ func TestKSMShardingManager_CreateShardedKSMConfigs(t *testing.T) {
 	assert.ElementsMatch(t, []string{"nodes"}, clusterInstance["collectors"])
 	assert.Contains(t, clusterInstance["tags"], "ksm_shard_type:cluster-wide")
 
-	// Check sharded configs - should be one per namespace
-	assert.Equal(t, len(namespaces), len(shardedConfigs))
+	// Check sharded configs - with bucketing, we expect fewer configs than namespaces
+	// The bucketing algorithm groups namespaces into buckets
+	assert.Greater(t, len(shardedConfigs), 0, "Should have at least one sharded config")
+	assert.LessOrEqual(t, len(shardedConfigs), len(namespaces), "Should have at most as many configs as namespaces")
 
-	// Check that each namespace has a config
+	// Check that all namespaces are assigned across the configs
 	assignedNamespaces := make(map[string]bool)
 	for _, config := range shardedConfigs {
 		var instance map[string]interface{}
@@ -298,11 +300,12 @@ func TestKSMShardingManager_CreateShardedKSMConfigs(t *testing.T) {
 		// Check collectors
 		assert.ElementsMatch(t, []string{"pods", "services"}, instance["collectors"])
 
-		// Check namespace assignment
+		// Check namespace assignment - with bucketing, configs can have multiple namespaces
 		namespaceList := instance["namespaces"].([]interface{})
-		assert.Len(t, namespaceList, 1)
-		ns := namespaceList[0].(string)
-		assignedNamespaces[ns] = true
+		assert.Greater(t, len(namespaceList), 0, "Each config should have at least one namespace")
+		for _, ns := range namespaceList {
+			assignedNamespaces[ns.(string)] = true
+		}
 
 		// Check tags
 		tags := instance["tags"].([]interface{})
@@ -311,9 +314,9 @@ func TestKSMShardingManager_CreateShardedKSMConfigs(t *testing.T) {
 	}
 
 	// Verify all namespaces were assigned
-	assert.Len(t, assignedNamespaces, len(namespaces))
+	assert.Len(t, assignedNamespaces, len(namespaces), "All namespaces should be assigned across all configs")
 	for _, ns := range namespaces {
-		assert.True(t, assignedNamespaces[ns])
+		assert.True(t, assignedNamespaces[ns], "Namespace %s should be assigned", ns)
 	}
 }
 
