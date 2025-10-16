@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	noopimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -183,8 +184,9 @@ func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hos
 	opts.DontStartForwarders = true
 	opts.EnableNoAggregationPipeline = true
 
+	secrets := secretsnoop.NewComponent().Comp
 	sharedForwarderOptions, _ := defaultforwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil)
-	sharedForwarder := defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, sharedForwarderOptions)
+	sharedForwarder := defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, secrets, sharedForwarderOptions)
 
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, logscompressor))
