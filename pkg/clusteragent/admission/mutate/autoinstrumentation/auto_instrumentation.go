@@ -109,7 +109,6 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (*metav1.LabelSelector, *metav1.LabelSelector) {
-	// TODO: Investigate if apm instrumentation enabled/disabled namespaces should be included in the label selector or left to the mutation filter
 	return common.DefaultLabelSelectors(useNamespaceSelector, common.LabelSelectorsConfig{
 		ExcludeNamespaces: mutatecommon.DefaultDisabledNamespaces(),
 	})

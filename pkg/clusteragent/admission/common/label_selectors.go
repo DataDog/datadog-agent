@@ -24,15 +24,16 @@ type LabelSelectorsConfig struct {
 }
 
 // DefaultLabelSelectors returns namespace and object selectors for admission webhooks.
-// A nil object selector is returned if useNamespaceSelector is true.
-func DefaultLabelSelectors(useNamespaceSelector bool, config LabelSelectorsConfig) (*metav1.LabelSelector, *metav1.LabelSelector) {
-	nsSelector := &metav1.LabelSelector{}
-	var objSelector *metav1.LabelSelector
-	if !useNamespaceSelector {
+//
+// If useNamespaceSelector is true, only a namespace selector will be used for matching. This is necessary
+// for older Kubernetes versions that do not support object selectors.
+func DefaultLabelSelectors(useNamespaceSelector bool, config LabelSelectorsConfig) (nsSelector *metav1.LabelSelector, objSelector *metav1.LabelSelector) {
+	nsSelector = &metav1.LabelSelector{}
+	if useNamespaceSelector {
+		applyAdmissionEnabledSelectors(nsSelector)
+	} else {
 		objSelector = &metav1.LabelSelector{}
 		applyAdmissionEnabledSelectors(objSelector)
-	} else {
-		applyAdmissionEnabledSelectors(nsSelector)
 	}
 
 	applySelectorConfig(nsSelector, config)
@@ -51,13 +52,13 @@ func DefaultLabelSelectors(useNamespaceSelector bool, config LabelSelectorsConfi
 func applySelectorConfig(nsSelector *metav1.LabelSelector, config LabelSelectorsConfig) {
 	if len(config.IncludeNamespaces) > 0 {
 		nsSelector.MatchExpressions = append(nsSelector.MatchExpressions, metav1.LabelSelectorRequirement{
-			Key:      KubeSystemNamespaceLabelKey,
+			Key:      NamespaceLabelKey,
 			Operator: metav1.LabelSelectorOpIn,
 			Values:   config.IncludeNamespaces,
 		})
 	} else if len(config.ExcludeNamespaces) > 0 {
 		nsSelector.MatchExpressions = append(nsSelector.MatchExpressions, metav1.LabelSelectorRequirement{
-			Key:      KubeSystemNamespaceLabelKey,
+			Key:      NamespaceLabelKey,
 			Operator: metav1.LabelSelectorOpNotIn,
 			Values:   config.ExcludeNamespaces,
 		})

@@ -226,7 +226,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 	defaultNsSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key:      common.KubeSystemNamespaceLabelKey,
+				Key:      common.NamespaceLabelKey,
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values:   excludedDefaultNs,
 			},
@@ -470,7 +470,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					},
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
-							Key:      common.KubeSystemNamespaceLabelKey,
+							Key:      common.NamespaceLabelKey,
 							Operator: metav1.LabelSelectorOpNotIn,
 							Values:   excludedDefaultNs,
 						},
@@ -482,7 +482,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					},
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
-							Key:      common.KubeSystemNamespaceLabelKey,
+							Key:      common.NamespaceLabelKey,
 							Operator: metav1.LabelSelectorOpNotIn,
 							Values:   excludedDefaultNs,
 						},
@@ -519,7 +519,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					&metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
-								Key:      common.KubeSystemNamespaceLabelKey,
+								Key:      common.NamespaceLabelKey,
 								Operator: metav1.LabelSelectorOpNotIn,
 								Values:   excludedDefaultNs,
 							},
@@ -572,7 +572,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 								Values:   []string{"false"},
 							},
 							{
-								Key:      common.KubeSystemNamespaceLabelKey,
+								Key:      common.NamespaceLabelKey,
 								Operator: metav1.LabelSelectorOpNotIn,
 								Values:   excludedDefaultNs,
 							},
