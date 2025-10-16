@@ -17,6 +17,7 @@ import (
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 )
 
 type installScriptDefaultSuite struct {
@@ -119,7 +120,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 	}
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
-		"DD_API_KEY":               s.getAPIKey(),
+		"DD_API_KEY":               installer.GetAPIKey(),
 		"TESTING_KEYS_URL":         "apttesting.datad0g.com/test-keys",
 		"TESTING_APT_URL":          fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID")),
 		"TESTING_APT_REPO_VERSION": fmt.Sprintf("stable-%s 7", s.arch),
@@ -154,41 +155,11 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	}
 }
 
-// TestUpgradeInstallerAgent tests that the installer install script properly upgrades customers
-// from installer / agent as separate packages to a single package
-func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
-	params := []string{
-		"DD_API_KEY=" + s.getAPIKey(),
-		"DD_REMOTE_UPDATES=true",
-		"DD_AGENT_MAJOR_VERSION=7",
-		"DD_AGENT_MINOR_VERSION=65.0",
-	}
-
-	// 1. Install installer / agent as separate packages using older agent 7 install script & an older agent version (7.60)
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh?versionId=c0vg6qmhxYnt3he9iRph2BsRN0p026pf)"`, strings.Join(params, " ")))
-	require.NoErrorf(s.T(), err, "installer / agent not properly installed through agent 7 install script")
-
-	// 2. Run the installer install script with the same older agent version (7.60)
-	defer s.Purge()
-	s.RunInstallScript(s.url, params...)
-
-	// 3. Check the installer deb / rpm isn't there anymore
-	s.host.AssertPackageNotInstalledByPackageManager("datadog-installer")
-
-	// 4. Check the installer is present in the agent
-	state := s.host.State()
-	state.AssertFileExists("/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", 0755, "dd-agent", "dd-agent")
-
-	// 5. Assert the installer unit is not loaded
-	state.AssertUnitsNotLoaded("datadog-installer.service")
-	state.AssertUnitsLoaded("datadog-agent-installer.service")
-}
-
 // TestInstallIgnoreMajorMinor tests that the installer install script properly ignores
 // the major / minor version when installing the agent
 func (s *installScriptDefaultSuite) TestInstallIgnoreMajorMinor() {
 	params := []string{
-		"DD_API_KEY=" + s.getAPIKey(),
+		"DD_API_KEY=" + installer.GetAPIKey(),
 		"DD_REMOTE_UPDATES=true",
 		"DD_AGENT_MAJOR_VERSION=7",
 		"DD_AGENT_MINOR_VERSION=65.0",

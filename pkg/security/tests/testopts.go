@@ -40,6 +40,7 @@ type testOpts struct {
 	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
+	securityProfileNodeEvictionTimeout         time.Duration
 	enableAutoSuppression                      bool
 	autoSuppressionEventTypes                  []string
 	enableAnomalyDetection                     bool
@@ -55,7 +56,6 @@ type testOpts struct {
 	disableRuntimeSecurity                     bool
 	enableSBOM                                 bool
 	enableHostSBOM                             bool
-	sbomUseV2Collector                         bool
 	preStartCallback                           func(test *testModule)
 	tagger                                     tags.Tagger
 	ruleMatchHandler                           func(*testModule, *model.Event, *rules.Rule)

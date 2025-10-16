@@ -231,7 +231,7 @@ func newInjector(startTime time.Time, registry string, opts ...injectorOption) *
 	return i
 }
 
-func (i *injector) podMutator(v version) podMutator {
+func (i *injector) podMutator() podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		if i.injected {
 			return nil

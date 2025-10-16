@@ -33,8 +33,11 @@ func executePythonScript(ctx context.Context, installPath, scriptName string, ar
 	if _, err := os.Stat(pythonPath); err != nil {
 		return fmt.Errorf("python not found at %s: %w", pythonPath, err)
 	}
+	if err := os.RemoveAll(filepath.Join(installPath, "python-scripts/__pycache__")); err != nil {
+		return fmt.Errorf("failed to remove __pycache__ at %s: %w", filepath.Join(installPath, "python-scripts/__pycache__"), err)
+	}
 
-	pythonCmd := append([]string{scriptPath}, args...)
+	pythonCmd := append([]string{"-B", scriptPath}, args...)
 	cmd := exec.CommandContext(ctx, pythonPath, pythonCmd...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

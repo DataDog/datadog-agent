@@ -142,6 +142,7 @@ type Event struct {
 	IMDS               IMDSEvent               `field:"imds" event:"imds"`                                 // [7.55] [Network] An IMDS event was captured
 	RawPacket          RawPacketEvent          `field:"packet" event:"packet"`                             // [7.60] [Network] A raw network packet was captured
 	NetworkFlowMonitor NetworkFlowMonitorEvent `field:"network_flow_monitor" event:"network_flow_monitor"` // [7.63] [Network] A network monitor event was sent
+	FailedDNS          FailedDNSEvent          `field:"failed_dns" event:"failed_dns"`                     // [7.7X] [Network] A DNS packet failed to be decoded
 
 	// on-demand events
 	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
@@ -157,14 +158,17 @@ type Event struct {
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
 }
 
-var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
 var cgroupContextZero CGroupContext
 
-// Zero the event
-func (e *Event) Zero() {
-	*e = eventZero
-	*e.BaseEvent.ContainerContext = containerContextZero
-	*e.CGroupContext = cgroupContextZero
+// NewEventZeroer returns a function that can be used to zero an Event
+func NewEventZeroer() func(*Event) {
+	var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+
+	return func(e *Event) {
+		*e = eventZero
+		*e.BaseEvent.ContainerContext = containerContextZero
+		*e.CGroupContext = cgroupContextZero
+	}
 }
 
 // CGroupContext holds the cgroup context of an event
@@ -510,6 +514,7 @@ type ArgsEnvsEvent struct {
 // Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
 	MountID        uint32   `field:"-"`
+	MountIDUnique  uint64   `field:"-"`
 	Device         uint32   `field:"-"`
 	ParentPathKey  PathKey  `field:"-"`
 	Children       []uint32 `field:"-"`
