@@ -127,4 +127,19 @@ const (
 	// Response: Service sampling rates (see description in v04).
 	//
 	V07 Version = "v0.7"
+
+	// V10 API - Version 1.0
+	//
+	// This version introduces a new API for the trace agent to receive traces from the tracer.
+	// The message pack format for this payload is a custom format that uses deduplicated strings via a "streaming"
+	// string table where the first time a string is seen it is fully serialized, but later instances simply refer
+	// to the index of the string in the table.
+	//
+	// Request: Tracer Payload.
+	// 	Content-Type: application/msgpack
+	// 	Payload: TracerPayload (pkg/proto/pbgo/trace/idx/tracer_payload.go)
+	//
+	// Response: Service sampling rates (see description in v04).
+	//
+	V10 Version = "v1.0"
 )
