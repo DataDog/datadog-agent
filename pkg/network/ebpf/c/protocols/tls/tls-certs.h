@@ -1,6 +1,9 @@
 #ifndef __TLS_CERTS_H
 #define __TLS_CERTS_H
 
+// these maps still get referenced by ebpf-manager when loading prebuilt
+#include "tls-certs-maps.h"
+
 #ifndef COMPILE_PREBUILT
 
 #include "ktypes.h"
@@ -11,7 +14,6 @@
 
 #include "bpf_telemetry.h"
 #include "tls-certs-statem.h"
-#include "tls-certs-maps.h"
 #include "tls-certs-parser.h"
 
 static __always_inline void SSL_report_cert(conn_stats_ts_t *stats) {
