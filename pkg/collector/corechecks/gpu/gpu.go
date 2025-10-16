@@ -60,6 +60,7 @@ type checkTelemetry struct {
 	missingContainerGpuMapping   telemetry.Counter
 	multipleContainersGpuMapping telemetry.Counter
 	collectorTelemetry           *nvidia.CollectorTelemetry // collectorTelemetry holds specific telemetry for the collectors, it will also be passed to the collector dependencies
+	deviceCount                  telemetry.Gauge            // emitted as a telemetry metric too in order to send it through COAT
 }
 
 // Factory creates a new check factory
@@ -89,6 +90,7 @@ func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 		missingContainerGpuMapping:   tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
 		multipleContainersGpuMapping: tm.NewCounter(CheckName, "multiple_containers_gpu_mapping", []string{"device"}, "Number of devices assigned to multiple containers"),
 		collectorTelemetry:           nvidia.NewCollectorTelemetry(tm),
+		deviceCount:                  tm.NewGauge(CheckName, "device_total", nil, "Number of GPU devices"),
 	}
 }
 
@@ -198,6 +200,15 @@ func (c *Check) Run() error {
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
 	}
+
+	deviceCount, err := c.deviceCache.Count()
+	if err != nil {
+		if logLimitCheck.ShouldLog() {
+			log.Warnf("failed to get device count: %v", err)
+		}
+		deviceCount = 0
+	}
+	c.telemetry.deviceCount.Set(float64(deviceCount))
 
 	// Refresh SP cache before collecting metrics, if it is available
 	if c.spCache != nil {
