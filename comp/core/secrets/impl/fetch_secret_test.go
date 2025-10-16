@@ -22,9 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 func build(t *testing.T, outTarget string) {
@@ -195,7 +194,7 @@ func TestFetchSecretExecError(t *testing.T) {
 }
 
 func TestFetchSecretUnmarshalError(t *testing.T) {
-	tel := impl.NewMock(t)
+	tel := telemetryimpl.NewMock(t)
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{"), nil }
 	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
@@ -209,7 +208,7 @@ func TestFetchSecretUnmarshalError(t *testing.T) {
 }
 
 func TestFetchSecretMissingSecret(t *testing.T) {
-	tel := impl.NewMock(t)
+	tel := telemetryimpl.NewMock(t)
 	secrets := []string{"handle1", "handle2"}
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{}"), nil }
@@ -220,7 +219,7 @@ func TestFetchSecretMissingSecret(t *testing.T) {
 }
 
 func TestFetchSecretErrorForHandle(t *testing.T) {
-	tel := impl.NewMock(t)
+	tel := telemetryimpl.NewMock(t)
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null, \"error\": \"some error\"}}"), nil
@@ -232,7 +231,7 @@ func TestFetchSecretErrorForHandle(t *testing.T) {
 }
 
 func TestFetchSecretEmptyValue(t *testing.T) {
-	tel := impl.NewMock(t)
+	tel := telemetryimpl.NewMock(t)
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null}}"), nil
@@ -251,7 +250,7 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 	checkErrorCountMetric(t, tel, 2, "empty", "handle1")
 }
 
-func checkErrorCountMetric(t *testing.T, tel telemetry.Mock, expected int, errorKind, handle string) {
+func checkErrorCountMetric(t *testing.T, tel telemetryimpl.Mock, expected int, errorKind, handle string) {
 	metrics, err := tel.GetCountMetric("secret_backend", "resolve_errors_count")
 	require.NoError(t, err)
 	require.NotEmpty(t, metrics)
@@ -260,7 +259,7 @@ func checkErrorCountMetric(t *testing.T, tel telemetry.Mock, expected int, error
 		"error_kind": errorKind,
 		"handle":     handle,
 	}
-	assert.NotEqual(t, -1, slices.IndexFunc(metrics, func(m telemetry.Metric) bool {
+	assert.NotEqual(t, -1, slices.IndexFunc(metrics, func(m telemetryimpl.Metric) bool {
 		return int(m.Value()) == expected && maps.Equal(m.Tags(), expectedTags)
 	}))
 }

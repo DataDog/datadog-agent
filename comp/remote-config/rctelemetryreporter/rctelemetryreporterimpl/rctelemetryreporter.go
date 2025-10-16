@@ -7,7 +7,7 @@
 package rctelemetryreporterimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 

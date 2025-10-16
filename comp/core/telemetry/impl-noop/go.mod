@@ -3,11 +3,8 @@ module github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry/def v0.72.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.71.1
-	github.com/prometheus/client_golang v1.23.2
-	github.com/prometheus/client_model v0.6.2
 	go.uber.org/fx v1.24.0
 )
 
@@ -73,7 +70,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../../../../comp/core/tagger/telemetry
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../../comp/core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../../comp/core/tagger/utils
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/core/telemetry/def => ../../../../comp/core/telemetry/def
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx => ../../../../comp/core/telemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-full => ../../../../comp/core/telemetry/fx-full

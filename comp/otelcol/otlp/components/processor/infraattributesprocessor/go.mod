@@ -11,7 +11,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.67.0
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.71.1
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.70.0
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.72.0-devel
@@ -229,7 +228,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../../../../../../comp/core/tagger/telemetry
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../../../../comp/core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../../../../comp/core/tagger/utils
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/core/telemetry/def => ../../../../../../comp/core/telemetry/def
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx => ../../../../../../comp/core/telemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-full => ../../../../../../comp/core/telemetry/fx-full

@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
@@ -66,7 +66,7 @@ type testState struct {
 	lc            *compdef.TestLifecycle
 	rdnsQuerier   rdnsquerier.Component
 	ctx           context.Context
-	telemetryMock telemetry.Mock
+	telemetryMock telemetryimpl.Mock
 	logComp       log.Component
 }
 
@@ -90,7 +90,7 @@ func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeI
 	assert.NotNil(t, provides.Comp)
 
 	ctx := context.Background()
-	telemetryMock, ok := telemetryComp.(telemetry.Mock)
+	telemetryMock, ok := telemetryComp.(telemetryimpl.Mock)
 	assert.True(t, ok)
 	ts := testState{lc, provides.Comp, ctx, telemetryMock, logComp}
 

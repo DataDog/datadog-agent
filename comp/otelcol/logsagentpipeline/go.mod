@@ -9,7 +9,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.3 // indirect
@@ -142,7 +141,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../../../comp/core/tagger/telemetry
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../comp/core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../comp/core/tagger/utils
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/core/telemetry/def => ../../../comp/core/telemetry/def
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx => ../../../comp/core/telemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-full => ../../../comp/core/telemetry/fx-full

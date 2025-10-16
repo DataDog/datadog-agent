@@ -19,5 +19,9 @@ import (
 // This provides impl.Component (the extended interface with prometheus-specific methods).
 // Use this when you need RegisterCollector, UnregisterCollector, or Gather methods.
 func Module() fxutil.Module {
-	return impl.Module()
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			impl.NewComponent,
+		),
+	)
 }

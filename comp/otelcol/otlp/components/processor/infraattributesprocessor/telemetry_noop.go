@@ -8,7 +8,7 @@
 package infraattributesprocessor
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

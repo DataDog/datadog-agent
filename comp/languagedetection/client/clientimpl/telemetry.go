@@ -5,7 +5,7 @@
 
 package clientimpl
 
-import "github.com/DataDog/datadog-agent/comp/core/telemetry"
+import "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
 const subsystem = "language_detection_dca_client"
 

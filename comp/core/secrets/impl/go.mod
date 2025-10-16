@@ -25,7 +25,6 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.71.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.71.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.72.0-devel // indirect
@@ -99,7 +98,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../../../../comp/core/tagger/telemetry
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../../comp/core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../../comp/core/tagger/utils
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/core/telemetry/def => ../../../../comp/core/telemetry/def
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx => ../../../../comp/core/telemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-full => ../../../../comp/core/telemetry/fx-full

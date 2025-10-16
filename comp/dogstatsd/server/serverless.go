@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl-noop"

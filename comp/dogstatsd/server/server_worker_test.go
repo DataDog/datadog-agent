@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -383,7 +383,7 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 
-	telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
+	telemetryMock, ok := deps.Telemetry.(telemetryimpl.Mock)
 	assert.True(t, ok)
 
 	// three successful events
@@ -419,7 +419,7 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 
-	telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
+	telemetryMock, ok := deps.Telemetry.(telemetryimpl.Mock)
 	assert.True(t, ok)
 
 	// three successful events

@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -69,7 +70,8 @@ type telemetryImplMock struct {
 }
 
 type mockProvides struct {
-	Comp Mock
+	Comp         telemetry.Component
+	CompExtended Mock
 }
 
 func newMock(deps testDependencies) mockProvides {
@@ -91,7 +93,7 @@ func newMock(deps testDependencies) mockProvides {
 		},
 	})
 
-	return mockProvides{Comp: telemetry}
+	return mockProvides{Comp: telemetry, CompExtended: telemetry}
 }
 
 type internalMetric struct {

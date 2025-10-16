@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"sync"
 
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -42,7 +42,8 @@ type Requires struct {
 
 // Provides defines the output of the telemetry component
 type Provides struct {
-	Comp telemetry.Component
+	Comp         telemetry.Component
+	CompExtended Component
 }
 
 func newRegistry() *prometheus.Registry {
@@ -65,7 +66,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			return nil
 		},
 	})
-	return Provides{Comp: comp}, nil
+	return Provides{Comp: comp, CompExtended: comp}, nil
 }
 
 func newTelemetry() Component {

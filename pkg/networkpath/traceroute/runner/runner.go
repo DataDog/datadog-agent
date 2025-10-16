@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-traceroute/traceroute"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"

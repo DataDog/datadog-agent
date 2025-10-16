@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners/ratelimit"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"

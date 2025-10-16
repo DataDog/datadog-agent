@@ -5,7 +5,6 @@ go 1.24.0
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.72.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.72.0-devel
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.72.0-devel
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.72.0-devel
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.72.0-devel
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.72.0-devel
@@ -259,7 +258,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../../../../../../comp/core/tagger/telemetry
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../../../../comp/core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../../../../comp/core/tagger/utils
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/core/telemetry/def => ../../../../../../comp/core/telemetry/def
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx => ../../../../../../comp/core/telemetry/fx
 	github.com/DataDog/datadog-agent/comp/core/telemetry/fx-full => ../../../../../../comp/core/telemetry/fx-full

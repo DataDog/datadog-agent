@@ -29,7 +29,11 @@
       "Bash(/Users/scott.opell/go/src/github.com/DataDog/datadog-agent/bin/trace-agent/trace-agent run -c /tmp/test-trace-agent.yaml)",
       "Read(//private/tmp/**)",
       "Bash(./bin/trace-agent/trace-agent run:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git checkout:*)",
+      "Bash(gtimeout 360 dda inv:*)",
+      "Bash(xargs:*)",
+      "Bash(tee:*)"
     ],
     "deny": [],
     "ask": []

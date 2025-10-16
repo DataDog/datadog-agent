@@ -18,8 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
@@ -83,7 +83,7 @@ func TestUDPListenerTelemetry(t *testing.T) {
 		packet := pkts[0]
 		assert.NotNil(t, packet)
 
-		telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
+		telemetryMock, ok := deps.Telemetry.(telemetryimpl.Mock)
 		assert.True(t, ok)
 
 		packetsMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "udp_packets")
@@ -129,7 +129,7 @@ func TestUDPReceive(t *testing.T) {
 		assert.Equal(t, "", packet.Origin)
 		assert.Equal(t, packet.Source, packets.UDP)
 
-		telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
+		telemetryMock, ok := deps.Telemetry.(telemetryimpl.Mock)
 		assert.True(t, ok)
 
 		packetsMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "udp_packets")

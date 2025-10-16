@@ -21,7 +21,8 @@ import (
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/exp/maps"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
@@ -111,7 +112,7 @@ func (s *probeTestSuite) waitForExpectedCudasampleEvents(probe *Probe, pid int) 
 	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
 
 	// Check that we're receiving the events we expect
-	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
+	telemetryMock, ok := probe.deps.Telemetry.(telemetryimpl.Mock)
 	require.True(t, ok)
 
 	expectedEvents := map[string]int{
@@ -393,7 +394,7 @@ func BenchmarkProbeEventProcessing(b *testing.B) {
 		elapsed := time.Since(startTime)
 
 		// Check telemetry for event counts
-		telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
+		telemetryMock, ok := probe.deps.Telemetry.(telemetryimpl.Mock)
 		require.True(b, ok)
 
 		eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")

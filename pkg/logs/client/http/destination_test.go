@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -668,12 +668,12 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 	assert.Equal(t, "logs_3_reliable_0", server.Destination.destMeta.TelemetryName())
 
 	// Verify the source tag is "logs" in the telemetry metric
-	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "bytes_sent")
+	metric, err := telemetryMock.(telemetryimpl.Mock).GetCountMetric("logs", "bytes_sent")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
 	assert.Equal(t, "logs", metric[0].Tags()["source"])
 
-	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	metric, err = telemetryMock.(telemetryimpl.Mock).GetCountMetric("logs", "encoded_bytes_sent")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
 	assert.Equal(t, "logs", metric[0].Tags()["source"])
@@ -704,12 +704,12 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 	assert.Equal(t, "dbm_1_reliable_0", server.Destination.destMeta.TelemetryName())
 
 	// Verify the source tag is "epforwarder" in the telemetry metric
-	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "bytes_sent")
+	metric, err := telemetryMock.(telemetryimpl.Mock).GetCountMetric("logs", "bytes_sent")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
 	assert.Equal(t, "epforwarder", metric[0].Tags()["source"])
 
-	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	metric, err = telemetryMock.(telemetryimpl.Mock).GetCountMetric("logs", "encoded_bytes_sent")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
 	assert.Equal(t, "epforwarder", metric[0].Tags()["source"])
@@ -743,7 +743,7 @@ func TestDestinationCompression(t *testing.T) {
 	assert.Equal(t, "dbm_1_reliable_0", server.Destination.destMeta.TelemetryName())
 
 	// Verify the compression tag is set correctly
-	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	metric, err := telemetryMock.(telemetryimpl.Mock).GetCountMetric("logs", "encoded_bytes_sent")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
 	assert.Equal(t, "zstd", metric[0].Tags()["compression_kind"])
@@ -763,7 +763,7 @@ func TestDestinationCompression(t *testing.T) {
 	assert.Equal(t, "dbm_2_reliable_0", server.Destination.destMeta.TelemetryName())
 
 	// Verify the compression tag is set correctly
-	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	metric, err = telemetryMock.(telemetryimpl.Mock).GetCountMetric("logs", "encoded_bytes_sent")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 2)
 	assert.Equal(t, "gzip", metric[0].Tags()["compression_kind"])

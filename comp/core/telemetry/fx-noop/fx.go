@@ -7,10 +7,8 @@
 package fxnoop
 
 import (
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	implnoop "github.com/DataDog/datadog-agent/comp/core/telemetry/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // team: agent-runtimes

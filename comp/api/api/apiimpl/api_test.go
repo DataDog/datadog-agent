@@ -23,8 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 
 	// package dependencies
 
@@ -74,7 +73,7 @@ type testdeps struct {
 	fx.In
 
 	API       api.Component
-	Telemetry telemetry.Mock
+	Telemetry telemetryimpl.Mock
 	IPC       ipc.Component
 }
 

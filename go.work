@@ -45,7 +45,12 @@ use (
 	comp/core/tagger/telemetry
 	comp/core/tagger/types
 	comp/core/tagger/utils
-	comp/core/telemetry
+	comp/core/telemetry/def
+	comp/core/telemetry/fx
+	comp/core/telemetry/fx-full
+	comp/core/telemetry/fx-noop
+	comp/core/telemetry/impl
+	comp/core/telemetry/impl-noop
 	comp/def
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface

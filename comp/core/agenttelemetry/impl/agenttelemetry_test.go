@@ -25,7 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
@@ -118,10 +118,10 @@ func makeStableMetricMap(metrics []*dto.Metric) map[string]*dto.Metric {
 	return metricMap
 }
 
-func makeTelMock(t *testing.T) telemetry.Component {
+func makeTelMock(t *testing.T) telemetryimpl.Component {
 	// Little hack. Telemetry component is not fully componentized, and relies on global registry so far
 	// so we need to reset it before running the test. This is not ideal and will be improved in the future.
-	tel := fxutil.Test[telemetry.Mock](t, impl.MockModule())
+	tel := fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule())
 	tel.Reset()
 	return tel
 }
@@ -143,7 +143,7 @@ func makeSenderImpl(t *testing.T, cl client, c string) sender {
 
 // aggregator mock function
 func getTestAtel(t *testing.T,
-	tel telemetry.Component,
+	tel telemetryimpl.Component,
 	YAMLConf string,
 	sndr sender,
 	client client,

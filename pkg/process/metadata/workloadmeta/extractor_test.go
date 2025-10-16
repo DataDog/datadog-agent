@@ -12,8 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -37,7 +36,7 @@ func testProc(pid int32, cmdline []string) *procutil.Process {
 }
 
 func TestExtractor(t *testing.T) {
-	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
+	fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(configmock.New(t))
 
@@ -273,7 +272,7 @@ func BenchmarkHashProcess(b *testing.B) {
 // asserts that the extractor is able to properly handle updating a ContainerID from "" to a valid cid, and
 // will re-generate the EventSet for that process once the pidToCid mapping is up-to-date.
 func TestLateContainerId(t *testing.T) {
-	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
+	fxutil.Test[telemetryimpl.Mock](t, telemetryimpl.MockModule()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(configmock.New(t))
 

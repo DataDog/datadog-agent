@@ -17,7 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
@@ -85,7 +86,7 @@ func TestUDSDatagramReceive(t *testing.T) {
 		assert.Equal(t, packet.Origin, "")
 		assert.Equal(t, packet.Source, packets.UDS)
 
-		telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
+		telemetryMock, ok := deps.Telemetry.(telemetryimpl.Mock)
 		assert.True(t, ok)
 
 		udsConnectionsMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "uds_connections")

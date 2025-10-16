@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -40,7 +40,7 @@ func TestBufferTelemetry(t *testing.T) {
 	buffer.Append(packet)
 	buffer.Append(packet)
 
-	telemetryMock, ok := telemetryComponent.(telemetry.Mock)
+	telemetryMock, ok := telemetryComponent.(telemetryimpl.Mock)
 	assert.True(t, ok)
 
 	bufferSizeBytesMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packets_buffer_size_bytes")
@@ -78,7 +78,7 @@ func TestBufferTelemetryFull(t *testing.T) {
 
 	buffer.Append(packet)
 
-	telemetryMock, ok := telemetryComponent.(telemetry.Mock)
+	telemetryMock, ok := telemetryComponent.(telemetryimpl.Mock)
 	assert.True(t, ok)
 
 	bufferSizeBytesMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packets_buffer_size_bytes")

@@ -6,7 +6,7 @@
 package ratelimit
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 type telemetryInterface interface {

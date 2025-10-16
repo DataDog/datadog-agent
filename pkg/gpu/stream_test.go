@@ -18,7 +18,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
@@ -967,7 +968,7 @@ func getMetricWithTags(t *testing.T, metrics []telemetry.Metric, tags map[string
 	return 0
 }
 
-func getPoolStats(t *testing.T, telemetryMock telemetry.Mock, pool string) poolStats {
+func getPoolStats(t *testing.T, telemetryMock telemetryimpl.Mock, pool string) poolStats {
 	active, err := telemetryMock.GetGaugeMetric("sync__pool", "active")
 	require.NoError(t, err)
 	require.NotEmpty(t, active)

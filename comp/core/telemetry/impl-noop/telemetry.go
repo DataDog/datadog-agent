@@ -9,24 +9,22 @@ package implnoop
 import (
 	"net/http"
 
-	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	telemetrydef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 type noopImpl struct{}
 
-func newTelemetry() telemetry.Component {
+// NewTelemetry creates a new noop telemetry component
+func NewTelemetry() telemetrydef.Component {
 	return &noopImpl{}
 }
 
 // NewComponent creates a new noop telemetry component
-func NewComponent() telemetry.Component {
-	return newTelemetry()
+func NewComponent() telemetrydef.Component {
+	return NewTelemetry()
 }
 
 type dummy struct{}
@@ -97,24 +95,14 @@ func (t *noopImpl) NewSimpleHistogramWithOpts(_, _, _ string, _ []float64, _ tel
 	return &simpleNoOpHistogram{}
 }
 
-func (t *noopImpl) RegisterCollector(prometheus.Collector) {}
-
-func (t *noopImpl) UnregisterCollector(prometheus.Collector) bool {
-	return true
-}
-
-func (t *noopImpl) Gather(bool) ([]*dto.MetricFamily, error) {
-	return nil, nil
-}
-
 // GetCompatComponent returns a component wrapping telemetry global variables
 // TODO (components): Remove this when all telemetry is migrated to the component
-func GetCompatComponent() telemetry.Component {
-	return newTelemetry()
+func GetCompatComponent() telemetrydef.Component {
+	return NewTelemetry()
 }
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newTelemetry))
+		fx.Provide(NewTelemetry))
 }

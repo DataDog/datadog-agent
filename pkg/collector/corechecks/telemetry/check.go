@@ -13,7 +13,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -29,7 +29,7 @@ const (
 
 type checkImpl struct {
 	corechecks.CheckBase
-	telemetry telemetry.Component
+	telemetry telemetryimpl.Component
 }
 
 func (c *checkImpl) Run() error {
@@ -107,7 +107,7 @@ func (c *checkImpl) buildTags(lps []*dto.LabelPair) []string {
 }
 
 // Factory creates a new check factory
-func Factory(telemetry telemetry.Component) option.Option[func() check.Check] {
+func Factory(telemetry telemetryimpl.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return &checkImpl{
 			CheckBase: corechecks.NewCheckBase(CheckName),
