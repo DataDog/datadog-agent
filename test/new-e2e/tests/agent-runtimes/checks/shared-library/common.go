@@ -26,9 +26,9 @@ var exampleCheckYaml string
 
 type sharedLibrarySuite struct {
 	e2e.BaseSuite[environments.Host]
-	descriptor   osVM.Descriptor
-	libraryName  string
-	targetFolder string
+	descriptor  osVM.Descriptor
+	libraryName string
+	checksdPath string
 }
 
 func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {

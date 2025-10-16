@@ -21,12 +21,12 @@ type linuxSharedLibrarySuite struct {
 }
 
 func TestLinuxCheckImplementationSuite(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 	suite := &linuxSharedLibrarySuite{
 		sharedLibrarySuite{
-			descriptor:   e2eos.UbuntuDefault,
-			libraryName:  "libdatadog-agent-example.so",
-			targetFolder: "/opt/datadog-agent/embedded/lib",
+			descriptor:  e2eos.UbuntuDefault,
+			libraryName: "libdatadog-agent-example.so",
+			checksdPath: "/etc/datadog-agent/checks.d",
 		},
 	}
 
@@ -39,13 +39,13 @@ func (v *linuxSharedLibrarySuite) copyLibrary(sourceLibPath string) {
 		sourceLibPath,
 		v.Env().RemoteHost.JoinPath("/", "tmp", v.libraryName),
 	)
-	out := v.Env().RemoteHost.MustExecute("sudo cp " + v.Env().RemoteHost.JoinPath("/", "tmp", v.libraryName) + " " + v.Env().RemoteHost.JoinPath(v.targetFolder, v.libraryName)) // TODO: replace by a specific RemoteHost function?
+	out := v.Env().RemoteHost.MustExecute("sudo cp " + v.Env().RemoteHost.JoinPath("/", "tmp", v.libraryName) + " " + v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName)) // TODO: replace by a specific RemoteHost function?
 	// should not output anything, otherwise it's an error
 	require.Empty(v.T(), out)
 }
 
 func (v *linuxSharedLibrarySuite) removeLibrary() {
-	out := v.Env().RemoteHost.MustExecute("sudo rm " + v.Env().RemoteHost.JoinPath(v.targetFolder, v.libraryName)) // TODO: replace by a specific RemoteHost function?
+	out := v.Env().RemoteHost.MustExecute("sudo rm " + v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName)) // TODO: replace by a specific RemoteHost function?
 	// should not output anything, otherwise it's an error
 	require.Empty(v.T(), out)
 }
@@ -55,7 +55,7 @@ func (v *linuxSharedLibrarySuite) TestLinuxCheckExampleRun() {
 	sourceLibPath := path.Join(".", "files", v.libraryName)
 	v.copyLibrary(sourceLibPath)
 
-	res, err := v.Env().RemoteHost.FileExists(v.Env().RemoteHost.JoinPath(v.targetFolder, v.libraryName))
+	res, err := v.Env().RemoteHost.FileExists(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
 	require.Nil(v.T(), err)
 	require.True(v.T(), res)
 

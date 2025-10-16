@@ -21,12 +21,12 @@ type windowsSharedLibrarySuite struct {
 }
 
 func TestWindowsCheckImplementationSuite(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 	suite := &windowsSharedLibrarySuite{
 		sharedLibrarySuite{
-			descriptor:   e2eos.WindowsServerDefault,
-			libraryName:  "libdatadog-agent-example.dll",
-			targetFolder: "C:\\Program Files\\Datadog\\Datadog Agent\\bin",
+			descriptor:  e2eos.WindowsServerDefault,
+			libraryName: "libdatadog-agent-example.dll",
+			checksdPath: "C:\\ProgramData\\Datadog\\checks.d",
 		},
 	}
 
@@ -36,12 +36,12 @@ func TestWindowsCheckImplementationSuite(t *testing.T) {
 func (v *windowsSharedLibrarySuite) copyLibrary(sourceLibPath string) {
 	v.Env().RemoteHost.CopyFile(
 		sourceLibPath,
-		v.Env().RemoteHost.JoinPath(v.targetFolder, v.libraryName),
+		v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName),
 	)
 }
 
 func (v *windowsSharedLibrarySuite) removeLibrary() {
-	err := v.Env().RemoteHost.Remove(v.Env().RemoteHost.JoinPath(v.targetFolder, v.libraryName))
+	err := v.Env().RemoteHost.Remove(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
 	require.Nil(v.T(), err)
 }
 
@@ -50,7 +50,7 @@ func (v *windowsSharedLibrarySuite) TestWindowsCheckExample() {
 	sourceLibPath := path.Join(".", "files", v.libraryName)
 	v.copyLibrary(sourceLibPath)
 
-	res, err := v.Env().RemoteHost.FileExists(v.Env().RemoteHost.JoinPath(v.targetFolder, v.libraryName))
+	res, err := v.Env().RemoteHost.FileExists(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
 	require.Nil(v.T(), err)
 	require.True(v.T(), res)
 
