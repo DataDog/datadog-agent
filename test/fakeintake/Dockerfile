@@ -2,7 +2,7 @@
 # syntax=docker/dockerfile:1
 
 ## Build
-FROM golang:1.24.8-alpine3.22 AS build
+FROM golang:1.24.9-alpine3.22 AS build
 
 # need gcc to build with CGO_ENABLED=1
 # need musl-dev to get stdlib.h
@@ -20,6 +20,7 @@ COPY pkg/metrics /pkg/metrics
 COPY pkg/network/payload /pkg/network/payload
 COPY pkg/networkpath/payload /pkg/networkpath/payload
 COPY pkg/tagger/types /pkg/tagger/types
+COPY pkg/trace /pkg/trace
 
 RUN go mod download
 

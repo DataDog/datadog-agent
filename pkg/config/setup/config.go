@@ -511,8 +511,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 5000)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "35m")
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "10m")
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "16m") // with 5min interval, 16m will allow running a test 3 times (15min + 1min margin)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "5m")
 	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_per_minute", 150)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_burst_duration", "30s")
@@ -527,6 +527,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.traceroute_queries", DefaultNetworkPathStaticPathTracerouteQueries)
 	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
 	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
+	config.BindEnvAndSetDefault("network_path.collector.monitor_ip_without_domain", false)
+	config.BindEnv("network_path.collector.filters") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -785,8 +787,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.unscheduled_check_threshold", 60) // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
-	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
-	config.BindEnvAndSetDefault("cluster_checks.rebalance_with_utilization", false)
+	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", true)
+	config.BindEnvAndSetDefault("cluster_checks.rebalance_with_utilization", true)
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_min_percentage_improvement", 10) // Experimental. Subject to change. Rebalance only if the distribution found improves the current one by this.
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})

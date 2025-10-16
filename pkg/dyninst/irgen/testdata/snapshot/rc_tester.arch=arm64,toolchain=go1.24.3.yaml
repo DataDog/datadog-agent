@@ -71,8 +71,7 @@ Subprograms:
                   Op: {CfaOffset: 8}
                 - Size: 8
                   Op: {CfaOffset: 16}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: r
           Type: 108 PointerType *net/http.Request
           Locations:
@@ -80,15 +79,13 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
             - Range: 0x8a0cf4..0x8a0ec0
               Pieces: [{Size: 8, Op: {CfaOffset: 24}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: span
           Type: 110 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
           Locations:
             - Range: 0x8a0d08..0x8a0d38
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: false
-          IsReturn: false
+          Role: Local
         - Name: '&buf'
           Type: 112 PointerType *bytes.Buffer
           Locations:
@@ -96,8 +93,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0x8a0df0..0x8a0ec0
               Pieces: [{Size: 8, Op: {CfaOffset: -120}}]
-          IsParameter: false
-          IsReturn: false
+          Role: Local
     - ID: 2
       Name: main.LookAtTheRequest
       OutOfLinePCRanges: [0x8a0f90..0x8a1040]
@@ -112,8 +108,7 @@ Subprograms:
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
 Types:
     - __kind: PointerType
       ID: 251
