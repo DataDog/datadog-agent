@@ -296,11 +296,11 @@ func (e *Event) ResolveService() string {
 }
 
 // GetProcessTracerTags returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessTracerTags() []string {
-	if ev.BaseEvent.ProcessContext == nil {
+func (e *Event) GetProcessTracerTags() []string {
+	if e.BaseEvent.ProcessContext == nil {
 		return []string{}
 	}
-	return ev.BaseEvent.ProcessContext.Process.TracerTags
+	return e.BaseEvent.ProcessContext.Process.TracerTags
 }
 
 // UserSessionContext describes the user session context
