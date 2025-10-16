@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package appsec is the appsec proxy injection controller for the Cluster Agent autoconfiguration
 package appsec
 
 import (
@@ -13,6 +14,7 @@ import (
 	"maps"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -20,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 
 	v1 "k8s.io/api/core/v1"
@@ -79,12 +83,15 @@ func detectProxiesInCluster(ctx context.Context, cl *apiserver.APIClient, logger
 }
 
 type securityInjector struct {
-	ctx       context.Context
-	cancel    context.CancelFunc
-	k8sClient dynamic.Interface
-	logger    log.Component
-	config    appsecconfig.Config
-	recoder   record.EventRecorder
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	k8sClient             dynamic.Interface
+	logger                log.Component
+	config                appsecconfig.Config
+	recorder              record.EventRecorder
+	leaderElectionEnabled bool
+	baseBackoff           time.Duration
+	maxBackoff            time.Duration
 }
 
 // NewLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
@@ -126,12 +133,15 @@ func newSecurityInjector(ctx context.Context, logger log.Component, datadogConfi
 
 	ctx, cancel := context.WithCancel(ctx)
 	return &securityInjector{
-		ctx:       ctx,
-		cancel:    cancel,
-		k8sClient: apiClient.DynamicCl,
-		logger:    logger,
-		config:    config,
-		recoder:   eventRecorder,
+		ctx:                   ctx,
+		cancel:                cancel,
+		k8sClient:             apiClient.DynamicCl,
+		logger:                logger,
+		config:                config,
+		recorder:              eventRecorder,
+		leaderElectionEnabled: datadogConfig.GetBool("leader_election"),
+		baseBackoff:           datadogConfig.GetDuration("cluster_agent.appsec.injector.base_backoff"),
+		maxBackoff:            datadogConfig.GetDuration("cluster_agent.appsec.injector.max_backoff"),
 	}
 }
 
@@ -181,8 +191,8 @@ func (si *securityInjector) run(proxyType appsecconfig.ProxyType, pattern appsec
 
 	queue := workqueue.NewTypedRateLimitingQueueWithConfig(
 		workqueue.NewTypedItemExponentialFailureRateLimiter[workItem](
-			si.config.BaseBackoff,
-			si.config.MaxBackoff,
+			si.baseBackoff,
+			si.maxBackoff,
 		),
 		workqueue.TypedRateLimitingQueueConfig[workItem]{
 			Name:            "appsec_injector_" + string(proxyType),
@@ -196,33 +206,7 @@ func (si *securityInjector) run(proxyType appsecconfig.ProxyType, pattern appsec
 
 	informer := informerFactory.ForResource(pattern.Resource()).Informer()
 
-	handle, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			unstructured, ok := obj.(*unstructured.Unstructured)
-			if !ok {
-				si.logger.Warnf("event handler for %s: unexpected type: %T", proxyType, obj)
-			}
-			queue.Add(workItem{new: unstructured, typ: workItemAdded})
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			oldUnstructured, ok := oldObj.(*unstructured.Unstructured)
-			if !ok {
-				si.logger.Warnf("event handler for %s: unexpected type: %T", proxyType, oldObj)
-			}
-			newUnstructured, ok := newObj.(*unstructured.Unstructured)
-			if !ok {
-				si.logger.Warnf("event handler for %s: unexpected type: %T", proxyType, newObj)
-			}
-			queue.Add(workItem{old: oldUnstructured, new: newUnstructured, typ: workItemModified})
-		},
-		DeleteFunc: func(obj any) {
-			unstructured, ok := obj.(*unstructured.Unstructured)
-			if !ok {
-				si.logger.Warnf("event handler for %s: unexpected type: %T", proxyType, obj)
-			}
-			queue.Add(workItem{old: unstructured, typ: workItemDeleted})
-		},
-	})
+	handle, err := informer.AddEventHandler(si.createEventHandler(queue))
 	if err != nil {
 		si.logger.Errorf("error adding event handler for resource %s: %s", proxyType, err)
 		return
@@ -236,7 +220,11 @@ func (si *securityInjector) run(proxyType appsecconfig.ProxyType, pattern appsec
 	}
 
 	health := health.RegisterLiveness("appsec-injector-" + string(proxyType))
-	defer health.Deregister()
+	defer func() {
+		if err := health.Deregister(); err != nil {
+			si.logger.Warnf("error deregistering healthcheck: %s", err)
+		}
+	}()
 
 	si.logger.Debug("Watching resource:", proxyType)
 
@@ -251,35 +239,99 @@ func (si *securityInjector) run(proxyType appsecconfig.ProxyType, pattern appsec
 		}
 	}()
 
-	for {
-		item, quit := queue.Get()
-		if quit {
-			return
-		}
-
-		var err error
-		switch item.typ {
-		case workItemAdded:
-			err = pattern.Added(si.ctx, item.new)
-		case workItemModified:
-			err = pattern.Modified(si.ctx, item.old, item.new)
-		case workItemDeleted:
-			err = pattern.Deleted(si.ctx, item.old)
-		}
-
-		patchCount.Inc(string(proxyType), item.typ.String(), strconv.FormatBool(err == nil))
-
-		if err == nil {
-			queue.Forget(item)
-		} else if queue.NumRequeues(item) < 5 {
-			si.logger.Debugf("requeuing item after error: %v", err)
-			queue.AddRateLimited(item)
-		} else {
-			si.logger.Warnf("unable to process item: %v", err)
-		}
-
-		queue.Done(item)
+	for quit := false; !quit; {
+		quit = si.processWorkItem(proxyType, pattern, queue, patchCount)
 	}
+}
+
+func (si *securityInjector) createEventHandler(queue workqueue.TypedRateLimitingInterface[workItem]) cache.ResourceEventHandler {
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			unstructured, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				si.logger.Warnf("event handler for unexpected type: %T", obj)
+			}
+			queue.Add(workItem{new: unstructured, typ: workItemAdded})
+		},
+		UpdateFunc: func(oldObj, newObj any) {
+			oldUnstructured, ok := oldObj.(*unstructured.Unstructured)
+			if !ok {
+				si.logger.Warnf("event handler for unexpected type: %T", oldObj)
+			}
+			newUnstructured, ok := newObj.(*unstructured.Unstructured)
+			if !ok {
+				si.logger.Warnf("event handler for unexpected type: %T", newObj)
+			}
+			queue.Add(workItem{old: oldUnstructured, new: newUnstructured, typ: workItemModified})
+		},
+		DeleteFunc: func(obj any) {
+			unstructured, ok := obj.(*unstructured.Unstructured)
+			if !ok {
+				si.logger.Warnf("event handler for unexpected type: %T", obj)
+			}
+			queue.Add(workItem{old: unstructured, typ: workItemDeleted})
+		},
+	}
+}
+
+func (si *securityInjector) processWorkItem(proxyType appsecconfig.ProxyType,
+	pattern appsecconfig.InjectionPattern,
+	queue workqueue.TypedRateLimitingInterface[workItem],
+	patchCount telemetry.Counter,
+) bool {
+	item, quit := queue.Get()
+	if quit {
+		return true
+	}
+
+	defer queue.Done(item)
+
+	if !si.isLeader() {
+		queue.Forget(item)
+		return false
+	}
+
+	var err error
+	switch item.typ {
+	case workItemAdded:
+		err = pattern.Added(si.ctx, item.new)
+	case workItemModified:
+		err = pattern.Modified(si.ctx, item.old, item.new)
+	case workItemDeleted:
+		err = pattern.Deleted(si.ctx, item.old)
+	}
+
+	patchCount.Inc(string(proxyType), item.typ.String(), strconv.FormatBool(err == nil))
+
+	if err == nil {
+		queue.Forget(item)
+	} else if queue.NumRequeues(item) < 5 {
+		si.logger.Debugf("requeuing item after error: %v", err)
+		queue.AddRateLimited(item)
+	} else {
+		si.logger.Warnf("unable to process item: %v", err)
+	}
+
+	return false
+}
+
+// isLeader checks if the current instance is the leader
+func (si *securityInjector) isLeader() bool {
+	if !si.leaderElectionEnabled {
+		// If leader election is disabled, we're always the leader
+		return true
+	}
+
+	common.GetResourcesNamespace()
+
+	leaderEngine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		si.logger.Errorf("Failed to get leader engine: %v", err)
+		// If we can't determine leader status, don't patch to be safe
+		return false
+	}
+
+	return leaderEngine.IsLeader()
 }
 
 func (si *securityInjector) CompilePatterns() map[appsecconfig.ProxyType]appsecconfig.InjectionPattern {
@@ -294,9 +346,9 @@ func (si *securityInjector) CompilePatterns() map[appsecconfig.ProxyType]appsecc
 		// Add the proxy type to the common annotations so that it is available in the pattern
 		config := si.config
 		config.Injection.CommonAnnotations = maps.Clone(config.Injection.CommonAnnotations)
-		config.Injection.CommonAnnotations[appsecconfig.AppsecProcessorProxyTypeAnnotation] = string(appsecconfig.ProxyTypeEnvoyGateway)
+		config.Injection.CommonAnnotations[appsecconfig.AppsecProcessorProxyTypeAnnotation] = string(proxy)
 
-		patterns[proxy] = constructor(si.k8sClient, si.logger, config, si.recoder)
+		patterns[proxy] = constructor(si.k8sClient, si.logger, config, si.recorder)
 		si.logger.Infof("Enabled appsec proxy injection for proxy type %q", proxy)
 	}
 

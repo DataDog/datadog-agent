@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package envoygateway implements the InjectionPattern interface for Envoy Gateway
 package envoygateway
 
 import (

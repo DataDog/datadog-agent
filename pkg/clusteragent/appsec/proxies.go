@@ -28,6 +28,9 @@ var proxyConstructorMap = map[appsecconfig.ProxyType]ProxyConstructor{
 	appsecconfig.ProxyTypeEnvoyGateway: envoygateway.New,
 }
 
+// ProxyDetector is the type of function that detects if a given proxy is installed in the cluster
+// it is called before using the [ProxyConstructor] to avoid creating a controller for a proxy that is not present
+// during the auto-detection phase at startup.
 type ProxyDetector func(
 	ctx context.Context,
 	k8sClient dynamic.Interface) (bool, error)
