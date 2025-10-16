@@ -2,10 +2,11 @@ load("//bazel/rules:golden_file_test.bzl", "golden_file_test")
 load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
 
 # Forwarder to make this more accessible to the rest of the build.
-alias(
-    name = "libcrypto",
-    actual = "@openssl3//:libcrypto",
-)
+# TODO: We are getting biuld problems in CI
+#alias(
+#    name = "libcrypto",
+#    actual = "@openssl3//:libcrypto",
+#)
 
 generate_module_bazel(
     name = "openssl3_module_bazel_new",
