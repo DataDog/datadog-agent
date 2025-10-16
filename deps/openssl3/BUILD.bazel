@@ -1,5 +1,5 @@
+load("//bazel/rules:golden_file_test.bzl", "golden_file_test")
 load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
-load("//bazel/tools:golden_file_test.bzl", "golden_file_test")
 
 # Forwarder to make this more accessible to the rest of the build.
 alias(

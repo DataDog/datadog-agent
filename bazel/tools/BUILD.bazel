@@ -5,17 +5,11 @@ py_binary(
     name = "generate_module_bazel",
     srcs = ["generate_module_bazel.py"],
     main = "generate_module_bazel.py",
-    visibility = ["//visibility:public"],
+    visibility = ["//deps:__subpackages__"],
 )
 
 bzl_library(
     name = "generate_module_bazel_bzl",
     srcs = ["generate_module_bazel.bzl"],
-    visibility = ["//visibility:public"],
-)
-
-bzl_library(
-    name = "golden_file_test_bzl",
-    srcs = ["golden_file_test.bzl"],
-    visibility = ["//visibility:public"],
+    visibility = ["//deps:__subpackages__"],
 )
