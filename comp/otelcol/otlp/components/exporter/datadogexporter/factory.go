@@ -120,28 +120,15 @@ func CreateDefaultConfig() component.Config {
 	return ddcfg
 }
 
-// checkAndCastConfig checks the configuration type and its warnings, and casts it to
-// the Datadog Config struct.
-func checkAndCastConfig(c component.Config, logger *zap.Logger) *datadogconfig.Config {
-	cfg, ok := c.(*datadogconfig.Config)
-	if !ok {
-		panic("programming error: config structure is not of type *datadogconfig.Config")
-	}
-	logWarnings(cfg, logger)
-	return cfg
-}
-
-// logWarnings logs warning messages found during configuration loading.
-func logWarnings(cfg *datadogconfig.Config, logger *zap.Logger) {
-	cfg.LogWarnings(logger)
+func addEmbeddedCollectorConfigWarnings(cfg *datadogconfig.Config) {
 	if cfg.Hostname != "" {
-		logger.Warn(fmt.Sprintf("hostname \"%s\" is ignored in the embedded collector", cfg.Hostname))
+		cfg.AddWarningf("hostname \"%s\" is ignored in the embedded collector", cfg.Hostname)
 	}
 	if cfg.OnlyMetadata {
-		logger.Warn("only_metadata should not be enabled and is ignored in the embedded collector")
+		cfg.AddWarning(fmt.Errorf("only_metadata should not be enabled and is ignored in the embedded collector"))
 	}
 	if cfg.Traces.ComputeStatsBySpanKind || cfg.Traces.PeerServiceAggregation || cfg.Traces.PeerTagsAggregation || len(cfg.Traces.PeerTags) > 0 {
-		logger.Warn("inferred service related configs (compute_stats_by_span_kind, peer_service_aggregation, peer_tags_aggregation, peer_tags) should only be set in datadog connector rather than datadog exporter in the embedded collector")
+		cfg.AddWarning(fmt.Errorf("inferred service related configs (compute_stats_by_span_kind, peer_service_aggregation, peer_tags_aggregation, peer_tags) should only be set in datadog connector rather than datadog exporter in the embedded collector"))
 	}
 }
 
@@ -151,9 +138,16 @@ func (f *factory) createTracesExporter(
 	set exporter.Settings,
 	c component.Config,
 ) (exporter.Traces, error) {
-	cfg := checkAndCastConfig(c, set.TelemetrySettings.Logger)
+	cfg, err := datadogconfig.CheckAndCastConfig(c)
+	if err != nil {
+		return nil, err
+	}
+	// add warnings for embedded collector-specific checks to config
+	addEmbeddedCollectorConfigWarnings(cfg)
+	// log all warnings found during configuration loading
+	cfg.LogWarnings(set.Logger)
 
-	err := f.setupTraceAgentCmp(set.TelemetrySettings)
+	err = f.setupTraceAgentCmp(set.TelemetrySettings)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
 	}
@@ -193,7 +187,15 @@ func (f *factory) createMetricsExporter(
 	set exporter.Settings,
 	c component.Config,
 ) (exporter.Metrics, error) {
-	cfg := checkAndCastConfig(c, set.Logger)
+	cfg, err := datadogconfig.CheckAndCastConfig(c)
+	if err != nil {
+		return nil, err
+	}
+	// add warnings for embedded collector-specific checks to config
+	addEmbeddedCollectorConfigWarnings(cfg)
+	// log all warnings found during configuration loading
+	cfg.LogWarnings(set.Logger)
+
 	if err := f.setupTraceAgentCmp(set.TelemetrySettings); err != nil {
 		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
 	}
@@ -270,7 +272,15 @@ func (f *factory) createLogsExporter(
 	set exporter.Settings,
 	c component.Config,
 ) (exporter.Logs, error) {
-	cfg := checkAndCastConfig(c, set.Logger)
+	cfg, err := datadogconfig.CheckAndCastConfig(c)
+	if err != nil {
+		return nil, err
+	}
+	// add warnings for embedded collector-specific checks to config
+	addEmbeddedCollectorConfigWarnings(cfg)
+	// log all warnings found during configuration loading
+	cfg.LogWarnings(set.Logger)
+
 	var logch chan *message.Message
 	if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
 		logch = provider.NextPipelineChan()
