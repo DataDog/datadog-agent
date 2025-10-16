@@ -14,8 +14,6 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
