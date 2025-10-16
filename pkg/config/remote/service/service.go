@@ -5,9 +5,9 @@
 
 // Package service represents the agent's core remoteconfig service
 //
-// The `Service` type provides a communication layer for downstream clients to request
-// configuration, as well as the ability to track clients for requesting complete update
-// payloads from the remote config backend.
+// The `CoreAgentService` type provides a communication layer for downstream
+// clients to request configuration, as well as the ability to track clients for
+// requesting complete update payloads from the remote config backend.
 package service
 
 import (
@@ -83,19 +83,6 @@ var (
 	exportedLastUpdateErr       = expvar.String{}
 )
 
-// Service defines the remote config management service responsible for fetching, storing
-// and dispatching the configurations
-type Service struct {
-	sync.Mutex
-
-	// rcType is used to differentiate multiple RC services running in a single agent.
-	// Today, it is simply logged as a prefix in all log messages to help when triaging
-	// via logs.
-	rcType string
-
-	db *bbolt.DB
-}
-
 func getNewDirectorRoots(uptane uptaneClient, currentVersion uint64, newVersion uint64) ([][]byte, error) {
 	var roots [][]byte
 	for i := currentVersion + 1; i <= newVersion; i++ {
@@ -126,9 +113,21 @@ func getTargetFiles(uptaneClient uptaneClient, targetFilePaths []string) ([]*pbg
 	return configFiles, nil
 }
 
-// CoreAgentService fetches  Remote Configurations from the RC backend
+// CoreAgentService implements rcservice.Component.
+//
+// It fetches and orchestrates the fetching of Remote Configurations from the RC
+// backend.  and maintains the local state of the configuration on behalf of its
+// clients.
 type CoreAgentService struct {
-	Service
+	sync.Mutex
+
+	// rcType is used to differentiate multiple RC services running in a single
+	// agent.  Today, it is simply logged as a prefix in all log messages to
+	// help when triaging via logs.
+	rcType string
+
+	db *bbolt.DB
+
 	firstUpdate bool
 
 	// We record the startup time to ensure we flush client configs if we can't contact the backend in time
@@ -484,10 +483,8 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	now := clock.Now().UTC()
 	cas := &CoreAgentService{
-		Service: Service{
-			rcType: rcType,
-			db:     db,
-		},
+		rcType:                         rcType,
+		db:                             db,
 		firstUpdate:                    true,
 		startupTime:                    now,
 		defaultRefreshInterval:         options.refresh,
@@ -1198,7 +1195,9 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 
 // HTTPClient fetches Remote Configurations from an HTTP(s)-based backend
 type HTTPClient struct {
-	Service
+	sync.Mutex
+	rcType     string
+	db         *bbolt.DB
 	lastUpdate time.Time
 	uptane     cdnUptaneClient
 }
@@ -1219,10 +1218,8 @@ func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, err
 	}
 
 	return &HTTPClient{
-		Service: Service{
-			rcType: "CDN",
-			db:     db,
-		},
+		rcType: "CDN",
+		db:     db,
 		uptane: uptaneCDNClient,
 	}, nil
 }
