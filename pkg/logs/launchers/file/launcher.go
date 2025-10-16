@@ -292,18 +292,25 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
 		var fingerprint *types.Fingerprint
 		var err error
-		if s.fingerprinter.ShouldFileFingerprint(file) {
-			// Check if this specific file should be fingerprinted
-			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
-			// Skip files with invalid fingerprints (Value == 0)
-			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
-				// If fingerprint is invalid, persist the old info back into the map for future attempts
-				if hasOldInfo {
-					s.oldInfoMap[scanKey] = oldInfo
+			if s.fingerprinter.ShouldFileFingerprint(file) {
+				// Check if this specific file should be fingerprinted
+				fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
+				if err != nil {
+					if hasOldInfo {
+						log.Debugf("Fingerprint computation failed for %s after rotation; starting tailer without fingerprint", file.Path)
+						fingerprint = nil
+					} else {
+						continue
+					}
+				} else if fingerprint != nil && !fingerprint.ValidFingerprint() {
+					if hasOldInfo {
+						log.Debugf("Fingerprint for %s invalid but rotation in progress; starting tailer without fingerprint", file.Path)
+						fingerprint = nil
+					} else {
+						continue
+					}
 				}
-				continue
 			}
-		}
 
 		if hasOldInfo {
 			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
