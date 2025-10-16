@@ -13,7 +13,7 @@ filegroup(
         "@xz",
         "@xz//:lzma",
         "@zlib//:libz_so",
-        "@libsepol//:libsepol_so",
+        "@libsepol//:sepol",
     ],
     visibility = ["//visibility:private"],
 )

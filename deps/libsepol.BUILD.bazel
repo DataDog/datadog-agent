@@ -50,6 +50,7 @@ cc_shared_library(
         "-Wl,-soname=libsepol.so",
         "-Wl,--version-script=$(location src/libsepol.map.in)",
     ],
+    visibility = ["//visibility:public"],
 )
 
 expand_template(
