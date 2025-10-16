@@ -37,6 +37,8 @@ func (c *ntmConfig) ReadInConfig() error {
 		return log.Errorf("attempt to ReadInConfig before config is constructed")
 	}
 
+	c.maybeRebuild()
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -63,6 +65,8 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadConfig before config is constructed")
 	}
+
+	c.maybeRebuild()
 
 	c.Lock()
 	defer c.Unlock()

@@ -7,6 +7,8 @@
 
 package ir
 
+import "fmt"
+
 // ProgramID is a ID corresponding to an instance of a Program.  It is used to
 // identify messages from this program as they are communicated over the ring
 // buffer.
@@ -101,6 +103,30 @@ type Subprogram struct {
 	Variables []*Variable
 }
 
+// VariableRole is the role of a variable within a subprogram.
+type VariableRole uint8
+
+// VariableRole values.
+const (
+	_ VariableRole = iota
+	VariableRoleParameter
+	VariableRoleReturn
+	VariableRoleLocal
+)
+
+func (vr VariableRole) String() string {
+	switch vr {
+	case VariableRoleParameter:
+		return "Parameter"
+	case VariableRoleReturn:
+		return "Return"
+	case VariableRoleLocal:
+		return "Local"
+	default:
+		return fmt.Sprintf("VariableRole(%d)", vr)
+	}
+}
+
 // Variable represents a variable or parameter in the subprogram.
 type Variable struct {
 	// Name is the name of the variable.
@@ -111,10 +137,8 @@ type Variable struct {
 	// Sorted by low limit of their ranges. Note the ranges might overlap,
 	// in case of variables inlined multiple times in the same parent subprogram.
 	Locations []Location
-	// IsParameter is true if the variable is a parameter.
-	IsParameter bool
-	// IsReturn is true if this variable is a return value.
-	IsReturn bool
+	// Role is the role of the variable within the subprogram.
+	Role VariableRole
 }
 
 // PCRange is the range of PC values that will be probed.

@@ -4,7 +4,6 @@ Helpers for setting up your environment
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 import traceback
@@ -37,6 +36,7 @@ def setup(ctx, vscode=False):
         check_git_repo,
         check_python_version,
         check_go_version,
+        update_ddtool,
         install_go_tools,
         install_protoc,
         enable_pre_commit,
@@ -85,6 +85,7 @@ def setup(ctx, vscode=False):
 
 
 def check_git_repo(ctx) -> SetupResult:
+    """Check if the git repository is up to date."""
     print(color_message("Fetching git repository...", Color.BLUE))
     ctx.run("git fetch", hide=True)
 
@@ -103,6 +104,7 @@ def check_git_repo(ctx) -> SetupResult:
 
 
 def check_go_version(ctx) -> SetupResult:
+    """Check if the Go version is up to date."""
     print(color_message("Checking Go version...", Color.BLUE))
 
     with open(".go-version") as f:
@@ -129,6 +131,7 @@ def check_go_version(ctx) -> SetupResult:
 
 
 def check_python_version(_ctx) -> SetupResult:
+    """Check if the Python version is up to date."""
     print(color_message("Checking Python version...", Color.BLUE))
 
     with open(".python-version") as f:
@@ -183,11 +186,6 @@ def pre_commit(ctx, interactive=True):
     if running_in_pyapp():
         import shutil
 
-        # TODO Remove in a couple of weeks
-        # Remove the old devagent file if it exists
-        if os.path.isfile(".pre-commit-config-devagent.yaml"):
-            os.remove(".pre-commit-config-devagent.yaml")
-
         # We use a custom version that use deva instead of dda inv directly, that requires the venv to be loaded
         from pre_commit import update_pyapp_file
 
@@ -220,12 +218,14 @@ def pre_commit(ctx, interactive=True):
 
 
 def enable_pre_commit(ctx) -> SetupResult:
+    """Enable pre-commit hooks."""
     status, message = pre_commit(ctx, interactive=False)
 
     return SetupResult("Enable pre-commit", status, message)
 
 
 def setup_vscode(ctx) -> SetupResult:
+    """Set up VS Code."""
     print(color_message("Setting up VS Code...", Color.BLUE))
 
     try:
@@ -240,7 +240,19 @@ def setup_vscode(ctx) -> SetupResult:
     return SetupResult("Setup vscode", status, message)
 
 
+def update_ddtool(ctx) -> SetupResult:
+    """Update ddtool."""
+    print(color_message("Updating ddtool...", Color.BLUE))
+    status = Status.OK
+    message = ""
+
+    ctx.run('brew update && brew upgrade ddtool', hide=True)
+
+    return SetupResult("Update ddtool", status, message)
+
+
 def install_go_tools(ctx) -> SetupResult:
+    """Install go tools."""
     print(color_message("Installing go tools...", Color.BLUE))
     status = Status.OK
     message = ""
@@ -257,6 +269,7 @@ def install_go_tools(ctx) -> SetupResult:
 
 
 def install_protoc(ctx) -> SetupResult:
+    """Install protoc."""
     print(color_message("Installing protoc...", Color.BLUE))
     status = Status.OK
     message = ""

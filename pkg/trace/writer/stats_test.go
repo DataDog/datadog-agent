@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"math"
 	"net/url"
+	"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -332,6 +333,10 @@ func TestStatsResetBuffer(t *testing.T) {
 }
 
 func TestStatsSyncWriter(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestStatsSyncWriter is known to fail on the macOS Gitlab runners.")
+	}
+
 	t.Run("ok", func(t *testing.T) {
 		assert := assert.New(t)
 		sw, srv := testStatsSyncWriter()

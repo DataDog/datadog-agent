@@ -38,6 +38,7 @@ clusterAgent:
 			kubernetesagentparams.WithDualShipping(),
 			kubernetesagentparams.WithHelmValues(helmValues),
 		),
+		awskubernetes.WithDeployArgoRollout(),
 	)))
 }
 
