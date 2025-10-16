@@ -213,9 +213,9 @@ func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUp
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
-	service.api = api
+	service.mu.api = api
 	service.clock = clock
-	service.uptane = coreAgentUptane
+	service.mu.uptane = coreAgentUptane
 	return service
 }
 
@@ -248,10 +248,10 @@ func TestFetchConfigs503And504IncrementsErrCountAndResets(t *testing.T) {
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
 
 	// There should be no errors at the start
-	assert.Equal(t, service.fetchConfigs503And504ErrCount, uint64(0))
+	assert.Equal(t, service.mu.fetchConfigs503And504ErrCount, uint64(0))
 	err := service.refresh()
 	assert.NotNil(t, err)
-	assert.Equal(t, service.fetchConfigs503And504ErrCount, uint64(1))
+	assert.Equal(t, service.mu.fetchConfigs503And504ErrCount, uint64(1))
 
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -275,7 +275,7 @@ func TestFetchConfigs503And504IncrementsErrCountAndResets(t *testing.T) {
 
 	err = service.refresh()
 	assert.NotNil(t, err)
-	assert.Equal(t, service.fetchConfigs503And504ErrCount, uint64(2))
+	assert.Equal(t, service.mu.fetchConfigs503And504ErrCount, uint64(2))
 
 	// After a successful refresh, the error count should be reset
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
@@ -300,7 +300,7 @@ func TestFetchConfigs503And504IncrementsErrCountAndResets(t *testing.T) {
 
 	err = service.refresh()
 	assert.Nil(t, err)
-	assert.Equal(t, service.fetchConfigs503And504ErrCount, uint64(0))
+	assert.Equal(t, service.mu.fetchConfigs503And504ErrCount, uint64(0))
 }
 
 func TestFetchOrgStatus503And504IncrementsErrCount(t *testing.T) {
@@ -314,17 +314,17 @@ func TestFetchOrgStatus503And504IncrementsErrCount(t *testing.T) {
 		Authorized: true,
 	}
 	// start with no previous errors
-	assert.Equal(t, service.fetchOrgStatus503And504ErrCount, uint64(0))
+	assert.Equal(t, service.mu.fetchOrgStatus503And504ErrCount, uint64(0))
 
 	api.On("FetchOrgStatus", mock.Anything).Return(response, httpapi.ErrGatewayTimeout)
 	service.pollOrgStatus()
-	assert.Equal(t, service.fetchOrgStatus503And504ErrCount, uint64(1))
+	assert.Equal(t, service.mu.fetchOrgStatus503And504ErrCount, uint64(1))
 
-	assert.Nil(t, service.previousOrgStatus)
+	assert.Nil(t, service.mu.previousOrgStatus)
 	api.On("FetchOrgStatus", mock.Anything).Return(response, httpapi.ErrGatewayTimeout)
 
 	service.pollOrgStatus()
-	assert.Equal(t, service.fetchOrgStatus503And504ErrCount, uint64(2))
+	assert.Equal(t, service.mu.fetchOrgStatus503And504ErrCount, uint64(2))
 }
 
 func TestFetchOrgStatusSuccessResetsErrorCount(t *testing.T) {
@@ -333,19 +333,19 @@ func TestFetchOrgStatusSuccessResetsErrorCount(t *testing.T) {
 	uptaneClient := &mockCoreAgentUptane{}
 	service := newTestService(t, api, uptaneClient, clock)
 
-	service.fetchOrgStatus503And504ErrCount = 1
+	service.mu.fetchOrgStatus503And504ErrCount = 1
 	response := &pbgo.OrgStatusResponse{
 		Enabled:    true,
 		Authorized: true,
 	}
 	// start with 1 error
-	assert.Equal(t, service.fetchOrgStatus503And504ErrCount, uint64(1))
+	assert.Equal(t, service.mu.fetchOrgStatus503And504ErrCount, uint64(1))
 
-	assert.Nil(t, service.previousOrgStatus)
+	assert.Nil(t, service.mu.previousOrgStatus)
 	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
 
 	service.pollOrgStatus()
-	assert.Equal(t, service.fetchOrgStatus503And504ErrCount, uint64(0))
+	assert.Equal(t, service.mu.fetchOrgStatus503And504ErrCount, uint64(0))
 }
 
 func TestServiceBackoffFailure(t *testing.T) {
@@ -377,10 +377,10 @@ func TestServiceBackoffFailure(t *testing.T) {
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
 
 	// We'll set the default interal to 1 second to make math less hard
-	service.defaultRefreshInterval = 1 * time.Second
+	service.mu.defaultRefreshInterval = 1 * time.Second
 
 	// There should be no errors at the start
-	assert.Equal(t, service.backoffErrorCount, 0)
+	assert.Equal(t, service.mu.backoffErrorCount, 0)
 
 	err := service.refresh()
 	assert.NotNil(t, err)
@@ -408,7 +408,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 
 	// We should be tracking an error now. With the default backoff config, our refresh interval
 	// should be somewhere in the range of 1 + [30,60], so [31,61]
-	assert.Equal(t, service.backoffErrorCount, 1)
+	assert.Equal(t, service.mu.backoffErrorCount, 1)
 	refreshInterval := service.calculateRefreshInterval()
 	assert.GreaterOrEqual(t, refreshInterval, 31*time.Second)
 	assert.LessOrEqual(t, refreshInterval, 61*time.Second)
@@ -417,7 +417,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// Now we're looking at  1 + [60, 120], so [61,121]
-	assert.Equal(t, service.backoffErrorCount, 2)
+	assert.Equal(t, service.mu.backoffErrorCount, 2)
 	refreshInterval = service.calculateRefreshInterval()
 	assert.GreaterOrEqual(t, refreshInterval, 61*time.Second)
 	assert.LessOrEqual(t, refreshInterval, 121*time.Second)
@@ -426,7 +426,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// After one more we're looking at  1 + [120, 240], so [121,241]
-	assert.Equal(t, service.backoffErrorCount, 3)
+	assert.Equal(t, service.mu.backoffErrorCount, 3)
 	refreshInterval = service.calculateRefreshInterval()
 	assert.GreaterOrEqual(t, refreshInterval, 121*time.Second)
 	assert.LessOrEqual(t, refreshInterval, 241*time.Second)
@@ -460,19 +460,19 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
-	service.api = api
+	service.mu.api = api
 
 	// Artificially set the backoff error count so we can test recovery
-	service.backoffErrorCount = 3
+	service.mu.backoffErrorCount = 3
 
 	// We'll set the default interal to 1 second to make math less hard
-	service.defaultRefreshInterval = 1 * time.Second
+	service.mu.defaultRefreshInterval = 1 * time.Second
 
 	err := service.refresh()
 	assert.Nil(t, err)
 
 	// Our recovery interval is 2, so we should step back to the [31,61] range
-	assert.Equal(t, service.backoffErrorCount, 1)
+	assert.Equal(t, service.mu.backoffErrorCount, 1)
 	refreshInterval := service.calculateRefreshInterval()
 	assert.GreaterOrEqual(t, refreshInterval, 31*time.Second)
 	assert.LessOrEqual(t, refreshInterval, 61*time.Second)
@@ -481,7 +481,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	assert.Nil(t, err)
 
 	// After a 2nd success, we'll be back to not having a backoff added.
-	assert.Equal(t, service.backoffErrorCount, 0)
+	assert.Equal(t, service.mu.backoffErrorCount, 0)
 	refreshInterval = service.calculateRefreshInterval()
 	assert.Equal(t, 1*time.Second, refreshInterval)
 }
@@ -601,7 +601,7 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_OK, response.ConfigStatus)
 
 	// If the repository is initialized, we should now return the expired message
-	service.firstUpdate = false
+	service.mu.firstUpdate = false
 	response, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, response.ConfigStatus)
@@ -903,8 +903,8 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 	assert.NoError(t, err)
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
-	assert.Equal(t, service.defaultRefreshInterval, time.Minute*1)
-	assert.True(t, service.refreshIntervalOverrideAllowed)
+	assert.Equal(t, service.mu.defaultRefreshInterval, time.Minute*1)
+	assert.True(t, service.mu.refreshIntervalOverrideAllowed)
 }
 
 func TestServiceGetRefreshIntervalValid(t *testing.T) {
@@ -943,8 +943,8 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	assert.NoError(t, err)
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
-	assert.Equal(t, service.defaultRefreshInterval, time.Second*42)
-	assert.True(t, service.refreshIntervalOverrideAllowed)
+	assert.Equal(t, service.mu.defaultRefreshInterval, time.Second*42)
+	assert.True(t, service.mu.refreshIntervalOverrideAllowed)
 }
 
 func TestWithApiKeyUpdate(t *testing.T) {
@@ -978,8 +978,8 @@ func TestWithApiKeyUpdate(t *testing.T) {
 		assert.NoError(t, service.Stop())
 		assert.NoError(t, service.Stop()) // ensure idempotency
 	})
-	service.api = api
-	service.uptane = uptaneClient
+	service.mu.api = api
+	service.mu.uptane = uptaneClient
 
 	cfg.SetWithoutSource("api_key", "updated")
 	assert.Equal(t, "updated", updatedKey)
@@ -1027,8 +1027,8 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	assert.NoError(t, err)
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
-	assert.Equal(t, service.defaultRefreshInterval, time.Minute*1)
-	assert.True(t, service.refreshIntervalOverrideAllowed)
+	assert.Equal(t, service.mu.defaultRefreshInterval, time.Minute*1)
+	assert.True(t, service.mu.refreshIntervalOverrideAllowed)
 }
 
 func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
@@ -1067,8 +1067,8 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 	assert.NoError(t, err)
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
-	assert.Equal(t, service.defaultRefreshInterval, time.Minute*1)
-	assert.True(t, service.refreshIntervalOverrideAllowed)
+	assert.Equal(t, service.mu.defaultRefreshInterval, time.Minute*1)
+	assert.True(t, service.mu.refreshIntervalOverrideAllowed)
 }
 
 func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
@@ -1078,7 +1078,7 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	service := newTestService(t, api, uptaneClient, clock)
 
 	// Mock that customers set the value, making overrides not allowed
-	service.refreshIntervalOverrideAllowed = false
+	service.mu.refreshIntervalOverrideAllowed = false
 
 	// For this test we'll just send an empty update to save us some work mocking everything.
 	// What matters is the data reported by the uptane module for the top targets custom
@@ -1110,8 +1110,8 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	assert.NoError(t, err)
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
-	assert.Equal(t, service.defaultRefreshInterval, time.Minute*1)
-	assert.False(t, service.refreshIntervalOverrideAllowed)
+	assert.Equal(t, service.mu.defaultRefreshInterval, time.Minute*1)
+	assert.False(t, service.mu.refreshIntervalOverrideAllowed)
 }
 
 // TestConfigExpiration tests that the agent properly filters expired configuration ID's
@@ -1210,23 +1210,26 @@ func TestOrgStatus(t *testing.T) {
 		Authorized: true,
 	}
 
-	assert.Nil(t, service.previousOrgStatus)
+	assert.Nil(t, service.mu.previousOrgStatus)
 	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
 
 	service.pollOrgStatus()
-	assert.True(t, service.previousOrgStatus.Enabled)
-	assert.True(t, service.previousOrgStatus.Authorized)
+	prev := service.mu.previousOrgStatus
+	assert.True(t, prev.Enabled)
+	assert.True(t, prev.Authorized)
 
 	api.On("FetchOrgStatus", mock.Anything).Return(nil, fmt.Errorf("Error"))
 	service.pollOrgStatus()
-	assert.True(t, service.previousOrgStatus.Enabled)
-	assert.True(t, service.previousOrgStatus.Authorized)
+	prev = service.mu.previousOrgStatus
+	assert.True(t, prev.Enabled)
+	assert.True(t, prev.Authorized)
 
 	response.Authorized = false
 	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
 	service.pollOrgStatus()
-	assert.True(t, service.previousOrgStatus.Enabled)
-	assert.False(t, service.previousOrgStatus.Authorized)
+	prev = service.mu.previousOrgStatus
+	assert.True(t, prev.Enabled)
+	assert.False(t, prev.Authorized)
 }
 
 func TestWithTraceAgentEnv(t *testing.T) {
@@ -1274,9 +1277,9 @@ func TestWithDatabaseFileName(t *testing.T) {
 		APIKey:       "abc",
 		URL:          "https://localhost",
 	}, nil)
-	service.uptane = uptaneClient
+	service.mu.uptane = uptaneClient
 
-	tsMetadata, err := service.uptane.GetTransactionalStoreMetadata()
+	tsMetadata, err := service.mu.uptane.GetTransactionalStoreMetadata()
 	assert.NoError(t, err)
 	assert.Equal(t, "/tmp/test.db", tsMetadata.Path)
 	assert.NotNil(t, service)
@@ -1322,8 +1325,8 @@ func TestWithRefreshInterval(t *testing.T) {
 			}
 			service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, service.defaultRefreshInterval)
-			assert.Equal(t, tt.expectedRefreshIntervalOverrideAllowed, service.refreshIntervalOverrideAllowed)
+			assert.Equal(t, tt.expected, service.mu.defaultRefreshInterval)
+			assert.Equal(t, tt.expectedRefreshIntervalOverrideAllowed, service.mu.refreshIntervalOverrideAllowed)
 			assert.NotNil(t, service)
 			service.Stop()
 		})
@@ -1470,7 +1473,7 @@ func TestHTTPClientRecentUpdate(t *testing.T) {
 
 	client := setupCDNClient(uptaneClient)
 	defer client.Close()
-	client.lastUpdate = time.Now()
+	client.mu.lastUpdate = time.Now()
 
 	u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0)
 	require.NoError(t, err)
@@ -1522,7 +1525,7 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 
 			client := setupCDNClient(uptaneClient)
 			defer client.Close()
-			client.lastUpdate = time.Now().Add(time.Second * -60)
+			client.mu.lastUpdate = time.Now().Add(time.Second * -60)
 
 			u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0)
 			require.NoError(t, err)
