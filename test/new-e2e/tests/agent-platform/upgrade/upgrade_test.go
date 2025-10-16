@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -62,7 +61,6 @@ func TestUpgradeScript(t *testing.T) {
 		osDesc := osDesc
 
 		t.Run(fmt.Sprintf("test upgrade on %s", platforms.PrettifyOsDescriptor(osDesc)), func(tt *testing.T) {
-			flake.Mark(tt)
 			tt.Parallel()
 			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 
