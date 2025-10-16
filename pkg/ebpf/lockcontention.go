@@ -40,7 +40,7 @@ const (
 	ioctlCollectLocksCmd = 0x70c13
 
 	// maximum lock ranges to track
-	maxTrackedRanges = 16384
+	maxTrackedRanges = 2048
 
 	// batch size when updating per cpu map storing lock ranges
 	// this value is the chunks in which we add the ranges to the per-cpu map
