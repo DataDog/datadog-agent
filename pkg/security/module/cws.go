@@ -212,13 +212,14 @@ func (c *CWSConsumer) Start() error {
 			c.selfTestPassed = true
 
 			c.reportSelfTest(success, fails)
+			delay = selftestPassedDelay
 		}
+
+		time.Sleep(delay)
 
 		if _, err := c.RunSelfTest(false); err != nil {
 			seclog.Errorf("self-test error: %s", err)
 		}
-
-		time.Sleep(delay)
 	}
 	if c.selfTester != nil {
 		go c.selfTester.WaitForResult(cb)
@@ -296,11 +297,11 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID)
 func (c *CWSConsumer) Stop() {
 	c.reloader.Stop()
 
+	c.cancelFnc()
+
 	if c.apiServer != nil {
 		c.apiServer.Stop()
 	}
-
-	c.cancelFnc()
 
 	c.ruleEngine.Stop()
 

@@ -455,6 +455,18 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		}
 	})
 
+	suite.Run("cluster-agent clusterchecks force rebalance", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks", "rebalance", "--force"})
+		suite.Require().NoError(err)
+		suite.NotContains(stdout+stderr, "advanced dispatching is not enabled", "Advanced dispatching must be enabled for force rebalance")
+		matched := regexp.MustCompile(`\d+\s+cluster checks rebalanced successfully`).MatchString(stdout)
+		suite.True(matched, "Expected 'X cluster checks rebalanced successfully' in output")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+			suite.T().Log(stderr)
+		}
+	})
+
 	suite.Run("cluster-agent autoscaler-list --localstore", func() {
 		// First verify the command exists and autoscaling is enabled
 		checkStdout, checkStderr, checkErr := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
