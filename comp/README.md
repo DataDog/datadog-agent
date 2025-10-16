@@ -186,10 +186,6 @@ doesn't exist or doesn't contain a PID for a running process.
 
 Package profiler provides a flare folder containing the output of various agent's pprof servers
 
-### [comp/core/remoteagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagent)
-
-Package remoteagent implements the remote agent component
-
 ### [comp/core/remoteagentregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagentregistry)
 
 Package remoteagentregistry provides an integration point for remote agents to register and be able to report their
