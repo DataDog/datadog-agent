@@ -107,7 +107,7 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	for _, v := range strings.Split(proxyConfig.NoProxy, ",") {
 		noProxy = append(noProxy, v)
 	}
-	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
+	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
 }
 
 // InitSerializer initializes the serializer and forwarder for sending metrics. Should only be used in OSS Datadog exporter or in tests.
