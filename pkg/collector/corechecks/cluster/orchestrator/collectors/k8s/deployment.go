@@ -41,11 +41,9 @@ type DeploymentCollector struct {
 // resource.
 func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentCollector {
 	resourceType := utilTypes.GetResourceType(utilTypes.DeploymentName, utilTypes.DeploymentVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
 	return &DeploymentCollector{
-		metadata: &collectors.CollectorMetadata{
+		metadata: (&collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
 			IsStable:                             true,
 			IsMetadataProducer:                   true,
@@ -55,10 +53,8 @@ func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentColl
 			Kind:                                 kubernetes.DeploymentKind,
 			NodeType:                             orchestrator.K8sDeployment,
 			Version:                              utilTypes.DeploymentVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
-		},
+		}).WithMetadataAsTags(metadataAsTags, resourceType),
 		processor: processors.NewProcessor(new(k8sProcessors.DeploymentHandlers)),
 	}
 }
