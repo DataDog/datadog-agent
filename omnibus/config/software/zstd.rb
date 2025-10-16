@@ -21,8 +21,6 @@ license "BSD"
 license_file "LICENSE"
 skip_transitive_dependency_licensing true
 
-dependency "libarchive"
-
 version("1.5.6") { source sha256: "8c29e06cf42aacc1eafc4077ae2ec6c6fcb96a626157e0593d5e82a34fd403c1" }
 
 source url: "https://github.com/facebook/zstd/releases/download/v#{version}/zstd-#{version}.tar.gz"
