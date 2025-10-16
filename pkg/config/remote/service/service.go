@@ -149,7 +149,7 @@ type CoreAgentService struct {
 
 	// Self-synchronized (has internal locking)
 	clients            *clients
-	cacheBypassClients cacheBypassClients
+	cacheBypassClients *cacheBypassClients
 
 	// Channels to stop the services main goroutines
 	stopOrgPoller        chan struct{}
@@ -503,17 +503,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		telemetryReporter:        telemetryReporter,
 		websocketTest:            websocketTest,
 		clients:                  newClients(clock, options.clientTTL),
-		cacheBypassClients: cacheBypassClients{
-			clock:    clock,
-			requests: make(chan chan struct{}),
-
-			// By default, allows for 5 cache bypass every refreshInterval seconds
-			// in addition to the usual refresh.
-			currentWindow:  time.Now().UTC(),
-			windowDuration: options.refresh,
-			capacity:       options.clientCacheBypassLimit,
-			allowance:      options.clientCacheBypassLimit,
-		},
+		cacheBypassClients:       newCacheBypassClients(clock, options.clientCacheBypassLimit, options.refresh),
 	}
 	cas.mu.db = db
 	cas.mu.firstUpdate = true
@@ -807,7 +797,7 @@ func (s *CoreAgentService) refresh() error {
 		ri, err := s.getRefreshIntervalLocked()
 		if err == nil && ri > 0 && s.mu.defaultRefreshInterval != ri {
 			s.mu.defaultRefreshInterval = ri
-			s.cacheBypassClients.windowDuration = ri
+			s.cacheBypassClients.setWindowDuration(ri)
 			log.Infof("[%s] Overriding agent's base refresh interval to %v due to backend recommendation", s.rcType, ri)
 		}
 	}

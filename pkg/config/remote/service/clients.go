@@ -23,29 +23,57 @@ type cacheBypassClients struct {
 	clock    clock.Clock
 	requests chan chan struct{}
 
+	capacity int
+
 	// Fixed window rate limiting
 	// It allows client requests spikes while limiting the global amount of request
-	currentWindow  time.Time
-	windowDuration time.Duration
-	capacity       int
-	allowance      int
+	mu struct {
+		sync.Mutex
+		currentWindow  time.Time
+		windowDuration time.Duration
+		allowance      int
+	}
+}
+
+func newCacheBypassClients(
+	clock clock.Clock,
+	capacity int,
+	windowDuration time.Duration,
+) *cacheBypassClients {
+	c := &cacheBypassClients{
+		clock:    clock,
+		requests: make(chan chan struct{}),
+		capacity: capacity,
+	}
+	c.mu.currentWindow = clock.Now().UTC().Truncate(windowDuration)
+	c.mu.windowDuration = windowDuration
+	c.mu.allowance = capacity
+	return c
+}
+
+func (c *cacheBypassClients) setWindowDuration(windowDuration time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.mu.windowDuration = windowDuration
 }
 
 func (c *cacheBypassClients) Limit() bool {
 	now := c.clock.Now()
-	window := now.Truncate(c.windowDuration)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	window := now.Truncate(c.mu.windowDuration)
 
 	// If we're in a new window, reset the allowance
-	if c.currentWindow != window {
-		c.currentWindow = window
-		c.allowance = c.capacity
+	if c.mu.currentWindow != window {
+		c.mu.currentWindow = window
+		c.mu.allowance = c.capacity
 	}
 
-	if c.allowance <= 0 {
+	if c.mu.allowance <= 0 {
 		// If the window is already overflowed limit the request
 		return true
 	}
-	c.allowance--
+	c.mu.allowance--
 	return false
 }
 
