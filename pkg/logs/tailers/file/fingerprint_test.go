@@ -896,7 +896,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(suite.testFile.Sync())
 	rotated, err = tailer.DidRotateViaFingerprint(fingerprinter)
 	suite.Nil(err)
-	suite.False(rotated, "Truncation not detected via filesystem check when lastReadOffset=0")
+	suite.True(rotated, "Truncation should be detected via fingerprint check when lastReadOffset=0")
 
 	// 4. Simulate a full file replacement (e.g. logrotate with 'create' directive).
 	suite.T().Log("Simulating file replacement with different content")
