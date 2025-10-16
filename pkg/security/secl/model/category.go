@@ -153,7 +153,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		return FIMCategory
 	}
 
-	return UnknownCategory
+	return FIMCategory
 }
 
 // GetEventTypePerCategory returns the event types per category
