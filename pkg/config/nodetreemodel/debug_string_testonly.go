@@ -12,7 +12,12 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func panicInTest(format string, params ...interface{}) {
+	panic(log.Errorf(format, params...))
+}
 
 func (c *ntmConfig) toDebugString(source model.Source, opts ...model.StringifyOption) (string, error) {
 	strcfg := model.StringifyConfig{}
