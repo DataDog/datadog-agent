@@ -1,6 +1,8 @@
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
+COMMON_COPTS = ["-O3"]
+
 copy_file(
     name = "libltdl_config_h",
     src = select({
@@ -38,7 +40,7 @@ cc_library(
         ],
     ) + [":libltdl_config_h"],
     visibility = ["//visibility:public"],
-    copts = ["-O3", "-DLTDL"],
+    copts = COMMON_COPTS + ["-DLTDL"],
     # "." is needed to make sure config.h is found.
     includes = ["libltdl/libltdl", "libltdl/."],
 )
@@ -50,6 +52,22 @@ cc_library(
     # and glob is evaluated during analysis phase.
     srcs = glob(["log/**/*.c", "include/*.h"]) + [":config_h"],
     visibility = ["//visibility:public"],
-    copts = ["-O3"],
+    copts = COMMON_COPTS,
+    includes = [".", "include"],
+)
+
+cc_library(
+    name = "extras",
+    srcs = glob(["extras/**/*.c", "include/*.h"], exclude = ["extras/vms.c"]) + [":config_h"],
+    visibility = ["//visibility:public"],
+    copts = COMMON_COPTS,
+    includes = [".", "include"],
+)
+
+cc_library(
+    name = "ini",
+    srcs = glob(["ini/**/*.c", "include/*.h"]) + [":config_h"],
+    visibility = ["//visibility:public"],
+    copts = COMMON_COPTS,
     includes = [".", "include"],
 )
