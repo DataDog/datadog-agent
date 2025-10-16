@@ -52,6 +52,14 @@ http_archive(
 )
 
 http_archive(
+    name = "libsepol",
+    build_file = "//deps:libsepol.BUILD.bazel",
+    sha256 = "78fdaf69924db780bac78546e43d9c44074bad798c2c415d0b9bb96d065ee8a2",
+    strip_prefix = "libsepol-3.5",
+    url = "https://github.com/SELinuxProject/selinux/releases/download/3.5/libsepol-3.5.tar.gz",
+)
+
+http_archive(
     name = "nghttp2",
     build_file = "//deps:nghttp2.BUILD.bazel",
     files = {

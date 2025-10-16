@@ -15,6 +15,7 @@ filegroup(
         "@zlib//:libz_so",
     ] + select({
         "@platforms//os:linux": [
+            "@libsepol//:sepol",
             "@nghttp2",
         ],
         "//conditions:default": [],

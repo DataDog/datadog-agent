@@ -47,6 +47,8 @@ use_repo(multitool, "multitool")
 
 bazel_dep(name = "rules_cc", version = "0.2.8")
 bazel_dep(name = "rules_python", version = "1.6.1")
+bazel_dep(name = "rules_flex", version = "0.4")
+bazel_dep(name = "rules_m4", version = "0.3")
 bazel_dep(name = "gcc_toolchain", version = "0.9.0")
 git_override(
     module_name = "gcc_toolchain",
