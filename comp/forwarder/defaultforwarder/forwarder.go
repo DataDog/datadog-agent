@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -22,10 +23,11 @@ import (
 
 type dependencies struct {
 	fx.In
-	Config config.Component
-	Log    log.Component
-	Lc     fx.Lifecycle
-	Params Params
+	Config   config.Component
+	Log      log.Component
+	Hostname hostname.Component
+	Lc       fx.Lifecycle
+	Params   Params
 }
 
 type provides struct {
@@ -47,7 +49,7 @@ func newForwarder(dep dependencies) (provides, error) {
 		return provides{}, err
 	}
 
-	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options), nil
+	return NewForwarder(dep.Config, dep.Log, dep.Hostname, dep.Lc, true, options), nil
 }
 
 func createOptions(params Params, config config.Component, log log.Component) (*Options, error) {
@@ -92,8 +94,8 @@ func createOptions(params Params, config config.Component, log log.Component) (*
 // NewForwarder returns a new forwarder component.
 //
 //nolint:revive
-func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
-	forwarder := NewDefaultForwarder(config, log, options)
+func NewForwarder(config config.Component, log log.Component, hostname hostname.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
+	forwarder := NewDefaultForwarderWithHostname(config, log, hostname, options)
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {

@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"path"
@@ -17,6 +18,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
@@ -42,6 +44,7 @@ const (
 const (
 	apiHTTPHeaderKey          = "DD-Api-Key"
 	versionHTTPHeaderKey      = "DD-Agent-Version"
+	hostnameHTTPHeaderKey     = "DD-Agent-Hostname"
 	useragentHTTPHeaderKey    = "User-Agent"
 	arbitraryTagHTTPHeaderKey = "Allow-Arbitrary-Tag-Value"
 )
@@ -244,6 +247,7 @@ type DefaultForwarder struct {
 	m                sync.Mutex // To control Start/Stop races
 
 	agentName                       string
+	agentHostname                   string
 	queueDurationCapacity           *retry.QueueDurationCapacity
 	retryQueueDurationCapacityMutex sync.Mutex
 }
@@ -251,6 +255,27 @@ type DefaultForwarder struct {
 // NewDefaultForwarder returns a new DefaultForwarder.
 // TODO: (components) Remove this method and other exported methods in comp/forwarder.
 func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
+	return NewDefaultForwarderWithHostname(config, log, nil, options)
+}
+
+// NewDefaultForwarderWithHostname returns a new DefaultForwarder with an attached hostname.
+//
+// If a valid hostname is retrieved, it will be added a request header to all transaction sent by this forwarder.
+func NewDefaultForwarderWithHostname(config config.Component, log log.Component, hostname hostname.Component, options *Options) *DefaultForwarder {
+	// Query for the Agent's hostname if a hostname provider was passed.
+	//
+	// We don't _need_ this for forwarding so we put a tight timeout on it to avoid hamstringing ourselves during startup. That means we also
+	// just use an empty string if we can't get it.
+	agentHostname := ""
+	if hostname != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		if value, err := hostname.Get(ctx); err == nil {
+			agentHostname = value
+		}
+	}
+
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		config:           config,
@@ -267,6 +292,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			validationInterval:    options.APIKeyValidationInterval,
 		},
 		agentName:      agentName,
+		agentHostname:  agentHostname,
 		localForwarder: nil,
 	}
 	var optionalRemovalPolicy *retry.FileRemovalPolicy
@@ -532,6 +558,9 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					t.Destination = payload.Destination
 					t.Headers.Set(apiHTTPHeaderKey, apiKey)
 					t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
+					if f.agentHostname != "" {
+						t.Headers.Set(hostnameHTTPHeaderKey, f.agentHostname)
+					}
 					t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
 					if allowArbitraryTags {
 						t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
