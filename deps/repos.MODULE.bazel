@@ -43,13 +43,40 @@ http_archive(
     url = "https://www.openssl.org/source/openssl-3.5.4.tar.gz",
 )
 
+http_archive(
+    name = "libffi",
+    build_file = "//deps:libffi.BUILD.bazel",
+    sha256 = "bc9842a18898bfacb0ed1252c4febcc7e78fa139fd27fdc7a3e30d9d9356119b",
+    strip_prefix = "libffi-3.4.8",
+    url = "https://github.com/libffi/libffi/releases/download/v3.4.8/libffi-3.4.8.tar.gz",
+)
+
+http_archive(
+    name = "libsepol",
+    build_file = "//deps:libsepol.BUILD.bazel",
+    sha256 = "78fdaf69924db780bac78546e43d9c44074bad798c2c415d0b9bb96d065ee8a2",
+    strip_prefix = "libsepol-3.5",
+    url = "https://github.com/SELinuxProject/selinux/releases/download/3.5/libsepol-3.5.tar.gz",
+)
+
 bazel_dep(name = "gcc_toolchain", version = "0.9.0")
 git_override(
     module_name = "gcc_toolchain",
     commit = "0e2242b07961107d2b05a6552d70b2ef4ef485fb",
     patch_args = ["-p1"],
-    patches = ["//bazel/patches:datadog_agent_toolchain.patch"],
+    patches = [
+        "//bazel/patches:datadog_agent_toolchain.patch",
+        "//bazel/patches:0001-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch"
+    ],
     remote = "https://github.com/f0rmiga/gcc-toolchain.git",
+)
+
+http_archive(
+    name = "patchelf",
+    build_file = "//deps:patchelf.BUILD.bazel",
+    sha256 = "64de10e4c6b8b8379db7e87f58030f336ea747c0515f381132e810dbf84a86e7",
+    strip_prefix = "patchelf-0.18.0",
+    url = "https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0.tar.gz",
 )
 
 gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)

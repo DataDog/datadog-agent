@@ -207,8 +207,6 @@ const (
 	SecondaryOnly
 	// LocalOnly indicates the transaction should be sent to the local endpoint (cluster-agent) only
 	LocalOnly
-	// PreaggrOnly indicates the transaction should be sent to the pre-aggregation endpoint only
-	PreaggrOnly
 )
 
 func (d Destination) String() string {
@@ -221,8 +219,6 @@ func (d Destination) String() string {
 		return "SecondaryOnly"
 	case LocalOnly:
 		return "LocalOnly"
-	case PreaggrOnly:
-		return "PreaggrOnly"
 	default:
 		return "Unknown"
 	}

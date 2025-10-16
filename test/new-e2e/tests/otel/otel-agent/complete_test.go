@@ -28,6 +28,8 @@ var completeConfig string
 func TestOTelAgentComplete(t *testing.T) {
 	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false

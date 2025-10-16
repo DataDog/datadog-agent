@@ -512,6 +512,12 @@ api_key:
 #
 # collect_gpu_tags: false
 
+## @param azure_metadata_timeout - integer - optional - default: 300
+## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
+## Timeout in milliseconds on calls to the Azure metadata endpoints.
+#
+# azure_metadata_timeout: 300
+
 ## @param azure_hostname_style - string - optional - default: "os"
 ## @env DD_AZURE_HOSTNAME_STYLE - string - optional - default: "os"
 ## Changes how agent hostname is set on Azure virtual machines.
@@ -1187,9 +1193,13 @@ api_key:
 
 #   # @param max_message_size_bytes - integer - optional - default: 900000
 #   # @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 900000
-#   # The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds
-#   # the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
-#   # https://docs.datadoghq.com/api/latest/logs/
+#   # The maximum size of single log message in bytes. Lines that are longer
+#   # than this limit are split into multiple line where each long line that is
+#   # split has `...TRUNCATED...` added as a suffix and each line that was created
+#   # from a split of a previous line has `...TRUNCATED...` added as a prefix.
+#   #
+#   # Note: Datadog's ingest API truncates any logs greater than 1 MB by discarding the
+#   # remainder. See https://docs.datadoghq.com/api/latest/logs/ for details.
 #
 #   max_message_size_bytes: 900000
 
@@ -3152,18 +3162,18 @@ api_key:
 #   extra_tags:
 #     - <TAG_KEY>:<TAG_VALUE>
 
-#   # @param advanced_dispatching_enabled - boolean - optional - default: false
-#   # @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: false
+#   # @param advanced_dispatching_enabled - boolean - optional - default: true
+#   # @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: true
 #   # If advanced_dispatching_enabled is true the leader cluster-agent collects stats
 #   # from the cluster level check runners to optimize the check dispatching logic.
 #
-#   advanced_dispatching_enabled: false
+#   advanced_dispatching_enabled: true
 
-#   # @param rebalance_with_utilization - boolean - optional - default: false
-#   # @env DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION - boolean - optional - default: false
+#   # @param rebalance_with_utilization - boolean - optional - default: true
+#   # @env DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION - boolean - optional - default: true
 #   # If rebalance_with_utilization is true, the cluster-agent will rebalance cluster checks using node utilization.
 #
-#   rebalance_with_utilization: false
+#   rebalance_with_utilization: true
 
 #   # @param clc_runners_port - integer - optional - default: 5005
 #   # @env DD_CLUSTER_CHECKS_CLC_RUNNERS_PORT - integer - optional - default: 5005
