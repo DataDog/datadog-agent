@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
+	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -86,6 +87,11 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	}
 
 	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
+	if err != nil {
+		return err
+	}
+	// Export the host in a dummy HostOutput so that is displayed in the Pulumi outputs, to ease debugging
+	err = host.Export(ctx, &remote.HostOutput{})
 	if err != nil {
 		return err
 	}
