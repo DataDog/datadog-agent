@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-traceroute/udp"
 	"math/rand"
 	"net"
 	"net/netip"
@@ -22,6 +21,7 @@ import (
 	tracerlog "github.com/DataDog/datadog-traceroute/log"
 	"github.com/DataDog/datadog-traceroute/sack"
 	"github.com/DataDog/datadog-traceroute/tcp"
+	"github.com/DataDog/datadog-traceroute/udp"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -102,17 +102,10 @@ func New(telemetryComp telemetryComponent.Component, hostnameService hostname.Co
 	}, nil
 }
 
-// RunTraceroute wraps the implementation of traceroute
-// so it can be called from the different OS implementations
-//
-// This code is experimental and will be replaced with a more
-// complete implementation.
-func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
-	defer tracerouteRunnerTelemetry.runs.Inc()
-	dests, err := net.DefaultResolver.LookupIP(ctx, "ip4", cfg.DestHostname)
+func lookupIP(ctx context.Context, hostname string) (net.IP, error) {
+	dests, err := net.DefaultResolver.LookupIP(ctx, "ip4", hostname)
 	if err != nil || len(dests) == 0 {
-		tracerouteRunnerTelemetry.failedRuns.Inc()
-		return payload.NetworkPath{}, fmt.Errorf("cannot resolve %s: %v", cfg.DestHostname, err)
+		return nil, fmt.Errorf("cannot resolve %s: %v", hostname, err)
 	}
 
 	//TODO: should we get smarter about IP address resolution?
@@ -120,6 +113,27 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	// for each of the different IPs it resolves to up to a threshold?
 	// use first resolved IP for now
 	dest := dests[0]
+
+	// we must unmap this, because Go's implementation of LookupIP turns IPv4 addresses into IPv4-mapped IPv6
+	addr, ok := netip.AddrFromSlice(dest)
+	if !ok {
+		return nil, fmt.Errorf("lookupIP failed to call AddrFromSlice on %s (shouldn't get here)", dest)
+	}
+	return addr.Unmap().AsSlice(), nil
+}
+
+// RunTraceroute wraps the implementation of traceroute
+// so it can be called from the different OS implementations
+//
+// This code is experimental and will be replaced with a more
+// complete implementation.
+func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
+	defer tracerouteRunnerTelemetry.runs.Inc()
+	dest, err := lookupIP(ctx, cfg.DestHostname)
+	if err != nil {
+		tracerouteRunnerTelemetry.failedRuns.Inc()
+		return payload.NetworkPath{}, err
+	}
 
 	maxTTL := cfg.MaxTTL
 	if maxTTL == 0 {
@@ -183,6 +197,8 @@ func (r *Runner) runICMP(cfg config.Config, hname string, target net.IP, maxTTL 
 	if !ok {
 		return payload.NetworkPath{}, fmt.Errorf("invalid target IP")
 	}
+	targetAddr = targetAddr.Unmap()
+
 	results, err := icmp.RunICMPTraceroute(context.TODO(), icmp.Params{
 		Target: targetAddr,
 		ParallelParams: common.TracerouteParallelParams{

@@ -6,6 +6,7 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -428,4 +429,11 @@ func TestTCPFallback(t *testing.T) {
 		require.Equal(t, dummyErr, err)
 		require.Nil(t, results)
 	})
+}
+
+func TestLookupIPIsUnmapped(t *testing.T) {
+	dest, err := lookupIP(context.Background(), "8.8.8.8")
+	require.NoError(t, err)
+
+	require.Len(t, dest, 4)
 }
