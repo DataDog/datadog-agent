@@ -130,7 +130,7 @@ func (a *authArtifactBase) checkAgentLogs(agentName string) string {
 
 	var result string
 	a.EventuallyWithT(func(t *assert.CollectT) {
-		content, err := a.Env().RemoteHost.ReadFilePrivileged(logLocation)
+		content, err := a.Env().RemoteHost.ReadFile(logLocation)
 		require.NoError(t, err)
 
 		for _, p := range extraPatterns {

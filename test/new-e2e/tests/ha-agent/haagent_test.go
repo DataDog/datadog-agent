@@ -68,10 +68,10 @@ func (s *haAgentTestSuite) TestHaAgentRunningMetrics() {
 func (s *haAgentTestSuite) TestHaAgentAddedToRCListeners() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert HA Agent added to RCListeners in agent.log")
-		output, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
+		output, err := s.Env().RemoteHost.Execute("cat /var/log/datadog/agent.log")
 		require.NoError(c, err)
 
-		assert.Contains(c, string(output), "Add HA Agent RCListener")
+		assert.Contains(c, output, "Add HA Agent RCListener")
 	}, 5*time.Minute, 3*time.Second)
 }
 
