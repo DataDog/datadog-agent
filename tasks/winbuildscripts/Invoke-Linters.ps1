@@ -35,44 +35,8 @@ Invoke-BuildScript `
     -CheckGoVersion $CheckGoVersion `
     -Command {
 
-    & .\tasks\winbuildscripts\pre-go-build.ps1
-
-    # Lint rtloader
-    & dda inv -- -e rtloader.format --raise-if-changed
-    $err = $LASTEXITCODE
-    Write-Host Format result is $err
-    if($err -ne 0){
-        Write-Host -ForegroundColor Red "rtloader format failed $err"
-        exit $err
-    }
-
-    # Lint Go
-    & dda inv -- -e linter.go --debug
-    $err = $LASTEXITCODE
-    Write-Host Go linter result is $err
-    if($err -ne 0){
-        Write-Host -ForegroundColor Red "go linter failed $err"
-        exit $err
-    }
-
-    # Lint system-probe Go
-    & dda inv -- -e linter.go --build system-probe-unit-tests --targets .\pkg
-    $err = $LASTEXITCODE
-    Write-Host system-probe Go linter result is $err
-    if($err -ne 0){
-        Write-Host -ForegroundColor Red "system-probe go linter failed $err"
-        exit $err
-    }
-
-    # Lint MSI .NET
-    $timeTaken = Measure-Command {
-        & dotnet format --verify-no-changes .\\tools\\windows\\DatadogAgentInstaller
-        $err = $LASTEXITCODE
-        Write-Host Dotnet linter result is $err
-        if($err -ne 0){
-            Write-Host -ForegroundColor Red "dotnet linter failed $err"
-            exit $err
-        }
-    }
-    Write-Host "Dotnet linter run time: $($timeTaken.TotalSeconds) seconds"
+    & pip install git+https://github.com/DataDog/datadog-agent-dev.git@kfairise/support-feature-flag-ci
+    Write-Host "Invoking dda"
+    & dda info owners code .gitlab-ci.yaml
+    & dda bzl
 }

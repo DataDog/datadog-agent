@@ -1,45 +1,112 @@
 ---
 include:
-  - .gitlab/.pre/include.yml
-  - .gitlab/bazel/*.yaml
-  - .gitlab/benchmarks/include.yml
-  - .gitlab/binary_build/include.yml
-  - .gitlab/check_deploy/check_deploy.yml
-  - .gitlab/check_merge/do_not_merge.yml
-  - .gitlab/choco_build/choco_build.yml
+  # - .gitlab/.pre/include.yml
+  # - .gitlab/bazel/*.yaml
+  # - .gitlab/benchmarks/include.yml
+  # - .gitlab/binary_build/include.yml
+  # - .gitlab/check_deploy/check_deploy.yml
+  # - .gitlab/check_merge/do_not_merge.yml
+  # - .gitlab/choco_build/choco_build.yml
   - .gitlab/common/shared.yml
-  - .gitlab/common/skip_ci_check.yml
-  - .gitlab/common/test_infra_version.yml
-  - .gitlab/container_build/include.yml
-  - .gitlab/container_scan/container_scan.yml
-  - .gitlab/deploy_packages/include.yml
-  - .gitlab/deps_build/deps_build.yml
-  - .gitlab/deps_fetch/deps_fetch.yml
-  - .gitlab/dev_container_deploy/include.yml
-  - .gitlab/e2e/e2e.yml
-  - .gitlab/e2e_install_packages/include.yml
-  - .gitlab/e2e_pre_test/e2e_pre_test.yml
-  - .gitlab/e2e_testing_deploy/e2e_deploy.yml
-  - .gitlab/functional_test/include.yml
-  - .gitlab/install_script_testing/install_script_testing.yml
-  - .gitlab/integration_test/include.yml
-  - .gitlab/internal_image_deploy/internal_image_deploy.yml
-  - .gitlab/internal_kubernetes_deploy/include.yml
-  - .gitlab/lint/include.yml
-  - .gitlab/maintenance_jobs/include.yml
-  - .gitlab/notify/notify.yml
-  - .gitlab/package_build/include.yml
-  - .gitlab/packaging/include.yml
-  - .gitlab/package_deps_build/package_deps_build.yml
-  - .gitlab/pkg_metrics/pkg_metrics.yml
-  - .gitlab/post_rc_build/post_rc_tasks.yml
-  - .gitlab/trigger_distribution/trigger_distribution.yml
-  - .gitlab/trigger_distribution/conditions.yml
-  - .gitlab/dynamic_test/include.yml
-  - .gitlab/setup/setup.yml
-  - .gitlab/source_test/include.yml
-  - .gitlab/scan/windows.yml
-  - .gitlab/fuzz/infra.yaml
+  # - .gitlab/common/skip_ci_check.yml
+  # - .gitlab/common/test_infra_version.yml
+  # - .gitlab/container_build/include.yml
+  # - .gitlab/container_scan/container_scan.yml
+  # - .gitlab/deploy_packages/include.yml
+  # - .gitlab/deps_build/deps_build.yml
+  # - .gitlab/deps_fetch/deps_fetch.yml
+  # - .gitlab/dev_container_deploy/include.yml
+  # - .gitlab/e2e/e2e.yml
+  # - .gitlab/e2e_install_packages/include.yml
+  # - .gitlab/e2e_pre_test/e2e_pre_test.yml
+  # - .gitlab/e2e_testing_deploy/e2e_deploy.yml
+  # - .gitlab/functional_test/include.yml
+  # - .gitlab/install_script_testing/install_script_testing.yml
+  # - .gitlab/integration_test/include.yml
+  # - .gitlab/internal_image_deploy/internal_image_deploy.yml
+  # - .gitlab/internal_kubernetes_deploy/include.yml
+  # - .gitlab/lint/include.yml
+  # - .gitlab/maintenance_jobs/include.yml
+  # - .gitlab/notify/notify.yml
+  # - .gitlab/package_build/include.yml
+  # - .gitlab/packaging/include.yml
+  # - .gitlab/package_deps_build/package_deps_build.yml
+  # - .gitlab/pkg_metrics/pkg_metrics.yml
+  # - .gitlab/post_rc_build/post_rc_tasks.yml
+  # - .gitlab/trigger_distribution/trigger_distribution.yml
+  # - .gitlab/trigger_distribution/conditions.yml
+  # - .gitlab/dynamic_test/include.yml
+  # - .gitlab/setup/setup.yml
+  # - .gitlab/source_test/include.yml
+  # - .gitlab/scan/windows.yml
+  # - .gitlab/fuzz/infra.yaml
+.windows_docker_default:
+  extends: .windows_docker_v2_2022
+  variables:
+    ARCH: "x64"
+
+.windows_docker_v2_2022:
+  tags: ["windows-v2:2022"]
+  variables:
+    # Full image name for Agent windows build image, for use in docker run command
+    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
+    # Windows runners don't support the s3 strategy
+    # Clone is required since cancelled Windows jobs with fetch strategy
+    # can cause CIEXE-1152 which makes the runner unusable.
+    OVERRIDE_GIT_STRATEGY: "clone"
+
+dda:linux:features:
+  stage: setup
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
+  dependencies: []
+  script:
+    - pip install git+https://github.com/DataDog/datadog-agent-dev.git@kfairise/support-feature-flag-ci
+    - which dda
+    - dda bzl
+  variables:
+    DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
+    DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
+
+# dda:macos:features:
+#   stage: setup
+#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+#   tags: ["macos:ventura-amd64", "specific:true"]
+#   dependencies: []
+#   script:
+#     - pip3 install git+https://github.com/DataDog/datadog-agent-dev.git@kfairise/support-feature-flag-ci
+#     - dda bzl
+#   variables:
+#     DDA_FEATURE_FLAGS_CI_VAULT_KEY_MACOS: token
+#     DDA_FEATURE_FLAGS_CI_VAULT_PATH_MACOS: aws/arn:aws:iam::486234852809:role/ci-datadog-agent/$DDA_CLIENT_TOKEN
+
+dda:windows:features:
+  stage: setup
+  needs: []
+  extends: .windows_docker_default
+  script:
+    - $ErrorActionPreference = "Stop"
+    - !reference [.docker_pull_winbuildimage_instrumented]
+    # Previously this job required only 8Gb of memory but since Go 1.20 it requires more to avoid being OOM killed.
+    # Each Windows VM has 32Gb of memory and contains 3 runners that can run one job at a time each (so a maximum of 3 simultaneous jobs per VM).
+    # Windows jobs are using either 8Gb or 16Gb of memory so we can limit memory to 16Gb on this job because even if we decided to limit to 10Gb for instance,
+    # it would leave 6Gb free but we could not fit another job with these 6Gb remaining.
+    - >
+      docker run --rm
+      -m 24576M
+      --storage-opt "size=50GB"
+      -v "$(Get-Location):c:\mnt"
+      -e AWS_NETWORKING=true
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e GOMODCACHE="c:\modcache"
+      -e RUST_LOG="uv=trace"
+      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS=${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}
+      ${WINBUILDIMAGE}
+      powershell.exe -c "c:\mnt\tasks\winbuildscripts\Invoke-Linters.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  variables:
+    DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS: ci.datadog-agent.dda-feature-flags-client-token
 
 default:
   retry:
@@ -239,6 +306,7 @@ variables:
   SLACK_AGENT: slack-agent-ci # agent-devx
   SMP_ACCOUNT: smp # single-machine-performance
   VIRUS_TOTAL: virus-total # windows-products
+  DDA_CLIENT_TOKEN: dda-feature-flags-client-token # agent-devx
   # End vault variables
 
   DD_PKG_VERSION: "latest"
@@ -261,943 +329,943 @@ variables:
   # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
   PYTHONUNBUFFERED: 1
 
-#
-# Condition mixins for simplification of rules
-#
-.if_main_branch: &if_main_branch
-  if: $CI_COMMIT_BRANCH == "main"
-
-.if_not_main_branch: &if_not_main_branch
-  if: $CI_COMMIT_BRANCH != "main"
-
-.if_release_branch: &if_release_branch
-  if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
-
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
-
-.if_deploy_stable: &if_deploy_stable
-  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
-
-.if_deploy_installer_stable: &if_deploy_installer_stable
-  if: ($DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
-
-.if_tagged_commit: &if_tagged_commit
-  if: $CI_COMMIT_TAG != null
-
-.if_not_stable_or_beta_repo_branch: &if_not_stable_or_beta_repo_branch
-  if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
-
-.if_not_nightly_or_dev_repo_branch: &if_not_nightly_or_dev_repo_branch
-  if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly" && $BUCKET_BRANCH != "dev"
-
-# CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
-# See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
-.if_triggered_pipeline: &if_triggered_pipeline
-  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
-
-# Rule to trigger all builds conditionally.
-# By default:
-# - on main and deploy pipelines, all builds are run
-# - on branch pipelines, only a subset of build jobs are run (the ARM and MacOS jobs are not run).
-# RUN_ALL_BUILDS can be set to true to force all build jobs to be run on a branch pipeline.
-# RUN_ALL_BUILDS has no effect on main/deploy pipelines: they always run all builds (as some jobs
-# on main and deploy pipelines depend on jobs that are only run if we run all builds).
-.if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true" || $DDR_WORKFLOW_ID != null
-
-.if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true" && $DDR_WORKFLOW_ID == null
-
-# Rule to trigger test setup, run, and cleanup.
-# By default:
-# - on main and deploy pipelines, installer tests are run
-# - on branch pipelines, installer tests are run on a subset of the OSes we test
-# RUN_E2E_TESTS can be set to on to force all the installer tests to be run on a branch pipeline.
-# RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
-.if_installer_tests: &if_installer_tests
-  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
-
-.if_run_all_e2e_tests: &if_run_all_e2e_tests
-  if: $RUN_E2E_TESTS == "on"
-
-# When RUN_E2E_TESTS is set to "auto". We do not enforce a behavior for the tests.
-# The behavior of each test will be defined by its rules.
-# For example for new-e2e tests created by each team, here is an example of such rules: https://github.com/DataDog/datadog-agent/blob/ba7079d92077ab5898378594dcafb9cd88a77e57/.gitlab-ci.yml#L1160-L1167
-# For the installer tests when RUN_E2E_TESTS is set to "auto", we run a subset of tests on branch pipelines and all the tests on main.
-.if_auto_e2e_tests: &if_auto_e2e_tests
-  if: $RUN_E2E_TESTS == "auto"
-
-.if_disable_e2e_tests: &if_disable_e2e_tests
-  if: $RUN_E2E_TESTS == "off"
-
-# Enable forcing all KMT tests to run
-.if_run_all_kmt_tests: &if_run_all_kmt_tests
-  if: $RUN_KMT_TESTS == 'on'
-
-.if_disable_unit_tests: &if_disable_unit_tests
-  if: $RUN_UNIT_TESTS == "off"
-
-.if_run_all_unit_tests: &if_run_all_unit_tests
-  if: $RUN_UNIT_TESTS == "on"
-
-# Schedule on main branch come from conductor, pipeline source is `pipeline`, we use the conductor env variable for identification
-.if_scheduled_main: &if_scheduled_main
-  if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main"
-
-# Rule to trigger jobs only when a branch matches the mergequeue pattern.
-.if_mergequeue: &if_mergequeue
-  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
-
-.fakeintake_paths: &fakeintake_paths
-  paths:
-    - "test/fakeintake/**/*"
-    - .gitlab/binary_build/fakeintake.yml
-    - .gitlab/container_build/fakeintake.yml
-    - .gitlab/dev_container_deploy/fakeintake.yml
-
-.if_coverage_pipeline: &if_coverage_pipeline
-  if: $E2E_COVERAGE_PIPELINE == "true"
-
-#
-# Workflow rules
-# Rules used to define whether a pipeline should run, and with which variables
-#
-workflow:
-  rules:
-    - <<: *if_triggered_pipeline
-    - <<: *if_main_branch
-      variables:
-        GO_TEST_SKIP_FLAKE: "false"
-    - <<: *if_release_branch
-    - <<: *if_deploy
-    - !reference [.if_deploy_installer]
-    - if: $CI_COMMIT_TAG == null
-
-#
-# List of rule blocks used in the pipeline
-# Any job in the pipeline either runs (with when: on_success) in all pipelines, or follows one of the below rule blocks.
-#
-
-.except_mergequeue:
-  - <<: *if_mergequeue
-    when: never
-
-.on_mergequeue:
-  - <<: *if_mergequeue
-    when: on_success
-
-.manual:
-  - !reference [.except_mergequeue]
-  - when: manual
-    allow_failure: true
-
-.on_main:
-  - <<: *if_main_branch
-
-.on_main_manual:
-  - <<: *if_main_branch
-    when: manual
-    allow_failure: true
-
-.on_main_always:
-  - <<: *if_main_branch
-    when: always
-
-.on_deploy:
-  - <<: *if_deploy
-
-.on_deploy_manual:
-  - <<: *if_deploy
-    when: manual
-    allow_failure: true
-
-.on_deploy_success:
-  - <<: *if_deploy
-    when: on_success
-
-.on_deploy_failure:
-  - <<: *if_deploy
-    when: on_failure
-
-# rule to trigger job for internal image deployment if deploy is set or
-# manually if not
-.on_deploy_internal_or_manual:
-  - !reference [.except_mergequeue]
-  - <<: *if_deploy
-    variables:
-      RELEASE_PROD: "true"
-  - when: manual
-    allow_failure: true
-    variables:
-      RELEASE_PROD: "false"
-
-.on_deploy_nightly_repo_branch:
-  - <<: *if_not_nightly_or_dev_repo_branch
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_stable_or_beta_repo_branch:
-  - !reference [.except_mergequeue]
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-  - <<: *if_deploy
-
-# Alternative of the above to have an agent-release-management trigger
-# for stable branches in case of failure in any previous job
-.on_deploy_stable_on_failure:
-  - <<: *if_deploy_stable
-    when: on_failure
-
-# Alternative of the above to have an agent-release-management trigger
-# for stable branches in case of failure in any previous job
-.on_deploy_installer_stable_on_failure:
-  - <<: *if_deploy_installer_stable
-    when: on_failure
-
-.except_deploy:
-  - <<: *if_deploy
-    when: never
-
-.except_no_tests_no_deploy:
-  - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
-    when: manual
-    allow_failure: true
-
-.on_main_or_release_branch:
-  - <<: *if_main_branch
-  - <<: *if_release_branch
-
-.not_on_release_branch_or_tagged_commit:
-  - <<: *if_release_branch
-    when: never
-  - <<: *if_tagged_commit
-    when: never
-
-.only_main:
-  - <<: *if_not_main_branch
-    when: never
-
-.except_main_release_or_mq:
-  - <<: *if_main_branch
-    when: never
-  - <<: *if_release_branch
-    when: never
-  - !reference [.except_mergequeue]
-
-.on_dev_branches:
-  - !reference [.except_main_release_or_mq]
-  - <<: *if_tagged_commit
-    when: never
-
-.on_main_or_release_branch_or_deploy_always:
-  - <<: *if_deploy
-    when: always
-  - <<: *if_main_branch
-    when: always
-  - <<: *if_release_branch
-    when: always
-
-.on_main_or_release_branch_or_deploy_manual:
-  - <<: *if_deploy
-    when: manual
-    allow_failure: true
-  - <<: *if_main_branch
-    when: manual
-    allow_failure: true
-  - <<: *if_release_branch
-    when: manual
-    allow_failure: true
-
-.on_all_builds:
-  - <<: *if_run_all_builds
-
-.on_e2e_tests:
-  - <<: *if_installer_tests
-
-.on_all_install_script_tests:
-  - <<: *if_installer_tests
-
-.on_default_new_e2e_tests:
-  - !reference [.except_mergequeue]
-  - <<: *if_disable_e2e_tests
-    when: never
-  - <<: *if_installer_tests
-  - <<: *if_auto_e2e_tests
-    variables:
-      E2E_DESCRIPTORS: $E2E_BRANCH_DESCRIPTORS
-
-.security_agent_change_paths: &security_agent_change_paths
-  - pkg/ebpf/**/*
-  - pkg/security/**/*
-  - pkg/eventmonitor/**/*
-  - .gitlab/kernel_matrix_testing/security_agent.yml
-  - .gitlab/kernel_matrix_testing/common.yml
-  - .gitlab/source_test/ebpf.yml
-  - test/new-e2e/tests/cws/**/*
-  - test/new-e2e/system-probe/**/*
-  - test/new-e2e/scenarios/system-probe/**/*
-  - test/new-e2e/pkg/runner/**/*
-  - test/new-e2e/pkg/utils/**/*
-  - test/new-e2e/go.mod
-  - tasks/security_agent.py
-  - tasks/kmt.py
-  - tasks/kernel_matrix_testing/*
-
-.on_security_agent_changes_or_manual:
-  - <<: *if_main_branch
-    allow_failure: true
-  - !reference [.except_mergequeue]
-  - <<: *if_run_all_kmt_tests
-  - changes:
-      paths: *security_agent_change_paths
-      compare_to: $COMPARE_TO_BRANCH
-  - when: manual
-    allow_failure: true
-
-.if_windows_installer_changes: &if_windows_installer_changes
-  changes:
-    paths:
-      - tools/windows/DatadogAgentInstaller/**/*
-      - .gitlab/e2e_install_packages/windows.yml
-      - test/new-e2e/tests/windows/install-test/**/*
-      - test/new-e2e/tests/windows/domain-test/**/*
-      - tasks/msi.py
-      - omnibus/python-scripts/**/*
-      - omnibus/lib/**/*
-      - omnibus/config/projects/agent.rb
-      - omnibus/config/software/**/*
-      - omnibus/config/templates/**/*
-      - release.json
-    compare_to: $COMPARE_TO_BRANCH
-
-.except_windows_installer_changes:
-  - <<: *if_windows_installer_changes
-    when: never
-
-.system_probe_change_paths: &system_probe_change_paths
-  - cmd/system-probe/**/*
-  - pkg/collector/corechecks/ebpf/**/*
-  - pkg/collector/corechecks/servicediscovery/module/*
-  - pkg/ebpf/**/*
-  - pkg/network/**/*
-  - pkg/process/monitor/*
-  - pkg/util/kernel/**/*
-  - pkg/dyninst/**/*
-  - pkg/gpu/**/*
-  - .gitlab/kernel_matrix_testing/system_probe.yml
-  - .gitlab/kernel_matrix_testing/common.yml
-  - .gitlab/source_test/ebpf.yml
-  - test/new-e2e/system-probe/**/*
-  - test/new-e2e/scenarios/system-probe/**/*
-  - test/new-e2e/pkg/runner/**/*
-  - test/new-e2e/pkg/utils/**/*
-  - test/new-e2e/go.mod
-  - tasks/system_probe.py
-  - tasks/kmt.py
-  - tasks/kernel_matrix_testing/*
-
-.on_system_probe_or_e2e_changes_or_manual:
-  - <<: *if_main_branch
-  - !reference [.except_mergequeue]
-  - <<: *if_run_all_kmt_tests
-  - changes:
-      paths: *system_probe_change_paths
-      compare_to: $COMPARE_TO_BRANCH
-  - when: manual
-    allow_failure: true
-
-# New E2E related rules
-
-.on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.except_mergequeue]
-  - <<: *if_run_all_e2e_tests
-    when: on_success
-  - <<: *if_main_branch
-    when: on_success
-  - <<: *if_release_branch
-    when: on_success
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: on_success
-  - changes:
-      paths:
-        - .gitlab/e2e/e2e.yml
-        - test/new-e2e/pkg/**/*
-        - test/new-e2e/go.mod
-        - flakes.yaml
-        - release.json
-      compare_to: $COMPARE_TO_BRANCH
-
-.except_e2e_main_release_or_rc: # This rule is to not trigger dynamic test evaluation when we force all e2e tests to run
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.except_mergequeue]
-  - <<: *if_run_all_e2e_tests
-    when: never
-  - <<: *if_main_branch
-    when: never
-  - <<: *if_release_branch
-    when: never
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: never
-  - changes:
-      paths:
-        - .gitlab/e2e/e2e.yml
-        - test/new-e2e/pkg/**/*
-        - test/new-e2e/go.mod
-        - flakes.yaml
-        - release.json
-      compare_to: $COMPARE_TO_BRANCH
-    when: never
-
-.on_e2e_or_windows_installer_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - <<: *if_windows_installer_changes
-    when: on_success
-
-.on_e2e_or_fakeintake_changes_or_manual:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      <<: *fakeintake_paths
-      compare_to: $COMPARE_TO_BRANCH
-    variables:
-      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
-    when: on_success
-  - changes:
-      paths:
-        - test/new-e2e/test-infra-definition/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-  - when: manual
-    allow_failure: true
-
-.on_container_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/core/tagger/**/*
-        - comp/core/workloadmeta/**/*
-        - comp/core/autodiscovery/listeners/**/*
-        - comp/core/autodiscovery/providers/**/*
-        - comp/languagedetection/**/*
-        - pkg/clusteragent/admission/mutate/**/*
-        - pkg/collector/corechecks/cluster/**/*
-        - pkg/collector/corechecks/containers/**/*
-        - pkg/collector/corechecks/containerimage/**/*
-        - pkg/collector/corechecks/containerlifecycle/**/*
-        - pkg/collector/corechecks/sbom/**/*
-        - pkg/sbom/**/*
-        - pkg/util/clusteragent/**/*
-        - pkg/util/containerd/**/*
-        - pkg/util/containers/**/*
-        - pkg/util/docker/**/*
-        - pkg/util/ecs/**/*
-        - pkg/util/kubernetes/**/*
-        - pkg/util/cgroups/**/*
-        - pkg/util/trivy/**/*
-        - test/new-e2e/tests/containers/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_rc_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/config/remote/**/*
-        - comp/remote-config/**/*
-        - test/new-e2e/tests/remote-config/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_arun_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/**/*
-        - pkg/**/*
-        - comp/**/*
-        - test/new-e2e/tests/agent-runtimes/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_acfg_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/**/*
-        - pkg/**/*
-        - comp/**/*
-        - test/new-e2e/tests/agent-configuration//**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_subcommands_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/**/*
-        - pkg/**/*
-        - comp/**/*
-        - test/new-e2e/tests/agent-subcommands/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_language-detection_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/language-detection/**/*
-        - cmd/process-agent/**/*
-        - comp/process/**/*
-        - pkg/process/**/*
-        - comp/core/workloadmeta/collectors/internal/process/**/*
-        - comp/core/workloadmeta/collectors/internal/processlanguage/**/*
-        - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_npm_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        # TODO: Add paths that should trigger tests for npm
-        - pkg/network/**/*
-        - test/new-e2e/tests/npm/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_discovery_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/agent/dist/conf.d/discovery.d/*
-        - comp/core/autodiscovery/providers/process_log.go
-        - test/new-e2e/tests/discovery/**/*
-        - pkg/collector/corechecks/discovery/**/*
-        - pkg/collector/corechecks/servicediscovery/**/*
-        - pkg/discovery/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_amp_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/agent-metric-pipelines/**/*
-        - cmd/agent/subcommands/dogstatsd*/*
-        - cmd/dogstatsd/**/*
-        - comp/agent/jmxlogger/**/*
-        - comp/aggregator/**/*
-        - comp/collector/**/*
-        - comp/core/agenttelemetry/**/*
-        - comp/dogstatsd/**/*
-        - comp/forwarder/**/*
-        - comp/serializer/**/*
-        - pkg/aggregator/**/*
-        - pkg/collector/**/*
-        - pkg/commonchecks/**/*
-        - pkg/jmxfetch/**/*
-        - pkg/metrics/**/*
-        - pkg/persistentcache/**/*
-        - pkg/serializer/**/*
-        - rtloader/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_alp_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/agent-log-pipelines/**/*
-        - cmd/agent/subcommands/streamlogs/*
-        - comp/core/agenttelemetry/**/*
-        - comp/core/autodiscovery/providers/config_reader*.go
-        - comp/core/autodiscovery/providers/file*.go
-        - comp/logs/**/*
-        - pkg/logs/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_cws_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths: *security_agent_change_paths
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_process_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/process/**/*
-        - cmd/process-agent/**/*
-        - comp/process/**/*
-        - pkg/process/**/*
-        - pkg/config/setup/process.go
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_orchestrator_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/forwarder/defaultforwarder/**/*
-        - pkg/collector/corechecks/cluster/orchestrator/**/*
-        - pkg/collector/corechecks/orchestrator/**/*
-        - test/new-e2e/tests/orchestrator/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_apm_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/trace/**/*
-        - cmd/trace-agent/**/*
-        - comp/trace/**/*
-        - test/new-e2e/tests/apm/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_installer_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - .gitlab/**/*
-        - omnibus/config/**/*
-        - pkg/fleet/**/*
-        - cmd/installer/**/*
-        - test/new-e2e/tests/installer/**/*
-        - tasks/installer.py
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_ndm_netflow_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/netflow/**/*
-        - test/new-e2e/tests/ndm/netflow/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_ndm_snmp_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/collector/corechecks/snmp/**/*
-        - test/new-e2e/tests/ndm/snmp/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-  - when: manual
-    allow_failure: true
-
-.on_ha_agent_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/haagent/**/*
-        - pkg/aggregator/**/*
-        - test/new-e2e/tests/ha-agent/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_netpath_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/system-probe/modules/traceroute.go
-        - pkg/collector/corechecks/networkpath/**/*
-        - pkg/networkpath/**/*
-        - comp/networkpath/**/*
-        - test/new-e2e/tests/netpath/**/*
-        - test/new-e2e/go.mod
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_otel_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/otel-agent/**/*
-        - comp/core/tagger/**/*
-        - comp/otelcol/**/*
-        - pkg/config/setup/otlp.go
-        - pkg/trace/api/otlp.go
-        - pkg/trace/stats/otel_util.go
-        - pkg/trace/traceutil/otel_util.go
-        - pkg/trace/transform/transform.go
-        - test/new-e2e/tests/otel/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_windows_service_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - cmd/**/*
-        - pkg/util/winutil/servicemain/**/*
-        - pkg/util/winutil/messagestrings/**/*
-        - tasks/windows_resources.py
-        - test/new-e2e/tests/windows/service-test/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_windows_certificate_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - test/new-e2e/tests/windows/windows-certificate/**/*
-        - pkg/collector/corechecks/system/windowscertificate/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_trace_agent_changes_or_manual:
-  - !reference [.except_mergequeue]
-  - changes:
-      paths:
-        - pkg/trace/**/*
-        - .gitlab/benchmarks/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-  - when: manual
-    allow_failure: true
-
-.on_cspm_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/security/**/*
-        - test/new-e2e/tests/cspm/**/* #TODO: Add other paths that should trigger the execution of CSPM e2e tests
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_windows_systemprobe_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/collector/corechecks/servicediscovery/module/*
-        - pkg/network/**/*
-        - pkg/process/monitor/*
-        - pkg/util/kernel/**/*
-        - test/new-e2e/tests/sysprobe-functional/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_windows_security_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/security/**/*
-        - pkg/eventmonitor/**/*
-        - test/new-e2e/tests/security-agent-functional/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
-.on_scheduled_main:
-  - <<: *if_scheduled_main
-    when: always
-
-.on_scheduled_main_on_success:
-  - <<: *if_scheduled_main
-    when: on_success
-
-.on_main_or_rc_and_no_skip_e2e:
-  - <<: *if_disable_e2e_tests
-    when: never
-  - <<: *if_release_branch
-    when: on_success
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: on_success
-  - <<: *if_main_branch
-    when: on_success
-
-.except_disable_unit_tests:
-  - <<: *if_disable_unit_tests
-    when: never
-
-.except_disable_e2e_tests:
-  - <<: *if_disable_e2e_tests
-    when: never
-
-.on_macos_gui_change:
-  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
-  - changes:
-      paths:
-        - comp/core/gui/guiimpl/systray/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_packaging_change:
-  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
-  - changes:
-      paths:
-        - omnibus/**/*
-        - .gitlab-ci.yml
-        - release.json
-        - .gitlab/package_build/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_go-version_change:
-  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
-  - changes:
-      paths:
-        - .go-version
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_fakeintake_changes:
-  - changes:
-      <<: *fakeintake_paths
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_fakeintake_changes_on_main:
-  - changes:
-      <<: *fakeintake_paths
-    <<: *if_main_branch
-
-.fast_on_dev_branch_only:
-  - <<: *if_main_branch
-    variables:
-      FAST_TESTS: "false"
-      # Push coverage cache on main branch
-      COVERAGE_CACHE_FLAG: "--push-coverage-cache"
-  - <<: *if_release_branch
-    variables:
-      FAST_TESTS: "false"
-      COVERAGE_CACHE_FLAG: ""
-  - <<: *if_tagged_commit
-    variables:
-      FAST_TESTS: "false"
-      COVERAGE_CACHE_FLAG: ""
-  - <<: *if_triggered_pipeline
-    variables:
-      FAST_TESTS: "false"
-      COVERAGE_CACHE_FLAG: ""
-  - <<: *if_run_all_unit_tests
-    variables:
-      FAST_TESTS: "false"
-      COVERAGE_CACHE_FLAG: ""
-  - variables:
-      FAST_TESTS: "true"
-      # Pull coverage cache on dev branches
-      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
-
-.on_gitlab_changes:
-  changes:
-    paths:
-      - .gitlab-ci.yml
-      - .gitlab/**/*
-      - .gitlab/**/.*
-    compare_to: $COMPARE_TO_BRANCH
-
-.on_gitlab_changes_or_mergequeue_or_main:
-  - !reference [.on_gitlab_changes]
-  - !reference [.on_mergequeue]
-  - !reference [.on_main]
-
-.on_invoke_tasks_changes:
-  - <<: *if_main_branch
-  - changes:
-      paths:
-        - tasks/**/*
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_gpu_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - pkg/gpu/**/*
-        - pkg/ebpf/**/*
-        - pkg/util/kernel/**/*
-        - test/new-e2e/tests/gpu/**/*
-        - pkg/collector/corechecks/gpu/**/*
-        - comp/core/workloadmeta/collectors/internal/nvml/**/*
-        - comp/core/autodiscovery/listeners/staticconfig.go
-      compare_to: $COMPARE_TO_BRANCH
-
-.on_installer_systemd_changes:
-  - <<: *if_main_branch
-  - !reference [.except_mergequeue]
-  - changes:
-      paths:
-        - pkg/fleet/installer/packages/embedded/templates/**/*.service
-      compare_to: $COMPARE_TO_BRANCH
-  - when: manual
-    allow_failure: true
-
-.except_coverage_pipeline:
-  - <<: *if_coverage_pipeline
-    when: never
-
-.on_coverage_pipeline:
-  - <<: *if_coverage_pipeline
-    when: on_success
-.always_on_coverage_pipeline:
-  - <<: *if_coverage_pipeline
-    when: always
-
-# This is used to setup utils to report custom datadog-ci spans
-.setup-datadog-ci-sections:
-  - |
-    if [ -z "$DATADOG_API_KEY" ]; then
-      DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-    fi
-  - |
-    # Start a custom datadog span
-    # datadog-ci-start-section <name>
-    datadog-ci-start-section()
-    {
-      export sectionname="$1"
-      if [ -z "$sectionname" ]; then
-        echo "datadog-ci-end-section: name is required as first argument" >& 2
-        return 1
-      fi
-      export datestart="$(date '+%s%N' | cut -b1-13)"
-    }
-    # Finish and send the span to Datadog
-    # datadog-ci-end-section [--end-time <timestamp>] [--category <category>] <name>
-    datadog-ci-end-section()
-    {
-      if [ "$1" = "--end-time" ]; then
-        shift
-        dateend="$1"
-        shift
-      else
-        dateend="$(date '+%s%N' | cut -b1-13)"
-      fi
-      if [ "$1" = "--category" ]; then
-        shift
-        category="--tags agent-category:$1"
-        shift
-      fi
-      name="$1"
-      if [ -z "$name" ]; then
-        echo "datadog-ci-end-section: name is required as first argument" >& 2
-        return 1
-      fi
-      if [ "$name" != "$sectionname" ]; then
-        echo "datadog-ci-end-section: name does not match the last section name (got $name but was $sectionname)" >& 2
-        return 1
-      fi
-      if [ -z "$datestart" ]; then
-        echo "datadog-ci-end-section: datadog-ci-start-section was not called" >& 2
-        return 1
-      fi
-      datadog-ci trace span --name "$name" --start-time "$datestart" --end-time "$dateend" --tags agent-custom-span:true $category
-      if [ "$?" -ne 0 ]; then
-        # Don't fail the job for that
-        echo "WARNING: datadog-ci trace span failed" >& 2
-      fi
-      export datestart=
-      export sectionname=
-    }
-
-.retry_only_infra_failure:
-  retry:
-    max: 2
-    exit_codes:
-      - 42
-      - 101 # Failed to extract dependencies
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
-      - unknown_failure
-      - api_failure
-      - scheduler_failure
-      - stale_schedule
-      - data_integrity_failure
+# #
+# # Condition mixins for simplification of rules
+# #
+# .if_main_branch: &if_main_branch
+#   if: $CI_COMMIT_BRANCH == "main"
+
+# .if_not_main_branch: &if_not_main_branch
+#   if: $CI_COMMIT_BRANCH != "main"
+
+# .if_release_branch: &if_release_branch
+#   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+
+# .if_deploy: &if_deploy
+#   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
+
+# .if_deploy_stable: &if_deploy_stable
+#   if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
+
+# .if_deploy_installer_stable: &if_deploy_installer_stable
+#   if: ($DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
+
+# .if_tagged_commit: &if_tagged_commit
+#   if: $CI_COMMIT_TAG != null
+
+# .if_not_stable_or_beta_repo_branch: &if_not_stable_or_beta_repo_branch
+#   if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
+
+# .if_not_nightly_or_dev_repo_branch: &if_not_nightly_or_dev_repo_branch
+#   if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly" && $BUCKET_BRANCH != "dev"
+
+# # CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
+# # See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
+# .if_triggered_pipeline: &if_triggered_pipeline
+#   if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
+
+# # Rule to trigger all builds conditionally.
+# # By default:
+# # - on main and deploy pipelines, all builds are run
+# # - on branch pipelines, only a subset of build jobs are run (the ARM and MacOS jobs are not run).
+# # RUN_ALL_BUILDS can be set to true to force all build jobs to be run on a branch pipeline.
+# # RUN_ALL_BUILDS has no effect on main/deploy pipelines: they always run all builds (as some jobs
+# # on main and deploy pipelines depend on jobs that are only run if we run all builds).
+# .if_run_all_builds: &if_run_all_builds
+#   if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true" || $DDR_WORKFLOW_ID != null
+
+# .if_not_run_all_builds: &if_not_run_all_builds
+#   if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true" && $DDR_WORKFLOW_ID == null
+
+# # Rule to trigger test setup, run, and cleanup.
+# # By default:
+# # - on main and deploy pipelines, installer tests are run
+# # - on branch pipelines, installer tests are run on a subset of the OSes we test
+# # RUN_E2E_TESTS can be set to on to force all the installer tests to be run on a branch pipeline.
+# # RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
+# .if_installer_tests: &if_installer_tests
+#   if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
+
+# .if_run_all_e2e_tests: &if_run_all_e2e_tests
+#   if: $RUN_E2E_TESTS == "on"
+
+# # When RUN_E2E_TESTS is set to "auto". We do not enforce a behavior for the tests.
+# # The behavior of each test will be defined by its rules.
+# # For example for new-e2e tests created by each team, here is an example of such rules: https://github.com/DataDog/datadog-agent/blob/ba7079d92077ab5898378594dcafb9cd88a77e57/.gitlab-ci.yml#L1160-L1167
+# # For the installer tests when RUN_E2E_TESTS is set to "auto", we run a subset of tests on branch pipelines and all the tests on main.
+# .if_auto_e2e_tests: &if_auto_e2e_tests
+#   if: $RUN_E2E_TESTS == "auto"
+
+# .if_disable_e2e_tests: &if_disable_e2e_tests
+#   if: $RUN_E2E_TESTS == "off"
+
+# # Enable forcing all KMT tests to run
+# .if_run_all_kmt_tests: &if_run_all_kmt_tests
+#   if: $RUN_KMT_TESTS == 'on'
+
+# .if_disable_unit_tests: &if_disable_unit_tests
+#   if: $RUN_UNIT_TESTS == "off"
+
+# .if_run_all_unit_tests: &if_run_all_unit_tests
+#   if: $RUN_UNIT_TESTS == "on"
+
+# # Schedule on main branch come from conductor, pipeline source is `pipeline`, we use the conductor env variable for identification
+# .if_scheduled_main: &if_scheduled_main
+#   if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main"
+
+# # Rule to trigger jobs only when a branch matches the mergequeue pattern.
+# .if_mergequeue: &if_mergequeue
+#   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+
+# .fakeintake_paths: &fakeintake_paths
+#   paths:
+#     - "test/fakeintake/**/*"
+#     - .gitlab/binary_build/fakeintake.yml
+#     - .gitlab/container_build/fakeintake.yml
+#     - .gitlab/dev_container_deploy/fakeintake.yml
+
+# .if_coverage_pipeline: &if_coverage_pipeline
+#   if: $E2E_COVERAGE_PIPELINE == "true"
+
+# #
+# # Workflow rules
+# # Rules used to define whether a pipeline should run, and with which variables
+# #
+# workflow:
+#   rules:
+#     - <<: *if_triggered_pipeline
+#     - <<: *if_main_branch
+#       variables:
+#         GO_TEST_SKIP_FLAKE: "false"
+#     - <<: *if_release_branch
+#     - <<: *if_deploy
+#     - !reference [.if_deploy_installer]
+#     - if: $CI_COMMIT_TAG == null
+
+# #
+# # List of rule blocks used in the pipeline
+# # Any job in the pipeline either runs (with when: on_success) in all pipelines, or follows one of the below rule blocks.
+# #
+
+# .except_mergequeue:
+#   - <<: *if_mergequeue
+#     when: never
+
+# .on_mergequeue:
+#   - <<: *if_mergequeue
+#     when: on_success
+
+# .manual:
+#   - !reference [.except_mergequeue]
+#   - when: manual
+#     allow_failure: true
+
+# .on_main:
+#   - <<: *if_main_branch
+
+# .on_main_manual:
+#   - <<: *if_main_branch
+#     when: manual
+#     allow_failure: true
+
+# .on_main_always:
+#   - <<: *if_main_branch
+#     when: always
+
+# .on_deploy:
+#   - <<: *if_deploy
+
+# .on_deploy_manual:
+#   - <<: *if_deploy
+#     when: manual
+#     allow_failure: true
+
+# .on_deploy_success:
+#   - <<: *if_deploy
+#     when: on_success
+
+# .on_deploy_failure:
+#   - <<: *if_deploy
+#     when: on_failure
+
+# # rule to trigger job for internal image deployment if deploy is set or
+# # manually if not
+# .on_deploy_internal_or_manual:
+#   - !reference [.except_mergequeue]
+#   - <<: *if_deploy
+#     variables:
+#       RELEASE_PROD: "true"
+#   - when: manual
+#     allow_failure: true
+#     variables:
+#       RELEASE_PROD: "false"
+
+# .on_deploy_nightly_repo_branch:
+#   - <<: *if_not_nightly_or_dev_repo_branch
+#     when: never
+#   - <<: *if_deploy
+
+# .on_deploy_stable_or_beta_repo_branch:
+#   - !reference [.except_mergequeue]
+#   - <<: *if_not_stable_or_beta_repo_branch
+#     when: manual
+#     allow_failure: true
+#   - <<: *if_deploy
+
+# # Alternative of the above to have an agent-release-management trigger
+# # for stable branches in case of failure in any previous job
+# .on_deploy_stable_on_failure:
+#   - <<: *if_deploy_stable
+#     when: on_failure
+
+# # Alternative of the above to have an agent-release-management trigger
+# # for stable branches in case of failure in any previous job
+# .on_deploy_installer_stable_on_failure:
+#   - <<: *if_deploy_installer_stable
+#     when: on_failure
+
+# .except_deploy:
+#   - <<: *if_deploy
+#     when: never
+
+# .except_no_tests_no_deploy:
+#   - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
+#     when: manual
+#     allow_failure: true
+
+# .on_main_or_release_branch:
+#   - <<: *if_main_branch
+#   - <<: *if_release_branch
+
+# .not_on_release_branch_or_tagged_commit:
+#   - <<: *if_release_branch
+#     when: never
+#   - <<: *if_tagged_commit
+#     when: never
+
+# .only_main:
+#   - <<: *if_not_main_branch
+#     when: never
+
+# .except_main_release_or_mq:
+#   - <<: *if_main_branch
+#     when: never
+#   - <<: *if_release_branch
+#     when: never
+#   - !reference [.except_mergequeue]
+
+# .on_dev_branches:
+#   - !reference [.except_main_release_or_mq]
+#   - <<: *if_tagged_commit
+#     when: never
+
+# .on_main_or_release_branch_or_deploy_always:
+#   - <<: *if_deploy
+#     when: always
+#   - <<: *if_main_branch
+#     when: always
+#   - <<: *if_release_branch
+#     when: always
+
+# .on_main_or_release_branch_or_deploy_manual:
+#   - <<: *if_deploy
+#     when: manual
+#     allow_failure: true
+#   - <<: *if_main_branch
+#     when: manual
+#     allow_failure: true
+#   - <<: *if_release_branch
+#     when: manual
+#     allow_failure: true
+
+# .on_all_builds:
+#   - <<: *if_run_all_builds
+
+# .on_e2e_tests:
+#   - <<: *if_installer_tests
+
+# .on_all_install_script_tests:
+#   - <<: *if_installer_tests
+
+# .on_default_new_e2e_tests:
+#   - !reference [.except_mergequeue]
+#   - <<: *if_disable_e2e_tests
+#     when: never
+#   - <<: *if_installer_tests
+#   - <<: *if_auto_e2e_tests
+#     variables:
+#       E2E_DESCRIPTORS: $E2E_BRANCH_DESCRIPTORS
+
+# .security_agent_change_paths: &security_agent_change_paths
+#   - pkg/ebpf/**/*
+#   - pkg/security/**/*
+#   - pkg/eventmonitor/**/*
+#   - .gitlab/kernel_matrix_testing/security_agent.yml
+#   - .gitlab/kernel_matrix_testing/common.yml
+#   - .gitlab/source_test/ebpf.yml
+#   - test/new-e2e/tests/cws/**/*
+#   - test/new-e2e/system-probe/**/*
+#   - test/new-e2e/scenarios/system-probe/**/*
+#   - test/new-e2e/pkg/runner/**/*
+#   - test/new-e2e/pkg/utils/**/*
+#   - test/new-e2e/go.mod
+#   - tasks/security_agent.py
+#   - tasks/kmt.py
+#   - tasks/kernel_matrix_testing/*
+
+# .on_security_agent_changes_or_manual:
+#   - <<: *if_main_branch
+#     allow_failure: true
+#   - !reference [.except_mergequeue]
+#   - <<: *if_run_all_kmt_tests
+#   - changes:
+#       paths: *security_agent_change_paths
+#       compare_to: $COMPARE_TO_BRANCH
+#   - when: manual
+#     allow_failure: true
+
+# .if_windows_installer_changes: &if_windows_installer_changes
+#   changes:
+#     paths:
+#       - tools/windows/DatadogAgentInstaller/**/*
+#       - .gitlab/e2e_install_packages/windows.yml
+#       - test/new-e2e/tests/windows/install-test/**/*
+#       - test/new-e2e/tests/windows/domain-test/**/*
+#       - tasks/msi.py
+#       - omnibus/python-scripts/**/*
+#       - omnibus/lib/**/*
+#       - omnibus/config/projects/agent.rb
+#       - omnibus/config/software/**/*
+#       - omnibus/config/templates/**/*
+#       - release.json
+#     compare_to: $COMPARE_TO_BRANCH
+
+# .except_windows_installer_changes:
+#   - <<: *if_windows_installer_changes
+#     when: never
+
+# .system_probe_change_paths: &system_probe_change_paths
+#   - cmd/system-probe/**/*
+#   - pkg/collector/corechecks/ebpf/**/*
+#   - pkg/collector/corechecks/servicediscovery/module/*
+#   - pkg/ebpf/**/*
+#   - pkg/network/**/*
+#   - pkg/process/monitor/*
+#   - pkg/util/kernel/**/*
+#   - pkg/dyninst/**/*
+#   - pkg/gpu/**/*
+#   - .gitlab/kernel_matrix_testing/system_probe.yml
+#   - .gitlab/kernel_matrix_testing/common.yml
+#   - .gitlab/source_test/ebpf.yml
+#   - test/new-e2e/system-probe/**/*
+#   - test/new-e2e/scenarios/system-probe/**/*
+#   - test/new-e2e/pkg/runner/**/*
+#   - test/new-e2e/pkg/utils/**/*
+#   - test/new-e2e/go.mod
+#   - tasks/system_probe.py
+#   - tasks/kmt.py
+#   - tasks/kernel_matrix_testing/*
+
+# .on_system_probe_or_e2e_changes_or_manual:
+#   - <<: *if_main_branch
+#   - !reference [.except_mergequeue]
+#   - <<: *if_run_all_kmt_tests
+#   - changes:
+#       paths: *system_probe_change_paths
+#       compare_to: $COMPARE_TO_BRANCH
+#   - when: manual
+#     allow_failure: true
+
+# # New E2E related rules
+
+# .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
+#   - <<: *if_disable_e2e_tests
+#     when: never
+#   - !reference [.except_mergequeue]
+#   - <<: *if_run_all_e2e_tests
+#     when: on_success
+#   - <<: *if_main_branch
+#     when: on_success
+#   - <<: *if_release_branch
+#     when: on_success
+#   - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+#     when: on_success
+#   - changes:
+#       paths:
+#         - .gitlab/e2e/e2e.yml
+#         - test/new-e2e/pkg/**/*
+#         - test/new-e2e/go.mod
+#         - flakes.yaml
+#         - release.json
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .except_e2e_main_release_or_rc: # This rule is to not trigger dynamic test evaluation when we force all e2e tests to run
+#   - <<: *if_disable_e2e_tests
+#     when: never
+#   - !reference [.except_mergequeue]
+#   - <<: *if_run_all_e2e_tests
+#     when: never
+#   - <<: *if_main_branch
+#     when: never
+#   - <<: *if_release_branch
+#     when: never
+#   - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+#     when: never
+#   - changes:
+#       paths:
+#         - .gitlab/e2e/e2e.yml
+#         - test/new-e2e/pkg/**/*
+#         - test/new-e2e/go.mod
+#         - flakes.yaml
+#         - release.json
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: never
+
+# .on_e2e_or_windows_installer_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - <<: *if_windows_installer_changes
+#     when: on_success
+
+# .on_e2e_or_fakeintake_changes_or_manual:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       <<: *fakeintake_paths
+#       compare_to: $COMPARE_TO_BRANCH
+#     variables:
+#       FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+#     when: on_success
+#   - changes:
+#       paths:
+#         - test/new-e2e/test-infra-definition/*
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+#   - when: manual
+#     allow_failure: true
+
+# .on_container_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - comp/core/tagger/**/*
+#         - comp/core/workloadmeta/**/*
+#         - comp/core/autodiscovery/listeners/**/*
+#         - comp/core/autodiscovery/providers/**/*
+#         - comp/languagedetection/**/*
+#         - pkg/clusteragent/admission/mutate/**/*
+#         - pkg/collector/corechecks/cluster/**/*
+#         - pkg/collector/corechecks/containers/**/*
+#         - pkg/collector/corechecks/containerimage/**/*
+#         - pkg/collector/corechecks/containerlifecycle/**/*
+#         - pkg/collector/corechecks/sbom/**/*
+#         - pkg/sbom/**/*
+#         - pkg/util/clusteragent/**/*
+#         - pkg/util/containerd/**/*
+#         - pkg/util/containers/**/*
+#         - pkg/util/docker/**/*
+#         - pkg/util/ecs/**/*
+#         - pkg/util/kubernetes/**/*
+#         - pkg/util/cgroups/**/*
+#         - pkg/util/trivy/**/*
+#         - test/new-e2e/tests/containers/**/*
+#         - test/new-e2e/go.mod
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_rc_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - pkg/config/remote/**/*
+#         - comp/remote-config/**/*
+#         - test/new-e2e/tests/remote-config/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_arun_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - cmd/**/*
+#         - pkg/**/*
+#         - comp/**/*
+#         - test/new-e2e/tests/agent-runtimes/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_acfg_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - cmd/**/*
+#         - pkg/**/*
+#         - comp/**/*
+#         - test/new-e2e/tests/agent-configuration//**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_subcommands_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - cmd/**/*
+#         - pkg/**/*
+#         - comp/**/*
+#         - test/new-e2e/tests/agent-subcommands/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_language-detection_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - test/new-e2e/tests/language-detection/**/*
+#         - cmd/process-agent/**/*
+#         - comp/process/**/*
+#         - pkg/process/**/*
+#         - comp/core/workloadmeta/collectors/internal/process/**/*
+#         - comp/core/workloadmeta/collectors/internal/processlanguage/**/*
+#         - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_npm_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         # TODO: Add paths that should trigger tests for npm
+#         - pkg/network/**/*
+#         - test/new-e2e/tests/npm/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_discovery_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - cmd/agent/dist/conf.d/discovery.d/*
+#         - comp/core/autodiscovery/providers/process_log.go
+#         - test/new-e2e/tests/discovery/**/*
+#         - pkg/collector/corechecks/discovery/**/*
+#         - pkg/collector/corechecks/servicediscovery/**/*
+#         - pkg/discovery/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_amp_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - test/new-e2e/tests/agent-metric-pipelines/**/*
+#         - cmd/agent/subcommands/dogstatsd*/*
+#         - cmd/dogstatsd/**/*
+#         - comp/agent/jmxlogger/**/*
+#         - comp/aggregator/**/*
+#         - comp/collector/**/*
+#         - comp/core/agenttelemetry/**/*
+#         - comp/dogstatsd/**/*
+#         - comp/forwarder/**/*
+#         - comp/serializer/**/*
+#         - pkg/aggregator/**/*
+#         - pkg/collector/**/*
+#         - pkg/commonchecks/**/*
+#         - pkg/jmxfetch/**/*
+#         - pkg/metrics/**/*
+#         - pkg/persistentcache/**/*
+#         - pkg/serializer/**/*
+#         - rtloader/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_alp_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - test/new-e2e/tests/agent-log-pipelines/**/*
+#         - cmd/agent/subcommands/streamlogs/*
+#         - comp/core/agenttelemetry/**/*
+#         - comp/core/autodiscovery/providers/config_reader*.go
+#         - comp/core/autodiscovery/providers/file*.go
+#         - comp/logs/**/*
+#         - pkg/logs/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_cws_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths: *security_agent_change_paths
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_process_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - test/new-e2e/tests/process/**/*
+#         - cmd/process-agent/**/*
+#         - comp/process/**/*
+#         - pkg/process/**/*
+#         - pkg/config/setup/process.go
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_orchestrator_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - comp/forwarder/defaultforwarder/**/*
+#         - pkg/collector/corechecks/cluster/orchestrator/**/*
+#         - pkg/collector/corechecks/orchestrator/**/*
+#         - test/new-e2e/tests/orchestrator/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_apm_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - pkg/trace/**/*
+#         - cmd/trace-agent/**/*
+#         - comp/trace/**/*
+#         - test/new-e2e/tests/apm/**/*
+#         - test/new-e2e/go.mod
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_installer_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - .gitlab/**/*
+#         - omnibus/config/**/*
+#         - pkg/fleet/**/*
+#         - cmd/installer/**/*
+#         - test/new-e2e/tests/installer/**/*
+#         - tasks/installer.py
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_ndm_netflow_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - comp/netflow/**/*
+#         - test/new-e2e/tests/ndm/netflow/**/*
+#         - test/new-e2e/go.mod
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_ndm_snmp_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - pkg/collector/corechecks/snmp/**/*
+#         - test/new-e2e/tests/ndm/snmp/**/*
+#         - test/new-e2e/go.mod
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+#   - when: manual
+#     allow_failure: true
+
+# .on_ha_agent_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - comp/haagent/**/*
+#         - pkg/aggregator/**/*
+#         - test/new-e2e/tests/ha-agent/**/*
+#         - test/new-e2e/go.mod
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_netpath_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - cmd/system-probe/modules/traceroute.go
+#         - pkg/collector/corechecks/networkpath/**/*
+#         - pkg/networkpath/**/*
+#         - comp/networkpath/**/*
+#         - test/new-e2e/tests/netpath/**/*
+#         - test/new-e2e/go.mod
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_otel_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - cmd/otel-agent/**/*
+#         - comp/core/tagger/**/*
+#         - comp/otelcol/**/*
+#         - pkg/config/setup/otlp.go
+#         - pkg/trace/api/otlp.go
+#         - pkg/trace/stats/otel_util.go
+#         - pkg/trace/traceutil/otel_util.go
+#         - pkg/trace/transform/transform.go
+#         - test/new-e2e/tests/otel/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_windows_service_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - cmd/**/*
+#         - pkg/util/winutil/servicemain/**/*
+#         - pkg/util/winutil/messagestrings/**/*
+#         - tasks/windows_resources.py
+#         - test/new-e2e/tests/windows/service-test/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_windows_certificate_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - test/new-e2e/tests/windows/windows-certificate/**/*
+#         - pkg/collector/corechecks/system/windowscertificate/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_trace_agent_changes_or_manual:
+#   - !reference [.except_mergequeue]
+#   - changes:
+#       paths:
+#         - pkg/trace/**/*
+#         - .gitlab/benchmarks/*
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+#   - when: manual
+#     allow_failure: true
+
+# .on_cspm_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - pkg/security/**/*
+#         - test/new-e2e/tests/cspm/**/* #TODO: Add other paths that should trigger the execution of CSPM e2e tests
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_windows_systemprobe_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - pkg/collector/corechecks/servicediscovery/module/*
+#         - pkg/network/**/*
+#         - pkg/process/monitor/*
+#         - pkg/util/kernel/**/*
+#         - test/new-e2e/tests/sysprobe-functional/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_windows_security_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - pkg/security/**/*
+#         - pkg/eventmonitor/**/*
+#         - test/new-e2e/tests/security-agent-functional/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+#     when: on_success
+
+# .on_scheduled_main:
+#   - <<: *if_scheduled_main
+#     when: always
+
+# .on_scheduled_main_on_success:
+#   - <<: *if_scheduled_main
+#     when: on_success
+
+# .on_main_or_rc_and_no_skip_e2e:
+#   - <<: *if_disable_e2e_tests
+#     when: never
+#   - <<: *if_release_branch
+#     when: on_success
+#   - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+#     when: on_success
+#   - <<: *if_main_branch
+#     when: on_success
+
+# .except_disable_unit_tests:
+#   - <<: *if_disable_unit_tests
+#     when: never
+
+# .except_disable_e2e_tests:
+#   - <<: *if_disable_e2e_tests
+#     when: never
+
+# .on_macos_gui_change:
+#   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+#   - changes:
+#       paths:
+#         - comp/core/gui/guiimpl/systray/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_packaging_change:
+#   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+#   - changes:
+#       paths:
+#         - omnibus/**/*
+#         - .gitlab-ci.yml
+#         - release.json
+#         - .gitlab/package_build/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_go-version_change:
+#   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+#   - changes:
+#       paths:
+#         - .go-version
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_fakeintake_changes:
+#   - changes:
+#       <<: *fakeintake_paths
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_fakeintake_changes_on_main:
+#   - changes:
+#       <<: *fakeintake_paths
+#     <<: *if_main_branch
+
+# .fast_on_dev_branch_only:
+#   - <<: *if_main_branch
+#     variables:
+#       FAST_TESTS: "false"
+#       # Push coverage cache on main branch
+#       COVERAGE_CACHE_FLAG: "--push-coverage-cache"
+#   - <<: *if_release_branch
+#     variables:
+#       FAST_TESTS: "false"
+#       COVERAGE_CACHE_FLAG: ""
+#   - <<: *if_tagged_commit
+#     variables:
+#       FAST_TESTS: "false"
+#       COVERAGE_CACHE_FLAG: ""
+#   - <<: *if_triggered_pipeline
+#     variables:
+#       FAST_TESTS: "false"
+#       COVERAGE_CACHE_FLAG: ""
+#   - <<: *if_run_all_unit_tests
+#     variables:
+#       FAST_TESTS: "false"
+#       COVERAGE_CACHE_FLAG: ""
+#   - variables:
+#       FAST_TESTS: "true"
+#       # Pull coverage cache on dev branches
+#       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+
+# .on_gitlab_changes:
+#   changes:
+#     paths:
+#       - .gitlab-ci.yml
+#       - .gitlab/**/*
+#       - .gitlab/**/.*
+#     compare_to: $COMPARE_TO_BRANCH
+
+# .on_gitlab_changes_or_mergequeue_or_main:
+#   - !reference [.on_gitlab_changes]
+#   - !reference [.on_mergequeue]
+#   - !reference [.on_main]
+
+# .on_invoke_tasks_changes:
+#   - <<: *if_main_branch
+#   - changes:
+#       paths:
+#         - tasks/**/*
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_gpu_or_e2e_changes:
+#   - !reference [.on_e2e_main_release_or_rc]
+#   - changes:
+#       paths:
+#         - pkg/gpu/**/*
+#         - pkg/ebpf/**/*
+#         - pkg/util/kernel/**/*
+#         - test/new-e2e/tests/gpu/**/*
+#         - pkg/collector/corechecks/gpu/**/*
+#         - comp/core/workloadmeta/collectors/internal/nvml/**/*
+#         - comp/core/autodiscovery/listeners/staticconfig.go
+#       compare_to: $COMPARE_TO_BRANCH
+
+# .on_installer_systemd_changes:
+#   - <<: *if_main_branch
+#   - !reference [.except_mergequeue]
+#   - changes:
+#       paths:
+#         - pkg/fleet/installer/packages/embedded/templates/**/*.service
+#       compare_to: $COMPARE_TO_BRANCH
+#   - when: manual
+#     allow_failure: true
+
+# .except_coverage_pipeline:
+#   - <<: *if_coverage_pipeline
+#     when: never
+
+# .on_coverage_pipeline:
+#   - <<: *if_coverage_pipeline
+#     when: on_success
+# .always_on_coverage_pipeline:
+#   - <<: *if_coverage_pipeline
+#     when: always
+
+# # This is used to setup utils to report custom datadog-ci spans
+# .setup-datadog-ci-sections:
+#   - |
+#     if [ -z "$DATADOG_API_KEY" ]; then
+#       DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+#     fi
+#   - |
+#     # Start a custom datadog span
+#     # datadog-ci-start-section <name>
+#     datadog-ci-start-section()
+#     {
+#       export sectionname="$1"
+#       if [ -z "$sectionname" ]; then
+#         echo "datadog-ci-end-section: name is required as first argument" >& 2
+#         return 1
+#       fi
+#       export datestart="$(date '+%s%N' | cut -b1-13)"
+#     }
+#     # Finish and send the span to Datadog
+#     # datadog-ci-end-section [--end-time <timestamp>] [--category <category>] <name>
+#     datadog-ci-end-section()
+#     {
+#       if [ "$1" = "--end-time" ]; then
+#         shift
+#         dateend="$1"
+#         shift
+#       else
+#         dateend="$(date '+%s%N' | cut -b1-13)"
+#       fi
+#       if [ "$1" = "--category" ]; then
+#         shift
+#         category="--tags agent-category:$1"
+#         shift
+#       fi
+#       name="$1"
+#       if [ -z "$name" ]; then
+#         echo "datadog-ci-end-section: name is required as first argument" >& 2
+#         return 1
+#       fi
+#       if [ "$name" != "$sectionname" ]; then
+#         echo "datadog-ci-end-section: name does not match the last section name (got $name but was $sectionname)" >& 2
+#         return 1
+#       fi
+#       if [ -z "$datestart" ]; then
+#         echo "datadog-ci-end-section: datadog-ci-start-section was not called" >& 2
+#         return 1
+#       fi
+#       datadog-ci trace span --name "$name" --start-time "$datestart" --end-time "$dateend" --tags agent-custom-span:true $category
+#       if [ "$?" -ne 0 ]; then
+#         # Don't fail the job for that
+#         echo "WARNING: datadog-ci trace span failed" >& 2
+#       fi
+#       export datestart=
+#       export sectionname=
+#     }
+
+# .retry_only_infra_failure:
+#   retry:
+#     max: 2
+#     exit_codes:
+#       - 42
+#       - 101 # Failed to extract dependencies
+#     when:
+#       - runner_system_failure
+#       - stuck_or_timeout_failure
+#       - unknown_failure
+#       - api_failure
+#       - scheduler_failure
+#       - stale_schedule
+#       - data_integrity_failure
