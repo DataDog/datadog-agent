@@ -93,7 +93,7 @@ type Service struct {
 	rcType string
 }
 
-func (s *Service) getNewDirectorRoots(uptane uptaneClient, currentVersion uint64, newVersion uint64) ([][]byte, error) {
+func getNewDirectorRoots(uptane uptaneClient, currentVersion uint64, newVersion uint64) ([][]byte, error) {
 	var roots [][]byte
 	for i := currentVersion + 1; i <= newVersion; i++ {
 		root, err := uptane.DirectorRoot(i)
@@ -105,7 +105,7 @@ func (s *Service) getNewDirectorRoots(uptane uptaneClient, currentVersion uint64
 	return roots, nil
 }
 
-func (s *Service) getTargetFiles(uptaneClient uptaneClient, targetFilePaths []string) ([]*pbgo.File, error) {
+func getTargetFiles(uptaneClient uptaneClient, targetFilePaths []string) ([]*pbgo.File, error) {
 	files, err := uptaneClient.TargetFiles(targetFilePaths)
 	if err != nil {
 		return nil, err
@@ -949,7 +949,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	roots, err := s.getNewDirectorRoots(s.uptane, request.Client.State.RootVersion, tufVersions.DirectorRoot)
+	roots, err := getNewDirectorRoots(s.uptane, request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -968,7 +968,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
-	targetFiles, err := s.getTargetFiles(s.uptane, neededFiles)
+	targetFiles, err := getTargetFiles(s.uptane, neededFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -1334,7 +1334,7 @@ func (c *HTTPClient) getUpdate(
 	}
 
 	// Gather the files and map-ify them for the state data structure
-	targetFiles, err := c.getTargetFiles(c.uptane, configs)
+	targetFiles, err := getTargetFiles(c.uptane, configs)
 	if err != nil {
 		return nil, err
 	}
@@ -1344,7 +1344,7 @@ func (c *HTTPClient) getUpdate(
 	}
 
 	// Gather some TUF metadata files we need to send down
-	roots, err := c.getNewDirectorRoots(c.uptane, currentRootVersion, tufVersions.DirectorRoot)
+	roots, err := getNewDirectorRoots(c.uptane, currentRootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}
