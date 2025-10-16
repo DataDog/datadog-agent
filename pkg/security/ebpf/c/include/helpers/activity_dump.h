@@ -34,11 +34,6 @@ __attribute__((always_inline)) bool is_cgroup_mount_id_filter_valid(u32 cgroup_f
 
     // handle special case for CENTOS7 where we can't retrieve the mount_id of traced cgroup
     if (key->mount_id == 0) {
-        if (key->ino == 0) {
-            // can happen on CentOS7 with systemd pid 1 being not part of any cgroup
-            return false;
-        }
-
         u32 cgroup_write_type = get_cgroup_write_type();
         if (cgroup_write_type == CGROUP_CENTOS_7) {
             return true;
