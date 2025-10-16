@@ -31,6 +31,8 @@ dependency 'snmp-traps'
 
 dependency 'datadog-agent-integrations-py3'
 
+# shared library version of `http_check`
+dependency 'libdatadog-agent-httpcheck'
 
 # Additional software
 if windows_target?
