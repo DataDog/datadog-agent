@@ -385,7 +385,7 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string,
 			return fmt.Errorf("could not extract layer: %w", err)
 		}
 	}
-	if matchesAnnotationsCount == 0 {
+	if matchesAnnotationsCount == 0 && len(annotationFilters) > 0 {
 		return fmt.Errorf("no layer matches the requested annotations")
 	}
 	return nil
