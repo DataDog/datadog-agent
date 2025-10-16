@@ -15,28 +15,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-func (c *collector) fillUnhealthyDevices(ctx context.Context, out map[string]struct{}) error {
+func (c *collector) getUnhealthyDevices(ctx context.Context) (map[string]struct{}, error) {
 	// for now support only kubernetes as a source of truth for devices health
 	// todo(jasondellaluce): find some good heuristics for other kinds of deployment too
 	if !env.IsFeaturePresent(env.KubernetesDevicePlugins) {
-		return nil
+		return nil, nil
 	}
 
 	kubeUtil, err := kubelet.GetKubeUtil()
 	if err != nil {
-		return fmt.Errorf("failed to get kubelet utils : %w", err)
+		return nil, fmt.Errorf("failed to get kubelet utils : %w", err)
 	}
 
 	kubeDevices, err := kubeUtil.GetDevicesList(ctx)
 	if err != nil {
-		return fmt.Errorf("failed getting kubelet devices list: %w", err)
+		return nil, fmt.Errorf("failed getting kubelet devices list: %w", err)
 	}
 
+	res := map[string]struct{}{}
 	for _, kDev := range kubeDevices {
 		if !kDev.Healthy {
-			out[kDev.ID] = struct{}{}
+			res[kDev.ID] = struct{}{}
 		}
 	}
 
-	return nil
+	return res, nil
 }

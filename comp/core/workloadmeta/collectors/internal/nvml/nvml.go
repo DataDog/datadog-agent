@@ -224,8 +224,8 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	// attempt getting list of unhealthy devices (if available)
-	unhealthyDevices := map[string]struct{}{}
-	if err := c.fillUnhealthyDevices(ctx, unhealthyDevices); err != nil {
+	unhealthyDevices, err := c.getUnhealthyDevices(ctx)
+	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("failed getting unhealthy devices: %v", err)
 		}
