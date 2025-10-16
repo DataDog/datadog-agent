@@ -604,6 +604,20 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 			}
 
 			if field := action.Def.Set.Field; field != "" {
+				ev := model.NewFakeEvent()
+				ruleEventType, err := rule.GetEventType()
+				if err != nil {
+					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
+				}
+
+				fieldEventType, _, _, err := ev.GetFieldMetadata(field)
+				if err != nil {
+					return model.UnknownCategory, fmt.Errorf("failed to get event type for field '%s': %w", field, err)
+				}
+				if fieldEventType != "" && fieldEventType != ruleEventType {
+					return model.UnknownCategory, fmt.Errorf("field '%s' with event type `%s` is not compatible with '%s' rules", field, fieldEventType, ruleEventType)
+				}
+
 				if _, found := rs.fieldEvaluators[field]; !found {
 					evaluator, err := rs.model.GetEvaluator(field, "", 0)
 					if err != nil {
@@ -617,10 +631,27 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					return model.UnknownCategory, fmt.Errorf("failed to parse action expression: %w", err)
 				}
 
-				evaluator, _, err := eval.NodeToEvaluator(astRule, rs.evalOpts, eval.NewState(rs.model, "", rs.evalOpts.MacroStore))
+				ruleEventType, err := rule.GetEventType()
 				if err != nil {
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
+
+				state := eval.NewState(rs.model, "", rs.evalOpts.MacroStore)
+
+				evaluator, _, err := eval.NodeToEvaluator(astRule, rs.evalOpts, state)
+				if err != nil {
+					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
+				}
+
+				exprEventType, err := eval.EventTypeFromState(rs.model, state)
+				if err != nil {
+					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
+				}
+
+				if exprEventType != "" && exprEventType != ruleEventType {
+					return model.UnknownCategory, fmt.Errorf("expression '%s' with event type `%s` is not compatible with '%s' rules", expression, exprEventType, ruleEventType)
+				}
+
 				rs.fieldEvaluators[expression] = evaluator.(eval.Evaluator)
 			}
 

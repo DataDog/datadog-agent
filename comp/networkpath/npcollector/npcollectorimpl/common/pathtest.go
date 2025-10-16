@@ -12,6 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
+// NetworkPathCollectorMetricPrefix is a metric prefix for network path collector
+const NetworkPathCollectorMetricPrefix = "datadog.network_path.collector."
+
 // PathtestMetadata contains metadata used to annotate the result of a traceroute.
 // This data is not used by the traceroute itself.
 type PathtestMetadata struct {
