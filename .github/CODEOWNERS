@@ -106,7 +106,7 @@
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx
 /.gitlab/binary_build/linux.yml                      @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/functional_test/include.yml                 @DataDog/agent-devx
-/.gitlab/functional_test/static_quality_gate.yml     @DataDog/agent-build @cmourot @dd-ddamien 
+/.gitlab/functional_test/static_quality_gate.yml     @DataDog/agent-build @cmourot @dd-ddamien
 /.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-build @DataDog/agent-onboarding
 /.gitlab/integration_test/dogstatsd.yml              @DataDog/agent-devx @DataDog/agent-metric-pipelines
 /.gitlab/integration_test/include.yml                @DataDog/agent-devx
@@ -439,7 +439,7 @@
 /comp/core/autodiscovery/providers/config_reader*.go @DataDog/container-platform @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/cloudfoundry*.go  @DataDog/agent-integrations
 /comp/core/autodiscovery/providers/process_log*.go @DataDog/agent-discovery @DataDog/agent-log-pipelines
-/comp/core/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
+/comp/core/autodiscovery/providers/remote_config*.go  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
 /pkg/cloudfoundry                       @Datadog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
