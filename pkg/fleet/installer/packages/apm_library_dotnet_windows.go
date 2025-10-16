@@ -119,11 +119,15 @@ func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 		}
 		return err
 	}
-	err = unsetDotnetInstrumentationMethod()
+	err = uninstrumentDotnetLibrary(ctx.Context, "stable")
 	if err != nil {
-		log.Error("Unable to unset the instrumentation method")
+		return err
 	}
-	return uninstrumentDotnetLibrary(ctx.Context, "stable")
+	err = deleteDotnetInstrumentationMethodRegKey()
+	if err != nil {
+		return fmt.Errorf("Unable to delete the instrumentation method registry key: %w", err)
+	}
+	return nil
 }
 
 // asyncPreRemoveHookAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
@@ -168,7 +172,10 @@ func uninstrumentDotnetLibrary(ctx context.Context, target string) (err error) {
 		return err
 	}
 	err = setDotnetInstrumentationMethod(dotnetInstrumenationDisabled)
-	return fmt.Errorf("Unable to set instrumentation method: %w", err)
+	if err != nil {
+		return fmt.Errorf("Unable to set instrumentation method: %w", err)
+	}
+	return nil
 }
 
 func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string, isUpgrade bool) (err error) {
@@ -211,17 +218,15 @@ func setDotnetInstrumentationMethod(method string) error {
 	return k.SetStringValue(dotnetInstrumentationMethodKey, method)
 }
 
-func unsetDotnetInstrumentationMethod() error {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, apmRegistryKey, registry.ALL_ACCESS)
+func deleteDotnetInstrumentationMethodRegKey() error {
+	err := registry.DeleteKey(registry.LOCAL_MACHINE, apmRegistryKey)
 	if err != nil {
 		if err == registry.ErrNotExist {
 			return nil
 		}
 		return err
 	}
-	defer k.Close()
-
-	return k.DeleteValue(apmRegistryKey)
+	return nil
 }
 
 func getDotnetInstrumentationMethod() (string, error) {
