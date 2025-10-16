@@ -24,6 +24,8 @@ def make_target_source_map(package, overlay_files):
 def generate_module_bazel(args, files):
     """Generate MODULE.bazel content."""
     lines = [
+        """# This file is generated do not hand edit.""",
+        "",
         """http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")""",
         "",
         "http_archive(",

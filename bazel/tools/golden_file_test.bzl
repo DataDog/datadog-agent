@@ -8,16 +8,17 @@ def _golden_file_test_impl(ctx):
     ctx.actions.write(
         output = test_script,
         content = """#!/bin/bash -e
-target="{target}"
-golden="{golden}"
-if diff -u "$target" "$golden"; then
-    echo "PASS: Generated file matches golden file"
+if diff -u "{target}" "{golden}"; then
+    echo 'PASS: {name}'
     exit 0
 else
-    echo "FAIL: Generated file differs from golden file."
+    echo 'FAIL: {name}'
+    echo '  To update the source do:'
+    echo '  cp "bazel-bin/{target}" "{golden}"'
     exit 1
 fi
 """.format(
+            name = ctx.label.name,
             target = ctx.file.target.short_path,
             golden = ctx.file.golden.short_path,
         ),
