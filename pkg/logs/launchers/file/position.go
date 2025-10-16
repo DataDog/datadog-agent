@@ -33,24 +33,26 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 	if filePath != "" {
 		prevFingerprint := registry.GetFingerprint(identifier)
 		if prevFingerprint != nil {
+			log.Infof("POSITION DEBUG: Found previous fingerprint for %s (value: 0x%x), computing new fingerprint", identifier, prevFingerprint.Value)
 			newFingerprint, err := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
 			if err != nil {
 				log.Warnf("Failed to compute fingerprint for file %s: %v", filePath, err)
-				// If fingerprint computation fails, assume fingerprints don't align to be safe
+				// More likely to have the agent come back up pointed to the same file compared to a rotated file
 				fingerprintsAlign = true
 			} else {
-				fingerprintsAlign = prevFingerprint.Value == newFingerprint.Value
+				fingerprintsAlign = prevFingerprint.Equals(newFingerprint)
 			}
 		}
 	}
 
 	switch {
 	case mode == config.ForceBeginning:
+		log.Debugf("HIT: ForceBeginning case")
 		offset, whence = 0, io.SeekStart
 	case mode == config.ForceEnd:
 		offset, whence = 0, io.SeekEnd
 	case value != "" && fingerprintsAlign:
-		// an offset was registered, tailing mode is not forced, fingerprints are disabled or equivalent
+		// an offset was registered, tailing mode is not forced, fingerprints align, so we start from the offset
 		whence = io.SeekStart
 		offset, err = strconv.ParseInt(value, 10, 64)
 		if err != nil {
@@ -61,6 +63,9 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 				whence = io.SeekStart
 			}
 		}
+	case !fingerprintsAlign && value != "":
+		// Fingerprints don't align (rotation detected), start from beginning regardless of mode
+		offset, whence = 0, io.SeekStart
 	case mode == config.Beginning:
 		offset, whence = 0, io.SeekStart
 	case mode == config.End:

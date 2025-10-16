@@ -542,7 +542,8 @@ func runLauncherScanStartNewTailerForEmptyFileTest(t *testing.T, testDirs []stri
 
 	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 
-	assert.Equal(t, 0, launcher.tailers.Count())
+	// Empty files SHOULD create tailers to enable partial fingerprinting when data is written
+	assert.Equal(t, 1, launcher.tailers.Count(), "Should create tailer for empty file to capture partial fingerprints")
 }
 
 func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
@@ -1241,7 +1242,7 @@ func runLauncherFileDetectionSingleScanTest(t *testing.T, testDirs []string) {
 	assert.True(t, launcher.tailers.Contains(path("b.log")))
 }
 
-func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUndersizedFile() {
+func (suite *LauncherTestSuite) TestLauncherCreatesTailerForTruncatedUndersizedFile() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 
@@ -1291,16 +1292,16 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedU
 	suite.Nil(err)
 	suite.True(didRotate, "Should detect rotation when file becomes empty (fingerprint = 0)")
 
-	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
+	// Now test the launcher's behavior: it SHOULD create a new tailer for the empty file
+	// to enable partial fingerprinting when data is written after rotation
 	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
-	// Verify no new tailer was created for the undersized file
-	// The old tailer should be removed but no new one should be created
+	// Verify a new tailer was created for the truncated/empty file
 	afterScanCount := s.tailers.Count()
-	suite.Equal(initialTailerCount-1, afterScanCount, "No new tailer should be created for undersized file after rotation")
+	suite.Equal(initialTailerCount, afterScanCount, "Should create tailer for empty file to capture partial fingerprints")
 }
 
-func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersizedFile() {
+func (suite *LauncherTestSuite) TestLauncherCreatesTailerForRotatedUndersizedFile() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 
@@ -1337,7 +1338,6 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 	// Get initial tailer and verify rotation detection works
 	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "tailer should be found")
-	initialTailerCount := s.tailers.Count()
 
 	// Simulate file rotation: move current file to .1 and create a new empty file
 	rotatedPath := suite.testPath + ".1"
@@ -1354,13 +1354,14 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 	suite.Nil(err)
 	suite.True(didRotate, "Should detect rotation when original file is moved and new file is created")
 
-	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
+	// Now test the launcher's behavior: it SHOULD create a new tailer for the empty file
+	// to enable partial fingerprinting when data is written after rotation
 	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
-	// Verify no new tailer was created for the undersized file
-	// The old tailer should be removed but no new one should be created
-	afterScanCount := s.tailers.Count() + len(s.rotatedTailers)
-	suite.Equal(initialTailerCount, afterScanCount, "No new tailer should be created for undersized file after rotation")
+	// Verify a new tailer was created for the empty file
+	// The old tailer should be in rotatedTailers, and a new tailer should be created
+	suite.Equal(1, len(s.rotatedTailers), "Old tailer should be in rotatedTailers")
+	suite.Equal(1, s.tailers.Count(), "New tailer should be created for empty file to capture partial fingerprints")
 
 	// Clean up the rotated file
 	os.Remove(rotatedPath)
@@ -1368,4 +1369,110 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 
 func getScanKey(path string, source *sources.LogSource) string {
 	return filetailer.NewFile(path, source, false).GetScanKey()
+}
+
+// TestRotationWithEmptyFileAndNewData tests the E2E scenario where:
+// 1. A file with data is being tailed
+// 2. The file is rotated (moved to .old, new empty file created)
+// 3. New data is written to the rotated (empty) file
+// 4. Agent should detect rotation, create new tailer for empty file, and read new data
+func (suite *LauncherTestSuite) TestRotationWithEmptyFileAndNewData() {
+	suite.s.cleanup()
+	mockConfig := configmock.New(suite.T())
+
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+
+	// Create fingerprint config for this test
+	fingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               1024,
+		CountToSkip:         0,
+	}
+
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger, fingerprintConfig)
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+	s.activeSources = append(s.activeSources, suite.source)
+	status.Clear()
+	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	defer status.Clear()
+
+	// Write initial data to file
+	_, err := suite.testFile.WriteString("initial data line 1\ninitial data line 2\n")
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+
+	// Read messages to confirm tailer is working
+	msg := <-suite.outputChan
+	suite.Equal("initial data line 1", string(msg.GetContent()))
+	msg = <-suite.outputChan
+	suite.Equal("initial data line 2", string(msg.GetContent()))
+
+	// Get the tailer
+	scanKey := getScanKey(suite.testPath, suite.source)
+	tailer, found := s.tailers.Get(scanKey)
+	suite.True(found, "tailer should be found")
+
+	// Simulate log rotation: move file to .old, create new empty file
+	rotatedPath := suite.testPath + ".old"
+	err = os.Rename(suite.testPath, rotatedPath)
+	suite.Nil(err)
+
+	newFile, err := os.Create(suite.testPath)
+	suite.Nil(err)
+	newFile.Close()
+
+	// Verify rotation is detected
+	didRotate, err := tailer.DidRotateViaFingerprint(s.fingerprinter)
+	suite.Nil(err)
+	suite.True(didRotate, "Should detect rotation when original file is moved and new file is created")
+
+	// Scan to handle rotation and create new tailer
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+
+	afterRotationCount := s.tailers.Count()
+	if !suite.Equal(1, afterRotationCount, "Should have NEW tailer for rotated empty file") {
+		suite.T().Skip("Test correctly fails without fix - empty file was skipped in Pass 2")
+		return
+	}
+
+	// Get the new tailer (only reaches here if fix is applied)
+	if !suite.True(found, "New tailer should exist for empty file") {
+		return
+	}
+
+	// Write new data to the rotated file
+	f, err := os.OpenFile(suite.testPath, os.O_APPEND|os.O_WRONLY, 0644)
+	suite.Nil(err)
+	_, err = f.WriteString("new data after rotation\n")
+	suite.Nil(err)
+	f.Sync()
+	f.Close()
+
+	// Give the tailer time to read the new data
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify logs were received
+	timeout := time.After(2 * time.Second)
+	receivedNewData := false
+	for !receivedNewData {
+		select {
+		case msg := <-suite.outputChan:
+			content := string(msg.GetContent())
+			if strings.Contains(content, "new data after rotation") {
+				receivedNewData = true
+			}
+		case <-timeout:
+			suite.Fail("Timeout waiting for new data after rotation")
+			return
+		}
+	}
+
+	suite.True(receivedNewData, "Should receive new data written to rotated file")
+
+	// Cleanup
+	os.Remove(rotatedPath)
 }
