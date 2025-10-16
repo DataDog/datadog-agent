@@ -20,6 +20,7 @@ import (
 	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -485,6 +486,10 @@ func getSubmitterDeps(t *testing.T, configOverrides map[string]interface{}, sysp
 		forwardersimpl.MockModule(),
 		fx.Provide(func() log.Component {
 			return logmock.New(t)
+		}),
+		fx.Provide(func() hostname.Component {
+			comp, _ := hostname.NewMock("test")
+			return comp
 		}),
 		fx.Provide(func() statsd.ClientInterface {
 			return &statsd.NoOpClient{}
