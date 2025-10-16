@@ -12,11 +12,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/hashicorp/go-multierror"
-
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/hashicorp/go-multierror"
 )
 
 // processSample handles the complex time-weighted averaging logic for NVML sample types
@@ -28,13 +27,6 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 	// we need to average them.
 	valueType, samples, err := device.GetSamples(samplingType, lastTimestamp)
 	if err != nil {
-		var nvmlErr *ddnvml.NvmlAPIError
-		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
-			// NOT_FOUND is a valid scenario when no samples are available, such as vGPU. Ignore it and treat it the same way as
-			// if there were no samples returned.
-			return nil, lastTimestamp, nil
-		}
-
 		return nil, 0, fmt.Errorf("failed to get samples for %s: %w", metricName, err)
 	}
 
