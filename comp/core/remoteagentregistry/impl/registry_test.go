@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/examples/features/proto/echo"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -90,6 +89,10 @@ func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {
 	require.Equal(t, "Test Agent", agents[0].DisplayName)
 	require.Equal(t, "test-agent", agents[0].SanitizedDisplayName)
 
+	// wait a bit to make sure the remoteAgent gRPC server had the time to start
+	// otherwise it will return the error `grpc: the server has been stopped`
+	time.Sleep(1 * time.Second)
+
 	// Stopping the remote agent should remove it from the registry
 	remoteAgent.Stop()
 	time.Sleep(10 * time.Second)
@@ -153,11 +156,9 @@ type testRemoteAgentServer struct {
 
 	// gRPC embedded
 	server *grpc.Server
-
 	pb.UnimplementedStatusProviderServer
 	pb.UnimplementedFlareProviderServer
 	pb.UnimplementedTelemetryProviderServer
-	echo.UnimplementedEchoServer
 }
 
 func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pb.GetStatusDetailsRequest) (*pb.GetStatusDetailsResponse, error) {
@@ -179,12 +180,6 @@ func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pb.GetStatusD
 func (t *testRemoteAgentServer) GetFlareFiles(context.Context, *pb.GetFlareFilesRequest) (*pb.GetFlareFilesResponse, error) {
 	return &pb.GetFlareFilesResponse{
 		Files: t.flareFiles,
-	}, nil
-}
-
-func (t *testRemoteAgentServer) UnaryEcho(_ context.Context, req *echo.EchoRequest) (*echo.EchoResponse, error) {
-	return &echo.EchoResponse{
-		Message: req.Message,
 	}, nil
 }
 
@@ -275,11 +270,6 @@ func buildRemoteAgent(t *testing.T, ipcComp ipc.Component, agentFlavor string, a
 
 	// Chain interceptors: auth first, then session ID, then delay
 	chainedInterceptor := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		// Don't verify session ID for echo requests
-		if _, ok := req.(*echo.EchoRequest); ok {
-			return handler(ctx, req)
-		}
-
 		// First apply auth interceptor
 		authHandler := grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(ipcComp.GetAuthToken()))
 		return authHandler(ctx, req, info, func(ctx context.Context, req any) (any, error) {
@@ -301,9 +291,6 @@ func buildRemoteAgent(t *testing.T, ipcComp ipc.Component, agentFlavor string, a
 		provider(server, testServer)
 	}
 
-	// register echo service
-	echo.RegisterEchoServer(server, testServer)
-
 	go func() {
 		err := server.Serve(listener)
 		require.NoError(t, err)
@@ -313,14 +300,6 @@ func buildRemoteAgent(t *testing.T, ipcComp ipc.Component, agentFlavor string, a
 
 	testServer.RegistrationData.APIEndpointURI = listener.Addr().String()
 	testServer.server = server
-
-	// block until the server is started
-	// initializing a dummy echo client to make sure the server is started
-	client, err := grpc.NewClient(listener.Addr().String(), grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())))
-	require.NoError(t, err)
-	echoClient := echo.NewEchoClient(client)
-	_, err = echoClient.UnaryEcho(context.Background(), &echo.EchoRequest{}, grpc.WaitForReady(true))
-	require.NoError(t, err)
 
 	return testServer
 }

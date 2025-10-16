@@ -101,7 +101,7 @@ func TestGetTelemetry(t *testing.T) {
 		}
 		return nil
 	}()
-	require.NotNil(t, bazMetric)
+	assert.NotNil(t, bazMetric)
 	assert.Equal(t, bazMetric.GetType(), io_prometheus_client.MetricType_GAUGE)
 	assert.Equal(t, bazMetric.GetMetric()[0].GetGauge().GetValue(), 3.0)
 	assert.Equal(t, bazMetric.GetMetric()[0].GetLabel()[0].GetValue(), "1")
