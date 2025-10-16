@@ -27,16 +27,16 @@
 #include "ipv6.h"
 #endif
 
-SEC("kprobe/__nf_conntrack_hash_insert") // JMWCONNTRACK
-int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
+SEC("kprobe/nf_nat_packet") // JMWCONNTRACK
+int BPF_BYPASSABLE_KPROBE(kprobe_nf_nat_packet, struct nf_conn *ct) {
     u32 status = 0;
     BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status&IPS_NAT_MASK)) {
         return 0;
     }
 
-    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x", get_netns(ct), status);
-    log_debug("JMWTEST runtime kprobe/__nf_conntrack_hash_insert");
+    log_debug("kprobe/nf_nat_packet: netns: %u, status: %x", get_netns(ct), status);
+    log_debug("JMWTEST runtime kprobe/nf_nat_packet");
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
