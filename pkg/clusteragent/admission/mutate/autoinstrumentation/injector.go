@@ -237,10 +237,6 @@ func (i *injector) podMutator() podMutator {
 			return nil
 		}
 
-		if !v.usesInjector() {
-			return nil
-		}
-
 		if i.canonicalVersion != "" {
 			mutatecommon.AddAnnotation(pod, "internal.apm.datadoghq.com/injector-canonical-version", i.canonicalVersion)
 		}
