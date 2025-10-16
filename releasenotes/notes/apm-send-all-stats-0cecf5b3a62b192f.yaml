@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    APM: Some less-frequently-used stats about the behavior of the Trace Agent will now be omitted when zero to reduce overhead.
+   APM: The Trace Agent now omits infrequently used statistics when their values are zero, reducing overhead.
     This can be overridden by setting the new configuration option `apm_config.send_all_internal_stats` to true.
