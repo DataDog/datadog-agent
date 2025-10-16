@@ -10,6 +10,7 @@ package catalog
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -53,7 +54,7 @@ func createProgramFromOldFilters(oldFilters []string, objectType workloadfilter.
 		return nil, err
 	}
 
-	program, err := createCELProgram(filterString, objectType)
+	program, err := compileCELProgram(filterString, objectType)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +62,7 @@ func createProgramFromOldFilters(oldFilters []string, objectType workloadfilter.
 	return program, nil
 }
 
-func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel.Program, error) {
+func compileCELProgram(rules string, objectType workloadfilter.ResourceType) (cel.Program, error) {
 	if rules == "" {
 		return nil, nil
 	}
@@ -159,5 +160,19 @@ func convertTypeToProtoType(key workloadfilter.ResourceType) string {
 		return "datadog.filter.FilterProcess"
 	default:
 		return ""
+	}
+}
+
+func createCELExcludeProgram(name string, rules string, objectType workloadfilter.ResourceType, logger log.Component) program.FilterProgram {
+	excludeProgram, excludeErr := compileCELProgram(rules, objectType)
+	if excludeErr != nil {
+		logger.Criticalf(`failed to compile '%s' from 'cel_workload_exclude' filters: %v`, name, excludeErr)
+		logger.Flush()
+		os.Exit(1)
+	}
+	return program.CELProgram{
+		Name:                 name,
+		Exclude:              excludeProgram,
+		InitializationErrors: nil,
 	}
 }

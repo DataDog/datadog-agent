@@ -695,8 +695,8 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.input_chan_size"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.processing_chan_size"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
-	assert.Equal(t, 35*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
-	assert.Equal(t, 10*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
+	assert.Equal(t, 16*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
+	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
@@ -1092,6 +1092,12 @@ func TestLogDefaults(t *testing.T) {
 	require.False(t, SystemProbe.GetBool("log_format_json"))
 }
 
+func TestClusterCheckDefaults(t *testing.T) {
+	conf := newTestConf(t)
+	require.True(t, conf.GetBool("cluster_checks.advanced_dispatching_enabled"))
+	require.True(t, conf.GetBool("cluster_checks.rebalance_with_utilization"))
+}
+
 func TestProxyNotLoaded(t *testing.T) {
 	conf := newTestConf(t)
 	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
@@ -1455,7 +1461,7 @@ use_proxy_for_cloud_metadata: true
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 25)
+	require.Len(t, serverlessConfigComponents, 24)
 }
 
 func TestServerlessConfigInit(t *testing.T) {
