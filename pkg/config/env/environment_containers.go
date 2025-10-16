@@ -264,13 +264,22 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 func detectDevicePlugins(features FeatureMap, cfg model.Reader) {
 	// We only check the path from config if the path from config exists (does not have unix:// prefix)
 	socketDir := cfg.GetString("kubernetes_kubelet_deviceplugins_socketdir")
+	if socketDir == "" {
+		return
+	}
+
+	configured := cfg.IsConfigured("kubernetes_kubelet_deviceplugins_socketdir")
 	stat, err := os.Stat(socketDir)
 	if err != nil {
-		log.Infof("Agent did not find device plugins socket path dir %s: %v", socketDir, err)
+		if configured {
+			log.Infof("Agent did not find device plugins socket path dir %s: %v", socketDir, err)
+		}
 		return
 	}
 	if !stat.IsDir() {
-		log.Infof("Agent did not find valid device plugins socket path dir %s", socketDir)
+		if configured {
+			log.Infof("Agent did not find valid device plugins socket path dir %s", socketDir)
+		}
 		return
 	}
 
