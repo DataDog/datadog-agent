@@ -16,12 +16,10 @@
     - cp ${OMNIBUS_PACKAGE_DIR}/pipeline-${CI_PIPELINE_ID}/${AGENT_ZIP} ${BUILD_CONTEXT}/datadog-agent-latest.amd64.zip
     - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
 
-    # Much faster but doesn't exist in build container
-    # - & 'C:\Program Files\7-Zip\7z.exe' x .\datadog-agent-latest.amd64.zip -o"Datadog Agent"
     - pushd ${BUILD_CONTEXT}
-    - Expand-Archive datadog-agent-latest.amd64.zip
+    - |
+      & 'C:\Program Files\7-Zip\7z.exe' x .\datadog-agent-latest.amd64.zip -o"Datadog Agent"
     - Remove-Item datadog-agent-latest.amd64.zip
-    - Get-ChildItem -Path datadog-agent-* | Rename-Item -NewName "Datadog Agent"
     # Omnibus uses a slightly different path than the actual install
     # TODO: This overwrites an extra agent.exe, we should also remove it from the zip
     - mv "Datadog Agent\bin\agent\agent.exe" "Datadog Agent\bin\agent.exe" -Force

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -187,6 +188,29 @@ var types = []string{
 	"consul",
 	"leveldb",
 	"memcached",
+}
+
+var envs = []string{
+	"production",
+	"staging",
+	"development",
+	"test",
+}
+
+var versions = []string{
+	"1.2.0",
+	"1.0.0",
+	"0.2.2-alpha",
+	"3.4.4",
+	"2.0.0",
+	"7.12.0",
+}
+
+var components = []string{
+	"gocql/gocql",
+	"valyala/fasthttp",
+	"hashicorp/vault",
+	"database/sql",
 }
 
 type sliceRandomizer interface {
@@ -392,6 +416,51 @@ func GetTestSpan() *pb.Span {
 	trace := pb.Trace{span}
 	traceutil.ComputeTopLevel(trace)
 	return trace[0]
+}
+
+// GetTestSpanV1 returns a Span with different fields set
+func GetTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
+	return idx.NewInternalSpan(strings, &idx.Span{
+		SpanID:      52,
+		ParentID:    42,
+		ServiceRef:  strings.Add("fennel_IS amazing!"),
+		NameRef:     strings.Add("something &&<@# that should be a metric!"),
+		ResourceRef: strings.Add("NOT touched because it is going to be hashed"),
+		Start:       9223372036854775807,
+		Duration:    9223372036854775807,
+		Attributes: map[uint32]*idx.AnyValue{
+			strings.Add("http.host"): {
+				Value: &idx.AnyValue_StringValueRef{
+					StringValueRef: strings.Add("192.168.0.1"),
+				},
+			},
+			strings.Add("http.monitor"): {
+				Value: &idx.AnyValue_DoubleValue{
+					DoubleValue: 41.99,
+				},
+			},
+		},
+		Links: []*idx.SpanLink{
+			{
+				TraceID: []byte{42},
+				SpanID:  52,
+				Attributes: map[uint32]*idx.AnyValue{
+					strings.Add("a1"): {
+						Value: &idx.AnyValue_StringValueRef{
+							StringValueRef: strings.Add("v1"),
+						},
+					},
+					strings.Add("a2"): {
+						Value: &idx.AnyValue_StringValueRef{
+							StringValueRef: strings.Add("v2"),
+						},
+					},
+				},
+				TracestateRef: strings.Add("dd=s:2;o:rum,congo=baz123"),
+				Flags:         1 | 1<<31, // 0th bit -> sampling decision, 31st bit -> set/unset
+			},
+		},
+	})
 }
 
 // TestSpan returns a fix span with hardcoded info, useful for reproducible tests
